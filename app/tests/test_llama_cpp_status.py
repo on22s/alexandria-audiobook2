@@ -122,6 +122,46 @@ class LlamaCppStatusTests(unittest.TestCase):
         # from one that will burn its token budget thinking.
         self.assertEqual("none", self._status(PROPS)["reasoning_format"])
 
+    def test_props_reads_at_most_one_mebibyte_plus_overflow_sentinel(self):
+        limit = 1 << 20
+        body = json.dumps(PROPS).encode() + b' ' * (2 * limit)
+        sizes = []
+
+        class Response(_Ctx):
+            def read(self, size=-1):
+                sizes.append(size)
+                return super().read(size)
+
+        response = Response(body)
+        with patch('urllib.request.urlopen', return_value=response):
+            status = ls.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b')
+        self.assertIsNone(status)
+        self.assertEqual([limit + 1], sizes)
+        self.assertEqual(limit + 1, response.tell())
+        self.assertNotIn('http://fixture', ls._props_miss)
+
+    def test_props_accepts_exact_limit_and_rejects_one_byte_over(self):
+        limit = 1 << 20
+        document = json.dumps(PROPS).encode()
+        for length in (limit - 1, limit, limit + 1):
+            with self.subTest(length=length):
+                response = _Ctx(document + b' ' * (length - len(document)))
+                with patch('urllib.request.urlopen', return_value=response):
+                    status = ls.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b')
+                if length <= limit:
+                    self.assertTrue(status['loaded'])
+                else:
+                    self.assertIsNone(status)
+                self.assertNotIn('http://fixture', ls._props_miss)
+
+    def test_oversized_props_can_recover_without_poisoning_runtime_cache(self):
+        document = json.dumps(PROPS).encode()
+        replies = [_Ctx(document + b' ' * (1 << 20)), _Ctx(document)]
+        with patch('urllib.request.urlopen', side_effect=replies) as probe:
+            self.assertIsNone(ls.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b'))
+            self.assertTrue(ls.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b')['loaded'])
+        self.assertEqual(2, probe.call_count)
+
 
 class DispatchTests(unittest.TestCase):
     """get_current_status must ask the endpoint what it is first."""

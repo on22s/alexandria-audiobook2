@@ -153,10 +153,11 @@ class KernelGpuLockOwnershipTests(unittest.TestCase):
     def test_readonly_default_probe_does_not_create_runtime_directories(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);script=root/'gpu_job.sh';script.write_bytes(GPU_JOB.read_bytes())
+            (root/'alexandria_file_lock.py').write_bytes((GPU_JOB.parent/'alexandria_file_lock.py').read_bytes())
             env=dict(os.environ);env.pop('GPU_LOCK',None)
             result=subprocess.run(['bash',str(script),'--check-lock-owner',str(os.getpid())],env=env,capture_output=True,text=True,timeout=5)
             self.assertNotEqual(0,result.returncode);self.assertIn('authoritative lock is unreadable',result.stderr)
-            self.assertEqual({'gpu_job.sh'},{path.name for path in root.iterdir()})
+            self.assertEqual({'gpu_job.sh','alexandria_file_lock.py'},{path.name for path in root.iterdir()})
 
     def test_ancestor_waiting_for_exclusive_lock_is_not_accepted_as_owner(self):
         import signal,time

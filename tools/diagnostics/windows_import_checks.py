@@ -28,9 +28,46 @@ def main():
             for name in imports:
                 __import__(name)
             result['imports'] = list(imports)
+            import core
+            from fastapi import HTTPException
+            from experiments.gpu_guard import default_lock
             from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
             from alexandria_run_manifest import acquire_run_lock, ensure_run_manifest, run_phase_with_lock
             root = Path(temporary)
+            original_path = os.environ.get('PATH')
+            original_gpu_lock = os.environ.pop('GPU_LOCK', None)
+            os.environ['PATH'] = ''  # Native render admission cannot depend on Bash/WSL.
+            default_lock.cache_clear()
+            claim = None
+            try:
+                claim = core.claim_gpu_task('audio')
+                assert core.process_state['audio']['running']
+                default_probe = "from experiments.gpu_guard import gpu_is_busy;import sys;sys.exit(0 if gpu_is_busy() else 1)"
+                busy = subprocess.run([sys.executable, '-c', default_probe],
+                                      capture_output=True, text=True, timeout=10)
+                assert busy.returncode == 0, busy.stderr
+                try:
+                    core.claim_gpu_task('audio')
+                except HTTPException as error:
+                    assert error.status_code == 400, error
+                else:
+                    raise AssertionError('Duplicate audio task was admitted')
+                core.release_gpu_task_claim('audio', claim)
+                claim = None
+                free_default = subprocess.run([sys.executable, '-c', default_probe],
+                                              capture_output=True, text=True, timeout=10)
+                assert free_default.returncode == 1, free_default.stderr
+                result['default_gpu_task_claim_without_bash_verified'] = True
+            finally:
+                if claim is not None:
+                    core.release_gpu_task_claim('audio', claim)
+                if original_path is None:
+                    os.environ.pop('PATH', None)
+                else:
+                    os.environ['PATH'] = original_path
+                if original_gpu_lock is not None:
+                    os.environ['GPU_LOCK'] = original_gpu_lock
+                default_lock.cache_clear()
             gpu = root / 'gpu.lock'
             lease = acquire_gpu_lock(gpu)
             probe = "from experiments.gpu_guard import gpu_is_busy; import sys; sys.exit(0 if gpu_is_busy(sys.argv[1]) else 1)"

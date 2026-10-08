@@ -38,6 +38,35 @@ class ExportTaskResultTests(unittest.TestCase):
                         data=fetched.json();self.assertFalse(data['running']);self.assertEqual({'status':status,'message':str(success) if isinstance(success,Exception) else message},data.get('result'))
                         self.assertTrue(data['logs']);self.assertFalse(core._task_claims)
 
+    def test_m4b_http_request_cannot_select_an_external_cover(self):
+        import subprocess
+        from PIL import Image
+
+        with self.fixture() as (root, states, client), tempfile.TemporaryDirectory() as external:
+            outside = Path(external) / 'private.jpg'
+            Image.new('RGB', (96, 80), 'red').save(outside)
+            before = outside.read_bytes()
+            pm, chunks = _project(root)
+            cover = Path(root) / 'm4b_cover.jpg'
+            with patch.object(editor, 'project_manager', pm), patch.object(pm, 'load_chunks', return_value=chunks):
+                for uploaded in (False, True):
+                    with self.subTest(uploaded=uploaded):
+                        if uploaded:
+                            Image.new('RGB', (32, 24), 'blue').save(cover)
+                        response = client.post('/api/merge_m4b', json={
+                            'cover_path': str(outside), 'metadata': {'cover_path': str(outside)}})
+                        self.assertEqual(200, response.status_code, response.text)
+                        self.assertEqual('done', states['m4b_export']['result']['status'])
+                        probe = subprocess.run(['ffprobe', '-v', 'error', '-show_streams', '-of', 'json',
+                                                str(Path(root) / 'audiobook.m4b')],
+                                               capture_output=True, text=True, check=True, timeout=10)
+                        pictures = [row for row in json.loads(probe.stdout)['streams']
+                                    if row.get('disposition', {}).get('attached_pic')]
+                        self.assertEqual(1 if uploaded else 0, len(pictures))
+                        if uploaded:
+                            self.assertEqual((32, 24), (pictures[0]['width'], pictures[0]['height']))
+                        self.assertEqual(before, outside.read_bytes())
+
     def test_held_native_worker_clears_prior_result_and_duplicate_does_not_reset_it(self):
         with self.fixture() as (_,states,client):
             entered=threading.Event();release=threading.Event();responses=[]

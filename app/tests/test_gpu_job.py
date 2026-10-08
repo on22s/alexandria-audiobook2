@@ -32,6 +32,8 @@ GPU_JOB = os.path.join(REPO, "gpu_job.sh")
 
 def copy_gpu_owner(root):
     """Copy queue runtime and shared gates into disposable script checkouts."""
+    shutil.copy(os.path.join(REPO, 'alexandria_file_lock.py'),
+                os.path.join(root, 'alexandria_file_lock.py'))
     destination = os.path.join(root, "app")
     os.makedirs(destination, exist_ok=True)
     for name in ("gpu_queue_owner.py", "subprocess_ownership.py", "gpu_progress.py"):
@@ -395,6 +397,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         with open(os.path.join(self.root, ".gitignore"), "w") as handle:
             handle.write("/queue.log\n/queue.log.*\n/gpu.lock\n/pending/\n/progress/\n/dirty_patches/\n")
         self._git("add", "gpu_job.sh", "app/experiments/kept.py", ".gitignore",
+                  "alexandria_file_lock.py",
                   "app/gpu_queue_owner.py", "app/subprocess_ownership.py", "app/gpu_progress.py", "run_chains/lib")
         self._git("commit", "-qm", "baseline")
         if dirty:

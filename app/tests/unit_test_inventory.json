@@ -354,6 +354,7 @@
     "tests.test_architecture_patterns.ArchitecturePatternDocumentationTests.test_pattern_map_names_existing_implementation_files"
   ],
   "test_archive_headroom": [
+    "tests.test_archive_headroom.ArchiveHeadroomTests.test_dataset_upload_enforces_expansion_and_member_caps_before_extraction",
     "tests.test_archive_headroom.ArchiveHeadroomTests.test_exact_free_space_and_one_byte_spare_refuse_before_either_extractor",
     "tests.test_archive_headroom.ArchiveHeadroomTests.test_exact_reserved_space_extracts_known_bytes_without_changing_zip",
     "tests.test_archive_headroom.ArchiveHeadroomTests.test_large_expansion_and_many_members_raise_reserve"
@@ -2878,6 +2879,7 @@
   ],
   "test_export_task_results": [
     "tests.test_export_task_results.ExportTaskResultTests.test_held_native_worker_clears_prior_result_and_duplicate_does_not_reset_it",
+    "tests.test_export_task_results.ExportTaskResultTests.test_m4b_http_request_cannot_select_an_external_cover",
     "tests.test_export_task_results.ExportTaskResultTests.test_native_cancel_reaches_real_chapter_export_and_preserves_prior_files",
     "tests.test_export_task_results.ExportTaskResultTests.test_native_http_success_failure_exception_and_cancellation_have_results",
     "tests.test_export_task_results.ExportTaskResultTests.test_real_audacity_archive_and_chapter_pcm_match_native_success_results"
@@ -3389,6 +3391,7 @@
     "tests.test_gpu_guard.LockPathAgreementTest.test_the_default_is_the_same_from_any_working_directory",
     "tests.test_gpu_guard.LockPathAgreementTest.test_the_guard_and_gpu_job_agree_on_the_default_lock",
     "tests.test_gpu_guard.LockPathAgreementTest.test_the_queue_log_default_is_the_repo_one_too",
+    "tests.test_gpu_guard.LockPathAgreementTest.test_windows_default_task_admission_needs_no_bash_and_still_holds_a_lock",
     "tests.test_gpu_guard.StaleSentinelTest.test_a_live_job_is_still_exempt",
     "tests.test_gpu_guard.StaleSentinelTest.test_a_sentinel_from_a_dead_job_no_longer_exempts"
   ],
@@ -4013,6 +4016,9 @@
     "tests.test_llama_cpp_status.LlamaCppStatusTests.test_a_server_running_the_wrong_model_is_not_loaded",
     "tests.test_llama_cpp_status.LlamaCppStatusTests.test_an_endpoint_answering_something_else_is_not_claimed",
     "tests.test_llama_cpp_status.LlamaCppStatusTests.test_optimized_is_none_not_false",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_oversized_props_can_recover_without_poisoning_runtime_cache",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_props_accepts_exact_limit_and_rejects_one_byte_over",
+    "tests.test_llama_cpp_status.LlamaCppStatusTests.test_props_reads_at_most_one_mebibyte_plus_overflow_sentinel",
     "tests.test_llama_cpp_status.LlamaCppStatusTests.test_reasoning_format_is_surfaced",
     "tests.test_llama_cpp_status.SingleReaderTests.test_provenance_refuses_a_mismatched_model",
     "tests.test_llama_cpp_status.SingleReaderTests.test_provenance_still_refuses_an_unverified_server",

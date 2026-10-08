@@ -179,6 +179,32 @@ class LockPathAgreementTest(unittest.TestCase):
         self.assertTrue(default_lock().endswith(
             "ab_test_runtime/logs/alexandria_gpu.lock"), default_lock())
 
+    def test_windows_default_task_admission_needs_no_bash_and_still_holds_a_lock(self):
+        from experiments import gpu_guard
+        with tempfile.TemporaryDirectory(prefix='TTS Story Work ') as root, \
+                patch.object(gpu_guard, 'REPO', root), \
+                patch.object(gpu_guard.sys, 'platform', 'win32'), \
+                patch.dict(os.environ, {}, clear=True), \
+                patch.object(gpu_guard.subprocess, 'run', side_effect=AssertionError('Bash unavailable')):
+            gpu_guard.default_lock.cache_clear()
+            try:
+                expected = os.path.join(root, 'ab_test_runtime', 'logs', 'alexandria_gpu.lock')
+                self.assertEqual(expected, gpu_guard.default_lock())
+                self.assertFalse(os.path.exists(os.path.dirname(expected)))
+                self.assertFalse(gpu_guard.gpu_is_busy())
+                self.assertFalse(os.path.exists(os.path.dirname(expected)))
+                lease = gpu_guard.acquire_gpu_lock()
+                try:
+                    self.assertEqual(expected, lease.name)
+                    self.assertTrue(gpu_guard.gpu_is_busy())
+                    with self.assertRaisesRegex(RuntimeError, 'held by another job'):
+                        gpu_guard.acquire_gpu_lock()
+                finally:
+                    gpu_guard.release_gpu_lock(lease)
+                self.assertFalse(gpu_guard.gpu_is_busy())
+            finally:
+                gpu_guard.default_lock.cache_clear()
+
     def test_the_default_is_the_same_from_any_working_directory(self):
         """`dirname "$0"` is relative when invoked as ./gpu_job.sh, and a
         relative lock is a different FILE for a caller elsewhere."""

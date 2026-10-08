@@ -6,12 +6,45 @@ import unittest
 from unittest.mock import patch
 import zipfile
 from fastapi import HTTPException
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 import archive_utils
 from routers import lora
 from tests.test_voicelab_pipeline_scripts import batch_train
 
 
 class ArchiveHeadroomTests(unittest.TestCase):
+    def test_dataset_upload_enforces_expansion_and_member_caps_before_extraction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / 'dataset.zip'
+            with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr('metadata.jsonl', '{}\n')
+                zf.writestr('audio.wav', b'x' * 1024)
+            payload = path.read_bytes()
+            app = FastAPI()
+            app.include_router(lora.router)
+            for setting, limit, message in (
+                    ('MAX_ARCHIVE_BYTES', 1023, '20 GB limit'),
+                    ('MAX_ARCHIVE_MEMBERS', 1, 'more than 1 files')):
+                with self.subTest(setting=setting):
+                    datasets = root / setting
+                    datasets.mkdir()
+                    prior = datasets / 'keep.txt'
+                    prior.write_bytes(b'prior dataset bytes')
+                    with patch.object(lora, 'LORA_DATASETS_DIR', str(datasets)), \
+                            patch.object(archive_utils, setting, limit), \
+                            patch.object(zipfile.ZipFile, 'extractall', side_effect=AssertionError('must not extract')) as extract, \
+                            TestClient(app) as client:
+                        response = client.post('/api/lora/upload_dataset',
+                                               files={'file': ('dataset.zip', payload, 'application/zip')})
+                    self.assertEqual(400, response.status_code, response.text)
+                    self.assertIn(message, response.json()['detail'])
+                    extract.assert_not_called()
+                    self.assertEqual(b'prior dataset bytes', prior.read_bytes())
+                    self.assertFalse((datasets / 'dataset').exists())
+                    self.assertFalse(list(datasets.glob('_tmp_*.zip')))
+
     def test_exact_free_space_and_one_byte_spare_refuse_before_either_extractor(self):
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'dataset.zip'

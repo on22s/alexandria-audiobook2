@@ -2,6 +2,12 @@
 import os
 
 
+def get_default_gpu_lock_path(repo_dir):
+    """Resolve the shared native path without requiring a shell or creating it."""
+    return os.path.join(os.path.realpath(repo_dir), 'ab_test_runtime', 'logs',
+                        'alexandria_gpu.lock')
+
+
 def acquire_exclusive_file_lock(descriptor):
     if os.name == 'nt':
         import msvcrt
@@ -30,3 +36,10 @@ def release_exclusive_file_lock(descriptor):
     else:
         import fcntl
         fcntl.flock(descriptor, fcntl.LOCK_UN)
+
+
+if __name__ == '__main__':
+    import sys
+    if len(sys.argv) != 2:
+        raise SystemExit('Usage: alexandria_file_lock.py REPOSITORY')
+    print(get_default_gpu_lock_path(sys.argv[1]))

@@ -799,6 +799,7 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=1234)
 
 # /props probe misses, keyed by server root: see get_llama_cpp_status.
 PROPS_MISS_TTL_SECONDS = 600
+PROPS_MAX_BYTES = 1 << 20
 _props_miss = {}
 _props_miss_lock = threading.Lock()
 
@@ -841,7 +842,10 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
         return None
     try:
         with urllib.request.urlopen(root + "/props", timeout=timeout) as response:
-            props = json.loads(response.read())
+            payload = response.read(PROPS_MAX_BYTES + 1)
+            if len(payload) > PROPS_MAX_BYTES:
+                return None
+            props = json.loads(payload)
     except urllib.error.HTTPError as exc:
         # Cache an unsupported route, not a loading server, rate limit, auth
         # failure or gateway outage. Those do not identify the runtime.

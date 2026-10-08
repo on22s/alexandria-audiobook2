@@ -147,6 +147,7 @@ class ArchivedQueueLockTests(unittest.TestCase):
             archive.mkdir(parents=True)
             wrapper = root / "gpu_job.sh"
             wrapper.write_bytes(Path(REPO, "gpu_job.sh").read_bytes())
+            (root / "alexandria_file_lock.py").write_bytes(Path(REPO, "alexandria_file_lock.py").read_bytes())
             wrapper.chmod(0o755)
             chain = archive / "tpvs2_chain.sh"
             original = Path(REPO, "run_chains/archive/tpvs2_chain.sh").read_text()

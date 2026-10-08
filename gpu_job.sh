@@ -125,6 +125,7 @@ fi
 # HELD and both home-directory locks were FREE, so a hand-run ./gpu_job.sh
 # would have taken a different lock, found it free, and run a second job on
 # the card the queue exists to protect.
+OWNER_PYTHON="${GPU_OWNER_PYTHON:-$(command -v python3)}"
 if [ -n "${GPU_LOCK:-}" ]; then
     # OPERATOR-SUPPLIED: take it exactly as given. Creating the directory for
     # it would turn a mistyped path into a brand-new lock that is always free -
@@ -134,7 +135,10 @@ else
     # ABSOLUTE. `dirname "$0"` is relative whenever the script is invoked as
     # ./gpu_job.sh, and a relative lock path is a DIFFERENT FILE for a caller
     # with a different working directory - the split this block exists to end.
-    LOCK="${REPO}/ab_test_runtime/logs/alexandria_gpu.lock"
+    LOCK=$("$OWNER_PYTHON" "$REPO/alexandria_file_lock.py" "$REPO") || {
+        echo "gpu_job: cannot resolve the shared GPU lock path" >&2
+        exit 4
+    }
     if [ "${1:-}" != "--check-lock-owner" ]; then
         mkdir -p "$(dirname "$LOCK")" 2>/dev/null   # fresh clone has no logs/ yet
     fi
@@ -634,7 +638,6 @@ trap 'cleanup_group INT; exit 130' INT
 trap 'cleanup_group TERM; exit 143' TERM
 trap 'cleanup_group HUP; exit 129' HUP
 
-OWNER_PYTHON="${GPU_OWNER_PYTHON:-$(command -v python3)}"
 OWNER_SCRIPT="$REPO/app/gpu_queue_owner.py"
 if [ ! -x "$OWNER_PYTHON" ] || [ ! -f "$OWNER_SCRIPT" ] || [ ! -f "$REPO/app/subprocess_ownership.py" ]; then
     write_queue_log "$(stamp) FAILED   $NAME rc=4 (GPU owner unavailable)"

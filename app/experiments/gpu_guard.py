@@ -27,10 +27,12 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if REPO not in sys.path:
     sys.path.append(REPO)
-from alexandria_file_lock import acquire_exclusive_file_lock, release_exclusive_file_lock
+from alexandria_file_lock import (acquire_exclusive_file_lock, release_exclusive_file_lock,
+                                  get_default_gpu_lock_path)
 
-# THE SAME DEFAULT gpu_job.sh USES, read from gpu_job.sh itself rather than
-# repeated here. This file used to name a repo-local path while gpu_job.sh
+# THE SAME DEFAULT gpu_job.sh USES, from one shared native resolver rather than
+# repeated here. POSIX still checks the shell CLI; Windows needs no Bash/WSL.
+# This file used to name a repo-local path while gpu_job.sh
 # locked ${GPU_LOCK:-$HOME/.gpu.lock} - so with GPU_LOCK unset, which is
 # exactly the hand-run case this guard exists for, it probed a file nobody
 # holds, CREATED it by opening in append mode, took the flock cleanly and
@@ -41,15 +43,17 @@ GPU_JOB = os.path.join(REPO, "gpu_job.sh")
 
 @functools.lru_cache(maxsize=1)
 def default_lock():
-    """-> the lock gpu_job.sh uses, asked of gpu_job.sh itself.
+    """-> the lock gpu_job.sh uses, from its shared resolver on Windows.
 
     This used to regex the assignment out of the shell source, with a
     hard-coded fallback if no line matched - so reformatting that one line
     (which happened the same day, splitting it across an if/else) silently
     moved Python's idea of the lock, and the fallback made the break look like
-    a normal answer instead of an error. `--print-lock` makes the shell the
-    single source of the answer (Rule 15), and a failure to get one raises.
+    a normal answer instead of an error. `--print-lock` delegates to the shared
+    resolver and a failure raises. Windows calls that resolver directly.
     """
+    if sys.platform == 'win32':
+        return get_default_gpu_lock_path(REPO)
     result = subprocess.run(["bash", GPU_JOB, "--print-lock"],
                             capture_output=True, text=True, timeout=30)
     path = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
@@ -115,6 +119,8 @@ def acquire_gpu_lock(lock_path=None):
     if is_queue_lock_held_by_us(lock_path):
         return None
     path = lock_path or os.environ.get("GPU_LOCK") or default_lock()
+    if sys.platform == 'win32' and not lock_path and not os.environ.get('GPU_LOCK'):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
     handle = open(path, "a")
     try:
         acquire_exclusive_file_lock(handle.fileno())
