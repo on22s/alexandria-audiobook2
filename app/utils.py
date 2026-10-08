@@ -72,7 +72,7 @@ def is_path_inside(path: str, base_dir: str) -> bool:
     """
     base = os.path.realpath(base_dir)
     target = os.path.realpath(path)
-    return target == base or target.startswith(base + os.sep)
+    return target == base or target.startswith(base if base.endswith(os.sep) else base + os.sep)
 
 
 # --- Balanced-bracket text extraction ---
@@ -168,7 +168,8 @@ def extract_json_object(text):
             return None
         span = extract_balanced(text, '{', '}', search_from=start)
         if span is None:
-            return None
+            search_from = start + 1
+            continue
         try:
             return json.loads(span)
         except json.JSONDecodeError:
