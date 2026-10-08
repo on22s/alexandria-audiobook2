@@ -47,7 +47,7 @@ const fields={'.alias-select':{value:''},'.voice-type:checked':{value:'custom'},
 const card={dataset:{voice:'ALICE'},querySelector(selector){return fields[selector]||null;}};
 const context={window:{_voicesByName:{ALICE:{config:metadata}}},document:{querySelectorAll:()=>[card]}};
 vm.runInNewContext(code,context);const saved=context.collectVoiceConfig().ALICE;
-assert.strictEqual(saved.persona_voice_audit.identity,true);assert.strictEqual(saved.persona_ref,'refs/alice.json');assert.strictEqual(saved.future_metadata.value,17);assert.strictEqual(saved.seed,'0');assert.strictEqual(saved.type,'custom');assert.strictEqual(saved.voice,'Ryan');assert.strictEqual(saved.character_style,'Warm');assert(!('ref_audio' in saved));assert(!('ref_text' in saved));assert(!('alias_of' in saved));assert(!('ready' in saved));assert.strictEqual(JSON.stringify(metadata),before);
+assert.strictEqual(saved.persona_voice_audit.identity,true);assert.strictEqual(saved.persona_ref,'refs/alice.json');assert.strictEqual(saved.future_metadata.value,17);assert.strictEqual(saved.seed,'0');assert.strictEqual(saved.type,'custom');assert.strictEqual(saved.voice,'Ryan');assert.strictEqual(saved.character_style,'Warm');assert(!('ref_audio' in saved));assert(!('ref_text' in saved));assert.strictEqual(saved.alias_of,null);assert.strictEqual(saved.ready,false);assert.strictEqual(JSON.stringify(metadata),before);
 '''
         result=subprocess.run(['node','-e',script,str(SOURCE)],capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)

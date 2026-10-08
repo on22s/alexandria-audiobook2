@@ -196,7 +196,7 @@ def _write_batch_review_report(state: dict, names: List[str], bidirectional: boo
     """
     os.makedirs(REPORTS_DIR, exist_ok=True)
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
-    path = os.path.join(REPORTS_DIR, f"batch_review_{timestamp}.md")
+    path = os.path.join(REPORTS_DIR, f"batch_review_{timestamp}_{uuid.uuid4().hex}.md")
 
     tasks = [get_batch_review_task_snapshot(task, bidirectional)
              for task in state.get("tasks", [])]

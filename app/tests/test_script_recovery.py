@@ -381,10 +381,12 @@ class BatchReportPublicationTests(unittest.TestCase):
                 published.append(content)
 
             with patch.object(script_module.os, 'replace', side_effect=inspect_replace):
-                self.assertEqual(str(path), self._write_report(tmp))
+                result = Path(self._write_report(tmp))
+            self.assertNotEqual(path, result)
             self.assertEqual(1, len(published))
-            self.assertEqual(published[0], path.read_bytes())
-            self.assertEqual([path.name], sorted(item.name for item in Path(tmp).iterdir()))
+            self.assertEqual(published[0], result.read_bytes())
+            self.assertEqual(original, path.read_bytes())
+            self.assertEqual({path.name, result.name}, {item.name for item in Path(tmp).iterdir()})
 
     def test_failed_replacement_preserves_report_and_removes_staged_file(self):
         from pathlib import Path

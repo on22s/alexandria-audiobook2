@@ -5712,13 +5712,11 @@
                         seed: "-1"
                     };
                 }
-                // Include alias_of if set
-                if (alias) {
-                    config[name].alias_of = alias;
-                }
+                // Explicitly clear aliases; omitted fields retain their saved values.
+                config[name].alias_of = alias || null;
                 const readyBox = card.querySelector('.voice-ready');
-                if (readyBox && readyBox.checked) {
-                    config[name].ready = true;
+                if (readyBox) {
+                    config[name].ready = !!readyBox.checked;
                 }
                 const preserved = { ...metadata };
                 // Form fields describe the selected voice type; retain all
