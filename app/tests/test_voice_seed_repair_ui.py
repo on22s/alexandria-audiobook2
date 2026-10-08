@@ -141,6 +141,7 @@ ctx.performance={now:()=>0};ctx._voiceResourcesRefreshedAt=-Infinity;ctx._voiceR
 ctx.refreshVoiceMetadata=async()=>native.voices;ctx.refreshVoicesScope=()=>{};ctx.updateNarratorPreviewFields=()=>{};
 ctx.loadCastLibrary=async()=>{};ctx.API.get=async()=>[];ctx.createVoiceCard=()=>'<article>fixture card</article>';
 ctx.renderReadyCount=()=>{};ctx.onToggleHideReady=()=>{};ctx.window._voicesByName={};
+vm.runInContext(source.slice(source.indexOf('function getVoiceCardMetadata('),source.indexOf('function createVoiceCard(')),ctx);
 vm.runInContext(source.slice(source.indexOf('async function loadVoices('),source.indexOf('window.selectVoiceVersion =')),ctx);
 await ctx.loadVoices();assert(container.innerHTML.includes('onclick="applyStableVoiceSeeds()"'),'Real voice loading must display the action');
 assert(container.innerHTML.includes('&lt;ALICE&gt;&amp;'));assert(container.innerHTML.includes('fixture card'));

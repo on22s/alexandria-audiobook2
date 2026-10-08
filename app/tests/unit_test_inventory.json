@@ -7432,6 +7432,30 @@
     "tests.test_startup_task_ownership.StartupTaskOwnershipTests.test_remote_and_cpu_claims_coordinate_across_workers_using_existing_conflicts",
     "tests.test_startup_task_ownership.StartupTaskOwnershipTests.test_second_server_keeps_live_pending_and_started_chunk_and_history_bytes"
   ],
+  "test_state_persona_cards_js": [
+    "tests.test_state_persona_cards_js.StatePersonaCardTests.test_real_cards_and_actions_keep_version_and_book_identity"
+  ],
+  "test_state_personas": [
+    "tests.test_state_personas.StateGenerationAdmissionTests.test_state_json_recovery_keeps_the_base_and_other_state_versions",
+    "tests.test_state_personas.StateGenerationAdmissionTests.test_state_voice_suggestions_use_only_that_states_dialogue_and_persona",
+    "tests.test_state_personas.StateGenerationAdmissionTests.test_targeted_generation_command_and_stale_admission",
+    "tests.test_state_personas.StatePersonaPipelineTests.test_book_change_during_preview_refuses_generated_state_publication",
+    "tests.test_state_personas.StatePersonaPipelineTests.test_edit_or_deletion_of_later_state_survives_earlier_state_publication",
+    "tests.test_state_personas.StatePersonaPipelineTests.test_failed_target_is_reported_but_successful_targets_are_already_published",
+    "tests.test_state_personas.StatePersonaPipelineTests.test_foreign_state_samples_and_source_indices_are_rejected",
+    "tests.test_state_personas.StatePersonaPipelineTests.test_real_cli_compilation_and_preview_artifacts_are_separated_by_state",
+    "tests.test_state_personas.StatePersonaTests.test_generation_targets_versions_and_preserves_base_and_manual_versions",
+    "tests.test_state_personas.StatePersonaTests.test_one_band_and_short_noise_preserve_existing_state_rules",
+    "tests.test_state_personas.StatePersonaTests.test_publication_keeps_concurrent_sibling_edit_and_refuses_target_overwrite",
+    "tests.test_state_personas.StatePersonaTests.test_segments_preserve_original_indices_and_isolate_repeated_states",
+    "tests.test_state_personas.StateVoiceApiTests.test_first_state_applies_to_unknown_leadin_dialogue_in_merged_opening_chunk",
+    "tests.test_state_personas.StateVoiceApiTests.test_manual_state_prefixed_version_names_remain_opaque_and_compatible",
+    "tests.test_state_personas.StateVoiceApiTests.test_missing_token_wrong_version_and_changed_book_refuse_without_writes",
+    "tests.test_state_personas.StateVoiceApiTests.test_remove_state_keeps_base_siblings_and_audio_and_refuses_applied_or_stale",
+    "tests.test_state_personas.StateVoiceApiTests.test_removing_generated_state_provenance_is_refused_by_guarded_form_save",
+    "tests.test_state_personas.StateVoiceApiTests.test_state_actions_and_guarded_form_save_leave_base_and_siblings_intact",
+    "tests.test_state_personas.StateVoiceApiTests.test_timeline_selects_versions_and_refuses_a_boundary_inside_a_merged_chunk"
+  ],
   "test_state_voices": [
     "tests.test_state_voices.LineToChunkTests.test_an_unmatched_line_is_none_not_a_guess",
     "tests.test_state_voices.LineToChunkTests.test_merged_and_reflowed_chunks_still_map_by_content",

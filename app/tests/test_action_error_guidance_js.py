@@ -219,6 +219,7 @@ const c={window:{},API:{post:async(...args)=>{posts.push(args);if(failure){throw
 showToast:(...args)=>messages.push(args),loadVoices:async()=>{reloads++;}};
 vm.createContext(c);
 vm.runInContext(s.slice(s.indexOf('function showActionError('),s.indexOf('function showConfirm(')),c);
+vm.runInContext(s.slice(s.indexOf('function getVoiceCardMetadata('),s.indexOf('function createVoiceCard(')),c);
 vm.runInContext(s.slice(s.indexOf('window.setVoiceApproval ='),s.indexOf('window.editPersonaVoiceAudit =')),c);
 const button={closest:()=>({dataset:{voice:'Alice 日本語'}})};
 (async()=>{

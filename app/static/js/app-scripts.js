@@ -251,6 +251,8 @@
             invalidateDesignerWork();
             document.getElementById('design-voice-name').value = '';
             document.getElementById('design-source-name').value = '';
+            const sourceField = document.getElementById('design-source-name');
+            if (sourceField.dataset) { sourceField.dataset.version = ''; }
             document.getElementById('design-description').value = '';
             document.getElementById('design-sample-text').value = '';
             document.getElementById('design-alias-select').innerHTML = '<option value="">-- None --</option>';
@@ -326,7 +328,7 @@
         function getDesignerSaveSnapshot() {
             return JSON.stringify(['design-voice-name', 'design-source-name', 'design-description',
                 'design-sample-text', 'design-alias-select'].map(id => document.getElementById(id).value)
-                .concat([window._currentPreviewFile, window._editingDesignedVoiceId]));
+                .concat([window._currentPreviewFile, window._editingDesignedVoiceId, document.getElementById('design-source-name').dataset?.version || '']));
         }
 
         window.saveDesignedVoice = async () => {
@@ -348,10 +350,13 @@
             const previewFile = window._currentPreviewFile;
             const editingId = window._editingDesignedVoiceId || null;
             const source = document.getElementById('design-source-name').value;
+            const sourceVersion = document.getElementById('design-source-name').dataset?.version || '';
+            const sourceSelector = source ? `.voice-card[data-voice="${CSS.escape(source)}"]` +
+                (sourceVersion ? `[data-version="${CSS.escape(sourceVersion)}"]` : '') : null;
             const aliasSelect = document.getElementById('design-alias-select');
             const selectedAlias = aliasSelect.value;
             const canApplyAlias = selectedAlias || aliasSelect.dataset.aliasLookupFailed !== 'true';
-            const sourceCard = source ? document.querySelector(`.voice-card[data-voice="${CSS.escape(source)}"]`) : null;
+            const sourceCard = source ? document.querySelector(sourceSelector) : null;
             const sourceAlias = sourceCard?.querySelector('.alias-select');
             const sourceAliasValue = sourceAlias?.value;
             const button = document.getElementById('btn-design-save');
@@ -373,9 +378,9 @@
                 if (isDesignerGenerationCurrent(generation)) {
                     const unchanged = submitted === getDesignerSaveSnapshot();
                     if (unchanged && source && canApplyAlias) {
-                        const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(source)}"]`);
+                        const card = document.querySelector(sourceSelector);
                         const aliasSel = card?.querySelector('.alias-select');
-                        if (aliasSel && card === sourceCard && aliasSel === sourceAlias && aliasSel.value === sourceAliasValue) {
+                        if (aliasSel && !aliasSel.disabled && card === sourceCard && aliasSel === sourceAlias && aliasSel.value === sourceAliasValue) {
                             aliasSel.value = selectedAlias || '';
                             saveVoicesDebounced();
                         }
@@ -562,12 +567,16 @@
             const card = button.closest('.card-body');
             const cardRoot = button.closest('.voice-card');
             const voiceName = cardRoot ? cardRoot.dataset.voice : '';
-            const description = card ? (card.querySelector('.design-description')?.value || '') : '';
+            const description = card ? (card.querySelector('.persona-description')?.value || card.querySelector('.design-description')?.value || '') : '';
 
             document.querySelector('[data-tab="designer"]').click();
             resetDesignerForm();
             document.getElementById('design-voice-name').value = voiceName;
             document.getElementById('design-source-name').value = voiceName;
+            document.getElementById('design-source-name').dataset.version = cardRoot?.dataset.version || '';
+            if (cardRoot?.dataset.version) {
+                document.getElementById('design-voice-name').value = cardRoot.querySelector('.card-title')?.textContent?.trim() || voiceName;
+            }
             document.getElementById('design-description').value = description;
             document.getElementById('design-sample-text').value = card?.querySelector('.ref-text')?.value || '';
             const cardAlias = card?.querySelector('.alias-select');

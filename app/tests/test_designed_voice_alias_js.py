@@ -152,7 +152,7 @@ async function run(name, escaped) {
     vm.runInNewContext(save, context);
     await context.window.saveDesignedVoice();
     assert.deepStrictEqual(toasts, [{message:`Saved "${name}" to the voice library.`,kind:'success'}]);
-    assert.deepStrictEqual(escapes, [name,name]);
+    assert.deepStrictEqual(escapes, [name]); // One escaped selector is reused for both lookups.
     assert.strictEqual(alias.value, 'TARGET');
     assert.strictEqual(saves, 1);
     assert.strictEqual(posts.length, 1);

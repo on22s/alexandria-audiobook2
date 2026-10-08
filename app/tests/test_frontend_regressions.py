@@ -475,7 +475,8 @@ class FrontendTests(unittest.TestCase):
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8');
 const indexStart=source.indexOf('function getLoraModelsById(');const indexHelper=indexStart>=0?source.slice(indexStart,source.indexOf('async function suggestVoices(',indexStart)):'';
-const code=indexHelper+source.slice(source.indexOf('function collectVoiceConfig()'),source.indexOf('function onVoiceReadyChange('));
+const cardHelpers=source.slice(source.indexOf('function getVoiceCardMetadata('),source.indexOf('function createVoiceCard('));
+const code=indexHelper+cardHelpers+source.slice(source.indexOf('function collectVoiceConfig()'),source.indexOf('function onVoiceReadyChange('));
 const timeline=[{from_index:0,character_style:'Warm'},{from_index:8,character_style:'Tense'}];
 const metadata={type:'custom',voice:'Ryan',style_timeline:timeline,seed:0};
 const before=JSON.stringify(metadata);
@@ -671,7 +672,8 @@ const source = fs.readFileSync(process.argv[1], 'utf8');
 const start = source.indexOf('function collectVoiceConfig()');
 const indexStart = source.indexOf('function getLoraModelsById(');
 const indexHelper = indexStart >= 0 ? source.slice(indexStart, source.indexOf('async function suggestVoices(', indexStart)) : '';
-const collector = indexHelper + source.slice(start, source.indexOf('function onVoiceReadyChange(', start));
+const cardHelpers = source.slice(source.indexOf('function getVoiceCardMetadata('), source.indexOf('function createVoiceCard('));
+const collector = indexHelper + cardHelpers + source.slice(start, source.indexOf('function onVoiceReadyChange(', start));
 const cases = [
     [{id:'builtin',path:'builtin_models/path_only'}, 'builtin_models/path_only'],
     [{id:'builtin',adapter_path:'builtin_models/adapter_only'}, 'builtin_models/adapter_only'],

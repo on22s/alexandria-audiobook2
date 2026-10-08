@@ -17,6 +17,8 @@ app's existing ones. AGELESS is a separate flag for immortal or un-aging beings
 because "ageless" alone says nothing about how someone should sound.
 """
 import collections
+import hashlib
+import json
 
 GENDERS = ("male", "female", "genderless", "unknown")
 AGE_GROUPS = (("infant", "0-1"), ("toddler", "1-3"), ("young_child", "3-5"), ("child", "6-11"),
@@ -182,6 +184,85 @@ def get_state_timeline(script_entries):
             out[speaker] = [{"from_entry": rows[start][0], "gender": g, "age_group": a}
                             for (g, a), start in states]
     return out
+
+
+def get_persona_state_targets(script_entries):
+    """Describe settled state segments without changing speaker identities."""
+    timeline = get_state_timeline(script_entries)
+    digest = hashlib.sha256(json.dumps(script_entries, ensure_ascii=False,
+                                      sort_keys=True).encode("utf-8")).hexdigest()
+    speakers = {str(e.get("speaker") or e.get("type") or "").strip()
+                for e in script_entries if isinstance(e, dict)}
+    targets = {}
+    for speaker in sorted(speakers):
+        states = timeline.get(speaker.upper(), [])
+        if not states:
+            continue
+        starts = []
+        for number, state in enumerate(states):
+            start = state["from_entry"] if number else 0
+            while start > 0:
+                previous = script_entries[start - 1]
+                if not isinstance(previous, dict) or str(previous.get("speaker") or previous.get("type") or "").upper() != "NARRATOR":
+                    break
+                start -= 1
+            starts.append(start)
+        rows = []
+        for number, state in enumerate(states):
+            identity = [speaker, state["from_entry"], state["gender"], state["age_group"]]
+            key = "state_" + hashlib.sha256(json.dumps(identity).encode("utf-8")).hexdigest()[:24]
+            rows.append({**state, "version_id": key, "speaker": speaker,
+                         "segment_start": starts[number],
+                         "segment_end": starts[number + 1] if number + 1 < len(states) else len(script_entries),
+                         "state_number": number + 1, "source_sha256": digest})
+        targets[speaker] = rows
+    return targets
+
+
+def get_persona_state_entries(script_entries, target):
+    """Copy target dialogue and narration with their original source indices."""
+    rows = []
+    for index in range(target["segment_start"], target["segment_end"]):
+        entry = script_entries[index]
+        if not isinstance(entry, dict):
+            continue
+        speaker = str(entry.get("speaker") or entry.get("type") or "").strip()
+        if speaker.upper() not in (target["speaker"].upper(), "NARRATOR"):
+            continue
+        rows.append({**entry, "_source_entry_index": index})
+    return rows
+
+
+def get_persona_state_chunk_indices(script_entries, chunks, speaker):
+    """Map exact dialogue streams; a change inside a merged chunk is unsafe."""
+    def normalize(value):
+        return " ".join(str(value or "").split())
+
+    source_rows = [(index, normalize(entry.get("text"))) for index, entry in enumerate(script_entries)
+                   if isinstance(entry, dict) and str(entry.get("speaker") or entry.get("type") or "").strip().upper() == speaker.upper()]
+    chunk_rows = [(index, normalize(chunk.get("text"))) for index, chunk in enumerate(chunks)
+                  if isinstance(chunk, dict) and str(chunk.get("speaker") or "").strip().upper() == speaker.upper()]
+    if not source_rows or not chunk_rows or any(not text for _, text in source_rows + chunk_rows):
+        return {}
+    if " ".join(text for _, text in source_rows) != " ".join(text for _, text in chunk_rows):
+        return {}
+    offsets = {}
+    position = 0
+    for index, text in chunk_rows:
+        offsets[position] = index
+        position += len(text) + 1
+    mapping = {}
+    position = 0
+    for index, text in source_rows:
+        if position in offsets:
+            mapping[index] = offsets[position]
+        position += len(text) + 1
+    targets = get_persona_state_targets(script_entries).get(speaker, [])
+    if targets:
+        # Unlabelled lead-in dialogue belongs to the first settled state, even
+        # when its first known trait occurs inside a merged opening chunk.
+        mapping[targets[0]["from_entry"]] = chunk_rows[0][0]
+    return mapping
 
 
 # The voice library tags adapters with the older, coarser age groups; the

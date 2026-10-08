@@ -1564,6 +1564,10 @@
                     <h4 class="m-0"><span class="step-indicator step-active">3</span>Voice Configuration</h4>
                     <div class="d-flex align-items-center gap-3">
                         <span id="voices-ready-count" class="text-muted small"></span>
+                        <label class="small me-2" for="voices-state-filter">Show cards</label>
+                        <select id="voices-state-filter" class="form-select form-select-sm w-auto" onchange="onToggleHideReady()">
+                            <option value="all">Show all</option><option value="states">Characters with state cards</option><option value="single">Characters without state cards</option>
+                        </select>
                         <div class="form-check form-check-inline m-0 small">
                             <input class="form-check-input" type="checkbox" id="voices-hide-ready" onchange="onToggleHideReady()">
                             <label class="form-check-label" for="voices-hide-ready">Hide ready</label>

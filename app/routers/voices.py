@@ -1,4 +1,5 @@
 from book_state_transaction import ensure_book_state, get_book_snapshot, get_book_snapshot_token
+import copy
 import asyncio
 import gc
 import json
@@ -51,7 +52,7 @@ from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows
 from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, resolve_narrator_voice_config, voice_category, voice_is_set
 from speaker_traits import (get_age_distance, get_chunk_index_for_entry, get_library_age_group,
                             get_normalized_age_group,
-                            get_speaker_trait_summary, get_state_timeline)
+                            get_speaker_trait_summary, get_state_timeline, get_persona_state_targets, get_persona_state_chunk_indices, get_persona_state_entries)
 from utils import (
     atomic_json_write,
     atomic_json_write_pair,
@@ -138,6 +139,8 @@ class VoiceConfigItem(BaseModel):
         return self
 
 class SuggestVoicesRequest(BaseModel):
+    state_version: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     only_unset: bool = False  # only suggest for characters not already set to a lora/builtin_lora voice
     max_lines: int = 8        # how many sample dialogue lines per character to feed the matcher
     cast: Optional[str] = None
@@ -153,7 +156,14 @@ class VoiceSuggestionApplyBulkRequest(BaseModel):
     suggestions: Dict[str, Dict]
 
 
+class VoiceTargetScope(BaseModel):
+    version_id: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
 class GeneratePersonasRequest(BaseModel):
+    state_version: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     advanced: bool = False
     batch_size: int = 40
     # Sample spoken lines per character in the persona prompt (#522 12.1).
@@ -168,6 +178,8 @@ class GeneratePersonasRequest(BaseModel):
 
 
 class PersonaRecoveryRequest(BaseModel):
+    state_version: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     speaker: str = Field(min_length=1, max_length=200)
     persona_json: str = Field(min_length=2, max_length=10000)
     resume: bool = False
@@ -193,12 +205,12 @@ class VoiceVersionRequest(BaseModel):
     config: Dict = Field(default_factory=dict)
 
 
-class VoiceCandidateRequest(BaseModel):
+class VoiceCandidateRequest(VoiceTargetScope):
     candidate_id: str = Field(min_length=1, max_length=80)
     config: Dict = Field(default_factory=dict)
 
 
-class VoiceCandidateFavoriteRequest(BaseModel):
+class VoiceCandidateFavoriteRequest(VoiceTargetScope):
     favorite: bool
 
 
@@ -213,12 +225,12 @@ class NarratorPreviewRequest(BaseModel):
     narrator_version: Optional[str] = Field(default=None, max_length=80)
 
 
-class VoiceApprovalRequest(BaseModel):
+class VoiceApprovalRequest(VoiceTargetScope):
     persona_status: Optional[str] = Field(default=None, pattern="^(unreviewed|generated|reviewed|approved|rejected)$")
     voice_status: Optional[str] = Field(default=None, pattern="^(unreviewed|generated|reviewed|approved|rejected)$")
 
 
-class PersonaVoiceAuditRequest(BaseModel):
+class PersonaVoiceAuditRequest(VoiceTargetScope):
     persona_ref: Optional[str] = Field(default=None, max_length=200)
     persona_description: Optional[str] = Field(default=None, max_length=1000)
     voice_adapter_id: Optional[str] = Field(default=None, max_length=200)
@@ -247,6 +259,36 @@ def _mutate_book_voice_entry(speaker, mutator, book_token=None):
         with file_lock(VOICE_CONFIG_PATH):
             config = safe_load_json(VOICE_CONFIG_PATH, default={})
             return entry, get_voice_config_revision(config)
+
+
+def get_current_persona_state(speaker, version_id):
+    targets = get_persona_state_targets(safe_load_json(SCRIPT_PATH, default=[])).get(speaker, [])
+    target = next((row for row in targets if row["version_id"] == version_id), None)
+    if target is None:
+        raise HTTPException(status_code=409, detail="Character state changed; reload voices")
+    return target
+
+
+def get_validated_voice_target(entry, speaker, version_id, book_token):
+    if book_token is None:
+        raise HTTPException(status_code=409, detail="State actions require the current book token")
+    version = (entry.get("versions") or {}).get(version_id)
+    if not isinstance(version, dict):
+        raise HTTPException(status_code=404, detail="Generate this state persona first")
+    if "persona_state" in version:
+        target = get_current_persona_state(speaker, version_id)
+        if version.get("persona_state") != target:
+            raise HTTPException(status_code=409, detail="State persona belongs to an earlier script; regenerate it")
+    return version
+
+
+def _mutate_voice_target(speaker, mutator, version_id=None, book_token=None):
+    """Apply a card action to exactly one book-bound voice version."""
+    def apply(entry):
+        target = get_validated_voice_target(entry, speaker, version_id, book_token) if version_id else entry
+        mutator(target)
+    entry, _revision = _mutate_book_voice_entry(speaker, apply, book_token)
+    return entry["versions"][version_id] if version_id else entry
 
 
 def get_script_speaker(entry):
@@ -292,12 +334,19 @@ def get_voice_rows(script_data, voice_config):
         name = get_script_speaker(entry)
         if name in lines and isinstance(entry, dict):
             lines[name].append(entry)
+    state_targets = get_persona_state_targets(script_data)
     rows = []
     for name in roster:
         row = {"name": name, "config": voice_config.get(name, {}),
                "persona_pending": not voice_is_set(voice_config.get(name))}
         # Per-line gender/age from pass 2, only when the run asked for them, so
         # a book generated without the switch gets exactly the old rows.
+        if name in state_targets and not row["config"].get("alias_of"):
+            row["persona_states"] = state_targets[name]
+            row["persona_states_pending"] = any(
+                not voice_is_set(row["config"].get("versions", {}).get(target["version_id"])) or
+                row["config"].get("versions", {}).get(target["version_id"], {}).get("persona_state") != target
+                for target in state_targets[name])
         traits = get_speaker_trait_summary(lines[name])
         if traits:
             row["traits"] = traits
@@ -325,6 +374,19 @@ async def save_voice_version(speaker: str, request: VoiceVersionRequest):
             "versions": entry.get("versions", {})}
 
 
+@router.delete("/api/voices/{speaker}/versions/{version_id}")
+async def remove_voice_version(speaker: str, version_id: str, book_token: Optional[str] = None):
+    def remove(entry):
+        get_validated_voice_target(entry, speaker, version_id, book_token)
+        if entry.get("active_version") == version_id or any(
+                point.get("version_id") == version_id for point in entry.get("version_timeline", [])):
+            raise HTTPException(status_code=409, detail="Voice version is applied; select another base version or clear its timeline points first")
+        del entry["versions"][version_id]
+    entry, revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, remove, book_token)
+    return {"status": "removed", "speaker": speaker, "version_id": version_id,
+            "versions": entry.get("versions", {}), "revision": revision}
+
+
 @router.post("/api/voices/{speaker}/versions/{version_id}/select")
 async def select_voice_version(speaker: str, version_id: str):
     await asyncio.to_thread(_require_script_speaker, speaker)
@@ -349,28 +411,30 @@ async def add_voice_candidate(speaker: str, request: VoiceCandidateRequest):
                       if isinstance(c, dict) and c.get("candidate_id") != request.candidate_id]
         candidates.append({**request.config, "candidate_id": request.candidate_id})
         entry["candidates"] = candidates
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, add)
+    entry = await asyncio.to_thread(_mutate_voice_target, speaker, add, request.version_id, request.book_token)
     return {"status": "saved", "speaker": speaker, "candidates": entry.get("candidates", [])}
 
 
 @router.post("/api/voices/{speaker}/candidates/{candidate_id}/select")
-async def select_voice_candidate(speaker: str, candidate_id: str):
+async def select_voice_candidate(speaker: str, candidate_id: str, request: VoiceTargetScope = VoiceTargetScope()):
     await asyncio.to_thread(_require_script_speaker, speaker)
     def select(entry):
         candidate = next((c for c in entry.get("candidates", [])
                           if isinstance(c, dict) and c.get("candidate_id") == candidate_id), None)
         if candidate is None:
             raise HTTPException(status_code=404, detail="Voice candidate not found")
-        entry.update({k: v for k, v in candidate.items() if k != "candidate_id"})
+        entry.update({k: v for k, v in candidate.items()
+                      if k != "candidate_id" and (not request.version_id or k not in
+                          {"persona_state", "description", "age_group", "gender", "versions", "version_timeline"})})
         entry["active_candidate"] = candidate_id
         entry["voice_status"] = "assigned"
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, select)
+    entry = await asyncio.to_thread(_mutate_voice_target, speaker, select, request.version_id, request.book_token)
     return {"status": "selected", "speaker": speaker, "candidate_id": candidate_id,
             "config": entry}
 
 
 @router.delete("/api/voices/{speaker}/candidates/{candidate_id}")
-async def delete_voice_candidate(speaker: str, candidate_id: str):
+async def delete_voice_candidate(speaker: str, candidate_id: str, version_id: Optional[str] = None, book_token: Optional[str] = None):
     await asyncio.to_thread(_require_script_speaker, speaker)
     def remove(entry):
         candidates = entry.get("candidates") or []
@@ -379,7 +443,7 @@ async def delete_voice_candidate(speaker: str, candidate_id: str):
         entry["candidates"] = [c for c in candidates if c.get("candidate_id") != candidate_id]
         if entry.get("active_candidate") == candidate_id:
             entry.pop("active_candidate", None)
-    await asyncio.to_thread(_mutate_voice_entry, speaker, remove)
+    await asyncio.to_thread(_mutate_voice_target, speaker, remove, version_id, book_token)
     return {"status": "deleted", "speaker": speaker, "candidate_id": candidate_id}
 
 
@@ -393,7 +457,7 @@ async def favorite_voice_candidate(speaker: str, candidate_id: str,
         if candidate is None:
             raise HTTPException(status_code=404, detail="Voice candidate not found")
         candidate["favorite"] = request.favorite
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, update)
+    entry = await asyncio.to_thread(_mutate_voice_target, speaker, update, request.version_id, request.book_token)
     return {"status": "saved", "speaker": speaker, "candidate_id": candidate_id,
             "favorite": next(c.get("favorite", False) for c in entry.get("candidates", [])
                               if c.get("candidate_id") == candidate_id)}
@@ -532,6 +596,9 @@ async def get_voice_state_timeline(speaker: str):
         states = get_state_timeline(script).get(speaker.strip().upper(), [])
         if not states:
             return {"speaker": speaker, "states": [], "applied": entry.get("version_timeline", [])}
+        targets = get_persona_state_targets(script).get(speaker, [])
+        strict_mapping = get_persona_state_chunk_indices(script, chunks, speaker)
+        targets_by_entry = {target["from_entry"]: target for target in targets}
         candidates = _build_lora_candidates()
         users = get_adapter_users(voice_config)
         # Map the character's lines in order, so a line said twice ("Yes.")
@@ -545,11 +612,16 @@ async def get_voice_state_timeline(speaker: str):
         out = []
         for state in states:
             line = script[state["from_entry"]]
-            chunk_index = line_chunks.get(state["from_entry"])
+            target = targets_by_entry.get(state["from_entry"])
+            has_generated = target and target["version_id"] in (entry.get("versions") or {})
+            chunk_index = strict_mapping.get(state["from_entry"]) if has_generated else line_chunks.get(state["from_entry"])
+            sources = get_state_voice_sources(state, speaker, entry, candidates, users)
+            if has_generated:
+                sources["versions"].sort(key=lambda version: version["version_id"] != target["version_id"])
             out.append({**state, "from_index": chunk_index,
                         "chapter": get_chapter_label(script, state["from_entry"]),
                         "line": (line.get("text") or "")[:120],
-                        "sources": get_state_voice_sources(state, speaker, entry, candidates, users)})
+                        "sources": sources, "state_version": target["version_id"] if target else None})
         return {"speaker": speaker, "states": out, "applied": entry.get("version_timeline", []),
                 "chunks_built": bool(chunks)}
     return await asyncio.to_thread(build)
@@ -570,6 +642,15 @@ async def save_version_timeline(speaker: str, request: VersionTimelineRequest):
                    if p.version_id is not None and p.version_id not in versions]
         if missing:
             raise HTTPException(status_code=400, detail=f"Unknown voice version: {', '.join(missing)}")
+        for point in request.points:
+            if point.version_id and "persona_state" in versions[point.version_id]:
+                target = get_current_persona_state(speaker, point.version_id)
+                version = versions[point.version_id]
+                script = safe_load_json(SCRIPT_PATH, default=[])
+                chunks = safe_load_json(CHUNKS_PATH, default=[])
+                mapping = get_persona_state_chunk_indices(script, chunks, speaker)
+                if version.get("persona_state") != target or mapping.get(target["from_entry"]) != point.from_index:
+                    raise HTTPException(status_code=409, detail="State boundary is stale or lies inside an edited/merged chunk; rebuild chunks and review the timeline")
         points = {p.from_index: {"from_index": p.from_index, "version_id": p.version_id}
                   for p in request.points}
         current["version_timeline"] = [points[i] for i in sorted(points)]
@@ -606,7 +687,7 @@ async def set_voice_approval(speaker: str, request: VoiceApprovalRequest):
             current["persona_status"] = request.persona_status
         if request.voice_status is not None:
             current["voice_status"] = request.voice_status
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, update_status)
+    entry = await asyncio.to_thread(_mutate_voice_target, speaker, update_status, request.version_id, request.book_token)
     return {"status": "saved", "speaker": speaker,
             "persona_status": entry.get("persona_status"),
             "voice_status": entry.get("voice_status")}
@@ -617,12 +698,12 @@ async def update_persona_voice_audit(speaker: str, request: PersonaVoiceAuditReq
     """Allow a user to correct the provenance note for an assignment."""
     await asyncio.to_thread(_require_script_speaker, speaker)
     audit = {key: value.strip() for key, value in request.model_dump().items()
-             if value is not None and value.strip()}
+             if key not in {"version_id", "book_token"} and value is not None and value.strip()}
     if not audit:
         raise HTTPException(status_code=422, detail="At least one audit field is required")
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, lambda current: current.update({
+    entry = await asyncio.to_thread(_mutate_voice_target, speaker, lambda current: current.update({
         "persona_voice_audit": {**(current.get("persona_voice_audit") or {}), **audit}
-    }))
+    }), request.version_id, request.book_token)
     return {"status": "saved", "speaker": speaker,
             "persona_voice_audit": entry.get("persona_voice_audit", {})}
 
@@ -638,6 +719,13 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
     - updates `voice_config.json` with a clone-style reference for each character.
     """
     _require_script_speaker(request.speaker)
+    if request.state_version:
+        if not request.speaker or request.age_group or not request.book_token:
+            raise HTTPException(status_code=422, detail="State regeneration requires a speaker and book token, without an age override")
+        with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
+            if get_book_snapshot_token(get_book_snapshot(os.path.dirname(SCRIPT_PATH))) != request.book_token:
+                raise HTTPException(status_code=409, detail="Active book changed; reload voices")
+            get_current_persona_state(request.speaker, request.state_version)
     check_global_gpu_lock("persona")
 
     process_state["persona"]["cancel"] = False
@@ -654,13 +742,15 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
         command.extend(["--speakers", request.speaker])
     if request.age_group:
         command.extend(["--age-group", request.age_group])
-    if request.advanced:
+    if request.state_version:
+        command.extend(["--state-version", request.state_version, "--book-token", request.book_token])
+    if request.advanced or request.state_version:
         batch_size = max(1, min(int(request.batch_size or 40), 200))
         command.extend(["--advanced", "--batch-size", str(batch_size)])
     if request.new_only:
         command.append("--new-only")
     schedule_claimed_background_task(background_tasks, "persona", run_process, command, "persona")
-    return {"status": "started", "advanced": request.advanced}
+    return {"status": "started", "advanced": bool(request.advanced or request.state_version)}
 
 
 @router.post("/api/cancel_persona")
@@ -703,6 +793,10 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
             speakers = {get_script_speaker(entry) for entry in script}
             if request.speaker not in speakers:
                 raise HTTPException(status_code=422, detail="Speaker is not present in the active script")
+            if request.state_version:
+                if request.book_token != book_token:
+                    raise HTTPException(status_code=409, detail="Active book changed; reload voices before recovering a state")
+                get_current_persona_state(request.speaker, request.state_version)
     except HTTPException:
         raise
     except (OSError, json.JSONDecodeError, ValueError) as exc:
@@ -715,21 +809,33 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
                 raise HTTPException(status_code=409, detail="Active book changed; recover this persona again for the current book")
             with file_lock(VOICE_CONFIG_PATH):
                 config = safe_load_json(VOICE_CONFIG_PATH, default={})
-                entry = config.get(request.speaker, {})
+                base = config.get(request.speaker, {})
+                if request.state_version:
+                    target = get_current_persona_state(request.speaker, request.state_version)
+                    entry = copy.deepcopy(base.get("versions", {}).get(request.state_version) or {})
+                    entry["persona_state"] = target
+                    entry["age_group"] = target["age_group"]
+                else:
+                    entry = base
                 entry.update({"description": description, "character_style": description,
                               "ref_text": ref_text})
                 if not entry.get("type"):
                     entry["type"] = "design"
-                config[request.speaker] = entry
+                if request.state_version:
+                    base.setdefault("versions", {})[request.state_version] = entry
+                config[request.speaker] = base
                 atomic_json_write(config, VOICE_CONFIG_PATH)
 
     claim_id = reserve_background_task("persona") if request.resume else None
     try:
         await asyncio.to_thread(_save)
         if request.resume:
-            register_claimed_background_task(background_tasks, "persona", claim_id, run_process, [
-                sys.executable, "-u", "generate_personas.py", "--speakers", request.speaker,
-                "--recovered-speaker", request.speaker], "persona")
+            command = [sys.executable, "-u", "generate_personas.py", "--speakers", request.speaker,
+                       "--recovered-speaker", request.speaker]
+            if request.state_version:
+                command.extend(["--advanced", "--state-version", request.state_version,
+                                "--book-token", book_token])
+            register_claimed_background_task(background_tasks, "persona", claim_id, run_process, command, "persona")
     except BaseException:
         if claim_id is not None:
             release_gpu_task_claim("persona", claim_id, pending_only=True)
@@ -751,6 +857,13 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                 for key in ('style_timeline', 'version_timeline'):
                     if key in fields:
                         fields[key] = config.model_dump()[key]
+                if "versions" in fields:
+                    for version_id, version in fields["versions"].items():
+                        previous_version = metadata.get("versions", {}).get(version_id) or {}
+                        if ("persona_state" in version or "persona_state" in previous_version) and version != previous_version:
+                            target = get_current_persona_state(voice_name, version_id)
+                            if version.get("persona_state") != target:
+                                raise VoiceConfigConflict("State source changed; reload and regenerate that persona")
                 updated[voice_name] = {**metadata, **fields}
             return updated
 
@@ -1141,6 +1254,17 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         book_token = get_book_snapshot_token(snapshot)
         book_id = get_active_book_id()
         line_counts = _script_line_counts()
+        if request.state_version:
+            if not request.book_token or request.book_token != book_token or len(request.characters or []) != 1:
+                raise HTTPException(status_code=409, detail="State suggestions require the current book and one character")
+            speaker = request.characters[0]
+            target = get_current_persona_state(speaker, request.state_version)
+            version = voice_config.get(speaker, {}).get("versions", {}).get(request.state_version)
+            if not version or version.get("persona_state") != target:
+                raise HTTPException(status_code=409, detail="Generate the current state persona before suggesting voices")
+            script = get_persona_state_entries(script, target)
+            voice_config = {speaker: copy.deepcopy(version)}
+            line_counts = {speaker: sum(get_script_speaker(row) == speaker for row in script)}
 
     # Collect every per-character dialogue line so counts are accurate; sample
     # representative lines across the book only when building the prompt.

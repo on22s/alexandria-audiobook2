@@ -138,6 +138,14 @@ curl http://127.0.0.1:4200/api/status/persona
 curl -X POST http://127.0.0.1:4200/api/cancel_persona
 ```
 
+Advanced persona generation includes settled character states. `GET /api/voice_config/snapshot` returns `voices[].persona_states`, each with a server-generated `version_id`, original source range and source identity. Generated state personas live in `config[speaker].versions[version_id]` and carry `persona_state` provenance.
+
+To regenerate one state, POST `/api/generate_personas` with `speaker`, `state_version` and the current snapshot's `book_token`; advanced processing is enabled automatically. A state request cannot combine an age override. POST `/api/persona/recover` accepts the same state selector/token for saving validated persona JSON and optionally resuming its preview.
+
+Candidate creation/selection/favorite and approval/audit endpoints accept optional `version_id` and `book_token` fields to act on a state version. Candidate deletion accepts these as query parameters. State actions require the current token and validated source identity; omitted version selectors retain the legacy character-level behavior. `POST /api/suggest_voices` accepts `state_version`, `book_token` and exactly one character in `characters` to match using only that state's evidence/persona. Save/select those suggestions through the version-scoped candidate endpoints.
+
+State-card form edits use the existing revision-guarded `/api/voice_config/save`, retaining the parent entry and its sibling versions. `/api/voices/{speaker}/version_timeline` remains an explicit application step; generated state versions must match their current script and an exact chunk boundary. Stale, missing, ambiguous or merged boundaries return a conflict rather than guessing a location.
+
 ## Chunks and rendering
 
 ```bash
@@ -392,3 +400,5 @@ modified or repeated requests return 409.
 
 Batch upload callers can use `POST /api/upload?select_active=false` to store a
 source without changing the active book. Ordinary uploads select it by default.
+
+DELETE `/api/voices/{speaker}/versions/{version_id}?book_token=...` removes only the saved version. It requires current book/source identity and refuses an active version or one referenced by the applied timeline. Audio files, base settings and sibling versions are retained.

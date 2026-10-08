@@ -40,7 +40,8 @@ class VoiceAutosaveMetadataTests(unittest.TestCase):
         script=r'''const assert=require('assert'),fs=require('fs'),vm=require('vm');
 const source=fs.readFileSync(process.argv[1],'utf8');
 const indexStart=source.indexOf('function getLoraModelsById(');const indexHelper=indexStart>=0?source.slice(indexStart,source.indexOf('async function suggestVoices(',indexStart)):'';
-const code=indexHelper+source.slice(source.indexOf('function collectVoiceConfig()'),source.indexOf('function onVoiceReadyChange('));
+const stateHelpers=source.slice(source.indexOf('function getVoiceCardMetadata('),source.indexOf('function createVoiceCard('));
+const code=stateHelpers+indexHelper+source.slice(source.indexOf('function collectVoiceConfig()'),source.indexOf('function onVoiceReadyChange('));
 const metadata={type:'clone',ref_audio:'prior.wav',ref_text:'prior text',seed:0,persona_voice_audit:{identity:true},persona_ref:'refs/alice.json',future_metadata:{value:17},alias_of:'OLD',ready:true};
 const before=JSON.stringify(metadata);
 const fields={'.alias-select':{value:''},'.voice-type:checked':{value:'custom'},'.voice-select':{value:'Ryan'},'.character-style':{value:'Warm'},'.voice-ready':{checked:false}};
@@ -58,7 +59,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readF
 const original={type:'clone',ref_audio:'reference.wav',ref_text:'Synthetic sample',default_style:'Soft deliberate delivery',description:'Synthetic persona',seed:123,age_group:'adult'};
 const fields={'.voice-type:checked':{value:'clone'},'.ref-audio':{value:original.ref_audio},'.ref-text':{value:original.ref_text},'.alias-select':{value:''},'.voice-ready':{checked:false}};
 const card={dataset:{voice:'Alice'},querySelector:selector=>fields[selector]||null};
-const c={window:{_voicesByName:{Alice:{config:original}}},document:{querySelectorAll:()=>[card]},getLoraModelsById:()=>new Map()};vm.createContext(c);const a=source.indexOf('function collectVoiceConfig()');vm.runInContext(source.slice(a,source.indexOf('function onVoiceReadyChange(',a)),c);
+const c={window:{_voicesByName:{Alice:{config:original}}},document:{querySelectorAll:()=>[card]},getLoraModelsById:()=>new Map()};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function getVoiceCardMetadata('),source.indexOf('function createVoiceCard(')),c);const a=source.indexOf('function collectVoiceConfig()');vm.runInContext(source.slice(a,source.indexOf('function onVoiceReadyChange(',a)),c);
 const payload=c.collectVoiceConfig();assert.strictEqual(payload.Alice.default_style,original.default_style);assert.strictEqual(payload.Alice.description,original.description);assert.strictEqual(payload.Alice.seed,'123');console.log(JSON.stringify(payload));
 """
         result = subprocess.run(['node', '-e', script, str(SOURCE)], capture_output=True, text=True, timeout=15)

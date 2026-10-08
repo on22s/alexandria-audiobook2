@@ -3,6 +3,18 @@
 Every speaker in a script gets a voice card in the Voices tab. This page explains the voice
 types you can choose and when to use each.
 
+## Personas for character states
+
+Advanced global persona generation creates a separate persona and preview for each settled age/gender state of a character. Each state uses its own dialogue and nearby narration, retaining the original script evidence indices. Repeated states later in the story have separate numbered cards.
+
+In Voices, use **Show cards** to display all characters, characters with state cards, or characters without state cards. State cards have independent voice types, reference audio/transcripts, persona descriptions, styles, seeds, approvals and candidate pools. Generate a missing or stale state persona before editing its voice. The character's base voice and manual versions remain in the character's expandable base-voice section.
+
+**Only characters without a voice yet** also generates missing or stale state personas in advanced mode. Regenerate persona on one state card targets that state only. Failures are reported per state; successful completed states are saved, and previous settings for failed states are retained.
+
+Generation and editing do not apply voice changes to rendered audio. Open the character's **Voice changes** controls in its base section, review the suggested state versions, and press **Apply**. Future rendering uses those versions at their timeline boundaries. A change inside a merged chunk, edited dialogue that no longer aligns, or an outdated script requires rebuilding/reviewing the chunks before application. Already rendered audio is retained until explicitly regenerated.
+
+Use **Remove saved state persona** to remove an unapplied state version while keeping its audio files and other voices. Clear its applied timeline points first if playback still uses it.
+
 ## The speech models
 
 The app uses three Qwen3-TTS models:

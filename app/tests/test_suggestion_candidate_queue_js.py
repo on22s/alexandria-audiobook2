@@ -18,7 +18,7 @@ const el=id=>elements[id]||(elements[id]={disabled:false,value:'',style:{},inner
 const ctx={window:null,currentBookFilename:'book-A',currentIsRemote:false,failoverIsRemote:false,document:{getElementById:el,querySelectorAll:()=>[]},console:{debug:()=>{}},API:{},showToast:(...args)=>toasts.push(args),voicesScopeIsNew:()=>true,keepCurrentVoicesIfAsked:async()=>true,refreshVoiceMetadata:async()=>{refreshed++;},renderVoiceSuggestions:()=>{}};ctx.window=ctx;vm.createContext(ctx);
 const run=code=>vm.runInContext(code,ctx);
 function load(start,end){const a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);run(source.slice(a,b));}
-load('function escapeHtml(', '// Parse a numeric input');load('async function confirmIfRemote(', '// navigator.clipboard');load('const taskStartButtons =','// --- API Helpers ---');
+load('function getVoiceCardMetadata(', 'function createVoiceCard(');load('function escapeHtml(', '// Parse a numeric input');load('async function confirmIfRemote(', '// navigator.clipboard');load('const taskStartButtons =','// --- API Helpers ---');
 if(source.includes('function getLoraModelsById(')){load('function getLoraModelsById(', 'async function suggestVoices(');}
 load('async function suggestVoices(', 'window.suggestMoreVoices =');
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}

@@ -16,6 +16,7 @@ function client(){
  voiceSaveQueue:{flush:()=>saveGate.promise,getRevision:()=>revision,isDirty:()=>dirty},renderVoiceDrafts(){},refreshVoicesScope(){},updateNarratorPreviewFields(){},renderReadyCount(){},onToggleHideReady(){},renderVoiceSuggestions(){},saveVoicesDebounced(){throw Error('unexpected default save');},
  createVoiceCard:voice=>{draws.push(voice);return `<card>${voice.name}:${ctx._designedVoicesCache[0].id}:${ctx._cloneVoicesCache[0].id}:${ctx._loraModelsCache[0].id}</card>`;}};ctx.window=ctx;
  vm.createContext(ctx);const load=(a,b)=>{const first=source.indexOf(a);vm.runInContext(source.slice(first,source.indexOf(b,first)),ctx);};
+ load('function getVoiceCardMetadata(', 'function createVoiceCard(');
  load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves()', 'async function discardVoiceEditsAndReload()');
  vm.runInContext('let _voiceSaveSnapshot=null;let _voiceRecoveryDrafts=[];',ctx);
  ctx.loadCastLibrary=async()=>{const lib=await ctx.API.get('/api/voice_library');ctx._lineCounts={Alice:lib.count};};

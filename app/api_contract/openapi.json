@@ -1112,6 +1112,18 @@
             "title": "Batch Size",
             "type": "integer"
           },
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "context_lines": {
             "default": 8,
             "maximum": 200.0,
@@ -1135,6 +1147,19 @@
               }
             ],
             "title": "Speaker"
+          },
+          "state_version": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Version"
           }
         },
         "title": "GeneratePersonasRequest",
@@ -2166,6 +2191,18 @@
       },
       "PersonaRecoveryRequest": {
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "persona_json": {
             "maxLength": 10000,
             "minLength": 2,
@@ -2182,6 +2219,19 @@
             "minLength": 1,
             "title": "Speaker",
             "type": "string"
+          },
+          "state_version": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Version"
           }
         },
         "required": [
@@ -2193,6 +2243,18 @@
       },
       "PersonaVoiceAuditRequest": {
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "persona_description": {
             "anyOf": [
               {
@@ -2228,6 +2290,19 @@
               }
             ],
             "title": "Suggestion Reason"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
           },
           "voice_adapter_id": {
             "anyOf": [
@@ -2656,6 +2731,18 @@
       },
       "SuggestVoicesRequest": {
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "cast": {
             "anyOf": [
               {
@@ -2690,6 +2777,19 @@
             "default": false,
             "title": "Only Unset",
             "type": "boolean"
+          },
+          "state_version": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Version"
           }
         },
         "title": "SuggestVoicesRequest",
@@ -2994,6 +3094,18 @@
       },
       "VoiceApprovalRequest": {
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "persona_status": {
             "anyOf": [
               {
@@ -3005,6 +3117,19 @@
               }
             ],
             "title": "Persona Status"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
           },
           "voice_status": {
             "anyOf": [
@@ -3024,9 +3149,34 @@
       },
       "VoiceCandidateFavoriteRequest": {
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "favorite": {
             "title": "Favorite",
             "type": "boolean"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
           }
         },
         "required": [
@@ -3037,6 +3187,18 @@
       },
       "VoiceCandidateRequest": {
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "candidate_id": {
             "maxLength": 80,
             "minLength": 1,
@@ -3047,6 +3209,19 @@
             "additionalProperties": true,
             "title": "Config",
             "type": "object"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
           }
         },
         "required": [
@@ -3629,6 +3804,37 @@
           "suggestion"
         ],
         "title": "VoiceSuggestionApplyRequest",
+        "type": "object"
+      },
+      "VoiceTargetScope": {
+        "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
+          }
+        },
+        "title": "VoiceTargetScope",
         "type": "object"
       },
       "VoiceVersionPoint": {
@@ -9852,6 +10058,38 @@
               "title": "Candidate Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "version_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "book_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Token"
+            }
           }
         ],
         "responses": {
@@ -9956,6 +10194,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceTargetScope",
+                "default": {}
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -10303,6 +10551,68 @@
           }
         },
         "summary": "Save Voice Version"
+      }
+    },
+    "/api/voices/{speaker}/versions/{version_id}": {
+      "delete": {
+        "operationId": "remove_voice_version_api_voices__speaker__versions__version_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "book_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Voice Version"
       }
     },
     "/api/voices/{speaker}/versions/{version_id}/select": {
