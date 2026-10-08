@@ -187,6 +187,7 @@ def _validate_persona_recovery(value: str) -> tuple[str, str]:
     return normalized["description"], normalized["ref_text"]
 
 class VoiceVersionRequest(BaseModel):
+    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     version_id: str = Field(min_length=1, max_length=80)
     age_group: str = Field(default="adult", max_length=40)
     config: Dict = Field(default_factory=dict)
@@ -203,6 +204,7 @@ class VoiceCandidateFavoriteRequest(BaseModel):
 
 class NarratorStrategyRequest(BaseModel):
     strategy: NarratorStrategy
+    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class NarratorPreviewRequest(BaseModel):
@@ -230,6 +232,19 @@ def _mutate_voice_entry(speaker, mutator):
         mutator(entry)
         atomic_json_write(config, VOICE_CONFIG_PATH)
         return entry
+
+
+def _mutate_book_voice_entry(speaker, mutator, book_token=None):
+    with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)):
+        if book_token is not None:
+            snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH))
+            if get_book_snapshot_token(snapshot) != book_token:
+                raise HTTPException(status_code=409, detail="Active book changed; reload voices before saving")
+        _require_script_speaker(speaker)
+        entry = _mutate_voice_entry(speaker, mutator)
+        with file_lock(VOICE_CONFIG_PATH):
+            config = safe_load_json(VOICE_CONFIG_PATH, default={})
+            return entry, get_voice_config_revision(config)
 
 
 def get_script_speaker(entry):
@@ -286,14 +301,13 @@ def _ensure_voice_listing():
 
 @router.post("/api/voices/{speaker}/versions")
 async def save_voice_version(speaker: str, request: VoiceVersionRequest):
-    await asyncio.to_thread(_require_script_speaker, speaker)
     def save_version(current):
         config = request.config or {key: value for key, value in current.items()
                                     if key not in VERSION_OVERLAY_EXCLUDED}
         if config.get("type") not in {None, "custom", "clone", "design", "lora", "builtin_lora", "ensemble"}:
             raise HTTPException(status_code=422, detail="Unsupported voice version type")
         current.setdefault("versions", {})[request.version_id] = {**config, "age_group": request.age_group}
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, save_version)
+    entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, save_version, request.book_token)
     return {"status": "saved", "speaker": speaker, "version_id": request.version_id,
             "versions": entry.get("versions", {})}
 
@@ -374,11 +388,10 @@ async def favorite_voice_candidate(speaker: str, candidate_id: str,
 
 @router.post("/api/narrator/strategy")
 async def save_narrator_strategy(request: NarratorStrategyRequest):
-    await asyncio.to_thread(_require_script_speaker, "NARRATOR")
-    entry = await asyncio.to_thread(_mutate_voice_entry, "NARRATOR", lambda current: current.update({
+    entry, revision = await asyncio.to_thread(_mutate_book_voice_entry, "NARRATOR", lambda current: current.update({
         "narrator_strategy": request.strategy
-    }))
-    return {"status": "saved", "strategy": entry.get("narrator_strategy")}
+    }), request.book_token)
+    return {"status": "saved", "strategy": entry.get("narrator_strategy"), "revision": revision}
 
 
 @router.post("/api/narrator/preview")
@@ -530,6 +543,7 @@ async def get_voice_state_timeline(speaker: str):
 
 
 class VersionTimelineRequest(BaseModel):
+    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     points: List[VoiceVersionPoint] = Field(max_length=50)
 
 
@@ -537,7 +551,6 @@ class VersionTimelineRequest(BaseModel):
 async def save_version_timeline(speaker: str, request: VersionTimelineRequest):
     """Apply a character's voice timeline. Every version must exist, or
     nothing is written."""
-    await asyncio.to_thread(_require_script_speaker, speaker)
     def save(current):
         versions = current.get("versions") or {}
         missing = [p.version_id for p in request.points
@@ -547,16 +560,15 @@ async def save_version_timeline(speaker: str, request: VersionTimelineRequest):
         points = {p.from_index: {"from_index": p.from_index, "version_id": p.version_id}
                   for p in request.points}
         current["version_timeline"] = [points[i] for i in sorted(points)]
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, save)
+    entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, save, request.book_token)
     return {"status": "saved", "speaker": speaker, "version_timeline": entry.get("version_timeline", [])}
 
 
 @router.delete("/api/voices/{speaker}/version_timeline")
-async def clear_version_timeline(speaker: str):
-    await asyncio.to_thread(_require_script_speaker, speaker)
+async def clear_version_timeline(speaker: str, book_token: Optional[str] = None):
     def clear(current):
         current.pop("version_timeline", None)
-    await asyncio.to_thread(_mutate_voice_entry, speaker, clear)
+    await asyncio.to_thread(_mutate_book_voice_entry, speaker, clear, book_token)
     return {"status": "cleared", "speaker": speaker}
 
 
@@ -666,29 +678,37 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
 
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=422, detail="Generate or open an active script before recovery")
+    data_dir = os.path.dirname(SCRIPT_PATH)
     try:
-        with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
-            script = json.load(f)
-        if not isinstance(script, list):
-            raise ValueError("active script must be a JSON array")
-        speakers = {get_script_speaker(entry) for entry in script}
-        if request.speaker not in speakers:
-            raise HTTPException(status_code=422, detail="Speaker is not present in the active script")
+        with ensure_book_state(data_dir):
+            snapshot = get_book_snapshot(data_dir, allow_missing_script=True, include_voices=False)
+            book_token = get_book_snapshot_token(snapshot)
+            with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
+                script = json.load(f)
+            if not isinstance(script, list):
+                raise ValueError("active script must be a JSON array")
+            speakers = {get_script_speaker(entry) for entry in script}
+            if request.speaker not in speakers:
+                raise HTTPException(status_code=422, detail="Speaker is not present in the active script")
     except HTTPException:
         raise
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=503, detail=f"Active script is unavailable: {exc}") from exc
 
     def _save():
-        with file_lock(VOICE_CONFIG_PATH):
-            config = safe_load_json(VOICE_CONFIG_PATH, default={})
-            entry = config.get(request.speaker, {})
-            entry.update({"description": description, "character_style": description,
-                          "ref_text": ref_text})
-            if not entry.get("type"):
-                entry["type"] = "design"
-            config[request.speaker] = entry
-            atomic_json_write(config, VOICE_CONFIG_PATH)
+        with ensure_book_state(data_dir):
+            current = get_book_snapshot(data_dir, allow_missing_script=True, include_voices=False)
+            if get_book_snapshot_token(current) != book_token:
+                raise HTTPException(status_code=409, detail="Active book changed; recover this persona again for the current book")
+            with file_lock(VOICE_CONFIG_PATH):
+                config = safe_load_json(VOICE_CONFIG_PATH, default={})
+                entry = config.get(request.speaker, {})
+                entry.update({"description": description, "character_style": description,
+                              "ref_text": ref_text})
+                if not entry.get("type"):
+                    entry["type"] = "design"
+                config[request.speaker] = entry
+                atomic_json_write(config, VOICE_CONFIG_PATH)
 
     claim_id = reserve_background_task("persona") if request.resume else None
     try:
@@ -1079,14 +1099,31 @@ async def suggest_voices(request: SuggestVoicesRequest = SuggestVoicesRequest())
 def _suggest_voices_impl(request: SuggestVoicesRequest):
     # Sync implementation that makes a blocking LLM call and file I/O.
     # Called via asyncio.to_thread from the async endpoint above.
-    if not os.path.exists(SCRIPT_PATH):
-        raise HTTPException(status_code=400, detail="No script found. Generate a script first.")
+    data_dir = os.path.dirname(SCRIPT_PATH)
+    with ensure_book_state(data_dir):
+        if not os.path.exists(SCRIPT_PATH):
+            raise HTTPException(status_code=400, detail="No script found. Generate a script first.")
 
-    try:
-        with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
-            script = json.load(f)
-    except (json.JSONDecodeError, ValueError):
-        raise HTTPException(status_code=400, detail="Script is not valid JSON.")
+        try:
+            with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
+                script = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            raise HTTPException(status_code=400, detail="Script is not valid JSON.")
+
+        # Existing config (for persona descriptions/styles + only_unset filtering)
+        voice_config = {}
+        if os.path.exists(VOICE_CONFIG_PATH):
+            try:
+                with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                    voice_config = json.load(f)
+            except (json.JSONDecodeError, ValueError) as e:
+                _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "treating as empty", e)
+                voice_config = {}
+
+        snapshot = get_book_snapshot(data_dir, allow_missing_script=True, include_voices=False)
+        book_token = get_book_snapshot_token(snapshot)
+        book_id = get_active_book_id()
+        line_counts = _script_line_counts()
 
     # Collect every per-character dialogue line so counts are accurate; sample
     # representative lines across the book only when building the prompt.
@@ -1108,22 +1145,11 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
     if not samples:
         return {"method": "none", "suggestions": {}, "message": "No characters found in script."}
 
-    # Existing config (for persona descriptions/styles + only_unset filtering)
-    voice_config = {}
-    if os.path.exists(VOICE_CONFIG_PATH):
-        try:
-            with open(VOICE_CONFIG_PATH, "r", encoding="utf-8") as f:
-                voice_config = json.load(f)
-        except (json.JSONDecodeError, ValueError) as e:
-            _warn_corrupted_json("voice config", VOICE_CONFIG_PATH, "treating as empty", e)
-            voice_config = {}
-
     candidates = _build_lora_candidates()
     if not candidates:
         raise HTTPException(status_code=400, detail="No downloaded LoRA voices available. Download a built-in voice or train an adapter first.")
 
     line_limit = max(1, min(int(request.max_lines or 8), 30))
-    book_id = get_active_book_id()
     lib = _load_voice_library()
     identities = get_lora_candidate_id_map(candidates)
     favorites = {identities.get(os.path.normcase(name), name)
@@ -1134,7 +1160,6 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
     if cast_name and cast_name not in lib["casts"]:
         raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
     usage = get_cast_adapter_usage(lib, cast_name, identities)
-    line_counts = _script_line_counts()
 
     # Build profiles in importance order: narrator, then most dialogue lines.
     characters = {}
@@ -1390,6 +1415,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             "ranked_adapter_ids": ranked,
             "character_style": style_by_name[name], "reason": reason_by_name[name],
             "line_count": info["line_count"], "priority": info["priority"], "book_id": book_id,
+            "book_token": book_token,
             "cast_member_key": info["member_key"], "reuse_count_before": before,
             "reuse_count_after": before + (1 if is_new_identity else 0),
             "reused": before > 0 and is_new_identity,
@@ -1419,75 +1445,82 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
     catalog = _build_lora_candidates()
     identities = get_lora_candidate_id_map(catalog)
     candidates = {c["adapter_id"]: c for c in catalog}
-    counts = _script_line_counts()
-    book_id = get_active_book_id()
-    if cast_name and not book_id:
-        raise HTTPException(status_code=400, detail="Active book identity is required to save suggestions to a cast.")
+    with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
+        counts = _script_line_counts()
+        book_id = get_active_book_id()
+        if cast_name and not book_id:
+            raise HTTPException(status_code=400, detail="Active book identity is required to save suggestions to a cast.")
 
-    with file_lock(VOICE_LIBRARY_PATH), file_lock(VOICE_CONFIG_PATH):
-        voice_config = safe_load_json(VOICE_CONFIG_PATH, default={})
-        lib = _load_voice_library()
-        if cast_name and cast_name not in lib["casts"]:
-            raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
-        usage = get_cast_adapter_usage(lib, cast_name, identities)
-        applied = []
-        for character, suggestion in suggestions.items():
-            if character not in counts:
-                continue
-            suggestion_book_id = secure_filename(suggestion.get("book_id") or "")
-            if suggestion_book_id != secure_filename(book_id or ""):
-                raise HTTPException(status_code=409, detail=(
-                    f"Suggestion for '{character}' belongs to a different book. Generate suggestions again."))
-            adapter_id = suggestion.get("adapter_id")
-            if adapter_id:
-                adapter_id = identities.get(os.path.normcase(adapter_id), adapter_id)
-            candidate = candidates.get(adapter_id)
-            if not candidate:
-                raise HTTPException(status_code=400, detail=f"Unknown or unavailable LoRA adapter: {adapter_id}")
-            style = (suggestion.get("character_style") or "").strip()[:500]
-            cfg = dict(voice_config.get(character) or {})
-            cfg.pop("active_candidate", None)
-            cfg.pop("active_version", None)
-            cfg.update({
-                "type": candidate["type"], "adapter_id": adapter_id,
-                "adapter_path": (f"builtin_lora/{adapter_id}" if candidate["type"] == "builtin_lora"
-                                 else f"lora_models/{adapter_id}"),
-                "character_style": style,
-                # Stable per character, so a voice is one draw for the
-                # whole book rather than a fresh draw per line.
-                "seed": str(character_voice_seed(character)),
-                **get_trait_assignment_metadata(suggestion),
-            })
-            cfg["persona_voice_audit"] = {
-                "persona_ref": cfg.get("persona_ref"),
-                "persona_description": (cfg.get("description") or "")[:1000],
-                "voice_adapter_id": adapter_id,
-                "suggestion_reason": (suggestion.get("reason") or "")[:240],
-            }
-            voice_config[character] = cfg
+        with file_lock(VOICE_LIBRARY_PATH), file_lock(VOICE_CONFIG_PATH):
+            current_token = None
+            if any(value.get("book_token") is not None for value in suggestions.values()):
+                current_token = get_book_snapshot_token(get_book_snapshot(
+                    os.path.dirname(SCRIPT_PATH), allow_missing_script=True, include_voices=False))
+            voice_config = safe_load_json(VOICE_CONFIG_PATH, default={})
+            lib = _load_voice_library()
+            if cast_name and cast_name not in lib["casts"]:
+                raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
+            usage = get_cast_adapter_usage(lib, cast_name, identities)
+            applied = []
+            for character, suggestion in suggestions.items():
+                if character not in counts:
+                    continue
+                if suggestion.get("book_token") is not None and suggestion["book_token"] != current_token:
+                    raise HTTPException(status_code=409, detail="Active book changed; generate voice suggestions again")
+                suggestion_book_id = secure_filename(suggestion.get("book_id") or "")
+                if suggestion_book_id != secure_filename(book_id or ""):
+                    raise HTTPException(status_code=409, detail=(
+                        f"Suggestion for '{character}' belongs to a different book. Generate suggestions again."))
+                adapter_id = suggestion.get("adapter_id")
+                if adapter_id:
+                    adapter_id = identities.get(os.path.normcase(adapter_id), adapter_id)
+                candidate = candidates.get(adapter_id)
+                if not candidate:
+                    raise HTTPException(status_code=400, detail=f"Unknown or unavailable LoRA adapter: {adapter_id}")
+                style = (suggestion.get("character_style") or "").strip()[:500]
+                cfg = dict(voice_config.get(character) or {})
+                cfg.pop("active_candidate", None)
+                cfg.pop("active_version", None)
+                cfg.update({
+                    "type": candidate["type"], "adapter_id": adapter_id,
+                    "adapter_path": (f"builtin_lora/{adapter_id}" if candidate["type"] == "builtin_lora"
+                                     else f"lora_models/{adapter_id}"),
+                    "character_style": style,
+                    # Stable per character, so a voice is one draw for the
+                    # whole book rather than a fresh draw per line.
+                    "seed": str(character_voice_seed(character)),
+                    **get_trait_assignment_metadata(suggestion),
+                })
+                cfg["persona_voice_audit"] = {
+                    "persona_ref": cfg.get("persona_ref"),
+                    "persona_description": (cfg.get("description") or "")[:1000],
+                    "voice_adapter_id": adapter_id,
+                    "suggestion_reason": (suggestion.get("reason") or "")[:240],
+                }
+                voice_config[character] = cfg
+
+                if cast_name:
+                    try:
+                        key = get_cast_member_key(character, book_id)
+                    except ValueError as e:
+                        raise HTTPException(status_code=400, detail=str(e))
+                    members = get_cast_storage_pool(lib, cast_name, character)
+                    casting = {
+                        "priority": suggestion.get("priority"),
+                        "suggestion_reason": (suggestion.get("reason") or "")[:240],
+                        "reuse_count_when_assigned": usage.get(adapter_id, {}).get("character_count", 0),
+                        **get_trait_assignment_metadata(suggestion),
+                    }
+                    members[key] = _make_library_entry(
+                        character, cfg, counts[character], book_id, casting, members.get(key))
+                    usage = get_cast_adapter_usage(lib, cast_name, identities)
+                applied.append(character)
 
             if cast_name:
-                try:
-                    key = get_cast_member_key(character, book_id)
-                except ValueError as e:
-                    raise HTTPException(status_code=400, detail=str(e))
-                members = get_cast_storage_pool(lib, cast_name, character)
-                casting = {
-                    "priority": suggestion.get("priority"),
-                    "suggestion_reason": (suggestion.get("reason") or "")[:240],
-                    "reuse_count_when_assigned": usage.get(adapter_id, {}).get("character_count", 0),
-                    **get_trait_assignment_metadata(suggestion),
-                }
-                members[key] = _make_library_entry(
-                    character, cfg, counts[character], book_id, casting, members.get(key))
-                usage = get_cast_adapter_usage(lib, cast_name, identities)
-            applied.append(character)
-
-        if cast_name:
-            atomic_json_write_pair(voice_config, VOICE_CONFIG_PATH,
-                                   lib, VOICE_LIBRARY_PATH)
-        else:
-            atomic_json_write(voice_config, VOICE_CONFIG_PATH)
+                atomic_json_write_pair(voice_config, VOICE_CONFIG_PATH,
+                                       lib, VOICE_LIBRARY_PATH)
+            else:
+                atomic_json_write(voice_config, VOICE_CONFIG_PATH)
     return {"applied": applied, "count": len(applied), "cast": cast_name,
             "book_id": book_id, "adapter_usage": get_cast_adapter_usage(lib, cast_name, identities)}
 

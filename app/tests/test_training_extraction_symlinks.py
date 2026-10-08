@@ -49,7 +49,7 @@ class TrainingExtractionSymlinkTests(unittest.TestCase):
                 self.assertEqual(b'keep', (dest / 'keep.txt').read_bytes())
                 self.assertEqual(b'external metadata', (outside / 'metadata.jsonl').read_bytes())
 
-    def test_regular_existing_destination_reuses_and_flattens_archive(self):
+    def test_regular_existing_destination_replaces_and_flattens_archive(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); dest = root / 'dest'; dest.mkdir()
             (dest / 'keep.txt').write_bytes(b'keep')
@@ -57,7 +57,7 @@ class TrainingExtractionSymlinkTests(unittest.TestCase):
             training.extract_zip(str(archive), str(dest))
             self.assertEqual('{"text":"hello"}\n', (dest / 'metadata.jsonl').read_text())
             self.assertEqual(b'fixture audio', (dest / 'train/clip.wav').read_bytes())
-            self.assertEqual(b'keep', (dest / 'keep.txt').read_bytes())
+            self.assertFalse((dest / 'keep.txt').exists())
             self.assertFalse((dest / 'dataset').exists())
 
     def test_existing_member_level_symlink_escape_is_still_rejected(self):

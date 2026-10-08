@@ -26,7 +26,8 @@ class ProfilerDeviceTests(unittest.TestCase):
                        'profiler_model': str(model), 'epub_dirs': []}
                 request = voicelab.VoiceLabRequest(stages=['profile'], device=device)
                 original = request.model_dump()
-                probe = {'torch': 'fixture', 'gpu': 'fixture', 'deps': {'llama_cpp': True}}
+                probe = {'torch': 'fixture', 'gpu': 'fixture', 'cuda_available': True,
+                         'mps_available': True, 'deps': {'llama_cpp': True}}
                 with patch.object(voicelab, 'DATA_DIR', tmp), \
                      patch.object(voicelab, '_probe_voicelab_interpreter', return_value=probe), \
                      patch.object(voicelab, '_run_profiler_preflight', return_value={}) as check, \

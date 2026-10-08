@@ -1,5 +1,6 @@
 """Submission deadlines and actual copy-failure cleanup for external TTS."""
 import tempfile
+import concurrent.futures
 import threading
 import time
 import unittest
@@ -15,6 +16,51 @@ import tts
 class ExternalBatchDeadlineTests(unittest.TestCase):
     def engine(self):
         return tts.TTSEngine({'tts':{'mode':'external','url':'http://fixture','parallel_workers':2}})
+
+    def test_pending_cleanup_denial_keeps_timeout_and_later_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); engine = self.engine(); engine._external_timeout = .15
+            release = threading.Event(); attempted = []
+            old = root / 'temp_batch_0.wav'; old.write_bytes(b'prior output')
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+            submit = executor.submit
+            futures = []
+            def record_submit(*args, **kwargs):
+                future = submit(*args, **kwargs)
+                futures.append(future)
+                return future
+            remove = tts.os.remove
+            def render(text, instruct, speaker, config, path, **kwargs):
+                sf.write(path, np.full(240, .2), 24000, format='WAV')
+                if text == '0':
+                    release.wait(3)
+                return True
+            def deny_cleanup(path):
+                if 'temp_batch_0.wav.pending.' in str(path):
+                    attempted.append(str(path))
+                    raise PermissionError('synthetic pending deletion denied')
+                return remove(path)
+            with patch.object(engine, '_external_generate_custom', side_effect=render), \
+                    patch('concurrent.futures.ThreadPoolExecutor', return_value=executor), \
+                    patch.object(executor, 'submit', side_effect=record_submit), \
+                    patch.object(tts.os, 'remove', side_effect=deny_cleanup):
+                try:
+                    result = engine._external_batch(
+                        [{'index': i, 'speaker': 'A', 'text': str(i)} for i in (0, 1)],
+                        {'A': {'voice': 'Ryan'}}, str(root), 'custom')
+                finally:
+                    release.set(); executor.shutdown(wait=True)
+            self.assertTrue(all(future.result()[0] for future in futures))
+            self.assertEqual([1], result['completed'])
+            self.assertEqual([0], [index for index, _ in result['failed']])
+            self.assertIn('timed out', result['failed'][0][1])
+            self.assertIn('synthetic pending deletion denied', result['failed'][0][1])
+            self.assertEqual(2, len(attempted))
+            self.assertIn(attempted[0], result['failed'][0][1])
+            self.assertEqual(b'prior output', old.read_bytes())
+            self.assertEqual(1, len(list(root.glob('*.pending.*'))))
+            audio, rate = sf.read(root / 'temp_batch_1.wav')
+            self.assertEqual((240, 24000), (len(audio), rate))
 
     def test_later_request_cannot_complete_after_its_submission_deadline(self):
         with tempfile.TemporaryDirectory() as tmp:

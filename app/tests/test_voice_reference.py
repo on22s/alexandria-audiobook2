@@ -29,6 +29,44 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import voice_reference
+
+
+class SiblingInterpreterLayoutTests(unittest.TestCase):
+    def test_default_constructor_and_resolver_select_platform_layout_with_existing_precedence(self):
+        import ast
+        from pathlib import Path
+        sys.path.insert(0, str(Path(voice_reference.__file__).resolve().parent.parent))
+        from app_venv import get_app_python
+        source = Path(voice_reference.__file__).read_text()
+        node = next(node for node in ast.parse(source).body
+                    if isinstance(node, ast.Assign) and any(
+                        isinstance(target, ast.Name) and target.id == 'SIBLING_PY' for target in node.targets))
+        statement = compile(ast.Module(body=[node], type_ignores=[]), voice_reference.__file__, 'exec')
+        for platform, relative in (('win32', ('Scripts', 'python.exe')), ('linux', ('bin', 'python'))):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                expected = root / 'alexandria-audiobook.git' / 'app' / 'env' / relative[0] / relative[1]
+                expected.parent.mkdir(parents=True); expected.write_bytes(b'fixture interpreter')
+                configured = root / 'configured-python'; configured.write_bytes(b'configured fixture')
+                namespace = {'os': os, 'REPO': str(root / 'alexandria-audiobook2.git'),
+                             'get_app_python': get_app_python}
+                with patch.dict(os.environ):
+                    os.environ.pop('ALEXANDRIA_SIBLING_PYTHON', None)
+                    with patch.object(sys, 'platform', platform):
+                        exec(statement, namespace)
+                with patch.object(voice_reference, 'SIBLING_PY', namespace['SIBLING_PY']), \
+                        patch('importlib.util.find_spec', return_value=None):
+                    self.assertEqual(str(expected), voice_reference.get_speaker_model_python({}))
+                    self.assertEqual(str(configured), voice_reference.get_speaker_model_python({'rocm_python': str(configured)}))
+                    expected.unlink()
+                    self.assertIsNone(voice_reference.get_speaker_model_python({}))
+                with patch.dict(os.environ, {'ALEXANDRIA_SIBLING_PYTHON': str(configured)}):
+                    exec(statement, namespace)
+                self.assertEqual(str(configured), namespace['SIBLING_PY'])
+                with patch('importlib.util.find_spec', return_value=object()):
+                    self.assertEqual(sys.executable, voice_reference.get_speaker_model_python({'rocm_python': str(configured)}))
+
+
 def rank_reference_samples(paths, **kwargs):
     return voice_reference.rank_reference_samples(paths, dataset_root=os.path.dirname(paths[0]), **kwargs)
 

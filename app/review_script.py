@@ -218,6 +218,13 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
             not isinstance(data.get("failed_batches", []), list)):
         print("Invalid review checkpoint fields - starting fresh.")
         return None
+    offsets = data.get("source_offsets")
+    if offsets is not None and (
+            not isinstance(offsets, list) or len(offsets) != data["completed_batches"]
+            or any(not isinstance(offset, int) or isinstance(offset, bool) or offset < 0 for offset in offsets)
+            or offsets != sorted(offsets)):
+        print("Invalid review checkpoint source offsets - starting fresh.")
+        return None
     if data.get("total_batches") != total_batches:
         print("Note: entry count changed since the checkpoint was saved "
               "(earlier batches added/removed entries) - resuming from the "
@@ -243,6 +250,8 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
         data["all_corrected"] = all_corrected
         data["completed_batches"] = keep_count
         data["batch_lengths"] = batch_lengths[:keep_count]
+        if "source_offsets" in data:
+            data["source_offsets"] = data["source_offsets"][:keep_count]
         data["previous_tail"] = all_corrected[-2:] if all_corrected else None
         data["total_stats"]["batches_failed"] = max(
             0, data["total_stats"].get("batches_failed", 0) - len(failed_batches))
@@ -257,7 +266,7 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
 def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
                      context_window, all_corrected, total_stats, previous_tail,
                      batch_lengths, failed_batches, source_sha256,
-                     output_sha256=None, writer=None):
+                     output_sha256=None, writer=None, source_offsets=None):
     path = _checkpoint_path(output_path)
     data = {
         "completed_batches": completed_batches,
@@ -271,6 +280,8 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
         "failed_batches": failed_batches,
         "source_sha256": source_sha256,
         "output_sha256": output_sha256,
+        "source_offsets": list(source_offsets) if source_offsets is not None else
+                          [(index + 1) * batch_size for index in range(completed_batches)],
     }
     # Use atomic_json_write for consistent cross-platform behavior with Windows retry logic
     try:
@@ -302,6 +313,30 @@ def clear_checkpoint(output_path):
                       "Stale checkpoint artifacts may remain.")
 
 
+def get_review_resume_source_offsets(checkpoint, entries, batch_size):
+    """Return consumed-input offsets in the coordinate space of this input."""
+    if not checkpoint:
+        return []
+    count = checkpoint["completed_batches"]
+    if _entries_fingerprint(entries) == checkpoint.get("source_sha256"):
+        return list(checkpoint.get("source_offsets") or
+                    [min(len(entries), (index + 1) * batch_size) for index in range(count)])
+    lengths = checkpoint["batch_lengths"]
+    if len(lengths) == count:
+        offsets, consumed = [], 0
+        for length in lengths:
+            consumed += length
+            offsets.append(consumed)
+        return offsets
+    # Legacy output checkpoints lack per-batch lengths; the whole corrected
+    # prefix is still established, although its earlier split points are not.
+    corrected_count = len(checkpoint["all_corrected"])
+    offsets = [min(corrected_count, (index + 1) * batch_size) for index in range(count)]
+    if offsets:
+        offsets[-1] = corrected_count
+    return offsets
+
+
 def _load_resume_state(output_path, total_batches_estimate, batch_size, context_window,
                         entries, all_corrected, total_stats):
     """Load a checkpoint (if any) and compute where this run should resume from.
@@ -326,12 +361,8 @@ def _load_resume_state(output_path, total_batches_estimate, batch_size, context_
         batch_lengths = checkpoint["batch_lengths"]
         failed_batches = checkpoint["failed_batches"]
 
-    # Resume from where `all_corrected` actually leaves off, not from
-    # `completed_batches * batch_size` - earlier batches may have
-    # added/removed entries, so those two can diverge. `entries` is the
-    # previous run's output (all_corrected + unreviewed remainder), so
-    # `entries[:resume_offset] == all_corrected`.
-    resume_offset = len(all_corrected)
+    source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
+    resume_offset = source_offsets[-1] if source_offsets else 0
     return (all_corrected, total_stats, previous_tail, completed_batches,
             batch_lengths, failed_batches, resume_offset, checkpoint)
 
@@ -1070,6 +1101,7 @@ def main():
          failed_batches, resume_offset, checkpoint) = _load_resume_state(
             output_path, total_batches_estimate, batch_size, args.context_window,
             entries, all_corrected, total_stats)
+        source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
         checkpoint_writer = GenerationCheckpointDeltas(
             _checkpoint_path(output_path), reset=checkpoint is None)
         num_remaining_batches = len(range(resume_offset, len(entries), batch_size))
@@ -1111,6 +1143,7 @@ def main():
                 previous_tail=None,  # contextual mode uses explicit before/after window instead
                 source_context="\n".join(contextual_lines),
             )
+            source_offsets.append(end)
 
             if corrected is None:
                 print(f"  FAILED — keeping original entries for batch {batch_index} (will retry on next resume)")
@@ -1123,7 +1156,7 @@ def main():
                     batch_index, start, len(batch), "review_failed"))
                 save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer)
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
                 continue
 
             passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.05)
@@ -1140,7 +1173,7 @@ def main():
                     batch_index, start, len(batch), "text_length_mismatch", ratio))
                 save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer)
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
                 continue
 
             stats = diff_entries(batch, corrected, highlight_pool, entry_offset=start)
@@ -1168,7 +1201,7 @@ def main():
             batch_lengths.append(len(corrected))
             save_checkpoint(output_path, batch_index, total_batches, batch_size,
                             args.context_window, all_corrected, total_stats, previous_tail,
-                            batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer)
+                            batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
     else:
         total_batches_estimate = (len(entries) + batch_size - 1) // batch_size if entries else 0
         print(f"Split into {total_batches_estimate} batches of ~{batch_size} entries")
@@ -1177,6 +1210,7 @@ def main():
          failed_batches, resume_offset, checkpoint) = _load_resume_state(
             output_path, total_batches_estimate, batch_size, args.context_window,
             entries, all_corrected, total_stats)
+        source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
         checkpoint_writer = GenerationCheckpointDeltas(
             _checkpoint_path(output_path), reset=checkpoint is None)
         remaining_entries = entries[resume_offset:]
@@ -1228,6 +1262,8 @@ def main():
                 wave_results = list(executor.map(_run_one, zip(wave_indices, wave_batches)))
 
             for i, batch, corrected in zip(wave_indices, wave_batches, wave_results):
+                source_offsets.append(min(len(entries), resume_offset +
+                                          (i - completed_batches - 1) * batch_size + len(batch)))
                 if corrected == "VRAM_SKIP":
                     # Keep the skipped batch at its original position even if
                     # concurrent workers acquired the VRAM lock out of order.
@@ -1237,7 +1273,7 @@ def main():
                     previous_tail = batch[-2:] if len(batch) >= 2 else batch
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer)
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
                     continue
 
                 if corrected is None:
@@ -1252,7 +1288,7 @@ def main():
                         i, entry_start - 1, len(batch), "review_failed"))
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer)
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
                     continue
 
                 # Text-loss safety check (same bounds as contextual mode for consistency)
@@ -1271,7 +1307,7 @@ def main():
                         i, entry_start - 1, len(batch), "text_length_mismatch", ratio))
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer)
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
                     continue
 
                 # Diff stats
@@ -1301,7 +1337,7 @@ def main():
                 batch_lengths.append(len(corrected))
                 save_checkpoint(output_path, i, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer)
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
 
             if vram_abort.is_set():
                 # Some batches in this wave may have already succeeded before
@@ -1362,7 +1398,7 @@ def main():
         save_checkpoint(output_path, len(batch_lengths), total_batches, batch_size,
                         args.context_window, all_corrected, total_stats, previous_tail,
                         batch_lengths, failed_batches, source_sha256,
-                        _entries_fingerprint(output_entries), writer=checkpoint_writer)
+                        _entries_fingerprint(output_entries), writer=checkpoint_writer, source_offsets=source_offsets)
 
     # Write corrected script atomically so a crash mid-write doesn't corrupt the output
     atomic_json_write(output_entries, output_path)

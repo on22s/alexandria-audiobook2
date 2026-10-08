@@ -123,12 +123,14 @@ class BatchStyleTimelineTests(unittest.TestCase):
         samples=np.full(4000,0.1,dtype='float32')
         with tempfile.TemporaryDirectory() as tmp,contextlib.redirect_stdout(io.StringIO()),patch.dict(sys.modules,{'torch':get_torch()}):
             root=Path(tmp);engine=get_engine();config=get_style_config('design');chunks=get_chunks();before=copy.deepcopy((chunks,config));design=[]
-            def preview(description,sample_text):
-                design.append((sample_text,description));path=root/(str(len(design))+'_preview.wav');sf.write(path,samples,16000);return str(path),16000
+            def preview(description,sample_text,seed=-1):
+                design.append((sample_text,description,seed));path=root/(str(len(design))+'_preview.wav');sf.write(path,samples,16000);return str(path),16000
             engine.generate_voice_design=preview
             result=engine.generate_batch(chunks,config,tmp)
             self.assertEqual([],result['failed']);self.assert_outputs(tmp,[2,7,9,10])
-            self.assertEqual({'middle long line':'Base identity, aged warm','early':'Base identity, young soft','last longish line':'Base identity, elder firm','other':'Other identity, tired sad'},{text.rstrip('.'):desc for text,desc in design})
+            self.assertEqual({'middle long line':'Base identity, aged warm','early':'Base identity, young soft','last longish line':'Base identity, elder firm','other':'Other identity, tired sad'},{text.rstrip('.'):desc for text,desc,seed in design})
+            self.assertEqual({'middle long line':0,'early':0,'last longish line':0,'other':7},
+                             {text.rstrip('.'):seed for text,desc,seed in design})
             self.assertEqual(before,(chunks,config))
             config=get_style_config();config['NARRATOR']={'type':'custom','voice':'Ryan','narrator_strategy':'focus'}
             calls=[]

@@ -28,6 +28,24 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
             self.addCleanup(patcher.stop)
         dataset_builder._save_builder_state("voice", self.state)
 
+    def test_http_status_distinguishes_empty_deleted_and_missing_state_projects(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        app = FastAPI()
+        app.include_router(dataset_builder.router)
+        with TestClient(app) as client:
+            self.assertEqual(200, client.post('/api/dataset_builder/create', json={'name': 'empty'}).status_code)
+            status = client.get('/api/dataset_builder/status/empty')
+            self.assertEqual(200, status.status_code, status.text)
+            self.assertEqual([], status.json()['samples'])
+            self.assertEqual(200, client.delete('/api/dataset_builder/empty').status_code)
+            self.assertFalse((self.root / 'empty').exists())
+            self.assertEqual(404, client.get('/api/dataset_builder/status/empty').status_code)
+            self.assertFalse((self.root / 'empty').exists())
+            (self.root / 'missing_state').mkdir()
+            self.assertEqual(404, client.get('/api/dataset_builder/status/missing_state').status_code)
+            self.assertEqual(200, client.get('/api/dataset_builder/status/voice').status_code)
+
     def test_http_row_save_accepts_integer_and_legacy_string_seeds_without_coercion(self):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
