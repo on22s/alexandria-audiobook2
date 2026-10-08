@@ -10,7 +10,7 @@ Deliberately reports provenance next to every number: validation status, dirty
 tree, endpoint and harness fingerprint. A result whose provenance is weak should
 be visible as such in the same row, not discoverable by opening the file.
 """
-import argparse, collections, csv, glob, io, json, os, re, sys, time
+import argparse, collections, csv, glob, io, json, math, os, re, sys, time
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, REPO)
@@ -215,6 +215,21 @@ def main(argv=None):
             rows.append({"artifact": name, "evidence_status": get_evidence_status(name, legacy_status, structural_status),
                          "note": "SKIPPED: 'rows' is not a list of scored arms"})
             continue
+        if any(type(row.get("correct")) is not bool for row in rr):
+            rows.append({"artifact": name,
+                         "evidence_status": get_evidence_status(name, legacy_status, structural_status),
+                         "note": "SKIPPED: row correct values must be JSON booleans"})
+            continue
+        finished = m.get("finished")
+        timestamp_note = ""
+        formatted_finished = ""
+        if finished is not None:
+            try:
+                if type(finished) not in (int, float) or not math.isfinite(finished):
+                    raise ValueError("not a finite numeric timestamp")
+                formatted_finished = time.strftime("%m-%d %H:%M", time.gmtime(finished))
+            except (TypeError, ValueError, OverflowError, OSError):
+                timestamp_note = "Malformed finished timestamp; time omitted"
         env = m.get("lmstudio") or {}
         git = m.get("git") or {}
         # Aggregate by (BOOK, arm), not arm alone. gold_path names only the FIRST
@@ -235,7 +250,7 @@ def main(argv=None):
         for r in rr:
             b = by[(_row_book(r), r["arm"])]
             b[0] += 1
-            b[1] += bool(r.get("correct"))
+            b[1] += r["correct"]
         # Derive book and environment from METADATA, not the filename. Filename
         # parsing mislabelled every pre-EXPERIMENT_TAG artifact - "closed_set__qwen__
         # qwen3-14b.json" split to book="qwen" - and an index that mislabels books is
@@ -285,9 +300,8 @@ def main(argv=None):
                 "dirty": git.get("dirty"),
                 "commit": (git.get("commit") or "")[:8],
                 "elapsed_s": m.get("elapsed_s", ""),
-                "finished": time.strftime("%m-%d %H:%M",
-                                          time.gmtime(m["finished"]))
-                            if m.get("finished") else "",
+                "finished": formatted_finished,
+                "note": timestamp_note,
             })
 
     # Pipeline repeats are three_pass_generate outputs, not ExperimentRecord
