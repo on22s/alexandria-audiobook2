@@ -1123,6 +1123,10 @@ def main():
     parser.add_argument("--context-lines", type=int, default=DEFAULT_CONTEXT_LINES,
                         help="Sample spoken lines per character fed to the persona prompt; the narrator window grows to half of it")
     args = parser.parse_args()
+    if args.state_version:
+        if args.age_group:
+            parser.error("--state-version cannot be combined with --age-group")
+        args.advanced = True
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     app_dir = os.path.dirname(__file__)

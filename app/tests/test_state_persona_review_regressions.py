@@ -139,7 +139,7 @@ class StatePersonaReviewRegressions(unittest.TestCase):
                 stack.enter_context(patch.object(personas, name, return_value=value))
             discovery = stack.enter_context(patch.object(personas, '_discover_batch_characters', side_effect=AssertionError('recovery must not rediscover')))
             compiler = stack.enter_context(patch.object(personas, '_compile_persona', side_effect=AssertionError('recovery must not recompile')))
-            stack.enter_context(patch('sys.argv', ['generate_personas.py', '--advanced', '--speakers', 'ARTHUR', '--state-version', target['version_id'], '--recovered-speaker', 'ARTHUR', '--book-token', token]))
+            stack.enter_context(patch('sys.argv', ['generate_personas.py', '--speakers', 'ARTHUR', '--state-version', target['version_id'], '--recovered-speaker', 'ARTHUR', '--book-token', token]))
             personas.main(); discovery.assert_not_called(); compiler.assert_not_called()
             saved = json.loads(path.read_text())
             self.assertEqual(saved['ARTHUR']['versions'][targets[0]['version_id']], original['ARTHUR']['versions'][targets[0]['version_id']])
@@ -147,7 +147,45 @@ class StatePersonaReviewRegressions(unittest.TestCase):
                 self.assertEqual(saved['ARTHUR'][key], original['ARTHUR'][key])
             version = saved['ARTHUR']['versions'][target['version_id']]
             self.assertEqual(version['description'], 'A deliberate recovered adult voice.')
+            self.assertNotEqual(version['ref_audio'], original['ARTHUR']['versions'][target['version_id']]['ref_audio'])
+            for sibling in targets:
+                if sibling != target:
+                    self.assertEqual(saved['ARTHUR']['versions'][sibling['version_id']], original['ARTHUR']['versions'][sibling['version_id']])
             self.assertTrue((root / version['ref_audio']).read_bytes().startswith(b'RIFF'))
+
+    def test_state_cli_rejects_an_age_override_before_runtime_work(self):
+        with patch('sys.argv', ['generate_personas.py', '--state-version', 'state_test', '--age-group', 'adult']), patch.object(personas, 'get_runtime_data_dir') as runtime:
+            with self.assertRaises(SystemExit) as error:
+                personas.main()
+            self.assertEqual(error.exception.code, 2)
+            runtime.assert_not_called()
+
+    def test_clone_state_autosave_preserves_identity_styles_and_seeds(self):
+        from tts import voice_config_for_chunk
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            client, path, targets = self.fixture(directory, stack)
+            original = json.loads(path.read_text())
+            original['ARTHUR'].update(character_style='Base teen identity', seed='99')
+            for version in original['ARTHUR']['versions'].values():
+                version.update(character_style='State ' + version['age_group'] + ' identity', default_style='Calm delivery', seed='123')
+            adult = targets[1]
+            original['ARTHUR']['version_timeline'] = [{'from_index': adult['from_entry'], 'version_id': adult['version_id']}]
+            path.write_text(json.dumps(original))
+            snapshot = client.get('/api/voice_config/snapshot').json()
+            snapshot['voices'] = client.get('/api/voices').json()
+            tests = Path(__file__).parent
+            result = subprocess.run(['node', str(tests / 'state_persona_style_roundtrip_fixture.js'), str(tests.parent / 'static/js/app-core.js')], input=json.dumps(snapshot), capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            response = client.post('/api/voice_config/save', json={'revision': snapshot['revision'], 'book_token': snapshot['book_token'], 'voices': json.loads(result.stdout)})
+            self.assertEqual(response.status_code, 200, response.text)
+            saved = json.loads(path.read_text())
+            for target in targets:
+                version_id = target['version_id']
+                for field in ('character_style', 'default_style', 'seed'):
+                    self.assertEqual(saved['ARTHUR']['versions'][version_id][field], original['ARTHUR']['versions'][version_id][field])
+            selected = voice_config_for_chunk(saved, 'ARTHUR', adult['from_entry'])['ARTHUR']
+            self.assertEqual(selected['character_style'], 'State adult identity')
+            self.assertEqual(saved['ARTHUR']['character_style'], 'Base teen identity')
 
     def test_native_suggestion_sorting_keeps_collapsed_base_and_state_groups(self):
         tests = Path(__file__).parent

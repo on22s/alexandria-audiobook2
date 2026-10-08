@@ -5855,6 +5855,7 @@
                         type: 'clone',
                         ref_text: card.querySelector('.ref-text').value,
                         ref_audio: card.querySelector('.ref-audio').value,
+                        character_style: metadata.type === 'clone' ? (metadata.character_style || '') : '',
                         default_style: metadata.type === 'clone' ? (metadata.default_style || '') : '',
                         description: getVoiceCardDescription(card),
                         seed: "-1"
