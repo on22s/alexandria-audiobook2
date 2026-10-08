@@ -8,3 +8,5 @@
 52 focused tests pass: actual checkpoints, mixed GPU telemetry, owned child cleanup and unrelated-process controls. No native GPU telemetry run is claimed.
 
 Validation: 52 focused tests; ready.sh passed with 7,059 unit tests and 70 isolated API checks. The quick gate skipped 12 generation checks. No production GPU inference or native browser run is claimed.
+
+Validation: 52 focused tests; ready.sh passed with 7,067 unit tests and 70 isolated API checks. The quick gate skipped 12 generation checks. No production GPU inference or native browser run is claimed.
