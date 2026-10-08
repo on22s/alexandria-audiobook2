@@ -2161,6 +2161,14 @@
     "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_cleanup_errors_do_not_replace_primary_failure_and_are_reported",
     "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_local_dedup_and_unvalidated_remote_paths_are_never_deleted"
   ],
+  "test_deepseek_input_validation": [
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_invalid_gold_options_fail_before_loading_or_writing",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_invalid_rating_does_not_consume_session_or_write_review",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_missing_timezone_data_keeps_measured_queue_eta",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_nonobject_narrator_override_is_a_validation_error",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_ratings_do_not_coerce_booleans_or_fractional_values",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_valid_prompt_edit_with_preserved_mtime_invalidates_cache"
+  ],
   "test_deepseek_text_helpers": [
     "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_filesystem_root_contains_child_and_sibling_prefix_stays_outside",
     "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_latin_accent_case_is_source_backed_but_new_letters_fail",
