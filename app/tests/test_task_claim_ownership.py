@@ -210,6 +210,8 @@ class TaskClaimOwnershipTests(unittest.TestCase):
                     provider=patch.object(benchmark,'_init_batch_state',side_effect=ValueError('setup failed')) if failure=='setup' else patch.object(BackgroundTasks,'add_task',side_effect=RuntimeError('registration rejected'))
                     with provider:self.assertEqual(500,client.post('/api/benchmark/start',json=payload).status_code)
                     self.assertFalse(core.is_task_running('benchmark'));self.assertNotIn('benchmark',core._task_claims)
+                    self.assertEqual('failed', client.get('/api/benchmark/status').json()['status'])
+                    self.assertEqual(400, client.post('/api/benchmark/cancel').status_code)
                     export.assert_not_called()
             response=client.post('/api/benchmark/start',json=payload)
             self.assertEqual(200,response.status_code,response.text)

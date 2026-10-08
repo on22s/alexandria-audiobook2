@@ -7,6 +7,8 @@ Keep BLOCKED_MODULES aligned with .github/workflows/tests.yml.
 """
 
 import sys
+import json
+from pathlib import Path
 
 # CI now installs every ML import required for CPU structural checks.
 BLOCKED_MODULES = ()
@@ -70,10 +72,28 @@ def main(argv=None):
     import unittest
 
     argv = list(sys.argv[1:] if argv is None else argv)
+    receipt_path = None
+    if "--test-report" in argv:
+        position = argv.index("--test-report")
+        if position + 1 >= len(argv):
+            raise SystemExit("--test-report needs a path")
+        receipt_path = argv[position + 1]
+        del argv[position:position + 2]
+    test_ids = []
+
+    class RecordedResult(unittest.TextTestResult):
+        def startTest(self, test):
+            test_ids.append(test.id())
+            super().startTest(test)
+
+    class RecordedRunner(unittest.TextTestRunner):
+        def __init__(self, **kwargs):
+            super().__init__(resultclass=RecordedResult, **kwargs)
     argv, shard = pop_shard_option(argv)
     block_ml_imports()
     if shard is None:
-        runner = unittest.main(module=None, argv=["python -m ci_env"] + argv, exit=False)
+        runner = unittest.main(module=None, argv=["python -m ci_env"] + argv,
+                               testRunner=RecordedRunner, exit=False)
     else:
         from unit_test_sharding import get_module_durations, get_sharded_suite, parse_shard_spec
         try:
@@ -88,7 +108,10 @@ def main(argv=None):
                 self.test = get_sharded_suite(self.test, index, count, durations)
                 super().runTests()
 
-        runner = ShardedProgram(module=None, argv=["python -m ci_env"] + argv, exit=False)
+        runner = ShardedProgram(module=None, argv=["python -m ci_env"] + argv,
+                                testRunner=RecordedRunner, exit=False)
+    if receipt_path is not None:
+        Path(receipt_path).write_text(json.dumps({"test_ids": test_ids}), encoding="utf-8")
     return 0 if runner.result.wasSuccessful() else 1
 
 

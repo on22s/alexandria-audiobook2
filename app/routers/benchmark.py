@@ -217,6 +217,7 @@ async def benchmark_start(background_tasks: BackgroundTasks,
                 "preflight_id": preflight["preflight_id"]}
     except BaseException:
         release_gpu_task_claim("benchmark", claim_id, pending_only=True)
+        state["status"] = "failed"
         raise
 
 

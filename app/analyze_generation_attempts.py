@@ -102,6 +102,10 @@ def validate_analysis_manifest(manifest):
     validate_attempts(manifest.get("failed_chunk_attempts"), "failed_chunk_attempts")
 
 
+def is_failed_attempt_telemetry_missing(manifest):
+    return manifest.get("status") == "failed" and manifest.get("failed_chunk_attempts") is None
+
+
 def recall_band(recall: float) -> str:
     """Return which RECALL_BANDS bucket `recall` falls in. Band edges are
     inclusive on the lower bound, exclusive on the upper (0.75 falls in
@@ -147,6 +151,8 @@ def load_manifests(scripts_dir: str) -> Tuple[List[dict], List[str]]:
         except ValueError as e:
             warnings.append(f"skipped {name}: malformed telemetry ({e})")
             continue
+        if is_failed_attempt_telemetry_missing(data):
+            warnings.append(f"{name}: failed run has no attempt telemetry; the failed chunk is counted, but its attempts cannot be analyzed")
         manifests.append(data)
     return manifests, warnings
 
@@ -170,7 +176,7 @@ def extract_chunk_records(manifest: dict) -> List[dict]:
             "adaptively_split": bool(item.get("adaptively_split", False)),
             "attempts": item.get("attempts", []) or [],
         })
-    failed_attempts = manifest.get("failed_chunk_attempts")
+    failed_attempts = [] if is_failed_attempt_telemetry_missing(manifest) else manifest.get("failed_chunk_attempts")
     if manifest.get("status") == "failed" and isinstance(failed_attempts, list):
         records.append({
             "chunk_number": manifest.get("failed_chunk"),

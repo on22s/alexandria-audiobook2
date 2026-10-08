@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 from analyze_generation_attempts import (
     all_chunk_records,
@@ -166,6 +167,24 @@ class SplitOutcomesTests(unittest.TestCase):
 
 
 class LoadManifestsTests(unittest.TestCase):
+    def test_real_failed_manifest_without_attempt_detail_is_counted_and_warned(self):
+        from generate_script import build_generation_quality_manifest
+        from analyze_generation_attempts import all_chunk_records, format_report
+        manifest = build_generation_quality_manifest(
+            'failed', {}, [], [], total_chunks=1, failed_chunk=1,
+            failure='post_return_validation_failed', failed_quality={'passed': False})
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, 'failure.generation_quality.json').write_text(json.dumps(manifest), encoding='utf-8')
+            manifests, warnings = load_manifests(directory)
+        records = all_chunk_records(manifests)
+        self.assertEqual(1, len(records))
+        self.assertFalse(records[0]['accepted'])
+        self.assertEqual(1, records[0]['chunk_number'])
+        self.assertEqual([], records[0]['attempts'])
+        self.assertEqual(1, len(warnings))
+        self.assertIn('no attempt telemetry', warnings[0])
+        self.assertIn('0 accepted, 1 failed', format_report(records, warnings))
+
     def test_malformed_manifest_skipped_with_warning(self):
         with tempfile.TemporaryDirectory() as tmp:
             good = os.path.join(tmp, "good.json.generation_quality.json")

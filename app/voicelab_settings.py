@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import posixpath
 import re
 import sys
 
@@ -20,10 +21,12 @@ def get_voicelab_python(config, default_python=None) -> str:
     return os.environ.get("ALEXANDRIA_ROCM_PYTHON", sys.executable)
 
 
-def get_voice_lab_script_path(root_dir: str, filename: str) -> str:
-    """Return the checkout-local path of a shipped Voice Lab stage script."""
+def get_voice_lab_script_path(root_dir: str, filename: str, *, remote=False) -> str:
+    """Return a shipped stage path using local or remote Linux path semantics."""
     if filename not in VOICE_LAB_SCRIPTS:
         raise ValueError(f"Unknown Voice Lab script: {filename}")
+    if remote:
+        return posixpath.join(root_dir, "tools", "voice_lab", filename)
     return os.path.join(os.path.abspath(root_dir), "tools", "voice_lab", filename)
 
 

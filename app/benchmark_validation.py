@@ -36,7 +36,7 @@ def get_benchmark_verified_file_path(root, name, expected_sha256, description):
 def get_benchmark_training_audio_path(root, relative):
     """Apply the existing training member-name policy and shared containment."""
     if (not isinstance(relative, str) or not relative or os.path.isabs(relative)
-            or os.path.normpath(relative).startswith('..')):
+            or os.path.normpath(relative).split(os.sep)[0] == '..'):
         raise ValueError(f"unsafe training audio path: {relative!r}")
     try:
         return get_benchmark_file_path(root, relative)

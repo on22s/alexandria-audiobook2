@@ -24,3 +24,5 @@ Tracker: #917.
 - [x] Fixes #897
 
 CI follow-up: the healthy managed-server test fixture allows a longer readiness window under runner load. A real two-second delayed HTTP start fails with the original fixture and passes with the new allowance. All kernel ancestry, lock proof, signal status and child-reaping checks remain intact; the negative readiness fixtures keep their short deadlines. The 21 managed-server/ownership/cleanup tests pass without skips, and the changed release shards pass. Production readiness and ownership policies are unchanged.
+
+Final integration against main `9feb9a02` (merged Batches 15 and 17): all release gates pass, with 1,442 + 4,127 + 1,475 = 7,044 unique unit tests. The executed-ID checker verifies every inventory test exactly once. All 70 quick API checks pass; 12 full-mode API cases remain explicitly skipped. The watchdog conflict preserves the runner-owned completion receipt and refusal on abort/empty output while retaining the filename-safe helper. This final tree matches the independently tested integration tree; no GitHub PRs were merged by this agent.

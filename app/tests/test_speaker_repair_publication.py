@@ -13,13 +13,13 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 import book_state_transaction as books
 from routers import scripts_library as routes
-from tests.test_saved_book_publication import SavedBookPublicationTests
+from tests import test_saved_book_publication as saved_book_fixture
 
 
 class SpeakerRepairPublicationTests(unittest.TestCase):
     @contextlib.contextmanager
     def fixture(self, entries=None, voices=True):
-        with SavedBookPublicationTests().fixture() as (root,api):
+        with saved_book_fixture.SavedBookPublicationTests().fixture() as (root,api):
             path=root/'scripts/book.json';voice=root/'scripts/book.voice_config.json'
             path.write_text(json.dumps(entries or [
                 {'speaker':'Alice','text':'Alice arrived.'},
@@ -37,7 +37,7 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
         return {'entry_number':number,'expected_speaker':old,'new_speaker':new}
 
     def snapshot(self, root):
-        return SavedBookPublicationTests().artifacts(root)
+        return saved_book_fixture.SavedBookPublicationTests().artifacts(root)
 
     def test_full_rename_split_merge_and_narration_correction_back_up_and_clear_voices(self):
         cases=([self.select(1,'Alice','Alice Smith'),self.select(2,'Alice','Alice Smith')],

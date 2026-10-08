@@ -12,6 +12,7 @@ import os
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 import evaluation_reviews as er
 
@@ -185,6 +186,29 @@ class HistoryTests(unittest.TestCase):
             self.assertEqual(2, result["removed_count"])
             self.assertGreater(result["freed_bytes"], 0)
             self.assertEqual([], er.list_reviews(d, "voice_x"))
+
+    def test_failed_cleanup_is_explicit_and_preserves_history_for_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self._submit_one(directory, "retained")
+            path = er._store_path(directory, "voice_x")
+            with open(path, "rb") as stream:
+                before = stream.read()
+            original = er.os.unlink
+            def refuse(target, *args, **kwargs):
+                if os.path.abspath(target) == os.path.abspath(path):
+                    raise PermissionError("synthetic locked history")
+                return original(target, *args, **kwargs)
+            with patch.object(er.os, "unlink", side_effect=refuse):
+                with self.assertRaisesRegex(er.ReviewError, "remove review history"):
+                    er.cleanup(directory, "voice_x")
+            with open(path, "rb") as stream:
+                self.assertEqual(before, stream.read())
+            self.assertEqual("retained", er.list_reviews(directory, "voice_x")[0]["human"]["notes"])
+            result = er.cleanup(directory, "voice_x")
+            self.assertEqual(1, result["removed_count"])
+            self.assertGreater(result["freed_bytes"], 0)
+            self.assertFalse(os.path.exists(path))
+            self.assertEqual({"removed_count": 0, "freed_bytes": 0}, er.cleanup(directory, "voice_x"))
 
     def test_list_on_missing_store_is_empty(self):
         with tempfile.TemporaryDirectory() as d:

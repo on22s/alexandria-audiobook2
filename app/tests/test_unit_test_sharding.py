@@ -150,6 +150,23 @@ class SuiteFilteringTests(unittest.TestCase):
 
 
 class CiEnvCommandLineTests(unittest.TestCase):
+    def test_receipt_records_only_executed_shard_tests(self):
+        unsharded = self.root / "all.json"
+        result = self.run_ci_env("--test-report", str(unsharded))
+        self.assertEqual(0, result.returncode, result.stderr)
+        all_ids = json.loads(unsharded.read_text())["test_ids"]
+        executed = []
+        for index in (1, 2):
+            receipt = self.root / f"shard-{index}.json"
+            result = self.run_ci_env("--shard", f"{index}/2", "--test-report", str(receipt))
+            self.assertEqual(0, result.returncode, result.stderr)
+            ids = json.loads(receipt.read_text())["test_ids"]
+            self.assertEqual(self.ran(result), len(ids))
+            self.assertEqual(2, len(ids))
+            executed.extend(ids)
+        self.assertEqual(sorted(all_ids), sorted(executed))
+        self.assertEqual(4, len(set(executed)))
+
     """The real `python -m ci_env discover ... --shard I/N` on throwaway test modules."""
 
     def setUp(self):
@@ -221,6 +238,8 @@ class VerifierShardTests(unittest.TestCase):
 
         def command(label, cmd, cwd, **kwargs):
             commands.append(cmd)
+            if "--test-report" in cmd:
+                Path(cmd[cmd.index("--test-report") + 1]).write_text(json.dumps({"test_ids": [f"test.{i}" for i in range(1234)]}))
             return 1234
 
         with tempfile.TemporaryDirectory() as directory, \
@@ -243,9 +262,10 @@ class VerifierShardTests(unittest.TestCase):
             with self.subTest(shard=shard):
                 code, names, commands, report = self.run_main("--shard", shard)
                 self.assertEqual((0, ["unit_tests"]), (code, names))
-                self.assertEqual(["--shard", shard], commands[0][-2:])
+                self.assertEqual(["--shard", shard], commands[0][-4:-2])
                 self.assertEqual(shard, report["shard"])
-                self.assertEqual({"tests_ran": 1234}, report["gates"][0]["result"])
+                self.assertEqual(1234, report["gates"][0]["result"]["tests_ran"])
+                self.assertEqual([f"test.{i}" for i in range(1234)], report["gates"][0]["result"]["test_ids"])
 
     def test_bad_shard_is_refused_before_any_gate_runs(self):
         with patch.object(verify_release, "run_report_gate") as gate, patch.object(sys, "stderr", io.StringIO()):
@@ -257,12 +277,46 @@ class VerifierShardTests(unittest.TestCase):
 
 def passing_report(index, count, ran, **changes):
     report = {"status": "passed", "shard": f"{index}/{count}",
-              "gates": [{"name": "unit_tests", "status": "passed", "result": {"tests_ran": ran}}]}
+              "gates": [{"name": "unit_tests", "status": "passed", "result": {"tests_ran": ran, "test_ids": [f"shard{index}.test{i}" for i in range(ran)]}}]}
     report.update(changes)
     return report
 
 
 class ShardReportCheckTests(unittest.TestCase):
+    def test_fixture_reuse_does_not_discover_imported_test_classes_twice(self):
+        from tests import (test_saved_book_publication, test_speaker_repair_publication,
+                           test_stage4_checkpoint_runner, test_stage4_parallel_wavs)
+        modules = (test_saved_book_publication, test_speaker_repair_publication,
+                   test_stage4_checkpoint_runner, test_stage4_parallel_wavs)
+        identifiers = [test.id() for module in modules for test in sharding.get_leaf_tests(
+            unittest.defaultTestLoader.loadTestsFromModule(module))]
+        self.assertEqual(len(identifiers), len(set(identifiers)))
+        for module in modules:
+            self.assertTrue(any(identifier.startswith(module.__name__ + ".")
+                                for identifier in identifiers))
+
+    def test_cli_refuses_equal_count_duplicate_omitted_unknown_and_missing_id_receipts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inventory = root / "inventory.json"
+            inventory.write_text(json.dumps({"test_synthetic": ["one", "two"]}))
+            for label, second in (("valid", ["two"]), ("duplicate", ["one"]),
+                                  ("unknown", ["unknown"]), ("missing receipt", None)):
+                with self.subTest(case=label):
+                    for index, ids in ((1, ["one"]), (2, second)):
+                        folder = root / f"shard-{index}"
+                        folder.mkdir(exist_ok=True)
+                        report = passing_report(index, 2, 1)
+                        result = report["gates"][0]["result"]
+                        if ids is None:
+                            result.pop("test_ids")
+                        else:
+                            result["test_ids"] = ids
+                        (folder / "release-report.json").write_text(json.dumps(report))
+                    with patch.object(sys, "stdout", io.StringIO()), patch.object(sys, "stderr", io.StringIO()):
+                        code = checker.main([str(root), "--shards", "2", "--inventory", str(inventory)])
+                    self.assertEqual(0 if label == "valid" else 1, code)
+
     good = [passing_report(1, 3, 2000), passing_report(2, 3, 2000), passing_report(3, 3, 2326)]
 
     def errors(self, reports, expected=6326, count=3):
@@ -292,7 +346,7 @@ class ShardReportCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             inventory = root / "inventory.json"
-            inventory.write_text(json.dumps({"test_a": ["x"] * 4, "test_b": ["y"] * 2}), encoding="utf-8")
+            inventory.write_text(json.dumps({"test_a": [f"shard1.test{i}" for i in range(2)], "test_b": [f"shard2.test{i}" for i in range(4)]}), encoding="utf-8")
             for index, ran in ((1, 2), (2, 4)):
                 folder = root / f"artifact-{index}" / "app"
                 folder.mkdir(parents=True)
@@ -300,7 +354,7 @@ class ShardReportCheckTests(unittest.TestCase):
             (root / "artifact-1" / "app" / "base-release-report.json").write_text("{}", encoding="utf-8")  # ignored
             with patch.object(sys, "stdout", io.StringIO()):
                 self.assertEqual(0, checker.main([str(root), "--shards", "2", "--inventory", str(inventory)]))
-            inventory.write_text(json.dumps({"test_a": ["x"] * 4, "test_b": ["y"] * 3}), encoding="utf-8")
+            inventory.write_text(json.dumps({"test_a": [f"shard1.test{i}" for i in range(2)], "test_b": [f"shard2.test{i}" for i in range(5)]}), encoding="utf-8")
             with patch.object(sys, "stderr", io.StringIO()):
                 self.assertEqual(1, checker.main([str(root), "--shards", "2", "--inventory", str(inventory)]))
 

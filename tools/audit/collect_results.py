@@ -166,7 +166,8 @@ def main(argv=None):
         if name.endswith(".ckpt"):
             continue
         try:
-            d = json.load(open(path))
+            with open(path, encoding="utf-8") as handle:
+                d = json.load(handle)
         except (ValueError, OSError) as exc:
             rows.append({"artifact": name, "evidence_status": get_evidence_status(name, legacy_status, structural_status),
                          "note": f"UNREADABLE: {exc}"})
@@ -305,18 +306,37 @@ def main(argv=None):
     _reps = os.path.join(REPO, "ab_test_runtime", "pipeline_repeats")
     _repeat_scores = os.path.join(_reps, "repeat_scores.json")
     if args.rescore_repeats:
+        _checkpoint_paths = sorted(glob.glob(os.path.join(_reps, "run*.threepass_checkpoint.json")))
+        if not _checkpoint_paths:
+            raise SystemExit("No pipeline-repeat checkpoints available; saved scores preserved.")
+        try:
+            with open(_repeat_scores, encoding="utf-8") as handle:
+                _prior = json.load(handle)
+        except FileNotFoundError:
+            _prior = {"rows": []}
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f"Saved repeat scores cannot be read; refusing replacement: {exc}") from exc
+        _prior_rows = _prior.get("rows") if isinstance(_prior, dict) else None
+        if (not isinstance(_prior_rows, list) or any(
+                not isinstance(row, dict) or not isinstance(row.get("artifact"), str)
+                or not row["artifact"] for row in _prior_rows)):
+            raise SystemExit("Saved repeat scores have invalid identities; refusing replacement.")
+        _missing = sorted({row["artifact"] for row in _prior_rows}
+                          - {os.path.basename(path) for path in _checkpoint_paths})
+        if _missing:
+            raise SystemExit(f"Missing checkpoints for saved repeats {_missing}; saved scores preserved.")
         _gold = json.load(open(os.path.join(
-            REPO, "app", "fixtures", "attribution_gold_grimgar03_provisional.json")))
+            REPO, "app", "fixtures", "attribution_gold_grimgar03_provisional.json"), encoding="utf-8"))
         _scored = []
-        for f in sorted(glob.glob(os.path.join(_reps, "run*.threepass_checkpoint.json"))):
+        for f in _checkpoint_paths:
             try:
                 d = load_generation_delta_checkpoint(f)
-            except (ValueError, OSError):
-                continue
+            except (ValueError, OSError) as exc:
+                raise SystemExit(f"Repeat checkpoint {f} is unreadable; saved scores preserved: {exc}") from exc
             score = get_pipeline_repeat_scores(d, _gold)
             n, ok = score["n"], score["correct"]
             if not n:
-                continue
+                raise SystemExit(f"Repeat checkpoint {f} has no scoring population; saved scores preserved.")
             _scored.append({
                 "artifact": os.path.basename(f), "experiment": "pipeline_repeat",
                 "evidence_status": "not_audited",

@@ -332,6 +332,9 @@ class ReleaseVerifierTests(unittest.TestCase):
         }
         def run_command(label, command, cwd, reject_unittest_skips=False, capture_output=True):
             # Only the unit gate reports a value (its test count); the others return nothing.
+            if "--test-report" in command:
+                Path(command[command.index("--test-report") + 1]).write_text(
+                    json.dumps({"test_ids": [f"test.{i}" for i in range(600)]}))
             return 600 if reject_unittest_skips else None
 
         with tempfile.TemporaryDirectory() as tmp, \
@@ -358,7 +361,8 @@ class ReleaseVerifierTests(unittest.TestCase):
         self.assertEqual(api_result, report["gates"][-1]["result"])
         # The unit gate records how many tests ran, so sharded runs can be totalled.
         gates = {gate["name"]: gate for gate in report["gates"]}
-        self.assertEqual({"tests_ran": 600}, gates["unit_tests"]["result"])
+        self.assertEqual({"tests_ran": 600, "test_ids": [f"test.{i}" for i in range(600)]},
+                         gates["unit_tests"]["result"])
         self.assertTrue(all("result" not in gate for name, gate in gates.items()
                             if name not in ("unit_tests", "api_tests")))
         self.assertNotIn("shard", report)
@@ -429,6 +433,10 @@ class UnexpectedGateFailureReportTests(unittest.TestCase):
             with self.subTest(summary=summary), tempfile.TemporaryDirectory() as tmp:
                 report_path = Path(tmp, 'report.json')
                 def command(_label, args, cwd, **kwargs):
+                    if '--test-report' in args:
+                        Path(args[args.index('--test-report')+1]).write_text(
+                            json.dumps({'test_ids':[f'test.{i}' for i in range(600)]}))
+                        return 600
                     if '--json-summary' in args:
                         Path(args[args.index('--json-summary')+1]).write_text(json.dumps(summary))
                 with patch.object(verify_release, 'compile_python_files', return_value=None), \

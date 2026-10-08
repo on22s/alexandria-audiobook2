@@ -6,11 +6,90 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SCRIPT = Path(os.environ.get('GOLD_MERGE_SOURCE', Path(__file__).resolve().parent.parent / 'gold_set_builder.py'))
 
 
 class GoldMergeEvidenceTests(unittest.TestCase):
+    def test_build_and_rejudge_preserve_prior_output_on_partial_serialization(self):
+        import gold_set_builder as gold
+        run_dir = self.root / 'synthetic-run' / 'book'
+        run_dir.mkdir(parents=True)
+        (run_dir / 'result.json.threepass_checkpoint.json').write_text(json.dumps({
+            'segmented': [{'type': 'SPOKEN', 'text': self.row['line']}],
+            'named': [{'speaker': 'EMILIA', 'text': self.row['line']}]}))
+        batches = self.root / 'built'
+        build_args = ['build', 'book', '--root', str(self.root), '--run', 'synthetic-run',
+                      '--out', str(batches), '--count', '1']
+        self.assertEqual(0, gold.main(build_args))
+        build_output = batches / 'book_batch01.json'
+        self.write_answer('EMILIA')
+        widened = self.root / 'widened.json'
+        widened.write_text(json.dumps({'book': 'book', 'rows': [{**self.row, 'passage_before': 'Emilia waved and nodded.'}]}))
+        rejudge_args = ['rejudge', 'book', '--old', str(self.batch), '--new', str(widened),
+                        '--filled', str(self.filled), '--answer', 'EMILIA', '--out', str(self.output)]
+        self.assertEqual(0, gold.main(rejudge_args))
+        self.assertEqual(1, len(json.loads(self.output.read_text())['rows']))
+        def fail(data, handle, **kwargs):
+            handle.write('{"partial":')
+            raise OSError('synthetic write refusal')
+        for args, output in ((build_args, build_output), (rejudge_args, self.output)):
+            before = output.read_bytes()
+            with patch.object(gold.json, 'dump', side_effect=fail):
+                with self.assertRaisesRegex(OSError, 'write refusal'):
+                    gold.main(args)
+            self.assertEqual(before, output.read_bytes())
+            self.assertEqual([], list(output.parent.glob('.tmp_*.json')))
+
+    def test_shared_writer_default_cross_device_fallback_still_publishes(self):
+        import errno
+        import utils
+        with patch.object(utils.os, 'replace', side_effect=OSError(errno.EXDEV, 'synthetic cross-device rename')), \
+             patch.object(utils.shutil, 'move', wraps=utils.shutil.move) as move:
+            utils.atomic_json_write({'control': True}, str(self.output))
+        move.assert_called_once()
+        self.assertEqual({'control': True}, json.loads(self.output.read_text()))
+
+    def test_cross_device_merge_refusal_preserves_fixture_without_copy_fallback(self):
+        import errno
+        import gold_set_builder as gold
+        import utils
+        self.write_answer('EMILIA')
+        args = ['merge', 'book', str(self.filled), '--batches', str(self.batch),
+                '--judged-by', 'synthetic', '--out', str(self.output)]
+        self.assertEqual(0, gold.main(args))
+        before = self.output.read_bytes()
+        with patch.object(utils.os, 'replace', side_effect=OSError(errno.EXDEV, 'synthetic rename refusal')), \
+             patch.object(utils.shutil, 'move', side_effect=AssertionError('gold publication must not copy over its fixture')):
+            with self.assertRaises(OSError) as caught:
+                gold.main(args)
+        self.assertEqual(errno.EXDEV, caught.exception.errno)
+        self.assertEqual(before, self.output.read_bytes())
+        self.assertEqual([], list(self.root.glob('.tmp_*.json')))
+
+    def test_partial_merge_serialization_preserves_prior_fixture_and_creates_no_partial_new_file(self):
+        import gold_set_builder as gold
+        self.write_answer('EMILIA')
+        args = ['merge', 'book', str(self.filled), '--batches', str(self.batch),
+                '--judged-by', 'synthetic', '--out', str(self.output)]
+        self.assertEqual(0, gold.main(args))
+        before = self.output.read_bytes()
+        def fail(data, handle, **kwargs):
+            handle.write('{"partial":')
+            raise OSError('synthetic serialization failure')
+        with patch.object(gold.json, 'dump', side_effect=fail):
+            with self.assertRaisesRegex(OSError, 'serialization failure'):
+                gold.main(args)
+        self.assertEqual(before, self.output.read_bytes())
+        self.output.unlink()
+        with patch.object(gold.json, 'dump', side_effect=fail):
+            with self.assertRaisesRegex(OSError, 'serialization failure'):
+                gold.main(args)
+        self.assertFalse(self.output.exists())
+        self.assertEqual(0, gold.main(args))
+        self.assertEqual('EMILIA', json.loads(self.output.read_text())['entries'][0]['expected_speaker'])
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

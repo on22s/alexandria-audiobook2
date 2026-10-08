@@ -9,6 +9,11 @@ from unittest.mock import patch
 import benchmark_environment
 
 
+def checkout_output(revision, dirty=""):
+    return (revision + "\n" + benchmark_environment.REMOTE_STATUS_BEGIN + "\n"
+            + dirty + benchmark_environment.REMOTE_STATUS_END + "\n")
+
+
 class BenchmarkEnvironmentTests(unittest.TestCase):
     def test_local_environment_combines_runtime_gpu_and_model_status(self):
         with patch.object(benchmark_environment, "get_runtime_info", return_value={
@@ -33,12 +38,12 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
                        "ls-files": "app/new.py\n"}
             return type("Result", (), {"returncode": 0, "stdout": outputs[argv[3]]})()
         with patch.object(benchmark_environment.subprocess, "run", side_effect=run), \
-             patch.object(benchmark_environment.Path, "is_file", return_value=True), \
-             patch.object(benchmark_environment.Path, "read_bytes", return_value=b"first"):
+             patch.object(Path, "is_file", return_value=True), \
+             patch.object(Path, "read_bytes", return_value=b"first"):
             first = benchmark_environment._get_local_worktree_identity("/repo")
         with patch.object(benchmark_environment.subprocess, "run", side_effect=run), \
-             patch.object(benchmark_environment.Path, "is_file", return_value=True), \
-             patch.object(benchmark_environment.Path, "read_bytes", return_value=b"second"):
+             patch.object(Path, "is_file", return_value=True), \
+             patch.object(Path, "read_bytes", return_value=b"second"):
             second = benchmark_environment._get_local_worktree_identity("/repo")
         self.assertTrue(first["dirty"])
         self.assertNotEqual(first["sha256"], second["sha256"])
@@ -132,7 +137,7 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
         self.assertTrue(benchmark_environment.is_baseline_stale(stale))
 
     def test_verify_remote_checkout_accepts_clean_matching_tree(self):
-        result = type("Result", (), {"returncode": 0, "stdout": "a" * 40 + "\n",
+        result = type("Result", (), {"returncode": 0, "stdout": checkout_output("a" * 40),
                       "stderr": ""})()
         with patch.object(benchmark_environment, "_ssh_run", return_value=result), \
              patch.object(benchmark_environment, "get_runtime_info",
@@ -142,7 +147,7 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
         self.assertEqual("a" * 40, commit)
 
     def test_verify_remote_checkout_rejects_revision_mismatch(self):
-        result = type("Result", (), {"returncode": 0, "stdout": "a" * 40 + "\n",
+        result = type("Result", (), {"returncode": 0, "stdout": checkout_output("a" * 40),
                       "stderr": ""})()
         with patch.object(benchmark_environment, "_ssh_run", return_value=result), \
              patch.object(benchmark_environment, "get_runtime_info",
@@ -152,7 +157,7 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
 
     def test_verify_remote_checkout_rejects_dirty_tree(self):
         result = type("Result", (), {"returncode": 0,
-                      "stdout": "a" * 40 + "\n M app/foo.py\n", "stderr": ""})()
+                      "stdout": checkout_output("a" * 40, " M app/foo.py\n"), "stderr": ""})()
         with patch.object(benchmark_environment, "_ssh_run", return_value=result), \
              patch.object(benchmark_environment, "get_runtime_info",
                           return_value={"revision": "a" * 40}):
@@ -162,7 +167,7 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
     def test_thunder_environment_verifies_checkout_when_remote_root_given(self):
         with patch.object(benchmark_environment, "_get_remote_runtime_observations",
                           return_value={"hostname": "thunder", "python_version": "3.11",
-                                        "platform": {}, "git_commit": "def", "packages": {"remote-package":"1"},
+                                        "platform": {}, "git_commit": "abc", "packages": {"remote-package":"1"},
                                         "worktree": {"dirty":False,"sha256":"remote-tree"}}), \
              patch.object(benchmark_environment, "get_remote_gpu_name_and_backend",
                           return_value=("A6000", "cuda")), \
@@ -202,7 +207,7 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
         payload = {"hostname": "thunder", "python_version": "3.11",
                    "torch": "2.7", "qwen_tts": "1"}
         result = type("Result", (), {"returncode": 0,
-                      "stdout": "banner\n" + json.dumps(payload) + "\n" + "d" * 40 + "\n",
+                      "stdout": "banner\n" + json.dumps(payload) + "\n" + checkout_output("d" * 40),
                       "stderr": ""})()
         with patch.object(benchmark_environment, "_ssh_run", return_value=result), \
              patch.object(benchmark_environment, "get_remote_gpu_name_and_backend",
@@ -345,7 +350,7 @@ class RemoteCheckoutArtifactTests(unittest.TestCase):
                         command = command.split(' && ', 1)[1]
                         prefix = json.dumps(payload) + '\n'
                     result = subprocess.run(['bash', '-c', command], capture_output=True, text=True)
-                    result.stdout = 'login banner\n' + prefix + result.stdout
+                    result.stdout = 'login banner\n' + 'a' * 64 + '\n' + 'b' * 40 + '\n' + prefix + result.stdout
                     return result
                 with patch.object(benchmark_environment, '_ssh_run', side_effect=remote), \
                      patch.object(benchmark_environment, 'get_runtime_info', return_value={'revision': revision}), \

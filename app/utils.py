@@ -247,7 +247,8 @@ def safe_load_json(path, default=None):
     return data
 
 
-def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trailing_newline=False):
+def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trailing_newline=False,
+                      allow_nonatomic_fallback=True):
     """Atomically write JSON data using a temp file and os.replace.
 
     Includes retry logic with exponential backoff for Windows file locking
@@ -255,6 +256,8 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
     Linux bind mounts or NAS shares) os.replace raises EXDEV; in that case
     the function falls back to shutil.move (copy + delete) so the write
     succeeds rather than raising an unhandled OSError.
+    Set allow_nonatomic_fallback=False when publication must refuse a
+    cross-device rename instead of risking partial replacement by copying.
     """
     if not isinstance(max_retries, int) or max_retries < 1:
         raise ValueError("max_retries must be a positive integer")
@@ -285,6 +288,8 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
                 return
             except OSError as e:
                 if e.errno == errno.EXDEV:
+                    if not allow_nonatomic_fallback:
+                        raise
                     # Cross-device rename is not supported by the kernel, so
                     # os.replace can't be used across filesystems - fall
                     # back to copy+delete, which is not atomic but avoids a

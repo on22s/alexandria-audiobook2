@@ -22,6 +22,57 @@ from benchmark_runner import _load_review_fixture, _load_text_fixture
 
 
 class BenchmarkFixtureTests(unittest.TestCase):
+    def test_training_literal_dot_prefixes_remain_contained_and_traversal_is_refused(self):
+        import json
+        import wave
+        from benchmark_core import validate_benchmark_manifest
+        from benchmark_validation import get_benchmark_training_audio_path
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset = root / 'dataset'
+            dataset.mkdir()
+            for name in ('clip.wav', '..data.wav', '...wav'):
+                with wave.open(str(dataset / name), 'wb') as audio:
+                    audio.setnchannels(1)
+                    audio.setsampwidth(2)
+                    audio.setframerate(8000)
+                    audio.writeframes(b'\0\0' * 80)
+                (dataset / 'metadata.jsonl').write_text(json.dumps({'audio_filepath': name, 'text': 'Synthetic text.'}) + '\n', encoding='utf-8')
+                manifest = build_lora_training_manifest([{'dataset_path': 'dataset', 'sample_count': 1}], directory)
+                validate_benchmark_manifest(manifest)
+                self.assertEqual(str(dataset / name), get_benchmark_training_audio_path(str(dataset), name))
+            outside = root / 'outside.wav'
+            outside.write_bytes((dataset / 'clip.wav').read_bytes())
+            (dataset / 'escape.wav').symlink_to(outside)
+            for name in ('../outside.wav', str(outside), 'escape.wav', '..'):
+                with self.assertRaisesRegex(ValueError, 'unsafe training audio path'):
+                    get_benchmark_training_audio_path(str(dataset), name)
+
+    def test_same_basename_sources_have_distinct_stable_valid_fixture_ids(self):
+        import json
+        from benchmark_core import validate_benchmark_manifest
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            generation, review = [], []
+            for folder in ('first', 'second'):
+                source = root / folder / 'book.txt'
+                source.parent.mkdir()
+                source.write_text('A synthetic source passage.', encoding='utf-8')
+                generation.append({'path': str(source), 'chunk_numbers': [1]})
+                script = source.with_suffix('.json')
+                script.write_text(json.dumps([{'text': 'Synthetic text.', 'speaker': 'NARRATOR', 'instruct': 'neutral'}]), encoding='utf-8')
+                review.append({'path': str(script), 'entry_starts': [1]})
+            for builder, specs in ((build_script_generation_manifest, generation), (build_script_review_manifest, review)):
+                manifest = builder(specs, directory)
+                validate_benchmark_manifest(manifest)
+                ids = [fixture['id'] for fixture in manifest['fixtures']]
+                self.assertEqual(2, len(set(ids)))
+                self.assertEqual(ids[::-1], [fixture['id'] for fixture in builder(specs[::-1], directory)['fixtures']])
+                for index, spec in enumerate(specs):
+                    self.assertEqual(ids[index], builder([spec], directory)['fixtures'][0]['id'])
+                with self.assertRaisesRegex(ValueError, 'duplicate fixture id'):
+                    validate_benchmark_manifest(builder([specs[0], specs[0]], directory))
+
     def test_manifest_reconstructs_hashed_production_chunks(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "book.txt")

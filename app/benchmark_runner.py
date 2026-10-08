@@ -5,6 +5,7 @@ import io
 import logging
 import re
 import os
+import posixpath
 from core import llm_timeout_seconds
 import time
 import json
@@ -191,7 +192,7 @@ def _run_tts_worker(payload, target, settings, root_dir, output_dir, ssh_alias):
             remote_python = settings.get("remote_python")
             if not remote_root or not remote_python or not ssh_alias:
                 raise ValueError("Thunder TTS requires remote_root, remote_python, and SSH alias")
-            arguments = [remote_python, os.path.join(remote_root, "app", "tts_benchmark.py"),
+            arguments = [remote_python, posixpath.join(remote_root, "app", "tts_benchmark.py"),
                          "--payload", encoded, "--output-dir", output_dir]
             if asset_root is not None:
                 arguments.extend(["--asset-root", asset_root])
@@ -365,18 +366,18 @@ def _run_lora_training_worker(fixture, target, settings, root_dir, ssh_alias):
             source_dir = os.path.join(root_dir, fixture["dataset_path"])
             files = ["metadata.jsonl", *fixture["audio_sha256"].keys()]
             for relative_path in files:
-                remote_path = os.path.join(remote_source, relative_path)
-                run_benchmark_subprocess(get_remote_benchmark_command(ssh_alias, ["mkdir", "-p", "--", os.path.dirname(remote_path)]),
+                remote_path = posixpath.join(remote_source, relative_path)
+                run_benchmark_subprocess(get_remote_benchmark_command(ssh_alias, ["mkdir", "-p", "--", posixpath.dirname(remote_path)]),
                                capture_output=True, text=True, timeout=30, check=True)
                 transfer = run_benchmark_subprocess(["scp", os.path.join(source_dir, relative_path),
                                            f"{ssh_alias}:{remote_path}"], capture_output=True,
                                           text=True, timeout=300, check=False)
                 if transfer.returncode:
                     raise RuntimeError(transfer.stderr.strip() or "training fixture transfer failed")
-            worker_fixture.update({"root_dir": "/tmp", "dataset_path": os.path.basename(remote_source)})
+            worker_fixture.update({"root_dir": "/tmp", "dataset_path": posixpath.basename(remote_source)})
             output_root = "/tmp/alexandria-lora-training-output"
-            worker_script = os.path.join(remote_root, "app", "lora_training_benchmark.py")
-            train_script = os.path.join(remote_root, "app", "train_lora.py")
+            worker_script = posixpath.join(remote_root, "app", "lora_training_benchmark.py")
+            train_script = posixpath.join(remote_root, "app", "train_lora.py")
         payload = {"fixture": worker_fixture, "python": python_executable,
                    "train_script": train_script, "output_root": output_root}
         encoded = get_encoded_worker_payload(payload)
@@ -516,8 +517,8 @@ def _run_preparer_worker(fixture, target, settings, root_dir, ssh_alias):
         if transfer.returncode:
             raise RuntimeError(transfer.stderr.strip() or "preparer audio transfer failed")
         worker_fixture.update({"root_dir": "/", "audio_path": remote_audio.lstrip("/")})
-        preparer_script = os.path.join(remote_root, "alexandria_preparer_rocm_compatible.py")
-        worker_script = os.path.join(remote_root, "app", "preparer_benchmark.py")
+        preparer_script = posixpath.join(remote_root, "alexandria_preparer_rocm_compatible.py")
+        worker_script = posixpath.join(remote_root, "app", "preparer_benchmark.py")
     payload = {"fixture": worker_fixture, "python": python_executable,
                "preparer_script": preparer_script}
     encoded = get_encoded_worker_payload(payload)
@@ -557,9 +558,9 @@ def _run_dedup_worker(fixture, target, settings, root_dir, ssh_alias):
         source_dir = os.path.join(root_dir, fixture["dataset_path"])
         files = ["metadata.jsonl", *fixture["audio_sha256"].keys()]
         for relative_path in files:
-            remote_path = os.path.join(remote_source, relative_path)
+            remote_path = posixpath.join(remote_source, relative_path)
             mkdir = run_benchmark_subprocess(get_remote_benchmark_command(ssh_alias, ["mkdir", "-p", "--",
-                                    os.path.dirname(remote_path)]), capture_output=True,
+                                    posixpath.dirname(remote_path)]), capture_output=True,
                                    text=True, timeout=30, check=False)
             if mkdir.returncode:
                 raise RuntimeError(mkdir.stderr.strip() or "could not create remote dedup fixture")
@@ -568,9 +569,9 @@ def _run_dedup_worker(fixture, target, settings, root_dir, ssh_alias):
                                       text=True, timeout=300, check=False)
             if transfer.returncode:
                 raise RuntimeError(transfer.stderr.strip() or "dedup fixture transfer failed")
-        worker_fixture.update({"root_dir": "/tmp", "dataset_path": os.path.basename(remote_source)})
-        analysis_script = get_voice_lab_script_path(remote_root, "voice_analysis.py")
-        worker_script = os.path.join(remote_root, "app", "dedup_benchmark.py")
+        worker_fixture.update({"root_dir": "/tmp", "dataset_path": posixpath.basename(remote_source)})
+        analysis_script = get_voice_lab_script_path(remote_root, "voice_analysis.py", remote=True)
+        worker_script = posixpath.join(remote_root, "app", "dedup_benchmark.py")
     payload = {"fixture": worker_fixture, "python": python_executable,
                "analysis_script": analysis_script}
     encoded = get_encoded_worker_payload(payload)
@@ -618,7 +619,7 @@ def _run_profiling_worker(fixture, target, settings, root_dir, ssh_alias):
         observed = lines[-1].split()[0] if verify.returncode == 0 and lines else ""
         if observed != fixture["model_sha256"]:
             raise ValueError("Thunder profiling model hash does not match the fixture")
-        worker_script = os.path.join(remote_root, "app", "profiling_benchmark.py")
+        worker_script = posixpath.join(remote_root, "app", "profiling_benchmark.py")
     if not python_executable:
         raise ValueError("profiling benchmark requires a Python executable")
     payload = {"fixture": fixture, "root_dir": worker_root,
@@ -654,8 +655,8 @@ def _run_naming_worker(fixture, target, settings, root_dir, ssh_alias):
         python_executable = settings.get("remote_python") or "python3"
         if not remote_root or not ssh_alias:
             raise ValueError("Thunder naming requires remote_root and SSH alias")
-        script = get_voice_lab_script_path(remote_root, "name_voices.py")
-        worker = os.path.join(remote_root, "app", "naming_benchmark.py")
+        script = get_voice_lab_script_path(remote_root, "name_voices.py", remote=True)
+        worker = posixpath.join(remote_root, "app", "naming_benchmark.py")
     payload = {"fixture": fixture, "python": python_executable, "script": script}
     encoded = get_encoded_worker_payload(payload)
     worker_command = [python_executable, worker, "--payload", encoded]
@@ -852,13 +853,13 @@ def _run_export_worker(stage, fixture, target, settings, root_dir, ssh_alias):
             raise ValueError("Thunder export requires remote_root, remote_python, and SSH alias")
         source_root = f"/tmp/alexandria-export-{fixture['sha256']}"
         for relative_path in fixture["audio_sha256"]:
-            remote_path = os.path.join(source_root, relative_path)
-            run_benchmark_subprocess(get_remote_benchmark_command(ssh_alias, ["mkdir", "-p", "--", os.path.dirname(remote_path)]),
+            remote_path = posixpath.join(source_root, relative_path)
+            run_benchmark_subprocess(get_remote_benchmark_command(ssh_alias, ["mkdir", "-p", "--", posixpath.dirname(remote_path)]),
                            capture_output=True, text=True, timeout=30, check=True)
             run_benchmark_subprocess(["scp", os.path.join(root_dir, relative_path),
                             f"{ssh_alias}:{remote_path}"], capture_output=True,
                            text=True, timeout=300, check=True)
-        worker = os.path.join(remote_root, "app", "export_benchmark.py")
+        worker = posixpath.join(remote_root, "app", "export_benchmark.py")
     payload = {"stage": stage, "fixture": fixture, "source_root": source_root}
     encoded = get_encoded_worker_payload(payload)
     worker_command = [python_executable, worker, "--payload", encoded]
@@ -891,7 +892,7 @@ def _run_dataset_builder_worker(fixture, target, settings, root_dir, ssh_alias,
         python_executable = settings.get("remote_python")
         if not remote_root or not python_executable or not ssh_alias:
             raise ValueError("Thunder Dataset Builder requires remote_root, remote_python, and SSH alias")
-        worker = os.path.join(remote_root, "app", "dataset_builder_benchmark.py")
+        worker = posixpath.join(remote_root, "app", "dataset_builder_benchmark.py")
     payload = {"fixture": fixture, "tts": tts_config}
     encoded = get_encoded_worker_payload(payload)
     worker_command = [python_executable, worker, "--payload", encoded]
@@ -1038,7 +1039,7 @@ def _run_llm_worker(stage, payload, settings, ssh_alias):
     if not remote_root or not remote_python or not ssh_alias:
         raise ValueError(f"Thunder {stage} requires remote_root, remote_python, and SSH alias")
     command = get_remote_benchmark_command(ssh_alias, [
-        remote_python, os.path.join(remote_root, "app", "llm_benchmark_worker.py"),
+        remote_python, posixpath.join(remote_root, "app", "llm_benchmark_worker.py"),
         "--stage", stage, "--payload-stdin"])
     return run_benchmark_worker(command, 'LLM_BENCHMARK_RESULT=', 'LLM benchmark worker failed', timeout=3600, error_limit=2000, raise_failed=True, input=json.dumps(payload))
 

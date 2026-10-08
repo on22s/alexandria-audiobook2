@@ -237,6 +237,7 @@
     "tests.test_analyze_generation_attempts.InvalidUtf8ManifestIsolationTests.test_one_non_utf8_manifest_does_not_abort_real_cli_analysis",
     "tests.test_analyze_generation_attempts.LoadManifestsTests.test_malformed_manifest_skipped_with_warning",
     "tests.test_analyze_generation_attempts.LoadManifestsTests.test_missing_dir_returns_warning",
+    "tests.test_analyze_generation_attempts.LoadManifestsTests.test_real_failed_manifest_without_attempt_detail_is_counted_and_warned",
     "tests.test_analyze_generation_attempts.RecallBandTests.test_band_edges",
     "tests.test_analyze_generation_attempts.RecallHistogramTests.test_missing_recall_metric_skipped",
     "tests.test_analyze_generation_attempts.RecallHistogramTests.test_only_quality_rejected_attempts_counted",
@@ -924,7 +925,9 @@
     "tests.test_benchmark_fixtures.BenchmarkFixtureTests.test_profiling_manifest_hashes_zip_and_model",
     "tests.test_benchmark_fixtures.BenchmarkFixtureTests.test_review_manifest_reconstructs_hashed_entry_slice",
     "tests.test_benchmark_fixtures.BenchmarkFixtureTests.test_review_source_drift_is_rejected",
+    "tests.test_benchmark_fixtures.BenchmarkFixtureTests.test_same_basename_sources_have_distinct_stable_valid_fixture_ids",
     "tests.test_benchmark_fixtures.BenchmarkFixtureTests.test_source_drift_is_detected_before_chunk_reconstruction",
+    "tests.test_benchmark_fixtures.BenchmarkFixtureTests.test_training_literal_dot_prefixes_remain_contained_and_traversal_is_refused",
     "tests.test_benchmark_fixtures.BenchmarkFixtureTests.test_tts_manifest_is_self_contained_and_hashes_generation_inputs",
     "tests.test_benchmark_fixtures.BenchmarkFixtureTests.test_tts_manifest_rejects_random_seed"
   ],
@@ -963,6 +966,9 @@
     "tests.test_benchmark_remote_owner.BenchmarkRemoteOwnerTests.test_lost_supervisor_still_leaves_receipt_only_after_detached_worker_stops",
     "tests.test_benchmark_remote_owner.BenchmarkRemoteOwnerTests.test_malformed_packet_cannot_start_worker_or_claim_shutdown",
     "tests.test_benchmark_remote_owner.BenchmarkRemoteOwnerTests.test_reused_token_cannot_launch_new_work_using_stale_receipt"
+  ],
+  "test_benchmark_remote_path_platform": [
+    "tests.test_benchmark_remote_path_platform.RemotePathPlatformTests.test_remote_staging_and_workers_use_posix_paths_on_windows_controller"
   ],
   "test_benchmark_remote_transport_cancel": [
     "tests.test_benchmark_remote_transport_cancel.BenchmarkRemoteTransportTests.test_cancel_timeout_and_connection_loss_confirm_detached_worker_cleanup",
@@ -1038,7 +1044,8 @@
     "tests.test_benchmark_worker_identity.BenchmarkWorkerIdentityTests.test_cpu_fingerprint_separates_dirty_orchestrator_from_clean_worker",
     "tests.test_benchmark_worker_identity.BenchmarkWorkerIdentityTests.test_dirty_and_different_worker_checkouts_are_refused",
     "tests.test_benchmark_worker_identity.BenchmarkWorkerIdentityTests.test_llm_fingerprint_uses_selected_worker_python_packages_and_actual_checkout",
-    "tests.test_benchmark_worker_identity.BenchmarkWorkerIdentityTests.test_runtime_without_checkout_observes_packages_from_selected_python"
+    "tests.test_benchmark_worker_identity.BenchmarkWorkerIdentityTests.test_runtime_without_checkout_observes_packages_from_selected_python",
+    "tests.test_benchmark_worker_identity.BenchmarkWorkerIdentityTests.test_worker_change_after_initial_check_is_refused_by_runtime_observation"
   ],
   "test_benchmark_worker_protocol": [
     "tests.test_benchmark_worker_protocol.WorkerProtocolTests.test_all_worker_mains_preserve_success_shapes_and_emit_uniform_failures",
@@ -2659,6 +2666,7 @@
     "tests.test_evaluation_reviews.BlindSessionTests.test_session_payload_hides_identity",
     "tests.test_evaluation_reviews.HistoryTests.test_cleanup_reports_count_and_freed_bytes",
     "tests.test_evaluation_reviews.HistoryTests.test_existing_records_are_not_mutated_by_new_submissions",
+    "tests.test_evaluation_reviews.HistoryTests.test_failed_cleanup_is_explicit_and_preserves_history_for_retry",
     "tests.test_evaluation_reviews.HistoryTests.test_history_is_bounded_keeping_newest",
     "tests.test_evaluation_reviews.HistoryTests.test_list_on_missing_store_is_empty",
     "tests.test_evaluation_reviews.HistoryTests.test_summarize_empty_is_zeroed",
@@ -3333,10 +3341,14 @@
     "tests.test_gold_set_builder.ValidationTest.test_unanswered_rows_are_reported"
   ],
   "test_gold_set_merge_evidence": [
+    "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_build_and_rejudge_preserve_prior_output_on_partial_serialization",
+    "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_cross_device_merge_refusal_preserves_fixture_without_copy_fallback",
     "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_custom_build_run_is_inferred_at_merge_and_root_provides_book_evidence",
     "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_explicit_source_accepts_whole_book_name_and_preserves_custom_run",
     "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_full_multiword_name_is_required_and_rejection_preserves_prior_artifact",
-    "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_run_conflicts_and_unreadable_explicit_source_do_not_publish"
+    "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_partial_merge_serialization_preserves_prior_fixture_and_creates_no_partial_new_file",
+    "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_run_conflicts_and_unreadable_explicit_source_do_not_publish",
+    "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_shared_writer_default_cross_device_fallback_still_publishes"
   ],
   "test_gpu_claim_routes": [
     "tests.test_gpu_claim_routes.GpuClaimRouteTests.test_cancelled_request_keeps_connectivity_slot_until_worker_finishes",
@@ -3885,6 +3897,7 @@
     "tests.test_launcher_llama_assets.LauncherLlamaAssetTests.test_selected_build_commands_reach_uv_with_backend_and_constraints_in_native_bash",
     "tests.test_launcher_llama_assets.LauncherLlamaAssetTests.test_whisper_pins_are_shared_and_checked_before_any_build_or_success_notice",
     "tests.test_launcher_llama_assets.WhisperAssetVerificationTests.test_empty_truncated_and_tail_corrupted_model_bytes_are_rejected_and_preserved",
+    "tests.test_launcher_llama_assets.WhisperAssetVerificationTests.test_git_fsmonitor_timeout_stops_hook_without_accepting_unverified_assets",
     "tests.test_launcher_llama_assets.WhisperAssetVerificationTests.test_missing_model_fails_and_cli_exits_nonzero_on_corruption",
     "tests.test_launcher_llama_assets.WhisperAssetVerificationTests.test_valid_full_streamed_bytes_and_tracked_source_are_verified_without_mutation",
     "tests.test_launcher_llama_assets.WhisperAssetVerificationTests.test_wrong_commit_and_dirty_tracked_source_are_rejected_before_success"
@@ -5142,6 +5155,7 @@
   "test_pipeline_repeat_scoring": [
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_duplicate_gold_ids_fail_loudly_and_empty_population_is_explicit",
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_missing_duplicate_unnamed_merged_and_wrong_lines_are_in_denominator",
+    "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_missing_unreadable_or_partial_inputs_preserve_saved_scores_then_complete_retry_succeeds",
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_native_collect_and_standalone_reports_use_full_gold_population"
   ],
   "test_pitch_profile_matrix": [
@@ -6244,6 +6258,9 @@
     "tests.test_results_index_validation.ResultsIndexValidationTests.test_only_exact_canonical_records_are_accepted",
     "tests.test_results_index_validation.ResultsIndexValidationTests.test_stage4_preserves_validation_error_type_and_stage7_stops_before_unit_gate"
   ],
+  "test_results_utf8_inputs": [
+    "tests.test_results_utf8_inputs.ResultsUtf8InputTests.test_actual_collector_keeps_utf8_rows_under_simulated_cp1252_defaults"
+  ],
   "test_resume_arm_arguments": [
     "tests.test_resume_arm_arguments.ResumeArmArgumentTests.test_allowed_separators_and_nonnegative_limits_reach_existing_admission",
     "tests.test_resume_arm_arguments.ResumeArmArgumentTests.test_invalid_separator_and_limit_refuse_before_any_runtime_work"
@@ -6495,6 +6512,7 @@
   ],
   "test_runtime_info": [
     "tests.test_runtime_info.RuntimeInfoTests.test_environment_revision_overrides_git_and_missing_packages_are_explicit",
+    "tests.test_runtime_info.RuntimeInfoTests.test_real_git_nested_branches_survive_loose_and_packed_refs",
     "tests.test_runtime_info.RuntimeInfoTests.test_runtime_info_reads_git_metadata_and_versions_without_importing_packages",
     "tests.test_runtime_info.RuntimeInfoTests.test_worktree_gitdir_marker_is_resolved"
   ],
@@ -7085,13 +7103,6 @@
     "tests.test_speaker_identity_lookup_work.SpeakerIdentityLookupWorkTests.test_roster_identity_collisions_keep_first_match_and_both_fuzzy_candidates"
   ],
   "test_speaker_repair_publication": [
-    "tests.test_saved_book_publication.SavedBookPublicationTests.test_delete_move_failure_rolls_back_complete_family",
-    "tests.test_saved_book_publication.SavedBookPublicationTests.test_delete_removes_every_known_companion_and_busy_jobs_refuse_without_changes",
-    "tests.test_saved_book_publication.SavedBookPublicationTests.test_preflight_and_all_preview_analysis_leave_asgi_event_loop_responsive",
-    "tests.test_saved_book_publication.SavedBookPublicationTests.test_process_death_during_save_recovers_complete_previous_family_on_next_read",
-    "tests.test_saved_book_publication.SavedBookPublicationTests.test_real_metadata_publication_failure_restores_every_original_saved_artifact",
-    "tests.test_saved_book_publication.SavedBookPublicationTests.test_reserved_companion_names_are_rejected_before_writing",
-    "tests.test_saved_book_publication.SavedBookPublicationTests.test_save_replaces_complete_family_and_removes_stale_voice_and_checkpoints",
     "tests.test_speaker_repair_publication.SpeakerRepairPublicationTests.test_backup_collision_preserves_existing_files_and_refuses_the_repair",
     "tests.test_speaker_repair_publication.SpeakerRepairPublicationTests.test_current_voice_bytes_are_captured_after_a_competing_writer_releases_its_kernel_lock",
     "tests.test_speaker_repair_publication.SpeakerRepairPublicationTests.test_dangling_voice_symlink_is_refused_before_script_publication",
@@ -7238,18 +7249,6 @@
     "tests.test_stage4_checkpoint_runner.Stage4PilotAdmissionTests.test_actual_main_rejects_foreign_pilot_arguments_before_any_dispatch"
   ],
   "test_stage4_parallel_wavs": [
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_category_expansion_nested_shapes_have_concrete_errors",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_category_validator_rejects_wrong_row_category",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_main_category_counts_follow_actual_category_matrices_and_keep_four_samples",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_nested_bad_shapes_are_concrete_validation_errors_without_mutation",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_same_validator_covers_category_expansion",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_strict_validator_decodes_complete_exact_matrix",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_valid_optional_text_hashes_and_artifact_remain_unchanged",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_validator_reads_entire_wav_and_rejects_truncation",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_validator_recomputes_summary",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_validator_rejects_duplicate_matrix_cell",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_validator_requires_error_breakdown_identity",
-    "tests.test_stage4_checkpoint_runner.Stage4CheckpointRunnerTest.test_windows_cross_drive_wav_is_wrapped_as_artifact_validation_error",
     "tests.test_stage4_parallel_wavs.Stage4ParallelWavTests.test_failure_selection_is_by_row_order_and_all_readers_are_joined",
     "tests.test_stage4_parallel_wavs.Stage4ParallelWavTests.test_four_decoders_overlap_without_changing_audio_or_artifact",
     "tests.test_stage4_parallel_wavs.Stage4ParallelWavTests.test_last_block_truncation_rejected_with_original_row_number"
@@ -8215,11 +8214,14 @@
     "tests.test_unit_test_sharding.AssignmentTests.test_shards_are_balanced_within_the_greedy_bound",
     "tests.test_unit_test_sharding.CiEnvCommandLineTests.test_a_broken_test_file_fails_exactly_one_shard",
     "tests.test_unit_test_sharding.CiEnvCommandLineTests.test_equals_form_works_and_bad_specs_exit_nonzero_with_a_message",
+    "tests.test_unit_test_sharding.CiEnvCommandLineTests.test_receipt_records_only_executed_shard_tests",
     "tests.test_unit_test_sharding.CiEnvCommandLineTests.test_shards_partition_the_run_and_unsharded_runs_everything",
     "tests.test_unit_test_sharding.CiEnvCommandLineTests.test_with_the_real_head_start_the_shards_still_cover_every_test_once",
     "tests.test_unit_test_sharding.ShardReportCheckTests.test_a_complete_set_is_accepted",
+    "tests.test_unit_test_sharding.ShardReportCheckTests.test_cli_refuses_equal_count_duplicate_omitted_unknown_and_missing_id_receipts",
     "tests.test_unit_test_sharding.ShardReportCheckTests.test_command_line_reads_reports_at_any_depth_and_sets_the_exit_code",
     "tests.test_unit_test_sharding.ShardReportCheckTests.test_every_way_of_losing_or_doubling_a_test_is_refused",
+    "tests.test_unit_test_sharding.ShardReportCheckTests.test_fixture_reuse_does_not_discover_imported_test_classes_twice",
     "tests.test_unit_test_sharding.ShardReportCheckTests.test_real_inventory_total_matches_its_modules",
     "tests.test_unit_test_sharding.ShardSpecTests.test_invalid_specs_are_refused",
     "tests.test_unit_test_sharding.ShardSpecTests.test_valid_specs",
@@ -8867,9 +8869,12 @@
     "tests.test_vram_synthetic_text.SyntheticTextTests.test_word_length_work_is_linear_for_large_custom_chunks"
   ],
   "test_watchdog_startup": [
+    "tests.test_watchdog_startup.WatchdogStartupTests.test_abort_takes_precedence_over_a_conflicting_completion_receipt",
+    "tests.test_watchdog_startup.WatchdogStartupTests.test_aborted_empty_run_never_publishes_completion_or_notifies_success",
     "tests.test_watchdog_startup.WatchdogStartupTests.test_already_running_session_can_finish_after_initial_observation",
     "tests.test_watchdog_startup.WatchdogStartupTests.test_delayed_session_is_observed_polled_and_marked_complete",
-    "tests.test_watchdog_startup.WatchdogStartupTests.test_session_never_observed_fails_without_completion_artifact"
+    "tests.test_watchdog_startup.WatchdogStartupTests.test_session_never_observed_fails_without_completion_artifact",
+    "tests.test_watchdog_startup.WatchdogStartupTests.test_zip_presence_or_old_observer_receipt_cannot_prove_runner_success"
   ],
   "test_wav_decoder": [
     "tests.test_wav_decoder.WavDecoderTests.test_float_wav_uses_container_format_without_invalid_decoder"

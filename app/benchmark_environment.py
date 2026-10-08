@@ -4,12 +4,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 import json
 import os
+import posixpath
 import platform
 import shlex
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 from benchmark_core import build_environment_fingerprint
 from lmstudio_settings import (_ssh_run, get_gpu_name_and_backend,
@@ -21,6 +21,8 @@ from benchmark_environment_identity import _get_local_worktree_identity
 from utils import atomic_json_write, safe_load_json, file_lock
 
 BASELINE_STALE_SECONDS = 24 * 60 * 60
+REMOTE_STATUS_BEGIN = "ALEXANDRIA_BENCHMARK_GIT_STATUS_BEGIN"
+REMOTE_STATUS_END = "ALEXANDRIA_BENCHMARK_GIT_STATUS_END"
 
 
 
@@ -57,7 +59,7 @@ def collect_local_environment(root_dir, model_name):
 def _get_remote_runtime_observations(ssh_alias, remote_python="python3", remote_root=None):
     """Read one JSON line from the inference host after any login banner."""
     if remote_root:
-        probe = (f"import json,sys; sys.path.insert(0,{str(Path(remote_root) / 'app')!r}); "
+        probe = (f"import json,sys; sys.path.insert(0,{posixpath.join(remote_root, 'app')!r}); "
                  "from benchmark_environment_identity import get_benchmark_runtime_observations; "
                  f"print(json.dumps(get_benchmark_runtime_observations({remote_root!r})))")
     else:
@@ -79,11 +81,26 @@ def _get_remote_runtime_observations(ssh_alias, remote_python="python3", remote_
     return observations
 
 
+def get_remote_checkout_command(remote_root):
+    root = shlex.quote(remote_root)
+    return (f"git -C {root} rev-parse HEAD && "
+            f"printf '%s\\n' {shlex.quote(REMOTE_STATUS_BEGIN)} && "
+            f"git -C {root} status --porcelain=v1 && "
+            f"printf '%s\\n' {shlex.quote(REMOTE_STATUS_END)}")
+
+
 def _get_remote_revision_index(lines):
-    """Find a Git SHA-1 or SHA-256 object ID after any login banner."""
-    return next((index for index, line in enumerate(lines)
-                 if len(line) in (40, 64)
-                 and all(c in "0123456789abcdef" for c in line)), None)
+    """Read the Git object ID immediately before its framed status block."""
+    if not lines or lines[-1] != REMOTE_STATUS_END:
+        return None
+    start = next((index for index in range(len(lines) - 2, -1, -1)
+                  if lines[index] == REMOTE_STATUS_BEGIN), None)
+    if start is None or start == 0:
+        return None
+    revision = lines[start - 1]
+    if len(revision) not in (40, 64) or any(c not in "0123456789abcdef" for c in revision):
+        return None
+    return start - 1
 
 
 def _verify_remote_checkout(root_dir, ssh_alias, remote_root):
@@ -94,8 +111,7 @@ def _verify_remote_checkout(root_dir, ssh_alias, remote_root):
     this is the standalone version for callers that don't need that probe,
     e.g. collect_thunder_environment now that LLM-stage benchmarks can also
     run their worker on the remote host (see llm_benchmark_worker.py)."""
-    command = (f"git -C {shlex.quote(remote_root)} rev-parse HEAD && "
-               f"git -C {shlex.quote(remote_root)} status --porcelain=v1")
+    command = get_remote_checkout_command(remote_root)
     result = _ssh_run(ssh_alias, command, timeout=20, connect_timeout=10)
     lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     if result.returncode or not lines:
@@ -103,11 +119,18 @@ def _verify_remote_checkout(root_dir, ssh_alias, remote_root):
     commit_index = _get_remote_revision_index(lines)
     if commit_index is None:
         raise ValueError("remote git revision is unavailable")
-    dirty_lines = lines[commit_index + 1:]
+    dirty_lines = lines[commit_index + 2:-1]
     runtime = get_runtime_info(root_dir)
     if lines[commit_index] != runtime["revision"] or dirty_lines:
         raise ValueError("remote checkout must be clean and match the local git revision")
     return lines[commit_index]
+
+
+def validate_remote_runtime_checkout(remote, expected_revision):
+    worktree = remote.get("worktree")
+    if (remote.get("git_commit") != expected_revision or not isinstance(worktree, dict)
+            or worktree.get("dirty") is not False):
+        raise ValueError("remote runtime checkout must be clean and match the verified git revision")
 
 
 def collect_thunder_environment(root_dir, ssh_alias, model_name, remote_root=None,
@@ -137,6 +160,8 @@ def collect_thunder_environment(root_dir, ssh_alias, model_name, remote_root=Non
         remote = remote_probe.result()
         gpu_name, backend = gpu_probe.result()
         lmstudio_status = lmstudio_probe.result()
+    if remote_root:
+        validate_remote_runtime_checkout(remote, remote_commit)
     if not runtime.get("revision"):
         raise ValueError("local git revision could not be identified")
     if not gpu_name or not backend:
@@ -196,8 +221,7 @@ def collect_thunder_tts_environment(root_dir, ssh_alias, remote_root, remote_pyt
             "'hostname':platform.node(),'python_version':platform.python_version(),"
             "'torch':torch.__version__,'qwen_tts':getattr(qwen_tts,'__version__','unknown')}))")
     command = (f"{shlex.quote(remote_python)} -c {shlex.quote(code)} && "
-               f"git -C {shlex.quote(remote_root)} rev-parse HEAD && "
-               f"git -C {shlex.quote(remote_root)} status --porcelain=v1")
+               + get_remote_checkout_command(remote_root))
     result = _ssh_run(ssh_alias, command, timeout=30, connect_timeout=10)
     lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     if result.returncode or len(lines) < 2:
@@ -209,7 +233,7 @@ def collect_thunder_tts_environment(root_dir, ssh_alias, remote_root, remote_pyt
     commit_index = _get_remote_revision_index(lines)
     if commit_index is None:
         raise ValueError("remote TTS git revision is unavailable")
-    dirty_lines = lines[commit_index + 1:]
+    dirty_lines = lines[commit_index + 2:-1]
     gpu_name, backend = get_remote_gpu_name_and_backend(ssh_alias)
     if not gpu_name or not backend:
         raise ValueError("Thunder GPU/backend could not be identified")
@@ -307,8 +331,9 @@ def collect_cpu_environment(root_dir, target, ssh_alias=None, remote_root=None,
             raise ValueError("Thunder SSH alias is required")
         if not remote_root:
             raise ValueError("Thunder CPU preflight requires remote_root")
-        _verify_remote_checkout(root_dir, ssh_alias, remote_root)
+        remote_commit = _verify_remote_checkout(root_dir, ssh_alias, remote_root)
         remote = _get_remote_runtime_observations(ssh_alias, remote_python, remote_root)
+        validate_remote_runtime_checkout(remote, remote_commit)
         hostname = remote["hostname"]
         python_version = remote["python_version"]
         platform_details = remote["platform"]
