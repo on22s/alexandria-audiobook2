@@ -1632,6 +1632,15 @@
     "tests.test_cluster_override_distinctness.DistinctOverrideTests.test_self_split_and_duplicate_merge_labels_fail_without_mutating_inputs",
     "tests.test_cluster_override_distinctness.DistinctOverrideTests.test_valid_overlapping_merges_and_unrelated_split_keep_real_decisions"
   ],
+  "test_codec_oom_recovery": [
+    "tests.test_codec_oom_recovery.CodecOomRecoveryTests.test_exhausted_oom_is_bounded_and_not_a_success",
+    "tests.test_codec_oom_recovery.CodecOomRecoveryTests.test_failed_activation_is_released_before_retry",
+    "tests.test_codec_oom_recovery.CodecOomRecoveryTests.test_non_memory_cuda_errors_and_explicit_small_chunks_are_not_retried",
+    "tests.test_codec_oom_recovery.CodecOomRecoveryTests.test_normal_decode_retains_exact_default_arguments_and_result",
+    "tests.test_codec_oom_recovery.CodecOomRecoveryTests.test_other_codec_types_are_untouched",
+    "tests.test_codec_oom_recovery.CodecOomRecoveryTests.test_retry_uses_same_codes_and_overlap_and_keeps_complete_output",
+    "tests.test_codec_oom_recovery.CodecOomRecoveryTests.test_shared_model_loader_installs_retry_after_cache_or_download_load"
+  ],
   "test_collect_audit_snapshot": [
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_audit_replacement_after_close_cannot_mix_status_and_seed_snapshots",
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_native_report_preserves_group_order_scored_rows_and_legacy_precedence"

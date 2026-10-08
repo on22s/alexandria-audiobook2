@@ -522,6 +522,30 @@ _TTS_BACKEND_CAPABILITIES = {
 }
 
 
+def get_memory_bounded_codec_decode(decode):
+    """Keep Qwen's normal decode; bound only its activation peak after OOM."""
+    @wraps(decode)
+    def decode_with_recovery(codes, chunk_size=300, left_context_size=25):
+        import gc
+        import torch
+
+        while True:
+            try:
+                return decode(codes, chunk_size=chunk_size, left_context_size=left_context_size)
+            except torch.OutOfMemoryError:
+                if chunk_size <= 25:
+                    raise
+                next_size = max(25, min(chunk_size, codes.shape[-1]) // 2)
+                if next_size >= chunk_size:
+                    raise
+                print(f"Audio codec out of memory; retrying the same codes in {next_size}-frame chunks.")
+            # Leaving the exception scope releases its traceback/activation tensors.
+            gc.collect()
+            torch.cuda.empty_cache()
+            chunk_size = next_size
+    return decode_with_recovery
+
+
 class TTSEngine:
     """TTS engine supporting local (qwen-tts) and external (Gradio) backends.
 
@@ -973,16 +997,22 @@ class TTSEngine:
         if local_path:
             print(f"  Loading from local cache: {local_path}")
             try:
-                return model_cls.from_pretrained(local_path, **load_kwargs)
+                model = model_cls.from_pretrained(local_path, **load_kwargs)
             except Exception as e:
                 import traceback
                 print(f"  Warning: Failed to load from local cache: {e}")
                 traceback.print_exc()
                 print(f"  Retrying with model ID (may download missing files)...")
-                return model_cls.from_pretrained(model_id, **load_kwargs)
+                model = model_cls.from_pretrained(model_id, **load_kwargs)
         else:
             print(f"  Model not cached locally, downloading {model_id}...")
-            return model_cls.from_pretrained(model_id, **load_kwargs)
+            model = model_cls.from_pretrained(model_id, **load_kwargs)
+        codec = getattr(getattr(model, "model", None), "speech_tokenizer", None)
+        codec_model = getattr(codec, "model", None)
+        if getattr(getattr(codec_model, "config", None), "model_type", None) == "qwen3_tts_tokenizer_12hz":
+            decoder = codec_model.decoder
+            decoder.chunked_decode = get_memory_bounded_codec_decode(decoder.chunked_decode)
+        return model
 
     @ensure_local_tts_serialized
     def _init_local_custom(self):
