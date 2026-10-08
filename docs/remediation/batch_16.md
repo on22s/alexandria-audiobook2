@@ -6,7 +6,7 @@ Corpus planning stops on failed discovery or plan display instead of reporting a
 
 Subset reruns clear stale status flags while preserving ZIP artifacts. Runner and watchdog output listings share full filename and byte-size formatting. The structural audit accepts a bare output filename, and CSV collection retains numeric seed zero while distinguishing missing seeds.
 
-Validation against main `857542fa`: 116 integrated focused tests pass without skips. All three release shards pass (4,099 + 1,379 + 1,564 = 7,042 unit-test executions), and 70 quick API checks pass; 12 full-mode API cases are explicitly skipped. The failed second-shard copied cloud fixture was corrected to include its required subprocess owner and the full shard rerun passed. This branch's main baseline predates #933's exact-identity/discovery fix; its execution count includes that baseline's duplicate fixture-class discovery and does not claim unique coverage. Native Git/Bash/filesystem tests use disposable synthetic inputs; no native Windows/macOS, live cloud model, ASR-quality or GPU inference is claimed.
+Validation against main `857542fa`: 116 integrated focused tests pass without skips. All three release shards pass (4,099 + 1,379 + 1,565 = 7,043 unit-test executions), and 70 quick API checks pass; 12 full-mode API cases are explicitly skipped. The failed second-shard copied cloud fixture was corrected to include its required subprocess owner and the full shard rerun passed. This branch's main baseline predates #933's exact-identity/discovery fix; its execution count includes that baseline's duplicate fixture-class discovery and does not claim unique coverage. Native Git/Bash/filesystem tests use disposable synthetic inputs; no native Windows/macOS, live cloud model, ASR-quality or GPU inference is claimed.
 
 Tracker: #917.
 
@@ -22,3 +22,5 @@ Tracker: #917.
 - [x] Fixes #894
 - [x] Fixes #896
 - [x] Fixes #897
+
+CI follow-up: the healthy managed-server test fixture allows a longer readiness window under runner load. A real two-second delayed HTTP start fails with the original fixture and passes with the new allowance. All kernel ancestry, lock proof, signal status and child-reaping checks remain intact; the negative readiness fixtures keep their short deadlines. The 21 managed-server/ownership/cleanup tests pass without skips, and the changed release shards pass. Production readiness and ownership policies are unchanged.
