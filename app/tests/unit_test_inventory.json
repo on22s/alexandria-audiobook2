@@ -2153,6 +2153,22 @@
     "tests.test_deepseek_audit_tools.AuditToolTests.test_single_spine_epub_produces_passage_empty_and_frontmatter_controls",
     "tests.test_deepseek_audit_tools.AuditToolTests.test_uppercase_wav_members_keep_spelling_and_train_preference"
   ],
+  "test_deepseek_benchmark_recovery": [
+    "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_batch_publishes_active_state_and_preserves_finished_cases_on_error",
+    "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_remote_supervisor_path_independent_of_local_path_semantics",
+    "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_resume_loads_only_pending_sources_and_rejects_pending_drift",
+    "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_actual_staging_files_removed_after_success_transfer_worker_timeout_and_cancel",
+    "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_cleanup_errors_do_not_replace_primary_failure_and_are_reported",
+    "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_local_dedup_and_unvalidated_remote_paths_are_never_deleted"
+  ],
+  "test_deepseek_input_validation": [
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_invalid_gold_options_fail_before_loading_or_writing",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_invalid_rating_does_not_consume_session_or_write_review",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_missing_timezone_data_keeps_measured_queue_eta",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_nonobject_narrator_override_is_a_validation_error",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_ratings_do_not_coerce_booleans_or_fractional_values",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_valid_prompt_edit_with_preserved_mtime_invalidates_cache"
+  ],
   "test_deepseek_script_recovery": [
     "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_alias_evidence_uses_accepted_variant",
     "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_attribution_resume_retries_and_replaces_diagnostic",
