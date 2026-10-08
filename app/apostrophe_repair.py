@@ -24,7 +24,7 @@ import re
 _STEMS = ("don", "isn", "didn", "doesn", "wasn", "weren", "hasn", "haven",
           "hadn", "couldn", "wouldn", "shouldn", "mustn", "needn", "aren",
           "can", "won", "ain", "shan", "mightn", "daren", "oughtn", "mayn")
-_CONTRACTION_RE = re.compile(r"\b(%s) t\b" % "|".join(_STEMS), re.IGNORECASE)
+_CONTRACTION_RE = re.compile(r"\b(%s) (t)\b" % "|".join(_STEMS), re.IGNORECASE)
 
 # Clitics that follow a word: he s, I m, we re, they ve, you ll, I d.
 #
@@ -34,7 +34,7 @@ _CONTRACTION_RE = re.compile(r"\b(%s) t\b" % "|".join(_STEMS), re.IGNORECASE)
 # was two thirds of all false insertions - more than every other cause put
 # together. The trailing (?![-\w]) refuses any clitic that is really the head of
 # a hyphenated word.
-_CLITIC_RE = re.compile(r"\b([A-Za-z]+) (s|re|ve|ll|m|d)(?![-\w])")
+_CLITIC_RE = re.compile(r"\b([A-Za-z]+) (s|re|ve|ll|m|d)(?![-\w])", re.IGNORECASE)
 
 _BROKEN_RE = re.compile(r"\b(?:%s) t\b" % "|".join(_STEMS), re.IGNORECASE)
 
@@ -78,7 +78,7 @@ def restore_stripped_apostrophes(text):
         return after
 
     repaired = _CONTRACTION_RE.sub(
-        lambda m: note(m, "%s't" % m.group(1)), text)
+        lambda m: note(m, "%s'%s" % (m.group(1), m.group(2))), text)
     repaired = _CLITIC_RE.sub(
         lambda m: note(m, "%s'%s" % (m.group(1), m.group(2))), repaired)
     return repaired, changes
