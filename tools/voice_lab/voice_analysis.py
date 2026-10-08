@@ -169,8 +169,8 @@ def list_wavs_in_zip(zip_path):
     """Return WAV names from a zip. Prefers train/ subfolder if present."""
     with zipfile.ZipFile(zip_path) as zf:
         names = zf.namelist()
-    train = [n for n in names if n.endswith(".wav") and n.startswith("train/")]
-    return train if train else [n for n in names if n.endswith(".wav")]
+    train = [n for n in names if n.lower().endswith(".wav") and n.startswith("train/")]
+    return train if train else [n for n in names if n.lower().endswith(".wav")]
 
 
 # ─── Phase 1: Dedup ─────────────────────────────────────────────────────────
@@ -260,6 +260,8 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
     )
     if not narrator_dirs:
         print(f"No narrator folders found under {zips2_root}")
+        atomic_json_write({"status": "failed", "narrators": {},
+                           "error": "No narrator folders found"}, str(state_file))
         return
 
     results = {}
@@ -279,6 +281,7 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
 
         expected_sources = get_analysis_file_hashes(zips)
         folder_updates = {}
+        folder_incomplete = False
         folder_outputs = []
         zip_embeddings = {}
         zip_labels     = []
@@ -310,6 +313,7 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
                         used.append(wn)
                     except Exception as e:
                         incomplete = True
+                        folder_incomplete = True
                         tqdm.write(f"  Warning: extraction failed for {wn}: {e}")
 
             if embs:
@@ -329,6 +333,10 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
 
         if folder_updates:
             save_voice_analysis_checkpoint(folder_updates, cache_file)
+
+        if folder_incomplete:
+            print(f"  Incomplete extraction for {folder_name}; preserving prior published outputs")
+            continue
 
         if len(zip_labels) < 2:
             print("  Need at least 2 zips to compare.")
