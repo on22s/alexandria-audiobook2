@@ -90,7 +90,7 @@ class VoiceAnalysisPhaseCompletionTests(unittest.TestCase):
                 state = json.loads((self.output / 'phase_state.json').read_text())
                 self.assertEqual('partial' if partial else 'complete', state['status'])
                 self.assertEqual(1 if partial else 0, code)
-                self.assertTrue(list((self.zips / '_deduped').glob('*.zip')))
+                self.assertEqual(not partial, bool(list((self.zips / '_deduped').glob('*.zip'))))
 
     def test_unique_narrator_without_plot_is_done_using_actual_output_group_key(self):
         self.configure()
