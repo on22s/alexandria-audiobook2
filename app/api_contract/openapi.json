@@ -3878,6 +3878,20 @@
           }
         },
         "summary": "Get Audiobook"
+      },
+      "head": {
+        "operationId": "get_audiobook_api_audiobook_head",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Audiobook"
       }
     },
     "/api/audiobook_m4b": {

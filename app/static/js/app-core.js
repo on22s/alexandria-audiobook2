@@ -537,6 +537,8 @@
                 pollLmStudioStatus();
             } else if (selectedLink.dataset.tab === 'editor') {
                 loadChunks();
+            } else if (selectedLink.dataset.tab === 'audio') {
+                loadFinalAudio();
             } else if (selectedLink.dataset.tab === 'voices') {
                 loadVoices(false);
             } else if (selectedLink.dataset.tab === 'designer') {
@@ -7718,6 +7720,38 @@
             }
         }
 
+        let finalAudioRequest = 0;
+        async function loadFinalAudio() {
+            const request = ++finalAudioRequest;
+            const player = document.getElementById('audio-player-container');
+            const empty = document.getElementById('audio-empty-state');
+            try {
+                const response = await fetch('/api/audiobook', { method: 'HEAD', cache: 'no-store' });
+                if (request !== finalAudioRequest) { return; }
+                if (!response.ok && response.status !== 404) {
+                    throw new Error(`Audiobook check failed (${response.status})`);
+                }
+                player.style.display = response.ok ? 'block' : 'none';
+                empty.style.display = response.ok ? 'none' : '';
+                empty.textContent = 'No final audiobook is loaded here yet. In Editor, choose Merge All to build the MP3.';
+                const audio = document.getElementById('main-audio');
+                const download = document.getElementById('download-link');
+                if (response.ok) {
+                    audio.src = `/api/audiobook?t=${Date.now()}`;
+                    download.href = audio.src;
+                } else {
+                    audio.pause();
+                    audio.removeAttribute('src');
+                    download.removeAttribute('href');
+                }
+            } catch (error) {
+                if (request !== finalAudioRequest) { return; }
+                console.error('Failed to check final audiobook:', error);
+                empty.style.display = '';
+                empty.textContent = 'Could not check the final audiobook. Check the connection and reopen Result to retry.';
+            }
+        }
+
         async function pollLogs(taskName, elementId, onDone, activityId) {
             const el = document.getElementById(elementId);
             const activityEl = activityId ? document.getElementById(activityId) : null;
@@ -7738,12 +7772,7 @@
                     notifyJobDone(taskName, '', 'finished', status);
                     if (onDone) { onDone(status); }
                     if (taskName === 'audio' && getTaskCompletionOutcome(status) === 'finished' && status.logs.some(l => l.includes("complete"))) {
-                        // Load audio player
-                        const audio = document.getElementById('main-audio');
-                        audio.src = `/api/audiobook?t=${new Date().getTime()}`;
-                        document.getElementById('audio-player-container').style.display = 'block';
-                        document.getElementById('audio-empty-state').style.display = 'none';
-                        document.getElementById('download-link').href = audio.src;
+                        loadFinalAudio();
                     }
                     // Refresh editor chunks when script generation or review completes
                     if ((taskName === 'script' || taskName === 'review') && status.logs.some(l => l.includes("completed successfully"))) {

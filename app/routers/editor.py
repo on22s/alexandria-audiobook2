@@ -86,6 +86,7 @@ class DriftCheckRequest(BaseModel):
     indices: Optional[List[int]] = None       # default: every done chunk
 
 
+@router.head("/api/audiobook")
 @router.get("/api/audiobook")
 async def get_audiobook():
     if not os.path.exists(AUDIOBOOK_PATH):

@@ -117,10 +117,10 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'reload assertion
     def test_result_empty_state_hides_after_success_but_not_failed_or_cancelled_merge(self):
         script=r'''const assert=require('assert'),fs=require('fs'),vm=require('vm'),s=fs.readFileSync(process.argv[1],'utf8');
 const fields={};let callbacks;const el=id=>fields[id]||(fields[id]={style:{display:'none'},textContent:''});
-const c={document:{getElementById:el},Date,API:{},createTaskLogRenderer:()=>()=>{},notifyJobDone(){},_startPolling:(_key,_fetch,options)=>callbacks=options};vm.createContext(c);
+const c={document:{getElementById:el},Date,fetch:async()=>({ok:true,status:200}),API:{},createTaskLogRenderer:()=>()=>{},notifyJobDone(){},_startPolling:(_key,_fetch,options)=>callbacks=options};vm.createContext(c);
 const a=s.indexOf('function isTaskFailed(');vm.runInContext(s.slice(a,s.indexOf('// --- Desktop notifications',a)),c);const b=s.indexOf('function getTaskCompletionOutcome(');vm.runInContext(s.slice(b,s.indexOf('function notifyJobDone(',b)),c);
-vm.runInContext(s.slice(s.indexOf('async function pollLogs(')),c);
-(async()=>{for(const status of ['failed','cancelled','done']){el('audio-player-container').style.display='none';el('audio-empty-state').style.display='';await c.pollLogs('audio','logs');callbacks.onDone({status,logs:status==='done'?['Task audio completed successfully.']:['merge incomplete; review logs']});assert.strictEqual(el('audio-player-container').style.display,status==='done'?'block':'none');assert.strictEqual(el('audio-empty-state').style.display,status==='done'?'none':'');}})().catch(e=>{console.error(e);process.exitCode=1;});'''
+vm.runInContext(s.slice(s.indexOf('let finalAudioRequest =')),c);
+(async()=>{for(const status of ['failed','cancelled','done']){el('audio-player-container').style.display='none';el('audio-empty-state').style.display='';await c.pollLogs('audio','logs');callbacks.onDone({status,logs:status==='done'?['Task audio completed successfully.']:['merge incomplete; review logs']});await new Promise(resolve=>setImmediate(resolve));assert.strictEqual(el('audio-player-container').style.display,status==='done'?'block':'none');assert.strictEqual(el('audio-empty-state').style.display,status==='done'?'none':'');}})().catch(e=>{console.error(e);process.exitCode=1;});'''
         self.run_js(script)
 
     def test_auto_config_external_requires_server_and_save_without_changing_tiers(self):

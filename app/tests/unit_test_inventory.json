@@ -3054,6 +3054,10 @@
     "tests.test_file_lock_ownership.FileLockOwnershipTests.test_process_death_releases_kernel_ownership_without_reaping",
     "tests.test_file_lock_ownership.FileLockOwnershipTests.test_waiting_threads_preserve_all_read_modify_write_updates"
   ],
+  "test_final_audio_restore": [
+    "tests.test_final_audio_restore.FinalAudioRestoreTests.test_head_checks_the_real_download_without_transferring_audio",
+    "tests.test_final_audio_restore.FinalAudioRestoreTests.test_native_result_tab_restores_download_and_rejects_stale_missing_or_failed_checks"
+  ],
   "test_find_nicknames": [
     "tests.test_find_nicknames.ConcurrentAliasPublicationTests.test_http_correction_and_discovery_share_lock_and_latest_human_values",
     "tests.test_find_nicknames.ParseAliasResponseTests.test_alias_free_discovery_preserves_human_registry",
