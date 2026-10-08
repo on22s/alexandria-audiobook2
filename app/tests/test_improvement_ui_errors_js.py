@@ -55,6 +55,7 @@ const ctx={window:{},dsbRows:[row],dsbCurrentProject:'fixture',dsbBatchRunning:f
 vm.createContext(ctx);{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
 vm.runInContext(core.slice(core.indexOf('function escapeHtml('),core.indexOf('// Parse a numeric input')),ctx);
 vm.runInContext(source.slice(source.indexOf('function dsbBuildRowHtml('),source.indexOf('function dsbRenderTable(')),ctx);
+vm.runInContext(source.slice(source.indexOf('function getDatasetRowDefinition('),source.indexOf('function ensureDatasetRowSaveState(')),ctx);
 vm.runInContext(source.slice(source.indexOf('window.dsbGenSample ='),source.indexOf('// Batch generation')),ctx);
 (async()=>{
  await ctx.window.dsbGenSample(0);

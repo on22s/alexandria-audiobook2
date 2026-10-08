@@ -65,6 +65,32 @@ def _tone(path, seconds, hz=220.0, rate=24000):
     sf.write(path, (0.3 * np.sin(2 * np.pi * hz * t)).astype(np.float32), rate)
 
 
+class ChapterGroupingTests(unittest.TestCase):
+    def test_short_dialogue_and_complete_narration_do_not_create_chapters(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = ProjectManager(tmp)
+            chunks = [{'speaker': speaker, 'text': text} for speaker, text in [
+                ('NARRATOR', 'Chapter 1'), ('ALICE', 'Hello.'), ('ALICE', 'Hello'),
+                ('NARRATOR', 'It ended.'), ('NARRATOR', '“It ended.”'),
+                ('NARRATOR', '終わった。'), ('NARRATOR', 'The Awakening'),
+                ('ALICE', 'Goodbye!'), ('NARRATOR', 'Chapter 2')]]
+            expected = [('Chapter 1', 0, 5), ('The Awakening', 6, 7), ('Chapter 2', 8, 8)]
+            self.assertEqual(expected, manager._chapter_groups(chunks, False))
+            timeline = [(chunk, bytes(1000), i * 1000) for i, chunk in enumerate(chunks)]
+            self.assertEqual([('Chapter 1', 0, 6000), ('The Awakening', 6000, 8000),
+                              ('Chapter 2', 8000, 9000)],
+                             manager._build_m4b_chapters(timeline, False))
+
+    def test_no_heading_fallback_and_explicit_per_chunk_are_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = ProjectManager(tmp)
+            chunks = [{'speaker': 'ALICE', 'text': 'Hello.'},
+                      {'speaker': 'NARRATOR', 'text': 'It ended.'}]
+            expected = [('[ALICE] Hello.', 0, 0), ('[NARRATOR] It ended.', 1, 1)]
+            self.assertEqual(expected, manager._chapter_groups(chunks, False))
+            self.assertEqual(expected, manager._chapter_groups(chunks, True))
+
+
 def _project(tmp):
     """A heading, two lines, a second heading, a line. Narration lines are
     over 80 chars because the (pre-existing) heading rule treats any shorter
@@ -83,6 +109,92 @@ def _project(tmp):
 
 @unittest.skipUnless(HAVE_FFMPEG, "ffmpeg needed for mp3 export")
 class ExportChaptersTests(unittest.TestCase):
+    def test_cancel_during_publication_restores_old_files_or_removes_new_files(self):
+        for existing in (False, True):
+            with self.subTest(existing=existing), tempfile.TemporaryDirectory() as tmp:
+                pm, chunks = _project(tmp)
+                out = Path(tmp, CHAPTER_EXPORT_DIR)
+                cancelled = False
+                with patch.object(pm, 'load_chunks', return_value=chunks):
+                    if existing:
+                        self.assertTrue(pm.export_chapters(fmt='wav')[0])
+                    before = {path.name: path.read_bytes() for path in out.iterdir()} if existing else {}
+                    _tone(str(Path(tmp, 'voicelines', 'c0.wav')), 0.9, hz=700)
+                    replace = os.replace
+                    def cancel_after_first_publication(src, dst):
+                        nonlocal cancelled
+                        result = replace(src, dst)
+                        if Path(dst).parent == out and Path(dst).suffix == '.wav':
+                            cancelled = True
+                        return result
+                    with patch('project.os.replace', side_effect=cancel_after_first_publication):
+                        result = pm.export_chapters(fmt='wav', cancel_check=lambda: cancelled)
+                    self.assertEqual((False, 'Export cancelled'), result)
+                    self.assertEqual(set(before), {path.name for path in out.iterdir()})
+                    for name, contents in before.items():
+                        self.assertTrue(contents == (out / name).read_bytes(), name)
+
+    def test_failed_rollback_preserves_backups_and_reports_their_location(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pm, chunks = _project(tmp)
+            out = Path(tmp, CHAPTER_EXPORT_DIR)
+            with patch.object(pm, 'load_chunks', return_value=chunks):
+                self.assertTrue(pm.export_chapters(fmt='wav')[0])
+                old = (out / '01 - Chapter 1.wav').read_bytes()
+                old_manifest = (out / 'manifest.json').read_bytes()
+                _tone(str(Path(tmp, 'voicelines', 'c0.wav')), 0.9, hz=700)
+                replace = os.replace
+                def refuse_publish_and_restore(src, dst):
+                    target = Path(dst)
+                    if target.parent == out and (target.name == '02 - Chapter 2.wav'
+                            or Path(src).parent.name == 'old'):
+                        raise OSError('synthetic publish/restore failure')
+                    return replace(src, dst)
+                with patch('project.os.replace', side_effect=refuse_publish_and_restore):
+                    with self.assertRaisesRegex(RuntimeError, 'recovery files kept at') as error:
+                        pm.export_chapters(fmt='wav')
+                staging = list(out.glob('.chapter-export-*'))
+                self.assertEqual(1, len(staging))
+                self.assertIn(str(staging[0]), str(error.exception))
+                self.assertTrue(old == (staging[0] / 'old' / '01 - Chapter 1.wav').read_bytes())
+                self.assertTrue(old_manifest == (out / 'manifest.json').read_bytes())
+
+    def test_failed_selected_export_keeps_previous_audio_and_manifest(self):
+        for boundary in ('encode', 'publish', 'manifest'):
+            with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as tmp:
+                pm, chunks = _project(tmp)
+                out = Path(tmp, CHAPTER_EXPORT_DIR)
+                with patch.object(pm, 'load_chunks', return_value=chunks):
+                    self.assertTrue(pm.export_chapters(fmt='wav')[0])
+                    before = {path.name: path.read_bytes() for path in out.iterdir()
+                              if path.is_file() and path.suffix in ('.wav', '.json')}
+                    names = [row['file'] for row in json.loads(before['manifest.json'])['chapters']]
+                    _tone(str(Path(tmp, 'voicelines', 'c0.wav')), 0.9, hz=700)
+                    from project import _export_audio_segment
+                    replace = os.replace
+                    def fail_encode(segment, path, fmt, **kwargs):
+                        if boundary == 'encode' and Path(path).name == names[1]:
+                            raise OSError('synthetic encode failure')
+                        return _export_audio_segment(segment, path, fmt, **kwargs)
+                    def fail_publish(src, dst):
+                        target = Path(dst)
+                        if target.parent == out and ((boundary == 'publish' and target.name == names[1])
+                                or (boundary == 'manifest' and target.name == 'manifest.json')):
+                            # Only reject publication, allowing restoration of old files.
+                            if Path(src).parent.name != 'old':
+                                raise OSError('synthetic publication failure')
+                        return replace(src, dst)
+                    with patch('project._export_audio_segment', side_effect=fail_encode), \
+                            patch('project.os.replace', side_effect=fail_publish):
+                        with self.assertRaises(OSError):
+                            pm.export_chapters(fmt='wav')
+                    for name, contents in before.items():
+                        self.assertTrue(contents == (out / name).read_bytes(), name)
+                    self.assertEqual([], list(out.glob('.chapter-export-*')))
+                    self.assertTrue(pm.export_chapters(fmt='wav')[0])
+                    self.assertNotEqual(before[names[0]], (out / names[0]).read_bytes())
+                    self.assertEqual(2, len(json.loads((out / 'manifest.json').read_text())['chapters']))
+
     def test_same_size_subsecond_audio_replacement_rebuilds_changed_chapter(self):
         with tempfile.TemporaryDirectory() as tmp:
             pm, chunks = _project(tmp)

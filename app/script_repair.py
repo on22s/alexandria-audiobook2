@@ -41,10 +41,13 @@ def build_deterministic_repair(entries, source_text, merge_empty_into_pause=True
         replacements = []
         for match in _WORD_WITH_CYRILLIC_RE.finditer(original):
             old_word = match.group(0)
-            if preserve_source_cyrillic and old_word.casefold() in source_words:
-                # Faithful source words are evidence, not unproven OCR repairs.
-                continue
             known_corruption = old_word.casefold() in KNOWN_SOURCE_CORRUPTIONS
+            if old_word.casefold() in source_words and (
+                    preserve_source_cyrillic or (not known_corruption and
+                    all("\u0400" <= char <= "\u04ff" for char in old_word))):
+                # Faithful source words are evidence, including mixed-language
+                # prose; known OCR corruption still follows its repair rules.
+                continue
             new_word = KNOWN_SOURCE_CORRUPTIONS.get(old_word.casefold())
             if new_word and old_word[:1].isupper():
                 new_word = new_word.capitalize()

@@ -243,3 +243,67 @@ print(json.dumps(asyncio.run(script.generate_script_recovery())))
             self.assertEqual(200,response.status_code,response.text);self.assertEqual([before],observed)
             self.assertEqual(before,self.pair(path));self.assertFalse((root/books.JOURNAL).exists())
             self.assertFalse(core.is_task_running('script'));self.assertEqual({},core._task_claims)
+
+
+class StartOverAdmissionTests(unittest.TestCase):
+    @contextlib.contextmanager
+    def fixture(self):
+        with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+            root = Path(tmp); source = root / 'book.txt'; source.write_text('“Synthetic sentence.”')
+            output = root / 'annotated_script.json'; config = root / 'config.json'; config.write_text('{}')
+            checkpoint = Path(script.three_pass_checkpoint_path(str(output))); checkpoint.write_text('{"accepted":"synthetic progress"}')
+            manifest = Path(script.three_pass_manifest_path(str(output))); manifest.write_text('{"status":"failed"}')
+            state = root / 'state.json'; state.write_text(json.dumps({'input_file_path': str(source), 'active_book_id': 'synthetic-book'}))
+            states = copy.deepcopy(core.process_state)
+            for value in states.values(): value['running'] = False
+            for obj, name, value in [(core, 'DATA_DIR', tmp), (script, 'DATA_DIR', tmp), (script, 'SCRIPT_PATH', str(output)), (script, 'CONFIG_PATH', str(config)), (core, 'process_state', states), (script, 'process_state', states), (core, '_task_claims', {}), (core, '_gpu_leases', {})]:
+                stack.enter_context(patch.object(obj, name, value))
+            stack.enter_context(patch.object(core, 'acquire_gpu_lock', return_value=None))
+            stack.enter_context(patch.object(script, 'get_active_reasoning_effort', return_value=None))
+            try:
+                yield root, source, checkpoint, manifest, state
+            finally:
+                for task, claim in list(core._task_claims.items()):
+                    core.release_gpu_task_claim(task, claim['id'])
+
+    def test_competing_claim_refuses_before_start_over_discards_progress_or_state(self):
+        from fastapi import BackgroundTasks
+        with self.fixture() as (root, source, checkpoint, manifest, state):
+            before = {path: path.read_bytes() for path in (source, checkpoint, manifest, state)}
+            original_check = core.check_global_gpu_lock
+            def admit_then_compete(task):
+                original_check(task); core.claim_gpu_task('audio')
+            tasks = BackgroundTasks()
+            with patch.object(script, 'check_global_gpu_lock', side_effect=admit_then_compete):
+                with self.assertRaises(HTTPException) as refused:
+                    script.start_script_generation(tasks, str(source), script.GenerateScriptRequest(start_over=True))
+            self.assertEqual(400, refused.exception.status_code)
+            for path in before:
+                self.assertTrue(path.exists(), f"Refused start removed {path.name}")
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+            self.assertEqual([], tasks.tasks)
+            self.assertNotIn('script', core._task_claims)
+            self.assertIn('audio', core._task_claims)
+
+    def test_admitted_start_over_registers_same_claim_and_removes_owned_progress(self):
+        from fastapi import BackgroundTasks
+        with self.fixture() as (root, source, checkpoint, manifest, state):
+            tasks = BackgroundTasks()
+            self.assertEqual({'status': 'started'}, script.start_script_generation(tasks, str(source), script.GenerateScriptRequest(start_over=True)))
+            self.assertFalse(checkpoint.exists()); self.assertFalse(manifest.exists())
+            self.assertEqual(1, len(tasks.tasks))
+            claim = core._task_claims['script']
+            self.assertEqual('pending', claim['phase'])
+            self.assertEqual(claim['id'], tasks.tasks[0].args[1])
+            self.assertEqual(str(source), json.loads(state.read_text())['script_generation_input_file'])
+
+    def test_setup_failure_releases_reservation_without_scheduling_worker(self):
+        from fastapi import BackgroundTasks
+        with self.fixture() as (root, source, checkpoint, manifest, state):
+            tasks = BackgroundTasks()
+            with patch.object(script, 'atomic_json_write', side_effect=OSError('synthetic state publication failure')):
+                with self.assertRaisesRegex(OSError, 'state publication'):
+                    script.start_script_generation(tasks, str(source), script.GenerateScriptRequest(start_over=True))
+            self.assertNotIn('script', core._task_claims)
+            self.assertFalse(core.process_state['script']['running'])
+            self.assertEqual([], tasks.tasks)

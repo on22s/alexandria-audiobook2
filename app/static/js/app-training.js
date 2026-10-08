@@ -150,6 +150,14 @@
             progressBar.ariaValueText = `Epoch ${epoch} of ${maxEpoch}`;
         }
 
+        function applyLoraProgressState(progressBar, outcome) {
+            progressBar.classList.remove('bg-info', 'bg-success', 'bg-danger', 'bg-warning');
+            const color = {running: 'bg-info', finished: 'bg-success', failed: 'bg-danger', stopped: 'bg-warning'}[outcome];
+            progressBar.classList.add(color);
+            if (outcome === 'running') { progressBar.classList.add('progress-bar-animated'); }
+            else { progressBar.classList.remove('progress-bar-animated'); }
+        }
+
         function pollLoraTraining(totalEpochs) {
             const logsEl = document.getElementById('lora-train-logs');
             const progressBar = document.getElementById('lora-progress-bar');
@@ -159,6 +167,9 @@
             const renderLogs = createTaskLogRenderer(logsEl);
             let currentEpoch = 0;
             let maxEpochs = totalEpochs;
+            epochDisplay.innerText = '';
+            lossDisplay.innerText = '';
+            applyLoraProgressState(progressBar, 'running');
             applyLoraProgress(progressBar, 0, currentEpoch, maxEpochs);
 
             _startPolling('lora_training', () => API.get('/api/status/lora_training'), {
@@ -214,18 +225,16 @@
                     cancelBtn.style.display = 'none';
                     cancelBtn.disabled = false;
 
-                    progressBar.classList.remove('progress-bar-animated');
                     const isDone = status.logs.some(l => l.includes('[DONE]'));
                     const outcome = getTaskCompletionOutcome(status);
+                    applyLoraProgressState(progressBar, isDone && outcome === 'finished' ? 'finished' : outcome === 'failed' ? 'failed' : 'stopped');
 
                     if (isDone && outcome === 'finished') {
                         document.getElementById('lora-train-status').innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Training complete!</span>';
                         applyLoraProgress(progressBar, 100, maxEpochs, maxEpochs);
-                        progressBar.classList.replace('bg-info', 'bg-success');
                         loadLoraModels();
                     } else if (outcome === 'failed') {
                         document.getElementById('lora-train-status').innerHTML = '<span class="text-danger"><i class="fas fa-times me-1"></i>Training failed</span>';
-                        progressBar.classList.replace('bg-info', 'bg-danger');
                     } else {
                         document.getElementById('lora-train-status').innerHTML = '<span class="text-warning">Training stopped</span>';
                     }
@@ -397,10 +406,15 @@
 
         window.openLoraCandidateComparison = async (adapterId) => {
             const panel = document.getElementById('lora-comparison-panel');
+            const request = {};
+            panel._comparisonRequest = request;
+            const isCurrent = () => panel._comparisonRequest === request
+                && document.getElementById('lora-comparison-panel') === panel;
             panel.style.display = '';
             panel.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Loading comparison…</div>';
             try {
                 const comparison = await API.get(`/api/lora/models/${encodeURIComponent(adapterId)}/comparison`);
+                if (!isCurrent()) { return; }
                 const renderMetrics = probe => {
                     const metrics = probe.metrics || {};
                     const values = [
@@ -430,6 +444,7 @@
                     </div>`;
                 panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (e) {
+                if (!isCurrent()) { return; }
                 panel.innerHTML = `<div class="alert alert-danger py-2 mb-0">${escapeHtml(getActionErrorMessage("Comparison unavailable", e, "Check the selected adapter and candidate, then reopen Compare."))}</div>`;
             }
         };
@@ -736,6 +751,7 @@
                 loadLoraModels();
             } catch (e) {
                 showActionError("Download failed", e, "Refresh the adapter list and check whether the download completed before downloading again.");
+            } finally {
                 btn.disabled = false;
                 btn.innerHTML = origHtml;
             }

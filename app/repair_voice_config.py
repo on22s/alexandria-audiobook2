@@ -43,7 +43,7 @@ DEFAULT_SCRIPT = os.path.join(REPO, "chunks.json")
 # `clone` belongs here for the same reason as `lora`: someone supplied
 # reference audio for that character. Omitting it ranked a clone below the
 # auto-created custom entry it was competing with.
-TYPE_RANK = {"lora": 3, "builtin_lora": 3, "clone": 3, "design": 2, "custom": 1}
+TYPE_RANK = {"lora": 3, "builtin_lora": 3, "clone": 3, "ensemble": 3, "design": 2, "custom": 1}
 
 
 def get_canonical_alias_context(aliases):
@@ -97,7 +97,8 @@ def voice_signature(entry):
     """
     return (entry.get("type"), entry.get("voice"), entry.get("adapter_id"),
             entry.get("seed"), entry.get("character_style"),
-            entry.get("ref_audio"))
+            entry.get("ref_audio"),
+            json.dumps(entry.get("members"), sort_keys=True) if entry.get("type") == "ensemble" else None)
 
 
 def find_splits(config, aliases, line_counts):

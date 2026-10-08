@@ -11,6 +11,7 @@
         let dsbCurrentProject = '';
         let dsbLoadedProject = '';
         let dsbProjectLoadSequence = 0;
+        let dsbPendingProjectLoad = null;
         let dsbProjectListSequence = 0;
         let dsbTrainingSaved = null;
         let dsbTrainingSavePending = false;
@@ -96,9 +97,14 @@
 
         async function dsbLoadProject(name) {
             const loadSequence = ++dsbProjectLoadSequence;
+            dsbPendingProjectLoad = loadSequence;
+            document.getElementById('dsb-form-area').style.display = 'none';
             try {
                 if (dsbSaveRowsQueue?.isDirty()) { await dsbSaveRowsQueue.flush(); }
             } catch (error) {
+                if (loadSequence !== dsbProjectLoadSequence) { return; }
+                if (dsbPendingProjectLoad === loadSequence) { dsbPendingProjectLoad = null; }
+                document.getElementById('dsb-form-area').style.display = '';
                 showActionError('Pending dataset edits could not be saved', error, 'Keep the current project open. Resolve the row-save error before reloading or switching projects.');
                 return;
             }
@@ -117,6 +123,8 @@
                     audio_url: s.audio_url || null,
                 }));
                 dsbLoadedProject = name;
+                dsbPendingProjectLoad = null;
+                document.getElementById('dsb-form-area').style.display = '';
                 document.getElementById('dsb-project-load-status').innerHTML = '';
                 if (dsbRows.length === 0 && !dsbBatchRunning) { dsbAddRow(); }
                 dsbRenderTable();
@@ -134,7 +142,7 @@
                 console.error('Failed to load project:', e);
                 const retained = dsbLoadedProject === name;
                 document.getElementById('dsb-project-load-status').innerHTML = getEscapedHtml`<div class="alert alert-warning small py-2">${retained ? 'Could not refresh dataset "' + name + '". Showing the last loaded version.' : 'Could not load dataset "' + name + '". Check that Alexandria is still running, then try again.'} <button type="button" class="btn btn-sm btn-outline-secondary" onclick="dsbOnProjectChange()">Retry</button></div>`;
-                if (retained) { return; }
+                if (retained) { document.getElementById('dsb-form-area').style.display = ''; return; }
                 dsbCurrentProject = '';
                 dsbLoadedProject = '';
                 dsbRows = [];
@@ -142,6 +150,8 @@
                 document.getElementById('dsb-form-area').style.display = 'none';
                 document.getElementById('dsb-btn-delete-project').style.display = 'none';
                 showActionError('Could not load dataset "' + name + '"', e, 'Check the selected dataset and app connection, then use Retry to load it again.');
+            } finally {
+                if (dsbPendingProjectLoad === loadSequence) { dsbPendingProjectLoad = null; }
             }
         }
 
@@ -188,6 +198,15 @@
         const dsbRowSaveStates = new Map();
         function getDatasetRowDefinition(row) {
             return { emotion: row.emotion || row.description || '', text: (row.text || '').trim(), seed: row.seed ?? '' };
+        }
+
+        function getDatasetSeed(value) {
+            if (value == null || String(value).trim() === '') { return -1; }
+            const number = Number(value);
+            if (!['string', 'number'].includes(typeof value) || !Number.isSafeInteger(number) || number < -1) {
+                throw new Error('Seeds must be safe whole numbers: -1 for fallback/random, or 0 or higher.');
+            }
+            return number;
         }
 
         function ensureDatasetRowSaveState(name) {
@@ -237,9 +256,13 @@
             });
         }
 
+        function isDatasetProjectLoading() {
+            return dsbPendingProjectLoad !== null;
+        }
+
         function dsbSaveForm() {
             const name = dsbCurrentProject;
-            if (!name) { return; }
+            if (!name || isDatasetProjectLoading()) { return; }
             const description = document.getElementById('dsb-description').value;
             const globalSeed = document.getElementById('dsb-global-seed').value;
             if (!dsbSaveMetaQueue) {
@@ -253,7 +276,7 @@
 
         function dsbSaveRows(index = null) {
             const name = dsbCurrentProject;
-            if (!name) { return; }
+            if (!name || isDatasetProjectLoading()) { return; }
             const state = ensureDatasetRowSaveState(name);
             const revision = ++state.sequence;
             let value;
@@ -275,6 +298,10 @@
         }
 
         function ensureDatasetRowsEditable() {
+            if (isDatasetProjectLoading()) {
+                showToast('Wait for the selected dataset to load before editing samples.', 'warning');
+                return false;
+            }
             if (dsbBatchRunning) {
                 showToast('Wait for batch generation to finish before editing samples.', 'warning');
                 return false;
@@ -449,14 +476,20 @@
 
             const row = dsbRows[index];
             if (!row || !row.text.trim()) { showToast('This row has no text.', 'warning'); return; }
+            const definition = JSON.stringify(getDatasetRowDefinition(row));
+            const isCurrent = () => isDatasetProjectSelected(name) && dsbRows[index] === row
+                && JSON.stringify(getDatasetRowDefinition(row)) === definition;
 
             const emotion = row.emotion.trim();
             const description = emotion ? `${rootDesc}, ${emotion}` : rootDesc;
 
             // Resolve seed: per-line > global > random
-            const globalSeed = parseInt(document.getElementById('dsb-global-seed').value);
-            const lineSeed = row.seed !== '' ? parseInt(row.seed) : NaN;
-            const seed = !isNaN(lineSeed) && lineSeed >= 0 ? lineSeed : (!isNaN(globalSeed) && globalSeed >= 0 ? globalSeed : -1);
+            let seed;
+            try {
+                const globalSeed = getDatasetSeed(document.getElementById('dsb-global-seed').value);
+                const lineSeed = getDatasetSeed(row.seed);
+                seed = lineSeed >= 0 ? lineSeed : globalSeed;
+            } catch (e) { showToast(e.message, 'error'); return; }
 
             // Optimistic UI
             dsbRows[index].status = 'generating';
@@ -471,11 +504,11 @@
                     sample_index: index,
                     seed,
                 });
-                if (!isDatasetProjectSelected(name) || dsbRows[index] !== row) { return; }
+                if (!isCurrent()) { return; }
                 dsbRows[index].status = 'done';
                 dsbRows[index].audio_url = result.audio_url;
             } catch (e) {
-                if (!isDatasetProjectSelected(name) || dsbRows[index] !== row) { return; }
+                if (!isCurrent()) { return; }
                 dsbRows[index].status = 'error';
                 dsbRows[index].error = getActionErrorMessage('Sample generation failed', e, 'Check the sample audio and dataset task status before generating again. Review the voice description and TTS configuration if the request was refused.');
                 showToast(dsbRows[index].error, 'error', 10000);
@@ -503,6 +536,11 @@
             if (indices.length === 0) { showToast('All samples are already generated.', 'warning'); return; }
             if (regenAll && !await showConfirm(`Regenerate all ${indices.length} samples?`, {title: 'Replace all sample audio?', actionLabel: 'Regenerate all', danger: true})) { return; }
             if (dsbBatchRunning || !isDatasetProjectSelected(name) || dsbRows !== rows) { return; }
+            let globalSeed, perSeeds;
+            try {
+                globalSeed = getDatasetSeed(document.getElementById('dsb-global-seed').value);
+                perSeeds = dsbRows.map(row => getDatasetSeed(row.seed));
+            } catch (e) { showToast(e.message, 'error'); return; }
             const sequence = ++dsbBatchStartSequence;
             dsbPendingStart = sequence;
             const previous = indices.map(index => ({ index, row: dsbRows[index], status: dsbRows[index].status }));
@@ -513,9 +551,6 @@
             dsbRenderTable();
             document.getElementById('dsb-logs').style.display = '';
 
-            const globalSeed = parseInt(document.getElementById('dsb-global-seed').value);
-            const perSeeds = dsbRows.map(r => r.seed !== '' && r.seed !== undefined ? parseInt(r.seed) : -1);
-
             try {
                 await Promise.all([dsbSaveRowsQueue?.flush(), dsbSaveMetaQueue?.flush()]);
                 if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)) { return; }
@@ -524,7 +559,7 @@
                     description: rootDesc,
                     samples: dsbRows.map(r => ({ emotion: r.emotion || '', text: r.text || '' })),
                     indices,
-                    global_seed: !isNaN(globalSeed) && globalSeed >= 0 ? globalSeed : -1,
+                    global_seed: globalSeed,
                     seeds: perSeeds,
                 });
 
@@ -672,11 +707,12 @@
         };
 
         window.dsbExport = () => {
-            const data = dsbRows.map(r => {
+            let data;
+            try { data = dsbRows.map(r => {
                 const entry = { emotion: r.emotion, text: r.text };
-                if (r.seed !== '' && r.seed !== undefined) { entry.seed = parseInt(r.seed); }
+                if (r.seed !== '' && r.seed != null) { entry.seed = getDatasetSeed(r.seed); }
                 return entry;
-            });
+            }); } catch (e) { showToast(e.message, 'error'); return; }
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -877,8 +913,13 @@
             const badge = document.getElementById('lmstudio-status-badge');
             const toggle = document.getElementById('lmstudio-optimize-toggle');
             if (!badge || !toggle) { return; }
+            if (toggle._optimizePending) { return; }
+            const request = {};
+            badge._statusRequest = request;
+            const isCurrent = () => badge._statusRequest === request && !toggle._optimizePending;
             try {
                 const status = await API.get('/api/lmstudio/status');
+                if (!isCurrent()) { return; }
                 if (status.remote) {
                     badge.textContent = 'Remote (optimize via SSH)';
                     toggle.checked = !!status.optimized;
@@ -905,6 +946,7 @@
                     toggle.checked = false;
                 }
             } catch (e) {
+                if (!isCurrent()) { return; }
                 badge.textContent = 'Status unavailable';
                 badge.className = 'badge bg-secondary';
             }
@@ -913,6 +955,9 @@
         async function toggleLmStudioOptimize() {
             const toggle = document.getElementById('lmstudio-optimize-toggle');
             const badge = document.getElementById('lmstudio-status-badge');
+            if (toggle._optimizePending) { return; }
+            toggle._optimizePending = true;
+            badge._statusRequest = {};
             const enable = toggle.checked;
             toggle.disabled = true;
             badge.textContent = 'Applying...';
@@ -924,6 +969,7 @@
                 showActionError('LM Studio settings update is unconfirmed', e, 'Check the refreshed LM Studio status before changing settings again.');
                 toggle.checked = !enable;
             } finally {
+                toggle._optimizePending = false;
                 toggle.disabled = false;
                 await refreshLmStudioStatus();
             }
@@ -1158,6 +1204,11 @@
         };
 
         window.onPrepBatchFilesChange = () => {
+            if (prepSubmitting || prepActiveTask === 'batch_preparer') {
+                document.getElementById('prep-batch-files').value = '';
+                showToast('Wait for the current preparation to finish or cancel it before changing batch files.', 'warning');
+                return;
+            }
             const files = document.getElementById('prep-batch-files').files;
             const tbody = document.getElementById('prep-batch-queue-body');
             tbody.innerHTML = '';
@@ -1194,6 +1245,7 @@
             prepSubmitting = submitting;
             document.getElementById('btn-prep-start').disabled = submitting || taskName !== null;
             document.getElementById('btn-prep-cancel').style.display = taskName ? 'inline-block' : 'none';
+            document.getElementById('prep-batch-files').disabled = submitting || taskName === 'batch_preparer';
         }
 
         async function _submitPreparer(taskName, formData) {

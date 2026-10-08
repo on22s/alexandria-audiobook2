@@ -15,7 +15,7 @@ SETUP = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
 const elements={},toasts=[],writes=[];let refreshed=0;
 const el=id=>elements[id]||(elements[id]={disabled:false,value:'',style:{},innerHTML:''});
-const ctx={window:null,currentIsRemote:false,failoverIsRemote:false,document:{getElementById:el,querySelectorAll:()=>[]},console:{debug:()=>{}},API:{},showToast:(...args)=>toasts.push(args),voicesScopeIsNew:()=>true,keepCurrentVoicesIfAsked:async()=>true,refreshVoiceMetadata:async()=>{refreshed++;},renderVoiceSuggestions:()=>{}};ctx.window=ctx;vm.createContext(ctx);
+const ctx={window:null,currentBookFilename:'book-A',currentIsRemote:false,failoverIsRemote:false,document:{getElementById:el,querySelectorAll:()=>[]},console:{debug:()=>{}},API:{},showToast:(...args)=>toasts.push(args),voicesScopeIsNew:()=>true,keepCurrentVoicesIfAsked:async()=>true,refreshVoiceMetadata:async()=>{refreshed++;},renderVoiceSuggestions:()=>{}};ctx.window=ctx;vm.createContext(ctx);
 const run=code=>vm.runInContext(code,ctx);
 function load(start,end){const a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);run(source.slice(a,b));}
 load('function escapeHtml(', '// Parse a numeric input');load('async function confirmIfRemote(', '// navigator.clipboard');load('const taskStartButtons =','// --- API Helpers ---');
@@ -94,3 +94,20 @@ ctx.API.post=async(url,payload)=>{if(url==='/api/suggest_voices'){return {sugges
                 self.assertEqual([1, 2, 3, 4, 5], [row['rank'] for row in rows])
                 self.assertEqual('builtin_lora', rows[0]['type'])
                 self.assertEqual('/builtin', rows[0]['adapter_path'])
+
+    def test_cast_or_book_switch_refuses_late_suggestions_and_candidate_writes(self):
+        self.run_js(r"""
+load('function clearVoiceSuggestions()', '// --- Series Cast:');load('function onCastChange()', 'function renderCastMembers()');ctx.renderCastMembers=()=>{};
+for(const change of ['cast','cast-cycle','book','clear','catalog']){
+ ctx.currentBookFilename='book-A';ctx._selectedCast='A';ctx.clearVoiceSuggestions();const pendingReply=deferred(),catalog=deferred();let suggestionPosts=0,candidatePosts=0;
+ ctx.API.get=()=>change==='catalog'?catalog.promise:Promise.resolve([]);
+ ctx.API.post=async(path)=>{if(path==='/api/suggest_voices'){suggestionPosts++;return pendingReply.promise;}candidatePosts++;return{};};
+ const pending=ctx.suggestVoices();await turn();
+ if(change==='cast'||change==='cast-cycle'){el('cast-select').value='B';ctx.onCastChange();if(change==='cast-cycle'){el('cast-select').value='A';ctx.onCastChange();}}
+ else if(change==='book'){ctx.currentBookFilename='book-B';ctx.clearVoiceSuggestions();}else{ctx.clearVoiceSuggestions();}
+ const newer=el('suggest-status').innerHTML;
+ if(change==='catalog'){catalog.resolve([]);}else{pendingReply.resolve({suggestions:{Alice:{adapter_id:'old',ranked_adapter_ids:['old']}}});}
+ await pending;assert.strictEqual(candidatePosts,0);assert.strictEqual(Object.keys(ctx._voiceSuggestions).length,0);assert.strictEqual(el('suggest-status').innerHTML,newer);if(change==='catalog'){assert.strictEqual(suggestionPosts,0);}
+}
+ctx.currentBookFilename='book-A';ctx._selectedCast='A';ctx.API.get=async()=>[];ctx.API.post=async path=>path==='/api/suggest_voices'?{suggestions:{Alice:{adapter_id:'current'}}}:{};await ctx.suggestVoices();assert.strictEqual(ctx._voiceSuggestions.Alice.adapter_id,'current');
+""")

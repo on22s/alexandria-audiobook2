@@ -850,9 +850,17 @@ def test_batch_preparer_start_schema():
 
 def test_batch_preparer_cancel():
     r = post("/api/preparer/batch/cancel", json={})
-    assert_status(r, 200)
-    data = r.json()
-    assert_key(data, "status")
+    if r.status_code == 400:
+        if r.json().get("detail") != "No batch preparer is currently running.":
+            raise TestFailure(f"Unexpected cancellation refusal: {r.text[:200]}")
+        state = get("/api/status/batch_preparer")
+        assert_status(state, 200)
+        if state.json().get("running") is not False:
+            raise TestFailure("Idle cancellation refusal left a running batch preparer")
+    else:
+        assert_status(r, 200)
+        if r.json().get("status") != "cancel_requested":
+            raise TestFailure(f"Unexpected cancellation acknowledgement: {r.text[:200]}")
     if not wait_for_task("batch_preparer"):
         raise TestFailure(
             "GPU lock not released: batch preparer still running after cancel")

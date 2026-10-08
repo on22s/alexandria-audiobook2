@@ -52,21 +52,31 @@ class BenchmarkRemoteCommandTests(unittest.TestCase):
             recorder = 'import json,sys;open(sys.argv[1],"a").write(json.dumps(sys.argv[2:])+"\\n")'
             definition = 'mkdir() { ' + shlex.join([sys.executable, '-c', recorder, str(record)]) + ' "$@"; }; '
             calls = []
+            actual_run = subprocess.run
+            base = '/tmp/alexandria-lora-training.abcdefghij'
             def transport(command, **kwargs):
                 calls.append(command)
                 if command[0] == 'scp':
                     return subprocess.CompletedProcess(command, 0, '', '')
+                if shlex.split(command[2])[0] == 'mktemp':
+                    self.assertEqual(['mktemp', '-d', '/tmp/alexandria-lora-training.XXXXXXXXXX'], shlex.split(command[2]))
+                    return subprocess.CompletedProcess(command, 0, 'Fixture decorative banner\n' + base + '\n', '')
                 if 'mkdir' in ' '.join(command[2:]):
-                    return subprocess.run(['bash', '-c', definition + ' '.join(command[2:])],
+                    return actual_run(['bash', '-c', definition + ' '.join(command[2:])],
                                           capture_output=True, text=True)
                 return subprocess.CompletedProcess(command, 0,
                     'LORA_TRAINING_BENCHMARK_RESULT={"status":"passed"}\n', '')
-            with patch.object(runner, 'run_benchmark_subprocess', side_effect=transport):
+            def cleanup(command, **kwargs):
+                self.assertEqual(['ssh', 'fixture-host', shlex.join(['rm', '-rf', '--', base])], command)
+                self.assertEqual(30, kwargs['timeout'])
+                return subprocess.CompletedProcess(command, 0, '', '')
+            with patch.object(runner, 'run_benchmark_subprocess', side_effect=transport), \
+                 patch.object(runner.subprocess, 'run', side_effect=cleanup) as remove:
                 result = runner._run_lora_training_worker(fixture, 'thunder', settings, tmp, 'fixture-host')
             self.assertEqual({'status': 'passed'}, result)
-            base = '/tmp/alexandria-lora-training-' + fixture['sha256']
             received = [json.loads(line) for line in record.read_text().splitlines()]
-            self.assertEqual([['-p', '--', base], ['-p', '--', base],
+            self.assertEqual([['-p', '--', base],
                               ['-p', '--', base + "/audio space; 'quoted' $literal"]], received)
             self.assertEqual(original, fixture)
             self.assertEqual(6, len(calls))
+            remove.assert_called_once()

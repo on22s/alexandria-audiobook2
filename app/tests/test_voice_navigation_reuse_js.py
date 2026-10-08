@@ -5,6 +5,13 @@ from tests import test_voice_load_requests_js as loader_tests
 
 
 class VoiceNavigationReuseJsTests(unittest.TestCase):
+    def test_pending_navigation_shares_startup_load_but_explicit_refresh_stays_fresh(self):
+        self.run_js(r'''
+const c=client();const startup=c.ctx.loadVoices();const navigation=c.ctx.loadVoices(false);await turn();assert.strictEqual(c.reads.length,0);c.saveGate.resolve();await turn();assert.strictEqual(c.reads.length,5,'pending navigation must share the startup fetches');c.resolveAll();await Promise.all([startup,navigation]);assert.strictEqual(c.draws.length,1);
+c.reads.length=0;const forced=c.ctx.loadVoices();await turn();assert.strictEqual(c.reads.length,5);c.resolveAll();await forced;
+c.reads.length=0;c.ctx.voiceSaveQueue.flush=()=>Promise.reject(Error('save failed'));await assert.rejects(c.ctx.loadVoices(false),/save failed/);c.ctx.voiceSaveQueue.flush=()=>Promise.resolve();await finish(c,true);assert.strictEqual(c.reads.length,5,'rejected pending promise must clear for recovery');
+''')
+
     def run_js(self, body):
         code = loader_tests.SETUP + r"""
 async function finish(c, force=false){const promise=c.ctx.loadVoices(force);await turn();c.resolveAll();await promise;}

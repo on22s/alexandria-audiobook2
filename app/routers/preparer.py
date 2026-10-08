@@ -30,7 +30,8 @@ from core import (
     process_state,
 )
 from utils import secure_filename
-from preparer_numeric_settings import validate_preparer_numeric_settings
+from preparer_numeric_settings import (validate_preparer_numeric_booleans,
+                                       validate_preparer_numeric_settings)
 from preparer_enrichment_settings import validate_preparer_enrichment_settings
 
 
@@ -87,6 +88,13 @@ PREPARER_ENV_PYTHON = os.path.join(
 class PreparerQualityConfig(BaseModel):
     min_confidence: float = 0.85
     min_snr: int = 25
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_numeric_booleans(cls, values):
+        if isinstance(values, dict):
+            validate_preparer_numeric_booleans(values)
+        return values
 
     @model_validator(mode="after")
     def validate_numeric_settings(self):
@@ -395,7 +403,7 @@ async def preparer_list_outputs():
     if not os.path.exists(PREPARER_OUTPUT_DIR):
         return {"files": files}
     for fname in sorted(os.listdir(PREPARER_OUTPUT_DIR)):
-        if not fname.endswith(".zip"):
+        if not fname.lower().endswith(".zip"):
             continue
         fpath = os.path.join(PREPARER_OUTPUT_DIR, fname)
         try:

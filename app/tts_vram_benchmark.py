@@ -11,9 +11,13 @@ Usage (from the app/ directory):
 Outputs:
     benchmark_results.json  — raw per-run results
     benchmark_summary.txt   — tier table ready for copy-paste into _computeAutoSettings
+    Both are saved beside the JSON path selected with --out.
 """
 
 import argparse
+import contextlib
+import io
+from adapter_publication import save_adapter_publication_bytes
 from config_settings import load_app_config
 from utils import atomic_json_write, is_path_inside
 import os
@@ -314,7 +318,11 @@ def main():
                 post_results = run_sweep(engine, voice_config, args.sizes, output_dir,
                                          args.chunks, args.voice_type)
 
-        print_summary(pre_results, post_results, model_vram_gb, total_gb)
+        with io.StringIO() as summary_buffer:
+            with contextlib.redirect_stdout(summary_buffer):
+                print_summary(pre_results, post_results, model_vram_gb, total_gb)
+            summary_text = summary_buffer.getvalue()
+        print(summary_text, end="")
 
         # Save raw results
         output = {
@@ -327,7 +335,10 @@ def main():
             "compiled": post_results,
         }
         save_benchmark_results(output, out_path)
+        summary_path = os.path.join(os.path.dirname(out_path), "benchmark_summary.txt")
+        save_adapter_publication_bytes(summary_path, summary_text.encode("utf-8"))
         print(f"\nRaw results saved to: {out_path}")
+        print(f"Summary saved to: {summary_path}")
     finally:
         release_gpu_lock(lease)
 

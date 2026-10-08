@@ -34,13 +34,19 @@ import zipfile
 
 REPO2_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 APP_DIR = os.path.join(REPO2_DIR, "app")
+sys.path.insert(0, REPO2_DIR)
 sys.path.insert(0, APP_DIR)
+from app_venv import get_app_python
+from batch_adapter_registration import (
+    get_batch_registration_intent, apply_batch_registration_intent,
+    get_batch_registration_entry, save_batch_registration_entry, clear_batch_registration_intent,
+)
 from adapter_artifacts import AdapterValidationError, validate_adapter_artifacts
 from archive_utils import validate_zip_members
 from device_utils import normalize_device
 from dataset_metadata import get_training_dataset_preflight
 from training_preflight import get_selected_interpreter_preflight, get_training_disk_error
-from utils import file_lock
+from utils import file_lock, is_path_inside
 from voice_manifest import get_voice_manifest, validate_adapter_registration_id_locked, validate_adapter_training_output, get_resolved_adapter_manifest_rows_locked
 from adapter_naming_transaction import lock_adapter_naming
 from adapter_publication import get_adapter_publication_recovery_command
@@ -48,7 +54,7 @@ from adapter_publication import get_adapter_publication_recovery_command
 # ── Paths ────────────────────────────────────────────────────────────────────
 
 TRAIN_SCRIPT = os.path.join(REPO2_DIR, "app", "train_lora.py")
-PYTHON       = os.path.join(REPO2_DIR, "app", "env", "bin", "python")
+PYTHON       = get_app_python(REPO2_DIR)
 DATASETS_DIR = os.path.join(REPO2_DIR, "lora_datasets")
 MODELS_DIR   = os.path.join(REPO2_DIR, "lora_models")
 MANIFEST     = os.path.join(MODELS_DIR, "manifest.json")
@@ -118,8 +124,8 @@ def adapter_exists(models_dir: str, dataset_id: str, manifest: list) -> str | No
     guaranteed to survive name_voices.py's renaming stage (it rewrites id/name
     to a descriptive slug but leaves dataset_id alone), so it's what makes
     resume-skip still work on a narrator whose adapter has already been
-    renamed. Falls back to a directory-name-prefix scan for adapters that
-    predate manifest tracking or aren't yet registered in it.
+    renamed. Unregistered outputs need matching metadata or a generated legacy
+    numeric suffix, and must carry no conflicting dataset identity.
     """
     with file_lock(os.path.join(models_dir, "manifest.json")):
         pending = get_adapter_publication_recovery_command(models_dir)
@@ -132,33 +138,74 @@ def adapter_exists(models_dir: str, dataset_id: str, manifest: list) -> str | No
                 if is_completed_adapter(candidate):
                     return candidate
         for name in os.listdir(models_dir):
+            if not (name == dataset_id or name.startswith(dataset_id + "_")):
+                continue
+            if any(entry.get("id") == name and entry.get("dataset_id") not in (None, dataset_id)
+                   for entry in canonical):
+                continue
             candidate = os.path.join(models_dir, name)
-            if (name == dataset_id or name.startswith(dataset_id + "_")) and is_completed_adapter(candidate):
-                return candidate
+            if not is_completed_adapter(candidate):
+                continue
+            with open(os.path.join(candidate, "training_meta.json"), encoding="utf-8") as handle:
+                metadata = json.load(handle)
+            if metadata.get("dataset_id") not in (None, dataset_id):
+                continue
+            if metadata.get("dataset_id") is None and not re.fullmatch(re.escape(dataset_id) + r"(?:_[0-9]+)?", name):
+                continue
+            return candidate
         return None
 
 
 def extract_zip(zip_path: str, dest_dir: str):
-    """Extract zip, flattening a single top-level directory if present."""
-    if os.path.islink(dest_dir):
-        raise ValueError("dataset extraction destination is a symlink")
-    for root, directories, files in os.walk(dest_dir):
-        for name in directories + files:
-            if os.path.islink(os.path.join(root, name)):
-                raise ValueError("dataset extraction destination contains a symlink")
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        validate_zip_members(zf, dest_dir)
-        zf.extractall(dest_dir)
-    # If metadata.jsonl is not at root, look one level deep and flatten
-    if not os.path.exists(os.path.join(dest_dir, "metadata.jsonl")):
-        for entry in os.listdir(dest_dir):
-            candidate = os.path.join(dest_dir, entry, "metadata.jsonl")
-            if os.path.isdir(os.path.join(dest_dir, entry)) and os.path.exists(candidate):
-                nested = os.path.join(dest_dir, entry)
-                for item in os.listdir(nested):
-                    shutil.move(os.path.join(nested, item), os.path.join(dest_dir, item))
-                os.rmdir(nested)
-                break
+    """Prepare a clean archive tree, then replace the previous extracted dataset."""
+    destination = os.path.abspath(dest_dir)
+    parent = os.path.dirname(destination)
+    os.makedirs(parent, exist_ok=True)
+    with file_lock(destination + ".extract"):
+        if is_path_inside(zip_path, destination):
+            raise ValueError("Source archive is inside the extraction destination")
+        if os.path.islink(destination):
+            raise ValueError("dataset extraction destination is a symlink")
+        for root, directories, files in os.walk(destination):
+            for name in directories + files:
+                if os.path.islink(os.path.join(root, name)):
+                    raise ValueError("dataset extraction destination contains a symlink")
+        staging = tempfile.mkdtemp(prefix=".batch-dataset-stage-", dir=parent)
+        backup = None
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                validate_zip_members(zf, staging)
+                zf.extractall(staging)
+            # Preserve the existing single-directory archive layout support.
+            if not os.path.exists(os.path.join(staging, "metadata.jsonl")):
+                for entry in os.listdir(staging):
+                    nested = os.path.join(staging, entry)
+                    if os.path.isdir(nested) and os.path.exists(os.path.join(nested, "metadata.jsonl")):
+                        for item in os.listdir(nested):
+                            shutil.move(os.path.join(nested, item), os.path.join(staging, item))
+                        os.rmdir(nested)
+                        break
+            if os.path.islink(destination):
+                raise ValueError("dataset extraction destination changed to a symlink")
+            if os.path.exists(destination):
+                backup = tempfile.mkdtemp(prefix=".batch-dataset-backup-", dir=parent)
+                os.rmdir(backup)
+                os.replace(destination, backup)
+            try:
+                os.replace(staging, destination)
+            except BaseException:
+                if backup is not None:
+                    os.replace(backup, destination)
+                    backup = None
+                raise
+        finally:
+            if os.path.isdir(staging):
+                shutil.rmtree(staging)
+        if backup is not None:
+            try:
+                shutil.rmtree(backup)
+            except OSError as error:
+                print(f"Dataset published; previous extraction cleanup failed at {backup}: {error}", flush=True)
 
 
 def get_batch_archive_preflight(zip_paths):
@@ -227,6 +274,8 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
     dataset_dir = os.path.join(args.datasets_dir, dataset_id)
     output_dir  = os.path.join(args.models_dir, adapter_id)
     output_existed = os.path.exists(output_dir)
+    dataset_existed = os.path.lexists(dataset_dir)
+    dataset_prepared = False
     manifest_path = getattr(args, 'manifest', os.path.join(args.models_dir, 'manifest.json'))
     os.makedirs(args.models_dir, exist_ok=True)
     if output_existed:
@@ -249,7 +298,8 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
 
     def fail(message: str) -> None:
         print(f"  ERROR {message}", flush=True)
-        shutil.rmtree(dataset_dir, ignore_errors=True)
+        if dataset_prepared or not dataset_existed:
+            shutil.rmtree(dataset_dir, ignore_errors=True)
         if not output_existed:
             shutil.rmtree(output_dir, ignore_errors=True)
 
@@ -258,6 +308,7 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
     os.makedirs(dataset_dir, exist_ok=True)
     try:
         extract_zip(zip_path, dataset_dir)
+        dataset_prepared = True
     except Exception as e:
         fail(f"extracting: {e}")
         return None
@@ -471,7 +522,7 @@ def main() -> int:
         print("[dry-run] No training will run; locked resume checks are deferred to a full run\n")
     print()
 
-    done = skip = err = 0
+    done = skip = err = recovered = attempted = 0
     start_all = time.time()
 
     for i, zip_path in enumerate(zips, 1):
@@ -482,20 +533,38 @@ def main() -> int:
             print(f"[{i:3d}/{len(zips)}] VALIDATED {os.path.basename(zip_path)}", flush=True)
             continue
 
-        # Skip if already trained
-        existing = adapter_exists(args.models_dir, dataset_id, manifest)
-        if existing:
-            print(f"[{i:3d}/{len(zips)}] SKIP  {os.path.basename(zip_path)}")
-            print(f"          (adapter exists: {os.path.basename(existing)})")
-            skip += 1
+        try:
+            pending_registration = get_batch_registration_intent(args.models_dir, dataset_id)
+            if pending_registration is not None:
+                adapter_id = pending_registration['adapter_id']
+                result = get_batch_registration_entry(args.models_dir, dataset_id, zip_path)
+                print(f"[{i:3d}/{len(zips)}] RECOVER registration {os.path.basename(zip_path)}", flush=True)
+            else:
+                existing = adapter_exists(args.models_dir, dataset_id, manifest)
+                if existing:
+                    print(f"[{i:3d}/{len(zips)}] SKIP  {os.path.basename(zip_path)}")
+                    print(f"          (adapter exists: {os.path.basename(existing)})")
+                    skip += 1
+                    continue
+                with lock_adapter_naming(args.models_dir, args.manifest):
+                    apply_batch_registration_intent(args.models_dir, dataset_id, adapter_id, zip_path,
+                        {"lora_r": args.lora_r, "lr": args.lr, "target_loss": args.target_loss})
+                print(f"[{i:3d}/{len(zips)}] TRAIN {os.path.basename(zip_path)}", flush=True)
+                attempted += 1
+                result = train_one(zip_path, dataset_id, adapter_id, args)
+        except (OSError, ValueError) as error:
+            err += 1
+            print(f"  ERROR: pending registration admission failed: {error}\n", flush=True)
             continue
-
-        print(f"[{i:3d}/{len(zips)}] TRAIN {os.path.basename(zip_path)}", flush=True)
-
-        result = train_one(zip_path, dataset_id, adapter_id, args)
 
         if result is None:
             err += 1
+            if not os.path.exists(os.path.join(args.models_dir, adapter_id)):
+                try:
+                    with lock_adapter_naming(args.models_dir, args.manifest):
+                        clear_batch_registration_intent(args.models_dir, dataset_id, adapter_id)
+                except (OSError, ValueError) as error:
+                    print(f"  WARNING: failed training intent cleanup: {error}", flush=True)
             print(f"  FAILED\n", flush=True)
             continue
 
@@ -505,13 +574,31 @@ def main() -> int:
                 pending = get_adapter_publication_recovery_command(args.models_dir)
                 if pending:
                     raise ValueError('Adapter publication recovery is required: ' + pending)
+                result = save_batch_registration_entry(args.models_dir, dataset_id, result)
+                get_batch_registration_entry(args.models_dir, dataset_id, zip_path)
                 manifest = load_manifest(args.manifest)
-                validate_adapter_registration_id_locked(args.models_dir, result['id'], manifest)
-                manifest.append(result)
-                save_manifest(args.manifest, manifest)
+                existing_row = next((row for row in manifest if row.get('id') == result['id']), None)
+                if existing_row is not None:
+                    if any(existing_row.get(key) != value for key, value in result.items()):
+                        raise ValueError('Manifest conflicts with the pending registration entry')
+                else:
+                    validate_adapter_registration_id_locked(args.models_dir, result['id'], manifest)
+                    manifest.append(result)
+                    save_manifest(args.manifest, manifest)
+                confirmed = next((row for row in load_manifest(args.manifest) if row.get('id') == result['id']), None)
+                if confirmed is None or any(confirmed.get(key) != value for key, value in result.items()):
+                    raise ValueError('Manifest read-back did not confirm pending registration')
+                try:
+                    clear_batch_registration_intent(args.models_dir, dataset_id, adapter_id)
+                except OSError as error:
+                    print(f"  WARNING: adapter registered; intent cleanup failed: {error}", flush=True)
         except (OSError, ValueError) as e:
             err += 1
             print(f"  ERROR: unable to register adapter in manifest: {e}\n", flush=True)
+            continue
+        if pending_registration is not None:
+            recovered += 1
+            print(f"  Registration recovered without retraining: {result['id']}\n", flush=True)
             continue
         done += 1
 
@@ -523,7 +610,7 @@ def main() -> int:
             print(f"  Progress: {done} done, {skip} skipped, {err} errors — "
                   f"ETA unavailable: {e}\n", flush=True)
             continue
-        avg_per = elapsed_all / (done + err)
+        avg_per = elapsed_all / attempted
         eta_s = remaining * avg_per
         eta_min = eta_s / 60
         print(f"  Progress: {done} done, {skip} skipped, {err} errors — "
@@ -532,6 +619,8 @@ def main() -> int:
     total = time.time() - start_all
     print(f"\n{'='*60}")
     print(f"Done: {done} trained, {skip} skipped, {err} errors")
+    if recovered:
+        print(f"Recovered registrations without retraining: {recovered}")
     print(f"Total time: {total/60:.1f} min")
     if done:
         print(f"Adapters in: {args.models_dir}")
