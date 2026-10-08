@@ -14,3 +14,5 @@ Approved scope: core UI state and stale replies. Preserve backend selection orde
 Node DOM harnesses verify handler behavior; native browser playback and GPU inference were not tested.
 
 Full ready.sh passed: 7,057 unit tests, 70 API checks; 12 API generation checks skipped.
+
+Validation: 92 focused tests; ready.sh passed with 7,069 unit tests and 70 isolated API checks. The quick gate skipped 12 generation checks. No production GPU inference or native browser run is claimed.
