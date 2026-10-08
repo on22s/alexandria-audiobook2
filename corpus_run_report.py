@@ -13,11 +13,38 @@ from alexandria_run_manifest import get_file_identity, write_json_atomic
 from alexandria_file_lock import acquire_exclusive_file_lock
 
 
+def get_dataset_identity(output):
+    """Hash the exact exported volume set, retaining support for legacy single ZIPs."""
+    output = Path(output)
+    manifest = Path(str(output) + '.volumes.json')
+    if not manifest.exists():
+        return get_file_identity(output)
+    before = get_file_identity(manifest)
+    document = json.loads(manifest.read_text(encoding='utf-8'))
+    names = document.get('volumes')
+    if (not isinstance(names, list) or not names
+            or any(not isinstance(name, str) or not name or '/' in name or '\\' in name
+                   or not name.endswith(output.suffix)
+                   or not (name == output.name or name.startswith(output.stem + '_'))
+                   for name in names)
+            or len(set(names)) != len(names)):
+        raise ValueError('invalid dataset volume manifest')
+    identities = {}
+    for name in names:
+        path = output.parent / name
+        if path.resolve(strict=True).parent != output.parent.resolve(strict=True):
+            raise ValueError('dataset volume is outside the output directory')
+        identities[name] = get_file_identity(path)
+    if get_file_identity(manifest) != before:
+        raise ValueError('dataset volume manifest changed while reading')
+    return {'manifest': before, 'volumes': identities}
+
+
 def get_annotation_metrics(row):
     path = Path(row['summary_path'])
     if get_file_identity(path) != row['summary_identity']:
         raise ValueError('annotation summary changed')
-    if get_file_identity(row['output']) != row['dataset_identity']:
+    if get_dataset_identity(row['output']) != row['dataset_identity']:
         raise ValueError('dataset changed')
     document = json.loads(path.read_text(encoding='utf-8'))
     if (type(document.get('version')) is not int or document['version'] != 1
@@ -175,7 +202,7 @@ def run_corpus(repo, pairs_path, output_dir, model, fallback):
             if result.returncode:
                 raise ValueError(f'worker exit {result.returncode}')
             row['summary_identity'] = get_file_identity(summary)
-            row['dataset_identity'] = get_file_identity(output)
+            row['dataset_identity'] = get_dataset_identity(output)
             get_annotation_metrics(row)
             row['status'] = 'completed'
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:

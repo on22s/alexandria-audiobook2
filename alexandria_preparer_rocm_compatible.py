@@ -658,7 +658,6 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         overlap_secs = ASR_OVERLAP_SECONDS
         overlap = overlap_secs * 16000
         stride = chunk_length - overlap
-        half_overlap_secs = overlap_secs / 2.0
 
         # Compute chunk start positions, ensuring last chunk reaches audio end
         chunk_starts = list(range(0, max(1, len(audio_16k) - chunk_length + 1), stride))
@@ -701,14 +700,14 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
             decoded = processor.batch_decode(predicted_ids, output_word_offsets=True)
             word_offsets = decoded.word_offsets[0] if decoded.word_offsets else []
 
-            # Determine "owned" region for this chunk to avoid double-counting overlap:
-            #   - first chunk owns [chunk_start, chunk_end - half_overlap]
-            #   - middle chunks own [chunk_start + half_overlap, chunk_end - half_overlap]
-            #   - last chunk owns [chunk_start + half_overlap, audio_end]
+            # Partition each actual overlap at its midpoint. The tail window
+            # may start less than a stride after its predecessor.
             is_first = (chunk_idx == 0)
             is_last = (chunk_idx == num_chunks - 1)
-            owned_start = chunk_offset_secs if is_first else chunk_offset_secs + half_overlap_secs
-            owned_end = chunk_end_secs if is_last else chunk_end_secs - half_overlap_secs
+            previous_end = (chunk_starts[chunk_idx - 1] + chunk_length) / 16000.0
+            next_start = chunk_starts[chunk_idx + 1] / 16000.0 if not is_last else chunk_end_secs
+            owned_start = chunk_offset_secs if is_first else (previous_end + chunk_offset_secs) / 2.0
+            owned_end = chunk_end_secs if is_last else (chunk_end_secs + next_start) / 2.0
 
             for wo in word_offsets:
                 word_start = chunk_offset_secs + wo["start_offset"] * time_per_frame

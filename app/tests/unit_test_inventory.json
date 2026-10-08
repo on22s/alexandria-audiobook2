@@ -1940,6 +1940,11 @@
     "tests.test_corpus_report_labels.CorpusRunFailureTests.test_aggregate_failure_is_not_hidden_by_final_success_message",
     "tests.test_corpus_report_labels.CorpusRunFailureTests.test_failed_pairs_remain_failures_after_later_success_and_aggregation"
   ],
+  "test_corpus_review_regressions": [
+    "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_actual_corpus_dispatch_completes_and_rechecks_every_volume",
+    "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_actual_ctc_tail_owns_each_overlap_word_once",
+    "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_native_multivolume_exports_are_owned_and_all_revalidated"
+  ],
   "test_cors_auth_order": [
     "tests.test_cors_auth_order.CorsAuthOrderTests.test_native_allowed_denied_origins_and_optional_auth"
   ],
