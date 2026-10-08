@@ -676,6 +676,17 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
             shutil.rmtree(preview_dir)
         print(f"Error saving voice preview for {speaker}: {e}")
         return False
+    finally:
+        # generate_voice_design creates a unique, temporary Designer preview.
+        # Only that owned file is disposable; existing book references survive.
+        preview_root = os.path.realpath(os.path.join(root, 'designed_voices', 'previews'))
+        generated = os.path.realpath(wav_path)
+        if (os.path.dirname(generated) == preview_root
+                and re.fullmatch(r'preview_[0-9a-f]{32}\.wav', os.path.basename(generated))):
+            try:
+                os.remove(generated)
+            except FileNotFoundError:
+                pass
 
     print(f"Persona generated and preview saved for {speaker}: {dest_path}")
     return True

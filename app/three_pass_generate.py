@@ -25,7 +25,7 @@ from generate_script import (call_llm_for_entries, split_into_chunks,
                              split_into_chunk_records,
                              get_preprocessed_source, LLMGenParams,
                              split_failed_chunk, is_trigram_only_near_miss,
-                             ensure_run_request_params)
+                             ensure_run_request_params, validate_generation_output_path)
 from dialogue_spans import apply_dialogue_map
 from script_preflight import (audit_unicode_text,
                               replacement_load_is_acceptable,
@@ -2915,6 +2915,15 @@ def main():
     if args.preflight and args.collect_all_failures:
         parser.error("--collect-all-failures cannot be combined with --preflight")
 
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    app_dir = os.path.dirname(__file__)
+    data_dir = get_runtime_data_dir(root)
+    output_path, chunks_path = get_output_paths(data_dir, args.output)
+    try:
+        validate_generation_output_path(args.input_file, output_path)
+    except ValueError as exc:
+        parser.error(str(exc))
+
     try:
         book, unicode_report = get_prepared_source(
             args.input_file, args.strip_front_matter, report=print)
@@ -2930,9 +2939,6 @@ def main():
             "first-person narrator must appear by name at least three times "
             "in the prepared source")
 
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    app_dir = os.path.dirname(__file__)
-    data_dir = get_runtime_data_dir(root)
     try:
         config = get_generation_config(
             load_app_config(get_app_config_path(data_dir, root, app_dir)), args.model)
@@ -3018,7 +3024,6 @@ def main():
 
     # The CLI flag overrides the Setup switch; neither set means 'line'.
     keep_scope = args.pass2_keep_scope or generation_settings["keep_scope"]
-    output_path, chunks_path = get_output_paths(data_dir, args.output)
     print(f"Three-pass generation: {len(book)} chars, chunk_size={chunk_size}, "
           f"attribute_batch_size={attribute_batch_size}, "
           f"attribute_context_chars={attribute_context_chars}, "

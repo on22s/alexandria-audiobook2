@@ -4149,6 +4149,15 @@
     "tests.test_llama_server_process.LlamaServerProcessTest.test_term_refusing_selected_server_is_killed_after_bounded_grace",
     "tests.test_llama_server_process.LlamaServerProcessTest.test_unknown_executable_refuses_without_signaling_listener"
   ],
+  "test_llm_batch_review_regressions": [
+    "tests.test_llm_batch_review_regressions.LlmBatchReviewRegressions.test_malformed_provider_responses_exhaust_without_resetting_error_count",
+    "tests.test_llm_batch_review_regressions.LlmBatchReviewRegressions.test_persona_removes_only_generated_preview_on_success_and_copy_failure",
+    "tests.test_llm_batch_review_regressions.LlmBatchReviewRegressions.test_remote_wire_settings_reach_worker_as_json_with_fresh_runtime_state",
+    "tests.test_llm_batch_review_regressions.LlmBatchReviewRegressions.test_review_rejects_bad_types_and_empty_speaker_but_accepts_empty_instruct",
+    "tests.test_llm_batch_review_regressions.LlmBatchReviewRegressions.test_three_pass_refuses_source_alias_before_loading_or_calling_provider",
+    "tests.test_llm_batch_review_regressions.LlmBatchReviewRegressions.test_transport_budget_exhausts_then_reaches_failover_and_pause",
+    "tests.test_llm_batch_review_regressions.LlmBatchReviewRegressions.test_transport_errors_do_not_spend_the_quality_retry"
+  ],
   "test_llm_bench_cli_sweep": [
     "tests.test_llm_bench_cli_sweep.StandaloneSweepTests.test_cli_reports_decision_medians_and_stops_without_preliminary_samples",
     "tests.test_llm_bench_cli_sweep.StandaloneSweepTests.test_failed_trial_ends_the_single_sweep_and_retains_safe_prior_level",

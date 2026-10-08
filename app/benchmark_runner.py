@@ -1066,6 +1066,13 @@ def get_remote_llm_worker_profile(llm):
             "api_key": resolve_api_key(llm.get("api_key", "local"))}
 
 
+def get_llm_worker_params(params):
+    """Serialize request settings without process-local capability/admission state."""
+    return {field.name: getattr(params, field.name)
+            for field in dataclasses.fields(params)
+            if field.name not in ('schema_rejected_by', 'request_admission')}
+
+
 def _run_llm_worker(stage, payload, settings, ssh_alias):
     """Run llm_benchmark_worker.py on the remote host for one batch of
     pending fixtures/repetitions, returning the same case-dict shape the
@@ -1169,7 +1176,7 @@ def run_script_generation_benchmark(manifest, environment, report_path, state,
 
     if target == "thunder":
         def execute_batch(pending):
-            payload = {"llm_config": get_remote_llm_worker_profile(llm), "model_name": model_name, "max_retries": max_retries, "params": dataclasses.asdict(params), "fixtures": [{**fixture, "text": texts[fixture["id"]]} for fixture in pending]}
+            payload = {"llm_config": get_remote_llm_worker_profile(llm), "model_name": model_name, "max_retries": max_retries, "params": get_llm_worker_params(params), "fixtures": [{**fixture, "text": texts[fixture["id"]]} for fixture in pending]}
             return _run_llm_worker("script_generation", payload, manifest.get("settings") or {},
                                    (config.get("llm_remote_ssh") or "").strip())
         return run_benchmark_batch(manifest, environment, report_path, state,
@@ -1267,7 +1274,7 @@ def run_script_review_benchmark(manifest, environment, report_path, state,
 
     if target == "thunder":
         def execute_batch(pending):
-            payload = {"llm_config": get_remote_llm_worker_profile(llm), "model_name": llm["model_name"], "max_retries": max_retries, "params": dataclasses.asdict(params), "word_ratio_min": lower, "word_ratio_max": upper, "fixtures": [{**fixture, "original": originals[fixture["id"]]} for fixture in pending]}
+            payload = {"llm_config": get_remote_llm_worker_profile(llm), "model_name": llm["model_name"], "max_retries": max_retries, "params": get_llm_worker_params(params), "word_ratio_min": lower, "word_ratio_max": upper, "fixtures": [{**fixture, "original": originals[fixture["id"]]} for fixture in pending]}
             return _run_llm_worker("script_review", payload, manifest.get("settings") or {},
                                    (config.get("llm_remote_ssh") or "").strip())
         return run_benchmark_batch(manifest, environment, report_path, state,

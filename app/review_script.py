@@ -704,6 +704,11 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
                 findings.append({"code": "missing_fields", "entry_number": number,
                                  "fields": missing,
                                  "message": "Review entry is missing required fields."})
+            for key in ('speaker', 'text', 'instruct'):
+                if key in entry and (not isinstance(entry[key], str)
+                                     or (key != 'instruct' and not entry[key].strip())):
+                    findings.append({'code': 'invalid_field', 'entry_number': number,
+                                     'field': key, 'message': 'Review labels and text must be strings; speaker and text must be nonempty.'})
         original_text = " ".join(
             " ".join(str(entry.get("text", "")).split())
             for entry in batch_entries

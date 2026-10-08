@@ -999,7 +999,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 "response_fingerprints": response_fingerprints,
                 "attempted_prompts": tuple(attempted_prompts),
                 "reasoning_escalated": reasoning_escalated,
-                "attempt_offset": attempt_offset + attempt + 1,
+                "attempt_offset": attempt_offset + request_attempt,
+                "quality_attempt": attempt,
             }
         return call_llm_for_entries(
             client, model_name, sys_prompt, user_prompt, params, log_name, label,
@@ -1008,8 +1009,19 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             retry_decider=retry_decider, near_miss_sink=near_miss_sink, codec=codec,
             _resume_state=state, _schema_rejected_by=schema_rejected_by)
 
-    for attempt in range(max_retries + 1):
-        attempt_number = attempt_offset + attempt + 1
+    attempt = resume_state.get("quality_attempt", 0) - 1
+    advance_quality = True
+    api_failures = 0
+    request_attempt = 0
+    while True:
+        if advance_quality:
+            attempt += 1
+            api_failures = 0
+        if attempt > max_retries:
+            break
+        advance_quality = True
+        request_attempt += 1
+        attempt_number = attempt_offset + request_attempt
         t0 = time.time()
         truncation_retry_available = False
         attempt_record = None
@@ -1057,11 +1069,6 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 max_tokens=effective_max,
                 extra_body=build_extra_body(params)
             )
-            if not params.temperature:
-                # Only a real response proves this deterministic prompt cannot
-                # differ. Connection/API failures must retain their retry budget.
-                attempted_prompts.add(attempt_key)
-
             # Some OpenAI-compatible providers return a successful HTTP
             # response with no choices (or a JSON null response) during a
             # transient outage. Raise a clear provider error so the existing
@@ -1077,6 +1084,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             # a generic api_error - so the one-escalation-then-overflow policy
             # never ran on the exact responses it exists for.
             text = (choice.message.content or "").strip()
+            if not params.temperature:
+                # Only a real response proves this deterministic prompt cannot
+                # differ. Connection/API failures must retain their retry budget.
+                attempted_prompts.add(attempt_key)
+
             response_fingerprint = hashlib.sha256(
                 " ".join(text.split()).encode("utf-8")).hexdigest()
             response_fingerprints[response_fingerprint] = (
@@ -1183,10 +1195,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 error_details = classify_llm_error(e)
             api_retry_limit = (params.api_retry_limit if params.api_retry_limit is not None
                                else max_retries)
-            can_retry = error_details["retryable"] and attempt < api_retry_limit
+            can_retry = error_details["retryable"] and api_failures < api_retry_limit
+            api_failures += 1
             retry_delay = (get_retry_delay(
                 params.retry_initial_delay_seconds, params.retry_multiplier,
-                params.retry_max_delay_seconds, attempt + 1,
+                params.retry_max_delay_seconds, api_failures,
                 jitter=params.retry_jitter)
                 if can_retry else None)
             if attempt_observer:
@@ -1219,6 +1232,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     and run_profile_index != client.get_active_profile_index()):
                 return _retry_same_request()
             if can_retry:
+                advance_quality = False
                 if retry_delay:
                     print(f"Retrying in {retry_delay:.1f}s...")
                     time.sleep(retry_delay)
