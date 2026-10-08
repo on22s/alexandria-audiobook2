@@ -11,4 +11,4 @@
 
 78 focused tests pass, including held acknowledgements, stale success/error, explicit-empty/missing membership, retry and current-response controls. Node VM tests run actual frontend handlers; no browser or GPU inference is claimed.
 
-Full ready.sh pending.
+Validation: 78 focused tests; ready.sh passed with 7,070 unit tests and 70 isolated API checks. The quick gate skipped 12 generation checks. No production GPU inference or native browser run is claimed.

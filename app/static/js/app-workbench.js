@@ -297,12 +297,16 @@
             dsbSaveRowsQueue.enqueue(value);
         }
 
+        function isDatasetRowGenerationRunning() {
+            return dsbBatchRunning || dsbRows.some(row => row.status === 'generating');
+        }
+
         function ensureDatasetRowsEditable() {
             if (isDatasetProjectLoading()) {
                 showToast('Wait for the selected dataset to load before editing samples.', 'warning');
                 return false;
             }
-            if (dsbBatchRunning || dsbRows.some(row => row.status === 'generating')) {
+            if (isDatasetRowGenerationRunning()) {
                 showToast('Wait for sample generation to finish before editing samples.', 'warning');
                 return false;
             }
@@ -336,7 +340,7 @@
         }
 
         function dsbBuildRowHtml(row, i) {
-            const disabled = dsbBatchRunning || dsbRows.some(row => row.status === 'generating') ? 'disabled' : '';
+            const disabled = isDatasetRowGenerationRunning() ? 'disabled' : '';
             const statusColor = row.status === 'done' ? 'success' :
                                 row.status === 'generating' ? 'warning' :
                                 row.status === 'error' ? 'danger' : 'secondary';
