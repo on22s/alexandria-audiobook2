@@ -445,7 +445,7 @@ def extract_epub_passage(epub_path: str, target_chars: int = 600) -> str:
             manifest = {node.get("id"): node.get("href") for node in opf.iter()
                         if node.tag.rsplit("}", 1)[-1] == "item" and node.get("id")}
 
-            start = max(1, len(spine_ids) // 5)  # skip first 20%
+            start = max(1, len(spine_ids) // 5) if len(spine_ids) > 1 else 0  # skip front matter when possible
             collected = ""
             for item_id in spine_ids[start:]:
                 href = manifest.get(item_id, "")
@@ -479,7 +479,7 @@ def get_dataset_identity(dataset_id: str) -> tuple[str, str, str | None]:
     """Return narrator, book title, and ASIN parsed from a training dataset ID."""
     s = dataset_id.removeprefix("narrator_")
     s = re.sub(r"_char\d+_vol\d+$", "", s)
-    m = re.search(r"_([bB][a-z0-9]{9}|\d{10})(?:_|$)", s)
+    m = re.search(r"_([bB][a-zA-Z0-9]{9}|\d{10})(?:_|$)", s)
     asin = m.group(1).upper() if m else None
     if m:
         s = s[:m.start()]
