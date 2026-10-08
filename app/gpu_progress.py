@@ -8,7 +8,7 @@ import time
 import subprocess
 import uuid
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 _WORKER_TOKENS = {}
 
@@ -178,7 +178,10 @@ def get_queue_eta_message(directory, job, owners):
     if not estimate['remaining']:
         return 'ETA: work units complete; remaining cleanup time unavailable'
     low, high = estimate['seconds_low'], estimate['seconds_high']
-    now = datetime.now(ZoneInfo('America/Chicago'))
+    try:
+        now = datetime.now(ZoneInfo('America/Chicago'))
+    except ZoneInfoNotFoundError:
+        now = datetime.now().astimezone()
     try:
         finishes = [(now + timedelta(seconds=seconds)).strftime('%b %d %I:%M:%S %p %Z')
                     for seconds in (low, high)]

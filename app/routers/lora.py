@@ -18,7 +18,7 @@ import zipfile
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from dataset_publication import apply_dataset_publication
 from dataset_metadata import get_dataset_metadata, require_dataset_wav
@@ -950,6 +950,14 @@ class ReviewSubmitRequest(BaseModel):
     choice: str = Field(pattern="^(?:" + "|".join(re.escape(choice) for choice in evaluation_reviews.VALID_CHOICES) + ")$")
     rating: int | None = Field(default=None, ge=evaluation_reviews.MIN_RATING, le=evaluation_reviews.MAX_RATING)
     notes: str = Field(default="", max_length=evaluation_reviews.MAX_NOTE_CHARS)
+
+    @field_validator("rating", mode="before")
+    @classmethod
+    def validate_rating(cls, value):
+        try:
+            return evaluation_reviews._clean_rating(value)
+        except evaluation_reviews.ReviewError as exc:
+            raise ValueError(str(exc)) from exc
 
 
 def _current_evidence_fingerprint(adapter_id: str) -> dict:
