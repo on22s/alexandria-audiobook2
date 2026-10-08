@@ -8,13 +8,18 @@
         async function loadReports() {
             const listEl = document.getElementById('reports-list');
             if (!listEl) { return; }
+            const request = {};
+            listEl._reportListRequest = request;
+            const isCurrent = () => listEl._reportListRequest === request
+                && document.getElementById('reports-list') === listEl;
             try {
                 const reports = await API.get('/api/reports');
+                if (!isCurrent()) { return; }
+                reportExplanationEligibility.clear();
                 if (!reports.length) {
                     listEl.innerHTML = '<div class="list-group-item text-muted small">No reports yet. Reports are generated automatically each time a script review finishes.</div>';
                     return;
                 }
-                reportExplanationEligibility.clear();
                 reports.forEach(r => { reportExplanationEligibility.set(r.filename, r.can_explain === true); });
                 listEl.innerHTML = reports.map(r => {
                     const when = r.mtime ? new Date(r.mtime * 1000).toLocaleString() : '';
@@ -26,6 +31,7 @@
                     </a>`;
                 }).join('');
             } catch (e) {
+                if (!isCurrent()) { return; }
                 listEl.innerHTML = `<div class="list-group-item text-danger small">${escapeHtml(getActionErrorMessage("Failed to load reports", e, "Reopen Reports or refresh the report list after checking the app connection."))}</div>`;
             }
         }

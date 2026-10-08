@@ -124,6 +124,11 @@ def deduplicate_evaluation_candidates(output_dir, records):
     return retained, skipped, production_hash
 
 
+def get_training_reference_preview(text):
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    return text[:60].encode(encoding, errors="backslashreplace").decode(encoding)
+
+
 def get_training_reference_text(data_dir, ref_audio_path, samples):
     ref_text_file = os.path.join(data_dir, "ref_text.txt")
     ref_sample_text = ""
@@ -131,7 +136,7 @@ def get_training_reference_text(data_dir, ref_audio_path, samples):
         with open(ref_text_file, "r", encoding="utf-8") as f:
             ref_sample_text = f.read().strip()
         if ref_sample_text:
-            print(f"[DATA] Using ref text from ref_text.txt: '{ref_sample_text[:60]}...'", flush=True)
+            print(f"[DATA] Using ref text from ref_text.txt: '{get_training_reference_preview(ref_sample_text)}...'", flush=True)
     if not ref_sample_text:
         from lora_evidence import get_file_sha256
         reference_hash = get_file_sha256(ref_audio_path)
@@ -141,11 +146,11 @@ def get_training_reference_text(data_dir, ref_audio_path, samples):
                                and get_file_sha256(sample["audio_path"]) == reference_hash), None)
         if matched_sample is not None:
             ref_sample_text = matched_sample["text"]
-            print(f"[DATA] Using matching sample text as ref text: '{ref_sample_text[:60]}...'", flush=True)
+            print(f"[DATA] Using matching sample text as ref text: '{get_training_reference_preview(ref_sample_text)}...'", flush=True)
         else:
             # Legacy datasets: ref.wav is typically the first sample
             ref_sample_text = samples[0]["text"]
-            print(f"[DATA] Using first sample text as ref text: '{ref_sample_text[:60]}...'", flush=True)
+            print(f"[DATA] Using first sample text as ref text: '{get_training_reference_preview(ref_sample_text)}...'", flush=True)
 
     return ref_sample_text
 
@@ -651,6 +656,9 @@ def run_training_batch(samples, hf_model, base_talker, transformer, parameters,
         # Combined loss (0.3 weight on sub-talker per official Qwen3-TTS training)
         total_loss = talker_loss + 0.3 * sub_loss
 
+        if not bool(torch.isfinite(total_loss).all()):
+            raise RuntimeError("Training produced a non-finite loss; refusing optimizer update")
+
         # Scale for gradient accumulation
         scaled_loss = total_loss / gradient_accumulation_steps
         scaled_loss.backward()
@@ -666,7 +674,10 @@ def run_training_batch(samples, hf_model, base_talker, transformer, parameters,
                 attempted = parameter.grad
                 if attempted is not None and previous is not None:
                     attempted.add_(previous)
-                merged_grads.append(attempted if attempted is not None else previous)
+                gradient = attempted if attempted is not None else previous
+                if gradient is not None and not bool(torch.isfinite(gradient).all()):
+                    raise RuntimeError("Training produced non-finite gradients; refusing optimizer update")
+                merged_grads.append(gradient)
         for parameter, gradient in zip(parameters, merged_grads):
             parameter.grad = gradient
         committed = True
@@ -822,6 +833,9 @@ def train(args):
     total_oom_skips = 0
 
     def publish_checkpoint(model, epoch, keep_candidate=False, finalize=False):
+        if model is not None and any(not bool(torch.isfinite(parameter).all())
+                                     for parameter in trainable_parameters):
+            raise RuntimeError("Training produced non-finite adapter weights; refusing publication")
         metadata = get_training_checkpoint_metadata(args, samples, ref_audio_path, ref_sample_text,
             epochs_completed, avg_loss, best_loss, time.time() - training_start, total_oom_skips)
         return save_training_checkpoint(model, args.output_dir, ref_audio_path, ref_sample_text,

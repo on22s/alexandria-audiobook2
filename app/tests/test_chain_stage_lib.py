@@ -21,6 +21,25 @@ LIB = os.path.join(REPO, "run_chains", "lib", "stage.sh")
 
 @unittest.skipUnless(os.path.exists(LIB), "run_chains/lib/stage.sh not present")
 class StageRunnerTest(unittest.TestCase):
+    def test_missing_dependency_name_refuses_without_loop_or_worker_in_plain_bash(self):
+        for cached in (False, True):
+            for value in ("", " --", " --needs-vram"):
+                with self.subTest(cached=cached, value=value):
+                    worker = os.path.join(self.tmp.name, "worker")
+                    checker = os.path.join(self.tmp.name, "checker")
+                    invocation = (f'run_validated_cached_stage probe 2s touch "{checker}" --'
+                                  if cached else 'run_stage probe 2s')
+                    script = f'source "{LIB}"; STAGE_LOG_DIR="{self.tmp.name}/logs"; {invocation} --requires-ok{value}'
+                    try:
+                        result = subprocess.run(["bash", "-c", script], capture_output=True,
+                                                text=True, timeout=1)
+                    except subprocess.TimeoutExpired:
+                        self.fail("Malformed --requires-ok looped instead of refusing")
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertIn("requires-ok", result.stdout + result.stderr)
+                    self.assertFalse(os.path.exists(worker))
+                    self.assertFalse(os.path.exists(checker))
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

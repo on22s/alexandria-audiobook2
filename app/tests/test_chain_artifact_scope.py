@@ -10,6 +10,25 @@ LIB=Path(os.environ.get('STAGE_LIB_SOURCE',str(Path(__file__).resolve().parents[
 
 
 class ArtifactScopeTests(unittest.TestCase):
+    def test_subdirectory_repo_argument_commits_only_selected_root_relative_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = self.prepare(root)
+            subdirectory = root / "app"
+            subdirectory.mkdir()
+            artifact = folder / "current[1]*?.json"
+            result = self.run_commit(subdirectory, artifact)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            relative = str(artifact.relative_to(root))
+            self.assertEqual(relative, self.git(root, "show", "--pretty=", "--name-only", "HEAD"))
+            self.assertEqual("measured current", self.git(root, "show", "HEAD:" + relative))
+            self.assertEqual("ab_test_runtime/experiments/staged-wip.json",
+                             self.git(root, "diff", "--cached", "--name-only"))
+            artifact.unlink()
+            result = self.run_commit(subdirectory, artifact)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertNotIn(relative, self.git(root, "ls-tree", "-r", "--name-only", "HEAD"))
+
     def git(self,root,*args):
         return subprocess.check_output(['git','-C',str(root),*args],text=True).strip()
 

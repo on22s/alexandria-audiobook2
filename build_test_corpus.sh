@@ -114,13 +114,16 @@ PYEOF
 )
 
 PAIRS_JSON="$OUT_DIR/pairs.json"
-"$PYTHON" -c "$python_pair_script" "$SCRIPT_DIR" "$AUDIO_DIR" "$SOURCE_DIR" > "$PAIRS_JSON"
+if ! "$PYTHON" -c "$python_pair_script" "$SCRIPT_DIR" "$AUDIO_DIR" "$SOURCE_DIR" > "$PAIRS_JSON"; then
+    echo "Corpus pair discovery failed; refusing to continue." >&2
+    exit 1
+fi
 
 # Pretty-print the proposed pairings
 echo "─────────────────────────────────────────────────────────────────"
 echo "Audio → Source pairings (via fuzzy matcher):"
 echo "─────────────────────────────────────────────────────────────────"
-"$PYTHON" - "$PAIRS_JSON" <<'PYEOF'
+if ! "$PYTHON" - "$PAIRS_JSON" <<'PYEOF'
 import sys
 import json
 pairs = json.load(open(sys.argv[1]))
@@ -135,6 +138,10 @@ for p in missed:
     from pathlib import Path
     print(f'  ✗ {Path(p["audio"]).stem!r:60} → (no source match)')
 PYEOF
+then
+    echo "Corpus pair plan could not be read or displayed; refusing to continue." >&2
+    exit 1
+fi
 echo "─────────────────────────────────────────────────────────────────"
 
 if [[ "$MODE" == "--plan" ]]; then

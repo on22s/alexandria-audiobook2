@@ -76,8 +76,12 @@ def download_model():
             raise
         staged_path = None
         if backup_path is not None:
-            shutil.rmtree(backup_path)
-            backup_path = None
+            try:
+                shutil.rmtree(backup_path)
+                backup_path = None
+            except OSError as exc:
+                print(f"WARNING: New model is installed, but previous-bundle cleanup failed: {exc}")
+                print(f"Previous download retained for recovery or manual cleanup: {backup_path}")
 
         print()
         print("=" * 70)

@@ -73,6 +73,24 @@ class CastListTest(unittest.TestCase):
                 cast_list.save_cast_list(path, bad)
             self.assertFalse(os.path.exists(path))
 
+    def test_documented_bare_output_saves_valid_cast_and_rejects_invalid_replacement(self):
+        previous = os.getcwd()
+        os.chdir(self.dir)
+        try:
+            for path in ('cast.json', './relative.json', 'nested/cast.json'):
+                with self.subTest(path=path):
+                    cast_list.save_cast_list(path, CAST, {'model': 'fixture'})
+                    with open(path, encoding='utf-8') as stream:
+                        self.assertEqual({'cast': CAST, 'provenance': {'model': 'fixture'}}, json.load(stream))
+                    with open(path, 'rb') as stream:
+                        before = stream.read()
+                    with self.assertRaises(ValueError):
+                        cast_list.save_cast_list(path, [])
+                    with open(path, 'rb') as stream:
+                        self.assertEqual(before, stream.read())
+        finally:
+            os.chdir(previous)
+
     def test_model_is_sent_the_text_generation_sees(self):
         client = _Client()
         code, out = self.run_main(client)

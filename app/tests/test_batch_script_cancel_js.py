@@ -27,6 +27,22 @@ function client(phase){
 
 
 class BatchScriptCancelJsTests(unittest.TestCase):
+    def test_lost_start_ack_keeps_monitoring_and_cancels_registered_worker(self):
+        self.run_js(r'''
+for(const cancel of [true,false]){
+ const c=client('start');const starting=c.ctx._startBatchScript();await turn();if(cancel){await c.ctx.cancelBatchScript();}
+ c.gate.reject(Error('start acknowledgement lost'));await starting;
+ assert(!c.el('script-batch-status-msg').innerHTML.includes('before generation started'));
+ assert(c.el('script-batch-status-msg').innerHTML.includes('unconfirmed'));assert.strictEqual(c.getPolls(),1);assert.strictEqual(c.el('btn-gen-script').disabled,true);assert.strictEqual(c.el('btn-cancel-batch-script').style.display,'inline-block');assert(c.toasts.at(-1).message.includes('acknowledgement lost'));
+ assert.strictEqual(c.requests.filter(r=>r.url.endsWith('/cancel')).length,cancel?1:0);
+ await c.ctx.cancelBatchScript();assert.strictEqual(c.requests.at(-1).url,'/api/generate_script/batch/cancel');
+}
+for(const status of [400,409,422]){
+ const c=client('start');const starting=c.ctx._startBatchScript();await turn();await c.ctx.cancelBatchScript();const error=Error('explicit rejection');error.status=status;c.gate.reject(error);await starting;
+ assert.strictEqual(c.getPolls(),0);assert.strictEqual(c.requests.filter(r=>r.url.endsWith('/cancel')).length,0);assert.strictEqual(c.el('btn-gen-script').disabled,false);assert(c.toasts.at(-1).message.includes('explicit rejection'));assert(!c.el('script-batch-status-msg').innerHTML.includes('before generation started'));
+}
+''')
+
     def run_js(self, code):
         result = subprocess.run(['node', '-e', SETUP + '\n(async()=>{\n' + code + '\n})().catch(e=>{console.error(e);process.exitCode=1;});', str(SOURCE)], capture_output=True, text=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stderr)

@@ -21,7 +21,10 @@ from utils import atomic_json_write
 from diagnostics import get_redacted_credentials
 from unit_test_sharding import parse_shard_spec
 from subprocess_ownership import (get_owned_exit_result, is_subprocess_tree_running,
-                                 start_owned_subprocess, stop_owned_subprocess)
+                                 start_owned_subprocess, stop_owned_subprocess,
+                                 run_owned_capture)
+
+GIT_PROBE_TIMEOUT_SECONDS = 20
 
 
 def is_process_group_running(process):
@@ -126,13 +129,14 @@ def run_report_command(*args, **kwargs):
 
 def get_python_paths(repo_dir):
     """Return tracked and non-ignored untracked Python files deterministically."""
-    result = subprocess.run(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", "*.py"],
-        cwd=repo_dir, capture_output=True, text=True,
+    result = run_owned_capture(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "*.py"],
+        cwd=repo_dir, timeout=GIT_PROBE_TIMEOUT_SECONDS,
     )
     if result.returncode:
         raise RuntimeError("Could not enumerate Python files")
-    return [Path(repo_dir) / line for line in sorted(set(result.stdout.splitlines())) if line]
+    return [Path(repo_dir) / os.fsdecode(name)
+            for name in sorted(set(result.stdout.split(b"\0"))) if name]
 
 
 def compile_python_files(repo_dir):

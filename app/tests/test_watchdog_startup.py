@@ -17,6 +17,9 @@ class WatchdogStartupTests(unittest.TestCase):
             root.mkdir()
             script = root / 'watch_subset.sh'
             script.write_bytes((ROOT / 'watch_subset.sh').read_bytes())
+            helper = root / 'run_chains/lib/subset_outputs.sh'
+            helper.parent.mkdir(parents=True)
+            helper.write_bytes((ROOT / 'run_chains/lib/subset_outputs.sh').read_bytes())
             binary = root / 'bin'
             binary.mkdir()
             calls = root / 'calls.jsonl'

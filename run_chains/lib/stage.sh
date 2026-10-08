@@ -53,6 +53,10 @@ is_stage_successful() {
     [ "${STAGE_RESULT[$1]:-missing}" = ok ]
 }
 
+is_stage_dependency_name_valid() {
+    [ -n "${1:-}" ] && [[ "$1" != --* ]]
+}
+
 # <name> <cap> <checker argv...> -- <run_stage options/worker argv...>
 run_validated_cached_stage() {
     local name="$1" cap="$2" rc
@@ -69,6 +73,12 @@ run_validated_cached_stage() {
     local args=("$@") i=0
     while [ "${args[$i]:-}" = --needs-vram ] || [ "${args[$i]:-}" = --requires-ok ]; do
         if [ "${args[$i]}" = --requires-ok ]; then
+            if ! is_stage_dependency_name_valid "${args[$((i + 1))]:-}"; then
+                stage_note "REFUSING: --requires-ok needs a dependency name"
+                STAGE_TOTAL=$((STAGE_TOTAL + 1))
+                record_stage_result "$name" 2
+                return 2
+            fi
             if ! is_stage_successful "${args[$((i + 1))]}"; then
                 run_stage "$name" "$cap" "$@"
                 exit 1
@@ -122,6 +132,12 @@ run_stage() {
         if [ "$1" = "--needs-vram" ]; then
             needs_vram=1; shift
         else
+            if ! is_stage_dependency_name_valid "${2:-}"; then
+                stage_note "REFUSING: --requires-ok needs a dependency name"
+                STAGE_TOTAL=$((STAGE_TOTAL + 1))
+                record_stage_result "$name" 2
+                return 2
+            fi
             requires+=("$2"); shift 2
         fi
     done
@@ -213,6 +229,7 @@ stage_commit_artifacts() {
         record_stage_artifact_failure "$what" "$rc"
         return "$rc"
     fi
+    repo="$root"
     artifact_paths=()
     for path in "$@"; do
         if [[ "$path" = /* ]]; then

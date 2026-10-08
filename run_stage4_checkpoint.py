@@ -219,7 +219,11 @@ def validate_stage4_artifact(
         if row["errors"] != total:
             raise ArtifactValidationError(f"row {index} error breakdown is wrong")
         wav = os.path.realpath(os.path.join(REPO, row["wav"]))
-        if os.path.commonpath((repo_real, wav)) != repo_real:
+        try:
+            contained = os.path.commonpath((repo_real, wav)) == repo_real
+        except ValueError as error:
+            raise ArtifactValidationError(f"row {index} WAV escapes the repository") from error
+        if not contained:
             raise ArtifactValidationError(f"row {index} WAV escapes the repository")
         if not os.path.isfile(wav) or os.path.getsize(wav) <= 44:
             raise ArtifactValidationError(f"row {index} WAV is missing or empty")

@@ -1,20 +1,24 @@
-# Batch 16: Benchmarks, evidence and developer tooling
+# Batch 16: bounded tooling and truthful run receipts
 
-Tracker: [#917](https://github.com/on22s/alexandria-audiobook2/issues/917).
+Git file enumeration uses binary NUL-delimited paths so Unicode, newline and quoted names refer to actual files. Release enumeration and cloud source-provenance probes have execution deadlines through the shared subprocess owner; timed-out hooks are stopped and reaped. Clean-checkout admission remains intact.
 
-Task-only draft: no bug fix or completion is claimed. Add verified fixes to this branch and check tasks only after their changes are committed, pushed and validated.
+Corpus planning stops on failed discovery or plan display instead of reporting a successful empty plan. Whisper download success is retained after publication when old-bundle cleanup fails, with an explicit warning and retained backup. The queue parser reads terminal status fields instead of matching failure words in job names. Stage and cached-stage entry points reject missing dependency arguments before shifting or invoking a checker/worker. Artifact commits resolve the repository root consistently and retain their explicit file scope.
 
-- [ ] [#879](https://github.com/on22s/alexandria-audiobook2/issues/879) — Release verifier has no deadline for git enumeration when a fsmonitor hook stalls
-- [ ] [#880](https://github.com/on22s/alexandria-audiobook2/issues/880) — Release compile gate treats Git-quoted Unicode filenames as literal paths
-- [ ] [#882](https://github.com/on22s/alexandria-audiobook2/issues/882) — Corpus plan command exits successfully after pair discovery fails
-- [ ] [#883](https://github.com/on22s/alexandria-audiobook2/issues/883) — Whisper downloader reports failure after publishing when old-bundle cleanup fails
-- [ ] [#885](https://github.com/on22s/alexandria-audiobook2/issues/885) — Cloud comparison provenance waits without a deadline on stalled Git fsmonitor
-- [ ] [#888](https://github.com/on22s/alexandria-audiobook2/issues/888) — Queue log clears active START when job name contains LOCK_FAILED or PENDING_FAILED
-- [ ] [#889](https://github.com/on22s/alexandria-audiobook2/issues/889) — Dangling --requires-ok loops in stage argument parsing under plain Bash
-- [ ] [#890](https://github.com/on22s/alexandria-audiobook2/issues/890) — Artifact commit helper uses root-relative pathspecs from the supplied subdirectory
-- [ ] [#893](https://github.com/on22s/alexandria-audiobook2/issues/893) — Subset completion summaries truncate ZIP filenames containing spaces
-- [ ] [#894](https://github.com/on22s/alexandria-audiobook2/issues/894) — Subset reruns retain stale DONE and ABORTED flags
-- [ ] [#896](https://github.com/on22s/alexandria-audiobook2/issues/896) — Experiment artifact audit crashes with a bare --out filename
-- [ ] [#897](https://github.com/on22s/alexandria-audiobook2/issues/897) — Results collector omits valid seed zero from generated CSV
+Subset reruns clear stale status flags while preserving ZIP artifacts. Runner and watchdog output listings share full filename and byte-size formatting. The structural audit accepts a bare output filename, and CSV collection retains numeric seed zero while distinguishing missing seeds.
 
-For each task: recheck current main, reproduce the failure, implement a surgical fix, verify failure and recovery cases, and record validation/platform limits. Use closing keywords only for implemented fixes.
+Validation against main `857542fa`: 116 integrated focused tests pass without skips. All three release shards pass (4,099 + 1,379 + 1,564 = 7,042 unit-test executions), and 70 quick API checks pass; 12 full-mode API cases are explicitly skipped. The failed second-shard copied cloud fixture was corrected to include its required subprocess owner and the full shard rerun passed. This branch's main baseline predates #933's exact-identity/discovery fix; its execution count includes that baseline's duplicate fixture-class discovery and does not claim unique coverage. Native Git/Bash/filesystem tests use disposable synthetic inputs; no native Windows/macOS, live cloud model, ASR-quality or GPU inference is claimed.
+
+Tracker: #917.
+
+- [x] Fixes #879
+- [x] Fixes #880
+- [x] Fixes #882
+- [x] Fixes #883
+- [x] Fixes #885
+- [x] Fixes #888
+- [x] Fixes #889
+- [x] Fixes #890
+- [x] Fixes #893
+- [x] Fixes #894
+- [x] Fixes #896
+- [x] Fixes #897

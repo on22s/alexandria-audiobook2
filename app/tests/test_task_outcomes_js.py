@@ -58,3 +58,14 @@ ctx.document.visibilityState='visible';ctx.document.hasFocus=()=>true;ctx.notify
 ctx.loadVoices=async()=>{throw Error('fixture refresh failure');};await ctx.pollPersonaStatus();await poll.onDone({running:false,logs:['Task persona completed successfully.']});assert.strictEqual(notifications.length,1);assert.strictEqual(notifications[0].title,'Persona generation finished');assert.match(el('persona-refresh-status').textContent,/could not be fully refreshed/);assert.strictEqual(el('persona-refresh-retry').hidden,false);assert.strictEqual(el('persona-refresh-retry').disabled,false);
 ctx.document.visibilityState='visible';ctx.document.hasFocus=()=>true;await ctx.pollPersonaStatus();await poll.onDone({running:false,logs:[]});assert.strictEqual(notifications.length,1);
 ''')
+
+    def test_zero_error_summary_counts_are_neutral_without_masking_real_failures(self):
+        self.run_js(r"""
+for(const line of ['Errors: 0. All sections rendered.','errors=0','Errors count: 0','0 errors','Failures: 0']){
+ const status={logs:[line]};assert.strictEqual(ctx.isTaskFailed(status),false,line);assert.strictEqual(ctx.getTaskCompletionOutcome(status),'finished',line);ctx._onReviewDone(status);assert.strictEqual(el('review-recovery-panel').style.display,'none');
+}
+for(const status of [{logs:['Errors: 2']},{logs:['Errors: 10']},{logs:['errors=01']},{logs:['Errors: 0.2']},{logs:['Errors: 0; failure writing output']},{logs:['[ERROR] zero exit code did not publish audio']},{logs:['Errors: 0'],status:'failed'},{logs:['Errors: 0'],tasks:[{status:'incomplete'}]}]){
+ assert.strictEqual(ctx.isTaskFailed(status),true,JSON.stringify(status));assert.strictEqual(ctx.getTaskCompletionOutcome(status),'failed');
+}
+assert.strictEqual(ctx.getTaskCompletionOutcome({logs:['Errors: 0'],status:'cancelled'}),'cancelled');
+""")

@@ -1,8 +1,8 @@
 # Shared queue record retention; the separate lock inode never rotates.
 get_queue_active_start() {
     awk '
-        /START    / {line=$0}
-        /OK       |FAILED   |REFUSED  |NO_VRAM  |NO_LLM   |KILLED   |LOCK_FAILED|PENDING_FAILED|INTERRUPTED |STOPPED  / {line=""}
+        $2 == "START" {line=$0}
+        $2 ~ /^(OK|FAILED|REFUSED|NO_VRAM|NO_LLM|KILLED|LOCK_FAILED|PENDING_FAILED|INTERRUPTED|STOPPED)$/ {line=""}
         END {if (line != "") print line}' "$QLOG"
 }
 

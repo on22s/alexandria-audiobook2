@@ -58,7 +58,7 @@ class TrainingChildCleanupTests(unittest.TestCase):
                 return child
 
             def remove(path, *params, **kwargs):
-                if str(path).startswith(str(root/'datasets')):
+                if str(path) == str(root/'datasets'/'speaker'):
                     cleanup_states.append(children[0].poll())
                 return real_rmtree(path, *params, **kwargs)
 

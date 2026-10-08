@@ -443,6 +443,8 @@ def get_run_model_binding(client, primary_model, previous=None):
 
 
 MANUAL_DIR_NAME = "manual_llm"
+_manual_request_owners = {}
+_manual_request_owners_lock = threading.Lock()
 
 
 def manual_llm_dir(data_dir):
@@ -452,12 +454,42 @@ def manual_llm_dir(data_dir):
 def is_manual_request_owner_alive(pending):
     """Whether a queued manual request still has a process to receive it."""
     pid = pending.get("owner_pid") if isinstance(pending, dict) else None
-    if not isinstance(pid, int) or pid < 1:
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid < 1:
         return False  # a legacy request cannot be tied to a live owner
     if pid == os.getpid():
-        owner_thread = pending.get("owner_thread")
-        return any(thread.ident == owner_thread and thread.is_alive()
-                   for thread in threading.enumerate())
+        request_id = pending.get("id")
+        if not isinstance(request_id, str):
+            return False
+        with _manual_request_owners_lock:
+            owner = _manual_request_owners.get(request_id)
+        return bool(owner is not None and owner.ident == pending.get("owner_thread")
+                    and owner.is_alive())
+    if os.name == "nt":
+        import ctypes
+        api = ctypes.WinDLL("kernel32", use_last_error=True)
+        api.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+        api.OpenProcess.restype = ctypes.c_void_p
+        api.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        api.WaitForSingleObject.restype = ctypes.c_uint32
+        api.CloseHandle.argtypes = [ctypes.c_void_p]
+        api.CloseHandle.restype = ctypes.c_int
+        handle = api.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE only
+        if not handle:
+            error = ctypes.get_last_error()
+            if error == 87:  # ERROR_INVALID_PARAMETER: process no longer exists
+                return False
+            if error == 5:  # ERROR_ACCESS_DENIED: preserve the owner's request
+                return True
+            raise OSError(error, "Cannot inspect manual LLM request owner")
+        try:
+            status = api.WaitForSingleObject(handle, 0)
+            if status == 258:  # WAIT_TIMEOUT: process has not exited
+                return True
+            if status == 0:  # WAIT_OBJECT_0: process exited
+                return False
+            raise OSError(ctypes.get_last_error(), "Cannot query manual LLM request owner")
+        finally:
+            api.CloseHandle(handle)
     try:
         os.kill(pid, 0)
         return True
@@ -519,54 +551,60 @@ class ManualClient:
                        "max_tokens": kwargs.get("max_tokens"),
                        "json_schema": bool(kwargs.get("response_format"))},
         }
-        # The one visible prompt is a queue slot shared by all clients. Hold
-        # the short file lock only while claiming it; human replies can take
-        # hours, so the lock must not span the wait.
-        while True:
+        with _manual_request_owners_lock:
+            _manual_request_owners[request["id"]] = threading.current_thread()
+        try:
+            # The one visible prompt is a queue slot shared by all clients. Hold
+            # the short file lock only while claiming it; human replies can take
+            # hours, so the lock must not span the wait.
+            while True:
+                with file_lock(self.pending_path):
+                    pending = safe_load_json(self.pending_path, None)
+                    if os.path.exists(self.pending_path) and (
+                            not isinstance(pending, dict) or not pending.get("id") or
+                            not is_manual_request_owner_alive(pending)):
+                        os.remove(self.pending_path)
+                    if not os.path.exists(self.pending_path):
+                        try:
+                            os.remove(self.response_path)
+                        except FileNotFoundError:
+                            pass
+                        atomic_json_write(request, self.pending_path)
+                        break
+                time.sleep(self.POLL_SECONDS)
+            while True:
+                try:
+                    with open(self.response_path, "r", encoding="utf-8") as handle:
+                        response = json.load(handle)
+                except (FileNotFoundError, ValueError):
+                    time.sleep(self.POLL_SECONDS)
+                    continue
+                if not isinstance(response, dict):
+                    print("Warning: manual LLM response must be a JSON object; waiting for a valid reply.")
+                    os.remove(self.response_path)
+                    continue
+                if response.get("id") != request["id"]:
+                    # a reply to an earlier request that arrived late; not ours
+                    os.remove(self.response_path)
+                    continue
+                break
+            content = str(response.get("content") or "")
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning_content=None),
+                                         finish_reason="stop")],
+                usage=None, model=request["model"])
+        finally:
+            with _manual_request_owners_lock:
+                _manual_request_owners.pop(request["id"], None)
             with file_lock(self.pending_path):
-                pending = safe_load_json(self.pending_path, None)
-                if os.path.exists(self.pending_path) and (
-                        not isinstance(pending, dict) or not pending.get("id") or
-                        not is_manual_request_owner_alive(pending)):
-                    os.remove(self.pending_path)
-                if not os.path.exists(self.pending_path):
+                # Only the request owner may release this queue slot.
+                current = safe_load_json(self.pending_path, None)
+                if isinstance(current, dict) and current.get("id") == request["id"]:
                     try:
                         os.remove(self.response_path)
                     except FileNotFoundError:
                         pass
-                    atomic_json_write(request, self.pending_path)
-                    break
-            time.sleep(self.POLL_SECONDS)
-        while True:
-            try:
-                with open(self.response_path, "r", encoding="utf-8") as handle:
-                    response = json.load(handle)
-            except (FileNotFoundError, ValueError):
-                time.sleep(self.POLL_SECONDS)
-                continue
-            if not isinstance(response, dict):
-                print("Warning: manual LLM response must be a JSON object; waiting for a valid reply.")
-                os.remove(self.response_path)
-                continue
-            if response.get("id") != request["id"]:
-                # a reply to an earlier request that arrived late; not ours
-                os.remove(self.response_path)
-                continue
-            break
-        with file_lock(self.pending_path):
-            # Only the request owner may release this queue slot.
-            current = safe_load_json(self.pending_path, None)
-            if isinstance(current, dict) and current.get("id") == request["id"]:
-                try:
-                    os.remove(self.response_path)
-                except FileNotFoundError:
-                    pass
-                os.remove(self.pending_path)
-        content = str(response.get("content") or "")
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning_content=None),
-                                     finish_reason="stop")],
-            usage=None, model=request["model"])
+                    os.remove(self.pending_path)
 
 
 class _ManualChat:

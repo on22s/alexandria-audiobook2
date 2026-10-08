@@ -96,7 +96,7 @@ from pathlib import Path
 import alexandria_alignment as alignment
 from alexandria_run_manifest import (
     LOCK_ENV, RunStateError, acquire_run_lock, cleanup_run_artifacts, ensure_run_manifest,
-    run_phase_with_lock,
+    run_phase_with_lock, sync_run_directory,
     get_run_identity, get_sample_path, is_verified_artifact, mark_artifact_complete,
     validate_scratch_path, write_json_atomic, get_file_identity,
 )
@@ -1649,15 +1649,23 @@ def _load_existing_checkpoint(temp_dir):
         raise RunStateError(f'Could not read checkpoint {checkpoint_path}: {e}') from e
 
     if truncated:
+        temporary = None
         try:
-            with open(checkpoint_path, "w", encoding="utf-8") as f:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=temp_dir,
+                                             prefix=".metadata-repair-", delete=False) as f:
+                temporary = f.name
                 f.writelines(good_lines)
                 f.flush()
                 os.fsync(f.fileno())
+            os.replace(temporary, checkpoint_path)
+            sync_run_directory(temp_dir)
             logger.info(f"  Checkpoint rewritten to {len(entries)} good entries (corrupt tail removed)")
         except Exception as e:
             raise RunStateError(
                 f'Could not rewrite checkpoint after truncation: {e}') from e
+        finally:
+            if temporary is not None and os.path.exists(temporary):
+                os.remove(temporary)
 
     if not entries:
         return [], 0.0, 0
@@ -1834,10 +1842,11 @@ def _annotate_batch(llm, batch_data, alignment, batch_size, timing, stats):
             # Extract from code block
             parts = raw_output.split("```")
             for part in parts:
-                if part.strip().startswith("["):
-                    json_match = part.strip()
-                    if json_match.startswith("json"):
-                        json_match = json_match[4:].strip()
+                candidate = part.strip()
+                if candidate.startswith("json"):
+                    candidate = candidate[4:].strip()
+                if candidate.startswith("["):
+                    json_match = candidate
                     try:
                         json.loads(json_match)
                     except json.JSONDecodeError:
@@ -1939,11 +1948,7 @@ def _save_chunk_metadata(item, annotated, character, narrator_style, book_title,
             os.fsync(wav_fd)
         finally:
             os.close(wav_fd)
-        directory_fd = os.open(temp_dir, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        sync_run_directory(temp_dir)
         timing['wav_write'] += time.monotonic() - t0_wav
 
         entry = {

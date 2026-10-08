@@ -22,6 +22,9 @@ class CloudTtsGpuLockTests(unittest.TestCase):
             import shutil
             shutil.copyfile(ROOT / "run_chains/cloud_comparison_provenance.py",
                             script.parent / "cloud_comparison_provenance.py")
+            owner = root / "app/subprocess_ownership.py"
+            owner.parent.mkdir()
+            shutil.copyfile(ROOT / "app/subprocess_ownership.py", owner)
 
             build_dir = root / "ab_test_runtime/reference_spread"
             build_dir.mkdir(parents=True)

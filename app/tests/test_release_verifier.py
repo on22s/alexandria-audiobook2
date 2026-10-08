@@ -125,6 +125,44 @@ class CiEnvParityTests(unittest.TestCase):
 
 
 class ReleaseVerifierTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "linux", "native Linux owned-hook cleanup")
+    def test_stalled_git_fsmonitor_fails_with_bounded_owned_cleanup(self):
+        import time
+        import shlex
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "sample.py").write_text("VALUE = 1\n")
+            subprocess.run(["git", "-C", str(root), "add", "sample.py"], check=True)
+            pidfile = root / "hook.pid"
+            hook = root / "hook"
+            code = f"import os,pathlib,time;pathlib.Path({str(pidfile)!r}).write_text(str(os.getpid()));time.sleep(3)"
+            hook.write_text("#!/bin/sh\nexec " + shlex.quote(sys.executable) + " -c " + shlex.quote(code) + "\n")
+            hook.chmod(0o700)
+            subprocess.run(["git", "-C", str(root), "config", "core.fsmonitor", str(hook)], check=True)
+            started = time.monotonic()
+            with patch.object(verify_release, "GIT_PROBE_TIMEOUT_SECONDS", .2, create=True):
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    verify_release.get_python_paths(root)
+            self.assertLess(time.monotonic() - started, 2)
+            self.assertTrue(pidfile.exists(), "test must reach the real Git hook")
+            with self.assertRaises(ProcessLookupError):
+                os.kill(int(pidfile.read_text()), 0)
+            subprocess.run(["git", "-C", str(root), "config", "--unset", "core.fsmonitor"], check=True)
+            self.assertEqual([root / "sample.py"], verify_release.get_python_paths(root))
+
+    def test_git_quoted_unicode_and_newline_names_are_compiled_as_actual_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "core.quotePath", "true"], check=True)
+            names = ("café.py", "two\nlines.py", "untracked_日本語.py")
+            for name in names:
+                (root / name).write_text("VALUE = 1\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "--", *names[:2]], check=True)
+            self.assertEqual(sorted(root / name for name in names), verify_release.get_python_paths(root))
+            verify_release.compile_python_files(root)
+
     def test_python_compilation_includes_nonignored_untracked_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)

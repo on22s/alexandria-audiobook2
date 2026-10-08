@@ -760,7 +760,11 @@ async def get_config():
         try:
             with open(state_path, "r", encoding="utf-8") as sf:
                 state = json.load(sf)
+            if not isinstance(state, dict):
+                raise ValueError("state.json must contain an object")
             input_path = state.get("input_file_path", "")
+            if input_path is not None and not isinstance(input_path, str):
+                raise ValueError("state.json input_file_path must be a string or null")
             if input_path and os.path.exists(input_path):
                 config["current_file"] = os.path.basename(input_path)
         except (json.JSONDecodeError, ValueError) as e:

@@ -15,6 +15,15 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {
 '''
 
 class ReportExplanationJsTests(unittest.TestCase):
+    def test_report_list_rejects_stale_results_and_errors_and_updates_eligibility(self):
+        self.run_js(r'''
+const pending=[];ctx.API.get=()=>new Promise((resolve,reject)=>pending.push({resolve,reject}));
+const first=ctx.loadReports(),second=ctx.loadReports();pending[1].resolve([{filename:'second.md',can_explain:true}]);await second;const newer=el('reports-list').innerHTML;pending[0].resolve([{filename:'first.md',can_explain:true}]);await first;assert.strictEqual(el('reports-list').innerHTML,newer);
+await ctx.viewReport('first.md');assert.strictEqual(el('btn-report-explain').style.display,'none');await ctx.viewReport('second.md');assert.strictEqual(el('btn-report-explain').style.display,'');
+const stale=ctx.loadReports(),current=ctx.loadReports();pending[3].resolve([]);await current;const empty=el('reports-list').innerHTML;pending[2].reject(Error('stale failure'));await stale;assert.strictEqual(el('reports-list').innerHTML,empty);assert(empty.includes('No reports yet'));await ctx.viewReport('second.md');assert.strictEqual(el('btn-report-explain').style.display,'none');
+const failed=ctx.loadReports();pending[4].reject(Error('current failure'));await failed;assert(el('reports-list').innerHTML.includes('current failure'));
+''')
+
     def run_js(self,code):
         result=subprocess.run(['node','-e',SETUP+'\n(async()=>{'+code+'\n})().catch(e=>{console.error(e);process.exitCode=1;});',str(SOURCE)],capture_output=True,text=True,timeout=10)
         self.assertEqual(0,result.returncode,result.stderr)

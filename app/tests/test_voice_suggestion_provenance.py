@@ -104,7 +104,7 @@ for (const [method, label] of [['mixed', 'LLM + heuristic'], ['llm', 'LLM'], ['h
     const nodes = new Map();
     const node = id => { if (!nodes.has(id)) { nodes.set(id, {style:{}, innerHTML:'', disabled:false}); } return nodes.get(id); };
     const result = {method, suggestions:{A:{adapter_id:'voice', ranked_adapter_ids:['voice']}}, llm_warning:'Fallback for <B>'};
-    const context = {window:null,currentIsRemote:false,failoverIsRemote:false, document:{getElementById:node, querySelectorAll:()=>[]},
+    const context = {window:null,currentBookFilename:'fixture-book',currentIsRemote:false,failoverIsRemote:false, document:{getElementById:node, querySelectorAll:()=>[]},
         API:{get:async()=>[], post:async path=>path==='/api/suggest_voices'?result:{}},
         refreshVoiceMetadata:async()=>{}, getVoiceCandidateMarkup:()=>'', renderVoiceSuggestions:()=>{},
         voicesScopeIsNew:()=>true, keepCurrentVoicesIfAsked:async()=>true, console,

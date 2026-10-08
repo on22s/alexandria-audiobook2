@@ -11,6 +11,23 @@ LIMIT = 8388608
 
 
 class QueueRotationTests(unittest.TestCase):
+    def test_status_words_in_names_do_not_clear_start_but_terminal_fields_do(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ("LOCK_FAILED_retry", "PENDING_FAILED_retry", "KILLED_retry", "ordinary"):
+                with self.subTest(name=name):
+                    start = f"2026-10-01T00:00:00Z START    {name}"
+                    (root / "q.log").write_text(start + "\nstamp QUEUED   LOCK_FAILED_retry\n")
+                    result = self.run_shell(root, "get_logged_queue_job")
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual(name, result.stdout.strip())
+                    for status in ("OK", "FAILED", "REFUSED", "NO_VRAM", "NO_LLM", "KILLED",
+                                   "LOCK_FAILED", "PENDING_FAILED", "INTERRUPTED", "STOPPED"):
+                        (root / "q.log").write_text(start + f"\nstamp {status:<9} {name}\n")
+                        result = self.run_shell(root, "get_logged_queue_job")
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        self.assertEqual("", result.stdout)
+
     def run_shell(self, root, body, *args):
         return subprocess.run(["bash", "-c", 'source "$1"; QLOG="$2"; ' + body,
                                "fixture", str(HELPER), str(root / "q.log"), *args],

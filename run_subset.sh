@@ -6,12 +6,17 @@
 set -u
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+source "$SCRIPT_DIR/run_chains/lib/subset_outputs.sh" || exit 1
 AUDIO_DIR=${AUDIO_DIR:?Set AUDIO_DIR to the audiobook directory}
 SOURCE_DIR=${SOURCE_DIR:?Set SOURCE_DIR to the source-book directory}
 OUT_DIR="$SCRIPT_DIR/test_corpus_output"
 MODEL="Qwen2.5-14B-Instruct-Q6_K.gguf"
 FALLBACK="Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf"
 mkdir -p "$OUT_DIR"
+if ! rm -f -- "$OUT_DIR/DONE.flag" "$OUT_DIR/ABORTED.flag"; then
+    echo "Could not clear previous subset status; refusing to start." >&2
+    exit 1
+fi
 
 # audio | source pairs (separator is `|`)
 PAIRS=(
@@ -76,12 +81,16 @@ echo ""
 echo "All ${#PAIRS[@]} runs complete in ${hrs}h ${mins}m."
 
 # Sentinel + notification so the user knows it's done without polling tmux.
-{
+if ! {
     echo "Completed: $(date -Iseconds)"
     echo "Elapsed:   ${hrs}h ${mins}m"
     echo "Books:     ${#PAIRS[@]}"
     echo "Outputs:"
-    ls -lh "$OUT_DIR"/*.zip 2>/dev/null | awk '{print "  " $NF, "(" $5 ")"}'
-} > "$OUT_DIR/DONE.flag"
+    print_subset_outputs "$OUT_DIR"
+} > "$OUT_DIR/DONE.flag"; then
+    rm -f -- "$OUT_DIR/DONE.flag"
+    echo "Could not record subset outputs." >&2
+    exit 1
+fi
 
 notify "Alexandria subset complete" "${#PAIRS[@]} books done in ${hrs}h ${mins}m. See $OUT_DIR/"

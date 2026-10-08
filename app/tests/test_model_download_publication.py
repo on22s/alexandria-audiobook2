@@ -13,6 +13,31 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ModelDownloadPublicationTests(unittest.TestCase):
+    def test_post_publish_backup_cleanup_failure_warns_without_false_download_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'models/whisper-base'
+            target.mkdir(parents=True)
+            (target / 'old').write_bytes(b'prior bundle')
+            module = self.load(root)
+            original = module.shutil.rmtree
+            def remove(path, *args, **kwargs):
+                if str(path).endswith('.previous'):
+                    raise PermissionError('backup cleanup refused')
+                return original(path, *args, **kwargs)
+            output = io.StringIO()
+            with patch.object(module.shutil, 'rmtree', side_effect=remove), \
+                    contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(0, module.download_model())
+            self.assertEqual(b'fixture weights', (target / 'model.safetensors').read_bytes())
+            backups = list((root / 'models').glob('*.previous'))
+            self.assertEqual(1, len(backups))
+            self.assertEqual(b'prior bundle', (backups[0] / 'old').read_bytes())
+            self.assertIn('WARNING', output.getvalue())
+            self.assertIn(str(backups[0]), output.getvalue())
+            self.assertIn('SUCCESS', output.getvalue())
+            self.assertNotIn('✗ ERROR', output.getvalue())
+
     def load(self, root, failure=None, source=None):
         target = root / 'models/whisper-base'
         published_before = {p.name:p.read_bytes() for p in target.glob('*') if p.is_file()}

@@ -258,7 +258,7 @@ _DIACRITIC_REJOIN = re.compile(r'([A-Za-z])\s+([À-ɏ])(?=\W|$)')
 # nested clause) stay split. Followed by a word boundary so we never join
 # into the start of a real word ('fiancé event' → 'fiancée vent' would
 # obviously be wrong).
-_DIACRITIC_REJOIN_TAIL = re.compile(r'([À-ɏ])\s+([a-z])(?=\W|$)')
+_DIACRITIC_REJOIN_TAIL = re.compile(r'([À-ɏ])\s+([a-z])(?=\W|$)(?!\.[A-Za-z])')
 
 
 def clean_source_text(text: str) -> str:
@@ -386,13 +386,23 @@ def _parse_number(words: list):
 
     Handles: digit strings ("2008"), single words ("two"), and spelled
     sequences ("forty seven", "two thousand eight", "sixteen hundred eleven",
-    "two thousand and eight"). Hyphenated forms ("forty-seven") split first.
+    "two thousand and eight"), and paired year forms ("nineteen ninety",
+    "twenty twenty-four"). Hyphenated forms ("forty-seven") split first.
     """
     if not words:
         return None
     # Pure digit token (single word)
     if len(words) == 1 and re.fullmatch(r'\d{1,4}', words[0]):
         return int(words[0])
+    # Year readings pair a century (ten through twenty) with a two-digit
+    # cardinal. A one-digit suffix stays cardinal: "twenty five" is 25.
+    tokens = [part for word in words for part in word.lower().split('-')]
+    century = _NUM_TEENS.get(tokens[0], 20 if tokens[0] == 'twenty' else None)
+    if century is not None and len(tokens) in (2, 3):
+        if len(tokens) == 2 or (tokens[1] in _NUM_TENS and tokens[2] in _NUM_ONES):
+            suffix = _parse_number(tokens[1:])
+            if suffix is not None and 10 <= suffix <= 99:
+                return century * 100 + suffix
     # Spelled out — must contain at least one number word, no foreign words
     total, current = 0, 0
     saw_num = False

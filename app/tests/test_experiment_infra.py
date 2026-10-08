@@ -228,6 +228,29 @@ def run_index_script(command, **kwargs):
 
 
 class CollectResultsRobustnessTest(unittest.TestCase):
+    def test_actual_csv_preserves_seed_zero_and_distinguishes_missing_seed(self):
+        import csv
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_index_scripts(tmp)
+            root = Path(tmp)
+            experiments = root / "ab_test_runtime/experiments"
+            audit = root / "ab_test_runtime/audit"
+            experiments.mkdir(parents=True)
+            audit.mkdir(parents=True)
+            rows = []
+            for name, seed in (("zero.json", 0), ("positive.json", 7), ("missing.json", None)):
+                (experiments / name).write_text(json.dumps({"rows": [{"arm": "base", "correct": True}]}))
+                rows.append({"artifact": name, "classification": "complete", "seed": seed})
+            (audit / "artifact_structural_audit.json").write_text(json.dumps({"artifacts": rows}))
+            (audit / "legacy_attribution_audit.json").write_text('{"artifacts": []}')
+            result = run_index_script([sys.executable, "tools/audit/collect_results.py"],
+                                      cwd=root, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            with (root / "results_index.csv").open(encoding="utf-8") as handle:
+                actual = {row["artifact"]: row["seed"] for row in csv.DictReader(handle)}
+            self.assertEqual({"zero.json": "0", "positive.json": "7", "missing.json": ""}, actual)
+
     """The index generator must survive an artifact it does not understand."""
 
     def test_rows_as_a_count_does_not_crash_the_index(self):

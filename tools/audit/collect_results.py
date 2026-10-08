@@ -34,7 +34,7 @@ def get_audit_maps(document):
     statuses, seeds = {}, {}
     for row in document.get("artifacts", []):
         statuses[row["artifact"]] = row["classification"]
-        if row.get("seed"):
+        if row.get("seed") not in (None, ""):
             seeds[row["artifact"]] = row["seed"]
     return statuses, seeds
 
@@ -377,7 +377,7 @@ def main(argv=None):
                 r.setdefault(key, value)
             seed = r.get("seed")
             if seed in (None, ""):
-                r["seed"] = (structural_seed.get(name) or "")
+                r["seed"] = structural_seed.get(name, "")
         w = csv.DictWriter(fh, fieldnames=cols, extrasaction="ignore",
                            lineterminator="\n")
         w.writeheader()

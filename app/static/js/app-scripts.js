@@ -86,24 +86,42 @@
 
         async function loadScript(name) {
             if (!await showConfirm(`Load "${name}"? This will replace your current script and chunks.`, {title: 'Replace active book?', actionLabel: 'Load book', danger: true})) { return; }
+            let request;
+            let loading;
+            const isCurrent = () => !request || loadScript.request === request;
             try {
                 await flushVoiceSaves();
                 if (!await ensureCastListEditsDiscardable()) { return; }
-                const loaded = await API.post('/api/scripts/load', { name });
-                applyCurrentBookFilename(`${loaded.name}.json`);
-                document.getElementById('cast-list-panel').style.display = 'none';
-                clearCastListEditor();
-                clearCharacterAliases();
-                resetDesignerForm();
-                showToast(`Script "${name}" loaded.`, 'success');
-                clearVoiceSuggestions();
-                await Promise.all([loadCharacterAliases(false), loadCastList(false), loadChunks(true)]);
-                await loadVoices();
-                loadSavedScripts();
-                loadDesignedVoices();
+                request = {};
+                loadScript.request = request;
+                const previous = loadScript.pending || Promise.resolve();
+                loading = (async () => {
+                    await previous.catch(() => {});
+                    if (!isCurrent()) { return; }
+                    const loaded = await API.post('/api/scripts/load', { name });
+                    if (!isCurrent()) { return; }
+                    applyCurrentBookFilename(`${loaded.name}.json`);
+                    document.getElementById('cast-list-panel').style.display = 'none';
+                    clearCastListEditor();
+                    clearCharacterAliases();
+                    resetDesignerForm();
+                    showToast(`Script "${name}" loaded.`, 'success');
+                    clearVoiceSuggestions();
+                    await Promise.all([loadCharacterAliases(false), loadCastList(false), loadChunks(true)]);
+                    if (!isCurrent()) { return; }
+                    await loadVoices();
+                    if (!isCurrent()) { return; }
+                    loadSavedScripts();
+                    loadDesignedVoices();
+                })();
+                loadScript.pending = loading;
+                await loading;
             } catch (e) {
+                if (!isCurrent()) { return; }
                 console.error('Error loading script:', e);
                 showActionError("Error loading script", e, "Check the currently loaded book before trying Load again; the load may have completed before its reply was lost.");
+            } finally {
+                if (loading && loadScript.pending === loading) { loadScript.pending = null; }
             }
         }
 
@@ -122,6 +140,7 @@
         window._designedVoicesCache = [];
         window._cloneVoicesCache = [];
         window._currentPreviewFile = null;
+        window._designerPreviewInputs = null;
 
         async function loadDesignedVoices() {
             const request = (window._designedVoicesLoadRequest || 0) + 1;
@@ -213,6 +232,7 @@
             audio?.load?.();
             document.getElementById('design-preview-container').style.display = 'none';
             window._currentPreviewFile = null;
+            window._designerPreviewInputs = null;
             window._editingDesignedVoiceId = null;
             window._designerGeneration = (window._designerGeneration || 0) + 1;
             window._designPreviewRequest = null;
@@ -238,6 +258,7 @@
             document.getElementById('design-status').innerHTML = '';
             window._editingDesignedVoiceId = null;
             window._currentPreviewFile = null;
+            window._designerPreviewInputs = null;
             const previewButton = document.getElementById('btn-design-preview');
             if (previewButton) {
                 previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>Generate Preview';
@@ -245,9 +266,17 @@
             markDesignerFormClean();
         }
 
+        function getDesignerSynthesisInputs() {
+            return {
+                description: document.getElementById('design-description').value.trim(),
+                sample_text: document.getElementById('design-sample-text').value.trim()
+            };
+        }
+
         window.generateDesignPreview = async () => {
-            const description = document.getElementById('design-description').value.trim();
-            const sampleText = document.getElementById('design-sample-text').value.trim();
+            const inputs = getDesignerSynthesisInputs();
+            const description = inputs.description;
+            const sampleText = inputs.sample_text;
             const statusEl = document.getElementById('design-status');
             const previewContainer = document.getElementById('design-preview-container');
 
@@ -283,6 +312,7 @@
 
                 // Extract filename from URL for save
                 window._currentPreviewFile = result.audio_url.split('/').pop().split('?')[0];
+                window._designerPreviewInputs = {file: window._currentPreviewFile, ...inputs};
             } catch (e) {
                 if (!isCurrent()) { return; }
                 statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Voice preview failed', e, 'Your description and sample text are retained. Check that the TTS service and selected model are available, then generate the preview again.'))}</span>`;
@@ -304,6 +334,14 @@
             const name = document.getElementById('design-voice-name').value.trim();
             if (!name) { showToast('Please enter a name for the voice.', 'warning'); return; }
             if (!window._currentPreviewFile) { showToast('Generate a preview first.', 'warning'); return; }
+
+            const inputs = getDesignerSynthesisInputs();
+            const previewInputs = window._designerPreviewInputs;
+            if (!previewInputs || previewInputs.file !== window._currentPreviewFile
+                || previewInputs.description !== inputs.description || previewInputs.sample_text !== inputs.sample_text) {
+                showToast('The description or sample text changed. Generate a matching preview before saving.', 'warning');
+                return;
+            }
 
             const generation = window._designerGeneration || 0;
             const submitted = getDesignerSaveSnapshot();
@@ -348,6 +386,7 @@
                     } else {
                         if (window._currentPreviewFile === previewFile) {
                             window._currentPreviewFile = null;
+                            window._designerPreviewInputs = null;
                             window._editingDesignedVoiceId = result.voice_id || editingId;
                         }
                         if (status) { status.textContent = `Saved "${name}". Later form edits were kept.${window._currentPreviewFile ? '' : ' Generate a preview before saving them.'}`; }
@@ -493,6 +532,8 @@
                 const audio = document.getElementById('design-preview-audio');
                 audio.src = getLocalAudioUrl(`designed_voices/${voice.filename}`, Date.now());
                 window._currentPreviewFile = voice.filename;
+                window._designerPreviewInputs = {file: voice.filename,
+                    description: (voice.description || '').trim(), sample_text: (voice.sample_text || '').trim()};
                 window._editingDesignedVoiceId = voice.id;
                 document.getElementById('design-preview-container').style.display = 'block';
 
@@ -532,6 +573,7 @@
             aliasSelect.dataset.aliasLookupFailed = 'false';
             window._editingDesignedVoiceId = null;
             window._currentPreviewFile = null;
+            window._designerPreviewInputs = null;
             document.getElementById('design-preview-container').style.display = 'none';
 
             const previewButton = document.getElementById('btn-design-preview');
@@ -716,12 +758,16 @@
             }
         }
 
-        window.playCloneVoice = (btn) => {
+        window.playCloneVoice = async (btn) => {
             const card = btn.closest('.card-body');
             const refAudio = card.querySelector('.ref-audio').value;
             if (refAudio) {
-                const audio = new Audio(getLocalAudioUrl(refAudio, Date.now()));
-                audio.play();
+                try {
+                    const audio = new Audio(getLocalAudioUrl(refAudio, Date.now()));
+                    await audio.play();
+                } catch (error) {
+                    showToast('Could not play the clone reference. Check that Alexandria is running, then try Play again.', 'warning');
+                }
             }
         };
 

@@ -107,3 +107,21 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'all refresh asse
 })().catch(e=>{console.error(e);process.exitCode=1;});'''
         result=subprocess.run(['node','-e',script,str(SOURCE)],capture_output=True,text=True,timeout=15)
         self.assertEqual(result.returncode,0,result.stderr)
+
+    def test_failed_fetch_is_unknown_and_keeps_existing_editor_instead_of_claiming_absence(self):
+        script = r"""
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
+let html='',reply={cast:[{name:'Alice'}],count:1},failure=null;const status={};Object.defineProperty(status,'innerHTML',{get:()=>html,set:value=>html=value});Object.defineProperty(status,'textContent',{get:()=>html.replace(/<[^>]*>/g,''),set:value=>html=value});
+const panel={innerHTML:'Existing cast editor rows',style:{display:'block'}},toasts=[];
+const c={currentBookFilename:'loaded-book.txt',castListRequest:0,castListLoaded:true,castListMutationPending:false,castListEditorSnapshot:null,getCastListEditorSnapshot:()=> 'unchanged',escapeHtml:String,
+ document:{getElementById:id=>id==='cast-list-panel'?panel:status},API:{get:async()=>{if(failure){throw failure;}return reply;}},showToast:(...args)=>toasts.push(args)};
+c.window=c;vm.createContext(c);let a=source.indexOf('function showActionError(');vm.runInContext(source.slice(a,source.indexOf('function showConfirm(',a)),c);
+a=source.indexOf('function renderCastListStatus(');vm.runInContext(source.slice(a,source.indexOf('async function saveCastList(',a)),c);
+(async()=>{
+await c.loadCastList(false);assert(status.textContent.includes('1 people'));
+failure=Error('fixture unavailable');await c.loadCastList(true);assert(!status.textContent.includes('No cast list'));assert(!toasts.some(row=>row[0].includes('Select a book first')));assert(status.textContent.includes('not confirmed'));assert.strictEqual(panel.innerHTML,'Existing cast editor rows');assert.strictEqual(c.castListLoaded,false);
+failure=null;reply={cast:null,count:0};await c.loadCastList(false);assert(status.textContent.includes('No cast list'));assert.strictEqual(c.castListLoaded,true);
+})().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+        result = subprocess.run(['node', '-e', script, str(SOURCE)], capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)

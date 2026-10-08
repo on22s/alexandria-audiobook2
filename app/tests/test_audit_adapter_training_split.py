@@ -47,6 +47,33 @@ class SplitAuditTests(unittest.TestCase):
     def klass(self, result, name):
         return next(r["klass"] for r in result["adapters"] if r["id"] == name)
 
+    def test_actual_verify_hash_cli_refuses_unverifiable_weights(self):
+        import subprocess
+        for mode in ('missing_digest', 'missing_weights', 'match', 'mismatch'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                folder = root / 'adapter'
+                folder.mkdir()
+                weights = b'synthetic artifact bytes'
+                meta = {'num_samples': 180}
+                if mode != 'missing_digest':
+                    meta['checkpoint_sha256'] = hashlib.sha256(weights).hexdigest() if mode != 'mismatch' else '0'*64
+                if mode != 'missing_weights':
+                    (folder / aud.WEIGHTS).write_bytes(weights)
+                (folder / 'training_meta.json').write_text(json.dumps(meta))
+                (root / 'manifest.json').write_text(json.dumps([{'id': 'adapter', 'sample_count': 180}]))
+                result = subprocess.run([sys.executable, aud.__file__, '--models-dir', tmp, '--verify-hash'],
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(0 if mode == 'match' else 2, result.returncode, result.stderr)
+                summary = json.loads(result.stdout)
+                if mode.startswith('missing'):
+                    self.assertEqual(['adapter'], summary['weights_unverifiable'])
+                elif mode == 'mismatch':
+                    self.assertEqual(['adapter'], summary['weights_do_not_match_meta'])
+                else:
+                    self.assertEqual([], summary['weights_do_not_match_meta'])
+                    self.assertEqual([], summary['weights_unverifiable'])
+
     def test_the_two_sample_counts_are_told_apart(self):
         self.adapter("clean", 180)
         self.adapter("leaky", 200)

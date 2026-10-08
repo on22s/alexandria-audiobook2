@@ -4,6 +4,12 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
+from subprocess_ownership import run_owned_capture
+
+GIT_PROBE_TIMEOUT_SECONDS = 20
 
 
 def ensure_comparison_model_snapshot(repo_id, revision=None, allow_patterns=None):
@@ -34,10 +40,16 @@ def get_comparison_package_versions(names, expected=None):
 
 
 def get_comparison_source_commit(source):
-    commit = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    result = run_owned_capture(["git", "-C", str(source), "rev-parse", "HEAD"],
+                               text=True, timeout=GIT_PROBE_TIMEOUT_SECONDS)
+    result.check_returncode()
+    commit = result.stdout.strip()
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("comparison source requires a committed revision")
-    dirty = subprocess.check_output(["git", "-C", str(source), "status", "--porcelain", "--untracked-files=all"], text=True)
+    result = run_owned_capture(["git", "-C", str(source), "status", "--porcelain", "--untracked-files=all"],
+                               text=True, timeout=GIT_PROBE_TIMEOUT_SECONDS)
+    result.check_returncode()
+    dirty = result.stdout
     if dirty:
         raise ValueError("comparison source has changes not represented by its commit")
     return commit

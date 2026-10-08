@@ -6,6 +6,17 @@ from tests import test_training_ui_contract as ui
 class TrainingLogRenderTests(unittest.TestCase):
     run_js = ui.TrainingUiContractTests.run_js
 
+    def test_progress_styles_reset_after_failure_and_success_for_every_run(self):
+        self.run_js(r'''
+const classes=new Set(['bg-danger']);const bar=element('lora-progress-bar');bar.classList={add:(...names)=>names.forEach(n=>classes.add(n)),remove:(...names)=>names.forEach(n=>classes.delete(n)),replace:(a,b)=>{if(classes.delete(a)){classes.add(b);}}};
+ctx._startPolling=(key,fetch,options)=>ctx.poll={options};ctx.notifyJobDone=()=>{};ctx.loadLoraModels=()=>{};
+for(const [status,color] of [['failed','bg-danger'],['done','bg-success'],['cancelled','bg-warning'],['done','bg-success']]){
+ element('lora-epoch-display').innerText='old';element('lora-loss-display').innerText='old';ctx.pollLoraTraining(8);
+ assert(classes.has('bg-info'));assert(classes.has('progress-bar-animated'));assert(!classes.has('bg-danger'));assert(!classes.has('bg-success'));assert(!classes.has('bg-warning'));assert.strictEqual(bar.style.width,'0%');assert.strictEqual(element('lora-epoch-display').innerText,'');assert.strictEqual(element('lora-loss-display').innerText,'');
+ ctx.poll.options.onDone({status,running:false,logs:[status==='done'?'[DONE]':status==='failed'?'[ERROR]':'cancelled']});assert(classes.has(color));assert(!classes.has('bg-info'));assert(!classes.has('progress-bar-animated'));assert.strictEqual([...classes].filter(n=>n.startsWith('bg-')).length,1);if(status==='done'){assert.strictEqual(bar.style.width,'100%');}
+}
+''')
+
     def test_unchanged_and_appended_logs_avoid_full_dom_and_metric_work(self):
         self.run_js(r"""
 let text='',replacements=0,appends=0,scrolls=0;
@@ -54,7 +65,7 @@ assert(ctx.poll.options.doneCheck({running:false}));assert(!ctx.poll.options.don
 
     def test_accessible_progress_tracks_epoch_resets_and_completion(self):
         self.run_js(r"""
-ctx._startPolling=(key,fetch,options)=>ctx.poll={key,fetch,options};ctx.document.createTextNode=text=>({text});element('lora-train-logs').appendChild=node=>{element('lora-train-logs').innerText+=node.text;};let stopped=0;const bar=element('lora-progress-bar');bar.classList={remove:()=>stopped++,replace(){}};ctx.notifyJobDone=()=>{};ctx.loadLoraModels=()=>{};
+ctx._startPolling=(key,fetch,options)=>ctx.poll={key,fetch,options};ctx.document.createTextNode=text=>({text});element('lora-train-logs').appendChild=node=>{element('lora-train-logs').innerText+=node.text;};let stopped=0;const bar=element('lora-progress-bar');bar.classList={add(){},remove:()=>stopped++,replace(){}};ctx.notifyJobDone=()=>{};ctx.loadLoraModels=()=>{};
 ctx.pollLoraTraining(8);assert.strictEqual(bar.ariaValueNow,'0');assert.strictEqual(bar.ariaValueText,'Epoch 0 of 8');assert.strictEqual(bar.ariaValueMin,'0');assert.strictEqual(bar.ariaValueMax,'100');
 ctx.poll.options.onTick({run_id:'one',logs:['[TRAIN] epoch=3/8 step=1/5 loss=0.5']});assert.strictEqual(bar.ariaValueNow,'25');assert.strictEqual(bar.ariaValueText,'Epoch 3 of 8');
 ctx.poll.options.onTick({run_id:'two',logs:[]});assert.strictEqual(bar.ariaValueNow,'0');assert.strictEqual(bar.ariaValueText,'Epoch 0 of 8');
@@ -67,7 +78,7 @@ assert.strictEqual(bar.ariaValueNow,'100');assert.strictEqual(bar.ariaValueText,
         self.run_js(r"""
 ctx._startPolling=(key,fetch,options)=>ctx.poll={key,fetch,options};let notifications=0,loads=0;
 ctx.notifyJobDone=(key,detail,outcome,status)=>{assert.strictEqual(key,'lora_training');assert.strictEqual(status.running,false);assert(status.logs.length);notifications++;};ctx.loadLoraModels=()=>loads++;
-element('lora-progress-bar').classList={remove:()=>{},replace:()=>{}};
+element('lora-progress-bar').classList={add(){},remove:()=>{},replace:()=>{}};
 for(const [line,label] of [['[DONE]','Training complete'],['[ERROR]','Training failed'],['[ERROR]\n[DONE]','Training failed'],['cancelled','Training stopped']]){
  ctx.pollLoraTraining(8);element('btn-lora-train').disabled=true;element('btn-lora-cancel').disabled=true;
  ctx.poll.options.onTick({running:false,logs:[line]});ctx.poll.options.onDone({running:false,logs:[line]});

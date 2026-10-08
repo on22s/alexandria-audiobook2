@@ -11,6 +11,42 @@ from project import ProjectManager
 
 
 class EditorPollDeltaTests(unittest.TestCase):
+    def test_invalid_persisted_ids_are_consistently_refused_without_losing_progress_or_audio(self):
+        import wave
+        invalid = [None, True, '0', -1, 'missing', 'duplicate']
+        for value in invalid:
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); pm = ProjectManager(tmp)
+                audio = root / 'voice.wav'
+                with wave.open(str(audio), 'wb') as handle:
+                    handle.setnchannels(1); handle.setsampwidth(2); handle.setframerate(24000)
+                    handle.writeframes(b'\x01\x00' * 240)
+                audio_bytes = audio.read_bytes()
+                row = {'id': value, 'uid': 'saved-row', 'speaker': 'NARRATOR',
+                       'text': 'Synthetic saved sentence.', 'status': 'done', 'audio_path': audio.name}
+                if value == 'missing':
+                    row.pop('id')
+                if value == 'duplicate':
+                    row['id'] = 0
+                rows = [row, dict(row, uid='other-row')] if value == 'duplicate' else [row]
+                raw = json.dumps(rows).encode(); (root / 'chunks.json').write_bytes(raw)
+                app = FastAPI(); app.include_router(editor.router)
+                with patch.object(editor, 'project_manager', pm), \
+                        patch.object(editor, 'SCRIPT_PATH', str(root / 'annotated_script.json')), \
+                        TestClient(app, raise_server_exceptions=False) as client:
+                    responses = [client.get('/api/chunks'), client.get('/api/chunks/status')]
+                    self.assertEqual([409, 409], [response.status_code for response in responses])
+                    self.assertTrue(all('chunk' in response.json()['detail'].lower() for response in responses))
+                    self.assertEqual(raw, (root / 'chunks.json').read_bytes())
+                    self.assertEqual(audio_bytes, audio.read_bytes())
+                    self.assertEqual([], list(root.glob('chunks.json.corrupt*')))
+                    fixed = dict(row, id=0)
+                    (root / 'chunks.json').write_text(json.dumps([fixed]))
+                    self.assertEqual(200, client.get('/api/chunks').status_code)
+                    snapshot = client.get('/api/chunks/status')
+                    self.assertEqual(200, snapshot.status_code)
+                    self.assertEqual([fixed], snapshot.json()['chunks'])
+
     def test_unchanged_poll_and_one_changed_row_do_not_transfer_book_text(self):
         with tempfile.TemporaryDirectory() as root:
             pm = ProjectManager(root)

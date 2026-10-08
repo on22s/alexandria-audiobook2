@@ -31,6 +31,14 @@ const flush=async()=>{for(let i=0;i<8;i++){await Promise.resolve();}};
 
 
 class PreparerControlsJsTests(unittest.TestCase):
+    def test_running_batch_owns_picker_and_queue_until_completion(self):
+        self.run_scenario(SETUP + r'''
+elements['prep-batch-mode'].checked=true;context.onPrepBatchFilesChange();const original=run('prepBatchQueue[0].audio');context._pollPreparerLogs('batch_preparer');assert.strictEqual(elements['prep-batch-files'].disabled,true);
+elements['prep-batch-files'].files=[new File(['new bytes'],'next.wav')];context.onPrepBatchFilesChange();assert.strictEqual(run('prepBatchQueue[0].audio'),original);assert(toasts.at(-1)[0].includes('finish'));
+polls.at(-1).options.onTick({running:true,logs:[],tasks:[{filename:'batch.wav',status:'done'}]});assert(elements['prep-batch-status-0'].innerHTML.includes('done'));assert.strictEqual(run('prepBatchQueue[0].audio.name'),'batch.wav');
+polls.at(-1).options.onDone({running:false,status:'done',logs:['[DONE]']});assert.strictEqual(elements['prep-batch-files'].disabled,false);elements['prep-batch-files'].files=[new File(['new bytes'],'next.wav')];context.onPrepBatchFilesChange();assert.strictEqual(run('prepBatchQueue[0].audio.name'),'next.wav');
+''')
+
     def test_cpu_fallback_choice_reaches_actual_preparer_request(self):
         self.run_scenario(SETUP + r"""
 for (const allowed of [false,true]) {

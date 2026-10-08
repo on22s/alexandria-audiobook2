@@ -49,7 +49,7 @@ def markers_cleared():
     with open(os.path.join(REPO, "run_chains/lib/gpu_queue_log.sh"), encoding="utf-8") as fh:
         for line in fh:
             if '{line=""}' in line and "/" in line:
-                body = line[line.index("/") + 1:line.rindex("/")]
+                body = line[line.index("/") + 1:line.rindex("/")].removeprefix("^(").removesuffix(")$")
                 return {p.strip() for p in body.split("|") if p.strip()}
     raise AssertionError("no terminal-marker pattern found in shared queue status reader")
 
