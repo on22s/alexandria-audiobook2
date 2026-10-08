@@ -632,6 +632,18 @@
             "additionalProperties": true,
             "title": "Chunk",
             "type": "object"
+          },
+          "undo_token": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undo Token"
           }
         },
         "required": [
@@ -8786,6 +8798,18 @@
     "/api/upload": {
       "post": {
         "operationId": "upload_file_api_upload_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "select_active",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Select Active",
+              "type": "boolean"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "multipart/form-data": {

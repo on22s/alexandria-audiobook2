@@ -92,7 +92,9 @@ class GpuClaimRouteTests(unittest.TestCase):
         with patch.object(core, "process_state", state), \
              patch.object(core, "llm_is_on_this_gpu", return_value=True), \
              patch.object(editor, "process_state", state), \
-             patch.object(editor, "project_manager", project):
+             patch.object(editor, "project_manager", project), \
+             patch.object(editor, "apply_chunk_restore", side_effect=lambda request: project.restore_chunk(request.at_index, request.chunk)):
+
             operations = [lambda: editor.update_chunk(0, editor.ChunkUpdate(text="new")),
                           lambda: editor.insert_chunk(0),
                           lambda: editor.restore_chunk(editor.ChunkRestoreRequest(chunk={}, at_index=0)),

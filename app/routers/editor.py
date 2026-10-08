@@ -3,6 +3,7 @@ from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
 from book_state_transaction import ensure_book_state
 import asyncio
+import copy
 import logging
 import json
 import os
@@ -131,20 +132,62 @@ def _ensure_chunk_status_snapshot(revision):
     root = os.path.dirname(SCRIPT_PATH)
     with ensure_book_state(root):
         chunks = _ensure_editor_chunks()
-        try:
-            with open(os.path.join(root, 'state.json'), encoding='utf-8') as stream:
-                state = json.load(stream)
-        except FileNotFoundError:
-            state = {}
-        if not isinstance(state, dict):
-            raise ValueError('Invalid book identity for editor polling')
-        identity = [os.path.abspath(root), state.get('active_book_id'), state.get('book_generation')]
+        identity = get_editor_book_identity(root)
         return _editor_poll_snapshots.ensure_snapshot(chunks, identity, revision)
+
+
+def get_editor_book_identity(root):
+    """Caller holds the book transaction lock across reading and using identity."""
+    try:
+        with open(os.path.join(root, 'state.json'), encoding='utf-8') as stream:
+            state = json.load(stream)
+    except FileNotFoundError:
+        state = {}
+    if not isinstance(state, dict):
+        raise ValueError('Invalid book identity for editor')
+    return [os.path.abspath(root), state.get('active_book_id'), state.get('book_generation')]
+
+
+_deleted_chunk_receipts = {}
+
+
+def apply_chunk_deletion(index):
+    root = os.path.dirname(SCRIPT_PATH)
+    with ensure_book_state(root):
+        result = project_manager.delete_chunk(index)
+        if result is None:
+            return None
+        deleted, chunks = result
+        now = time.monotonic()
+        for token, receipt in list(_deleted_chunk_receipts.items()):
+            if now - receipt['created'] > 60:
+                del _deleted_chunk_receipts[token]
+        while len(_deleted_chunk_receipts) >= 128:
+            del _deleted_chunk_receipts[next(iter(_deleted_chunk_receipts))]
+        token = uuid.uuid4().hex
+        _deleted_chunk_receipts[token] = {'created': now, 'book': get_editor_book_identity(root),
+            'chunk': copy.deepcopy(deleted), 'index': index}
+        return deleted, chunks, token
+
+
+def apply_chunk_restore(request):
+    root = os.path.dirname(SCRIPT_PATH)
+    with ensure_book_state(root):
+        receipt = _deleted_chunk_receipts.get(request.undo_token)
+        if (receipt is None or time.monotonic() - receipt['created'] > 60
+                or receipt['book'] != get_editor_book_identity(root)
+                or request.chunk != receipt['chunk'] or request.at_index != receipt['index']):
+            raise HTTPException(status_code=409, detail='Undo expired or belongs to another book or deletion; refresh the Editor')
+        chunks = project_manager.restore_chunk(receipt['index'], copy.deepcopy(receipt['chunk']))
+        if chunks is not None:
+            del _deleted_chunk_receipts[request.undo_token]
+        return chunks
 
 
 class ChunkRestoreRequest(BaseModel):
     chunk: dict
     at_index: int
+    undo_token: Optional[str] = Field(default=None, max_length=64)
 
 def _apply_chunk_edit(operation, *args):
     """Keep the conflict check and chunk mutation atomic with task claims."""
@@ -155,7 +198,7 @@ def _apply_chunk_edit(operation, *args):
 @router.post("/api/chunks/restore")
 async def restore_chunk(request: ChunkRestoreRequest):
     """Re-insert a previously deleted chunk at a specific index."""
-    chunks = await asyncio.to_thread(_apply_chunk_edit, project_manager.restore_chunk, request.at_index, request.chunk)
+    chunks = await asyncio.to_thread(_apply_chunk_edit, apply_chunk_restore, request)
     if chunks is None:
         raise HTTPException(status_code=400, detail="Failed to restore chunk")
     return {"status": "ok", "total": len(chunks)}
@@ -228,11 +271,11 @@ async def insert_chunk(index: int):
 @router.delete("/api/chunks/{index}")
 async def delete_chunk(index: int):
     """Delete a chunk at the given index."""
-    result = await asyncio.to_thread(_apply_chunk_edit, project_manager.delete_chunk, index)
+    result = await asyncio.to_thread(_apply_chunk_edit, apply_chunk_deletion, index)
     if result is None:
         raise HTTPException(status_code=400, detail="Cannot delete chunk (invalid index or last remaining chunk)")
-    deleted, chunks = result
-    return {"status": "ok", "deleted": deleted, "total": len(chunks)}
+    deleted, chunks, token = result
+    return {"status": "ok", "deleted": deleted, "undo_token": token, "total": len(chunks)}
 
 @router.post("/api/chunks/{index}/generate")
 async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks):

@@ -719,6 +719,10 @@ class ProjectManager:
         with self._chunks_lock, file_lock(self.chunks_path):
             chunks = self._read_chunks()
 
+            chunk_data = copy.deepcopy(chunk_data)
+            uid = chunk_data.get("uid")
+            if uid and any(chunk.get("uid") == uid for chunk in chunks):
+                return None
             at_index = max(0, min(at_index, len(chunks)))
             if isinstance(chunk_data, dict):
                 chunk_data.setdefault("uid", _new_chunk_uid())

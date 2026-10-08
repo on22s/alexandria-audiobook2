@@ -2591,6 +2591,11 @@
     "tests.test_editor_report_cover_boundary.EditorReportCoverBoundaryTests.test_listing_and_download_share_realpath_boundary",
     "tests.test_editor_report_cover_boundary.EditorReportCoverBoundaryTests.test_portable_invalid_names_are_not_listed_or_downloaded"
   ],
+  "test_editor_review_regressions": [
+    "tests.test_editor_review_regressions.ConfigDefaultsRace.test_actual_configuration_loader_preserves_edits_during_both_fetches",
+    "tests.test_editor_review_regressions.EditorReviewRegressions.test_batch_staging_and_failed_preflight_do_not_select_an_active_book",
+    "tests.test_editor_review_regressions.EditorReviewRegressions.test_delete_receipt_binds_book_and_is_consumed_once"
+  ],
   "test_editor_safety_js": [
     "tests.test_editor_safety_js.EditorSafetyJsTests.test_async_script_confirmations_refuse_changed_targets",
     "tests.test_editor_safety_js.EditorSafetyJsTests.test_batch_mode_refuses_single_book_start_over",

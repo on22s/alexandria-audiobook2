@@ -630,7 +630,7 @@ context.Date = {now:() => 1};
 context.setTimeout = () => 1;
 context.clearTimeout = () => {};
 context.loadChunks = async () => {};
-context.fetch = async url => ({json:async () => ({deleted:{speaker:url,text:url}})});
+context.fetch = async url => ({json:async () => ({deleted:{speaker:url,text:url},undo_token:"receipt"+url})});
 context.API._handleError = async () => {};
 context.bootstrap = {Toast:class {
     constructor() {}
@@ -651,7 +651,7 @@ await context.deleteChunk(2);
 await context.undoDeleteChunk(toastNodes[0].id);
 assert.strictEqual(posts.length, 0, 'old toast must not restore another deletion');
 await context.undoDeleteChunk(toastNodes[1].id);
-assert.deepStrictEqual(plain(posts), [{url:'/api/chunks/restore',data:{chunk:{speaker:'/api/chunks/2',text:'/api/chunks/2'},at_index:2}}]);
+assert.deepStrictEqual(plain(posts), [{url:'/api/chunks/restore',data:{chunk:{speaker:'/api/chunks/2',text:'/api/chunks/2'},at_index:2,undo_token:'receipt/api/chunks/2'}}]);
 await context.deleteChunk(3);
 let release;
 context.API.post = (url,data) => {
@@ -660,6 +660,9 @@ context.API.post = (url,data) => {
 };
 const restoring = context.undoDeleteChunk(toastNodes[2].id);
 await Promise.resolve();
+const countBeforeDoubleClick = posts.length;
+await context.undoDeleteChunk(toastNodes[2].id);
+assert.strictEqual(posts.length, countBeforeDoubleClick, 'pending undo is claimed once');
 await context.deleteChunk(4);
 release();
 await restoring;

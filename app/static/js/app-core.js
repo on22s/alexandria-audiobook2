@@ -792,10 +792,10 @@
                 await API._handleError(res);
                 return res.json();
             },
-            upload: async (file) => {
+            upload: async (file, {selectActive = true} = {}) => {
                 const formData = new FormData();
                 formData.append('file', file);
-                const res = await fetch('/api/upload', {
+                const res = await fetch(`/api/upload?select_active=${selectActive}`, {
                     method: 'POST',
                     body: formData
                 });
@@ -1845,6 +1845,9 @@
                 renderPassPromptPresets('pass3', config.prompts?.pass3_prompt_presets || [],
                     config.prompts?.pass3_preset || 'default');
 
+                // Apply saved generation values before yielding to the defaults request.
+                if (config.generation) { applyGenerationSettings(config.generation); }
+
                 // If review/persona/pass prompts are still empty, fetch defaults.
                 if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
                     || !document.getElementById('persona-system-prompt').value || !document.getElementById('persona-user-prompt').value
@@ -1852,8 +1855,7 @@
                     await loadMissingPromptDefaults();
                 }
 
-                // Load generation settings
-                if (config.generation) { applyGenerationSettings(config.generation); }
+                if (!isCurrent()) { return; }
 
                 applyCurrentBookFilename(config.current_file);
                 // Show previously loaded file
@@ -2871,7 +2873,7 @@
                             first_person_narrator: firstPersonNarrator,
                         };
                     }
-                    const res = await API.upload(item.file);
+                    const res = await API.upload(item.file, {selectActive: false});
                     // Use stored_filename if provided (handles epub→txt), otherwise fall back
                     return {
                         filename: res.stored_filename || res.filename,
@@ -6628,7 +6630,7 @@
 
                 // Store for undo
                 const toastId = 'toast-undo-' + Date.now() + '-' + (++_undoToastSequence);
-                _lastDeleted = { chunk: data.deleted, at_index: id, toastId };
+                _lastDeleted = { chunk: data.deleted, at_index: id, undo_token: data.undo_token, toastId };
                 clearTimeout(_undoTimer);
 
                 // Show toast with undo action
@@ -6671,10 +6673,13 @@
             }
 
             const deleted = _lastDeleted;
+            _lastDeleted = null;
+            clearTimeout(_undoTimer);
             try {
                 await API.post('/api/chunks/restore', {
                     chunk: deleted.chunk,
-                    at_index: deleted.at_index
+                    at_index: deleted.at_index,
+                    undo_token: deleted.undo_token
                 });
 
                 // Dismiss the toast

@@ -748,6 +748,7 @@ def test_delete_chunk():
 
     # Save deleted chunk for restore test
     shared["deleted_chunk"] = data["deleted"]
+    shared["deleted_chunk_undo_token"] = data["undo_token"]
     shared["deleted_chunk_index"] = idx
 
 
@@ -766,7 +767,8 @@ def test_restore_chunk():
 
     r = post("/api/chunks/restore", json={
         "chunk": shared["deleted_chunk"],
-        "at_index": shared["deleted_chunk_index"]
+        "at_index": shared["deleted_chunk_index"],
+        "undo_token": shared["deleted_chunk_undo_token"]
     })
     assert_status(r, 200)
     data = r.json()

@@ -843,7 +843,7 @@ async def await_upload_operation(operation):
 
 
 @router.post("/api/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), select_active: bool = True):
     safe_name = _require_safe_filename(file.filename or "", "Invalid or empty filename")
     if os.path.splitext(safe_name)[1].lower() not in {".txt", ".md", ".epub"}:
         raise HTTPException(status_code=400, detail="Supported source formats are TXT, Markdown and EPUB.")
@@ -900,8 +900,9 @@ async def upload_file(file: UploadFile = File(...)):
         file_path, reused = result
         if cancelled is not None:
             raise cancelled
-        apply_book_input_selection(DATA_DIR, file_path,
-                                  secure_filename(os.path.splitext(os.path.basename(file_path))[0]))
+        if select_active:
+            apply_book_input_selection(DATA_DIR, file_path,
+                                      secure_filename(os.path.splitext(os.path.basename(file_path))[0]))
         return {"filename": file.filename, "stored_filename": os.path.basename(file_path),
                 "path": file_path, "reused": reused}
     except BaseException:

@@ -58,6 +58,9 @@ class EditorWorkerIoTests(unittest.TestCase):
                  patch.object(editor, 'M4B_PATH', str(root / 'absent.m4b')), patch.object(editor, 'process_state', state):
                 for label, method, url, data, owner, name in cases:
                     with self.subTest(operation=label):
+                        if label == "restore":
+                            data = {"at_index": 1, "chunk": self.deleted_response["deleted"],
+                                    "undo_token": self.deleted_response["undo_token"]}
                         arrived, release = threading.Event(), threading.Event()
                         original = getattr(owner, name)
                         worker_ids = []
@@ -86,6 +89,8 @@ class EditorWorkerIoTests(unittest.TestCase):
                                     release.set(); watchdog.cancel()
                                     response = await pending
                                 self.assertEqual(200, response.status_code, response.text[:200])
+                                if label == "delete":
+                                    self.deleted_response = response.json()
                         with patch.object(owner, name, side_effect=paused): asyncio.run(run())
             self.assertEqual('Updated', pm.load_chunks()[0]['text'])
             self.assertFalse(list(root.glob('.alexandria-export-*.zip')))

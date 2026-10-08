@@ -382,3 +382,13 @@ return HTTP 409. Inspect `GET /api/editor/integrity` and explicitly confirm its
 current `snapshot` to proceed; the server rechecks it before exporting. A saved
 script-JSON book without its original source remains unavailable and requires
 confirmation on each merge. This check compares text, not the words in WAVs.
+
+
+Editor Undo uses the `undo_token` returned by `DELETE /api/chunks/{index}`.
+Send that token, the returned `deleted` object as `chunk`, and the original
+`at_index` to `POST /api/chunks/restore` within 60 seconds. A receipt can restore
+only its original deletion in the same active book generation, once; stale,
+modified or repeated requests return 409.
+
+Batch upload callers can use `POST /api/upload?select_active=false` to store a
+source without changing the active book. Ordinary uploads select it by default.
