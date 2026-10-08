@@ -692,6 +692,21 @@ def run_training_batch(samples, hf_model, base_talker, transformer, parameters,
                 parameter.grad = previous
 
 
+def apply_training_accumulation_step(parameters, optimizer, configured_steps, successful_steps):
+    """Normalize a successful accumulation window before clipping and stepping."""
+    import torch
+    if not 0 < successful_steps <= configured_steps:
+        raise ValueError("Invalid successful gradient accumulation window")
+    if successful_steps < configured_steps:
+        with torch.no_grad():
+            for parameter in parameters:
+                if parameter.grad is not None:
+                    parameter.grad.mul_(configured_steps / successful_steps)
+    torch.nn.utils.clip_grad_norm_(parameters, max_norm=1.0)
+    optimizer.step()
+    optimizer.zero_grad()
+
+
 def train(args):
     validate_adapter_training_output(args.output_dir)
     import torch
@@ -907,12 +922,9 @@ def train(args):
 
             # Gradient accumulation step
             if gradients_since_step >= args.gradient_accumulation_steps or step_idx == total_steps_per_epoch:
-                torch.nn.utils.clip_grad_norm_(
-                    trainable_parameters,
-                    max_norm=1.0,
-                )
-                optimizer.step()
-                optimizer.zero_grad()
+                apply_training_accumulation_step(
+                    trainable_parameters, optimizer, args.gradient_accumulation_steps,
+                    gradients_since_step)
                 gradients_since_step = 0
 
                 if "cuda" in device:
@@ -942,12 +954,9 @@ def train(args):
         # Flush gradients from a partial final accumulation window. An OOM on
         # the final dataset item bypasses the in-loop boundary check above.
         if gradients_since_step:
-            torch.nn.utils.clip_grad_norm_(
-                trainable_parameters,
-                max_norm=1.0,
-            )
-            optimizer.step()
-            optimizer.zero_grad()
+            apply_training_accumulation_step(
+                trainable_parameters, optimizer, args.gradient_accumulation_steps,
+                gradients_since_step)
 
         epochs_completed = epoch
         avg_loss = epoch_loss / epoch_steps

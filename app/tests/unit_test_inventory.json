@@ -794,10 +794,10 @@
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_design_dynamic_narrator_and_ensemble_receive_actual_resolved_style_prompts",
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_external_custom_and_local_lora_keep_original_indices",
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_external_custom_predict_uses_the_same_per_row_styles_and_preserves_seed_zero",
-    "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_malformed_style_indices_raise_value_error_before_any_generation",
+    "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_malformed_style_indices_fail_affected_chunks_before_generation",
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_native_custom_sorted_sub_batches_use_original_indices_and_project_publishes_audio",
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_native_lora_shared_adapter_keeps_each_sorted_row_style_and_batching",
-    "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_timeline_compatibility_and_late_invalid_narrator_refuse_before_render"
+    "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_timeline_compatibility_and_late_invalid_narrator_do_not_render_bad_chunk"
   ],
   "test_batch_training_eta": [
     "tests.test_batch_training_eta.BatchTrainingEtaTests.test_dispatch_rechecks_a_changed_adapter_instead_of_reusing_eta_skip",
@@ -2142,6 +2142,13 @@
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_contained_but_unsafe_zip_member_names_are_rejected",
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_outside_datasets_metadata_and_audio_refuse_before_dispatch",
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_safe_nested_and_internal_symlink_audio_keeps_exact_archive_metadata"
+  ],
+  "test_deepseek_audio_batches": [
+    "tests.test_deepseek_audio_batches.AudioBatchTests.test_clone_timeline_batches_use_the_effective_reference",
+    "tests.test_deepseek_audio_batches.AudioBatchTests.test_dynamic_narrator_batch_seed_override_and_disabled_control",
+    "tests.test_deepseek_audio_batches.AudioBatchTests.test_malformed_timeline_fails_one_chunk_without_base_fallback",
+    "tests.test_deepseek_audio_batches.AudioBatchTests.test_real_training_partial_and_oom_windows_match_full_mean_gradient",
+    "tests.test_deepseek_audio_batches.AudioBatchTests.test_vram_recommendations_show_compiled_and_uncompiled_measurements"
   ],
   "test_delivery_fallback": [
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",

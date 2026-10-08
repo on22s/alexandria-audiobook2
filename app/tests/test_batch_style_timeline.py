@@ -145,18 +145,21 @@ class BatchStyleTimelineTests(unittest.TestCase):
             self.assertEqual(snapshot,config)
             audio,rate=sf.read(root/'temp_batch_9.wav');self.assertEqual((4000,16000),(len(audio),rate))
 
-    def test_malformed_style_indices_raise_value_error_before_any_generation(self):
+    def test_malformed_style_indices_fail_affected_chunks_before_generation(self):
         for value in (None,[],{},'bad','',True,-1,1.5,float('inf')):
             with self.subTest(value=value):
-                engine=get_engine();engine._local_batch_custom=Mock(side_effect=AssertionError('invalid timeline reached model work'))
+                engine=get_engine();engine._local_batch_custom=Mock(return_value={'completed':[10],'failed':[]})
                 config=get_style_config();config['A']['style_timeline']=[{'from_index':value,'character_style':'bad'}];before=copy.deepcopy(config)
                 with self.assertRaisesRegex(ValueError,'style_timeline.*from_index'):
                     tts.active_character_style(config['A'],2)
                 with tempfile.TemporaryDirectory() as tmp:
-                    with self.assertRaisesRegex(ValueError,'style_timeline.*from_index'):
-                        engine.generate_batch(get_chunks(),config,tmp)
+                    result=engine.generate_batch(get_chunks(),config,tmp)
+                    self.assertEqual([10],result['completed'])
+                    self.assertEqual([7,2,9],[index for index,_ in result['failed']])
+                    self.assertTrue(all('from_index' in error for _,error in result['failed']))
                     self.assertEqual([],list(Path(tmp).iterdir()))
-                engine._local_batch_custom.assert_not_called();self.assertEqual(before,config)
+                self.assertEqual([10],[chunk['index'] for chunk in engine._local_batch_custom.call_args.args[0]])
+                self.assertEqual(before,config)
 
     def test_external_custom_and_local_lora_keep_original_indices(self):
         samples=np.full(4000,0.1,dtype='float32');engine=get_engine();calls=[]
@@ -192,21 +195,25 @@ class BatchStyleTimelineTests(unittest.TestCase):
                 {text.rstrip('.'):instruct for call in lora_calls for text,instruct in zip(call['text'],call['instruct_ids'])})
             self.assertEqual(before,config)
 
-    def test_timeline_compatibility_and_late_invalid_narrator_refuse_before_render(self):
+    def test_timeline_compatibility_and_late_invalid_narrator_do_not_render_bad_chunk(self):
         for value in (0,0.0,'0',' 0 '):
             self.assertEqual('changed',tts.active_character_style({'style_timeline':[{'from_index':value,'character_style':'changed'}]},0))
         self.assertEqual('changed',tts.active_character_style({'style_timeline':[{'character_style':'changed'}]},0))
         self.assertEqual('base',tts.active_character_style({'character_style':'base','style_timeline':[{'from_index':1,'character_style':'later'}]},0))
         config=get_style_config();config['NARRATOR']={'type':'custom','voice':'Ryan','narrator_strategy':'focus'}
         config['B']['style_timeline']=[{'from_index':None,'character_style':'bad'}]
-        engine=get_engine();engine.generate_voice=Mock(side_effect=AssertionError('render before validation'))
+        engine=get_engine();engine.generate_voice=Mock(return_value=True)
         engine._local_batch_custom=Mock(side_effect=AssertionError('render before validation'))
         chunks=[{'speaker':'NARRATOR','focus_speaker':'A','text':'first','index':9},
                 {'speaker':'NARRATOR','focus_speaker':'B','text':'bad later','index':10}]
         before=copy.deepcopy((chunks,config))
         with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(ValueError,'style_timeline.*from_index'):
-                engine.generate_batch(chunks,config,tmp)
+            result=engine.generate_batch(chunks,config,tmp)
+            self.assertEqual([9],result['completed'])
+            self.assertEqual([10],[index for index,_ in result['failed']])
+            self.assertIn('from_index',result['failed'][0][1])
             self.assertEqual([],list(Path(tmp).iterdir()))
-        engine.generate_voice.assert_not_called();engine._local_batch_custom.assert_not_called()
+        engine.generate_voice.assert_called_once()
+        self.assertEqual('first.',engine.generate_voice.call_args.args[0])
+        engine._local_batch_custom.assert_not_called()
         self.assertEqual(before,(chunks,config))
