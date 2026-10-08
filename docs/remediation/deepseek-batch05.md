@@ -11,3 +11,5 @@ Approved scope: audio generation and training. Keep VRAM batching, compile-reset
 - [x] ready.sh passed: 7,055 unit tests, 70 API checks; 12 API generation checks skipped.
 
 Real differentiable CPU training fixtures and controlled rendering boundaries test behavior; no production Qwen inference, GPU training or audio-quality improvement is claimed.
+
+Validation: 59 focused tests; ready.sh passed with 7,067 unit tests and 70 isolated API checks. The quick gate skipped 12 generation checks. No production GPU inference or native browser run is claimed.
