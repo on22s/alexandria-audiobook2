@@ -15,3 +15,5 @@ Approved scope: script repair and LLM recovery. Preserve retry limits, source ev
 - [x] ready.sh: 7,060 unit tests passed; quick API checks: 70 passed, 12 skipped.
 
 Process ownership tests use a real Linux child and simulated Windows API handles. Native Windows/macOS and live LLM inference have not been tested.
+
+Validation: 317 focused tests; ready.sh passed with 7,072 unit tests and 70 isolated API checks. The quick gate skipped 12 generation checks. No production GPU inference or native browser run is claimed.
