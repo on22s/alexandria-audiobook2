@@ -16,7 +16,9 @@ run(source.slice(source.indexOf('function showActionError('),source.indexOf('fun
 run(source.slice(source.indexOf('let promptPresets ='),source.indexOf('window.previewAttributionPrompt =')));
 run(source.slice(source.indexOf('function getNumFieldValue('),source.indexOf('// --- Desktop notifications ---')));
 run(source.slice(source.indexOf('function buildConfigPayload('),source.indexOf("document.getElementById('config-form').addEventListener")));
+run(source.slice(source.indexOf('function getOnThisGpuInput('),source.indexOf('// Reflects the last-SAVED')));
 context.llmProfiles={local:{base_url:'http://localhost:1/v1',api_key:'local',model_name:'fixture'},remote:null};context.currentLlmMode='local';context.legacyChunkSize=3000;
+element('llm-url').value=context.llmProfiles.local.base_url;element('llm-model').value=context.llmProfiles.local.model_name;element('llm-key').value=context.llmProfiles.local.api_key;
 function seed(){
  run("promptPresets=[{name:'michel2_full',builtin:true,system_prompt:'builtin S',user_prompt:'builtin U'},{name:'mine',system_prompt:'mine S',user_prompt:'mine U'}];renderPromptPresets(promptPresets,'mine');");
  for(const pass of ['pass1','pass3']){run(`passPromptDefaults.${pass}={system_prompt:'default S',user_prompt:'default U'};renderPassPromptPresets('${pass}',[{name:'mine',system_prompt:'mine S',user_prompt:'mine U'}],'mine');`);}
@@ -27,6 +29,53 @@ function snapshot(){return run('JSON.stringify({promptPresets,activePromptPreset
 
 
 class PromptPresetTransactionTests(unittest.TestCase):
+    def test_pass_default_name_is_reserved_and_existing_collision_is_preserved(self):
+        self.run_case(r'''
+mode='success';for(const pass of ['pass1','pass3']){
+ seed();const old=[{name:'default',description:'legacy',system_prompt:'legacy S',user_prompt:'legacy U'},{name:'default (user)',system_prompt:'other S',user_prompt:'other U'}];
+ context.old=old;run(`renderPassPromptPresets('${pass}',old,'default')`);
+ assert.strictEqual(element(pass+'-system-prompt').value,'legacy S');
+ const selected=run(`activePassPromptPreset.${pass}`);assert.notStrictEqual(selected,'default');assert.notStrictEqual(selected,'default (user)');
+ run(`applyPassPromptPreset('${pass}',-1)`);const payload=context.getPassPromptPresetPayload(pass);
+ assert.strictEqual(payload.active,'default');assert.strictEqual(payload.own.find(p=>p.name===selected).system_prompt,'legacy S');assert.strictEqual(payload.own.find(p=>p.name===selected).user_prompt,'legacy U');assert.strictEqual(payload.own.find(p=>p.name===selected).description,'legacy');assert.strictEqual(payload.own.find(p=>p.name==='default (user)').system_prompt,'other S');assert.strictEqual(old[0].name,'default');
+ run(`renderPassPromptPresets('${pass}',${JSON.stringify(payload.own)},'default')`);assert.strictEqual(element(pass+'-system-prompt').value,'default S');
+ run(`renderPassPromptPresets('${pass}',${JSON.stringify(payload.own)},${JSON.stringify(selected)})`);assert.strictEqual(element(pass+'-system-prompt').value,'legacy S');
+ element(pass+'-system-prompt').value='unsaved';const count=posts.length,before=snapshot(),errors=toasts.length;
+ context.showPresetEditor=async options=>{assert(options.validateName(' default ').includes('reserved'));assert.strictEqual(options.validateName('Default'),'');return {name:' default ',description:'new'};};
+ await context.window.savePassPromptPreset(pass);assert.strictEqual(posts.length,count);assert.strictEqual(snapshot(),before);assert.strictEqual(element(pass+'-system-prompt').value,'unsaved');assert.strictEqual(toasts.length,errors+1);
+ context.showPresetEditor=async()=>({name:'ordinary',description:'new'});await context.window.savePassPromptPreset(pass);assert.strictEqual(posts.length,count+1);assert.strictEqual(posts.at(-1).prompts[pass+'_prompt_presets'].find(p=>p.name==='ordinary').system_prompt,'unsaved');
+}
+''')
+
+    def test_preview_only_publishes_current_request_and_editor(self):
+        self.run_case(r'''
+run(source.slice(source.indexOf('window.previewAttributionPrompt ='),source.indexOf('function renderConfigWarnings(config)')));
+const pending=[];context.API.post=(path,body)=>new Promise((resolve,reject)=>pending.push({path,body,resolve,reject}));
+const reply=label=>({system_prompt:label,user_message:label+' user',note:label+' note'});
+seed();element('system-prompt').value='first';const first=context.window.previewAttributionPrompt();
+element('system-prompt').value='second';const second=context.window.previewAttributionPrompt();
+assert.strictEqual(pending[0].body.system_prompt,'first');assert.strictEqual(pending[1].body.system_prompt,'second');
+pending[1].resolve(reply('newer'));await second;pending[0].resolve(reply('older'));await first;
+assert.strictEqual(element('prompt-preview-system').textContent,'newer');
+for(const change of ['editor','selection','variant','context','new-request']){
+ for(const failure of [false,true]){
+  seed();element('tp-attribute-context-chars').value='100';const errors=toasts.length;
+  const preview=context.window.previewAttributionPrompt();const request=pending.at(-1);
+  if(change==='editor'){element('user-prompt').value='edited';}
+  if(change==='selection'){run('applyPromptPreset(0)');}
+  if(change==='variant'){run("promptPresets[1].variant='changed'");}
+  if(change==='context'){element('tp-attribute-context-chars').value='invalid';}
+  let next;
+  if(change==='new-request'){next=context.window.previewAttributionPrompt();}
+  if(failure){request.reject(Error('stale failure'));}else{request.resolve(reply('stale'));}
+  await preview;assert.strictEqual(element('prompt-preview-system').textContent,'newer');assert.strictEqual(toasts.length,errors);
+  if(next){pending.at(-1).resolve(reply('newer'));await next;}
+ }
+}
+seed();const errors=toasts.length;const failed=context.window.previewAttributionPrompt();pending.at(-1).reject(Error('current failure'));await failed;assert.strictEqual(toasts.length,errors+1);assert(toasts.at(-1)[0].includes('current failure'));
+const good=context.window.previewAttributionPrompt();pending.at(-1).resolve(reply('current'));await good;assert.strictEqual(element('prompt-preview-system').textContent,'current');assert.strictEqual(element('prompt-preview-user').textContent,'current user');assert.strictEqual(element('prompt-preview-note').textContent,'current note');assert.strictEqual(element('prompt-preview-panel').hidden,false);
+''')
+
     def test_user_switch_preserves_edits_until_unchanged_approval(self):
         self.run_case(r"""
 let completed=false;process.on('beforeExit',()=>assert(completed,'switch assertions must finish'));
@@ -151,3 +200,14 @@ seed();mode='success';element('system-prompt').value='new S';element('user-promp
 await context.window.deletePromptPreset();assert.strictEqual(run('activePromptPreset'),'michel2_full');assert(!run('promptPresets.some(p=>p.name==="new")'));assert.strictEqual(persisted.prompts.attribution_preset,'michel2_full');assert(!persisted.prompt_presets.some(p=>p.name==='new'));console.log(JSON.stringify(persisted));
 ''')
         self.assertEqual('michel2_full',payload['prompts']['attribution_preset'])
+
+    def test_preset_save_uses_edited_active_profile_and_preserves_inactive_profile(self):
+        self.run_case(r"""
+for(const active of ['local','remote']){
+ seed();mode='success';context.currentLlmMode=active;context.llmProfiles={local:{base_url:'local-cache',model_name:'local-cache'},remote:{base_url:'remote-cache',model_name:'remote-cache'}};
+ const inactive=active==='local'?'remote':'local',before=JSON.stringify(context.llmProfiles[inactive]);
+ element('llm-url').value='http://edited-provider/v1';element('llm-model').value='edited-model';element('llm-key').value='edited-fixture-key';
+ await context.window.savePromptPreset();const payload=posts.at(-1);assert.strictEqual(payload.llm.base_url,'http://edited-provider/v1');assert.strictEqual(payload.llm.model_name,'edited-model');assert.strictEqual(payload.llm.api_key,'edited-fixture-key');assert.strictEqual(payload['llm_'+active].base_url,'http://edited-provider/v1');assert.strictEqual(JSON.stringify(payload['llm_'+inactive]),before);
+}
+seed();const count=posts.length;const before=snapshot();element('llm-api-retry-limit').value='invalid';await context.window.savePassPromptPreset('pass1');assert.strictEqual(posts.length,count);assert.strictEqual(snapshot(),before);assert.strictEqual(toasts.at(-1)[1],'error');
+""")

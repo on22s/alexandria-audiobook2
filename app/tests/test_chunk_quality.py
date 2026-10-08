@@ -446,6 +446,20 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertIn("empty_text", codes)
         self.assertIn("invalid_entry", codes)
 
+    def test_cyrillic_case_changes_preserve_text_but_new_letters_and_transliteration_fail(self):
+        for source, output in (('михаил', 'Михаил'), ('МИХАИЛ', 'михаил'),
+                               ('ёлка', 'ЁЛКА')):
+            with self.subTest(source=source, output=output):
+                report = validate_chunk_quality(source, [_entry(output)])
+                self.assertTrue(report['passed'], report['findings'])
+                self.assertEqual(sorted(set(source)), report['source_cyrillic'])
+        introduced = validate_chunk_quality('михаил', [_entry('Михаъил')])
+        unsupported = next(row for row in introduced['findings'] if row['code'] == 'unsupported_cyrillic')
+        self.assertEqual(['ъ'], unsupported['characters'])
+        transliterated = validate_chunk_quality('михаил', [_entry('mikhail')])
+        self.assertFalse(transliterated['passed'])
+        self.assertIn('low_source_token_recall', {row['code'] for row in transliterated['findings']})
+
     def test_source_cyrillic_is_reported_but_only_new_cyrillic_blocks(self):
         copied = validate_chunk_quality("Take саге now.", [_entry("Take саге now.")])
         introduced = validate_chunk_quality("Take care now.", [_entry("Take саге now.")])

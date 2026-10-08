@@ -90,6 +90,30 @@ class LauncherLlamaAssetTests(unittest.TestCase):
 
 
 class WhisperAssetVerificationTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == 'linux', 'native Linux owned-hook cleanup')
+    def test_git_fsmonitor_timeout_stops_hook_without_accepting_unverified_assets(self):
+        import shlex
+        import time
+        from unittest.mock import patch
+        pidfile = self.root / 'hook.pid'
+        hook = self.root / 'hook'
+        code = f'import os,pathlib,time;pathlib.Path({str(pidfile)!r}).write_text(str(os.getpid()));time.sleep(3)'
+        hook.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' -c ' + shlex.quote(code) + '\n')
+        hook.chmod(0o700)
+        subprocess.run(['git', '-C', str(self.source), 'config', 'core.fsmonitor', str(hook)], check=True)
+        started = time.monotonic()
+        with patch.object(self.verifier, 'GIT_PROBE_TIMEOUT_SECONDS', .2, create=True):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                self.verifier.verify_whisper_assets(self.root)
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertTrue(pidfile.exists())
+        with self.assertRaises(ProcessLookupError):
+            os.kill(int(pidfile.read_text()), 0)
+        self.assertEqual(self.content, self.model.read_bytes())
+        subprocess.run(['git', '-C', str(self.source), 'config', '--unset', 'core.fsmonitor'], check=True)
+        self.assertEqual(self.assets, dict(self.verifier.verify_whisper_assets(self.root),
+                                          model_filename=self.model.name))
+
     @classmethod
     def setUpClass(cls):
         spec=importlib.util.spec_from_file_location('tested_whisper_verifier',ROOT/'tools/verify_whisper_assets.py')
@@ -129,6 +153,8 @@ class WhisperAssetVerificationTests(unittest.TestCase):
         self.model.unlink()
         with self.assertRaises(FileNotFoundError):self.verifier.verify_whisper_assets(self.root)
         helper=self.root/'tools/verify_whisper_assets.py';helper.parent.mkdir();shutil.copy2(ROOT/'tools/verify_whisper_assets.py',helper)
+        owner=self.root/'app/subprocess_ownership.py';owner.parent.mkdir()
+        shutil.copy2(ROOT/'app/subprocess_ownership.py',owner)
         self.model.write_bytes(self.content)
         result=subprocess.run([sys.executable,str(helper)],capture_output=True,text=True)
         self.assertEqual(0,result.returncode,result.stderr);self.assertEqual(self.assets['model_sha256'],json.loads(result.stdout)['model_sha256'])

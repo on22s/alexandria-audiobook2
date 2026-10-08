@@ -30,6 +30,46 @@ def get_fixture():
 
 
 class PipelineRepeatScoringTests(unittest.TestCase):
+    def test_missing_unreadable_or_partial_inputs_preserve_saved_scores_then_complete_retry_succeeds(self):
+        checkpoint, gold = get_fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage_index_scripts(directory)
+            fixtures = root / "app/fixtures"
+            fixtures.mkdir()
+            (fixtures / "attribution_gold_grimgar03_provisional.json").write_text(json.dumps(gold))
+            repeats = root / "ab_test_runtime/pipeline_repeats"
+            repeats.mkdir(parents=True)
+            audit = root / "ab_test_runtime/audit"
+            audit.mkdir()
+            for name in ("artifact_structural_audit", "legacy_attribution_audit"):
+                (audit / (name + ".json")).write_text('{"artifacts": []}')
+            score_path = repeats / "repeat_scores.json"
+            first = repeats / "run1.json.threepass_checkpoint.json"
+            second = repeats / "run2.json.threepass_checkpoint.json"
+            prior = json.dumps({"rows": [{"artifact": first.name}, {"artifact": second.name}]}).encode()
+            def run():
+                return subprocess.run([sys.executable, str(root / "tools/audit/collect_results.py"),
+                                       "--rescore-repeats"], cwd=root, capture_output=True,
+                                      text=True, timeout=10)
+            for mode in ("absent", "unreadable", "partial"):
+                with self.subTest(mode=mode):
+                    score_path.write_bytes(prior)
+                    first.unlink(missing_ok=True); second.unlink(missing_ok=True)
+                    if mode != "absent":
+                        first.write_text(json.dumps(checkpoint))
+                    if mode == "unreadable":
+                        second.write_text("{not JSON")
+                    result = run()
+                    self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertEqual(prior, score_path.read_bytes())
+            second.write_text(json.dumps(checkpoint))
+            result = run()
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            rows = json.loads(score_path.read_text())["rows"]
+            self.assertEqual({first.name, second.name}, {row["artifact"] for row in rows})
+            self.assertTrue(all((row["n"], row["correct"]) == (6, 1) for row in rows))
+
     def test_missing_duplicate_unnamed_merged_and_wrong_lines_are_in_denominator(self):
         checkpoint, gold = get_fixture()
         original = copy.deepcopy((checkpoint, gold))

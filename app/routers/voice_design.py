@@ -115,12 +115,30 @@ async def voice_design_save(request: VoiceDesignSaveRequest):
         entry = {"id": voice_id, "name": request.name,
                  "description": request.description, "sample_text": request.sample_text,
                  "filename": dest_filename}
+        backup_path = staging_path + ".backup"
+        retain_backup = False
         try:
             shutil.copy2(preview_path, staging_path)
             if existing is not None:
-                existing.update(entry)
-                _save_manifest(DESIGNED_VOICES_MANIFEST, manifest)
+                had_audio = os.path.exists(dest_path)
+                if had_audio:
+                    shutil.copy2(dest_path, backup_path)
                 os.replace(staging_path, dest_path)
+                existing.update(entry)
+                try:
+                    _save_manifest(DESIGNED_VOICES_MANIFEST, manifest)
+                except BaseException as error:
+                    try:
+                        if had_audio:
+                            os.replace(backup_path, dest_path)
+                        else:
+                            os.remove(dest_path)
+                    except OSError as rollback_error:
+                        retain_backup = True
+                        raise RuntimeError(
+                            f"Designed voice rollback failed; recovery audio kept at {backup_path}: "
+                            f"{rollback_error}") from error
+                    raise
             else:
                 os.replace(staging_path, dest_path)
                 manifest.append(entry)
@@ -132,6 +150,8 @@ async def voice_design_save(request: VoiceDesignSaveRequest):
         finally:
             if os.path.exists(staging_path):
                 os.remove(staging_path)
+            if not retain_backup and os.path.exists(backup_path):
+                os.remove(backup_path)
 
     logger.info(f"Designed voice {'updated' if existing else 'saved'}: '{request.name}' as {dest_filename}")
     return {"status": "updated" if existing else "saved", "voice_id": voice_id}
@@ -259,10 +279,10 @@ async def clone_voices_delete(voice_id: str):
         if not entry:
             raise HTTPException(status_code=404, detail="Clone voice not found")
         wav_path = get_voice_asset_path(CLONE_VOICES_DIR, entry)
-        if os.path.exists(wav_path):
-            os.remove(wav_path)
         _save_manifest(CLONE_VOICES_MANIFEST,
                        [v for v in manifest if v["id"] != voice_id])
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
 
     logger.info(f"Clone voice deleted: {voice_id}")
     return {"status": "deleted", "voice_id": voice_id}

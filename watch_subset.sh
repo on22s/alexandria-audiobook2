@@ -35,19 +35,30 @@ while tmux has-session -t "$SESSION" 2>/dev/null; do
 done
 
 finished=$(date -Iseconds)
-zip_count=$(ls "$OUT_DIR"/*.zip 2>/dev/null | wc -l)
+zip_count=0
+for path in "$OUT_DIR"/*.zip; do
+    if [ -f "$path" ]; then
+        zip_count=$((zip_count + 1))
+    fi
+done
 {
     echo "[$finished] tmux session '$SESSION' is gone."
     echo "  Zip files in $OUT_DIR: $zip_count"
 } >> "$LOG"
 
-# Sentinel file so a quick `ls test_corpus_output/` shows DONE.flag at a glance.
-{
-    echo "Watchdog detected completion: $finished"
-    echo "Started polling:             $started"
-    echo "Zip files in output:         $zip_count"
-    ls -lh "$OUT_DIR"/*.zip 2>/dev/null | awk '{print "  " $NF " (" $5 ")"}'
-} > "$OUT_DIR/DONE.flag"
+# The runner owns its receipt; a vanished tmux session is not proof of success.
+if [ -e "$OUT_DIR/ABORTED.flag" ]; then
+    message="Subset run aborted; completion will not be reported."
+    echo "[$finished] $message" >> "$LOG"
+    echo "$message" >&2
+    exit 130
+fi
+if [ "$zip_count" -eq 0 ] || ! grep -q '^Completed:' "$OUT_DIR/DONE.flag" 2>/dev/null; then
+    message="Subset completion is unverified: expected runner receipt and ZIP outputs."
+    echo "[$finished] $message" >> "$LOG"
+    echo "$message" >&2
+    exit 1
+fi
 
 # Desktop notification (graceful if no D-Bus session) + terminal bell.
 notify-send --app-name "Alexandria subset" -u normal \

@@ -11,7 +11,7 @@ SOURCE = Path(__file__).resolve().parent.parent / "static/js/app-core.js"
 
 PRELUDE = r'''
 const fs=require('fs'),vm=require('vm'),source=fs.readFileSync(process.argv[1],'utf8'),payload=JSON.parse(process.argv[2]);
-const calls=[];const context={window:{},currentBookFilename:'A',calls,
+const calls=[];const context={window:{},currentBookFilename:'A',_voiceSaveSnapshot:{book_token:'a'.repeat(64)},calls,
   API:{get:async u=>payload.suggestion,post:async(u,b)=>{calls.push(['POST',u,b]);return {};},del:async u=>{calls.push(['DEL',u]);return {};}},
   loadVoices:async()=>{},showToast:(m,k)=>calls.push(['TOAST',k,m])};
 vm.createContext(context);
@@ -105,11 +105,11 @@ context.window._voiceStateSuggestions={RUDY:payload.suggestion};
 await context.applyVoiceStates({closest:()=>card});
 console.log(JSON.stringify(calls));''', {"suggestion": suggestion()})
         self.assertEqual(["POST", "/api/voices/RUDY/versions",
-                          {"version_id": "child-boy_free", "age_group": "child",
+                          {"version_id": "child-boy_free", "age_group": "child", "book_token": "a" * 64,
                            "config": {"type": "lora", "adapter_id": "boy_free", "adapter_path": "lora_models/boy_free"}}],
                          calls[0])
         self.assertEqual(["POST", "/api/voices/RUDY/version_timeline",
-                          {"points": [{"from_index": 29, "version_id": "child-boy_free"}]}], calls[1])
+                          {"points": [{"from_index": 29, "version_id": "child-boy_free"}], "book_token": "a" * 64}], calls[1])
         self.assertIn("from line 30 on", calls[2][2])
 
     def test_main_after_a_change_returns_to_the_main_voice_and_all_main_clears(self):
@@ -123,8 +123,8 @@ await run([['1','main'],['29','main']]);
 console.log(JSON.stringify(calls.filter(c=>c[0]!=='TOAST')));''', {"suggestion": suggestion()})
         self.assertEqual([["POST", "/api/voices/RUDY/version_timeline",
                            {"points": [{"from_index": 1, "version_id": "kid"},
-                                       {"from_index": 29, "version_id": None}]}],
-                          ["DEL", "/api/voices/RUDY/version_timeline"]], calls)
+                                       {"from_index": 29, "version_id": None}], "book_token": "a" * 64}],
+                          ["DEL", "/api/voices/RUDY/version_timeline?book_token=" + "a" * 64]], calls)
 
 
 if __name__ == "__main__":

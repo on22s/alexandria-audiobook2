@@ -13,6 +13,38 @@ def _seg(text, type_="NARRATOR"):
 
 
 class SegmentQualityTests(unittest.TestCase):
+
+    def test_cyrillic_case_only_changes_use_the_same_gate_as_single_pass(self):
+        for source, output in (('михаил', 'Михаил'), ('ЁЛКА', 'ёлка')):
+            with self.subTest(source=source):
+                report = validate_segment_quality(source, [{'type': 'NARRATOR', 'text': output}])
+                self.assertTrue(report['passed'], report['findings'])
+        report = validate_segment_quality('михаил', [{'type': 'NARRATOR', 'text': 'Михаъил'}])
+        finding = next(row for row in report['findings'] if row['code'] == 'unsupported_cyrillic')
+        self.assertEqual(['ъ'], finding['characters'])
+
+    def test_source_credit_quotes_stay_narration_for_supported_styles(self):
+        for opener, closer in [('"', '"'), ('“', '”'), ('「', '」')]:
+            with self.subTest(opener=opener):
+                source = f'Light Novel Adaptation found in {opener}Chapter One{closer}\n\nShe said {opener}Hello.{closer}'
+                analysis = classify_lexical_quote_regions(source, analyze_outer_quote_regions(source))
+                title = [row for row in analysis['regions'] if 'Chapter One' in row['text']]
+                speech = [row for row in analysis['regions'] if row['text'] == 'Hello.']
+                self.assertEqual(['NARRATOR'], [row['type'] for row in title])
+                self.assertEqual(['SPOKEN'], [row['type'] for row in speech])
+
+    def test_one_word_dialogue_split_passes_but_wrong_region_and_crossing_fail(self):
+        source = '“No. Not at all.”'
+        report = validate_segment_quality(source, [{'type': 'SPOKEN', 'text': text} for text in ('No.', 'Not at all.')])
+        self.assertTrue(report['passed'], report['findings'])
+        wrong = validate_segment_quality(source, [{'type': 'NARRATOR', 'text': 'No.'}, {'type': 'SPOKEN', 'text': 'Not at all.'}])
+        self.assertFalse(wrong['passed'])
+        self.assertIn('quote_region_misclassified', {row['code'] for row in wrong['findings']})
+        crossing = validate_segment_quality('Outside. “Inside.”', [{'type': 'SPOKEN', 'text': 'Outside. Inside.'}])
+        self.assertIn('crosses_quote_boundary', {row['code'] for row in crossing['findings']})
+        absent = validate_segment_quality('“Nobody.”', [{'type': 'SPOKEN', 'text': 'No.'}])
+        self.assertFalse(absent['passed'])
+
     def test_source_label_cannot_hide_missing_spoken_words(self):
         source = 'Alice “one two three four five six seven eight nine ten.”'
         entries = [{"type": "SPOKEN", "text": "one two three four five",

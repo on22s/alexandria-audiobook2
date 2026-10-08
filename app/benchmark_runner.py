@@ -88,14 +88,20 @@ def _validate_tts_fixture(fixture, root_dir=None):
 
 
 def _validate_lora_training_fixture(fixture, root_dir):
+    from itertools import islice
+    from benchmark_validation import get_lora_training_entries, get_lora_training_sample_count
     keys = ("dataset_path", "metadata_sha256", "sample_count", "audio_sha256",
             "epochs", "seed", "lr", "lora_r", "lora_alpha", "grad_accum", "language")
     content = {key: fixture[key] for key in keys}
     if _hash_entries(content) != fixture.get("sha256"):
         raise ValueError(f"fixture {fixture.get('id')} hash changed")
     dataset_path = get_benchmark_directory_path(root_dir, fixture["dataset_path"])
-    get_benchmark_verified_file_path(
+    metadata_path = get_benchmark_verified_file_path(
         dataset_path, "metadata.jsonl", fixture["metadata_sha256"], "training metadata")
+    sample_count = get_lora_training_sample_count(fixture["sample_count"])
+    with open(metadata_path, encoding="utf-8") as metadata_file:
+        selected = islice((line for line in metadata_file if line.strip()), sample_count)
+        get_lora_training_entries([json.loads(line) for line in selected], sample_count)
     for relative_path, expected in fixture["audio_sha256"].items():
         audio_path = get_benchmark_training_audio_path(dataset_path, relative_path)
         if get_file_sha256(audio_path) != expected:
@@ -206,6 +212,11 @@ def get_valid_remote_tts_asset_root(path):
 def apply_remote_tts_asset_cleanup(ssh_alias, path):
     """Remove only this invocation's validated staging root, even on cancel."""
     path = get_valid_remote_tts_asset_root(path)
+    apply_remote_benchmark_asset_cleanup(ssh_alias, path, "TTS")
+
+
+def apply_remote_benchmark_asset_cleanup(ssh_alias, path, asset_kind):
+    """Run bounded cleanup independently of cancellation, retaining primary errors."""
     primary_failure = sys.exc_info()[1]
     try:
         result = subprocess.run(get_remote_benchmark_command(ssh_alias, ["rm", "-rf", "--", path]),
@@ -213,7 +224,7 @@ def apply_remote_tts_asset_cleanup(ssh_alias, path):
         if result.returncode:
             raise RuntimeError("remote cleanup command failed")
     except (OSError, subprocess.TimeoutExpired, RuntimeError) as exc:
-        message = f"Remote TTS asset cleanup failed for {path}: {exc}"
+        message = f"Remote {asset_kind} asset cleanup failed for {path}: {exc}"
         logging.getLogger(__name__).warning(message)
         state = BENCHMARK_STATE.get()
         if state is not None:
@@ -327,44 +338,54 @@ def run_tts_generation_benchmark(manifest, environment, report_path, state,
 
 
 def _run_lora_training_worker(fixture, target, settings, root_dir, ssh_alias):
-    worker_fixture = copy.deepcopy(fixture)
-    if target == "local":
-        worker_fixture["root_dir"] = root_dir
-        python_executable = sys.executable
-        train_script = os.path.join(root_dir, "app", "train_lora.py")
-        output_root = "/tmp/alexandria-lora-training-local"
-        worker_script = os.path.join(root_dir, "app", "lora_training_benchmark.py")
-    else:
-        remote_root = settings.get("remote_root")
-        python_executable = settings.get("remote_python")
-        if not remote_root or not python_executable or not ssh_alias:
-            raise ValueError("Thunder training requires remote_root, remote_python, and SSH alias")
-        remote_source = f"/tmp/alexandria-lora-training-{fixture['sha256']}"
-        mkdir = run_benchmark_subprocess(get_remote_benchmark_command(ssh_alias, ["mkdir", "-p", "--", remote_source]),
-                               capture_output=True, text=True, timeout=30, check=False)
-        if mkdir.returncode:
-            raise RuntimeError(mkdir.stderr.strip() or "could not create remote training fixture")
-        source_dir = os.path.join(root_dir, fixture["dataset_path"])
-        files = ["metadata.jsonl", *fixture["audio_sha256"].keys()]
-        for relative_path in files:
-            remote_path = os.path.join(remote_source, relative_path)
-            run_benchmark_subprocess(get_remote_benchmark_command(ssh_alias, ["mkdir", "-p", "--", os.path.dirname(remote_path)]),
-                           capture_output=True, text=True, timeout=30, check=True)
-            transfer = run_benchmark_subprocess(["scp", os.path.join(source_dir, relative_path),
-                                       f"{ssh_alias}:{remote_path}"], capture_output=True,
-                                      text=True, timeout=300, check=False)
-            if transfer.returncode:
-                raise RuntimeError(transfer.stderr.strip() or "training fixture transfer failed")
-        worker_fixture.update({"root_dir": "/tmp", "dataset_path": os.path.basename(remote_source)})
-        output_root = "/tmp/alexandria-lora-training-output"
-        worker_script = os.path.join(remote_root, "app", "lora_training_benchmark.py")
-        train_script = os.path.join(remote_root, "app", "train_lora.py")
-    payload = {"fixture": worker_fixture, "python": python_executable,
-               "train_script": train_script, "output_root": output_root}
-    encoded = get_encoded_worker_payload(payload)
-    worker_command = [python_executable, worker_script, "--payload", encoded]
-    command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'LORA_TRAINING_BENCHMARK_RESULT=', 'training worker failed', timeout=7200)
+    remote_source = None
+    try:
+        worker_fixture = copy.deepcopy(fixture)
+        if target == "local":
+            worker_fixture["root_dir"] = root_dir
+            python_executable = sys.executable
+            train_script = os.path.join(root_dir, "app", "train_lora.py")
+            output_root = "/tmp/alexandria-lora-training-local"
+            worker_script = os.path.join(root_dir, "app", "lora_training_benchmark.py")
+        else:
+            remote_root = settings.get("remote_root")
+            python_executable = settings.get("remote_python")
+            if not remote_root or not python_executable or not ssh_alias:
+                raise ValueError("Thunder training requires remote_root, remote_python, and SSH alias")
+            mkdir = run_benchmark_subprocess(get_remote_benchmark_command(
+                ssh_alias, ["mktemp", "-d", "/tmp/alexandria-lora-training.XXXXXXXXXX"]),
+                                   capture_output=True, text=True, timeout=30, check=False)
+            if mkdir.returncode:
+                raise RuntimeError(mkdir.stderr.strip() or "could not create remote training fixture")
+            lines = [line.strip() for line in mkdir.stdout.splitlines() if line.strip()]
+            candidate = lines[-1] if lines else ""
+            if not re.fullmatch(r"/tmp/alexandria-lora-training\.[A-Za-z0-9]{10}", candidate):
+                raise ValueError("could not validate newly created remote training directory")
+            remote_source = candidate
+            source_dir = os.path.join(root_dir, fixture["dataset_path"])
+            files = ["metadata.jsonl", *fixture["audio_sha256"].keys()]
+            for relative_path in files:
+                remote_path = os.path.join(remote_source, relative_path)
+                run_benchmark_subprocess(get_remote_benchmark_command(ssh_alias, ["mkdir", "-p", "--", os.path.dirname(remote_path)]),
+                               capture_output=True, text=True, timeout=30, check=True)
+                transfer = run_benchmark_subprocess(["scp", os.path.join(source_dir, relative_path),
+                                           f"{ssh_alias}:{remote_path}"], capture_output=True,
+                                          text=True, timeout=300, check=False)
+                if transfer.returncode:
+                    raise RuntimeError(transfer.stderr.strip() or "training fixture transfer failed")
+            worker_fixture.update({"root_dir": "/tmp", "dataset_path": os.path.basename(remote_source)})
+            output_root = "/tmp/alexandria-lora-training-output"
+            worker_script = os.path.join(remote_root, "app", "lora_training_benchmark.py")
+            train_script = os.path.join(remote_root, "app", "train_lora.py")
+        payload = {"fixture": worker_fixture, "python": python_executable,
+                   "train_script": train_script, "output_root": output_root}
+        encoded = get_encoded_worker_payload(payload)
+        worker_command = [python_executable, worker_script, "--payload", encoded]
+        command = get_benchmark_worker_command(worker_command, target, ssh_alias)
+        return run_benchmark_worker(command, 'LORA_TRAINING_BENCHMARK_RESULT=', 'training worker failed', timeout=7200)
+    finally:
+        if remote_source is not None:
+            apply_remote_benchmark_asset_cleanup(ssh_alias, remote_source, "training")
 
 
 def apply_benchmark_cancellation(state, report, manifest, report_path):

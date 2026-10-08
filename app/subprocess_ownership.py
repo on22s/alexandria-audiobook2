@@ -125,6 +125,28 @@ def stop_owned_subprocess(process, interrupt=False, timeout=5, *, force_after_gr
         process.wait(timeout=timeout)
 
 
+def run_owned_capture(command, *, timeout, **kwargs):
+    """Capture a bounded command, stopping and reaping its owned descendants."""
+    process = start_owned_subprocess(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        start_new_session=(os.name == 'posix'),
+        creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0),
+        termination_grace=1, **kwargs)
+    try:
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except BaseException:
+            stop_owned_subprocess(process, timeout=1)
+            raise
+        return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    finally:
+        control = getattr(process, '_alexandria_control', None)
+        if control is not None:
+            control.close()
+        process.stdout.close()
+        process.stderr.close()
+
+
 def save_owned_exit_notice(path, result):
     from utils import atomic_json_write
     atomic_json_write({'exit_code': result}, str(path))

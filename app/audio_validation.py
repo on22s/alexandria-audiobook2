@@ -65,6 +65,10 @@ def save_generated_wav(values, sample_rate, path, context="audio generation"):
         values = np.asarray(values)
         if values.ndim not in (1, 2) or (values.ndim == 2 and values.shape[1] not in (1, 2)):
             raise GeneratedAudioError(f"{context} requires mono samples or frames by one or two channels")
+        try:
+            validate_finite_audio_values(values, context)
+        except ValueError as error:
+            raise GeneratedAudioError(str(error)) from error
         sf.write(path, values, sample_rate)
         return validate_generated_audio(path, context)
 
@@ -115,9 +119,9 @@ def validate_generated_audio(path, context="audio generation"):
         head = handle.read(12)
     if len(head) >= 12 and head[:4] == b"RIFF" and head[8:12] == b"WAVE":
         declared = struct.unpack("<I", head[4:8])[0] + 8
-        # RIFF uses a 32-bit size. Near the limit it may wrap for audiobook-
-        # length files, so only ordinary declared sizes are comparable.
-        if declared < 0xFFFFFFF0 and size < declared:
+        # Wrapped 32-bit lengths remain below the actual large-file extent.
+        # A near-limit declaration still cannot exceed a small file's bytes.
+        if size < declared:
             raise GeneratedAudioError(
                 f"{context} wrote truncated audio: header declares {declared} "
                 f"bytes, file is {size} ({declared - size} missing)")

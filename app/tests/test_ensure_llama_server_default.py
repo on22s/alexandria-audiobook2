@@ -131,7 +131,8 @@ class ServerLogPreflightTests(unittest.TestCase):
                     path.write_text("#!/bin/bash\n" + body + "\n")
                     path.chmod(0o755)
                 binary = root / "fake-server"
-                binary.write_text('#!/bin/bash\ntouch "$FIXTURE_ROOT/launched"\necho fake-server-log\n')
+                binary.write_text('#!/bin/bash\nprintf "%s" "$$" > "$FIXTURE_ROOT/server.pid"\n'
+                                  'touch "$FIXTURE_ROOT/launched"\necho fake-server-log\nexec /bin/sleep 30\n')
                 binary.chmod(0o755)
                 script = root / "ensure.sh"
                 helper = root / "run_chains/lib/server_cleanup.sh"
@@ -150,8 +151,17 @@ class ServerLogPreflightTests(unittest.TestCase):
                 env = dict(os.environ, LLAMA_PORT=str(port), FIXTURE_ROOT=str(root), LLAMA_BIN=str(binary),
                            LLAMA_MODEL=str(model), LLAMA_LOG=str(log),
                            PATH=str(wrappers) + os.pathsep + os.environ["PATH"])
-                result = subprocess.run(["bash", str(script)], cwd=tmp, env=env,
-                                        capture_output=True, text=True, timeout=10)
+                try:
+                    result = subprocess.run(["bash", str(script)], cwd=tmp, env=env,
+                                            capture_output=True, text=True, timeout=10)
+                finally:
+                    pid_file = root / 'server.pid'
+                    if pid_file.exists():
+                        import signal
+                        try:
+                            os.kill(int(pid_file.read_text()), signal.SIGTERM)
+                        except ProcessLookupError:
+                            pass
                 if problem is None:
                     self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                     self.assertIn("fake-server-log", log.read_text())

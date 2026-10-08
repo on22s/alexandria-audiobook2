@@ -136,7 +136,7 @@ async function run(name, escaped) {
     const posts = [], toasts = [], escapes = [];
     let saves = 0;
     const context = {
-        window: {_currentPreviewFile:'preview.wav', _designedVoicesCache:[]},
+        window: {_currentPreviewFile:'preview.wav', _designerPreviewInputs:{file:'preview.wav',description:'Description',sample_text:'Transcript'}, _designedVoicesCache:[]},
         CSS: {escape(value) { escapes.push(value); assert.strictEqual(value, name); return escaped; }},
         document: {
             getElementById: id => fields[id] || (fields[id]={value:'',style:{},dataset:{},innerHTML:''}),
@@ -182,7 +182,7 @@ async function run(fail) {
  const elements = {'design-voice-name':{value:'Voice'},'design-description':{value:'Calm'},
   'design-sample-text':{value:'Sample'},'design-source-name':{value:''},'design-alias-select':{value:'',dataset:{}}};
  const requests=[], toasts=[]; let reloads=0; let pending=deferred();
- const context={window:{_currentPreviewFile:'preview.wav',_editingDesignedVoiceId:'existing',_designedVoicesCache:[{id:'existing'}]},
+ const context={window:{_currentPreviewFile:'preview.wav',_designerPreviewInputs:{file:'preview.wav',description:'Calm',sample_text:'Sample'},_editingDesignedVoiceId:'existing',_designedVoicesCache:[{id:'existing'}]},
   document:{getElementById:id=>elements[id]||(elements[id]={value:'',style:{},dataset:{},innerHTML:''})}, API:{post(path,payload){requests.push({path,payload});return pending.promise;}},
   showToast:(...args)=>toasts.push(args),loadDesignedVoices(){reloads++;}};
  const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+code,context);
@@ -202,7 +202,7 @@ async function run(fail) {
  if(!fail){assert.strictEqual(toasts[0][1],'success');assert(toasts[0][0].includes('Voice'));}
  if(fail){assert.strictEqual(toasts[0][1],'error');assert(toasts[0][0].includes('save offline'));}
  elements['design-voice-name'].value='Retry Voice';pending=deferred();
- if(!fail){await context.window.saveDesignedVoice();assert.strictEqual(requests.length,1,'successful save disarms old preview');context.window._currentPreviewFile='fresh.wav';}
+ if(!fail){await context.window.saveDesignedVoice();assert.strictEqual(requests.length,1,'successful save disarms old preview');elements['design-description'].value='Calm';elements['design-sample-text'].value='Sample';context.window._currentPreviewFile='fresh.wav';context.window._designerPreviewInputs={file:'fresh.wav',description:'Calm',sample_text:'Sample'};}
  const retry=context.window.saveDesignedVoice();assert.strictEqual(requests.length,2);
  assert.strictEqual(requests[1].payload.name,'Retry Voice');
  pending.resolve({status:'saved'});await retry;
@@ -222,7 +222,7 @@ const code = source.slice(source.indexOf('function getDesignerFormSnapshot('), s
 const elements={'design-voice-name':{value:''},'design-description':{value:'Calm'},'design-sample-text':{value:'Sample'},
  'design-source-name':{value:''},'design-alias-select':{value:'',dataset:{}}};
 const requests=[],toasts=[];
-const context={window:{_currentPreviewFile:'preview.wav',_designedVoicesCache:[]},document:{getElementById:id=>elements[id]||(elements[id]={value:'',style:{},dataset:{},innerHTML:''})},
+const context={window:{_currentPreviewFile:'preview.wav',_designerPreviewInputs:{file:'preview.wav',description:'Calm',sample_text:'Sample'},_designedVoicesCache:[]},document:{getElementById:id=>elements[id]||(elements[id]={value:'',style:{},dataset:{},innerHTML:''})},
  API:{post:async(path,payload)=>{requests.push({path,payload});return {}; }},showToast:(...args)=>toasts.push(args),loadDesignedVoices(){}};
 const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+code,context);
 (async()=>{

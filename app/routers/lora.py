@@ -166,7 +166,10 @@ def apply_lora_audio_publication(adapter_id, is_builtin, staged, filename):
             raise HTTPException(status_code=404, detail='Adapter files not found')
         os.replace(staged, os.path.join(path, filename))
         identities = ([adapter_id] if is_builtin else get_adapter_identity_ids_locked(root, adapter_id))
-        apply_lora_test_retention(path, identities, filename)
+        try:
+            apply_lora_test_retention(path, identities, filename)
+        except OSError as error:
+            logger.warning("LoRA audio published; retention cleanup failed for %s: %s", path, error)
         return url_prefix + '/' + quote(filename, safe='')
 
 
@@ -641,16 +644,24 @@ async def lora_upload_dataset(file: UploadFile = File(...)):
                 for entry in os.listdir(dataset_dir):
                     candidate = os.path.join(dataset_dir, entry, "metadata.jsonl")
                     if os.path.isdir(os.path.join(dataset_dir, entry)) and os.path.exists(candidate):
-                        # Move contents up
+                        if not os.path.isfile(candidate):
+                            raise HTTPException(status_code=400, detail="metadata.jsonl must be a regular file")
+                        # Refuse ambiguous archive members before moving any contents.
                         nested = os.path.join(dataset_dir, entry)
-                        for item in os.listdir(nested):
+                        items = os.listdir(nested)
+                        conflicts = [item for item in items
+                                     if os.path.lexists(os.path.join(dataset_dir, item))]
+                        if conflicts:
+                            raise HTTPException(status_code=400, detail=
+                                                "Nested dataset conflicts with root members: " + ", ".join(sorted(conflicts)))
+                        for item in items:
                             shutil.move(os.path.join(nested, item), os.path.join(dataset_dir, item))
                         os.rmdir(nested)
                         metadata_path = os.path.join(dataset_dir, "metadata.jsonl")
                         break
 
-            if not os.path.exists(metadata_path):
-                raise HTTPException(status_code=400, detail="ZIP must contain metadata.jsonl")
+            if not os.path.isfile(metadata_path):
+                raise HTTPException(status_code=400, detail="ZIP must contain metadata.jsonl as a regular file")
 
             # Validate all rows before accepting any usable sample. Keep the
             # submitted metadata verbatim for the standalone training reader.

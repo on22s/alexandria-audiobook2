@@ -55,6 +55,7 @@ for(const id of ids.slice(0,2)){assert.strictEqual(buttons[id].attrs['aria-descr
     def test_script_cost_admission_is_owned_before_await_and_recovers(self):
         self.run_js(r"""
 run('let _scriptStartOver=false;let scriptBatchPoller=null;');
+load('function getLoadedScriptSourceFilename()', 'window.startBookPreflight =');
 load("document.getElementById('btn-gen-script').addEventListener('click', async () => {", '// Pause is SIGSTOP');
 el('file-upload').files=[];el('upload-status').innerHTML='<span class="text-success">Loaded</span>';
 el('btn-pause-script').classList={remove(){},add(){}};ctx._resetPauseBtn=()=>{};ctx._isStripFrontMatterChecked=()=>false;ctx.refreshScriptRecovery=()=>{};

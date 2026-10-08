@@ -79,6 +79,7 @@ class AdapterDeletionTransactionTests(unittest.TestCase):
             row['running'] = False
         with ExitStack() as stack:
             data = self.root / 'data'; data.mkdir(exist_ok=True)
+            stack.enter_context(patch.object(core, 'DATA_DIR', str(data)))
             (data / 'scripts').mkdir(exist_ok=True)
             for name, value in (('VOICE_CONFIG_PATH', str(data / 'voice_config.json')),
                                 ('VOICE_LIBRARY_PATH', str(data / 'voice_library.json')),
