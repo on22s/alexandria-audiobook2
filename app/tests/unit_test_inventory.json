@@ -2143,6 +2143,18 @@
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_outside_datasets_metadata_and_audio_refuse_before_dispatch",
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_safe_nested_and_internal_symlink_audio_keeps_exact_archive_metadata"
   ],
+  "test_deepseek_script_recovery": [
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_alias_evidence_uses_accepted_variant",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_attribution_resume_retries_and_replaces_diagnostic",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_duplicate_cast_rejected_valid_alias_converted",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_failed_rollback_keeps_recoverable_prior_output",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_foreign_owner_process_generation",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_italicized_cyrillic_and_unknown_word",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_nested_split_provenance",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_periodic_duplicate_noncontiguous_evidence",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_publication_failure_preserves_prior_bytes",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_reasoning_sampling_in_serialized_sdk_body"
+  ],
   "test_delivery_fallback": [
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_exhaustion_marks_defaults_without_mutating_inputs",
@@ -4612,7 +4624,7 @@
     "tests.test_manual_llm.ManualClientTests.test_request_is_written_reply_is_returned_and_files_are_cleaned",
     "tests.test_manual_llm.ManualClientTests.test_second_client_waits_without_erasing_first_pending_request",
     "tests.test_manual_llm.ManualClientTests.test_the_request_file_carries_the_exact_messages_and_a_sequence",
-    "tests.test_manual_llm.ManualClientTests.test_windows_owner_probe_queries_handle_without_sending_a_signal",
+    "tests.test_manual_llm.ManualClientTests.test_windows_owner_probe_queries_birth_time_without_sending_a_signal",
     "tests.test_manual_llm.ManualEndpointTests.test_pending_and_response_round_trip_with_stage_hint",
     "tests.test_manual_llm.ManualThreePassTests.test_a_three_pass_run_completes_with_a_person_answering_every_request"
   ],

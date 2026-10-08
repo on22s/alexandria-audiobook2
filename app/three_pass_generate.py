@@ -413,7 +413,7 @@ def get_cast_from_data(data):
             raise ValueError(f"bad entry {item!r}")
         name = item["name"].strip().upper()
         if name in names:
-            continue
+            raise ValueError(f"duplicate canonical cast name: {name}")
         aliases = [a.strip().upper() for a in item.get("aliases", [])
                    if a.strip() and a.strip().upper() != name]
         names.append(name)
@@ -2063,6 +2063,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         resolutions.extend(["resumed"] * (chunks_done - len(resolutions)))
     elapsed_s = dict(state.get("elapsed_s", {})) if state else {}
     diagnostic_failures = list(state.get("diagnostic_failures", [])) if state else []
+    if state:
+        # A new attempt retries unresolved attribution while keeping accepted rows.
+        diagnostic_failures = [failure for failure in diagnostic_failures
+                               if failure.get("pass") != "attribute"]
     diagnostic_segment_resume = None
     if any(failure.get("pass") == "segment" for failure in diagnostic_failures):
         resume = state.get("diagnostic_segment_resume")

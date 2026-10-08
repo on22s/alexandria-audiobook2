@@ -384,7 +384,9 @@ class NicknameRuntimeRecoveryTests(unittest.TestCase):
                 passages = prompt.split('CONTEXT PASSAGES (multiple names co-occur — alias evidence):\n')[1]
                 lines = [line[2:] for line in passages.split('\nReturn the JSON now.')[0].splitlines()]
                 key = hashlib.sha256(''.join(lines).encode()).hexdigest()
-                payload = {'aliases': {'BETTY': 'ALICE'}, 'evidence': {key: lines}}
+                self.passages = getattr(self, 'passages', {})
+                self.passages[key] = lines
+                payload = {'aliases': {'BETTY': 'ALICE'}, 'evidence': {'BETTY': 'Alice is called Betty in these passages.'}}
                 data = response.json()
                 data['choices'][0]['message']['content'] = json.dumps(payload)
                 return httpx.Response(200, json=data)
@@ -419,9 +421,13 @@ class NicknameRuntimeRecoveryTests(unittest.TestCase):
             evidence_file = Path(tmp) / 'evidence.json'
             evidence_file.write_text(json.dumps(evidence))
             recorded = json.loads(evidence_file.read_text())
+            passages_file = Path(tmp) / 'passages.json'
+            passages_file.write_text(json.dumps(secondary.passages))
+            sent_passages = json.loads(passages_file.read_text())
         self.assertEqual({'BETTY': 'ALICE'}, aliases)
         self.assertEqual({'HUMAN': 'ALICE', 'BETTY': 'ALICE'}, reread)
-        self.assertEqual(expected, [line for lines in recorded.values() for line in lines])
+        self.assertEqual({'BETTY': 'Alice is called Betty in these passages.'}, recorded)
+        self.assertEqual(sorted(expected), sorted(line for lines in sent_passages.values() for line in lines))
         self.assertEqual(original, entries)
         self.assertGreater(len(secondary.requests), 1)
         self.assertEqual(1, len(primary.requests))

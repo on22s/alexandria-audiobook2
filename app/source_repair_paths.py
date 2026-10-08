@@ -4,6 +4,7 @@ import os
 import json
 from pathlib import Path
 import tempfile
+import shutil
 
 
 def _same_target(first, second):
@@ -41,9 +42,37 @@ def save_repair_text(path, text):
 def save_source_repair_result(report_path, report, output_path=None, repaired_text=None):
     """Leave unapplied evidence until the accepted repaired output is published."""
     published = {**report, "applied": False}
-    save_repair_text(report_path, json.dumps(published, indent=2, ensure_ascii=False))
-    if output_path is not None:
-        save_repair_text(output_path, repaired_text)
-        published = {**published, "applied": True}
+    backup = None
+    destination = Path(output_path) if output_path is not None else None
+    try:
         save_repair_text(report_path, json.dumps(published, indent=2, ensure_ascii=False))
-    return published
+        if destination is not None and destination.exists():
+            with tempfile.NamedTemporaryFile('wb', dir=destination.parent,
+                                             prefix=f'.{destination.name}.backup.', suffix='.tmp',
+                                             delete=False) as stream:
+                backup = Path(stream.name)
+                with destination.open('rb') as prior:
+                    shutil.copyfileobj(prior, stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+        if destination is not None:
+            save_repair_text(destination, repaired_text)
+            try:
+                applied = {**published, "applied": True}
+                save_repair_text(report_path, json.dumps(applied, indent=2, ensure_ascii=False))
+            except BaseException:
+                if backup is not None:
+                    try:
+                        backup.replace(destination)
+                    except OSError as rollback_error:
+                        recovery_path = backup
+                        backup = None  # retain the prior output for explicit recovery
+                        raise OSError(f"Repair rollback failed; prior output preserved at {recovery_path}") from rollback_error
+                else:
+                    destination.unlink()
+                raise
+            published = applied
+        return published
+    finally:
+        if backup is not None:
+            backup.unlink(missing_ok=True)
