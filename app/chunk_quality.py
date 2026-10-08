@@ -87,10 +87,14 @@ def validate_chunk_quality(source_text, entries):
                          "message": "Response introduced Cyrillic characters absent from the source."})
     source_non_ascii = {char for char in unicodedata.normalize("NFC", source_text)
                         if ord(char) > 127 and unicodedata.category(char).startswith("L")}
+    source_latin_casefold = {char.casefold() for char in source_non_ascii
+                            if "LATIN" in unicodedata.name(char, "")}
     introduced_non_ascii = sorted({char for char in unicodedata.normalize("NFC", output_text)
                                    if ord(char) > 127
                                    and unicodedata.category(char).startswith("L")
                                    and char not in source_non_ascii
+                                   and not ("LATIN" in unicodedata.name(char, "")
+                                            and char.casefold() in source_latin_casefold)
                                    and not ("\u0400" <= char <= "\u04ff")})
     if introduced_non_ascii:
         findings.append({
