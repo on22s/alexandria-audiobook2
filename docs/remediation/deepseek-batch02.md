@@ -11,3 +11,5 @@ Approved scope: validation and cached input integrity.
 - [x] Complete ready.sh: 7,056 unit tests passed; quick API checks: 70 passed, 12 skipped.
 
 Missing timezone behavior was simulated on Linux, not tested on native Windows. No GPU inference required.
+
+Validation: 91 focused tests; ready.sh passed with 7,068 unit tests and 70 isolated API checks. The quick gate skipped 12 generation checks. No production GPU inference or native browser run is claimed.
