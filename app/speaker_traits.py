@@ -233,7 +233,7 @@ def get_persona_state_entries(script_entries, target):
     return rows
 
 
-def get_persona_state_chunk_indices(script_entries, chunks, speaker):
+def get_persona_state_chunk_indices(script_entries, chunks, speaker, *, state_targets=None):
     """Map exact dialogue streams; a change inside a merged chunk is unsafe."""
     def normalize(value):
         return " ".join(str(value or "").split())
@@ -257,7 +257,7 @@ def get_persona_state_chunk_indices(script_entries, chunks, speaker):
         if position in offsets:
             mapping[index] = offsets[position]
         position += len(text) + 1
-    targets = get_persona_state_targets(script_entries).get(speaker, [])
+    targets = (get_persona_state_targets(script_entries) if state_targets is None else state_targets).get(speaker, [])
     if targets:
         # Unlabelled lead-in dialogue belongs to the first settled state, even
         # when its first known trait occurs inside a merged opening chunk.

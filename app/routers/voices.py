@@ -269,6 +269,47 @@ def get_current_persona_state(speaker, version_id):
     return target
 
 
+def get_validated_voice_changes(speaker, before, after, *, check_timeline=False):
+    """Validate state invariants for every public voice-config write path."""
+    old_versions, versions = before.get("versions") or {}, after.get("versions") or {}
+    points = after.get("version_timeline") or []
+    removed = set(old_versions) - set(versions)
+    applied = {point.get("version_id") for point in points} | {after.get("active_version")}
+    if removed & applied:
+        raise HTTPException(status_code=409, detail="Voice version is applied; select another base version or clear its timeline points first")
+    changed_states = [(version_id, version) for version_id, version in versions.items()
+                      if isinstance(version, dict) and version != old_versions.get(version_id)
+                      and ("persona_state" in version or "persona_state" in (old_versions.get(version_id) or {}))]
+    changed_states.extend((version_id, old_versions[version_id]) for version_id in removed
+                          if isinstance(old_versions[version_id], dict) and "persona_state" in old_versions[version_id])
+    timeline_changed = check_timeline or points != (before.get("version_timeline") or [])
+    if timeline_changed:
+        missing = [point["version_id"] for point in points
+                   if point.get("version_id") is not None and point["version_id"] not in versions]
+        if missing:
+            raise HTTPException(status_code=400, detail=f"Unknown voice version: {', '.join(missing)}")
+    state_points = [point for point in points if point.get("version_id")
+                    and "persona_state" in (versions.get(point["version_id"]) or {})] if timeline_changed else []
+    if not changed_states and not state_points:
+        return after
+    script = safe_load_json(SCRIPT_PATH, default=[])
+    targets = get_persona_state_targets(script)
+    by_id = {target["version_id"]: target for target in targets.get(speaker, [])}
+    for version_id, version in changed_states:
+        if version_id not in by_id or version.get("persona_state") != by_id[version_id]:
+            raise HTTPException(status_code=409, detail="State source changed; reload and regenerate that persona")
+    if state_points:
+        chunks = safe_load_json(CHUNKS_PATH, default=[])
+        mapping = get_persona_state_chunk_indices(script, chunks, speaker, state_targets=targets)
+        for point in state_points:
+            target = by_id.get(point["version_id"])
+            version = versions[point["version_id"]]
+            if (target is None or version.get("persona_state") != target
+                    or mapping.get(target["from_entry"]) != point["from_index"]):
+                raise HTTPException(status_code=409, detail="State boundary is stale or lies inside an edited/merged chunk; rebuild chunks and review the timeline")
+    return after
+
+
 def get_validated_voice_target(entry, speaker, version_id, book_token):
     if book_token is None:
         raise HTTPException(status_code=409, detail="State actions require the current book token")
@@ -365,10 +406,15 @@ def _ensure_voice_listing():
 async def save_voice_version(speaker: str, request: VoiceVersionRequest):
     def save_version(current):
         config = request.config or {key: value for key, value in current.items()
-                                    if key not in VERSION_OVERLAY_EXCLUDED}
+                                    if key not in VERSION_OVERLAY_EXCLUDED and key != "persona_state"}
         if config.get("type") not in {None, "custom", "clone", "design", "lora", "builtin_lora", "ensemble"}:
             raise HTTPException(status_code=422, detail="Unsupported voice version type")
-        current.setdefault("versions", {})[request.version_id] = {**config, "age_group": request.age_group}
+        previous = (current.get("versions") or {}).get(request.version_id) or {}
+        age = previous.get("age_group", request.age_group) if "persona_state" in previous and "age_group" not in request.model_fields_set else request.age_group
+        updated = {**current, "versions": {**(current.get("versions") or {}),
+                    request.version_id: {**config, "age_group": age}}}
+        get_validated_voice_changes(speaker, current, updated)
+        current["versions"] = updated["versions"]
     entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, save_version, request.book_token)
     return {"status": "saved", "speaker": speaker, "version_id": request.version_id,
             "versions": entry.get("versions", {})}
@@ -378,10 +424,9 @@ async def save_voice_version(speaker: str, request: VoiceVersionRequest):
 async def remove_voice_version(speaker: str, version_id: str, book_token: Optional[str] = None):
     def remove(entry):
         get_validated_voice_target(entry, speaker, version_id, book_token)
-        if entry.get("active_version") == version_id or any(
-                point.get("version_id") == version_id for point in entry.get("version_timeline", [])):
-            raise HTTPException(status_code=409, detail="Voice version is applied; select another base version or clear its timeline points first")
-        del entry["versions"][version_id]
+        versions = {key: value for key, value in entry["versions"].items() if key != version_id}
+        get_validated_voice_changes(speaker, entry, {**entry, "versions": versions})
+        entry["versions"] = versions
     entry, revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, remove, book_token)
     return {"status": "removed", "speaker": speaker, "version_id": version_id,
             "versions": entry.get("versions", {}), "revision": revision}
@@ -596,8 +641,9 @@ async def get_voice_state_timeline(speaker: str):
         states = get_state_timeline(script).get(speaker.strip().upper(), [])
         if not states:
             return {"speaker": speaker, "states": [], "applied": entry.get("version_timeline", [])}
-        targets = get_persona_state_targets(script).get(speaker, [])
-        strict_mapping = get_persona_state_chunk_indices(script, chunks, speaker)
+        state_targets = get_persona_state_targets(script)
+        targets = state_targets.get(speaker, [])
+        strict_mapping = get_persona_state_chunk_indices(script, chunks, speaker, state_targets=state_targets)
         targets_by_entry = {target["from_entry"]: target for target in targets}
         candidates = _build_lora_candidates()
         users = get_adapter_users(voice_config)
@@ -616,6 +662,11 @@ async def get_voice_state_timeline(speaker: str):
             has_generated = target and target["version_id"] in (entry.get("versions") or {})
             chunk_index = strict_mapping.get(state["from_entry"]) if has_generated else line_chunks.get(state["from_entry"])
             sources = get_state_voice_sources(state, speaker, entry, candidates, users)
+            sources["versions"] = [version for version in sources["versions"]
+                if "persona_state" not in entry["versions"][version["version_id"]]
+                or (target and version["version_id"] == target["version_id"]
+                    and entry["versions"][version["version_id"]].get("persona_state") == target)]
+            sources["offer_generate"] = not any(sources[key] for key in ("versions", "library_unused", "library_used"))
             if has_generated:
                 sources["versions"].sort(key=lambda version: version["version_id"] != target["version_id"])
             out.append({**state, "from_index": chunk_index,
@@ -637,23 +688,11 @@ async def save_version_timeline(speaker: str, request: VersionTimelineRequest):
     """Apply a character's voice timeline. Every version must exist, or
     nothing is written."""
     def save(current):
-        versions = current.get("versions") or {}
-        missing = [p.version_id for p in request.points
-                   if p.version_id is not None and p.version_id not in versions]
-        if missing:
-            raise HTTPException(status_code=400, detail=f"Unknown voice version: {', '.join(missing)}")
-        for point in request.points:
-            if point.version_id and "persona_state" in versions[point.version_id]:
-                target = get_current_persona_state(speaker, point.version_id)
-                version = versions[point.version_id]
-                script = safe_load_json(SCRIPT_PATH, default=[])
-                chunks = safe_load_json(CHUNKS_PATH, default=[])
-                mapping = get_persona_state_chunk_indices(script, chunks, speaker)
-                if version.get("persona_state") != target or mapping.get(target["from_entry"]) != point.from_index:
-                    raise HTTPException(status_code=409, detail="State boundary is stale or lies inside an edited/merged chunk; rebuild chunks and review the timeline")
         points = {p.from_index: {"from_index": p.from_index, "version_id": p.version_id}
                   for p in request.points}
-        current["version_timeline"] = [points[i] for i in sorted(points)]
+        timeline = [points[i] for i in sorted(points)]
+        get_validated_voice_changes(speaker, current, {**current, "version_timeline": timeline}, check_timeline=True)
+        current["version_timeline"] = timeline
     entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, save, request.book_token)
     return {"status": "saved", "speaker": speaker, "version_timeline": entry.get("version_timeline", [])}
 
@@ -857,14 +896,9 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                 for key in ('style_timeline', 'version_timeline'):
                     if key in fields:
                         fields[key] = config.model_dump()[key]
-                if "versions" in fields:
-                    for version_id, version in fields["versions"].items():
-                        previous_version = metadata.get("versions", {}).get(version_id) or {}
-                        if ("persona_state" in version or "persona_state" in previous_version) and version != previous_version:
-                            target = get_current_persona_state(voice_name, version_id)
-                            if version.get("persona_state") != target:
-                                raise VoiceConfigConflict("State source changed; reload and regenerate that persona")
-                updated[voice_name] = {**metadata, **fields}
+                candidate = {**metadata, **fields}
+                get_validated_voice_changes(voice_name, metadata, candidate)
+                updated[voice_name] = candidate
             return updated
 
         updated = apply_voice_config_update(VOICE_CONFIG_PATH, apply_updates,

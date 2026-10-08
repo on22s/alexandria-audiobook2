@@ -1650,7 +1650,7 @@
                         <div class="mt-2">
                             <div class="form-text mb-2">1. Enter the speaker and optionally the dialogue samples and narrator context below. 2. Click Copy prompt and send that prompt to your chosen LLM. 3. Paste its JSON reply into Persona JSON. 4. Validate &amp; save stores this persona. Validate &amp; resume also requests continuation of the persona run.</div>
                             <div class="row g-2">
-                                <div class="col-md-3"><label class="visually-hidden" for="persona-recovery-speaker">Speaker name</label><input class="form-control form-control-sm" id="persona-recovery-speaker" placeholder="Speaker name"></div>
+                                <div class="col-md-3"><label class="visually-hidden" for="persona-recovery-speaker">Speaker name</label><input class="form-control form-control-sm" id="persona-recovery-speaker" placeholder="Speaker name" oninput="renderPersonaRecoveryTargets()"></div>
                                 <div class="col-md-7"><label class="visually-hidden" for="persona-recovery-json">Persona JSON</label><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-json" rows="3" placeholder='{"description":"...","ref_text":"..."}'></textarea></div>
                                 <div class="col-md-2 d-grid gap-1">
                                     <button class="btn btn-sm btn-outline-secondary" onclick="copyPersonaPrompt()">Copy prompt</button>
@@ -1658,6 +1658,8 @@
                                     <button class="btn btn-sm btn-outline-primary" onclick="recoverPersona(true)">Validate &amp; resume</button>
                                 </div>
                             </div>
+                            <label class="form-label small mt-2" for="persona-recovery-state">Recovery target</label>
+                            <select class="form-select form-select-sm" id="persona-recovery-state"><option value="__base__">Base character persona</option></select>
                             <div class="row g-2 mt-1">
                                 <div class="col-md-6"><label class="visually-hidden" for="persona-recovery-samples">Dialogue samples</label><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-samples" rows="2" placeholder="Dialogue samples (used by Copy prompt)"></textarea></div>
                                 <div class="col-md-6"><label class="visually-hidden" for="persona-recovery-narration">Narrator context</label><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-narration" rows="2" placeholder="Narrator context (used by Copy prompt)"></textarea></div>

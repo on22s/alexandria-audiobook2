@@ -15,6 +15,9 @@ Generation and editing do not apply voice changes to rendered audio. Open the ch
 
 Use **Remove saved state persona** to remove an unapplied state version while keeping its audio files and other voices. Clear its applied timeline points first if playback still uses it.
 
+Use **Recover persona** on a state card to open manual recovery with that exact state selected. When entering a character in the recovery panel yourself, explicitly choose its base persona or numbered state. State recovery and Resume retain the base and other states; use only dialogue/context from the selected state for the copied prompt.
+
+
 ## The speech models
 
 The app uses three Qwen3-TTS models:

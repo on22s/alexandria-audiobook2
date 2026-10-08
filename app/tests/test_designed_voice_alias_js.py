@@ -15,6 +15,8 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
+const core = fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]), 'app-core.js'), 'utf8');
+const descriptionHelpers = core.slice(core.indexOf('function getVoiceCardMetadata('), core.indexOf('async function postVoiceTarget('));
 const reset = source.slice(source.indexOf('function getDesignerFormSnapshot('), source.indexOf('window.generateDesignPreview ='));
 const open = source.slice(source.indexOf('window.openVoiceDesignEditor ='), source.indexOf('window.onDesignedVoiceSelect ='));
 const elements = {};
@@ -30,7 +32,7 @@ const context = {showConfirm:async()=>true,showToast:()=>{},
 };
 context.document.getElementById('design-sample-text');
 context.document.getElementById('design-alias-select');
-vm.runInNewContext(reset + open, context);
+vm.runInNewContext(descriptionHelpers + reset + open, context);
 (async()=>{for (const alias of ['TARGET B', '']) {
     const card = {querySelector(selector) {
         return {
@@ -39,7 +41,7 @@ vm.runInNewContext(reset + open, context);
             '.alias-select':{value:alias,innerHTML:'B alias options'}
         }[selector];
     }};
-    const button = {closest: selector => selector === '.card-body' ? card : {dataset:{voice:'B'}}};
+    const button = {closest: selector => selector === '.card-body' ? card : {dataset:{voice:'B'},querySelector:card.querySelector}};
     await context.window.openVoiceDesignEditor(button);
     assert.strictEqual(elements['design-voice-name'].value, 'B');
     assert.strictEqual(elements['design-source-name'].value, 'B');

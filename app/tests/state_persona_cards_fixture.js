@@ -39,6 +39,8 @@ load('window.selectVoiceCandidate =', 'async function applyConfirmedVoiceRemoval
 load('window.suggestMoreVoices =', 'function renderVoiceSuggestions(');
 const html = context.getStateVoiceCardsMarkup([voice]);
 assert.equal((html.match(/data-version="state_/g) || []).length, 4);
+assert(html.includes('class="voice-character-group"'), 'sorting must preserve a whole character group');
+assert(/onclick="openStatePersonaRecovery\(this\)"(?![^>]*disabled)/.test(context.getStateVoiceCardsMarkup([{...voice, config: {...base, versions: {}}}])));
 assert(html.includes('ARTHUR &quot;&lt;&amp;'));
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 assert.equal(new Set(ids).size, ids.length, 'duplicate controls cannot target state cards correctly');

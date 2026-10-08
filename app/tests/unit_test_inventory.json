@@ -7435,6 +7435,16 @@
   "test_state_persona_cards_js": [
     "tests.test_state_persona_cards_js.StatePersonaCardTests.test_real_cards_and_actions_keep_version_and_book_identity"
   ],
+  "test_state_persona_review_regressions": [
+    "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_base_edits_preserve_an_unchanged_stale_timeline",
+    "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_every_full_save_refuses_wrong_boundaries_and_applied_version_deletion",
+    "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_generic_version_save_preserves_generated_provenance_and_manual_ids",
+    "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_literal_speaker_braces_reach_real_state_compilation",
+    "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_native_suggestion_sorting_keeps_collapsed_base_and_state_groups",
+    "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_native_ui_recovery_payload_saves_and_resumes_only_its_target",
+    "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_recovered_state_cli_skips_discovery_and_compilation_and_keeps_siblings",
+    "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_repeated_state_defaults_only_offer_versions_that_can_apply"
+  ],
   "test_state_personas": [
     "tests.test_state_personas.StateGenerationAdmissionTests.test_state_json_recovery_keeps_the_base_and_other_state_versions",
     "tests.test_state_personas.StateGenerationAdmissionTests.test_state_voice_suggestions_use_only_that_states_dialogue_and_persona",

@@ -567,7 +567,7 @@
             const card = button.closest('.card-body');
             const cardRoot = button.closest('.voice-card');
             const voiceName = cardRoot ? cardRoot.dataset.voice : '';
-            const description = card ? (card.querySelector('.persona-description')?.value || card.querySelector('.design-description')?.value || '') : '';
+            const description = card ? getVoiceCardDescription(cardRoot || card) : '';
 
             document.querySelector('[data-tab="designer"]').click();
             resetDesignerForm();

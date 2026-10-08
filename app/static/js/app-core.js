@@ -3827,6 +3827,31 @@
             });
         }
 
+        function renderPersonaRecoveryTargets() {
+            const field = document.getElementById('persona-recovery-state');
+            if (!field) { return; }
+            const speaker = document.getElementById('persona-recovery-speaker')?.value.trim();
+            const states = window._voicesByName?.[speaker]?.persona_states || [];
+            const token = typeof _voiceCardsBookToken === 'undefined' ? '' : _voiceCardsBookToken;
+            const previous = field.dataset.bookToken === token && field.dataset.speaker === speaker ? field.value : '';
+            field.innerHTML = (states.length ? '<option value="" disabled>Choose base or state persona</option>' : '')
+                + '<option value="__base__">Base character persona</option>'
+                + states.map(state => `<option value="${escapeHtml(state.version_id)}">${escapeHtml(`${state.gender} · ${state.age_group.replaceAll('_', ' ')} · state ${state.state_number}`)}</option>`).join('');
+            field.value = states.length ? (previous === '__base__' || states.some(state => state.version_id === previous) ? previous : '') : '__base__';
+            field.dataset.bookToken = token;
+            field.dataset.speaker = speaker;
+        }
+
+        window.openStatePersonaRecovery = function openStatePersonaRecovery(button) {
+            const card = button.closest('.voice-card');
+            if (!card?.dataset.version) { return; }
+            document.getElementById('persona-recovery-speaker').value = card.dataset.voice;
+            renderPersonaRecoveryTargets();
+            document.getElementById('persona-recovery-state').value = card.dataset.version;
+            document.getElementById('persona-recovery-panel').open = true;
+            document.getElementById('persona-recovery-json').focus();
+        };
+
         window.recoverPersona = async function recoverPersona(resume = false) {
         const speaker = document.getElementById('persona-recovery-speaker')?.value.trim();
         const personaJson = document.getElementById('persona-recovery-json')?.value.trim();
@@ -3836,7 +3861,23 @@
             return;
         }
         try {
-            await API.post('/api/persona/recover', {speaker, persona_json: personaJson, resume});
+            const field = document.getElementById('persona-recovery-state');
+            const selected = field?.value;
+            const states = window._voicesByName?.[speaker]?.persona_states || [];
+            if (field && states.length && !selected) { throw new Error('Choose the base persona or the exact character state to recover.'); }
+            const state = selected && selected !== '__base__' ? states.find(state => state.version_id === selected) : null;
+            if (selected && selected !== '__base__' && !state) { throw new Error('The selected character state changed. Reload Voices.'); }
+            const payload = {speaker, persona_json: personaJson, resume};
+            if (state) {
+                const token = field.dataset.bookToken;
+                await flushVoiceSaves();
+                if (!token || token !== _voiceSaveSnapshot?.book_token || field.value !== selected
+                        || document.getElementById('persona-recovery-speaker').value.trim() !== speaker) {
+                    throw new Error('The book or recovery target changed. Reload Voices and select the state again.');
+                }
+                Object.assign(payload, {state_version: state.version_id, book_token: token});
+            }
+            await API.post('/api/persona/recover', payload);
             if (status) { status.textContent = resume ? 'Validated and resumed.' : 'Validated and saved.'; }
             await loadVoices();
             showToast(`Persona recovered for ${speaker}.`, 'success');
@@ -3854,8 +3895,11 @@
             || 'Create a persona for {speaker}. Return exactly {"description":"...","ref_text":"..."}.';
         const samples = document.getElementById('persona-recovery-samples')?.value.trim() || '(none provided)';
         const narration = document.getElementById('persona-recovery-narration')?.value.trim() || '(none provided)';
+        const selected = document.getElementById('persona-recovery-state')?.value;
+        const state = window._voicesByName?.[speaker]?.persona_states?.find(state => state.version_id === selected);
+        const scope = state ? `\nUse only this state's supplied evidence: ${state.gender}, ${state.age_group}, segment ${state.state_number}.` : '';
         const prompt = `${system}\n\n${userTemplate.replaceAll('{speaker}', speaker)
-            .replaceAll('{sample_lines}', samples).replaceAll('{narrator_context}', narration)}`;
+            .replaceAll('{sample_lines}', samples).replaceAll('{narrator_context}', narration)}${scope}`;
         await copyToClipboard(prompt, 'Persona prompt');
     };
 
@@ -4005,6 +4049,12 @@
             return card.dataset.voice + (card.dataset.version ? '::' + card.dataset.version : '');
         }
 
+        function getVoiceCardDescription(card) {
+            const type = card.querySelector('.voice-type:checked')?.value || 'design';
+            const field = type === 'design' ? '.design-description' : type === 'clone' ? '.persona-description' : null;
+            return (field ? card.querySelector(field)?.value : null) ?? getVoiceCardMetadata(card).description ?? '';
+        }
+
         async function postVoiceTarget(control, path, payload = {}) {
             const card = control.closest('.voice-card');
             if (!card?.dataset.version) { return API.post(path, payload); }
@@ -4046,11 +4096,11 @@
                     if (!stale) { return markup; }
                     // Generate the persona first; pending/stale forms cannot publish invented versions.
                     return markup.replace(/<(input|select|textarea|button)\b([^>]*)>/g, (tag, kind, attributes) => {
-                        if (kind === 'button' && attributes.includes('regeneratePersona(this)')) { return tag; }
+                        if (kind === 'button' && (attributes.includes('regeneratePersona(this)') || attributes.includes('openStatePersonaRecovery(this)'))) { return tag; }
                         return `<${kind}${attributes} disabled>`;
                     });
                 }).join('');
-                return `<details class="mb-3 voice-base-details"><summary>${escapeHtml(voice.name)}: base voice and manual versions</summary>${base}</details>` + states;
+                return `<div class="voice-character-group" data-voice="${escapeHtml(voice.name)}"><details class="mb-3 voice-base-details"><summary>${escapeHtml(voice.name)}: base voice and manual versions</summary>${base}</details>${states}</div>`;
             }).join('');
         }
 
@@ -4071,6 +4121,7 @@
                                 <h5 class="card-title">${escapeHtml(label)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Regenerate persona for ' + label)}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Generate age version for ' + label)}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
+                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" aria-label="${escapeHtml('Recover persona for ' + label)}" onclick="openStatePersonaRecovery(this)">Recover persona</button>` : ''}
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-danger mt-1" type="button" aria-label="${escapeHtml('Remove saved state persona for ' + label)}" onclick="removeStatePersona(this)">Remove saved state persona</button>` : ''}
                                 <div class="small text-muted">${voice.version_id && voice.state_stale ? 'State persona needs generation for the current script. ' : ''}Persona review: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice review: ${escapeHtml(config.voice_status || 'unassigned')}</div>
                                 ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">Persona-to-voice audit: ${escapeHtml(config.persona_voice_audit.voice_adapter_id || 'manual')} · ${escapeHtml(config.persona_voice_audit.persona_ref || 'inline persona')} <button class="btn btn-sm btn-link p-0" type="button" aria-label="${escapeHtml('Edit persona-to-voice audit for ' + label)}" onclick="editPersonaVoiceAudit(this)">Edit</button></div>` : ''}
@@ -4451,6 +4502,7 @@
                 container.innerHTML = getVoiceSeedRepairMarkup(_voiceSaveSnapshot) + getStateVoiceCardsMarkup(voices);
                 _voiceCardsRevision = _voiceSaveSnapshot.revision;
                 _voiceCardsBookToken = _voiceSaveSnapshot.book_token;
+                if (typeof renderPersonaRecoveryTargets === 'function') { renderPersonaRecoveryTargets(); }
                 renderReadyCount();
                 onToggleHideReady();
 
@@ -4936,7 +4988,8 @@
                     <button class="btn btn-sm btn-success flex-shrink-0" data-voice="${escapeHtml(name)}" onclick="applyVoiceSuggestion(this.dataset.voice)"><i class="fas fa-check me-1"></i>Apply</button>
                 `;
             });
-            Array.from(container.querySelectorAll('.voice-card'))
+            Array.from(new Set(Array.from(container.querySelectorAll('.voice-card'))
+                .map(card => card.closest?.('.voice-character-group') || card)))
                 .sort((a, b) => (window._voiceSuggestions[b.dataset.voice]?.line_count || window._lineCounts[b.dataset.voice] || 0)
                                - (window._voiceSuggestions[a.dataset.voice]?.line_count || window._lineCounts[a.dataset.voice] || 0))
                 .forEach(card => container.appendChild(card));
@@ -5803,7 +5856,7 @@
                         ref_text: card.querySelector('.ref-text').value,
                         ref_audio: card.querySelector('.ref-audio').value,
                         default_style: metadata.type === 'clone' ? (metadata.default_style || '') : '',
-                        description: card.querySelector('.persona-description')?.value ?? (metadata.type === 'clone' ? (metadata.description || '') : ''),
+                        description: getVoiceCardDescription(card),
                         seed: "-1"
                     };
                 } else if (type === 'builtin_lora') {
@@ -5856,7 +5909,7 @@
                 if (!card.dataset.version) { return; }
                 const name = card.dataset.voice;
                 const fields = config[getVoiceCardKey(card)];
-                fields.description = card.querySelector('.persona-description')?.value ?? getVoiceCardMetadata(card).description ?? '';
+                fields.description = getVoiceCardDescription(card);
                 delete fields.alias_of;
                 const metadata = getVoiceCardMetadata(card);
                 // Pending cards must not become generated voices merely by rendering.
@@ -5895,6 +5948,11 @@
                 const states = card.dataset.hasStates === '1';
                 const filtered = (filter === 'states' && !states) || (filter === 'single' && states);
                 card.style.display = filtered || (hide && card.dataset.ready === '1') ? 'none' : '';
+            });
+            const groups = new Set(Array.from(document.querySelectorAll('.voice-card'))
+                .map(card => card.closest?.('.voice-character-group')).filter(Boolean));
+            groups.forEach(group => {
+                group.style.display = Array.from(group.querySelectorAll('.voice-card')).every(card => card.style.display === 'none') ? 'none' : '';
             });
         }
 

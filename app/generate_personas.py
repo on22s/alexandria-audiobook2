@@ -953,8 +953,8 @@ def _run_advanced_speaker_generation(script, selected_speakers, samples, voice_c
     return failures
 
 
-def get_pending_state_targets(script, speaker, voice, new_only=False, version_id=""):
-    targets = get_persona_state_targets(script).get(speaker, [])
+def get_pending_state_targets(script, speaker, voice, new_only=False, version_id="", *, state_targets=None):
+    targets = (get_persona_state_targets(script) if state_targets is None else state_targets).get(speaker, [])
     if version_id:
         targets = [target for target in targets if target["version_id"] == version_id]
         if not targets:
@@ -970,7 +970,9 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
                                    client, model_name, engine, root, args, **options):
     """Compile isolated settled-state evidence into existing voice versions."""
     publish = options.pop("state_publisher", None)
-    all_targets = get_persona_state_targets(script)
+    all_targets = options.pop("state_targets", None)
+    if all_targets is None:
+        all_targets = get_persona_state_targets(script)
     failures = []
     regular = []
     for speaker in selected_speakers:
@@ -979,7 +981,7 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
             continue
         voice = copy.deepcopy(voice_config.get(speaker) or {})
         targets = get_pending_state_targets(script, speaker, voice,
-                    getattr(args, "new_only", False), getattr(args, "state_version", ""))
+                    getattr(args, "new_only", False), getattr(args, "state_version", ""), state_targets=all_targets)
         print(f"State personas for {speaker}: {len(targets)} targets")
         for number, target in enumerate(targets, 1):
             version_id = target["version_id"]
@@ -994,8 +996,9 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
             state_args.recovered_speaker = (getattr(args, "recovered_speaker", "")
                                             if getattr(args, "state_version", "") == version_id else "")
             state_options = dict(options)
+            prompt_speaker = speaker.replace("{", "{{").replace("}", "}}")
             state_options["advanced_prompt"] = (options.get("advanced_prompt") or PERSONA_ADVANCED_PROMPT) + (
-                f"\nThis evidence is exclusively {speaker}'s settled {target['gender']}, "
+                f"\nThis evidence is exclusively {prompt_speaker}'s settled {target['gender']}, "
                 f"{target['age_group']} state. Use only its supplied lines; do not mix other ages or states.\n")
             try:
                 failed = _run_advanced_speaker_generation(entries, [speaker], state_samples,
@@ -1137,8 +1140,9 @@ def main():
     if args.book_token and get_book_snapshot_token(book_snapshot) != args.book_token:
         raise ValueError("Active book changed before persona generation started")
     script = json.loads(book_snapshot["script_bytes"])
+    state_targets = get_persona_state_targets(script) if args.advanced or args.state_version else {}
     if args.state_version:
-        allowed = {target["version_id"] for speaker, targets in get_persona_state_targets(script).items()
+        allowed = {target["version_id"] for speaker, targets in state_targets.items()
                    if speaker in args.speakers.split(",") for target in targets}
         if args.state_version not in allowed:
             raise ValueError("Character state changed before persona generation started")
@@ -1166,7 +1170,7 @@ def main():
     if args.new_only:
         from tts import voice_is_set
         selected_speakers = [s for s in selected_speakers if not voice_is_set(voice_config.get(s))
-                             or (args.advanced and get_pending_state_targets(script, s, voice_config.get(s), True))]
+                             or (args.advanced and get_pending_state_targets(script, s, voice_config.get(s), True, state_targets=state_targets))]
     if args.speakers.strip():
         allow = {s.strip() for s in args.speakers.split(",") if s.strip()}
         selected_speakers = [s for s in selected_speakers if s in allow]
@@ -1343,6 +1347,7 @@ def main():
             llm_config=llm_cfg,
             book_id=book_snapshot["book_id"],
             state_publisher=publish_states,
+            state_targets=state_targets,
         )
         if args.age_group.strip():
             for speaker in unique_speakers:

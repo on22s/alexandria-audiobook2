@@ -15,10 +15,10 @@ function setup(){
  const context={window:{},document:{getElementById:id=>elements[id],createElement:()=>({}),querySelector:()=>({click(){}})},
  API:{post:(...args)=>{const d=deferred();posts.push({args,...d});return d.promise;},get:(...args)=>{const d=deferred();gets.push({args,...d});return d.promise;}},
  escapeHtml:String,showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,console:{error(){}},Date,ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:async()=>{},clearVoiceSuggestions(){},clearCharacterAliases(){},loadCharacterAliases:async()=>{}};
- vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);const bookStart=core.indexOf('let currentBookFilename =');vm.runInContext(core.slice(bookStart,core.indexOf('async function loadConfig()',bookStart)),context);vm.runInContext(source,context);
+ vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function getVoiceCardMetadata('),core.indexOf('async function postVoiceTarget(')),context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);const bookStart=core.indexOf('let currentBookFilename =');vm.runInContext(core.slice(bookStart,core.indexOf('async function loadConfig()',bookStart)),context);vm.runInContext(source,context);
  context.loadSavedScripts=()=>{};context.loadDesignedVoices=()=>{};context.loadChunks=async()=>{};context.loadVoices=async()=>{};
  function select(name){const body={querySelector:selector=>({'.design-description':{value:name+' desc'},'.ref-text':{value:name+' text'},'.alias-select':{value:name+' alias',innerHTML:name+' options'}}[selector])};
-  return context.window.openVoiceDesignEditor({closest:selector=>selector==='.card-body'?body:{dataset:{voice:name}}});}
+  return context.window.openVoiceDesignEditor({closest:selector=>selector==='.card-body'?body:{dataset:{voice:name},querySelector:body.querySelector}});}
  return {context,elements,toasts,posts,gets,select};
 }
 function state(s){return JSON.stringify({fields:Object.fromEntries(Object.entries(s.elements).map(([key,e])=>[key,{value:e.value,innerHTML:e.innerHTML,display:e.style.display,src:e.src,dataset:{...e.dataset},disabled:e.disabled,focusCount:e.focusCount,options:e.options.map(o=>({...o}))}])),file:s.context.window._currentPreviewFile,id:s.context.window._editingDesignedVoiceId,toasts:s.toasts});}
