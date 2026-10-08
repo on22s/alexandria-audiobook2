@@ -1006,23 +1006,26 @@ class ProjectManager:
         if not chunks_with_audio:
             return False, "No audio segments found"
 
-        pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
-        timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms)
-
-        # Build final audio from timeline
-        audio_segments = [seg for _, seg, _ in timeline]
-        speakers = [chunk["speaker"] for chunk, _, _ in timeline]
-        pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
-
-        final_audio = combine_audio_with_pauses(
-            audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides
-        )
         output_filename = "cloned_audiobook.mp3"
         output_path = os.path.join(self.root_dir, output_filename)
         pending_output = output_path + f".pending.{uuid.uuid4().hex}"
         try:
+            ensure_audio_export_active(cancel_check)
+            pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+            timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms,
+                                        cancel_check=cancel_check)
+            audio_segments = [seg for _, seg, _ in timeline]
+            speakers = [chunk["speaker"] for chunk, _, _ in timeline]
+            pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
+            final_audio = combine_audio_with_pauses(
+                audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides,
+                cancel_check=cancel_check)
+            ensure_audio_export_active(cancel_check)
             _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE)
+            ensure_audio_export_active(cancel_check)
             os.replace(pending_output, output_path)
+        except ExportCancelled:
+            return False, "Merge cancelled"
         finally:
             self._remove_temp_file(pending_output)
 

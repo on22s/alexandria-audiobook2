@@ -116,6 +116,7 @@ class TrainingReferenceTranscriptTests(unittest.TestCase):
                     engine = tts.TTSEngine.__new__(tts.TTSEngine)
                     engine._mode = "local"
                     engine._max_new_tokens = 100
+                    engine._language = "English"
                     engine._lora_prompt_cache = {}
                     prompt = object()
                     model = SimpleNamespace(create_voice_clone_prompt=Mock(return_value=prompt),

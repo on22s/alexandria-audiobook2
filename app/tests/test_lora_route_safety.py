@@ -280,6 +280,7 @@ class BuiltinLoraDispatchEquivalenceTests(unittest.TestCase):
             engine = tts.TTSEngine.__new__(tts.TTSEngine)
             engine._mode = 'local'
             engine._max_new_tokens = 100
+            engine._language = "English"
             engine._lora_prompt_cache = {}
             engine._init_local_lora = Mock(return_value=model)
             generate = stack.enter_context(patch.object(engine, 'generate_voice', wraps=engine.generate_voice))

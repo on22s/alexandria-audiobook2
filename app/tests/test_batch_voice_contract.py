@@ -72,7 +72,7 @@ class BatchVoiceContractTests(unittest.TestCase):
                   {'speaker':'C','text':'short','instruct':'','index':3}]
         original = copy.deepcopy((chunks, config))
         samples = np.full(4000, 0.1, dtype='float32')
-        model = SimpleNamespace(generate_custom_voice=Mock(
+        model = SimpleNamespace(device="cuda:1", generate_custom_voice=Mock(
             side_effect=lambda **kw: ([samples.copy() for _ in kw['text']],16000)))
         engine._init_local_custom = lambda: model
         engine.ensure_custom_warmup = Mock()
@@ -83,8 +83,8 @@ class BatchVoiceContractTests(unittest.TestCase):
         engine._max_new_tokens = 100
         fake_torch = ModuleType('torch')
         fake_torch.cuda = SimpleNamespace(is_available=lambda: True,
-                                         reset_peak_memory_stats=lambda: None,
-                                         max_memory_allocated=lambda: 0)
+                                         reset_peak_memory_stats=lambda device: None,
+                                         max_memory_allocated=lambda device: 0)
         with tempfile.TemporaryDirectory() as tmp, \
              patch.dict(sys.modules, {'torch':fake_torch}), \
              contextlib.redirect_stdout(io.StringIO()):
@@ -137,10 +137,12 @@ class CpuBatchPeakTelemetryTests(unittest.TestCase):
                     samples={chunk['text']:np.full(4000,(i+1)/10,dtype='float32') for i,chunk in enumerate(chunks)}
                     events=[]
                     peaks=iter((1e9,3.1e9,2e9))
-                    def reset():
+                    def reset(device):
+                        self.assertEqual("cuda:1", device)
                         events.append('reset')
                         if not available:raise RuntimeError('CPU has no peak-memory backend')
-                    def peak():
+                    def peak(device):
+                        self.assertEqual("cuda:1", device)
                         events.append('peak')
                         if not available:raise RuntimeError('CPU has no peak-memory backend')
                         return next(peaks)
@@ -152,7 +154,7 @@ class CpuBatchPeakTelemetryTests(unittest.TestCase):
                     fake_torch.cuda=SimpleNamespace(is_available=availability,
                         reset_peak_memory_stats=Mock(side_effect=reset),max_memory_allocated=Mock(side_effect=peak))
                     fake_torch.manual_seed=Mock(side_effect=lambda seed:events.append('seed:'+str(seed)))
-                    model=SimpleNamespace(generate_custom_voice=Mock(side_effect=render),
+                    model=SimpleNamespace(device="cuda:1", generate_custom_voice=Mock(side_effect=render),
                                           generate_voice_clone=Mock(side_effect=render))
                     engine=tts.TTSEngine.__new__(tts.TTSEngine)
                     engine._init_local_custom=Mock(return_value=model)

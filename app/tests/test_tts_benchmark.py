@@ -297,6 +297,7 @@ class LoraBenchmarkLoadTimingTests(unittest.TestCase):
         engine._model_lock = threading.Lock()
         engine._compile_codec_enabled = False
         engine._max_new_tokens = 100
+        engine._language = "English"
         engine._resolve_device = lambda: "cpu"
         engine._enable_rocm_optimizations = lambda: None
         engine._clear_gpu_cache = Mock()

@@ -614,15 +614,24 @@ class TTSEngine:
             return np.concatenate(wav) if len(wav) > 1 else wav[0]
         return wav
 
-    @staticmethod
-    def _vram_snapshot(label=""):
+    def get_memory_device(self, model=None):
+        """Return the model's CUDA device, or the configured device before loading."""
+        device = getattr(model, "device", None)
+        if device is None:
+            device = self._resolve_device()
+        return device if str(device).startswith("cuda") else None
+
+    def _vram_snapshot(self, label=""):
         """Log and return current VRAM state in GB (allocated/reserved/free/total)."""
         import torch
         if not torch.cuda.is_available():
             return {}
-        alloc = torch.cuda.memory_allocated() / 1e9
-        reserved = torch.cuda.memory_reserved() / 1e9
-        free, total = torch.cuda.mem_get_info()
+        device = self.get_memory_device()
+        if device is None:
+            return {}
+        alloc = torch.cuda.memory_allocated(device) / 1e9
+        reserved = torch.cuda.memory_reserved(device) / 1e9
+        free, total = torch.cuda.mem_get_info(device)
         free /= 1e9
         total /= 1e9
         snap = {"allocated_gb": round(alloc, 2), "reserved_gb": round(reserved, 2),
@@ -691,6 +700,10 @@ class TTSEngine:
         except AttributeError:
             return 1  # cannot size GPU memory safely without model dimensions
 
+        device = self.get_memory_device(model)
+        if device is None:
+            return 9999
+
         dtype_bytes = 2  # bf16
         kv_per_token = num_layers * 2 * num_kv_heads * head_dim * dtype_bytes
 
@@ -705,12 +718,12 @@ class TTSEngine:
         mem_per_seq = total_tokens * kv_per_token * OVERHEAD_FACTOR
 
         # Available = driver-level free + PyTorch reserved-but-unallocated
-        free_driver, _ = torch.cuda.mem_get_info()
-        reserved_unused = torch.cuda.memory_reserved() - torch.cuda.memory_allocated()
+        free_driver, _ = torch.cuda.mem_get_info(device)
+        reserved_unused = torch.cuda.memory_reserved(device) - torch.cuda.memory_allocated(device)
         free_total = free_driver + reserved_unused
 
         budget = int(free_total * 0.8)
-        max_batch = max(1, budget // mem_per_seq)
+        max_batch = max(1, int(budget // mem_per_seq))
 
         print(f"VRAM estimate: {free_total / 1e9:.1f}GB free, "
               f"{total_tokens} tok/seq ({clone_prompt_tokens} prompt + "
@@ -1622,6 +1635,7 @@ class TTSEngine:
             t_start = time.time()
             wavs, sr = model.generate_voice_clone(
                 text=text,
+                language=self._language,
                 voice_clone_prompt=prompt,
                 non_streaming_mode=True,
                 max_new_tokens=self._max_new_tokens,
@@ -1963,6 +1977,7 @@ class TTSEngine:
             t_start = time.time()
             wavs, sr = model.generate_voice_clone(
                 text=text,
+                language=self._language,
                 voice_clone_prompt=prompt,
                 non_streaming_mode=True,
                 max_new_tokens=self._max_new_tokens,
@@ -2024,7 +2039,6 @@ class TTSEngine:
 
         results = {"completed": [], "failed": []}
         batch_peak_vram_gb = 0.0
-        measure_gpu_peak = torch.cuda.is_available()
 
         texts = []
         speakers = []
@@ -2059,6 +2073,7 @@ class TTSEngine:
         indices = [indices[i] for i in sort_order]
 
         model = self._init_local_custom()
+        measure_gpu_peak = torch.cuda.is_available() and self.get_memory_device(model) is not None
 
         # Warmup on first batch to pre-tune MIOpen/GPU solvers
         self.ensure_custom_warmup(model)
@@ -2094,7 +2109,7 @@ class TTSEngine:
                     torch.manual_seed(batch_seed)
 
                 if measure_gpu_peak:
-                    torch.cuda.reset_peak_memory_stats()
+                    torch.cuda.reset_peak_memory_stats(self.get_memory_device(model))
                 t_start = time.time()
                 wavs_list, sr = model.generate_custom_voice(
                     text=sb_texts,
@@ -2106,7 +2121,7 @@ class TTSEngine:
                 )
                 gen_time = time.time() - t_start
                 if measure_gpu_peak:
-                    peak_gb = torch.cuda.max_memory_allocated() / 1e9
+                    peak_gb = torch.cuda.max_memory_allocated(self.get_memory_device(model)) / 1e9
                     batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
                     print(f"  Peak VRAM sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
@@ -2154,7 +2169,6 @@ class TTSEngine:
 
         results = {"completed": [], "failed": []}
         batch_peak_vram_gb = 0.0
-        measure_gpu_peak = torch.cuda.is_available()
 
         # Group only chunks that resolve to the same speaker and clone reference.
         speaker_groups = {}
@@ -2170,6 +2184,7 @@ class TTSEngine:
                 results["failed"].append((chunk["index"], str(error)))
 
         model = self._init_local_clone()
+        measure_gpu_peak = torch.cuda.is_available() and self.get_memory_device(model) is not None
 
         self._clear_gpu_cache()
 
@@ -2218,17 +2233,18 @@ class TTSEngine:
                     if batch_seed >= 0:
                         torch.manual_seed(batch_seed)
                     if measure_gpu_peak:
-                        torch.cuda.reset_peak_memory_stats()
+                        torch.cuda.reset_peak_memory_stats(self.get_memory_device(model))
                     t_start = time.time()
                     wavs_list, sr = model.generate_voice_clone(
                         text=sb_texts,
+                        language=self._language,
                         voice_clone_prompt=prompt,
                         non_streaming_mode=True,
                         max_new_tokens=self._max_new_tokens,
                     )
                     gen_time = time.time() - t_start
                     if measure_gpu_peak:
-                        peak_gb = torch.cuda.max_memory_allocated() / 1e9
+                        peak_gb = torch.cuda.max_memory_allocated(self.get_memory_device(model)) / 1e9
                         batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
                         print(f"  Peak VRAM clone sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
@@ -2394,6 +2410,7 @@ class TTSEngine:
                     t_start = time.time()
                     wavs_list, sr = model.generate_voice_clone(
                         text=sb_texts,
+                        language=self._language,
                         voice_clone_prompt=prompt,
                         non_streaming_mode=True,
                         max_new_tokens=self._max_new_tokens,
@@ -2548,7 +2565,7 @@ class TTSEngine:
                     handle_file(ref_audio),
                     ref_text,
                     text,
-                    "Auto",
+                    self._language,
                     False,       # use_xvector_only
                     "1.7B",
                     200,         # max_chunk_chars

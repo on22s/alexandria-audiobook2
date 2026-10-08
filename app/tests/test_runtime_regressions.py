@@ -1112,9 +1112,9 @@ class RuntimeTests(unittest.TestCase):
         torch = SimpleNamespace()
         torch.cuda = SimpleNamespace(
             is_available=lambda: True,
-            mem_get_info=lambda: (free_bytes, free_bytes),
-            memory_reserved=lambda: 0,
-            memory_allocated=lambda: 0,
+            mem_get_info=lambda device: (free_bytes, free_bytes),
+            memory_reserved=lambda device: 0,
+            memory_allocated=lambda device: 0,
             empty_cache=lambda: None,
         )
         return torch

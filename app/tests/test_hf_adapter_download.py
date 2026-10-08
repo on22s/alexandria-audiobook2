@@ -105,6 +105,7 @@ class PackageBatchAdapterTests(unittest.TestCase):
                     output.mkdir()
                     engine = module.TTSEngine.__new__(module.TTSEngine)
                     engine._max_new_tokens = 100
+                    engine._language = "English"
                     engine._clear_gpu_cache = lambda: None
                     engine._estimate_max_batch_size = lambda *args: 2
                     engine._build_sub_batches = lambda texts, **kwargs: [(0, len(texts))]

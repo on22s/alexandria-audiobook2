@@ -8180,6 +8180,12 @@
     "tests.test_tts_output_boundary.TtsOutputBoundaryTests.test_escaping_output_symlink_is_not_overwritten",
     "tests.test_tts_output_boundary.TtsOutputBoundaryTests.test_normal_unicode_cases_still_publish_measured_pcm_inside_output"
   ],
+  "test_tts_review_regressions": [
+    "tests.test_tts_review_regressions.TtsReviewRegressions.test_clone_and_lora_single_and_batch_use_configured_language",
+    "tests.test_tts_review_regressions.TtsReviewRegressions.test_external_clone_passes_language_to_provider",
+    "tests.test_tts_review_regressions.TtsReviewRegressions.test_late_merge_cancellation_preserves_previous_export",
+    "tests.test_tts_review_regressions.TtsReviewRegressions.test_selected_gpu_limits_disabled_sub_batches_and_snapshot"
+  ],
   "test_tts_validation_manifest": [
     "tests.test_tts_validation_manifest.JapaneseIsExcludedNotFailed.test_kana_is_detected",
     "tests.test_tts_validation_manifest.JapaneseIsExcludedNotFailed.test_plain_english_is_not_flagged",
