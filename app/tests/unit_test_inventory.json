@@ -794,10 +794,10 @@
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_design_dynamic_narrator_and_ensemble_receive_actual_resolved_style_prompts",
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_external_custom_and_local_lora_keep_original_indices",
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_external_custom_predict_uses_the_same_per_row_styles_and_preserves_seed_zero",
-    "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_malformed_style_indices_raise_value_error_before_any_generation",
+    "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_malformed_style_indices_fail_affected_chunks_before_generation",
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_native_custom_sorted_sub_batches_use_original_indices_and_project_publishes_audio",
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_native_lora_shared_adapter_keeps_each_sorted_row_style_and_batching",
-    "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_timeline_compatibility_and_late_invalid_narrator_refuse_before_render"
+    "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_timeline_compatibility_and_late_invalid_narrator_do_not_render_bad_chunk"
   ],
   "test_batch_training_eta": [
     "tests.test_batch_training_eta.BatchTrainingEtaTests.test_dispatch_rechecks_a_changed_adapter_instead_of_reusing_eta_skip",
@@ -2150,6 +2150,13 @@
     "tests.test_deepseek_alignment_processes.AlignmentProcessTests.test_quit_preserves_pre_entry_cursor_with_and_without_accepted_prefix",
     "tests.test_deepseek_alignment_processes.AlignmentProcessTests.test_release_checks_all_cards_and_preserves_unknown_policy"
   ],
+  "test_deepseek_audio_batches": [
+    "tests.test_deepseek_audio_batches.AudioBatchTests.test_clone_timeline_batches_use_the_effective_reference",
+    "tests.test_deepseek_audio_batches.AudioBatchTests.test_dynamic_narrator_batch_seed_override_and_disabled_control",
+    "tests.test_deepseek_audio_batches.AudioBatchTests.test_malformed_timeline_fails_one_chunk_without_base_fallback",
+    "tests.test_deepseek_audio_batches.AudioBatchTests.test_real_training_partial_and_oom_windows_match_full_mean_gradient",
+    "tests.test_deepseek_audio_batches.AudioBatchTests.test_vram_recommendations_show_compiled_and_uncompiled_measurements"
+  ],
   "test_deepseek_audit_tools": [
     "tests.test_deepseek_audit_tools.AuditToolTests.test_asin_case_and_numeric_identity_controls",
     "tests.test_deepseek_audit_tools.AuditToolTests.test_correctness_requires_boolean_and_keeps_rejection_visible",
@@ -2160,11 +2167,58 @@
     "tests.test_deepseek_audit_tools.AuditToolTests.test_single_spine_epub_produces_passage_empty_and_frontmatter_controls",
     "tests.test_deepseek_audit_tools.AuditToolTests.test_uppercase_wav_members_keep_spelling_and_train_preference"
   ],
+  "test_deepseek_benchmark_recovery": [
+    "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_batch_publishes_active_state_and_preserves_finished_cases_on_error",
+    "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_remote_supervisor_path_independent_of_local_path_semantics",
+    "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_resume_loads_only_pending_sources_and_rejects_pending_drift",
+    "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_actual_staging_files_removed_after_success_transfer_worker_timeout_and_cancel",
+    "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_cleanup_errors_do_not_replace_primary_failure_and_are_reported",
+    "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_local_dedup_and_unvalidated_remote_paths_are_never_deleted"
+  ],
+  "test_deepseek_input_validation": [
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_invalid_gold_options_fail_before_loading_or_writing",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_invalid_rating_does_not_consume_session_or_write_review",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_missing_timezone_data_keeps_measured_queue_eta",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_nonobject_narrator_override_is_a_validation_error",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_ratings_do_not_coerce_booleans_or_fractional_values",
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_valid_prompt_edit_with_preserved_mtime_invalidates_cache"
+  ],
+  "test_deepseek_script_recovery": [
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_alias_evidence_uses_accepted_variant",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_attribution_resume_retries_and_replaces_diagnostic",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_duplicate_cast_rejected_valid_alias_converted",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_failed_rollback_keeps_recoverable_prior_output",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_foreign_owner_process_generation",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_italicized_cyrillic_and_unknown_word",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_nested_split_provenance",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_periodic_duplicate_noncontiguous_evidence",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_publication_failure_preserves_prior_bytes",
+    "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_reasoning_sampling_in_serialized_sdk_body"
+  ],
   "test_deepseek_text_helpers": [
     "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_filesystem_root_contains_child_and_sibling_prefix_stays_outside",
     "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_latin_accent_case_is_source_backed_but_new_letters_fail",
     "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unmatched_prose_brace_does_not_hide_later_object",
     "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_uppercase_suffixes_preserve_case_and_damage_gate"
+  ],
+  "test_deepseek_ui_state": [
+    "tests.test_deepseek_ui_state.UiStateTests.test_connection_results_are_bound_to_current_profile_and_request",
+    "tests.test_deepseek_ui_state.UiStateTests.test_file_selections_serialize_backend_and_ignore_stale_success_failure",
+    "tests.test_deepseek_ui_state.UiStateTests.test_native_audio_publication_changes_revision_at_the_same_path",
+    "tests.test_deepseek_ui_state.UiStateTests.test_new_manual_draft_retained_after_acknowledgement_unchanged_answer_not",
+    "tests.test_deepseek_ui_state.UiStateTests.test_queue_changes_during_each_preparation_phase_require_fresh_start",
+    "tests.test_deepseek_ui_state.UiStateTests.test_regenerated_same_path_audio_is_not_retained_unchanged_audio_is",
+    "tests.test_deepseek_ui_state.UiStateTests.test_reset_selects_default_identity_and_preserves_user_presets"
+  ],
+  "test_deepseek_voice_ui": [
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_backup_probe_unknown_visible_and_retries",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_bulk_ack_preserves_newer_suggestion_edit_book",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_bulk_cast_pending_failure_retry",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_confirmed_delete_refresh_error",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_empty_ensemble_and_missing_prefill",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_panel_shared_ownership",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_pending_single_ack_after_dismissal",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_sample_ownership_then_edit_after_ack"
   ],
   "test_delivery_fallback": [
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",
@@ -4635,7 +4689,7 @@
     "tests.test_manual_llm.ManualClientTests.test_request_is_written_reply_is_returned_and_files_are_cleaned",
     "tests.test_manual_llm.ManualClientTests.test_second_client_waits_without_erasing_first_pending_request",
     "tests.test_manual_llm.ManualClientTests.test_the_request_file_carries_the_exact_messages_and_a_sequence",
-    "tests.test_manual_llm.ManualClientTests.test_windows_owner_probe_queries_handle_without_sending_a_signal",
+    "tests.test_manual_llm.ManualClientTests.test_windows_owner_probe_queries_birth_time_without_sending_a_signal",
     "tests.test_manual_llm.ManualEndpointTests.test_pending_and_response_round_trip_with_stage_hint",
     "tests.test_manual_llm.ManualThreePassTests.test_a_three_pass_run_completes_with_a_person_answering_every_request"
   ],
