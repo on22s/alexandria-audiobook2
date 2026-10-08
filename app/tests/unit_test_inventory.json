@@ -2151,6 +2151,12 @@
     "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_ratings_do_not_coerce_booleans_or_fractional_values",
     "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_valid_prompt_edit_with_preserved_mtime_invalidates_cache"
   ],
+  "test_deepseek_text_helpers": [
+    "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_filesystem_root_contains_child_and_sibling_prefix_stays_outside",
+    "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_latin_accent_case_is_source_backed_but_new_letters_fail",
+    "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unmatched_prose_brace_does_not_hide_later_object",
+    "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_uppercase_suffixes_preserve_case_and_damage_gate"
+  ],
   "test_delivery_fallback": [
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_exhaustion_marks_defaults_without_mutating_inputs",
