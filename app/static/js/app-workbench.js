@@ -302,8 +302,8 @@
                 showToast('Wait for the selected dataset to load before editing samples.', 'warning');
                 return false;
             }
-            if (dsbBatchRunning) {
-                showToast('Wait for batch generation to finish before editing samples.', 'warning');
+            if (dsbBatchRunning || dsbRows.some(row => row.status === 'generating')) {
+                showToast('Wait for sample generation to finish before editing samples.', 'warning');
                 return false;
             }
             return true;
@@ -336,7 +336,7 @@
         }
 
         function dsbBuildRowHtml(row, i) {
-            const disabled = dsbBatchRunning ? 'disabled' : '';
+            const disabled = dsbBatchRunning || dsbRows.some(row => row.status === 'generating') ? 'disabled' : '';
             const statusColor = row.status === 'done' ? 'success' :
                                 row.status === 'generating' ? 'warning' :
                                 row.status === 'error' ? 'danger' : 'secondary';
@@ -469,6 +469,7 @@
 
         // Single sample generation
         window.dsbGenSample = async (index) => {
+            if (!ensureDatasetRowsEditable()) { return; }
             const name = dsbCurrentProject;
             const rootDesc = document.getElementById('dsb-description').value.trim();
             if (!name) { showToast('Select or create a project first.', 'warning'); return; }
@@ -494,7 +495,7 @@
             // Optimistic UI
             dsbRows[index].status = 'generating';
             dsbRows[index].error = '';
-            dsbRenderTable([index]);
+            dsbRenderTable();
 
             try {
                 const result = await API.post('/api/dataset_builder/generate_sample', {
@@ -514,12 +515,12 @@
                 showToast(dsbRows[index].error, 'error', 10000);
                 console.error('Sample generation failed:', e);
             }
-            dsbRenderTable([index]);
+            dsbRenderTable();
         };
 
         // Batch generation
         window.dsbGenerateAll = async (regenAll = false) => {
-            if (dsbBatchRunning) { return; }
+            if (!ensureDatasetRowsEditable()) { return; }
             const rows = dsbRows;
             const name = dsbCurrentProject;
             const rootDesc = document.getElementById('dsb-description').value.trim();

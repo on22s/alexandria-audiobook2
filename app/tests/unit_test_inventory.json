@@ -2149,6 +2149,16 @@
     "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unmatched_prose_brace_does_not_hide_later_object",
     "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_uppercase_suffixes_preserve_case_and_damage_gate"
   ],
+  "test_deepseek_voice_ui": [
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_backup_probe_unknown_visible_and_retries",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_bulk_ack_preserves_newer_suggestion_edit_book",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_bulk_cast_pending_failure_retry",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_confirmed_delete_refresh_error",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_empty_ensemble_and_missing_prefill",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_panel_shared_ownership",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_pending_single_ack_after_dismissal",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_sample_ownership_then_edit_after_ack"
+  ],
   "test_delivery_fallback": [
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_exhaustion_marks_defaults_without_mutating_inputs",

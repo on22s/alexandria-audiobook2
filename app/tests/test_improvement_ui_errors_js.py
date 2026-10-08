@@ -73,11 +73,12 @@ const row={text:'Original line.',emotion:'calm',seed:'',status:'pending'},toasts
 const ctx={window:{},dsbRows:[row],dsbCurrentProject:'fixture',dsbBatchRunning:false,
  document:{getElementById:id=>({value:id==='dsb-description'?'Fixture voice':'-1'})},
  showToast:(...args)=>toasts.push(args),console:{error:()=>{}},dsbRenderTable:()=>{},
- isDatasetProjectSelected:()=>!stale,API:{post:async()=>{if(fail){throw Error('<img src=x onerror=boom()> bad reference');}return {audio_url:'/new.wav'};}}};
+ isDatasetProjectLoading:()=>false,isDatasetProjectSelected:()=>!stale,API:{post:async()=>{if(fail){throw Error('<img src=x onerror=boom()> bad reference');}return {audio_url:'/new.wav'};}}};
 vm.createContext(ctx);{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
 vm.runInContext(core.slice(core.indexOf('function escapeHtml('),core.indexOf('// Parse a numeric input')),ctx);
 vm.runInContext(source.slice(source.indexOf('function dsbBuildRowHtml('),source.indexOf('function dsbRenderTable(')),ctx);
 vm.runInContext(source.slice(source.indexOf('function getDatasetRowDefinition('),source.indexOf('function ensureDatasetRowSaveState(')),ctx);
+vm.runInContext(source.slice(source.indexOf('function ensureDatasetRowsEditable('),source.indexOf('function dsbAddRow(')),ctx);
 vm.runInContext(source.slice(source.indexOf('window.dsbGenSample ='),source.indexOf('// Batch generation')),ctx);
 (async()=>{
  await ctx.window.dsbGenSample(0);

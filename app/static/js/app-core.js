@@ -4156,7 +4156,7 @@
                 return '<div class="text-muted">No other characters to combine.</div>';
             }
             // Only prefill when nothing is saved yet — never override a choice.
-            const selected = new Set(members && members.length ? members : suggestEnsembleMembers(name));
+            const selected = new Set(Array.isArray(members) ? members : suggestEnsembleMembers(name));
             return names.map(n => `
                 <div class="form-check form-check-inline">
                     <input class="form-check-input ensemble-member" aria-label="${escapeHtml(`Include ${n} in voices together for ${name}`)}" type="checkbox" value="${escapeHtml(n)}" ${selected.has(n) ? 'checked' : ''} onchange="saveVoicesDebounced()">
@@ -4786,8 +4786,7 @@
             restoreVoiceListFocus(container, focusSnapshot, currentBookFilename);
         }
 
-        function applySuggestionToCard(name) {
-            const sugg = window._voiceSuggestions[name];
+        function applySuggestionToCard(name, sugg = window._voiceSuggestions[name]) {
             if (!sugg) { return false; }
             const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(name)}"]`);
             if (!card) { return false; }
@@ -4825,6 +4824,27 @@
             return true;
         }
 
+        function getSuggestionApplySnapshot(name, suggestion) {
+            const card = document.querySelector(`.voice-card[data-voice="${CSS.escape(name)}"]`);
+            const getForm = () => card ? JSON.stringify(Array.from(card.querySelectorAll('input, select, textarea'),
+                field => [field.value, field.checked])) : null;
+            const form = getForm();
+            const book = currentBookFilename;
+            const cast = window._selectedCast || null;
+            const original = suggestion;
+            const submitted = JSON.parse(JSON.stringify(suggestion));
+            return {submitted, reconcile: () => {
+                if (book !== currentBookFilename || cast !== (window._selectedCast || null)
+                    || document.querySelector(`.voice-card[data-voice="${CSS.escape(name)}"]`) !== card) { return; }
+                const pending = window._voiceSuggestions[name];
+                if (getForm() !== form || (pending && (pending !== original || JSON.stringify(pending) !== JSON.stringify(submitted)))) {
+                    showToast('Earlier voice suggestion applied on the server. Your newer edits and suggestions are kept; review before saving.', 'warning');
+                    return;
+                }
+                applySuggestionToCard(name, submitted);
+            }};
+        }
+
         async function applyVoiceSuggestion(name) {
             if (window._voiceSuggestionContext && !window._voiceSuggestionContext.isCurrent()) {
                 showToast('The cast or book changed. Request current voice suggestions before applying.', 'warning');
@@ -4832,11 +4852,12 @@
             }
             const sugg = window._voiceSuggestions[name];
             if (!sugg) { return; }
+            const snapshot = getSuggestionApplySnapshot(name, sugg);
             try {
                 await API.post('/api/suggest_voices/apply', {
-                    character: name, cast: window._selectedCast || null, suggestion: sugg,
+                    character: name, cast: window._selectedCast || null, suggestion: snapshot.submitted,
                 });
-                applySuggestionToCard(name);
+                snapshot.reconcile();
                 await loadCastLibrary();
             } catch (e) {
                 showActionError("Failed to apply suggestion", e, "Check the current character voice and cast library before applying the suggestion again.");
@@ -4844,13 +4865,19 @@
         }
 
         async function applyAllVoiceSuggestions() {
-            const pending = { ...window._voiceSuggestions };
+            if (window._voiceSuggestionContext && !window._voiceSuggestionContext.isCurrent()) {
+                showToast('The cast or book changed. Request current voice suggestions before applying.', 'warning');
+                return;
+            }
+            const snapshots = Object.fromEntries(Object.entries(window._voiceSuggestions)
+                .map(([name, suggestion]) => [name, getSuggestionApplySnapshot(name, suggestion)]));
+            const pending = Object.fromEntries(Object.entries(snapshots).map(([name, snapshot]) => [name, snapshot.submitted]));
             if (!Object.keys(pending).length) { return; }
             try {
                 await API.post('/api/suggest_voices/apply_bulk', {
                     cast: window._selectedCast || null, suggestions: pending,
                 });
-                Object.keys(pending).forEach(name => applySuggestionToCard(name));
+                Object.values(snapshots).forEach(snapshot => snapshot.reconcile());
                 await loadCastLibrary();
             } catch (e) {
                 showActionError("Failed to apply suggestions", e, "Check the current character voices and cast library before applying the suggestions again.");
@@ -5300,12 +5327,19 @@
             document.getElementById('btn-cast-apply-bulk-submit').onclick = () => submitCastApplyBulk(script_names);
         }
 
+        let castApplyBulkPending = false;
         async function submitCastApplyBulk(script_names) {
+            if (castApplyBulkPending) { return; }
             const mapping = _collectCastApplyMapping();
             if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             const panel = document.getElementById('cast-panel');
+            const cast = window._selectedCast;
+            const button = document.getElementById('btn-cast-apply-bulk-submit');
+            const wasDisabled = button?.disabled;
+            castApplyBulkPending = true;
+            if (button) { button.disabled = true; }
             try {
-                const res = await API.post('/api/voice_library/apply_bulk', { cast: window._selectedCast, mapping, script_names });
+                const res = await API.post('/api/voice_library/apply_bulk', { cast, mapping, script_names: [...script_names] });
                 const successful = res.results.filter(row => !row.error);
                 const failed = res.results.length - successful.length;
                 const summary = successful.length
@@ -5319,14 +5353,17 @@
                     </li>`).join('');
                 panel.innerHTML = `
                     <div class="border rounded p-2">
-                        <div class="small fw-bold mb-1">${escapeHtml(summary)} — cast "${escapeHtml(window._selectedCast)}"</div>
+                        <div class="small fw-bold mb-1">${escapeHtml(summary)} — cast "${escapeHtml(cast)}"</div>
                         <div class="alert alert-light border py-1 px-2 small mb-2"><i class="fas fa-info-circle me-1"></i>${total} voice${total !== 1 ? 's' : ''} applied in total, across the selected saved books. Your currently loaded book's voice settings and audio are unchanged. To use a saved book's updated voices, load it from Saved Scripts; loading replaces the current script and chunks.</div>
                         <ul class="list-group list-group-flush border rounded mb-2">${rows || '<li class="list-group-item small text-muted py-2 px-2">No books updated.</li>'}</ul>
                         <button class="btn btn-sm btn-outline-secondary" onclick="renderCastMembers()">Done</button>
                     </div>`;
                 setCastStatus(`${failed || !successful.length ? '' : '<i class="fas fa-check text-success me-1"></i>'}${escapeHtml(summary)}`,
                     failed > 0 || successful.length === 0);
-            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Applying cast to saved books failed", e, "Review the selected saved books and their voice assignments before applying again; some books may already have been updated.")), true); }
+            } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage("Applying cast to saved books failed", e, "Review the selected saved books and their voice assignments before applying again; some books may already have been updated.")), true); } finally {
+                castApplyBulkPending = false;
+                if (button) { button.disabled = wasDisabled; }
+            }
         }
 
         // Identity anchors that take over from a line onward (#603): shown under
