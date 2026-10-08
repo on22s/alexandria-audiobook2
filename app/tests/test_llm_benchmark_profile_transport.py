@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
 import shlex
 from types import SimpleNamespace
 import unittest
@@ -65,12 +66,15 @@ class BenchmarkProfileTransportTests(unittest.TestCase):
                            'max_retries': 0, 'word_ratio_min': 0.95, 'word_ratio_max': 1.05,
                            'fixtures': [{'id': 'f', 'text': 'cue', 'original': [], 'repetition_numbers': [1, 2]}]}
                 before = copy.deepcopy(payload)
+                shared_sleep, shared_monotonic = time.sleep, time.monotonic
                 with patch.dict(os.environ, {'BENCH_FIXTURE_KEY': 'fixture-secret'}), \
                      patch.object(llm_provider, 'OpenAI', construct), \
                      patch.object(worker, 'OpenAI', construct, create=True), \
                      patch.object(worker.benchmark_runner, function, run_case), \
-                     patch.object(llm_provider.time, 'sleep') as sleep, \
-                     patch.object(llm_provider.time, 'monotonic', return_value=10):
+                     patch.object(llm_provider, 'time') as provider_clock:
+                    self.assertIs(time.sleep, shared_sleep)
+                    self.assertIs(time.monotonic, shared_monotonic)
+                    provider_clock.monotonic.return_value = 10
                     cases = worker.execute_payload(stage, payload)
                 self.assertEqual(2, len(cases))
                 self.assertEqual(before, payload)
@@ -88,8 +92,8 @@ class BenchmarkProfileTransportTests(unittest.TestCase):
                 self.assertEqual(17, clients[0].timeout.read)
                 self.assertEqual(3, clients[0].timeout.connect)
                 self.assertTrue(clients[0].is_closed())
-                sleep.assert_called_once()
-                self.assertAlmostEqual(0.1, sleep.call_args.args[0])
+                provider_clock.sleep.assert_called_once()
+                self.assertAlmostEqual(0.1, provider_clock.sleep.call_args.args[0])
 
     def test_all_orchestrators_pass_full_selected_profile_to_shared_factory(self):
         import benchmark_core

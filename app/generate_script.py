@@ -819,7 +819,8 @@ def record_attempt_context(observer, attempt, phase, split_part=None):
     """Label one live attempt record before handing it to its observer."""
     attempt["phase"] = phase
     if split_part is not None:
-        attempt["split_part"] = split_part
+        attempt.setdefault("split_part", split_part)
+        attempt["split_path"] = [split_part] + attempt.get("split_path", [])
     observer(attempt)
 
 

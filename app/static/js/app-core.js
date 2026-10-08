@@ -1602,11 +1602,22 @@
                 out.innerHTML = '<i class="fas fa-times me-1"></i>Enter a Base URL before testing.';
                 return;
             }
+            const request = {};
+            testLlmConnection.request = request;
+            const mode = currentLlmMode;
+            let profile;
+            const isCurrent = () => {
+                if (testLlmConnection.request !== request || currentLlmMode !== mode) { return false; }
+                try { return !profile || JSON.stringify(getEditedLlmProfile()) === JSON.stringify(profile); }
+                catch (_) { return false; }
+            };
             btn.disabled = true;
             out.className = 'ms-2 small text-muted';
             out.textContent = 'Testing…';
             try {
-                const res = await API.post('/api/llm/test', getEditedLlmProfile());
+                profile = getEditedLlmProfile();
+                const res = await API.post('/api/llm/test', profile);
+                if (!isCurrent()) { return; }
                 if (res.ok) {
                     out.className = 'ms-2 small text-success';
                     const note = res.model_present === false
@@ -1626,10 +1637,11 @@
                     out.innerHTML = `<i class="fas fa-times me-1"></i>Failed at ${escapeHtml(res.step)}: ${escapeHtml(res.error || '')}${log}`;
                 }
             } catch (e) {
+                if (!isCurrent()) { return; }
                 out.className = 'ms-2 small text-danger';
                 out.textContent = 'Test request failed: ' + (e.message || 'unknown error');
             } finally {
-                btn.disabled = false;
+                if (testLlmConnection.request === request) { btn.disabled = false; }
             }
         }
 
@@ -1662,6 +1674,16 @@
         let currentBookFilename = '';
         function applyCurrentBookFilename(filename) {
             currentBookFilename = typeof filename === 'string' ? filename : '';
+        }
+        function enqueueBookSelection(request, action) {
+            const previous = window._existingUploadSelectionPending || Promise.resolve();
+            const pending = (async () => {
+                await previous.catch(() => {});
+                if (window._existingUploadSelectionRequest !== request) { return; }
+                return action();
+            })();
+            window._existingUploadSelectionPending = pending;
+            return pending;
         }
         function getCurrentBookName(fallback = 'book') {
             return currentBookFilename.trim().replace(/\.[^.]+$/, '') || fallback;
@@ -1862,8 +1884,7 @@
 
                 if (!await showConfirm('Reset prompt and generation settings? Your current form edits will be replaced. Click Save Configuration afterward to keep the defaults.', {title: 'Replace prompt settings?', actionLabel: 'Reset form', danger: true})) { return; }
 
-                document.getElementById('system-prompt').value = defaults.system_prompt;
-                document.getElementById('user-prompt').value = defaults.user_prompt;
+                renderPromptPresets(promptPresets, 'default');
                 passPromptDefaults.pass1.system_prompt = defaults.pass1_system_prompt || '';
                 passPromptDefaults.pass1.user_prompt = defaults.pass1_user_prompt || '';
                 passPromptDefaults.pass3.system_prompt = defaults.pass3_system_prompt || '';
@@ -2060,9 +2081,7 @@
             }
             if (!isCurrent()) { return; }
             const statusEl = document.getElementById('upload-status');
-            const previous = window._existingUploadSelectionPending || Promise.resolve();
-            const selecting = (async () => {
-                await previous.catch(() => {});
+            const selecting = enqueueBookSelection(request, async () => {
                 if (!isCurrent()) { return; }
                 const result = await API.post('/api/uploads/select', { filename });
                 if (!isCurrent()) { return; }
@@ -2073,8 +2092,7 @@
                 document.getElementById('cast-list-panel').style.display = 'none';
                 clearCastListEditor();
                 await loadCastList(false);
-            })();
-            window._existingUploadSelectionPending = selecting;
+            });
             try { await selecting; }
             catch (e) {
                 if (isCurrent()) { statusEl.innerHTML = `<span class="text-danger">${escapeHtml(getActionErrorMessage('Book selection was not confirmed', e, 'Check the current loaded book before selecting another upload.'))}</span>`; }
@@ -2091,18 +2109,28 @@
             if (!await ensureCastListEditsDiscardable()) { fileInput.value = ''; return; }
             if (fileInput.files[0] !== file) { return; }
 
+            const request = {};
+            window._existingUploadSelectionRequest = request;
+            const isCurrent = () => window._existingUploadSelectionRequest === request
+                && fileInput.files[0] === file;
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Loading file...</span>';
             try {
-                const res = await API.upload(file);
-                applyCurrentBookFilename(res.stored_filename);
-                document.getElementById('existing-upload-select').value = '';
-                const verb = res.reused ? 'Reused existing copy' : 'Loaded';
-                statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${verb}: ${escapeHtml(res.stored_filename)}</span>`;
-                document.getElementById('cast-list-panel').style.display = 'none';
-                clearCastListEditor();
-                await loadCastList(false);
-                await loadExistingScriptUploads();
+                await enqueueBookSelection(request, async () => {
+                    if (!isCurrent()) { return; }
+                    const res = await API.upload(file);
+                    if (!isCurrent()) { return; }
+                    applyCurrentBookFilename(res.stored_filename);
+                    document.getElementById('existing-upload-select').value = '';
+                    const verb = res.reused ? 'Reused existing copy' : 'Loaded';
+                    statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${verb}: ${escapeHtml(res.stored_filename)}</span>`;
+                    document.getElementById('cast-list-panel').style.display = 'none';
+                    clearCastListEditor();
+                    await loadCastList(false);
+                    if (!isCurrent()) { return; }
+                    await loadExistingScriptUploads();
+                });
             } catch (e) {
+                if (!isCurrent()) { return; }
                 statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Book upload was not confirmed', e, 'Check the current loaded book and existing uploads before uploading again.'))}</span>`;
             }
         });
@@ -2799,7 +2827,20 @@
             if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
             if (!(await ensureScriptStartConfirmed('this batch script generation'))) { return; }
             if (scriptBatchStartOperation) { return; }
+            const queue = scriptBatchQueue;
+            const narratorValues = queue.map((_, index) => document.getElementById(`script-batch-narrator-${index}`).value);
+            const collisionPolicy = document.getElementById('script-collision-policy').value;
             const operation = { cancelled: false, phase: 'preparing' };
+            const isCurrentQueue = () => !operation.cancelled && scriptBatchQueue === queue
+                && collisionPolicy === document.getElementById('script-collision-policy').value
+                && queue.every((_, index) => narratorValues[index] === document.getElementById(`script-batch-narrator-${index}`)?.value);
+            const ensureCurrentQueue = () => {
+                if (!isCurrentQueue() && !operation.cancelled) {
+                    operation.cancelled = true;
+                    showToast('The batch selection changed during preparation. Check the queue and start again.', 'warning');
+                }
+                return !operation.cancelled;
+            };
             scriptBatchStartOperation = operation;
             let started = false;
             let startUnconfirmed = false;
@@ -2819,7 +2860,7 @@
 
             try {
                 // Upload files in parallel; map preserves queue order for `tasks`.
-                const tasks = await Promise.all(scriptBatchQueue.map(async (item, index) => {
+                const tasks = await Promise.all(queue.map(async (item, index) => {
                     const firstPersonNarrator =
                         document.getElementById(`script-batch-narrator-${index}`).value.trim() || null;
                     if (item.storedFilename) {
@@ -2835,13 +2876,12 @@
                         first_person_narrator: firstPersonNarrator,
                     };
                 }));
-                if (operation.cancelled) { return; }
+                if (!ensureCurrentQueue()) { return; }
 
-                const collisionPolicy = document.getElementById('script-collision-policy').value;
                 const preflight = await API.post('/api/generate_script/batch/preflight', {
                     tasks, collision_policy: collisionPolicy
                 });
-                if (operation.cancelled) { return; }
+                if (!ensureCurrentQueue()) { return; }
                 const scripts = [...new Set(preflight.books.flatMap(book => book.scripts))];
                 const fallback = preflight.fallback_reason
                     ? `\nSafety adjustment: ${preflight.fallback_reason}` : '';
@@ -2865,7 +2905,7 @@
                     `Largest predicted request: ${preflight.worst_request_tokens.toLocaleString()} tokens\n` +
                     `Writing systems detected: ${scripts.join(', ') || 'none'}${fallback}\n\nStart generation?`,
                     {title: 'Start batch generation?', actionLabel: 'Start generation', danger: false});
-                if (operation.cancelled) { return; }
+                if (!ensureCurrentQueue()) { return; }
                 if (!approved) {
                     statusMsg.innerHTML = '<span class="text-muted">Batch cancelled after preflight.</span>';
                     btn.disabled = false;
@@ -6177,7 +6217,7 @@
                 if (chunk.status === 'done' && chunk.audio_path) {
                     const existingAudio = actionContainer.querySelector('audio');
                     const existingNoAudio = actionContainer.querySelector('.text-muted');
-                    const newSrc = encodeURI(`/${chunk.audio_path}`) + `?t=${Date.now()}`;
+                    const newSrc = encodeURI(`/${chunk.audio_path}`) + `?t=${encodeURIComponent(chunk.audio_revision || Date.now())}`;
 
                     if (existingNoAudio) {
                         // No audio element yet, create one
@@ -6309,6 +6349,12 @@
             }
         }
 
+        function getChunkAudioIdentity(chunk) {
+            const revision = chunk.audio_revision || null;
+            return JSON.stringify([chunk.audio_path, revision,
+                ...(revision ? [] : [chunk.text, chunk.instruct, chunk.speaker])]);
+        }
+
         async function refreshChunkSnapshot(forceFullRedraw = false) {
             const refreshBook = currentBookFilename;
             // Cancel any pending poll so re-entrant calls don't stack up
@@ -6398,7 +6444,7 @@
                 // Incremental update - only update changed rows
                 chunks.forEach((chunk, i) => {
                     const cached = cachedChunks[i];
-                    if (!cached || cached.status !== chunk.status || cached.audio_path !== chunk.audio_path
+                    if (!cached || cached.status !== chunk.status || getChunkAudioIdentity(cached) !== getChunkAudioIdentity(chunk)
                             || _driftKey(cached.drift) !== _driftKey(chunk.drift)) {
                         updateChunkRow(chunk);
                     }
@@ -6432,7 +6478,7 @@
                 const playingChunk = playingAudio
                     ? cachedChunks.find(chunk => String(chunk.id) === playingAudio.dataset.id) : null;
                 const retainedChunk = refreshBook === currentBookFilename && playingChunk?.uid && chunks.find(chunk => chunk.uid === playingChunk.uid
-                    && chunk.audio_path && chunk.audio_path === playingChunk.audio_path);
+                    && chunk.audio_path && getChunkAudioIdentity(chunk) === getChunkAudioIdentity(playingChunk));
                 const playbackTime = playingAudio?.currentTime;
                 // Full redraw needed
                 tbody.innerHTML = chunks.map(chunk => {
@@ -6441,7 +6487,7 @@
                                       chunk.status === 'error' ? 'danger' : 'secondary';
 
                     const audioPlayer = chunk.audio_path ?
-                        `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${encodeURI(`/${chunk.audio_path}`)}?t=${Date.now()}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>` :
+                        `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${encodeURI(`/${chunk.audio_path}`)}?t=${encodeURIComponent(chunk.audio_revision || Date.now())}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>` :
                         '<span class="text-muted small">No audio</span>';
 
                     const actionArea = chunk.status === 'generating' ?
@@ -7564,6 +7610,7 @@
         let _manualReplyFor = null;
         let _manualReplySubmitting = null;
         let _manualReplyAcknowledged = null;
+        let _manualAcknowledgedText = null;
         async function renderManualRequest(status, taskName) {
             const panel = document.getElementById('manual-llm-panel');
             if (!panel) { return; }
@@ -7602,7 +7649,7 @@
             document.getElementById('manual-llm-hint').textContent = full.stage_hint || '';
             document.getElementById('manual-llm-prompt').textContent = manualPromptText(full);
             const reply = document.getElementById('manual-llm-reply');
-            if (reply.value.trim() && _manualReplyFor !== full.id && _manualReplyAcknowledged !== _manualReplyFor) {
+            if (reply.value.trim() && _manualReplyFor !== full.id && (_manualReplyAcknowledged !== _manualReplyFor || reply.value !== _manualAcknowledgedText)) {
                 const retained = document.createElement('details');
                 const title = document.createElement('summary');
                 title.textContent = 'Retained reply from an earlier request';
@@ -7646,12 +7693,14 @@
                 return;
             }
             if (!reply.value.trim()) { showToast('Paste the answer first.', 'warning'); return; }
+            const submittedText = reply.value;
             _manualReplySubmitting = req.id;
             btn.disabled = true;
             reply.disabled = true;
             try {
-                await API.post('/api/manual_llm/response', { id: req.id, content: reply.value });
+                await API.post('/api/manual_llm/response', { id: req.id, content: submittedText });
                 _manualReplyAcknowledged = req.id;
+                _manualAcknowledgedText = submittedText;
                 if (window._manualPending?.id === req.id) {
                     document.getElementById('manual-llm-status').textContent = `Reply to request ${req.sequence} sent. The pipeline will validate it; wait for the next task update.`;
                 }

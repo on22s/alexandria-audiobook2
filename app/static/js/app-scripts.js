@@ -88,15 +88,15 @@
             if (!await showConfirm(`Load "${name}"? This will replace your current script and chunks.`, {title: 'Replace active book?', actionLabel: 'Load book', danger: true})) { return; }
             let request;
             let loading;
-            const isCurrent = () => !request || loadScript.request === request;
+            const isCurrent = () => !request || (loadScript.request === request
+                && window._existingUploadSelectionRequest === request);
             try {
                 await flushVoiceSaves();
                 if (!await ensureCastListEditsDiscardable()) { return; }
                 request = {};
                 loadScript.request = request;
-                const previous = loadScript.pending || Promise.resolve();
-                loading = (async () => {
-                    await previous.catch(() => {});
+                window._existingUploadSelectionRequest = request;
+                loading = enqueueBookSelection(request, async () => {
                     if (!isCurrent()) { return; }
                     const loaded = await API.post('/api/scripts/load', { name });
                     if (!isCurrent()) { return; }
@@ -113,7 +113,7 @@
                     if (!isCurrent()) { return; }
                     loadSavedScripts();
                     loadDesignedVoices();
-                })();
+                });
                 loadScript.pending = loading;
                 await loading;
             } catch (e) {

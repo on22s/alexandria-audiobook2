@@ -223,12 +223,17 @@ def print_summary(pre_results, post_results, model_vram_gb, total_gb):
     print("-"*70)
     # Absolute peak includes the resident model; reserve 15% of batching headroom.
     headroom = total_gb - model_vram_gb
-    for r in pre_results:
-        fits = r["peak_vram_gb"] <= model_vram_gb + headroom * 0.85
-        status = "OK " if fits else "OOM-RISK"
-        rtf_str = f"{r['rtf']:.2f}x RT" if r["rtf"] else "   N/A  "
-        print(f"  max_items={r['sub_batch_max_items']:>3}  "
-              f"peak={r['peak_vram_gb']:.2f}GB  RTF={rtf_str}  [{status}]")
+    modes = [("uncompiled", pre_results)]
+    if post_results:
+        modes.append(("compiled", post_results))
+    for mode, measurements in modes:
+        print(f"  {mode}:")
+        for r in measurements:
+            fits = r["peak_vram_gb"] <= model_vram_gb + headroom * 0.85
+            status = "OK " if fits else "OOM-RISK"
+            rtf_str = f"{r['rtf']:.2f}x RT" if r["rtf"] else "   N/A  "
+            print(f"  max_items={r['sub_batch_max_items']:>3}  "
+                  f"peak={r['peak_vram_gb']:.2f}GB  RTF={rtf_str}  [{status}]")
 
 
 def save_benchmark_results(output, out_path):

@@ -48,9 +48,9 @@ context.API.get=async()=>({system_prompt:'should not apply',generation:{}});awai
 
     def test_cancelled_reset_preserves_edits_and_confirmed_reset_only_changes_form(self):
         defaults=GenerationConfig().model_dump()
-        code='const fields='+json.dumps(FIELDS)+';const defaults='+json.dumps({'system_prompt':'factory','user_prompt':'factory user','generation':defaults})+';'+SETUP+r'''
-context.API.get=async()=>defaults;let confirmations=0;context.showConfirm=async message=>{confirmations++;assert(message.includes('current form edits will be replaced'));assert(message.includes('Save Configuration'));return false;};const before=state();await context.window.resetPrompts();assert.strictEqual(state(),before);assert.strictEqual(confirmations,1);assert.strictEqual(toasts.length,0);
-context.API.post=async()=>{throw Error('reset must not persist');};context.showConfirm=async()=>true;await context.window.resetPrompts();assert.strictEqual(element('system-prompt').value,'factory');assert.strictEqual(element('temperature').value,String(defaults.generation.temperature));assert(toasts.at(-1)[0].includes('Click Save Configuration to keep them.'));assert.strictEqual(toasts.at(-1)[1],'success');
+        code='const fields='+json.dumps(FIELDS)+';const defaults='+json.dumps({'system_prompt':'factory','user_prompt':'factory user','generation':defaults})+';const builtins='+json.dumps(builtin_presets())+';'+SETUP+r'''
+run('renderPromptPresets('+JSON.stringify(builtins)+',\"michel2_full\");');context.API.get=async()=>defaults;let confirmations=0;context.showConfirm=async message=>{confirmations++;assert(message.includes('current form edits will be replaced'));assert(message.includes('Save Configuration'));return false;};const before=state();await context.window.resetPrompts();assert.strictEqual(state(),before);assert.strictEqual(confirmations,1);assert.strictEqual(toasts.length,0);
+context.API.post=async()=>{throw Error('reset must not persist');};context.showConfirm=async()=>true;await context.window.resetPrompts();assert.strictEqual(element('system-prompt').value,builtins.find(p=>p.name==='default').system_prompt);assert.strictEqual(run('activePromptPreset'),'default');assert.strictEqual(element('temperature').value,String(defaults.generation.temperature));assert(toasts.at(-1)[0].includes('Click Save Configuration to keep them.'));assert.strictEqual(toasts.at(-1)[1],'success');
 '''
         actions.PromptPresetTransactionTests().run_case(code)
 

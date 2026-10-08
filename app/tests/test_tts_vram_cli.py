@@ -152,9 +152,13 @@ class VramSummaryHeadroomTests(unittest.TestCase):
         self.assertIn("3.50", text)
         self.assertIn("4.50", text)
         recommendations = [line for line in text.splitlines() if "max_items=" in line]
-        self.assertEqual(2, len(recommendations))
+        self.assertEqual(4, len(recommendations))
         self.assertIn("[OK", recommendations[0])
         self.assertIn("[OOM-RISK]", recommendations[1])
+        self.assertIn("[OK", recommendations[2])
+        self.assertIn("[OOM-RISK]", recommendations[3])
+        self.assertIn("RTF=3.50x RT", recommendations[2])
+        self.assertIn("RTF=4.50x RT", recommendations[3])
 
 
 class VramCliLeaseTests(unittest.TestCase):

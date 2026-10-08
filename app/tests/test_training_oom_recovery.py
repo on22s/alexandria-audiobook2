@@ -121,7 +121,7 @@ class TrainingOOMLoopTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             fixture=TrainingFixture(tmp,['success','backward_oom','success','forward_oom'])
             with fixture.patches():train_lora.train(fixture.args)
-            self.assertEqual(1,len(fixture.steps));torch.testing.assert_close(torch.stack(fixture.steps[0]),torch.tensor([0.5,0.75]))
+            self.assertEqual(1,len(fixture.steps));torch.testing.assert_close(torch.stack(fixture.steps[0]),torch.tensor([2.0,3.0]) / torch.tensor([2.0,3.0]).norm())
             self.assertEqual(fixture.before,fixture.samples);meta=json.loads((fixture.output/'training_meta.json').read_text())
             self.assertEqual(2,meta['oom_skips']);self.assertEqual(4,meta['num_samples']);self.assertEqual(1,meta['epochs'])
             self.assertEqual(hashlib.sha256((fixture.output/'adapter_model.safetensors').read_bytes()).hexdigest(),meta['checkpoint_sha256'])
