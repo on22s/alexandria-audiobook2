@@ -2143,6 +2143,16 @@
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_outside_datasets_metadata_and_audio_refuse_before_dispatch",
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_safe_nested_and_internal_symlink_audio_keeps_exact_archive_metadata"
   ],
+  "test_deepseek_audit_tools": [
+    "tests.test_deepseek_audit_tools.AuditToolTests.test_asin_case_and_numeric_identity_controls",
+    "tests.test_deepseek_audit_tools.AuditToolTests.test_correctness_requires_boolean_and_keeps_rejection_visible",
+    "tests.test_deepseek_audit_tools.AuditToolTests.test_empty_dedup_replaces_running_state_with_terminal_failure",
+    "tests.test_deepseek_audit_tools.AuditToolTests.test_invalid_timestamp_does_not_abort_index_or_hide_problem",
+    "tests.test_deepseek_audit_tools.AuditToolTests.test_missing_arm_classified_and_other_legacy_artifact_still_inspected",
+    "tests.test_deepseek_audit_tools.AuditToolTests.test_partial_dedup_never_replaces_prior_good_output_then_clean_retry_publishes",
+    "tests.test_deepseek_audit_tools.AuditToolTests.test_single_spine_epub_produces_passage_empty_and_frontmatter_controls",
+    "tests.test_deepseek_audit_tools.AuditToolTests.test_uppercase_wav_members_keep_spelling_and_train_preference"
+  ],
   "test_deepseek_benchmark_recovery": [
     "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_batch_publishes_active_state_and_preserves_finished_cases_on_error",
     "tests.test_deepseek_benchmark_recovery.BenchmarkRecoveryTests.test_remote_supervisor_path_independent_of_local_path_semantics",
