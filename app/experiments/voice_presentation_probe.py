@@ -56,7 +56,7 @@ def main():
             rows.append({'case':case['id'],'repeat':repeat,'passed':passed,'answer':answer,
                          'raw':raw,'elapsed_seconds':round(time.monotonic()-started,3),
                          'finish_reason':response.choices[0].finish_reason})
-            atomic_json_write(args.out, {'model':model,'prompt':PROMPT,'provenance':source,'results':rows})
+            atomic_json_write({'model':model,'prompt':PROMPT,'provenance':source,'results':rows}, args.out)
             print(case['id'],repeat,passed,flush=True)
     if not all(row['passed'] for row in rows):
         raise SystemExit('Voice-presentation probe failed; do not enable annotation')

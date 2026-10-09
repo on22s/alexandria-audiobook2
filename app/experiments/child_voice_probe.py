@@ -54,8 +54,8 @@ def main():
             rows.append({'target_gender':gender,'target_age_group':age,'description':description,
                          'reference_text':SAMPLE,'held_out_text':HELD_OUT,'seed':733,'clips':clips,
                          'elapsed_seconds':round(time.monotonic()-started,3),'listening_verdict':'pending'})
-            atomic_json_write(str(out/'candidates.json'),{'provenance':source,'candidates':rows,
-                'notice':'Targets are design requests, not measured age/gender. Listening is required before catalog publication.'})
+            atomic_json_write({'provenance':source,'candidates':rows,
+                'notice':'Targets are design requests, not measured age/gender. Listening is required before catalog publication.'}, str(out/'candidates.json'))
             print(gender,age,rows[-1]['elapsed_seconds'],flush=True)
 
 

@@ -8803,6 +8803,8 @@
     "tests.test_voice_panel_restore_js.VoicePanelRestoreJsTests.test_preserves_completed_panels_and_rejects_pending_or_other_books"
   ],
   "test_voice_presentation_probe": [
+    "tests.test_voice_presentation_probe.VoicePresentationProbeTests.test_child_probe_publishes_four_real_waveform_pairs_without_catalog_writes",
+    "tests.test_voice_presentation_probe.VoicePresentationProbeTests.test_real_probe_publishes_every_verified_response",
     "tests.test_voice_presentation_probe.VoicePresentationProbeTests.test_rejects_identity_only_wrong_speaker_and_invented_evidence"
   ],
   "test_voice_reference": [
