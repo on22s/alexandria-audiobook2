@@ -377,6 +377,10 @@ class T25CurrentFlagTests(unittest.TestCase):
                                    "persona_state": {**second, "segment_sha256": "0" * 64}}}}}
         row = next(r for r in voices_module.get_voice_rows(script, config) if r["name"] == "MIRA")
         self.assertEqual([True, False], [state["current"] for state in row["persona_states"]])
+        self.assertEqual([12, 12], [state["line_count"] for state in row["persona_states"]])   # MIRA's lines per state
+        script[14:14] = [{"speaker": "MIRA", "text": "", "speaker_gender": "female", "speaker_age_group": "adult"}]
+        row = next(r for r in voices_module.get_voice_rows(script, config) if r["name"] == "MIRA")
+        self.assertEqual([12, 12], [state["line_count"] for state in row["persona_states"]])   # an empty row is not a line
         self.assertTrue(row["persona_states_pending"])
 
 

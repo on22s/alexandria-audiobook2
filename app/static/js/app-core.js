@@ -4100,7 +4100,7 @@
                     const label = `${voice.name} (${state.gender} · ${state.age_group.replaceAll('_', ' ')}) — state ${state.state_number}`;
                     const stale = state.current !== true;   // the server's rule (#1040 review C37)
                     const markup = createVoiceCard({...voice, version_id: state.version_id, display_name: label,
-                        config, state_stale: stale, traits: null, persona_states: voice.persona_states}, index++);
+                        config, state_stale: stale, state_line_count: state.line_count, traits: null, persona_states: voice.persona_states}, index++);
                     // Generate the persona first; pending/stale forms cannot publish invented versions.
                     return stale ? disableStaleCardControls(markup) : markup;
                 }).join('');
@@ -4122,7 +4122,7 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <h5 class="card-title">${escapeHtml(label)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
+                                <h5 class="card-title">${escapeHtml(label)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? `<span class="badge bg-secondary ms-2" title="${voice.state_line_count} lines spoken in this state">${voice.state_line_count} lines in this state</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Regenerate persona for ' + label)}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Generate age version for ' + label)}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Recover persona for ' + label)}" onclick="openStatePersonaRecovery(this)">Recover persona</button>` : ''}

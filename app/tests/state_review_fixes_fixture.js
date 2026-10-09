@@ -48,6 +48,10 @@ load('async function applyVoiceStateSave(', 'async function clearVoiceStates(');
         config: {versions: {[state.version_id]: {type: 'custom', persona_state: {...state, segment_sha256: '0'}}}}}]);
     assert(!/ disabled>$/.test(removeTag(staleSaved)), 'a stale saved state can be removed from its card');
     const pendingCard = ctx.getStateVoiceCardsMarkup([{name: 'R', persona_states: [state], config: {}}]);
+    // Each state card shows its own line count (owner request 2026-10-09).
+    const counted = ctx.getStateVoiceCardsMarkup([{name: 'R', persona_states: [{...state, line_count: 212}], config: {}}]);
+    assert(counted.includes('>212 lines in this state</span>'), 'state line badge');
+    assert(!pendingCard.includes('lines in this state'), 'no badge without a count');
     assert(/ disabled>$/.test(removeTag(pendingCard)), 'a pending state has nothing to remove');
 
     // T16: one converter; an unknown adapter path is null, never guessed.

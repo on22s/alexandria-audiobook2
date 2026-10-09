@@ -442,7 +442,10 @@ def get_voice_rows(script_data, voice_config):
             saved = row["config"].get("versions", {})
             # Each state says whether its saved version is current, by the
             # server's own rule, so the cards never re-derive it (C37).
-            row["persona_states"] = [{**target, "current": is_state_version_current(saved.get(target["version_id"]), target)}
+            # Each state carries its own line count (the character's spoken
+            # lines inside its segment) for the card's badge.
+            row["persona_states"] = [{**target, "current": is_state_version_current(saved.get(target["version_id"]), target),
+                                      "line_count": get_script_line_counts(script_data[target["segment_start"]:target["segment_end"]]).get(name, 0)}
                                      for target in state_targets[name]]
             row["persona_states_pending"] = any(
                 not voice_is_set(saved.get(target["version_id"])) or not state["current"]
