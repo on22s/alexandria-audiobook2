@@ -2370,6 +2370,13 @@
             ],
             "title": "Persona Advanced Prompt"
           },
+          "persona_reference_chars": {
+            "default": 12000,
+            "maximum": 1000000.0,
+            "minimum": 12000.0,
+            "title": "Persona Reference Chars",
+            "type": "integer"
+          },
           "persona_system_prompt": {
             "anyOf": [
               {

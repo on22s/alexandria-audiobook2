@@ -160,13 +160,15 @@ class PersonaBatchTests(unittest.TestCase):
                     calls = [0]
                     def compile_reply(*args, **kwargs):
                         calls[0] += 1
-                        if failure == 'exception' and calls[0] == 1:
+                        if failure == 'exception' and not advanced and calls[0] == 1:
                             raise OSError('fixture speaker request failed')
-                        return {'description':'Warm natural voice.', 'ref_text':'Hello there, my friend.'}
+                        sample = 'Hello there, my friend.'
+                        if advanced:
+                            sample = json.loads(args[3].split('Character reference:\n', 1)[1])['reference_sample']
+                        return {'description':'Warm natural voice.', 'ref_text':sample}
                     if failure == 'exception':
-                        # Standard currently catches this at speaker scope. Advanced
-                        # intentionally falls back after provider failure, so inject
-                        # an actual compile function failure instead.
+                        # Inject a speaker compile failure to exercise partial-save
+                        # reporting independently of provider response retries.
                         count[0] = 1
                     original_compile = personas._compile_persona
                     def compile_voice(*args, **kwargs):
