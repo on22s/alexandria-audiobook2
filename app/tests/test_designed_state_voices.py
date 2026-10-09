@@ -82,6 +82,60 @@ class DesignedStateVoiceTests(unittest.TestCase):
                 sources=voices.get_state_voice_sources({'gender':gender,'age_group':'young_child'},'A',entry,[],{})
                 self.assertEqual([gender],[v['version_id'] for v in sources['versions']])
 
+    def test_adjacent_age_assignment_preserves_reference_age_for_new_and_legacy_versions(self):
+        for legacy_path in (None, 'relative', 'absolute', 'backslash'):
+            with self.subTest(legacy_path=legacy_path), tempfile.TemporaryDirectory() as temp, ExitStack() as stack:
+                root,manager,client,path,_,_=fixtures.VoiceTimelineAudioTests().fixture(temp,stack)
+                directory,_=self.catalog(root)
+                stack.enter_context(patch.object(voices,'DESIGNED_VOICES_DIR',str(directory)))
+                stack.enter_context(patch.object(voices,'_build_lora_candidates',side_effect=lambda: []))
+                script=[{'speaker':'A','text':f'Line {i}','speaker_gender':'male','speaker_age_group':age}
+                    for i,age in enumerate(['toddler']*12+['adult']*12+['infant']*12)]
+                (root/'annotated_script.json').write_text(json.dumps(script))
+                manager.save_chunks([{**row,'id':i,'uid':f'u{i}','status':'pending'} for i,row in enumerate(script)])
+                before=client.get('/api/voices/A/state_timeline').json()
+                infant=next(state for state in before['states'] if state['age_group']=='infant')
+                self.assertTrue(infant['sources']['offer_generate'])
+                calls=ui.VoiceStatesJsTests().run_js(r"""
+context.window._voiceStateSuggestions={A:payload.suggestion};context.window._voicesByName={A:{config:{}}};
+const row={dataset:{fromIndex:'0',age:'toddler'},querySelector:()=>({value:'library:designed:male_young_child'})};
+const card={dataset:{voice:'A'},querySelectorAll:q=>q==='.voice-state-row'?[row]:[]};
+await context.applyVoiceStates({closest:()=>card});console.log(JSON.stringify(calls));
+""",{'suggestion':before})
+                version=next(row[2] for row in calls if row[0]=='POST' and row[1].endswith('/versions'))
+                self.assertEqual('toddler',version['age_group'])
+                self.assertEqual('young_child',version['config']['reference_age_group'])
+                if legacy_path:
+                    version['config'].pop('reference_age_group')
+                    if legacy_path=='absolute':version['config']['ref_audio']=str(directory/'male_young_child.wav')
+                    if legacy_path=='backslash':version['config']['ref_audio']=r'.\designed_voices\male_young_child.wav'
+                version['book_token']=client.get('/api/voice_config/snapshot').json()['book_token']
+                saved=client.post('/api/voices/A/versions',json=version)
+                self.assertEqual(200,saved.status_code,saved.text)
+                config_before=path.read_bytes()
+                after=client.get('/api/voices/A/state_timeline').json()
+                infant=next(state for state in after['states'] if state['age_group']=='infant')
+                self.assertEqual([],infant['sources']['versions']);self.assertTrue(infant['sources']['offer_generate'])
+                toddler=next(state for state in after['states'] if state['age_group']=='toddler')
+                self.assertIn(version['version_id'],[v['version_id'] for v in toddler['sources']['versions']])
+                self.assertEqual(config_before,path.read_bytes(), 'Suggestions must not mutate saved versions')
+
+    def test_child_designs_do_not_hide_unknown_gender_adults_and_known_matches_rank_first(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);directory,_=self.catalog(root)
+            adult={'adapter_id':'adult_unknown','type':'lora','name':'Adult','gender':'unknown','age_group':'adult','description':''}
+            state={'gender':'male','age_group':'adult'}
+            with patch.object(voices,'DESIGNED_VOICES_DIR',str(directory)),patch.object(voices,'_build_lora_candidates',side_effect=lambda: [dict(adult)]):
+                candidates=voices.get_state_voice_candidates()
+                sources=voices.get_state_voice_sources(state,'A',{},candidates,{})
+                self.assertEqual(['adult_unknown'],[c['adapter_id'] for c in sources['library_unused']])
+                self.assertFalse(sources['offer_generate'])
+                used=voices.get_state_voice_sources(state,'A',{},candidates,{'adult_unknown':['B']})
+                self.assertEqual(['B'],used['library_used'][0]['used_by']);self.assertFalse(used['offer_generate'])
+                candidates.extend([dict(adult,adapter_id='male_adult',gender='male'),dict(adult,adapter_id='female_adult',gender='female')])
+                sources=voices.get_state_voice_sources(state,'A',{},candidates,{})
+                self.assertEqual(['male_adult','adult_unknown'],[c['adapter_id'] for c in sources['library_unused']])
+
     def test_reuse_counts_main_versions_and_relative_or_absolute_references(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);directory,_=self.catalog(root)

@@ -232,16 +232,28 @@ class VoiceTimelineAudioTests(unittest.TestCase):
 
     def test_alias_ensemble_and_narrator_effective_voices_are_included(self):
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
-            _, manager, _, _, config, rows = self.fixture(directory, stack)
+            root, manager, client, path, config, rows = self.fixture(directory, stack)
             config['Alias'] = {'alias_of': 'A'}
             config['Group'] = {'type': 'ensemble', 'members': ['A', 'B']}
             config['NARRATOR'] = {'type': 'custom', 'voice': 'Ryan', 'narrator_strategy': 'focus'}
-            before = copy.deepcopy(config)
-            config['A']['version_timeline'] = [{'from_index': 2, 'version_id': 'different'}]
-            for name, extra in [('Alias', {}), ('Group', {}), ('NARRATOR', {'focus_speaker': 'A'})]:
-                chunk = {**rows[2], **extra, 'speaker': name}
-                self.assertNotEqual(manager.get_chunk_voice_inputs(before, chunk, 2),
-                                    manager.get_chunk_voice_inputs(config, chunk, 2))
+            path.write_text(json.dumps(config))
+            chunks=rows[:2]+[{**rows[2],'id':i,'uid':f'u{i}','speaker':name,**extra}
+                for i,(name,extra) in enumerate([('Alias',{}),('Group',{}),('NARRATOR',{'focus_speaker':'A'}),('B',{})],2)]
+            manager.save_chunks(chunks)
+            original=(root/rows[2]['audio_path']).read_bytes()
+            def render(text,instruct,speaker,voice_config,output):
+                self.apply(client,[{'from_index':2,'version_id':'different'}])
+                sf.write(output,np.full(240,.8),24000)
+                return True
+            manager.engine=SimpleNamespace(generate_voice=render)
+            success,message=manager.generate_chunk_audio(2)
+            self.assertFalse(success);self.assertIn('generation inputs',message)
+            saved=manager.load_chunks()
+            self.assertEqual([2,3,4],[r['id'] for r in saved if r['status']=='pending'])
+            for index in (2,3,4):
+                self.assertIsNone(saved[index]['audio_path']);self.assertTrue(saved[index]['voice_revision'])
+            for index in (0,1,5):self.assertEqual(chunks[index],saved[index])
+            self.assertEqual(original,(root/rows[2]['audio_path']).read_bytes())
 
 
 class RevealReviewTests(unittest.TestCase):
