@@ -9,7 +9,7 @@ APP = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(APP))
 from utils import atomic_json_write
 
-PROMPT = '''Identify the TARGET speaker's explicitly described vocal presentation independently of their gender. Return ONLY JSON with voice_presentation (masculine, feminine, or unknown) and evidence (an exact quote from this passage, or empty for unknown). Only descriptions of this speaker's audible voice qualify. Clothing, personality, appearance, pronouns, gender and dialogue content are NOT voice evidence. A low/deep/high/soft tone alone does not establish masculine or feminine presentation. Do not borrow another speaker's voice. Do not change the character's gender. /no_think'''
+PROMPT = '''Identify the TARGET speaker's explicitly described vocal presentation independently of their gender. Return ONLY JSON with voice_presentation (masculine, feminine, or unknown) and evidence (an exact quote from this passage, or empty for unknown). Only descriptions of this speaker's audible voice qualify. Clothing, personality, appearance, pronouns, gender and dialogue content are NOT voice evidence. A low/deep/high/soft tone alone does not establish masculine or feminine presentation. Do not borrow another speaker's voice. A woman’s voice or a man’s voice identifies the speaker, not vocal presentation. Womanish or feminine explicitly modifying voice means feminine presentation; masculine explicitly modifying voice means masculine presentation, regardless of identity. Evidence must quote the narrator’s vocal description, never the content of spoken dialogue. For unknown return an empty evidence string. Do not change the character's gender. /no_think'''
 
 
 def get_probe_verdict(case, answer):
@@ -23,7 +23,8 @@ def get_probe_verdict(case, answer):
     if presentation == 'unknown':
         return case['presentation'] == 'unknown' and quote == ''
     return (presentation == case['presentation'] and presentation in ('masculine', 'feminine')
-            and bool(quote.strip()) and normal(quote) in normal(case['text']))
+            and bool(quote.strip()) and normal(quote) in normal(case['text'])
+            and normal(case['evidence_anchor']) in normal(quote))
 
 
 def main():

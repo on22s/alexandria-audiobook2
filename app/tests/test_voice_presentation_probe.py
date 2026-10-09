@@ -19,11 +19,12 @@ class VoicePresentationProbeTests(unittest.TestCase):
                     self.assertTrue(get_probe_verdict(case, {'voice_presentation':'unknown','evidence':''}))
                     self.assertFalse(get_probe_verdict(case, {'voice_presentation':'masculine','evidence':case['text']}))
                 else:
-                    phrase='masculine voice' if case['presentation']=='masculine' else 'womanish'
+                    phrase='masculine voice' if case['presentation']=='masculine' else 'womanish voice'
                     self.assertTrue(get_probe_verdict(case, {'voice_presentation':case['presentation'],'evidence':phrase}))
                     self.assertFalse(get_probe_verdict(case, {'voice_presentation':case['presentation'],'evidence':'invented vocal evidence'}))
                     self.assertFalse(get_probe_verdict(case, {'voice_presentation':'unknown','evidence':''}))
                 self.assertFalse(get_probe_verdict(case, None))
+        self.assertFalse(get_probe_verdict(cases[0], {'voice_presentation':'masculine','evidence':'It is so unfeminine,'}))
 
     def test_real_probe_publishes_every_verified_response(self):
         from experiments.voice_presentation_probe import main
@@ -31,7 +32,7 @@ class VoicePresentationProbeTests(unittest.TestCase):
         answers=[]
         for case in cases*2:
             value=case['presentation']
-            evidence='' if value=='unknown' else ('masculine voice' if value=='masculine' else 'womanish')
+            evidence='' if value=='unknown' else ('masculine voice' if value=='masculine' else 'womanish voice')
             answers.append(SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps({'voice_presentation':value,'evidence':evidence})),finish_reason='stop')]))
         from unittest.mock import Mock
         client=Mock();client.models.list.return_value=SimpleNamespace(data=[SimpleNamespace(id='fixture')])
