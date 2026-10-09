@@ -680,13 +680,24 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
             if not fail_child and mode != 'fixed':
                 self.assertGreater(len(evidence_bodies), 1)
                 if mode == 'compile':
-                    fragments = []
+                    fragments = {}
                     for body in evidence_bodies:
                         prompt = body['messages'][-1]['content']
                         self.assertTrue(prompt.startswith('CUSTOM COMPILE INSTRUCTION\n'))
                         fragment = json.loads(prompt.split('\n', 1)[1])
-                        fragments.extend(fragment['selected_reference_fragments'])
-                    self.assertEqual(selected.split(), ' '.join(fragments).split())
+                        if 'selected_reference_fragments' in fragment:
+                            for item in fragment['selected_reference_fragments']:
+                                fragments.setdefault(item['field'], []).append(item['text'])
+                        else:
+                            for field, items in fragment.items():
+                                if field != 'name':
+                                    fragments.setdefault(field, []).extend(
+                                        json.dumps(item, ensure_ascii=False) for item in items)
+                    selected_data = json.loads(selected)
+                    for field, items in selected_data.items():
+                        if field != 'name' and items:
+                            expected = ' '.join(json.dumps(item, ensure_ascii=False) for item in items)
+                            self.assertEqual(expected.split(), ' '.join(fragments[field]).split())
                 else:
                     delivered = []
                     for body in evidence_bodies:

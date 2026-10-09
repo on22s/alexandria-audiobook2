@@ -16,8 +16,8 @@ class PersonaBatchTests(unittest.TestCase):
                 lines = [f'Synthetic sample line {i}.' for i in range(250)]
                 script = [{'speaker': 'ALICE', 'text': text} for text in lines]
                 seen = []
-                def request(client, model, system, build_prompt, evidence, params, label):
-                    reference = json.loads(evidence[0][1]); seen.append(reference['sample_lines'])
+                def request(client, model, system, build_prompt, evidence, params, label, **kwargs):
+                    seen.append([json.loads(text) for field, text in evidence if field == 'sample_lines'])
                     return {'description': 'A clear warm voice.', 'ref_text': lines[0]}
                 with patch.object(personas, '_discover_batch_characters', return_value=[]), \
                      patch.object(personas, 'request_persona_with_evidence', side_effect=request), \
