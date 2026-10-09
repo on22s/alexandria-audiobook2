@@ -1000,8 +1000,13 @@ class PersonaReferenceGenerationOwnershipTests(unittest.TestCase):
                     [{"speaker":"ALICE", "text":text}], ["ALICE"], {"ALICE":[text]},
                     config, None, "fixture", engine, tmp, SimpleNamespace(batch_size=1))
                 return config
+            def source_backed_reply(*args, **kwargs):
+                if not kwargs.get("label", "").startswith("PERSONA COMPILE"):
+                    return {}
+                reference = json.loads(args[3].split("Character reference:\n", 1)[1])
+                return {"description": "Warm voice.", "ref_text": reference["reference_sample"]}
             with patch.object(personas, "_discover_batch_characters", side_effect=interleaved_discovery), \
-                 patch.object(personas, "call_llm_for_object", return_value={}), \
+                 patch.object(personas, "call_llm_for_object", side_effect=source_backed_reply), \
                  patch.object(personas.time, "sleep"), ThreadPoolExecutor(max_workers=2) as pool:
                 futures = [pool.submit(generate, text) for text in ("First job evidence.", "Second job evidence.")]
                 configs = [future.result(timeout=10) for future in futures]

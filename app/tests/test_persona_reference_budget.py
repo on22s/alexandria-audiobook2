@@ -30,7 +30,7 @@ class PersonaReferenceBudgetTests(unittest.TestCase):
                 self.assertLessEqual(len(prompt), 12000 + len(
                     json.dumps({'name': 'ALICE'})))
                 seen.extend((field, item) for field, items in payload.items()
-                            if field not in ('name', 'partial_evidence', 'shared_voice_context') for item in items)
+                            if field not in ('name', 'partial_evidence', 'shared_voice_context', 'reference_sample') for item in items)
             return {'description': 'Warm natural voice.', 'ref_text': 'Hello.'}
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -101,7 +101,7 @@ class PersonaBalancedBatchTests(unittest.TestCase):
             with self.assertRaises(ValidationError): PromptConfig(persona_reference_chars=value)
 
     def test_unknown_context_keeps_default_ceiling_for_large_setting(self):
-        ref = {'name': 'ALICE', 'features': ['x' * 900 for _ in range(15)]}
+        ref = {'name': 'ALICE', 'features': ['x' * 900 for _ in range(15)], 'sample_lines': ['Hello.']}
         for context, expected_calls in ((None, 3), (12288, 1)):
             calls = []
             def reply(*args, **kwargs):
@@ -118,7 +118,7 @@ class PersonaBalancedBatchTests(unittest.TestCase):
             self.assertEqual(len(calls), expected_calls)
 
     def test_shared_context_cannot_expand_request_allowance(self):
-        ref = {'name': 'ALICE', 'voice_clues': ['Dry. ' * 5000], 'personality': ['Weary.']}
+        ref = {'name': 'ALICE', 'voice_clues': ['Dry. ' * 5000], 'personality': ['Weary.'], 'sample_lines': ['Hello.']}
         calls = []
         def reply(*args, **kwargs):
             calls.append(args[3])

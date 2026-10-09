@@ -584,7 +584,7 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
                     return httpx.Response(400, json={'error': {'message': 'fixture failed child'}})
                 data = response.json()
                 data['choices'][0]['message']['content'] = json.dumps({
-                    'description': 'Observed fixture calm voice.', 'ref_text': 'Alice entered the room.'})
+                    'description': 'Observed fixture calm voice.', 'ref_text': 'Sentence 0 describes a quiet evening.'})
                 return httpx.Response(200, json=data)
         primary, secondary = RuntimeTransport(98304, True), PersonaTransport(8192)
         configs = [{'base_url': 'http://remote.invalid/v1', 'model_name': 'remote', 'api_retry_limit': 0},
@@ -690,7 +690,7 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
                                 fragments.setdefault(item['field'], []).append(item['text'])
                         else:
                             for field, items in fragment.items():
-                                if field not in ('name', 'partial_evidence', 'shared_voice_context'):
+                                if field not in ('name', 'partial_evidence', 'shared_voice_context', 'reference_sample'):
                                     fragments.setdefault(field, []).extend(
                                         json.dumps(item, ensure_ascii=False) for item in items)
                     selected_data = json.loads(selected)
@@ -716,7 +716,8 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
         self.assertEqual(original, evidence)
         self.assertEqual(1, len(primary.requests))
         self.assertTrue(all(r['footprint'] <= 8192 for r in secondary.requests))
-        self.assertTrue(all(body['messages'][0]['content'] == system for body in secondary.bodies))
+        expected_system = system + personas.PERSONA_GROUNDING_RULES if mode == 'compile' else system
+        self.assertTrue(all(body['messages'][0]['content'] == expected_system for body in secondary.bodies))
 
     def test_simple_selected_samples_and_narrator_context_are_fully_recovered(self):
         self.run_case('simple')

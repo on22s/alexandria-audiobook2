@@ -5267,6 +5267,15 @@
     "tests.test_persona_fixed_delay.PersonaFixedDelayTests.test_basic_cli_retains_preview_and_config_publication_without_fixed_sleep",
     "tests.test_persona_fixed_delay.PersonaFixedDelayTests.test_compile_success_and_failed_preview_have_no_fixed_sleep"
   ],
+  "test_persona_grounding": [
+    "tests.test_persona_grounding.PersonaGroundingTests.test_exact_copy_accepted_and_paraphrases_stitching_rejected",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_exhausted_invalid_result_does_not_publish_preview",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_invented_compiled_sample_does_not_publish_preview",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_long_sample_is_source_excerpt_and_input_unchanged",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_missing_source_sample_fails_without_request_or_preview",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_observation_dialogue_allowed_narration_not_allowed",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_source_and_merge_receive_same_rules_and_literal_sample"
+  ],
   "test_persona_provenance": [
     "tests.test_persona_provenance.PersonaProvenanceTests.test_actual_saved_book_switch_restores_reference_and_preview",
     "tests.test_persona_provenance.PersonaProvenanceTests.test_shared_object_call_retains_raw_payload_and_compile_normalizes_it"

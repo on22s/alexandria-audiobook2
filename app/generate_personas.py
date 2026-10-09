@@ -20,7 +20,8 @@ from generate_script import LLMGenParams, call_llm_for_object, split_failed_chun
 from tts import TTSEngine, sanitize_filename, voice_is_set, VERSION_OVERLAY_EXCLUDED
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed, file_lock
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
-from persona_validation import validate_persona_payload
+from persona_validation import (validate_persona_payload, get_reference_samples,
+                               validate_compiled_persona_payload)
 from speaker_traits import get_persona_state_targets, get_persona_state_entries, is_narrator_label
 from speaker_identity import (is_speaker_merge_allowed, resolve_speaker_label,
                               get_validated_alias_graph, get_safe_alias_proposals)
@@ -266,13 +267,27 @@ def _persona_attempt_observer(record):
 
 
 
+PERSONA_GROUNDING_RULES = (
+    "\nUse only supported speaker traits. Do not infer age or accent from names, "
+    "occupation, setting, or statements about other people. Omit unknown age/accent; "
+    "unspecified accent does not mean neutral or no accent. Preserve explicitly requested "
+    "voice-design choices as choices, not source facts. If observations conflict, preserve "
+    "that uncertainty. Keep supported delivery cues, including situation-dependent changes. "
+    "Copy ref_text exactly from one supplied reference_sample or sample line; "
+    "do not paraphrase, combine samples, or invent dialogue. Return one JSON object "
+    "with description and a single ref_text string."
+)
+
+
 class PersonaContextRecoveryError(RuntimeError):
     """Selected evidence could not be recovered on the active runtime."""
 
 
 def request_persona_with_evidence(client, model_name, system_prompt, build_prompt,
-                                  evidence, params, label, max_prompt_chars=None):
+                                  evidence, params, label, max_prompt_chars=None, validate_object=None):
     """Preserve fixed instructions and recover selected evidence in smaller calls."""
+    validate = validate_object or validate_persona_payload
+
     def fits(prompt):
         if max_prompt_chars is None:
             return True
@@ -324,7 +339,7 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
 
         result = call_llm_for_object(
             client, model_name, system_prompt, prompt, params, label=label,
-            validate_object=validate_persona_payload, max_retries=2, attempt_observer=observe)
+            validate_object=validate, max_retries=2, attempt_observer=observe)
         exhausted_context = (getattr(client, "switched", False) and any(
             attempt.get("error_category") == "context_budget"
             or attempt.get("finish_reason") == "length" for attempt in attempts))
@@ -343,7 +358,7 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
         prompt = build_merge(drafts)
         result = request(prompt)[0] if fits(prompt) else None
         if isinstance(result, dict):
-            return validate_persona_payload(result)
+            return validate(result)
         if len(drafts) <= 2:
             raise PersonaContextRecoveryError(label + ": recovered drafts cannot be combined safely")
         groups = get_groups(drafts, build_merge) if max_prompt_chars is not None else None
@@ -362,7 +377,7 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
         else:
             result, exhausted_context = request(prompt)
         if isinstance(result, dict):
-            return validate_persona_payload(result)
+            return validate(result)
         if not exhausted_context:
             if required:
                 raise PersonaContextRecoveryError(label + ": an evidence request failed")
@@ -882,8 +897,16 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
     try:
         messages = [{"role": "system", "content": system_prompt or "You produce concise JSON only."},
                     {"role": "user", "content": _compile_character_prompt(ref, advanced_prompt, sample_limit=sample_limit)}]
+        messages[0]["content"] += PERSONA_GROUNDING_RULES
         params = _persona_params(messages[0]["content"], context_length, llm_config, 600, 0.25)
         selected = get_selected_character_reference(ref, sample_limit)
+        reference_samples = get_reference_samples(selected)
+        if not reference_samples:
+            raise PersonaContextRecoveryError("No safe source dialogue sample for persona compilation")
+        reference_sample = next((line for line in reference_samples if len(line) >= 12), reference_samples[0])
+
+        def validate_compiled(payload):
+            return validate_compiled_persona_payload(payload, reference_samples)
         evidence = []
         for field, value in selected.items():
             if field == "name":
@@ -912,6 +935,7 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
                 # Keep its fragments as escaped text inside a valid outer object.
                 payload = {"name": selected["name"], "selected_reference_fragments": [
                     {"field": field, "text": text} for field, text in parts]}
+            payload["reference_sample"] = reference_sample
             reference = json.dumps(payload, ensure_ascii=False)
             return _compile_character_prompt(ref, advanced_prompt, reference_text=reference,
                                              sample_limit=sample_limit)
@@ -925,17 +949,20 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
                 ref, advanced_prompt, reference_text=json.dumps({"name": selected["name"]},
                                                               ensure_ascii=False),
                 sample_limit=sample_limit))
-            + (reference_chars if context_length else min(reference_chars, 12000)))
+            + (reference_chars if context_length else min(reference_chars, 12000)),
+            validate_object=validate_compiled)
+        if not isinstance(parsed, dict):
+            raise PersonaContextRecoveryError("Persona compilation exhausted retries without a validated result")
         if isinstance(parsed, dict):
             try:
-                validated = validate_persona_payload(parsed)
+                validated = validate_compiled(parsed)
                 description, ref_text = validated["description"], validated["ref_text"]
             except ValueError as exc:
-                print(f"Warning: persona integrity check failed for {speaker}: {exc}")
+                raise PersonaContextRecoveryError("Persona sample validation failed") from exc
     except PersonaContextRecoveryError:
         raise
     except Exception as e:
-        print(f"Warning: compile failed for {speaker}: {e}")
+        raise PersonaContextRecoveryError(f"Persona compilation failed for {speaker}: {e}") from e
 
     if not description:
         description, ref_text = _fallback_compiled_persona(ref)
