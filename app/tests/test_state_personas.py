@@ -61,7 +61,7 @@ class StatePersonaTests(unittest.TestCase):
                                 'description': samples['ARTHUR'][0], 'ref_text': samples['ARTHUR'][0]}
             return []
         with patch.object(personas, '_run_advanced_speaker_generation', side_effect=run):
-            failures = personas.run_advanced_persona_generation(script, ['ARTHUR'], {}, voice,
+            failures, voice = personas.run_advanced_persona_generation(script, ['ARTHUR'], {}, voice,
                 None, 'fixture', None, '/unused', SimpleNamespace(batch_size=40))
         self.assertEqual(failures, [])
         self.assertEqual(voice['ARTHUR']['ref_audio'], 'original.wav')
@@ -199,11 +199,11 @@ class StateVoiceApiTests(unittest.TestCase):
                 self.assertEqual(result.status_code, 409, result.text)
                 self.assertEqual(path.read_bytes(), before)
             stale = copy.deepcopy(original)
-            stale['ARTHUR']['versions'][version_id]['persona_state']['source_sha256'] = '0' * 64
-            path.write_text(json.dumps(stale)); before = path.read_bytes()
-            result = client.delete(url + '?book_token=' + token)
-            self.assertEqual(result.status_code, 409, result.text)
-            self.assertEqual(path.read_bytes(), before)
+            stale['ARTHUR']['versions'][version_id]['persona_state']['segment_sha256'] = '0' * 64
+            path.write_text(json.dumps(stale))
+            result = client.delete(url + '?book_token=' + token)   # a stale, unapplied state can be removed (#1040 review C1)
+            self.assertEqual(result.status_code, 200, result.text)
+            self.assertNotIn(version_id, json.loads(path.read_text())['ARTHUR']['versions'])
             path.write_text(json.dumps(original))
             result = client.delete(url + '?book_token=' + token)
             self.assertEqual(result.status_code, 200, result.text)

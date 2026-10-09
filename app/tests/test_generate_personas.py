@@ -431,6 +431,7 @@ def preview(_root, _engine, config, speaker, description, ref_text, **kwargs):
 def advanced_run(**kwargs):
     kwargs['voice_config']['ALICE'] = {'description':'Warm natural voice.',
                                      'ref_text':'Hello there, my friend.','type':'design'}
+    return [], kwargs['voice_config']
 
 with patch.object(personas, 'get_runtime_data_dir', return_value=root), \
      patch.object(personas, 'load_app_config', return_value={}), \
@@ -614,6 +615,7 @@ def preview(_root,_engine,config,speaker,description,ref_text,**kwargs):
 def advanced_run(**kwargs):
  for speaker in kwargs['selected_speakers']:
   preview(str(root),None,kwargs['voice_config'],speaker,'Warm natural voice.','Hello there, my friend.')
+ return [], kwargs['voice_config']
 with patch.object(personas,'run_advanced_persona_generation',side_effect=advanced_run),patch.object(personas,'get_runtime_data_dir',return_value=str(root)),patch.object(personas,'load_app_config',return_value={}),patch.object(personas,'get_active_llm_config',return_value={'model_name':'fixture','base_url':'http://unused.invalid'}),patch.object(personas,'ensure_ideal_settings',return_value=(False,{'context_length':4096},'fixture')),patch.object(personas,'make_run_client',return_value=object()),patch.object(personas,'llm_timeout_seconds',return_value=30),patch.object(personas,'TTSEngine'),patch.object(personas,'_resolve_aliases_batch',side_effect=aliases),patch.object(personas,'call_llm_for_object',return_value={'description':'Warm natural voice.','ref_text':'Hello there, my friend.'}),patch.object(personas,'_save_generated_preview',side_effect=preview),patch.object(personas.time,'sleep'):
  personas.main()
 """
@@ -995,10 +997,9 @@ class PersonaReferenceGenerationOwnershipTests(unittest.TestCase):
                 barrier.wait(5)
                 return discover(*args, **kwargs)
             def generate(text):
-                config = {}
-                personas.run_advanced_persona_generation(
+                _, config = personas.run_advanced_persona_generation(
                     [{"speaker":"ALICE", "text":text}], ["ALICE"], {"ALICE":[text]},
-                    config, None, "fixture", engine, tmp, SimpleNamespace(batch_size=1))
+                    {}, None, "fixture", engine, tmp, SimpleNamespace(batch_size=1))
                 return config
             with patch.object(personas, "_discover_batch_characters", side_effect=interleaved_discovery), \
                  patch.object(personas, "call_llm_for_object", return_value={}), \

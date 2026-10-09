@@ -227,7 +227,7 @@ class VoicesTests(unittest.TestCase):
                 result = asyncio.run(voices_module.generate_personas(
                     tasks, voices_module.GeneratePersonasRequest(speaker="Hero", age_group="teen")))
             self.assertEqual("started", result["status"])
-            self.assertIn("--speakers", tasks.tasks[0].args[2].args[0])
+            self.assertIn("--speaker", tasks.tasks[0].args[2].args[0])
             self.assertIn("Hero", tasks.tasks[0].args[2].args[0])
             self.assertIn("--age-group", tasks.tasks[0].args[2].args[0])
             self.assertIn("teen", tasks.tasks[0].args[2].args[0])

@@ -25,9 +25,10 @@ class PersonaProvenanceTests(unittest.TestCase):
             engine = SimpleNamespace(generate_voice_design=lambda **kwargs: (str(source),None))
             config = {}
             with patch.object(personas, 'call_llm_for_object', return_value={}), patch.object(personas.time,'sleep'):
-                self.assertEqual([], personas.run_advanced_persona_generation(script, ['ALICE'],
+                failures, config = personas.run_advanced_persona_generation(script, ['ALICE'],
                     {'ALICE':['Original speaker evidence.']}, config, object(), 'fixture', engine, tmp,
-                    SimpleNamespace(batch_size=1)))
+                    SimpleNamespace(batch_size=1))
+                self.assertEqual([], failures)
             (root / 'voice_config.json').write_text(json.dumps(config))
             files = [root / config['ALICE'][key] for key in ('persona_ref','ref_audio')]
             original_bytes = [p.read_bytes() for p in files]

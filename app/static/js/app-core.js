@@ -4058,31 +4058,36 @@
             return (field ? card.querySelector(field)?.value : null) ?? getVoiceCardMetadata(card).description ?? '';
         }
 
-        async function postVoiceTarget(control, path, payload = {}) {
-            const card = control.closest('.voice-card');
-            if (!card?.dataset.version) { return API.post(path, payload); }
-            const token = _voiceCardsBookToken;
+        // The one check before any state-card request: pending saves are
+        // flushed, and the book and card are still the ones the user acted on
+        // (the token is read when the action starts). Never a silent return.
+        async function ensureStateCardCurrent(card, token = _voiceCardsBookToken) {
             await flushVoiceSaves();
-            if (!token || token !== _voiceSaveSnapshot?.book_token || card.isConnected === false) {
+            if (!token || token !== _voiceSaveSnapshot?.book_token || card?.isConnected === false) {
                 throw new Error('The book or state card changed. Reload Voices before trying again.');
+            }
+            return token;
+        }
+
+        async function sendVoiceTarget(method, control, path, payload = {}) {
+            const card = control.closest('.voice-card');
+            if (!card?.dataset.version) { return method === 'del' ? API.del(path) : API.post(path, payload); }
+            const token = await ensureStateCardCurrent(card);
+            if (method === 'del') {
+                return API.del(`${path}?version_id=${encodeURIComponent(card.dataset.version)}&book_token=${encodeURIComponent(token)}`);
             }
             return API.post(path, {...payload, version_id: card.dataset.version, book_token: token});
         }
 
-        async function deleteVoiceTarget(control, path) {
-            const card = control.closest('.voice-card');
-            if (!card?.dataset.version) { return API.del(path); }
-            const token = _voiceCardsBookToken;
-            await flushVoiceSaves();
-            if (!token || token !== _voiceSaveSnapshot?.book_token || card.isConnected === false) {
-                throw new Error('The book or state card changed. Reload Voices before trying again.');
-            }
-            return API.del(`${path}?version_id=${encodeURIComponent(card.dataset.version)}&book_token=${encodeURIComponent(token)}`);
-        }
+        async function postVoiceTarget(control, path, payload = {}) { return sendVoiceTarget('post', control, path, payload); }
 
-        function isPersonaStateCurrent(saved, target) {
-            return !!saved && ['version_id', 'speaker', 'from_entry', 'segment_start', 'segment_end',
-                'gender', 'age_group', 'state_number', 'source_sha256'].every(key => saved[key] === target[key]);
+        async function deleteVoiceTarget(control, path) { return sendVoiceTarget('del', control, path); }
+
+        // Stale or pending state cards keep only the controls marked
+        // data-stale-allowed (generate / recover); a marker, not handler names.
+        function disableStaleCardControls(markup) {
+            return markup.replace(/<(input|select|textarea|button)\b([^>]*)>/g, (tag, kind, attributes) =>
+                (/\sdata-stale-allowed(\s|=|$)/.test(attributes) ? tag : `<${kind}${attributes} disabled>`));
         }
 
         function getStateVoiceCardsMarkup(voices) {
@@ -4093,15 +4098,11 @@
                 const states = voice.persona_states.map(state => {
                     const config = voice.config?.versions?.[state.version_id] || {};
                     const label = `${voice.name} (${state.gender} · ${state.age_group.replaceAll('_', ' ')}) — state ${state.state_number}`;
-                    const stale = !isPersonaStateCurrent(config.persona_state, state);
+                    const stale = state.current !== true;   // the server's rule (#1040 review C37)
                     const markup = createVoiceCard({...voice, version_id: state.version_id, display_name: label,
                         config, state_stale: stale, traits: null, persona_states: voice.persona_states}, index++);
-                    if (!stale) { return markup; }
                     // Generate the persona first; pending/stale forms cannot publish invented versions.
-                    return markup.replace(/<(input|select|textarea|button)\b([^>]*)>/g, (tag, kind, attributes) => {
-                        if (kind === 'button' && (attributes.includes('regeneratePersona(this)') || attributes.includes('openStatePersonaRecovery(this)'))) { return tag; }
-                        return `<${kind}${attributes} disabled>`;
-                    });
+                    return stale ? disableStaleCardControls(markup) : markup;
                 }).join('');
                 return `<div class="voice-character-group" data-voice="${escapeHtml(voice.name)}"><details class="mb-3 voice-base-details"><summary>${escapeHtml(voice.name)}: base voice and manual versions</summary>${base}</details>${states}</div>`;
             }).join('');
@@ -4122,9 +4123,9 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <h5 class="card-title">${escapeHtml(label)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
-                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Regenerate persona for ' + label)}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Regenerate persona for ' + label)}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Generate age version for ' + label)}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
-                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" aria-label="${escapeHtml('Recover persona for ' + label)}" onclick="openStatePersonaRecovery(this)">Recover persona</button>` : ''}
+                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Recover persona for ' + label)}" onclick="openStatePersonaRecovery(this)">Recover persona</button>` : ''}
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-danger mt-1" type="button" aria-label="${escapeHtml('Remove saved state persona for ' + label)}" onclick="removeStatePersona(this)">Remove saved state persona</button>` : ''}
                                 <div class="small text-muted">${voice.version_id && voice.state_stale ? 'State persona needs generation for the current script. ' : ''}Persona review: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice review: ${escapeHtml(config.voice_status || 'unassigned')}</div>
                                 ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">Persona-to-voice audit: ${escapeHtml(config.persona_voice_audit.voice_adapter_id || 'manual')} · ${escapeHtml(config.persona_voice_audit.persona_ref || 'inline persona')} <button class="btn btn-sm btn-link p-0" type="button" aria-label="${escapeHtml('Edit persona-to-voice audit for ' + label)}" onclick="editPersonaVoiceAudit(this)">Edit</button></div>` : ''}
@@ -4693,10 +4694,7 @@
             try {
                 if (!await showConfirm('Remove this saved state persona? Its audio files, base voice and other states are kept. Applied versions must be removed from the timeline first.',
                     {title: 'Remove state persona?', actionLabel: 'Remove state', danger: true})) { return; }
-                await flushVoiceSaves();
-                if (!token || token !== _voiceSaveSnapshot?.book_token || card.isConnected === false) {
-                    throw new Error('The book or state card changed. Reload Voices before trying again.');
-                }
+                await ensureStateCardCurrent(card, token);
                 await API.del(`/api/voices/${encodeURIComponent(speaker)}/versions/${encodeURIComponent(version)}?book_token=${encodeURIComponent(token)}`);
                 await loadVoices();
                 showToast('Saved state persona removed. Its audio files were kept.', 'success');
@@ -4711,7 +4709,7 @@
             try {
                 if (version) { await flushVoiceSaves(); }
                 if (!(await confirmIfRemote('this persona regeneration', true))) { return; }
-                if (version && (token !== _voiceSaveSnapshot?.book_token || card.isConnected === false)) { return; }
+                if (version) { await ensureStateCardCurrent(card, token); }
                 const payload = {speaker, advanced: false, context_lines: getPersonaContextLines()};
                 if (version) { Object.assign(payload, {advanced: true, state_version: version, book_token: token}); }
                 await API.post('/api/generate_personas', payload);
@@ -4807,6 +4805,22 @@
             return models;
         }
 
+        // One suggestion -> saved candidate conversion for base and state cards
+        // (#1040 review C40): an unknown adapter path stays null, never guessed.
+        function getSuggestionCandidateConfig(suggestion, adapterId, rank, modelsById = getLoraModelsById()) {
+            const model = modelsById.get(adapterId) || {};
+            return {
+                type: model.builtin ? 'builtin_lora' : (suggestion.type || 'lora'),
+                adapter_id: adapterId,
+                adapter_path: model.path || model.adapter_path || null,
+                description: model.description || '',
+                age_group: model.age_group || suggestion.voice_age_group || 'unknown',
+                gender: model.gender || suggestion.voice_gender || 'unknown',
+                rank: rank + 1,
+                source: 'auto_suggest',
+            };
+        }
+
         async function suggestVoices(characterNames = null, initiatingButton = null) {
             if (!claimTaskStart('voices', initiatingButton)) { return; }
             const status = document.getElementById('suggest-status');
@@ -4859,20 +4873,10 @@
                 const saveCandidates = async () => {
                     while (context.isCurrent() && nextCandidate < candidates.length) {
                         const { name, suggestion, adapterId, rank } = candidates[nextCandidate++];
-                        const model = modelsById.get(adapterId) || {};
                         try {
                             await API.post(`/api/voices/${encodeURIComponent(name)}/candidates`, {
                                 candidate_id: adapterId,
-                                config: {
-                                    type: model.builtin ? 'builtin_lora' : (suggestion.type || 'lora'),
-                                    adapter_id: adapterId,
-                                    adapter_path: model.path || model.adapter_path || null,
-                                    description: model.description || '',
-                                    age_group: model.age_group || suggestion.voice_age_group || 'unknown',
-                                    gender: model.gender || suggestion.voice_gender || 'unknown',
-                                    rank: rank + 1,
-                                    source: 'auto_suggest',
-                                },
+                                config: getSuggestionCandidateConfig(suggestion, adapterId, rank, modelsById),
                             });
                         } catch (e) {
                             failedCandidateSaves.push({ name, adapterId });
@@ -4924,34 +4928,33 @@
             const card = button.closest('.voice-card');
             if (!card?.dataset.version) { await suggestVoices(speaker ? [speaker] : null, button); return; }
             if (button.disabled) { return; }
+            if (!claimTaskStart('voices', button)) { return; }
             button.disabled = true;
             const token = _voiceCardsBookToken;
             try {
                 await flushVoiceSaves();
                 if (!(await confirmIfRemote('these state voice suggestions', true))) { return; }
-                if (token !== _voiceSaveSnapshot?.book_token || card.isConnected === false) { return; }
+                await ensureStateCardCurrent(card, token);
                 const result = await API.post('/api/suggest_voices', {characters: [speaker],
                     state_version: card.dataset.version, book_token: token});
-                if (token !== _voiceSaveSnapshot?.book_token || card.isConnected === false) { return; }
+                await ensureStateCardCurrent(card, token);
                 const suggestion = result.suggestions?.[speaker];
                 const ranked = (suggestion?.ranked_adapter_ids || [suggestion?.adapter_id]).filter(Boolean);
                 if (!ranked.length) {
                     showToast(result.message || 'No state voice candidates found.', 'warning');
                     return;
                 }
-                for (const adapterId of ranked) {
-                    const adapter = getLoraModelsById().get(adapterId);
-                    const type = adapter?.builtin ? 'builtin_lora' : (adapter?.type || suggestion.type || 'lora');
-                    const config = {type, adapter_id: adapterId,
-                        adapter_path: adapter?.adapter_path || adapter?.path || `${type === 'builtin_lora' ? 'builtin_lora' : 'lora_models'}/${adapterId}`,
+                const modelsById = getLoraModelsById();
+                for (const [rank, adapterId] of ranked.entries()) {
+                    const config = {...getSuggestionCandidateConfig(suggestion, adapterId, rank, modelsById),
                         character_style: suggestion.character_style || ''};
-                    await postVoiceTarget(button, `/api/voices/${encodeURIComponent(speaker)}/candidates`,
-                        {candidate_id: adapterId, config});
+                    await API.post(`/api/voices/${encodeURIComponent(speaker)}/candidates`,
+                        {candidate_id: adapterId, config, version_id: card.dataset.version, book_token: token});
                 }
                 await loadVoices(false);
                 showToast('State voice candidates saved. Review and select one on that state card.', 'success');
             } catch (error) { showActionError('State voice suggestions failed', error, 'Reload Voices and check this state’s candidate pool.'); }
-            finally { button.disabled = false; }
+            finally { button.disabled = false; releaseTaskStart('voices'); }
         };
 
         function renderVoiceSuggestions() {
@@ -5741,7 +5744,7 @@
             const rows = [...card.querySelectorAll('.voice-state-row')].map(row => ({
                 fromIndex: row.dataset.fromIndex, age: row.dataset.age,
                 value: row.querySelector('.voice-state-source')?.value || 'main'}));
-            const points = [];
+            const points = [], skipped = [];
             const versions = JSON.parse(JSON.stringify(window._voicesByName?.[speaker]?.config?.versions || {}));
             try {
                 await applyVoiceStateSave(button, speaker, 'Applying…', async (isCurrent, bookToken) => {
@@ -5749,7 +5752,9 @@
                     if (!isCurrent()) { throw new Error('The book changed; remaining voice changes were not saved.'); }
                     const value = row.value;
                     if (row.fromIndex === '') {
-                        if (value !== 'main') { throw new Error('A state change has no safe Editor boundary. Rebuild chunks and review the timeline.'); }
+                        // No safe Editor boundary for this state: skip it and say so,
+                        // instead of refusing every other state (#1040 review C11).
+                        if (value !== 'main') { skipped.push(row.age.replaceAll('_', ' ')); }
                         continue;
                     }
                     const fromIndex = Number(row.fromIndex);
@@ -5788,6 +5793,9 @@
                 const first = points.length ? Math.min(...points.map(p => p.from_index)) + 1 : null;
                 showToast(first ? `Voice changes saved for ${speaker}. Lines already generated from line ${first} on keep the old voice: regenerate them in the Editor.`
                     : `${speaker} uses the main voice throughout.`, 'success');
+                if (skipped.length) {
+                    showToast(`Not applied (no safe Editor boundary): ${skipped.join(', ')}. Rebuild chunks, then apply again.`, 'warning');
+                }
                 });
             } catch (e) { showActionError("Could not apply voice changes", e, "Review the current book and saved voice changes before applying again; some version writes may have completed."); }
         }
@@ -5922,7 +5930,7 @@
                 const metadata = getVoiceCardMetadata(card);
                 // Pending cards must not become generated voices merely by rendering.
                 const source = window._voicesByName?.[name]?.persona_states?.find(state => state.version_id === card.dataset.version);
-                if (!metadata.persona_state || (source && !isPersonaStateCurrent(metadata.persona_state, source))) { return; }
+                if (!metadata.persona_state || (source && source.current !== true)) { return; }
                 merged[name] ||= {...(window._voicesByName?.[name]?.config || {})};
                 merged[name].versions = {...(merged[name].versions || {}), [card.dataset.version]: fields};
             });

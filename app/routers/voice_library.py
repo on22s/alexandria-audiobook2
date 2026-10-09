@@ -21,6 +21,7 @@ from core import (
     _get_saved_book_id,
     _load_voice_library,
     _make_library_entry,
+    get_portable_voice_config,
     _norm_name,
     _script_line_counts,
     _warn_corrupted_json,
@@ -226,14 +227,24 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
         for field in get_trait_assignment_metadata({}):
             if field in assignment:
                 cfg[field] = assignment[field]
-        cfg.pop("alias_of", None)
+        cfg = get_portable_voice_config(cfg)   # entries saved before this rule may still carry them
         cfg.pop("ready", None)
-        # Preserve an existing alias_of and ready flag on the current
-        # character (both book-specific, never part of the library entry)
-        if isinstance(result_config.get(char), dict) and result_config[char].get("alias_of"):
-            cfg["alias_of"] = result_config[char]["alias_of"]
-        if isinstance(result_config.get(char), dict) and result_config[char].get("ready"):
+        # Preserve the current character's book-specific parts: its alias,
+        # ready flag, character-state versions and voice timeline.
+        current = result_config.get(char) if isinstance(result_config.get(char), dict) else {}
+        if current.get("alias_of"):
+            cfg["alias_of"] = current["alias_of"]
+        if current.get("ready"):
             cfg["ready"] = True
+        own_states = {key: value for key, value in (current.get("versions") or {}).items()
+                      if isinstance(value, dict) and "persona_state" in value}
+        if own_states:
+            cfg["versions"] = {**(cfg.get("versions") or {}), **own_states}
+        if current.get("version_timeline"):
+            kept = [point for point in current["version_timeline"]
+                    if point.get("version_id") is None or point.get("version_id") in (cfg.get("versions") or {})]
+            if kept:
+                cfg["version_timeline"] = kept
         result_config[char] = cfg
         applied.append(char)
     return result_config, applied

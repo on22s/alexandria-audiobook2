@@ -49,10 +49,11 @@ from core import (
 )
 from lmstudio_settings import get_active_llm_config, get_current_status, get_effective_max_tokens
 from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows
-from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, resolve_narrator_voice_config, voice_category, voice_is_set
+from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, get_version_fields, resolve_narrator_voice_config, voice_category, voice_is_set
 from speaker_traits import (get_age_distance, get_chunk_index_for_entry, get_library_age_group,
-                            get_normalized_age_group,
-                            get_speaker_trait_summary, get_state_timeline, get_persona_state_targets, get_persona_state_chunk_indices, get_persona_state_entries)
+                            get_entry_speaker, get_normalized_age_group,
+                            get_speaker_trait_summary, get_state_timeline, get_persona_state_targets, get_persona_state_chunk_indices, get_persona_state_entries,
+                            find_state_target, get_state_version_identity, is_state_version_current)
 from utils import (
     atomic_json_write,
     atomic_json_write_pair,
@@ -138,9 +139,17 @@ class VoiceConfigItem(BaseModel):
             raise ValueError("ensemble member names cannot be blank")
         return self
 
-class SuggestVoicesRequest(BaseModel):
+BOOK_TOKEN_PATTERN = r"^[0-9a-f]{64}$"
+
+
+class StateRequestScope(BaseModel):
+    """A request about one character state of the book the client is showing
+    (#1040 review C35: one definition for every state request)."""
     state_version: Optional[str] = Field(default=None, min_length=1, max_length=80)
-    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    book_token: Optional[str] = Field(default=None, pattern=BOOK_TOKEN_PATTERN)
+
+
+class SuggestVoicesRequest(StateRequestScope):
     only_unset: bool = False  # only suggest for characters not already set to a lora/builtin_lora voice
     max_lines: int = 8        # how many sample dialogue lines per character to feed the matcher
     cast: Optional[str] = None
@@ -158,12 +167,10 @@ class VoiceSuggestionApplyBulkRequest(BaseModel):
 
 class VoiceTargetScope(BaseModel):
     version_id: Optional[str] = Field(default=None, min_length=1, max_length=80)
-    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    book_token: Optional[str] = Field(default=None, pattern=BOOK_TOKEN_PATTERN)
 
 
-class GeneratePersonasRequest(BaseModel):
-    state_version: Optional[str] = Field(default=None, min_length=1, max_length=80)
-    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+class GeneratePersonasRequest(StateRequestScope):
     advanced: bool = False
     batch_size: int = 40
     # Sample spoken lines per character in the persona prompt (#522 12.1).
@@ -177,9 +184,7 @@ class GeneratePersonasRequest(BaseModel):
     new_only: bool = False
 
 
-class PersonaRecoveryRequest(BaseModel):
-    state_version: Optional[str] = Field(default=None, min_length=1, max_length=80)
-    book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+class PersonaRecoveryRequest(StateRequestScope):
     speaker: str = Field(min_length=1, max_length=200)
     persona_json: str = Field(min_length=2, max_length=10000)
     resume: bool = False
@@ -261,21 +266,61 @@ def _mutate_book_voice_entry(speaker, mutator, book_token=None):
             return entry, get_voice_config_revision(config)
 
 
-def get_current_persona_state(speaker, version_id):
+def get_current_persona_state(speaker, version_id, script=None):
+    """-> the current target, or 409. Pass `script` when it is already parsed (C32)."""
     if speaker == "NARRATOR":
         speaker = get_script_narrator_speaker()
-    targets = get_persona_state_targets(safe_load_json(SCRIPT_PATH, default=[])).get(speaker, [])
-    target = next((row for row in targets if row["version_id"] == version_id), None)
+    if script is None:
+        script = safe_load_json(SCRIPT_PATH, default=[])
+    target = find_state_target(get_persona_state_targets(script), speaker, version_id)
     if target is None:
         raise HTTPException(status_code=409, detail="Character state changed; reload voices")
     return target
 
 
-def get_validated_voice_changes(speaker, before, after, *, check_timeline=False, allow_orphan_removal=False):
-    """Validate state invariants for every public voice-config write path."""
+STATE_VERSION_ID = re.compile(r"state_[0-9a-f]{24}")
+
+
+def require_current_state_target(speaker, version_id, book_token, *, script=None, snapshot_token=None):
+    """The one guard for every state request (generate, recover, suggest):
+    the client is showing the active book, and the state still exists.
+    -> the current target (#1040 review C28). Blocking: call from a thread."""
+    if not book_token:
+        raise HTTPException(status_code=409, detail="State actions require the current book token")
+    if snapshot_token is None:
+        data_dir = os.path.dirname(SCRIPT_PATH)
+        with ensure_book_state(data_dir):
+            snapshot_token = get_book_snapshot_token(
+                get_book_snapshot(data_dir, allow_missing_script=True, include_voices=False))
+    if snapshot_token != book_token:
+        raise HTTPException(status_code=409, detail="Active book changed; reload voices")
+    return get_current_persona_state(speaker, version_id, script=script)
+
+
+def get_validated_voice_changes(speaker, before, after, *, check_timeline=False, allow_state_removal=False,
+                                trusted_states=()):
+    """Validate state invariants for every public voice-config write path.
+
+    `persona_state` is server-owned: only generation and recovery set it
+    (they pass `trusted_states`). A client may keep the stored value but never
+    introduce or change one, and `state_<24 hex>` ids are reserved for state
+    versions (#1040 review C6)."""
     old_versions, versions = before.get("versions") or {}, after.get("versions") or {}
-    for config in [after, *versions.values()]:
-        if isinstance(config, dict) and "seed" in config:
+    for version_id, version in versions.items():
+        if not isinstance(version, dict) or version_id in trusted_states:
+            continue
+        old_state = (old_versions.get(version_id) or {}).get("persona_state")
+        if version.get("persona_state") != old_state and "persona_state" in version:
+            raise HTTPException(status_code=409, detail="Character-state identity is set by persona generation; reload voices")
+        if STATE_VERSION_ID.fullmatch(version_id) and "persona_state" not in version and version_id not in old_versions:
+            raise HTTPException(status_code=422, detail="Version ids of the form state_<id> are reserved for character states")
+    # Only seeds this save writes are checked: a legacy invalid seed already
+    # stored (e.g. by a voice-library apply) must not refuse every later save.
+    seed_configs = [(after, before)] + [(version, old_versions.get(version_id) or {})
+                                         for version_id, version in versions.items()]
+    for config, previous in seed_configs:
+        if isinstance(config, dict) and "seed" in config and (
+                "seed" not in (previous or {}) or config["seed"] != previous["seed"]):
             value = config["seed"]
             if isinstance(value, bool) or not re.fullmatch(r"-?\d+", str(value)):
                 raise HTTPException(status_code=422, detail="Voice seed must be an integer or -1")
@@ -305,9 +350,9 @@ def get_validated_voice_changes(speaker, before, after, *, check_timeline=False,
         speaker = get_script_narrator_speaker()
     by_id = {target["version_id"]: target for target in targets.get(speaker, [])}
     for version_id, version in changed_states:
-        if allow_orphan_removal and version_id in removed and version_id not in by_id:
-            continue  # Obsolete, unapplied states can be cleaned up using the current book token.
-        if version_id not in by_id or version.get("persona_state") != by_id[version_id]:
+        if allow_state_removal and version_id in removed:
+            continue  # An unapplied state (current, stale or orphaned) can always be removed with the current book token.
+        if version_id not in by_id or not is_state_version_current(version, by_id[version_id]):
             raise HTTPException(status_code=409, detail="State source changed; reload and regenerate that persona")
     if state_points:
         chunks = safe_load_json(CHUNKS_PATH, default=[])
@@ -315,7 +360,7 @@ def get_validated_voice_changes(speaker, before, after, *, check_timeline=False,
         for point in state_points:
             target = by_id.get(point["version_id"])
             version = versions[point["version_id"]]
-            if (target is None or version.get("persona_state") != target
+            if (target is None or not is_state_version_current(version, target)
                     or mapping.get(target["from_entry"]) != point["from_index"]):
                 raise HTTPException(status_code=409, detail="State boundary is stale or lies inside an edited/merged chunk; rebuild chunks and review the timeline")
     return after
@@ -329,7 +374,7 @@ def get_validated_voice_target(entry, speaker, version_id, book_token):
         raise HTTPException(status_code=404, detail="Generate this state persona first")
     if "persona_state" in version:
         target = get_current_persona_state(speaker, version_id)
-        if version.get("persona_state") != target:
+        if not is_state_version_current(version, target):
             raise HTTPException(status_code=409, detail="State persona belongs to an earlier script; regenerate it")
     return version
 
@@ -345,10 +390,7 @@ def _mutate_voice_target(speaker, mutator, version_id=None, book_token=None):
 
 def get_script_speaker(entry):
     """Read the active script's modern or legacy speaker field."""
-    if not isinstance(entry, dict):
-        return ""
-    value = entry.get("speaker") or entry.get("type") or ""
-    return value.strip() if isinstance(value, str) else ""
+    return get_entry_speaker(entry)
 
 
 def get_script_narrator_speaker():
@@ -394,11 +436,14 @@ def get_voice_rows(script_data, voice_config):
         # Per-line gender/age from pass 2, only when the run asked for them, so
         # a book generated without the switch gets exactly the old rows.
         if name in state_targets and not row["config"].get("alias_of"):
-            row["persona_states"] = state_targets[name]
+            saved = row["config"].get("versions", {})
+            # Each state says whether its saved version is current, by the
+            # server's own rule, so the cards never re-derive it (C37).
+            row["persona_states"] = [{**target, "current": is_state_version_current(saved.get(target["version_id"]), target)}
+                                     for target in state_targets[name]]
             row["persona_states_pending"] = any(
-                not voice_is_set(row["config"].get("versions", {}).get(target["version_id"])) or
-                row["config"].get("versions", {}).get(target["version_id"], {}).get("persona_state") != target
-                for target in state_targets[name])
+                not voice_is_set(saved.get(target["version_id"])) or not state["current"]
+                for target, state in zip(state_targets[name], row["persona_states"]))
         traits = get_speaker_trait_summary(lines[name])
         if traits:
             row["traits"] = traits
@@ -416,11 +461,14 @@ def _ensure_voice_listing():
 @router.post("/api/voices/{speaker}/versions")
 async def save_voice_version(speaker: str, request: VoiceVersionRequest):
     def save_version(current):
-        config = request.config or {key: value for key, value in current.items()
-                                    if key not in VERSION_OVERLAY_EXCLUDED and key != "persona_state"}
+        config = dict(request.config or {key: value for key, value in current.items()
+                                         if key not in VERSION_OVERLAY_EXCLUDED})
         if config.get("type") not in {None, "custom", "clone", "design", "lora", "builtin_lora", "ensemble"}:
             raise HTTPException(status_code=422, detail="Unsupported voice version type")
         previous = (current.get("versions") or {}).get(request.version_id) or {}
+        if "persona_state" in previous:
+            # Saving over a state version keeps its server-owned state (C5).
+            config["persona_state"] = previous["persona_state"]
         age = previous.get("age_group", request.age_group) if "persona_state" in previous and "age_group" not in request.model_fields_set else request.age_group
         updated = {**current, "versions": {**(current.get("versions") or {}),
                     request.version_id: {**config, "age_group": age}}}
@@ -439,7 +487,7 @@ async def remove_voice_version(speaker: str, version_id: str, book_token: Option
         if version_id not in (entry.get("versions") or {}):
             raise HTTPException(status_code=404, detail="Voice version not found")
         versions = {key: value for key, value in entry["versions"].items() if key != version_id}
-        get_validated_voice_changes(speaker, entry, {**entry, "versions": versions}, allow_orphan_removal=True)
+        get_validated_voice_changes(speaker, entry, {**entry, "versions": versions}, allow_state_removal=True)
         entry["versions"] = versions
     entry, revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, remove, book_token)
     return {"status": "removed", "speaker": speaker, "version_id": version_id,
@@ -453,10 +501,15 @@ async def select_voice_version(speaker: str, version_id: str):
         version = (entry.get("versions") or {}).get(version_id)
         if not isinstance(version, dict):
             raise HTTPException(status_code=404, detail="Voice version not found")
-        entry.update({k: v for k, v in version.items() if k != "age_group"})
-        entry["age_group"] = version.get("age_group")
-        entry["active_version"] = version_id
-        entry["voice_status"] = "assigned"
+        if "persona_state" in version:
+            # A state voice belongs to its part of the book: it is applied on
+            # the voice timeline, never copied over the whole character (C3).
+            raise HTTPException(status_code=409, detail="This is a character-state voice; apply it from Voice changes on its state card")
+        after = {**entry, **get_version_fields(entry, version_id), "age_group": version.get("age_group"),
+                 "active_version": version_id, "voice_status": "assigned"}
+        get_validated_voice_changes(speaker, entry, after)
+        entry.clear()
+        entry.update(after)
     entry = await asyncio.to_thread(_mutate_voice_entry, speaker, select)
     return {"status": "selected", "speaker": speaker, "version_id": version_id,
             "config": entry}
@@ -652,11 +705,13 @@ async def get_voice_state_timeline(speaker: str):
         chunks = safe_load_json(CHUNKS_PATH, default=[]) if os.path.isfile(CHUNKS_PATH) else []
         voice_config = safe_load_json(VOICE_CONFIG_PATH, default={})
         entry = voice_config.get(speaker) if isinstance(voice_config.get(speaker), dict) else {}
-        states = get_state_timeline(script).get(speaker.strip().upper(), [])
+        # One pass, exact speaker identity: the same targets every state route
+        # and the validator use (C14: "Lee" and "LEE" are different people).
+        state_targets = get_persona_state_targets(script)
+        targets = state_targets.get(speaker.strip(), [])
+        states = [{key: target[key] for key in ("from_entry", "gender", "age_group")} for target in targets]
         if not states:
             return {"speaker": speaker, "states": [], "applied": entry.get("version_timeline", [])}
-        state_targets = get_persona_state_targets(script)
-        targets = state_targets.get(speaker, [])
         strict_mapping = get_persona_state_chunk_indices(script, chunks, speaker, state_targets=state_targets)
         targets_by_entry = {target["from_entry"]: target for target in targets}
         candidates = _build_lora_candidates()
@@ -665,7 +720,7 @@ async def get_voice_state_timeline(speaker: str):
         # maps to the chunk at ITS place in the book, not the first one.
         line_chunks, start = {}, 0
         for index, line in enumerate(script[:states[-1]["from_entry"] + 1]) if chunks else ():
-            if get_script_speaker(line).upper() == speaker.strip().upper():
+            if get_script_speaker(line) == speaker.strip():
                 chunk_index = get_chunk_index_for_entry(chunks, speaker, line.get("text"), start)
                 if chunk_index is not None:
                     line_chunks[index], start = chunk_index, chunk_index
@@ -679,7 +734,7 @@ async def get_voice_state_timeline(speaker: str):
             sources["versions"] = [version for version in sources["versions"]
                 if "persona_state" not in entry["versions"][version["version_id"]]
                 or (target and version["version_id"] == target["version_id"]
-                    and entry["versions"][version["version_id"]].get("persona_state") == target)]
+                    and is_state_version_current(entry["versions"][version["version_id"]], target))]
             sources["offer_generate"] = not any(sources[key] for key in ("versions", "library_unused", "library_used"))
             if has_generated:
                 sources["versions"].sort(key=lambda version: version["version_id"] != target["version_id"])
@@ -751,7 +806,7 @@ async def update_persona_voice_audit(speaker: str, request: PersonaVoiceAuditReq
     """Allow a user to correct the provenance note for an assignment."""
     await asyncio.to_thread(_require_script_speaker, speaker)
     audit = {key: value.strip() for key, value in request.model_dump().items()
-             if key not in {"version_id", "book_token"} and value is not None and value.strip()}
+             if key not in VoiceTargetScope.model_fields and value is not None and value.strip()}
     if not audit:
         raise HTTPException(status_code=422, detail="At least one audit field is required")
     entry = await asyncio.to_thread(_mutate_voice_target, speaker, lambda current: current.update({
@@ -771,14 +826,11 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
     - uses the VoiceDesign model to synthesize a preview and saves it,
     - updates `voice_config.json` with a clone-style reference for each character.
     """
-    _require_script_speaker(request.speaker)
+    await asyncio.to_thread(_require_script_speaker, request.speaker)
     if request.state_version:
         if not request.speaker or request.age_group or not request.book_token:
             raise HTTPException(status_code=422, detail="State regeneration requires a speaker and book token, without an age override")
-        with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
-            if get_book_snapshot_token(get_book_snapshot(os.path.dirname(SCRIPT_PATH))) != request.book_token:
-                raise HTTPException(status_code=409, detail="Active book changed; reload voices")
-            get_current_persona_state(request.speaker, request.state_version)
+        await asyncio.to_thread(require_current_state_target, request.speaker, request.state_version, request.book_token)
     check_global_gpu_lock("persona")
 
     process_state["persona"]["cancel"] = False
@@ -792,7 +844,7 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
     command = [sys.executable, "-u", "generate_personas.py",
                "--context-lines", str(request.context_lines)]
     if request.speaker:
-        command.extend(["--speakers", request.speaker])
+        command.extend(["--speaker", request.speaker])   # exact: names may contain commas
     if request.age_group:
         command.extend(["--age-group", request.age_group])
     if request.state_version:
@@ -835,10 +887,12 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
     if not os.path.exists(SCRIPT_PATH):
         raise HTTPException(status_code=422, detail="Generate or open an active script before recovery")
     data_dir = os.path.dirname(SCRIPT_PATH)
-    try:
+
+    def check_book():
+        # Snapshot, parse and state lookup are blocking: off the event loop (C31).
         with ensure_book_state(data_dir):
             snapshot = get_book_snapshot(data_dir, allow_missing_script=True, include_voices=False)
-            book_token = get_book_snapshot_token(snapshot)
+            token = get_book_snapshot_token(snapshot)
             with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
                 script = json.load(f)
             if not isinstance(script, list):
@@ -847,9 +901,12 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
             if request.speaker not in speakers:
                 raise HTTPException(status_code=422, detail="Speaker is not present in the active script")
             if request.state_version:
-                if request.book_token != book_token:
-                    raise HTTPException(status_code=409, detail="Active book changed; reload voices before recovering a state")
-                get_current_persona_state(request.speaker, request.state_version)
+                require_current_state_target(request.speaker, request.state_version, request.book_token,
+                                             script=script, snapshot_token=token)
+            return token
+
+    try:
+        book_token = await asyncio.to_thread(check_book)
     except HTTPException:
         raise
     except (OSError, json.JSONDecodeError, ValueError) as exc:
@@ -863,11 +920,12 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
             with file_lock(VOICE_CONFIG_PATH):
                 config = safe_load_json(VOICE_CONFIG_PATH, default={})
                 base = config.get(request.speaker, {})
+                before = copy.deepcopy(base)
                 if request.state_version:
                     target = get_current_persona_state(request.speaker, request.state_version)
                     entry = copy.deepcopy(base.get("versions", {}).get(request.state_version) or {})
-                    entry["persona_state"] = target
-                    entry["age_group"] = target["age_group"]
+                    entry.update(get_state_version_identity(target))
+                    entry["persona_status"] = "generated"
                 else:
                     entry = base
                 entry.update({"description": description, "character_style": description,
@@ -876,6 +934,8 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
                     entry["type"] = "design"
                 if request.state_version:
                     base.setdefault("versions", {})[request.state_version] = entry
+                get_validated_voice_changes(request.speaker, before, base,
+                                            trusted_states={request.state_version} if request.state_version else ())
                 config[request.speaker] = base
                 atomic_json_write(config, VOICE_CONFIG_PATH)
 
@@ -883,7 +943,7 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
     try:
         await asyncio.to_thread(_save)
         if request.resume:
-            command = [sys.executable, "-u", "generate_personas.py", "--speakers", request.speaker,
+            command = [sys.executable, "-u", "generate_personas.py", "--speaker", request.speaker,
                        "--recovered-speaker", request.speaker]
             if request.state_version:
                 command.extend(["--advanced", "--state-version", request.state_version,
@@ -911,7 +971,7 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                     if key in fields:
                         fields[key] = config.model_dump()[key]
                 candidate = {**metadata, **fields}
-                get_validated_voice_changes(voice_name, metadata, candidate, allow_orphan_removal=book_token is not None)
+                get_validated_voice_changes(voice_name, metadata, candidate, allow_state_removal=book_token is not None)
                 updated[voice_name] = candidate
             return updated
 
@@ -1303,12 +1363,13 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         book_id = get_active_book_id()
         line_counts = _script_line_counts()
         if request.state_version:
-            if not request.book_token or request.book_token != book_token or len(request.characters or []) != 1:
+            if len(request.characters or []) != 1:
                 raise HTTPException(status_code=409, detail="State suggestions require the current book and one character")
             speaker = request.characters[0]
-            target = get_current_persona_state(speaker, request.state_version)
+            target = require_current_state_target(speaker, request.state_version, request.book_token,
+                                                  script=script, snapshot_token=book_token)
             version = voice_config.get(speaker, {}).get("versions", {}).get(request.state_version)
-            if not version or version.get("persona_state") != target:
+            if not is_state_version_current(version, target):
                 raise HTTPException(status_code=409, detail="Generate the current state persona before suggesting voices")
             script = get_persona_state_entries(script, target)
             voice_config = {speaker: copy.deepcopy(version)}

@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import generate_personas as personas
 from routers import voices
-from speaker_traits import get_persona_state_targets
+from speaker_traits import get_persona_state_targets, get_state_version_identity
 from tests import test_state_personas as state_persona_tests
 
 state_script = state_persona_tests.state_script
@@ -77,14 +77,18 @@ class StatePersonaReviewRegressions(unittest.TestCase):
             snapshot = client.get('/api/voice_config/snapshot').json(); before = path.read_bytes()
             target = targets[1]
             result = client.post('/api/voices/ARTHUR/versions', json={'version_id': target['version_id'], 'config': {'type': 'custom', 'voice': 'Ryan'}})
-            self.assertEqual(result.status_code, 409, result.text); self.assertEqual(path.read_bytes(), before)
+            # A generic save over a state version keeps its server-owned state (#1040 review C5) instead of refusing.
+            self.assertEqual(result.status_code, 200, result.text)
+            self.assertEqual(json.loads(path.read_text())['ARTHUR']['versions'][target['version_id']]['persona_state'],
+                             snapshot['config']['ARTHUR']['versions'][target['version_id']]['persona_state'])
             config = copy.deepcopy(snapshot['config']['ARTHUR']['versions'][target['version_id']]); config['description'] = 'Edited adult'
             result = client.post('/api/voices/ARTHUR/versions', json={'version_id': target['version_id'], 'age_group': 'adult', 'config': config})
             self.assertEqual(result.status_code, 200, result.text)
             result = client.post('/api/voices/ARTHUR/versions', json={'version_id': 'state_manual', 'config': {'type': 'custom', 'voice': 'Ryan'}})
             self.assertEqual(result.status_code, 200, result.text)
             selected = client.post('/api/voices/ARTHUR/versions/' + target['version_id'] + '/select')
-            self.assertEqual(selected.status_code, 200, selected.text)
+            # A state voice is applied on its timeline, never copied over the whole character (#1040 review C3).
+            self.assertEqual(selected.status_code, 409, selected.text)
             saved = client.post('/api/voices/ARTHUR/versions', json={'version_id': 'manual-copy'})
             self.assertEqual(saved.status_code, 200, saved.text)
             self.assertNotIn('persona_state', saved.json()['versions']['manual-copy'])
@@ -122,7 +126,7 @@ class StatePersonaReviewRegressions(unittest.TestCase):
             stack.enter_context(patch.object(personas, 'call_llm_for_object', side_effect=RuntimeError('fixture discovery fallback')))
             stack.enter_context(patch.object(personas, 'request_persona_with_evidence', side_effect=compile_persona))
             config = {}
-            failures = personas.run_advanced_persona_generation(script, [name], {}, config, None, 'fixture', engine, str(root), SimpleNamespace(batch_size=40))
+            failures, config = personas.run_advanced_persona_generation(script, [name], {}, config, None, 'fixture', engine, str(root), SimpleNamespace(batch_size=40))
             self.assertEqual(failures, [])
             self.assertEqual(len(prompts), 2)
             self.assertTrue(all(name in prompt for prompt in prompts))
@@ -212,5 +216,6 @@ class StatePersonaReviewRegressions(unittest.TestCase):
             self.assertEqual(command[command.index('--state-version') + 1], targets[1]['version_id'])
             self.assertEqual(command[command.index('--book-token') + 1], snapshot['book_token'])
             saved = json.loads(path.read_text()); expected = copy.deepcopy(before)
-            expected['ARTHUR']['versions'][targets[1]['version_id']].update(description='Recovered adult state voice.', character_style='Recovered adult state voice.', ref_text='Adult state line.')
+            expected['ARTHUR']['versions'][targets[1]['version_id']].update(description='Recovered adult state voice.', character_style='Recovered adult state voice.', ref_text='Adult state line.',
+                **get_state_version_identity(targets[1]), persona_status='generated')   # recovery writes the same state fields as generation (#1040 review C29)
             self.assertEqual(saved, expected)

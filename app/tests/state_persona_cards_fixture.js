@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const source = fs.readFileSync(process.argv[2], 'utf8');
 const states = ['teen', 'adult', 'elderly', 'teen'].map((age, i) => ({version_id: `state_${i}`,
     speaker: 'ARTHUR "<&', age_group: age, gender: 'male', from_entry: i * 10,
-    segment_start: i * 10, segment_end: (i + 1) * 10, state_number: i + 1, source_sha256: 's'.repeat(64)}));
+    segment_start: i * 10, segment_end: (i + 1) * 10, state_number: i + 1, segment_sha256: 's'.repeat(64), current: true}));
 const name = states[0].speaker;
 const versions = Object.fromEntries(states.map(state => [state.version_id, {type: 'clone',
     ref_audio: `${state.version_id}.wav`, ref_text: state.age_group, description: state.age_group,
@@ -20,6 +20,7 @@ const context = {window: null, document: {
     _voiceCardsBookToken: 'b'.repeat(64), _voiceSaveSnapshot: {book_token: 'b'.repeat(64)},
     flushVoiceSaves: async () => { if (pauseFlush) { await pauseFlush; } },
     API: {post: async (path, body) => {posts.push({path, body}); return {}; }},
+    claimTaskStart: () => true, releaseTaskStart: () => {},
     loadVoices: async () => {}, showToast: () => {}, showActionError: (...args) => {throw new Error(args.join(' '));},
 };
 context.window = context;
@@ -36,18 +37,21 @@ load('function collectVoiceConfig()', 'function onVoiceReadyChange(');
 load('function onToggleHideReady()', 'let _voiceStatusClearTimer');
 load('window.removeStatePersona =', 'window.regeneratePersona =');
 load('window.selectVoiceCandidate =', 'async function applyConfirmedVoiceRemoval(');
+load('function getSuggestionCandidateConfig(', 'async function suggestVoices(');
 load('window.suggestMoreVoices =', 'function renderVoiceSuggestions(');
 const html = context.getStateVoiceCardsMarkup([voice]);
 assert.equal((html.match(/data-version="state_/g) || []).length, 4);
 assert(html.includes('class="voice-character-group"'), 'sorting must preserve a whole character group');
-assert(/onclick="openStatePersonaRecovery\(this\)"(?![^>]*disabled)/.test(context.getStateVoiceCardsMarkup([{...voice, config: {...base, versions: {}}}])));
+assert(/onclick="openStatePersonaRecovery\(this\)"(?![^>]*disabled)/.test(context.getStateVoiceCardsMarkup([{...voice, config: {...base, versions: {}}, persona_states: states.map(state => ({...state, current: false}))}])));
 assert(html.includes('ARTHUR &quot;&lt;&amp;'));
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 assert.equal(new Set(ids).size, ids.length, 'duplicate controls cannot target state cards correctly');
 assert.equal((html.match(/State seed/g) || []).length, 4);
-const reversed = Object.fromEntries(Object.entries(states[0]).reverse());
-assert(context.isPersonaStateCurrent(reversed, states[0]), 'property ordering is not source identity');
-const pending = context.getStateVoiceCardsMarkup([{...voice, config: {...base, versions: {}}}]);
+// Staleness is the server's per-state `current` flag, never re-derived in the browser (#1040 review C37).
+const staleStates = states.map(state => ({...state, current: false}));
+assert(/class="form-check-input voice-type"[^>]*disabled/.test(context.getStateVoiceCardsMarkup([{...voice, persona_states: staleStates}])),
+    'a state the server calls stale is locked even when its saved fields look current');
+const pending = context.getStateVoiceCardsMarkup([{...voice, config: {...base, versions: {}}, persona_states: staleStates}]);
 assert(pending.includes('State persona needs generation for the current script'));
 assert(/onclick="regeneratePersona\(this\)"(?![^>]*disabled)/.test(pending), 'pending state can be generated');
 assert(/class="form-check-input voice-type"[^>]*disabled/.test(pending), 'pending forms cannot invent a saved state');
