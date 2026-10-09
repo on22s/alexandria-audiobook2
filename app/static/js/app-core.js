@@ -5812,7 +5812,7 @@
                     if (!isCurrent()) { return; }
                     await loadVoices();
                     showToast(`${speaker} uses the main voice throughout. Affected lines are pending; use Render Pending in the Editor.`, 'success');
-                }, `Clear all saved voice changes for ${speaker}? Existing rendered audio is not changed.`);
+                }, `Clear all saved voice changes for ${speaker}? Affected lines will become pending and need regeneration; previous audio files remain on disk.`);
             } catch (e) { showActionError("Could not clear voice changes", e, "Reload Voices to check whether the saved changes were cleared before trying again."); }
         }
 

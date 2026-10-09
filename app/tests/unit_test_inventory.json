@@ -2332,7 +2332,8 @@
     "tests.test_designed_state_voices.DesignedStateVoiceTests.test_native_apply_preserves_clone_reference_and_reference_text",
     "tests.test_designed_state_voices.DesignedStateVoiceTests.test_playable_references_only_and_exact_child_bands_rank_first",
     "tests.test_designed_state_voices.DesignedStateVoiceTests.test_redesign_clears_stale_listening_metadata_but_identical_save_preserves_it",
-    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_reuse_counts_main_versions_and_relative_or_absolute_references"
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_reuse_counts_main_versions_and_relative_or_absolute_references",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_saved_designer_version_retains_gender_and_excludes_opposite_state"
   ],
   "test_designed_voice_alias_js": [
     "tests.test_designed_voice_alias_js.DesignedVoiceAliasJsTests.test_lookup_failure_preserves_alias_and_fresh_result_populates_options",
@@ -8766,6 +8767,7 @@
     "tests.test_voice_followups_733.RevealReviewTests.test_only_known_gender_changes_with_small_age_differences_are_flagged",
     "tests.test_voice_followups_733.RevealReviewTests.test_real_state_endpoint_reports_reveal_without_rewriting_script",
     "tests.test_voice_followups_733.RevealReviewTests.test_reveal_panel_and_main_choice_never_save_before_apply",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_active_version_edit_without_moving_anchor_invalidates_and_fences_render",
     "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_alias_ensemble_and_narrator_effective_voices_are_included",
     "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_apply_during_render_prevents_old_audio_from_being_published",
     "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_apply_noop_clear_and_full_save_only_reset_effectively_changed_rows",

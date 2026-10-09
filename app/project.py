@@ -671,7 +671,7 @@ class ProjectManager:
         """
         def get_timeline(config):
             return config.get("version_timeline", []) if isinstance(config, dict) else []
-        if not any(get_timeline(before.get(name)) != get_timeline(after.get(name))
+        if not any(get_timeline(before.get(name)) or get_timeline(after.get(name))
                    for name in set(before) | set(after)) or not os.path.exists(self.chunks_path):
             return []
         chunks = self._read_chunks()

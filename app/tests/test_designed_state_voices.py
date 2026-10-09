@@ -62,6 +62,26 @@ class DesignedStateVoiceTests(unittest.TestCase):
                     own_sources=voices.get_state_voice_sources({'gender':'male','age_group':age},'A',own,[],{})
                     self.assertEqual([],own_sources['versions'])
 
+    def test_saved_designer_version_retains_gender_and_excludes_opposite_state(self):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as stack:
+            helper=fixtures.VoiceTimelineAudioTests()
+            root,manager,client,path,_,_=helper.fixture(temp,stack)
+            directory,_=self.catalog(root)
+            stack.enter_context(patch.object(voices,'DESIGNED_VOICES_DIR',str(directory)))
+            stack.enter_context(patch.object(voices,'_build_lora_candidates',side_effect=lambda: []))
+            candidates=voices.get_state_voice_candidates()
+            for gender in ('male','female'):
+                candidate=next(c for c in candidates if c['adapter_id']=='designed:'+gender+'_young_child')
+                token=client.get('/api/voice_config/snapshot').json()['book_token']
+                response=client.post('/api/voices/A/versions',json={'book_token':token,'version_id':gender,
+                    'age_group':'young_child','config':voices.get_library_voice_config(candidate)})
+                self.assertEqual(200,response.status_code,response.text)
+                entry=json.loads(path.read_text())['A']
+                self.assertEqual(gender,entry['versions'][gender]['gender'])
+            for gender in ('male','female'):
+                sources=voices.get_state_voice_sources({'gender':gender,'age_group':'young_child'},'A',entry,[],{})
+                self.assertEqual([gender],[v['version_id'] for v in sources['versions']])
+
     def test_reuse_counts_main_versions_and_relative_or_absolute_references(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);directory,_=self.catalog(root)

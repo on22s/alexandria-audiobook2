@@ -92,6 +92,36 @@ class VoiceTimelineAudioTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200, response.text)
                 self.assertEqual([r['id'] for r in manager.load_chunks() if r['status'] != 'done'], [2])
 
+    def test_active_version_edit_without_moving_anchor_invalidates_and_fences_render(self):
+        for route in ('version','full_save'):
+            with self.subTest(route=route), tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+                root,manager,client,path,_,rows=self.fixture(directory,stack)
+                self.apply(client,[{'from_index':2,'version_id':'different'},{'from_index':3,'version_id':None}])
+                current=manager.load_chunks();current[2].update(status='done',audio_path=rows[2]['audio_path'])
+                manager.save_chunks(current)
+                def save(voice):
+                    snapshot=client.get('/api/voice_config/snapshot').json()
+                    if route=='version':
+                        response=client.post('/api/voices/A/versions',json={'book_token':snapshot['book_token'],
+                            'version_id':'different','config':{'type':'custom','voice':voice}})
+                    else:
+                        body=copy.deepcopy(snapshot['config']);body['A']['versions']['different']['voice']=voice
+                        response=client.post('/api/voice_config/save',json={'book_token':snapshot['book_token'],
+                            'revision':snapshot['revision'],'voices':body})
+                    self.assertEqual(200,response.status_code,response.text)
+                before=Path(manager.chunks_path).read_bytes();save('Serena')
+                self.assertEqual(before,Path(manager.chunks_path).read_bytes())
+                original=(root/rows[2]['audio_path']).read_bytes()
+                def render(text,instruct,speaker,config,output):
+                    save('Dylan');sf.write(output,np.full(240,.8),24000);return True
+                manager.engine=SimpleNamespace(generate_voice=render)
+                success,message=manager.generate_chunk_audio(2)
+                self.assertFalse(success);self.assertIn('generation inputs',message)
+                saved=manager.load_chunks();self.assertEqual('pending',saved[2]['status'])
+                self.assertIsNone(saved[2]['audio_path'])
+                self.assertEqual(original,(root/rows[2]['audio_path']).read_bytes())
+                for index in (0,1,3):self.assertEqual('done',saved[index]['status'])
+
     def test_equivalent_voice_version_does_not_invalidate_audio(self):
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
             _, manager, client, _, _, _ = self.fixture(directory, stack)

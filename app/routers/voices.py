@@ -649,7 +649,8 @@ def get_state_voice_candidates():
             "name": name, "gender": get_normalized_gender(row.get("gender")),
             "age_group": age, "description": description,
             "config": {"type": "clone", "ref_audio": "designed_voices/" + row["filename"],
-                       "ref_text": text, "description": description}})
+                       "ref_text": text, "description": description,
+                       "gender": get_normalized_gender(row.get("gender"))}})
     return candidates
 
 
