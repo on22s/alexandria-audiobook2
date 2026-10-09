@@ -301,6 +301,14 @@ def _script_line_counts(path: str = SCRIPT_PATH) -> dict:
     return get_script_line_counts(safe_load_json(path))
 
 
+def get_cast_importance_order(names, line_counts):
+    """-> names in importance order: the narrator, then most lines, then name.
+    The one order for the Voices list and for voice casting, where earlier
+    characters get first pick of unused library voices (Rule 15)."""
+    return sorted(names, key=lambda name: (0 if _norm_name(name) == "narrator" else 1,
+                                           -int(line_counts.get(name, 0) or 0), _norm_name(name), name))
+
+
 def get_script_line_counts(script):
     """Count spoken rows consistently for whole books and scoped evidence."""
     counts = {}

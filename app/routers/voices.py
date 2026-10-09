@@ -32,7 +32,7 @@ from core import (
     _make_library_entry,
     _make_llm_client,
     _norm_name,
-    _script_line_counts, get_script_line_counts,
+    _script_line_counts, get_script_line_counts, get_cast_importance_order,
     _send_signal_tree,
     _warn_corrupted_json,
     check_global_gpu_lock,
@@ -422,7 +422,10 @@ async def get_voices():
 
 def get_voice_rows(script_data, voice_config):
     """Build one backend eligibility/roster view for legacy and guarded reads."""
-    roster = sorted({name for entry in script_data if (name := get_script_speaker(entry))})
+    # Most-spoken characters first (owner, 2026-10-09): the same order casting
+    # uses, so the list shows who gets first pick of unused voices.
+    line_counts = get_script_line_counts(script_data)
+    roster = get_cast_importance_order({name for entry in script_data if (name := get_script_speaker(entry))}, line_counts)
     lines = {name: [] for name in roster}
     for entry in script_data:
         name = get_script_speaker(entry)
@@ -431,7 +434,7 @@ def get_voice_rows(script_data, voice_config):
     state_targets = get_persona_state_targets(script_data)
     rows = []
     for name in roster:
-        row = {"name": name, "config": voice_config.get(name, {}),
+        row = {"name": name, "config": voice_config.get(name, {}), "line_count": line_counts.get(name, 0),
                "persona_pending": not voice_is_set(voice_config.get(name))}
         # Per-line gender/age from pass 2, only when the run asked for them, so
         # a book generated without the switch gets exactly the old rows.
@@ -1414,9 +1417,9 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
     # Build profiles in importance order: narrator, then most dialogue lines.
     characters = {}
     requested = {name.strip() for name in (request.characters or []) if name and name.strip()}
-    ordered_names = sorted(
-        (name for name in samples if not requested or name in requested),
-        key=lambda n: (0 if _norm_name(n) == "narrator" else 1, -len(samples[n]), _norm_name(n)))
+    ordered_names = get_cast_importance_order(
+        [name for name in samples if not requested or name in requested],
+        {name: len(lines) for name, lines in samples.items()})
     for speaker in ordered_names:
         lines = samples[speaker]
         if request.only_unset:

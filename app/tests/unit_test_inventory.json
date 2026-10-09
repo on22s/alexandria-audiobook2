@@ -7511,7 +7511,9 @@
     "tests.test_state_review_fixes.T5ServerOwnedStateTests.test_a_client_cannot_invent_or_change_a_state_or_take_a_state_id",
     "tests.test_state_review_fixes.T6VoiceLibraryStateTests.test_casts_never_carry_state_versions_or_timelines_between_books",
     "tests.test_state_review_fixes.T8TimelineExactSpeakerTests.test_case_variant_speakers_are_not_merged_in_the_timeline_view",
-    "tests.test_state_review_fixes.T9UnsetBaseFromCurrentFirstStateTests.test_an_unset_base_takes_a_current_state_one_even_while_a_later_state_is_pending"
+    "tests.test_state_review_fixes.T9UnsetBaseFromCurrentFirstStateTests.test_an_unset_base_takes_a_current_state_one_even_while_a_later_state_is_pending",
+    "tests.test_state_review_fixes.VoicesListImportanceOrderTests.test_casting_uses_the_same_order",
+    "tests.test_state_review_fixes.VoicesListImportanceOrderTests.test_the_voices_list_is_narrator_then_most_lines"
   ],
   "test_state_voices": [
     "tests.test_state_voices.LineToChunkTests.test_an_unmatched_line_is_none_not_a_guess",

@@ -1084,8 +1084,9 @@ class VoiceListShapeTests(unittest.TestCase):
                  patch.object(voices_module, 'VOICE_CONFIG_PATH', str(config)):
                 response = client.get('/api/voices')
             self.assertEqual(200, response.status_code)
-            self.assertEqual([{'name': 'Hero', 'config': voice, 'persona_pending': False},
-                {'name': 'Narrator', 'config': {}, 'persona_pending': True}], response.json())
+            # Narrator first, then most lines (owner 2026-10-09); these rows have no text, so 0 lines.
+            self.assertEqual([{'name': 'Narrator', 'config': {}, 'line_count': 0, 'persona_pending': True},
+                {'name': 'Hero', 'config': voice, 'line_count': 0, 'persona_pending': False}], response.json())
             self.assertEqual(original_script, script.read_bytes())
             self.assertEqual(original_config, config.read_bytes())
 
@@ -1107,7 +1108,7 @@ class VoiceListShapeTests(unittest.TestCase):
                         original_config = config.read_bytes()
                         response = client.get('/api/voices')
                         self.assertEqual(200, response.status_code)
-                        self.assertEqual([{'name': 'Hero', 'config': {},
+                        self.assertEqual([{'name': 'Hero', 'config': {}, 'line_count': 0,
                             'persona_pending': True}], response.json())
                         self.assertEqual(original_script, script.read_bytes())
                         self.assertEqual(original_config, config.read_bytes())

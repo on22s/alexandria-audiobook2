@@ -380,6 +380,26 @@ class T25CurrentFlagTests(unittest.TestCase):
         self.assertTrue(row["persona_states_pending"])
 
 
+class VoicesListImportanceOrderTests(unittest.TestCase):
+    """Owner request 2026-10-09: more lines = more priority, in the list as in casting."""
+    def test_the_voices_list_is_narrator_then_most_lines(self):
+        script = ([{"speaker": "Zed", "text": f"z{i}"} for i in range(9)]
+                  + [{"speaker": "Amy", "text": f"a{i}"} for i in range(2)]
+                  + [{"speaker": "NARRATOR", "text": "n"}]
+                  + [{"speaker": "Bob", "text": f"b{i}"} for i in range(5)]
+                  + [{"speaker": "Cat", "text": ""} for _ in range(7)])            # empty rows are not lines
+        rows = voices_module.get_voice_rows(script, {})
+        self.assertEqual(["NARRATOR", "Zed", "Bob", "Amy", "Cat"], [row["name"] for row in rows])
+        self.assertEqual([1, 9, 5, 2, 0], [row["line_count"] for row in rows])
+
+    def test_casting_uses_the_same_order(self):
+        from core import get_cast_importance_order
+        source = Path(voices_module.__file__).read_text(encoding="utf-8")
+        self.assertEqual(2, source.count("get_cast_importance_order("))     # Voices list + suggestion allocation
+        self.assertEqual(["Narrator", "B", "A", "C"],
+                         get_cast_importance_order(["A", "Narrator", "C", "B"], {"A": 3, "B": 9, "C": 3}))
+
+
 class StateCardJsTests(unittest.TestCase):
     """T7, T15, T16, T26 through the real app-core.js (node)."""
     def test_state_card_fixes(self):
