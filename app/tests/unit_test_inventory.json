@@ -5272,10 +5272,14 @@
     "tests.test_persona_grounding.PersonaGroundingTests.test_exact_copy_accepted_and_paraphrases_stitching_rejected",
     "tests.test_persona_grounding.PersonaGroundingTests.test_exhausted_invalid_result_does_not_publish_preview",
     "tests.test_persona_grounding.PersonaGroundingTests.test_invented_compiled_sample_does_not_publish_preview",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_late_cue_reaches_every_source_and_merge_within_original_allowance",
     "tests.test_persona_grounding.PersonaGroundingTests.test_long_sample_is_source_excerpt_and_input_unchanged",
     "tests.test_persona_grounding.PersonaGroundingTests.test_missing_source_sample_fails_without_request_or_preview",
     "tests.test_persona_grounding.PersonaGroundingTests.test_observation_dialogue_allowed_narration_not_allowed",
-    "tests.test_persona_grounding.PersonaGroundingTests.test_source_and_merge_receive_same_rules_and_literal_sample"
+    "tests.test_persona_grounding.PersonaGroundingTests.test_oversized_cue_is_reported_without_clipping_or_losing_later_cue",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_repeated_source_cues_still_respect_small_context_completion_budget",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_source_and_merge_receive_same_rules_and_literal_sample",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_source_cues_keep_literal_independent_ids_and_leave_input_unchanged"
   ],
   "test_persona_provenance": [
     "tests.test_persona_provenance.PersonaProvenanceTests.test_actual_saved_book_switch_restores_reference_and_preview",

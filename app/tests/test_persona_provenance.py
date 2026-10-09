@@ -27,7 +27,7 @@ class PersonaProvenanceTests(unittest.TestCase):
             def source_backed_reply(*args, **kwargs):
                 if not kwargs.get('label', '').startswith('PERSONA COMPILE'):
                     return {}
-                reference = json.loads(args[3].split('Character reference:\n', 1)[1])
+                reference = json.JSONDecoder().raw_decode(args[3].split('Character reference:\n', 1)[1])[0]
                 return {'description': 'Warm voice.', 'ref_text': reference['reference_sample']}
             with patch.object(personas, 'call_llm_for_object', side_effect=source_backed_reply), patch.object(personas.time,'sleep'):
                 self.assertEqual([], personas.run_advanced_persona_generation(script, ['ALICE'],

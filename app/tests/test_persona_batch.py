@@ -164,7 +164,7 @@ class PersonaBatchTests(unittest.TestCase):
                             raise OSError('fixture speaker request failed')
                         sample = 'Hello there, my friend.'
                         if advanced:
-                            sample = json.loads(args[3].split('Character reference:\n', 1)[1])['reference_sample']
+                            sample = json.JSONDecoder().raw_decode(args[3].split('Character reference:\n', 1)[1])[0]['reference_sample']
                         return {'description':'Warm natural voice.', 'ref_text':sample}
                     if failure == 'exception':
                         # Inject a speaker compile failure to exercise partial-save
