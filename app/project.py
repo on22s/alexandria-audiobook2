@@ -34,7 +34,7 @@ from tts import (
     voice_category,
     DEFAULT_PAUSE_MS,
     SAME_SPEAKER_PAUSE_MS,
-                 voice_config_for_chunk)
+                 voice_config_for_chunk, resolve_narrator_voice_config)
 from pydub import AudioSegment
 
 MAX_CHUNK_CHARS = 500
@@ -43,7 +43,7 @@ NARRATOR_GENERATION_FIELDS = (
     "narrator_gender", "focus_gender", "narrator_age_group", "focus_age_group")
 CHUNK_GENERATION_FIELDS = (
     "text", "speaker", "instruct", *NARRATOR_GENERATION_FIELDS,
-    "character_style", "default_style", "style_timeline")
+    "character_style", "default_style", "style_timeline", "voice_revision")
 GENERATION_INPUTS_CHANGED = "Chunk removed or generation inputs changed during generation"
 
 
@@ -643,6 +643,48 @@ class ProjectManager:
             # Loop completed without break - chain exceeded limit
             logger.warning(f"Alias chain for '{speaker}' exceeded 16 iterations; using last resolved name '{name}'")
         return name
+
+    def get_chunk_voice_inputs(self, voices, chunk, index):
+        """Read the effective TTS inputs, including aliases and ensemble members."""
+        speaker = self._resolve_alias(chunk.get("speaker"), voices)
+        effective = voice_config_for_chunk(
+            resolve_narrator_voice_config(speaker, voices, chunk), speaker, index)
+        fields = ("type", "voice", "character_style", "default_style", "seed",
+                  "ref_audio", "ref_text", "description", "adapter_id", "adapter_path",
+                  "adapter_generation_sha256", "members")
+        inputs, pending = {}, [speaker]
+        while pending:
+            name = pending.pop()
+            if name in inputs:
+                continue
+            config = effective.get(name) or {}
+            inputs[name] = {field: copy.deepcopy(config.get(field)) for field in fields}
+            if voice_category(config) == "ensemble":
+                pending.extend(member for member in config.get("members") or [] if isinstance(member, str))
+        return inputs
+
+    def _apply_voice_timeline_audio_invalidation_locked(self, before, after):
+        """Caller holds chunk locks through the subsequent voice-config write.
+
+        Invalidate before publishing voices: an interrupted save can require
+        extra regeneration, but cannot leave changed voices with current audio.
+        """
+        def get_timeline(config):
+            return config.get("version_timeline", []) if isinstance(config, dict) else []
+        if not any(get_timeline(before.get(name)) or get_timeline(after.get(name))
+                   for name in set(before) | set(after)) or not os.path.exists(self.chunks_path):
+            return []
+        chunks = self._read_chunks()
+        changed = [index for index, chunk in enumerate(chunks)
+                   if self.get_chunk_voice_inputs(before, chunk, index) !=
+                      self.get_chunk_voice_inputs(after, chunk, index)]
+        updated = copy.deepcopy(chunks)
+        for index in changed:
+            updated[index].update(status="pending", audio_path=None, error=None, drift=None,
+                                  voice_revision=uuid.uuid4().hex)
+        if changed:
+            self._save_chunks_locked(updated, uids_backfilled=True)
+        return [updated[index]["uid"] for index in changed]
 
     def save_chunks(self, chunks):
         with self._chunks_lock, file_lock(self.chunks_path):
