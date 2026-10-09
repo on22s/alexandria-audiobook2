@@ -27,13 +27,13 @@ class PersonaGroundingTests(unittest.TestCase):
         self.assertEqual(get_reference_samples(ref), ['Go back to work.'])
         self.assertEqual(get_reference_samples({'sample_lines': ['', 'bad\x00sample']}), [])
 
-    def compile(self, ref, reply, preview, **kwargs):
+    def compile(self, ref, reply, preview, advanced_prompt='{character_ref}', **kwargs):
         with tempfile.TemporaryDirectory() as tmp:
             refs = Path(tmp) / 'refs'; refs.mkdir()
             Path(personas._character_ref_path(str(refs), 'ALICE')).write_text(json.dumps(ref))
             with patch.object(personas, 'call_llm_for_object', side_effect=reply):
                 return personas._compile_persona(object(), 'fixture', object(), {}, tmp, str(refs),
-                    'ALICE', {}, None, '{character_ref}', preview_saver=preview, **kwargs)
+                    'ALICE', {}, None, advanced_prompt, preview_saver=preview, **kwargs)
 
     def test_source_and_merge_receive_same_rules_and_literal_sample(self):
         calls = []
@@ -128,3 +128,55 @@ class PersonaGroundingTests(unittest.TestCase):
                'sample_lines': ['Hello.']}
         self.assertTrue(self.compile(ref, reply, lambda *a: True, context_length=4096))
         self.assertGreater(len(calls), 1)
+
+    def test_long_sample_and_full_ledger_recover_without_losing_source_cues(self):
+        ref = {'name': 'ALICE', 'voice_clues': ['cue %d ' % i + 'x' * 160 for i in range(25)],
+               'sample_lines': ['Long source dialogue ' * 140]}
+        delivered = []
+        calls = []
+        def reply(*args, **kwargs):
+            prompt = args[3]
+            calls.append(prompt)
+            self.assertGreaterEqual(personas.get_effective_max_tokens(600, 4096,
+                [{'content': args[2]}, {'content': prompt}], scale_to_context=False), 600)
+            payload = json.JSONDecoder().raw_decode(prompt.split('Character reference:\n')[-1])[0]
+            self.assertTrue(ref['sample_lines'][0].strip().startswith(payload['reference_sample']))
+            kwargs['validate_object']({'description': 'Dry voice.', 'ref_text': payload['reference_sample']})
+            if 'Supported partial persona drafts' not in prompt:
+                delivered.extend(payload.get('voice_clues', []))
+            return {'description': 'Dry voice.', 'ref_text': payload['reference_sample']}
+        self.assertTrue(self.compile(ref, reply, lambda *a: True, context_length=4096,
+                                     advanced_prompt=None))
+        self.assertCountEqual(delivered, ref['voice_clues'])
+        self.assertTrue(any('Supported partial persona drafts' in p for p in calls))
+
+    def test_ordinary_discovery_rejects_invented_and_other_speaker_samples(self):
+        batch = [{'speaker': 'Alice', 'text': 'Leave the lever alone!'},
+                 {'speaker': 'BOB', 'text': 'Go back to work.'},
+                 {'speaker': 'Narrator', 'text': 'The room was quiet.'}]
+        response = {'ALICE': {'features': ['Dry voice.'], 'sample_lines': [
+            'Leave the lever alone!', 'Invented dialogue.', 'Go back to work.', 'The room was quiet.']}}
+        with patch.object(personas, 'call_llm_for_object', return_value=response):
+            characters = personas._discover_batch_characters(
+                object(), 'fixture', 'prompt', batch, 1, allowed_speakers=['ALICE', 'BOB'])
+        self.assertEqual(characters[0]['sample_lines'], ['Leave the lever alone!'])
+        self.assertEqual(characters[0]['features'], ['Dry voice.'])
+
+    def test_ordinary_invented_discovery_sample_cannot_reach_preview(self):
+        from types import SimpleNamespace
+        previews = []
+        def request(*args, **kwargs):
+            if kwargs['label'].startswith('PERSONA DISCOVERY'):
+                return {'ALICE': {'sample_lines': ['Invented dialogue.']}}
+            payload = json.JSONDecoder().raw_decode(args[3])[0]
+            self.assertEqual(payload['reference_sample'], 'Leave the lever alone!')
+            return {'description': 'Dry voice.', 'ref_text': payload['reference_sample']}
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(personas, 'call_llm_for_object', side_effect=request), \
+             patch.object(personas, '_save_generated_preview', side_effect=lambda *a, **k: previews.append(a[5]) or True):
+            failures = personas._run_advanced_speaker_generation(
+                [{'speaker': 'ALICE', 'text': 'Leave the lever alone!'}], ['ALICE'],
+                {'ALICE': ['Leave the lever alone!']}, {}, object(), 'fixture', object(), root,
+                SimpleNamespace(batch_size=40), advanced_prompt='{character_ref}')
+        self.assertEqual(failures, [])
+        self.assertEqual(previews, ['Leave the lever alone!'])

@@ -810,8 +810,8 @@ def _parse_discovered_characters(parsed):
     return characters
 
 
-def get_validated_state_discovery(characters, batch, batch_start, allowed_speakers):
-    """Reject sample/evidence rows invented or borrowed from another state."""
+def get_validated_state_discovery(characters, batch, batch_start, allowed_speakers, require_evidence=True):
+    """Reject invented or borrowed dialogue; settled states also require evidence."""
     sources = {row.get("_source_entry_index", batch_start + offset): row
                for offset, row in enumerate(batch)}
     output = []
@@ -823,10 +823,11 @@ def get_validated_state_discovery(characters, batch, batch_start, allowed_speake
                     and type(item.get("entry_index")) is int and item["entry_index"] in sources
                     and isinstance(item.get("quote"), str) and item["quote"].strip()
                     and item["quote"] in _entry_text(sources[item["entry_index"]])]
-        dialogue = [_entry_text(row) for row in batch if _entry_speaker(row) == speaker]
+        dialogue = [_entry_text(row) for row in batch
+                    if _resolve_to_canonical(_entry_speaker(row), allowed_speakers) == speaker]
         samples = [line for line in _as_list(character.get("sample_lines", []))
                    if any(line in text for text in dialogue)]
-        if not evidence:
+        if require_evidence and not evidence:
             fallback = next((row for row in _fallback_batch_characters(batch, batch_start)
                              if row["name"] == speaker), None)
             if fallback:
@@ -878,8 +879,11 @@ def _discover_batch_characters(client, model_name, prompt, batch, batch_number,
                         context_length, llm_config, batch_start=start,
                         allowed_speakers=allowed_speakers))
                 return characters
-        if any("_source_entry_index" in row for row in batch):
-            characters = get_validated_state_discovery(characters, batch, batch_start, allowed_speakers)
+        characters = get_validated_state_discovery(
+            characters, batch, batch_start,
+            allowed_speakers if allowed_speakers is not None else list(dict.fromkeys(
+                _entry_speaker(row) for row in batch if _entry_speaker(row))),
+            require_evidence=any("_source_entry_index" in row for row in batch))
         if not characters:
             print(f"Warning: discovery batch {batch_number} returned no parseable characters; using speaker fallback.")
             characters = _fallback_batch_characters(batch, batch_start)
@@ -973,6 +977,36 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
             reference = json.dumps(payload, ensure_ascii=False)
             return (_compile_character_prompt(ref, advanced_prompt, reference_text=reference,
                                               sample_limit=sample_limit) + PERSONA_CUE_INSTRUCTIONS)
+
+        if context_length:
+            from lmstudio_settings import TokenBudgetError
+            # Repeated context is optional duplication. Leave room for source
+            # evidence and two literal draft samples plus merge instructions,
+            # as well as the unchanged output/reserve.
+            while True:
+                merge_reserve = (2 * len(reference_sample) + 800 + 2) // 3
+                try:
+                    fits_repeated_context = get_effective_max_tokens(
+                        600, context_length, [{'content': messages[0]['content']},
+                                              {'content': build_prompt([])}],
+                        reserve=512 + max(600, merge_reserve), scale_to_context=False) >= 600
+                except TokenBudgetError:
+                    fits_repeated_context = False
+                if fits_repeated_context:
+                    break
+                if any(shared_context.values()):
+                    shared_context = {field: [] for field in shared_context}
+                elif source_cues['items']:
+                    source_cues['omitted_ids'].append(source_cues['items'].pop()['id'])
+                else:
+                    shorter = next((line for line in get_reference_samples(
+                        selected, max_chars=max(12, len(reference_sample) // 2))
+                        if reference_sample.startswith(line) and len(line) < len(reference_sample)), None)
+                    if shorter is None:
+                        break
+                    reference_sample = shorter
+                    if shorter not in reference_samples:
+                        reference_samples.append(shorter)
 
         # Bound each source request without cutting serialized JSON or losing its tail.
         # Oversized evidence is processed in smaller calls by the existing recovery path.

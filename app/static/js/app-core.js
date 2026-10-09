@@ -1913,6 +1913,7 @@
                 if (defaults.persona_advanced_prompt) {
                     document.getElementById('persona-advanced-prompt').value = defaults.persona_advanced_prompt;
                 }
+                document.getElementById('persona-reference-chars').value = defaults.persona_reference_chars ?? 12000;
                 applyGenerationSettings(g);
                 showToast('Default prompts and generation settings are on this form. Click Save Configuration to keep them.', 'success');
             } catch (e) {

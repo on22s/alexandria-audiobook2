@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from config_settings import GenerationConfig
+from config_settings import GenerationConfig, PromptConfig
 from routers import system
 from tests import test_prompt_preset_transactions_js as actions
 from attribution_prompt_variants import builtin_presets
@@ -29,15 +29,19 @@ class PromptResetDefaultTests(unittest.TestCase):
         code='const fields='+json.dumps(FIELDS)+';const defaults='+json.dumps(defaults)+';const builtins='+json.dumps(builtin_presets())+';'+SETUP+r'''
 run('renderPromptPresets('+JSON.stringify(builtins)+',"michel2_full");');const cacheBefore=run('JSON.stringify(passPromptPresets)');context.API.get=async()=>defaults;
 for(const [id,value] of Object.entries({'tts-mode':'local','tts-device':'auto','tts-language':'English'})){element(id).value=value;}
+element('persona-reference-chars').value='1000000';
 await context.window.resetPrompts();assert.strictEqual(run('JSON.stringify(passPromptPresets)'),cacheBefore);assert.strictEqual(run('activePassPromptPreset.pass1'),'default');assert.strictEqual(run('activePassPromptPreset.pass3'),'default');
+assert.strictEqual(Number(element('persona-reference-chars').value),defaults.persona_reference_chars);
 assert.strictEqual(element('pass1-system-prompt').value,defaults.pass1_system_prompt);assert.strictEqual(element('pass3-user-prompt').value,defaults.pass3_user_prompt);
 console.log(JSON.stringify(context.buildConfigPayload(2)));
 '''
         payload=actions.PromptPresetTransactionTests().run_case(code);expected=GenerationConfig().model_dump()
+        self.assertEqual(payload['prompts']['persona_reference_chars'], PromptConfig().persona_reference_chars)
         keys=list(FIELDS.values())+['chunk_size','banned_tokens','context_rescue_windows','merge_narrators','three_pass_quoted_must_be_spoken','three_pass_unquoted_must_be_narrator','three_pass_keep_whole_batch','three_pass_group_rule','three_pass_speaker_traits']
         self.assertEqual({key:expected[key] for key in keys},{key:payload['generation'][key] for key in keys})
         with tempfile.TemporaryDirectory() as root,patch.object(system,'CONFIG_PATH',str(Path(root,'config.json'))),patch.object(system,'project_manager',SimpleNamespace(invalidate_config_cache=lambda:None,engine=None)),TestClient(app) as client:
             response=client.post('/api/config',json=payload);self.assertEqual(200,response.status_code,response.text);saved=json.loads(Path(root,'config.json').read_text());self.assertEqual({key:expected[key] for key in keys},{key:saved['generation'][key] for key in keys})
+            self.assertEqual(saved['prompts']['persona_reference_chars'], PromptConfig().persona_reference_chars)
 
     def test_failed_or_incomplete_defaults_response_leaves_every_editor_value_unchanged(self):
         code='const fields='+json.dumps(FIELDS)+';'+SETUP+r'''
