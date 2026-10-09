@@ -2327,6 +2327,13 @@
     "tests.test_descriptor_candidates.DetectorTest.test_blank_input_is_not_a_descriptor",
     "tests.test_descriptor_candidates.DetectorTest.test_real_names_do_not"
   ],
+  "test_designed_state_voices": [
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_actual_state_route_apply_and_playback_resolve_the_saved_reference",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_native_apply_preserves_clone_reference_and_reference_text",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_playable_references_only_and_exact_child_bands_rank_first",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_redesign_clears_stale_listening_metadata_but_identical_save_preserves_it",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_reuse_counts_main_versions_and_relative_or_absolute_references"
+  ],
   "test_designed_voice_alias_js": [
     "tests.test_designed_voice_alias_js.DesignedVoiceAliasJsTests.test_lookup_failure_preserves_alias_and_fresh_result_populates_options",
     "tests.test_designed_voice_alias_js.DesignedVoiceAliasJsTests.test_persona_editor_uses_selected_card_alias_and_transcript",
@@ -5276,6 +5283,11 @@
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_cpu_only_recovery_remains_available_during_another_gpu_task",
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_resume_reserves_before_the_awaited_write_and_adopts_the_same_owner",
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_save_and_registration_failure_release_only_the_pending_reservation"
+  ],
+  "test_persona_reference_budget": [
+    "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_compile_processes_all_evidence_in_bounded_valid_requests",
+    "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_fixed_prompt_over_budget_fails_without_a_request",
+    "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_large_reference_is_valid_and_retains_tail"
   ],
   "test_persona_refresh_reuse_js": [
     "tests.test_persona_refresh_reuse_js.PersonaRefreshReuseTests.test_completed_reads_and_failure_retries",

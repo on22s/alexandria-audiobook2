@@ -15,6 +15,8 @@ Generation and editing do not apply voice changes to rendered audio. Open the ch
 
 A known gender change without a large age jump is flagged as a **Possible identity reveal** for review. Labels remain as written in the script. If the character should sound the same throughout, set their base voice, choose **Main voice throughout**, then **Apply**; choosing alone does not save anything. Keep separate state voices when the change is intentional.
 
+Saved Designer voices with known age labels, playable reference audio and a reference transcript are also offered in **Voice changes** alongside LoRA library voices. They are applied as clone references. Age/gender labels guide suggestions; exact declared child bands rank first, and voices used by other characters are shown as reused. Missing or corrupt references are excluded. To use one as a character's base voice, select its saved Designer reference under **Voice Clone**.
+
 Use **Remove saved state persona** to remove an unapplied state version while keeping its audio files and other voices. Clear its applied timeline points first if playback still uses it.
 
 Use **Recover persona** on a state card to open manual recovery with that exact state selected. When entering a character in the recovery panel yourself, explicitly choose its base persona or numbered state. State recovery and Resume retain the base and other states; use only dialogue/context from the selected state for the copied prompt.
