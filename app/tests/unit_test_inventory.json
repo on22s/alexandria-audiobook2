@@ -2329,6 +2329,8 @@
   ],
   "test_designed_state_voices": [
     "tests.test_designed_state_voices.DesignedStateVoiceTests.test_actual_state_route_apply_and_playback_resolve_the_saved_reference",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_adjacent_age_assignment_preserves_reference_age_for_new_and_legacy_versions",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_child_designs_do_not_hide_unknown_gender_adults_and_known_matches_rank_first",
     "tests.test_designed_state_voices.DesignedStateVoiceTests.test_native_apply_preserves_clone_reference_and_reference_text",
     "tests.test_designed_state_voices.DesignedStateVoiceTests.test_playable_references_only_and_exact_child_bands_rank_first",
     "tests.test_designed_state_voices.DesignedStateVoiceTests.test_redesign_clears_stale_listening_metadata_but_identical_save_preserves_it",

@@ -601,13 +601,16 @@ def get_library_voice_config(candidate):
                              else f"lora_models/{candidate['adapter_id']}")}
 
 
+def get_clone_reference_path(value):
+    """Resolve relative, absolute and Windows-style saved reference paths."""
+    return os.path.normcase(os.path.realpath(os.path.join(
+        os.path.dirname(DESIGNED_VOICES_DIR), value.replace("\\", "/"))))
+
+
 def get_adapter_users(voice_config, candidates=()):
     """-> {adapter_id: [speakers]} for every LoRA voice the book already uses,
     as a main voice or as a version; optionally include Designer references."""
-    def get_reference_path(value):
-        return os.path.normcase(os.path.realpath(os.path.join(
-            os.path.dirname(DESIGNED_VOICES_DIR), value.replace("\\", "/"))))
-    clone_ids = {get_reference_path(c["config"]["ref_audio"]): c["adapter_id"]
+    clone_ids = {get_clone_reference_path(c["config"]["ref_audio"]): c["adapter_id"]
                  for c in candidates if c.get("type") == "clone"}
     users = {}
     for name, entry in (voice_config or {}).items():
@@ -617,7 +620,7 @@ def get_adapter_users(voice_config, candidates=()):
         for config in configs:
             adapter_id = config.get("adapter_id") if config.get("type") in ("lora", "builtin_lora") else None
             if config.get("type") == "clone" and isinstance(config.get("ref_audio"), str):
-                adapter_id = clone_ids.get(get_reference_path(config["ref_audio"]))
+                adapter_id = clone_ids.get(get_clone_reference_path(config["ref_audio"]))
             if adapter_id:
                 users.setdefault(adapter_id, [])
                 if name not in users[adapter_id]:
@@ -650,14 +653,16 @@ def get_state_voice_candidates():
             "age_group": age, "description": description,
             "config": {"type": "clone", "ref_audio": "designed_voices/" + row["filename"],
                        "ref_text": text, "description": description,
-                       "gender": get_normalized_gender(row.get("gender"))}})
+                       "gender": get_normalized_gender(row.get("gender")), "reference_age_group": age}})
     return candidates
 
 
 def get_state_candidate_age_distance(state_age, candidate):
     """Designer metadata retains child bands; adapters use legacy library bands."""
     age = candidate.get("age_group", "unknown")
-    if candidate.get("type") != "clone":
+    if candidate.get("type") == "clone":
+        age = get_normalized_age_group(candidate.get("reference_age_group", age))
+    else:
         state_age, age = get_library_age_group(state_age), get_library_age_group(age)
     return get_age_distance(state_age, age)
 
@@ -679,18 +684,28 @@ def get_state_voice_sources(state, speaker, entry, candidates, users, limit=6):
     age = get_library_age_group(state["age_group"])
     gender = state["gender"]
     versions = []
+    reference_ages = {get_clone_reference_path(c["config"]["ref_audio"]): c["age_group"]
+                      for c in candidates if c.get("type") == "clone"
+                      and c.get("age_group", "unknown") != "unknown"}
     for version_id, version in sorted((entry.get("versions") or {}).items()):
         if not isinstance(version, dict):
             continue
+        if (version.get("type") == "clone" and "reference_age_group" not in version
+                and isinstance(version.get("ref_audio"), str)):
+            source_age = reference_ages.get(get_clone_reference_path(version["ref_audio"]))
+            if source_age is not None:
+                version = {**version, "reference_age_group": source_age}
         version_age = get_normalized_age_group(version.get("age_group"))
         version_gender = version.get("gender") or "unknown"
         if (get_state_candidate_age_distance(state["age_group"], {**version, "age_group": version_age}) <= 1 and version_age != "unknown"
                 and version_gender in ("unknown", gender)):
             versions.append({"version_id": version_id, "age_group": version.get("age_group")})
     ranked = _rank_heuristic_candidates("", [{**c, "age_group": get_library_age_group(c.get("age_group", "unknown"))} for c in candidates],
-                                        gender if gender in ("male", "female") else None, age, filter_gender=True)
+                                        gender if gender in ("male", "female") else None, age, filter_gender=False)
     by_id = {c["adapter_id"]: c for c in candidates}
-    ranked.sort(key=lambda key: get_state_candidate_age_distance(state["age_group"], by_id[key]))
+    ranked.sort(key=lambda key: (
+        get_state_candidate_age_distance(state["age_group"], by_id[key]),
+        0 if gender not in ("male", "female") or by_id[key].get("gender") == gender else 1))
     fitting = [by_id[i] for i in ranked
                if (by_id[i].get("gender") in ("unknown", gender) or gender not in ("male", "female"))
                and (age == "unknown" or (by_id[i].get("age_group", "unknown") != "unknown"
