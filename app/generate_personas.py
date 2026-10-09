@@ -273,6 +273,48 @@ class PersonaContextRecoveryError(RuntimeError):
 def request_persona_with_evidence(client, model_name, system_prompt, build_prompt,
                                   evidence, params, label, max_prompt_chars=None):
     """Preserve fixed instructions and recover selected evidence in smaller calls."""
+    def fits(prompt):
+        if max_prompt_chars is None:
+            return True
+        if len(prompt) > max_prompt_chars:
+            return False
+        context = getattr(params, 'context_length', None)
+        if context:
+            from lmstudio_settings import TokenBudgetError
+            budget = getattr(params, 'max_tokens', 600)
+            try:
+                return get_effective_max_tokens(
+                    budget, context, [{'content': system_prompt}, {'content': prompt}],
+                    getattr(params, 'hard_max_tokens', None), scale_to_context=False) >= budget
+            except TokenBudgetError:
+                return False
+        return True
+
+    def get_groups(parts, builder):
+        # Balance serialized request sizes, preserving item order inside each batch.
+        if not fits(builder([])):
+            raise PersonaContextRecoveryError(label + ': fixed instructions exceed active budget')
+        if any(not fits(builder([part])) for part in parts):
+            return None
+        import math
+        base = len(builder([]))
+        capacity = max(1, (max_prompt_chars or len(builder(parts))) - base)
+        count = max(2, math.ceil(max(0, len(builder(parts)) - base) / capacity))
+        indexed = sorted(enumerate(parts), key=lambda pair: len(builder([pair[1]])), reverse=True)
+        while count <= len(parts):
+            groups = [[] for _ in range(count)]
+            for pair in indexed:
+                candidates = [i for i, group in enumerate(groups)
+                              if fits(builder([v for _, v in sorted(group + [pair])]))]
+                if not candidates:
+                    break
+                target = min(candidates, key=lambda i: len(builder([v for _, v in groups[i]])))
+                groups[target].append(pair)
+            else:
+                return [[v for _, v in sorted(group)] for group in groups if group]
+            count += 1
+        return None
+
     def request(prompt):
         attempts = []
 
@@ -291,27 +333,31 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
     def merge(drafts):
         if len(drafts) == 1:
             return drafts[0]
-        prompt = (build_prompt([]) + "\n\nSupported partial persona drafts (not new source text):\n"
-                  + json.dumps(drafts, ensure_ascii=False)
-                  + "\nCombine all supported observations into one concise persona. "
-                    "Keep ref_text from one draft. Return description and ref_text only.")
-        if max_prompt_chars is not None and len(prompt) > max_prompt_chars:
-            result = None
-        else:
-            result, _ = request(prompt)
+
+        def build_merge(values):
+            return (build_prompt([]) + "\n\nSupported partial persona drafts (not new source text):\n"
+                    + json.dumps(values, ensure_ascii=False)
+                    + "\nCombine all supported observations into one concise persona. "
+                      "Keep ref_text from one draft. Return description and ref_text only.")
+
+        prompt = build_merge(drafts)
+        result = request(prompt)[0] if fits(prompt) else None
         if isinstance(result, dict):
             return validate_persona_payload(result)
         if len(drafts) <= 2:
             raise PersonaContextRecoveryError(label + ": recovered drafts cannot be combined safely")
-        middle = len(drafts) // 2
-        reduced = [merge(drafts[:middle]), merge(drafts[middle:])]
+        groups = get_groups(drafts, build_merge) if max_prompt_chars is not None else None
+        if groups is None:
+            middle = len(drafts) // 2
+            groups = [drafts[:middle], drafts[middle:]]
+        reduced = [merge(group) for group in groups]
         if len(json.dumps(reduced)) >= len(json.dumps(drafts)):
             raise PersonaContextRecoveryError(label + ": recovered drafts did not shrink")
         return merge(reduced)
 
     def recover(parts, required=False):
         prompt = build_prompt(parts)
-        if max_prompt_chars is not None and len(prompt) > max_prompt_chars:
+        if not fits(prompt):
             result, exhausted_context = None, True
         else:
             result, exhausted_context = request(prompt)
@@ -322,8 +368,10 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
                 raise PersonaContextRecoveryError(label + ": an evidence request failed")
             return result
         if len(parts) > 1:
-            middle = len(parts) // 2
-            groups = [parts[:middle], parts[middle:]]
+            groups = get_groups(parts, build_prompt) if max_prompt_chars is not None else None
+            if groups is None:
+                middle = len(parts) // 2
+                groups = [parts[:middle], parts[middle:]]
         elif parts:
             kind, text = parts[0]
             fragments = split_failed_chunk(text)
@@ -816,7 +864,7 @@ def _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_nu
 
 def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, speaker,
                      samples, system_prompt, advanced_prompt, context_length=None,
-                     llm_config=None, book_id=None, preview_saver=None, context_lines=DEFAULT_CONTEXT_LINES):
+                     llm_config=None, book_id=None, preview_saver=None, context_lines=DEFAULT_CONTEXT_LINES, reference_chars=12000):
     """Compile one speaker's accumulated reference data into a final persona
     (description + ref_text) and generate its preview audio. A supplied
     preview_saver handles this call only; production uses its usual saver.
@@ -843,8 +891,19 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
             for item in value:
                 evidence.append((field, json.dumps(item, ensure_ascii=False)))
 
+        shared_context = {"voice_clues": [], "personality": []}
+        for field in shared_context:
+            for item in selected[field][:8]:
+                candidate = {key: list(values) for key, values in shared_context.items()}
+                candidate[field].append(item)
+                if len(json.dumps(candidate, ensure_ascii=False)) <= 1000:
+                    shared_context = candidate
+
         def build_prompt(parts):
             payload = {"name": selected["name"]}
+            if parts != evidence:
+                payload["partial_evidence"] = True
+                payload["shared_voice_context"] = shared_context
             try:
                 for field, text in parts:
                     payload.setdefault(field, []).append(json.loads(text))
@@ -862,7 +921,11 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
         parsed = request_persona_with_evidence(
             client, model_name, messages[0]["content"], build_prompt,
             evidence, params, f"PERSONA COMPILE {speaker}",
-            max_prompt_chars=len(build_prompt([])) + 12000)
+            max_prompt_chars=len(_compile_character_prompt(
+                ref, advanced_prompt, reference_text=json.dumps({"name": selected["name"]},
+                                                              ensure_ascii=False),
+                sample_limit=sample_limit))
+            + (reference_chars if context_length else min(reference_chars, 12000)))
         if isinstance(parsed, dict):
             try:
                 validated = validate_persona_payload(parsed)
@@ -965,7 +1028,8 @@ def _run_advanced_speaker_generation(script, selected_speakers, samples, voice_c
             if _compile_persona(client, model_name, engine, voice_config, root, ref_dir,
                                 speaker, samples, system_prompt, advanced_prompt, context_length,
                                 llm_config, book_id=book_id,
-                                context_lines=getattr(args, "context_lines", DEFAULT_CONTEXT_LINES)) is False:
+                                context_lines=getattr(args, "context_lines", DEFAULT_CONTEXT_LINES),
+                                reference_chars=getattr(args, "persona_reference_chars", 12000)) is False:
                 failures.append(speaker)
         except Exception as error:
             print(f"Unhandled error for {speaker}: {error}")
@@ -1244,6 +1308,7 @@ def main():
 
     # Load persona prompts from config, fall back to defaults
     prompts_cfg = config.get("prompts") or {}
+    args.persona_reference_chars = prompts_cfg.get("persona_reference_chars", 12000)
     persona_system = prompts_cfg.get("persona_system_prompt") or PERSONA_SYSTEM_PROMPT
     persona_user = prompts_cfg.get("persona_user_prompt") or PERSONA_USER_PROMPT
     persona_advanced = prompts_cfg.get("persona_advanced_prompt") or PERSONA_ADVANCED_PROMPT

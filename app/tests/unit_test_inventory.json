@@ -5278,6 +5278,11 @@
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_save_and_registration_failure_release_only_the_pending_reservation"
   ],
   "test_persona_reference_budget": [
+    "tests.test_persona_reference_budget.PersonaBalancedBatchTests.test_balances_by_size_and_combines_once",
+    "tests.test_persona_reference_budget.PersonaBalancedBatchTests.test_context_budget_can_split_below_character_allowance",
+    "tests.test_persona_reference_budget.PersonaBalancedBatchTests.test_reference_allowance_validated_by_config",
+    "tests.test_persona_reference_budget.PersonaBalancedBatchTests.test_shared_context_cannot_expand_request_allowance",
+    "tests.test_persona_reference_budget.PersonaBalancedBatchTests.test_unknown_context_keeps_default_ceiling_for_large_setting",
     "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_compile_processes_all_evidence_in_bounded_valid_requests",
     "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_fixed_prompt_over_budget_fails_without_a_request",
     "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_large_reference_is_valid_and_retains_tail"

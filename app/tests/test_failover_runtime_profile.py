@@ -690,7 +690,7 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
                                 fragments.setdefault(item['field'], []).append(item['text'])
                         else:
                             for field, items in fragment.items():
-                                if field != 'name':
+                                if field not in ('name', 'partial_evidence', 'shared_voice_context'):
                                     fragments.setdefault(field, []).extend(
                                         json.dumps(item, ensure_ascii=False) for item in items)
                     selected_data = json.loads(selected)

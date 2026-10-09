@@ -1836,6 +1836,7 @@
                     if (config.prompts.persona_user_prompt) {
                         document.getElementById('persona-user-prompt').value = config.prompts.persona_user_prompt;
                     }
+                    document.getElementById('persona-reference-chars').value = config.prompts.persona_reference_chars ?? 12000;
                     if (config.prompts.persona_advanced_prompt) {
                         document.getElementById('persona-advanced-prompt').value = config.prompts.persona_advanced_prompt;
                     }
@@ -1969,6 +1970,7 @@
                     persona_system_prompt: document.getElementById('persona-system-prompt').value,
                     persona_user_prompt: document.getElementById('persona-user-prompt').value,
                     persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value,
+                    persona_reference_chars: Number(document.getElementById('persona-reference-chars').value || 12000),
                     pass1_preset: pass1Payload.active,
                     pass1_prompt_presets: pass1Payload.own,
                     pass3_preset: pass3Payload.active,

@@ -1436,6 +1436,9 @@
                                 <div class="form-text">Template for basic per-speaker persona generation. Use <code>{speaker}</code> for character name, <code>{narrator_context}</code> for surrounding narration, <code>{sample_lines}</code> for dialogue samples.</div>
                             </div>
                             <div class="mb-3">
+                                <label class="form-label" for="persona-reference-chars">Persona reference characters per request</label>
+                                <input class="form-control mb-2" id="persona-reference-chars" type="number" min="12000" max="1000000" step="1" value="12000">
+                                <div class="form-text mb-2">Evidence allowance; instructions are additional. The model context may require smaller requests. Unknown context uses at most 12,000 characters.</div>
                                 <label class="form-label" for="persona-advanced-prompt">Persona Advanced Compilation Prompt</label>
                                 <textarea class="form-control font-monospace" id="persona-advanced-prompt" rows="8" style="font-size: 0.85em;"></textarea>
                                 <div class="form-text">Template for advanced mode final compilation. Use <code>{character_ref}</code> for the accumulated character reference data.</div>
