@@ -8802,6 +8802,9 @@
   "test_voice_panel_restore_js": [
     "tests.test_voice_panel_restore_js.VoicePanelRestoreJsTests.test_preserves_completed_panels_and_rejects_pending_or_other_books"
   ],
+  "test_voice_presentation_probe": [
+    "tests.test_voice_presentation_probe.VoicePresentationProbeTests.test_rejects_identity_only_wrong_speaker_and_invented_evidence"
+  ],
   "test_voice_reference": [
     "tests.test_voice_reference.ConfiguredReferenceWorkerTests.test_actual_ranking_uses_runtime_voice_lab_python_and_preserves_config",
     "tests.test_voice_reference.ConfiguredReferenceWorkerTests.test_malformed_runtime_voice_lab_config_declines_with_diagnostic",
