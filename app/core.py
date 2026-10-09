@@ -298,8 +298,12 @@ def _load_voice_library() -> dict:
 
 def _script_line_counts(path: str = SCRIPT_PATH) -> dict:
     """Per-speaker line counts from the given annotated script (defaults to the current one)."""
+    return get_script_line_counts(safe_load_json(path))
+
+
+def get_script_line_counts(script):
+    """Count spoken rows consistently for whole books and scoped evidence."""
     counts = {}
-    script = safe_load_json(path)
     if isinstance(script, list):
         for entry in script:
             if (not isinstance(entry, dict)

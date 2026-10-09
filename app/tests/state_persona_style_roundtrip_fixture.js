@@ -8,7 +8,7 @@ const cards = configs.map(([version, data]) => {
         '.voice-type:checked': {value: 'clone'}, '.alias-select': {value: ''},
         '.ref-text': {value: data.ref_text || ''}, '.ref-audio': {value: data.ref_audio},
         '.persona-description': {value: data.description}, '.voice-ready': {checked: false},
-        '.voice-seed': {value: String(data.seed)}
+        '.voice-seed': {value: process.argv.includes('--empty-seed') ? '' : String(data.seed)}
     };
     return {dataset: {voice: 'ARTHUR', version}, querySelector: selector => fields[selector] || null};
 });

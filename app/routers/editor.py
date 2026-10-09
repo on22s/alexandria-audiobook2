@@ -44,6 +44,7 @@ from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection)
 from routers.voices import get_script_speaker
+from tts import voice_config_for_chunk, resolve_narrator_voice_config, voice_category
 import voice_drift
 
 
@@ -438,14 +439,34 @@ def get_unready_export_speakers():
         raise HTTPException(status_code=503, detail="Export readiness unavailable: active script must be a JSON array")
     if not isinstance(voices, dict):
         raise HTTPException(status_code=503, detail="Export readiness unavailable: voice config must be a JSON object")
-    speakers = {get_script_speaker(entry) for entry in script}
-    missing = []
-    for speaker in sorted(speakers - {""}):
-        config = voices.get(speaker)
-        if config is not None and not isinstance(config, dict):
+    for speaker, config in voices.items():
+        if not isinstance(config, dict):
             raise HTTPException(status_code=503, detail=f"Export readiness unavailable: voice config for {speaker} must be an object")
-        if not config or not config.get("ready"):
-            missing.append(speaker)
+    chunks_path = os.path.join(DATA_DIR, "chunks.json")
+    chunks = safe_load_json(chunks_path) if os.path.exists(chunks_path) else None
+    if chunks is None and not any(config.get("version_timeline") for config in voices.values()):
+        chunks = script
+    if not isinstance(chunks, list) or any(not isinstance(chunk, dict) for chunk in chunks):
+        raise HTTPException(status_code=503, detail="Export readiness unavailable: rebuild the active chunks")
+    missing = set()
+    try:
+        for index, chunk in enumerate(chunks):
+            speaker = get_script_speaker(chunk)
+            if not speaker:
+                continue
+            canonical = project_manager._resolve_alias(speaker, voices)
+            effective = voice_config_for_chunk(
+                resolve_narrator_voice_config(canonical, voices, chunk), canonical, index)
+            config = effective.get(canonical) or {}
+            if not config.get("ready"):
+                missing.add(speaker)
+            if voice_category(config) == "ensemble":
+                for member in config.get("members") or []:
+                    if not (effective.get(member) or {}).get("ready"):
+                        missing.add(speaker)
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=503, detail="Export readiness unavailable: invalid effective voice configuration") from exc
+    missing = sorted(missing)
     return missing
 
 

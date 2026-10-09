@@ -170,13 +170,14 @@ def get_speaker_trait_summary(lines):
             "states": [{"gender": g, "age_group": a} for g, a in states] if len(states) > 1 else []}
 
 
-def get_state_timeline(script_entries):
+def get_state_timeline(script_entries, *, exact_speakers=False):
     """-> {SPEAKER: [{"from_entry", "gender", "age_group"}]} for every speaker
     whose settled state changes; `from_entry` indexes `script_entries`."""
     by_speaker = collections.defaultdict(list)
     for index, entry in enumerate(script_entries):
         if isinstance(entry, dict) and "speaker_gender" in entry and entry.get("speaker"):
-            by_speaker[str(entry["speaker"]).strip().upper()].append((index, entry))
+            speaker = str(entry["speaker"]).strip()
+            by_speaker[speaker if exact_speakers else speaker.upper()].append((index, entry))
     out = {}
     for speaker, rows in by_speaker.items():
         states = _get_settled_states([entry for _, entry in rows])
@@ -186,16 +187,21 @@ def get_state_timeline(script_entries):
     return out
 
 
+def is_narrator_label(speaker):
+    """Recognize the narration labels supported by persona evidence."""
+    return str(speaker or "").strip().upper() in {"NARRATOR", "NARRATION", "NARRATIVE"}
+
+
 def get_persona_state_targets(script_entries):
     """Describe settled state segments without changing speaker identities."""
-    timeline = get_state_timeline(script_entries)
+    timeline = get_state_timeline(script_entries, exact_speakers=True)
     digest = hashlib.sha256(json.dumps(script_entries, ensure_ascii=False,
                                       sort_keys=True).encode("utf-8")).hexdigest()
     speakers = {str(e.get("speaker") or e.get("type") or "").strip()
                 for e in script_entries if isinstance(e, dict)}
     targets = {}
     for speaker in sorted(speakers):
-        states = timeline.get(speaker.upper(), [])
+        states = timeline.get(speaker, [])
         if not states:
             continue
         starts = []
@@ -203,7 +209,7 @@ def get_persona_state_targets(script_entries):
             start = state["from_entry"] if number else 0
             while start > 0:
                 previous = script_entries[start - 1]
-                if not isinstance(previous, dict) or str(previous.get("speaker") or previous.get("type") or "").upper() != "NARRATOR":
+                if not isinstance(previous, dict) or not is_narrator_label(previous.get("speaker") or previous.get("type")):
                     break
                 start -= 1
             starts.append(start)
@@ -227,7 +233,7 @@ def get_persona_state_entries(script_entries, target):
         if not isinstance(entry, dict):
             continue
         speaker = str(entry.get("speaker") or entry.get("type") or "").strip()
-        if speaker.upper() not in (target["speaker"].upper(), "NARRATOR"):
+        if speaker != target["speaker"] and not is_narrator_label(speaker):
             continue
         rows.append({**entry, "_source_entry_index": index})
     return rows
@@ -238,10 +244,15 @@ def get_persona_state_chunk_indices(script_entries, chunks, speaker, *, state_ta
     def normalize(value):
         return " ".join(str(value or "").split())
 
-    source_rows = [(index, normalize(entry.get("text"))) for index, entry in enumerate(script_entries)
-                   if isinstance(entry, dict) and str(entry.get("speaker") or entry.get("type") or "").strip().upper() == speaker.upper()]
+    # Use the same speech preparation as chunk construction, retaining source
+    # indices across omitted punctuation and split/verbalized symbols.
+    from project import get_speakable_entries
+    prepared = get_speakable_entries([{**entry, "_source_entry_index": index}
+                                    for index, entry in enumerate(script_entries) if isinstance(entry, dict)])
+    source_rows = [(entry["_source_entry_index"], normalize(entry.get("text"))) for entry in prepared
+                   if str(entry.get("speaker") or entry.get("type") or "").strip() == speaker]
     chunk_rows = [(index, normalize(chunk.get("text"))) for index, chunk in enumerate(chunks)
-                  if isinstance(chunk, dict) and str(chunk.get("speaker") or "").strip().upper() == speaker.upper()]
+                  if isinstance(chunk, dict) and str(chunk.get("speaker") or "").strip() == speaker]
     if not source_rows or not chunk_rows or any(not text for _, text in source_rows + chunk_rows):
         return {}
     if " ".join(text for _, text in source_rows) != " ".join(text for _, text in chunk_rows):
@@ -253,15 +264,25 @@ def get_persona_state_chunk_indices(script_entries, chunks, speaker, *, state_ta
         position += len(text) + 1
     mapping = {}
     position = 0
+    seen_indices = set()
     for index, text in source_rows:
-        if position in offsets:
+        if index not in seen_indices and position in offsets:
             mapping[index] = offsets[position]
+        seen_indices.add(index)
         position += len(text) + 1
     targets = (get_persona_state_targets(script_entries) if state_targets is None else state_targets).get(speaker, [])
     if targets:
         # Unlabelled lead-in dialogue belongs to the first settled state, even
         # when its first known trait occurs inside a merged opening chunk.
         mapping[targets[0]["from_entry"]] = chunk_rows[0][0]
+        spoken_indices = {index for index, _ in source_rows}
+        for target in targets[1:]:
+            boundary = target["from_entry"]
+            if boundary not in spoken_indices:
+                next_spoken = next((index for index, _ in source_rows
+                                    if boundary <= index < target["segment_end"]), None)
+                if next_spoken in mapping:
+                    mapping[boundary] = mapping[next_spoken]
     return mapping
 
 

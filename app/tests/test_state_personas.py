@@ -279,7 +279,7 @@ class StateVoiceApiTests(unittest.TestCase):
 
 
 class StatePersonaPipelineTests(unittest.TestCase):
-    def run_generation(self, root, fail_age=None, switch_book=False, initial=None, edit_future=None):
+    def run_generation(self, root, fail_age=None, switch_book=False, initial=None, edit_future=None, new_only=False):
         from contextlib import ExitStack
         import re
         import uuid
@@ -325,7 +325,7 @@ class StatePersonaPipelineTests(unittest.TestCase):
                 stack.enter_context(patch.object(personas, name, return_value=value))
             stack.enter_context(patch.object(personas, 'call_llm_for_object', side_effect=discovery))
             stack.enter_context(patch.object(personas, 'request_persona_with_evidence', side_effect=compile_persona))
-            stack.enter_context(patch('sys.argv', ['generate_personas.py', '--advanced', '--batch-size', '5']))
+            stack.enter_context(patch('sys.argv', ['generate_personas.py', '--advanced', '--batch-size', '5'] + (['--new-only'] if new_only else [])))
             personas.main()
         return script
 

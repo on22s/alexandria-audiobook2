@@ -17,11 +17,11 @@ from config_settings import load_app_config
 from llm_provider import make_run_client
 from generate_script import LLMGenParams, call_llm_for_object, split_failed_chunk
 
-from tts import TTSEngine, sanitize_filename, voice_is_set
+from tts import TTSEngine, sanitize_filename, voice_is_set, VERSION_OVERLAY_EXCLUDED
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed, file_lock
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 from persona_validation import validate_persona_payload
-from speaker_traits import get_persona_state_targets, get_persona_state_entries
+from speaker_traits import get_persona_state_targets, get_persona_state_entries, is_narrator_label
 from speaker_identity import (is_speaker_merge_allowed, resolve_speaker_label,
                               get_validated_alias_graph, get_safe_alias_proposals)
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
@@ -185,7 +185,6 @@ def _resolve_to_canonical(raw_name: str, allowed: list, threshold=0.4) -> str | 
     return None
 
 
-_NARRATOR_LABELS = frozenset({"NARRATOR", "NARRATION", "NARRATIVE"})
 
 
 DEFAULT_CONTEXT_LINES = 8
@@ -212,7 +211,7 @@ def _collect_narrator_context(script, speaker, window=4):
 
     - Scans both before and after each appearance.
     - Looks at all appearances, not just the first.
-    - Accepts any speaker labels in _NARRATOR_LABELS.
+    - Accepts the supported narrator labels.
     """
     context_lines = []
     seen_lines = set()
@@ -235,7 +234,7 @@ def _collect_narrator_context(script, speaker, window=4):
             entry = script[j]
             entry_speaker = _entry_speaker(entry).upper()
             entry_text = _entry_text(entry)
-            if entry_speaker in _NARRATOR_LABELS and entry_text:
+            if is_narrator_label(entry_speaker) and entry_text:
                 if entry_text not in seen_lines:
                     seen_lines.add(entry_text)
                     context_lines.append(entry_text)
@@ -966,6 +965,12 @@ def get_pending_state_targets(script, speaker, voice, new_only=False, version_id
     return targets
 
 
+def get_initialized_state_base_voice(voice, state):
+    """Initialize an unset base without importing state candidate bookkeeping."""
+    return {**voice, **{key: copy.deepcopy(value) for key, value in state.items()
+                      if key not in {*VERSION_OVERLAY_EXCLUDED, "persona_state"} or key == "age_group"}}
+
+
 def run_advanced_persona_generation(script, selected_speakers, samples, voice_config,
                                    client, model_name, engine, root, args, **options):
     """Compile isolated settled-state evidence into existing voice versions."""
@@ -982,6 +987,13 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
         voice = copy.deepcopy(voice_config.get(speaker) or {})
         targets = get_pending_state_targets(script, speaker, voice,
                     getattr(args, "new_only", False), getattr(args, "state_version", ""), state_targets=all_targets)
+        # Completed states may remain after the user clears only the base.
+        first = all_targets[speaker][0]
+        saved_first = voice.get("versions", {}).get(first["version_id"])
+        if (not targets and not voice_is_set(voice) and voice_is_set(saved_first)
+                and saved_first.get("persona_state") == first):
+            voice = get_initialized_state_base_voice(voice, saved_first)
+            voice_config[speaker] = copy.deepcopy(voice)
         print(f"State personas for {speaker}: {len(targets)} targets")
         for number, target in enumerate(targets, 1):
             version_id = target["version_id"]
@@ -1019,8 +1031,7 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
             generated["voice_status"] = "generated"
             voice.setdefault("versions", {})[version_id] = generated
             if target["state_number"] == 1 and not voice_is_set(voice):
-                voice.update({key: copy.deepcopy(value) for key, value in generated.items()
-                              if key not in {"persona_state", "versions", "version_timeline"}})
+                voice = get_initialized_state_base_voice(voice, generated)
             voice_config[speaker] = copy.deepcopy(voice)
             if publish is not None:
                 published = publish(voice_config, speaker, version_id)
@@ -1366,7 +1377,7 @@ def main():
                 current.setdefault("versions", {})[args.age_group.strip()] = snapshot
         try:
             save_generated_voice_config(voice_config_path, voice_config,
-                                        initial_voice_config, samples.keys(), final_alias_proposals, book_snapshot=book_snapshot)
+                                        publication_base, samples.keys(), final_alias_proposals, book_snapshot=book_snapshot)
             print(f"Updated voice_config saved to {voice_config_path}")
         except Exception as e:
             print(f"Failed to save voice_config.json: {e}")

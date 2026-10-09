@@ -3727,16 +3727,17 @@
             const advanced = !!document.getElementById('advanced-persona-toggle')?.checked;
             const isPending = voice => voice.persona_pending || (advanced && voice.persona_states_pending);
             const pending = rows.filter(isPending).map(v => v.name);
-            const have = rows.filter(v => !isPending(v)).map(v => v.name);
-            return { pending, have };
+            const have = rows.filter(v => !v.persona_pending ||
+                Object.keys(v.config?.versions || {}).length > 0).map(v => v.name);
+            return { pending, have, total: rows.length };
         }
 
         function refreshVoicesScope() {
             const select = document.getElementById('voices-scope');
             if (!select) { return; }
-            const { pending, have } = _voicesScopeState();
+            const { pending, have, total } = _voicesScopeState();
             select.options[0].textContent = `Only characters without a voice yet (${pending.length})`;
-            select.options[1].textContent = `All characters (regenerate ${have.length + pending.length})`;
+            select.options[1].textContent = `All characters (regenerate ${total})`;
             if (!select.dataset.userSet) {
                 select.value = (pending.length >= 1 && have.length >= 1) ? 'new' : 'all';
             }
@@ -4931,8 +4932,12 @@
                     state_version: card.dataset.version, book_token: token});
                 if (token !== _voiceSaveSnapshot?.book_token || card.isConnected === false) { return; }
                 const suggestion = result.suggestions?.[speaker];
-                const ranked = suggestion?.ranked_adapter_ids || [suggestion?.adapter_id];
-                for (const adapterId of ranked.filter(Boolean)) {
+                const ranked = (suggestion?.ranked_adapter_ids || [suggestion?.adapter_id]).filter(Boolean);
+                if (!ranked.length) {
+                    showToast(result.message || 'No state voice candidates found.', 'warning');
+                    return;
+                }
+                for (const adapterId of ranked) {
                     const adapter = getLoraModelsById().get(adapterId);
                     const type = adapter?.builtin ? 'builtin_lora' : (adapter?.type || suggestion.type || 'lora');
                     const config = {type, adapter_id: adapterId,
@@ -5899,7 +5904,7 @@
                 for (const key of ['type', 'voice', 'character_style', 'default_style', 'seed', 'ref_audio', 'ref_text', 'adapter_id', 'adapter_path', 'description', 'members', 'alias_of', 'ready']) {
                     delete preserved[key];
                 }
-                config[name] = { ...preserved, ...config[name], seed: String(card.querySelector('.voice-seed')?.value ?? metadata.seed ?? config[name].seed) };
+                config[name] = { ...preserved, ...config[name], seed: String(card.querySelector('.voice-seed')?.value ?? metadata.seed ?? config[name].seed).trim() || "-1" };
             });
             const merged = {};
             cards.forEach(card => {
