@@ -5277,6 +5277,11 @@
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_resume_reserves_before_the_awaited_write_and_adopts_the_same_owner",
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_save_and_registration_failure_release_only_the_pending_reservation"
   ],
+  "test_persona_reference_budget": [
+    "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_compile_processes_all_evidence_in_bounded_valid_requests",
+    "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_fixed_prompt_over_budget_fails_without_a_request",
+    "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_large_reference_is_valid_and_retains_tail"
+  ],
   "test_persona_refresh_reuse_js": [
     "tests.test_persona_refresh_reuse_js.PersonaRefreshReuseTests.test_completed_reads_and_failure_retries",
     "tests.test_persona_refresh_reuse_js.PersonaRefreshReuseTests.test_refresh_retry_preserves_cache_and_ownership"
