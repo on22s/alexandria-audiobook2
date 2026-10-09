@@ -298,7 +298,8 @@ class PersonaContextRecoveryError(RuntimeError):
 
 
 def request_persona_with_evidence(client, model_name, system_prompt, build_prompt,
-                                  evidence, params, label, max_prompt_chars=None, validate_object=None):
+                                  evidence, params, label, max_prompt_chars=None, validate_object=None,
+                                  ensure_prompt=None):
     """Preserve fixed instructions and recover selected evidence in smaller calls."""
     validate = validate_object or validate_persona_payload
 
@@ -321,6 +322,8 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
 
     def get_groups(parts, builder):
         # Balance serialized request sizes, preserving item order inside each batch.
+        if ensure_prompt is not None:
+            ensure_prompt(lambda: builder([]), fits)
         if not fits(builder([])):
             raise PersonaContextRecoveryError(label + ': fixed instructions exceed active budget')
         if any(not fits(builder([part])) for part in parts):
@@ -370,11 +373,17 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
                       "Keep ref_text from one draft. Return description and ref_text only.")
 
         prompt = build_merge(drafts)
+        if len(drafts) == 2 and ensure_prompt is not None:
+            prompt = ensure_prompt(lambda: build_merge(drafts), fits)
         result = request(prompt)[0] if fits(prompt) else None
         if isinstance(result, dict):
             return validate(result)
         if len(drafts) <= 2:
             raise PersonaContextRecoveryError(label + ": recovered drafts cannot be combined safely")
+        if ensure_prompt is not None:
+            largest_pair = sorted(drafts, key=lambda draft: len(json.dumps(
+                draft, ensure_ascii=False)), reverse=True)[:2]
+            ensure_prompt(lambda: build_merge(largest_pair), fits)
         groups = get_groups(drafts, build_merge) if max_prompt_chars is not None else None
         if groups is None:
             middle = len(drafts) // 2
@@ -385,7 +394,11 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
         return merge(reduced)
 
     def recover(parts, required=False):
+        if ensure_prompt is not None:
+            ensure_prompt(lambda: build_prompt([]), fits)
         prompt = build_prompt(parts)
+        if len(parts) <= 1 and ensure_prompt is not None:
+            prompt = ensure_prompt(lambda: build_prompt(parts), fits)
         if not fits(prompt):
             result, exhausted_context = None, True
         else:
@@ -810,13 +823,19 @@ def _parse_discovered_characters(parsed):
     return characters
 
 
+def get_discovered_character_name(character):
+    """Read the supported discovery identity fields in their established order."""
+    return str(character.get("name") or character.get("speaker")
+               or character.get("speaker_label") or "").strip()
+
+
 def get_validated_state_discovery(characters, batch, batch_start, allowed_speakers, require_evidence=True):
     """Reject invented or borrowed dialogue; settled states also require evidence."""
     sources = {row.get("_source_entry_index", batch_start + offset): row
                for offset, row in enumerate(batch)}
     output = []
     for character in characters:
-        speaker = _resolve_to_canonical(str(character.get("name") or ""), allowed_speakers)
+        speaker = _resolve_to_canonical(get_discovered_character_name(character), allowed_speakers)
         if not speaker:
             continue
         evidence = [item for item in character.get("evidence", []) if isinstance(item, dict)
@@ -900,7 +919,7 @@ def _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_nu
     for character in characters:
         if not isinstance(character, dict):
             continue
-        speaker = str(character.get("name") or character.get("speaker") or character.get("speaker_label") or "").strip()
+        speaker = get_discovered_character_name(character)
         if not speaker:
             continue
 
@@ -952,6 +971,7 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
                 evidence.append((field, json.dumps(item, ensure_ascii=False)))
 
         shared_context = {"voice_clues": [], "personality": []}
+        include_cue_context = True
         for field in shared_context:
             for item in selected[field][:8]:
                 candidate = {key: list(values) for key, values in shared_context.items()}
@@ -973,31 +993,29 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
                 payload = {"name": selected["name"], "selected_reference_fragments": [
                     {"field": field, "text": text} for field, text in parts]}
             payload["reference_sample"] = reference_sample
-            payload["source_cue_ledger"] = source_cues
+            if include_cue_context:
+                payload["source_cue_ledger"] = source_cues
             reference = json.dumps(payload, ensure_ascii=False)
             return (_compile_character_prompt(ref, advanced_prompt, reference_text=reference,
-                                              sample_limit=sample_limit) + PERSONA_CUE_INSTRUCTIONS)
+                                              sample_limit=sample_limit)
+                    + (PERSONA_CUE_INSTRUCTIONS if include_cue_context else ""))
 
-        if context_length:
-            from lmstudio_settings import TokenBudgetError
-            # Repeated context is optional duplication. Leave room for source
-            # evidence and two literal draft samples plus merge instructions,
-            # as well as the unchanged output/reserve.
-            while True:
-                merge_reserve = (2 * len(reference_sample) + 800 + 2) // 3
-                try:
-                    fits_repeated_context = get_effective_max_tokens(
-                        600, context_length, [{'content': messages[0]['content']},
-                                              {'content': build_prompt([])}],
-                        reserve=512 + max(600, merge_reserve), scale_to_context=False) >= 600
-                except TokenBudgetError:
-                    fits_repeated_context = False
-                if fits_repeated_context:
-                    break
+        def ensure_repeated_context(builder, fits):
+            nonlocal shared_context, reference_sample, include_cue_context
+            prompt = builder()
+            # Only shrink optional copies. All source items and draft text
+            # remain in the bounded recovery requests.
+            while not fits(prompt):
                 if any(shared_context.values()):
                     shared_context = {field: [] for field in shared_context}
+                elif source_cues.get('omitted_ids'):
+                    source_cues['omitted_count'] = len(source_cues.pop('omitted_ids'))
                 elif source_cues['items']:
-                    source_cues['omitted_ids'].append(source_cues['items'].pop()['id'])
+                    source_cues.pop('omitted_ids', None)
+                    source_cues['items'].pop()
+                    source_cues['omitted_count'] = source_cues.get('omitted_count', 0) + 1
+                elif include_cue_context:
+                    include_cue_context = False
                 else:
                     shorter = next((line for line in get_reference_samples(
                         selected, max_chars=max(12, len(reference_sample) // 2))
@@ -1007,6 +1025,8 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
                     reference_sample = shorter
                     if shorter not in reference_samples:
                         reference_samples.append(shorter)
+                prompt = builder()
+            return prompt
 
         # Bound each source request without cutting serialized JSON or losing its tail.
         # Oversized evidence is processed in smaller calls by the existing recovery path.
@@ -1018,7 +1038,7 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
                                                               ensure_ascii=False),
                 sample_limit=sample_limit))
             + (reference_chars if context_length else min(reference_chars, 12000)),
-            validate_object=validate_compiled)
+            validate_object=validate_compiled, ensure_prompt=ensure_repeated_context)
         if not isinstance(parsed, dict):
             raise PersonaContextRecoveryError("Persona compilation exhausted retries without a validated result")
         if isinstance(parsed, dict):

@@ -5268,10 +5268,13 @@
     "tests.test_persona_fixed_delay.PersonaFixedDelayTests.test_compile_success_and_failed_preview_have_no_fixed_sleep"
   ],
   "test_persona_grounding": [
+    "tests.test_persona_grounding.PersonaGroundingTests.test_actual_source_and_merge_prompts_fit_both_limits_without_clipping_drafts",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_all_supported_discovery_identity_keys_preserve_saved_observations",
     "tests.test_persona_grounding.PersonaGroundingTests.test_default_templates_request_supported_traits_without_required_slots",
     "tests.test_persona_grounding.PersonaGroundingTests.test_exact_copy_accepted_and_paraphrases_stitching_rejected",
     "tests.test_persona_grounding.PersonaGroundingTests.test_exhausted_invalid_result_does_not_publish_preview",
     "tests.test_persona_grounding.PersonaGroundingTests.test_invented_compiled_sample_does_not_publish_preview",
+    "tests.test_persona_grounding.PersonaGroundingTests.test_irreducible_fixed_context_still_fails_before_request_or_preview",
     "tests.test_persona_grounding.PersonaGroundingTests.test_late_cue_reaches_every_source_and_merge_within_original_allowance",
     "tests.test_persona_grounding.PersonaGroundingTests.test_long_sample_and_full_ledger_recover_without_losing_source_cues",
     "tests.test_persona_grounding.PersonaGroundingTests.test_long_sample_is_source_excerpt_and_input_unchanged",
