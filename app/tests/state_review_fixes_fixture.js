@@ -36,6 +36,20 @@ load('async function applyVoiceStateSave(', 'async function clearVoiceStates(');
     assert(/regeneratePersona\(this\)" disabled>/.test(locked), 'an unmarked button is locked even with a familiar handler');
     assert(/<input class="x" disabled>/.test(locked) && /<select class="y" disabled>/.test(locked));
 
+    // T1 in the UI: a stale card with a saved version can be removed; a pending one (nothing saved) cannot.
+    load('function getVoiceCardMetadata(', '// Suggest members');
+    Object.assign(ctx, {AVAILABLE_VOICES: ['Ryan'], BUILTIN_LORAS: [], getLibraryVoiceReference: () => null,
+        getTraitBadgeHtml: () => '', getVoiceCandidateMarkup: () => '', renderStyleTimeline: () => '',
+        ensembleMembersMarkup: () => ''});
+    const state = {version_id: 'state_' + 'c'.repeat(24), speaker: 'R', age_group: 'child', gender: 'male',
+        from_entry: 0, segment_start: 0, segment_end: 5, state_number: 1, current: false};
+    const removeTag = html => { const i = html.indexOf('onclick="removeStatePersona(this)"'); return html.slice(html.lastIndexOf('<button', i), html.indexOf('>', i) + 1); };
+    const staleSaved = ctx.getStateVoiceCardsMarkup([{name: 'R', persona_states: [state],
+        config: {versions: {[state.version_id]: {type: 'custom', persona_state: {...state, segment_sha256: '0'}}}}}]);
+    assert(!/ disabled>$/.test(removeTag(staleSaved)), 'a stale saved state can be removed from its card');
+    const pendingCard = ctx.getStateVoiceCardsMarkup([{name: 'R', persona_states: [state], config: {}}]);
+    assert(/ disabled>$/.test(removeTag(pendingCard)), 'a pending state has nothing to remove');
+
     // T16: one converter; an unknown adapter path is null, never guessed.
     const unknown = ctx.getSuggestionCandidateConfig({type: 'lora'}, 'mystery', 0);
     assert.strictEqual(unknown.adapter_path, null);
