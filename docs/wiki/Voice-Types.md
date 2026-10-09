@@ -11,7 +11,9 @@ In Voices, use **Show cards** to display all characters, characters with state c
 
 **Only characters without a voice yet** also generates missing or stale state personas in advanced mode. Regenerate persona on one state card targets that state only. Failures are reported per state; successful completed states are saved, and previous settings for failed states are retained.
 
-Generation and editing do not apply voice changes to rendered audio. Open the character's **Voice changes** controls in its base section, review the suggested state versions, and press **Apply**. Future rendering uses those versions at their timeline boundaries. A change inside a merged chunk, edited dialogue that no longer aligns, or an outdated script requires rebuilding/reviewing the chunks before application. Already rendered audio is retained until explicitly regenerated.
+Generation and editing do not apply voice changes to rendered audio. Open the character's **Voice changes** controls in its base section, review the suggested state versions, and press **Apply**. Future rendering uses those versions at their timeline boundaries. A change inside a merged chunk, edited dialogue that no longer aligns, or an outdated script requires rebuilding/reviewing the chunks before application. Applying, editing or clearing a voice timeline marks only lines whose effective voice changes as pending. Use **Render Pending** in the Editor to replace them. The previous audio files remain on disk, but pending lines are detached from exports until a new render succeeds.
+
+A known gender change without a large age jump is flagged as a **Possible identity reveal** for review. Labels remain as written in the script. If the character should sound the same throughout, set their base voice, choose **Main voice throughout**, then **Apply**; choosing alone does not save anything. Keep separate state voices when the change is intentional.
 
 Use **Remove saved state persona** to remove an unapplied state version while keeping its audio files and other voices. Clear its applied timeline points first if playback still uses it.
 

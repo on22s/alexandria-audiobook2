@@ -15,6 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field, model_validator, field_validator
 from config_settings import load_app_config
 from voice_config_store import apply_voice_config_update, get_voice_config_revision, VoiceConfigConflict
+from project import ProjectManager
 
 from core import (
     CHUNKS_PATH,
@@ -52,7 +53,7 @@ from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows
 from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, resolve_narrator_voice_config, voice_category, voice_is_set
 from speaker_traits import (get_age_distance, get_chunk_index_for_entry, get_library_age_group,
                             get_normalized_age_group,
-                            get_speaker_trait_summary, get_state_timeline, get_persona_state_targets, get_persona_state_chunk_indices, get_persona_state_entries)
+                            get_speaker_trait_summary, get_state_timeline, get_persona_state_targets, get_persona_state_chunk_indices, get_persona_state_entries, is_possible_gender_reveal)
 from utils import (
     atomic_json_write,
     atomic_json_write_pair,
@@ -246,6 +247,21 @@ def _mutate_voice_entry(speaker, mutator):
         return entry
 
 
+def _apply_book_voice_update(transform, expected_revision=None):
+    """Publish voice changes while fencing affected renders under chunk locks."""
+    root = os.path.dirname(VOICE_CONFIG_PATH)
+    chunks_path = CHUNKS_PATH if os.path.dirname(CHUNKS_PATH) == root else os.path.join(root, "chunks.json")
+    manager = project_manager if project_manager.chunks_path == chunks_path else ProjectManager(root)
+    if manager is not project_manager:
+        manager.chunks_path = chunks_path
+    with manager._chunks_lock, file_lock(chunks_path):
+        def update(current):
+            updated = transform(current)
+            manager._apply_voice_timeline_audio_invalidation_locked(current, updated)
+            return updated
+        return apply_voice_config_update(VOICE_CONFIG_PATH, update, expected_revision=expected_revision)
+
+
 def _mutate_book_voice_entry(speaker, mutator, book_token=None):
     with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)):
         if book_token is not None:
@@ -255,10 +271,12 @@ def _mutate_book_voice_entry(speaker, mutator, book_token=None):
         if speaker == "NARRATOR":
             speaker = get_script_narrator_speaker()
         _require_script_speaker(speaker)
-        entry = _mutate_voice_entry(speaker, mutator)
-        with file_lock(VOICE_CONFIG_PATH):
-            config = safe_load_json(VOICE_CONFIG_PATH, default={})
-            return entry, get_voice_config_revision(config)
+        def update(current):
+            config = copy.deepcopy(current)
+            mutator(config.setdefault(speaker, {}))
+            return config
+        config = _apply_book_voice_update(update)
+        return config[speaker], get_voice_config_revision(config)
 
 
 def get_current_persona_state(speaker, version_id):
@@ -683,7 +701,7 @@ async def get_voice_state_timeline(speaker: str):
             sources["offer_generate"] = not any(sources[key] for key in ("versions", "library_unused", "library_used"))
             if has_generated:
                 sources["versions"].sort(key=lambda version: version["version_id"] != target["version_id"])
-            out.append({**state, "from_index": chunk_index,
+            out.append({**state, "possible_gender_reveal": bool(out and is_possible_gender_reveal(out[-1], state)), "from_index": chunk_index,
                         "chapter": get_chapter_label(script, state["from_entry"]),
                         "line": (line.get("text") or "")[:120],
                         "sources": sources, "state_version": target["version_id"] if target else None})
@@ -915,8 +933,7 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                 updated[voice_name] = candidate
             return updated
 
-        updated = apply_voice_config_update(VOICE_CONFIG_PATH, apply_updates,
-                                            expected_revision=expected_revision)
+        updated = _apply_book_voice_update(apply_updates, expected_revision=expected_revision)
         return {"status": "saved", "revision": get_voice_config_revision(updated),
                 "book_token": book_token}
 

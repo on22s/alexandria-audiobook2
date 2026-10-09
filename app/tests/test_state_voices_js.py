@@ -13,7 +13,7 @@ PRELUDE = r'''
 const fs=require('fs'),vm=require('vm'),source=fs.readFileSync(process.argv[1],'utf8'),payload=JSON.parse(process.argv[2]);
 const calls=[];const context={window:{},currentBookFilename:'A',_voiceSaveSnapshot:{book_token:'a'.repeat(64)},calls,
   API:{get:async u=>payload.suggestion,post:async(u,b)=>{calls.push(['POST',u,b]);return {};},del:async u=>{calls.push(['DEL',u]);return {};}},
-  loadVoices:async()=>{},showToast:(m,k)=>calls.push(['TOAST',k,m])};
+  flushVoiceSaves:async()=>{},loadVoices:async()=>{},showToast:(m,k)=>calls.push(['TOAST',k,m])};
 vm.createContext(context);
 vm.runInContext(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')),context);
 const a=source.indexOf('function getVoiceStateDefault('),b=source.indexOf('// Editor: from this line on',a);
@@ -110,7 +110,8 @@ console.log(JSON.stringify(calls));''', {"suggestion": suggestion()})
                          calls[0])
         self.assertEqual(["POST", "/api/voices/RUDY/version_timeline",
                           {"points": [{"from_index": 29, "version_id": "child-boy_free"}], "book_token": "a" * 64}], calls[1])
-        self.assertIn("from line 30 on", calls[2][2])
+        self.assertIn("Affected lines are pending", calls[2][2])
+        self.assertIn("Render Pending", calls[2][2])
 
     def test_main_after_a_change_returns_to_the_main_voice_and_all_main_clears(self):
         calls = self.run_js(r'''

@@ -8749,6 +8749,20 @@
     "tests.test_voice_focus_restore_js.VoiceFocusRestoreJsTests.test_native_control_identity_and_focus_ownership",
     "tests.test_voice_focus_restore_js.VoiceFocusRestoreJsTests.test_suggestion_reorder_preserves_style_focus_and_selection"
   ],
+  "test_voice_followups_733": [
+    "tests.test_voice_followups_733.RevealReviewTests.test_main_voice_save_finishes_before_apply_and_failure_stops_the_action",
+    "tests.test_voice_followups_733.RevealReviewTests.test_only_known_gender_changes_with_small_age_differences_are_flagged",
+    "tests.test_voice_followups_733.RevealReviewTests.test_real_state_endpoint_reports_reveal_without_rewriting_script",
+    "tests.test_voice_followups_733.RevealReviewTests.test_reveal_panel_and_main_choice_never_save_before_apply",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_alias_ensemble_and_narrator_effective_voices_are_included",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_apply_during_render_prevents_old_audio_from_being_published",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_apply_noop_clear_and_full_save_only_reset_effectively_changed_rows",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_equivalent_voice_version_does_not_invalidate_audio",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_failed_voice_publication_is_conservative_and_keeps_old_audio",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_journal_invalidation_and_regeneration_publish_a_real_replacement",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_parallel_journal_worker_cannot_publish_after_timeline_changes",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_wrong_book_and_revision_leave_audio_and_voices_unchanged"
+  ],
   "test_voice_library_transactions": [
     "tests.test_voice_library_transactions.VoiceLibraryTransactionTests.test_bulk_keeps_library_kernel_lock_through_each_config_publication",
     "tests.test_voice_library_transactions.VoiceLibraryTransactionTests.test_bulk_rejects_coerced_names_and_duplicate_writes",

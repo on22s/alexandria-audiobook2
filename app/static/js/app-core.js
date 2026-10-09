@@ -5644,9 +5644,20 @@
                     ? `<button class="btn btn-sm btn-link p-0" type="button" data-age="${escapeHtml(state.age_group)}" onclick="generateAgeVersion(this, this.dataset.age)">Generate ${escapeHtml(state.age_group.replace(/_/g, ' '))} version</button>` : '';
                 return `<div class="voice-state-row small mt-1" data-from-index="${state.from_index === null || state.from_index === undefined ? '' : Number(state.from_index)}" data-age="${escapeHtml(state.age_group)}">`
                     + `<div>${escapeHtml(state.gender)} · ${escapeHtml(state.age_group.replace(/_/g, ' '))}${state.chapter ? `, ${escapeHtml(state.chapter)}` : ''} <span class="text-muted">(${where})</span></div>`
+                    + (state.possible_gender_reveal ? '<div class="alert alert-warning py-1 px-2 mb-1" role="note">Possible identity reveal: the text may have misidentified this character earlier. Review their actual voice; a gender label change alone does not require a different voice.</div>' : '')
                     + `<select class="form-select form-select-sm voice-state-source" aria-label="${escapeHtml(`Voice for ${speaker}, ${state.gender}, ${state.age_group.replace(/_/g, ' ')}, ${where}`)}"${where.startsWith('from') ? '' : ' disabled'}>${options}</select>${generate}</div>`;
             }).join('');
-            return rows + `<div class="mt-1"><button class="btn btn-sm btn-primary" type="button" aria-label="${escapeHtml(`Apply voice changes for ${speaker}`)}" onclick="applyVoiceStates(this)">Apply</button> <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(`Clear voice changes for ${speaker}`)}" onclick="clearVoiceStates(this)">Clear</button></div>`;
+            const revealHelp = states.some(state => state.possible_gender_reveal)
+                ? `<div class="small mt-2">For one consistent voice, set the character’s base voice and choose Main voice for every segment. <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(`Choose Main voice throughout for ${speaker}`)}" onclick="chooseMainVoiceStates(this)">Choose Main voice throughout</button> Review, then Apply.</div>` : '';
+            return rows + revealHelp + `<div class="mt-1"><button class="btn btn-sm btn-primary" type="button" aria-label="${escapeHtml(`Apply voice changes for ${speaker}`)}" onclick="applyVoiceStates(this)">Apply</button> <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(`Clear voice changes for ${speaker}`)}" onclick="clearVoiceStates(this)">Clear</button></div>`;
+        }
+
+        function chooseMainVoiceStates(button) {
+            const card = button.closest('.voice-card');
+            if (!card || button.disabled) { return; }
+            card.querySelectorAll('.voice-state-source').forEach(select => {
+                if (!select.disabled) { select.value = 'main'; }
+            });
         }
 
         const pendingVoiceStateLoads = new WeakMap();
@@ -5718,6 +5729,8 @@
                 if (!bookToken) { throw new Error('Reload Voices before saving changes for this book.'); }
                 if (confirmation && !await showConfirm(confirmation, {title: 'Replace voice changes?', actionLabel: 'Clear voice changes', danger: true})) { return; }
                 if (!isCurrent()) { showToast('The book changed. Review the current voice changes before saving.', 'warning'); return; }
+                await flushVoiceSaves();
+                if (!isCurrent()) { throw new Error('The book changed while saving the main voice; review voice changes again.'); }
                 await save(isCurrent, bookToken);
             } finally {
                 pendingVoiceStateSaves.delete(key);
@@ -5785,9 +5798,7 @@
                 }
                 if (!isCurrent()) { return; }
                 await loadVoices();
-                const first = points.length ? Math.min(...points.map(p => p.from_index)) + 1 : null;
-                showToast(first ? `Voice changes saved for ${speaker}. Lines already generated from line ${first} on keep the old voice: regenerate them in the Editor.`
-                    : `${speaker} uses the main voice throughout.`, 'success');
+                showToast(`Voice changes saved for ${speaker}. Affected lines are pending; use Render Pending in the Editor to regenerate them.`, 'success');
                 });
             } catch (e) { showActionError("Could not apply voice changes", e, "Review the current book and saved voice changes before applying again; some version writes may have completed."); }
         }
@@ -5800,7 +5811,7 @@
                     await API.del(`/api/voices/${encodeURIComponent(speaker)}/version_timeline?book_token=${encodeURIComponent(bookToken)}`);
                     if (!isCurrent()) { return; }
                     await loadVoices();
-                    showToast(`${speaker} uses the main voice throughout. Regenerate lines already made with a state voice.`, 'success');
+                    showToast(`${speaker} uses the main voice throughout. Affected lines are pending; use Render Pending in the Editor.`, 'success');
                 }, `Clear all saved voice changes for ${speaker}? Existing rendered audio is not changed.`);
             } catch (e) { showActionError("Could not clear voice changes", e, "Reload Voices to check whether the saved changes were cleared before trying again."); }
         }

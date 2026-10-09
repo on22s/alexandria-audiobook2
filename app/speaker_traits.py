@@ -170,6 +170,16 @@ def get_speaker_trait_summary(lines):
             "states": [{"gender": g, "age_group": a} for g, a in states] if len(states) > 1 else []}
 
 
+def is_possible_gender_reveal(previous, current):
+    """A known gender change without an established large age jump needs review."""
+    return (previous.get("gender") in {"male", "female"}
+            and current.get("gender") in {"male", "female"}
+            and previous["gender"] != current["gender"]
+            and previous.get("age_group") in AGE_GROUP_NAMES[:-1]
+            and current.get("age_group") in AGE_GROUP_NAMES[:-1]
+            and get_age_distance(previous["age_group"], current["age_group"]) < STATE_CHANGE_BANDS)
+
+
 def get_state_timeline(script_entries, *, exact_speakers=False):
     """-> {SPEAKER: [{"from_entry", "gender", "age_group"}]} for every speaker
     whose settled state changes; `from_entry` indexes `script_entries`."""
