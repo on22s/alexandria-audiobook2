@@ -684,13 +684,13 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
                     for body in evidence_bodies:
                         prompt = body['messages'][-1]['content']
                         self.assertTrue(prompt.startswith('CUSTOM COMPILE INSTRUCTION\n'))
-                        fragment = json.loads(prompt.split('\n', 1)[1])
+                        fragment = json.JSONDecoder().raw_decode(prompt.split('\n', 1)[1])[0]
                         if 'selected_reference_fragments' in fragment:
                             for item in fragment['selected_reference_fragments']:
                                 fragments.setdefault(item['field'], []).append(item['text'])
                         else:
                             for field, items in fragment.items():
-                                if field not in ('name', 'partial_evidence', 'shared_voice_context', 'reference_sample'):
+                                if field not in ('name', 'partial_evidence', 'shared_voice_context', 'reference_sample', 'source_cue_ledger'):
                                     fragments.setdefault(field, []).extend(
                                         json.dumps(item, ensure_ascii=False) for item in items)
                     selected_data = json.loads(selected)
@@ -703,7 +703,7 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
                     for body in evidence_bodies:
                         prompt = body['messages'][-1]['content']
                         self.assertTrue(prompt.startswith('CUSTOM SIMPLE INSTRUCTION\n'))
-                        payload = json.loads(prompt.split('\n', 1)[1])
+                        payload = json.JSONDecoder().raw_decode(prompt.split('\n', 1)[1])[0]
                         self.assertEqual('ALICE', payload['speaker'])
                         if mode == 'cli':
                             delivered.extend((kind, payload[kind]) for kind in

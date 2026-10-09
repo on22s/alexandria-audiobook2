@@ -14,7 +14,7 @@ class PersonaReferenceBudgetTests(unittest.TestCase):
             {'voice_clues': ['late distinctive accent']}], 'sample_lines': ['Hello.']}
         prompt = personas._compile_character_prompt(ref, '{character_ref}')
         self.assertGreater(len(prompt), 12000)
-        self.assertEqual(ref['observations'], json.loads(prompt)['observations'])
+        self.assertEqual(ref['observations'], json.JSONDecoder().raw_decode(prompt)[0]['observations'])
         self.assertNotIn('...TRUNCATED...', prompt)
 
     def test_compile_processes_all_evidence_in_bounded_valid_requests(self):
@@ -26,11 +26,11 @@ class PersonaReferenceBudgetTests(unittest.TestCase):
         def reply(client, model, system, prompt, params, **kwargs):
             if 'Supported partial persona drafts' not in prompt:
                 # Full payload must remain parseable, even for split source requests.
-                payload = json.loads(prompt)
+                payload = json.JSONDecoder().raw_decode(prompt)[0]
                 self.assertLessEqual(len(prompt), 12000 + len(
                     json.dumps({'name': 'ALICE'})))
                 seen.extend((field, item) for field, items in payload.items()
-                            if field not in ('name', 'partial_evidence', 'shared_voice_context', 'reference_sample') for item in items)
+                            if field not in ('name', 'partial_evidence', 'shared_voice_context', 'reference_sample', 'source_cue_ledger') for item in items)
             return {'description': 'Warm natural voice.', 'ref_text': 'Hello.'}
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -133,5 +133,5 @@ class PersonaBalancedBatchTests(unittest.TestCase):
         for prompt in calls:
             self.assertLessEqual(len(prompt), 12000 + len(json.dumps({'name': 'ALICE'})))
             if 'Supported partial persona drafts' not in prompt:
-                payload = json.loads(prompt)
+                payload = json.JSONDecoder().raw_decode(prompt)[0]
                 self.assertLessEqual(len(json.dumps(payload.get('shared_voice_context', {}), ensure_ascii=False)), 1000)

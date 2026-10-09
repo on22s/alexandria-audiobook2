@@ -269,14 +269,28 @@ def _persona_attempt_observer(record):
 
 
 PERSONA_GROUNDING_RULES = (
-    "\nUse only supported speaker traits. Do not infer age or accent from names, "
-    "occupation, setting, or statements about other people. Omit unknown age/accent; "
-    "unspecified accent does not mean neutral or no accent. Preserve explicitly requested "
-    "voice-design choices as choices, not source facts. If observations conflict, preserve "
-    "that uncertainty. Keep supported delivery cues, including situation-dependent changes. "
-    "Copy ref_text exactly from one supplied reference_sample or sample line; "
-    "do not paraphrase, combine samples, or invent dialogue. Return one JSON object "
-    "with description and a single ref_text string."
+    " Unknown, unspecified, not reported, or not stated never means absent, neutral, normal, or"
+    " lacking. Omit statements about unknown traits entirely. Preserve conflicting age values "
+    "separately from conflicting accent values. Do not pair facts from separate source IDs or "
+    "observations unless one source explicitly establishes that connection. Avoid unsupported "
+    "negative claims and no-indication statements. A concise persona may contain fewer than two"
+    " sentences when evidence is sparse.\nUse only supported speaker traits. Do not infer age or"
+    " accent from names, occupation, setting, or statements about other people. Omit unknown "
+    "age/accent; unspecified accent does not mean neutral or no accent. Preserve explicitly "
+    "requested voice-design choices as choices, not source facts. If observations conflict, "
+    "preserve that uncertainty. Keep supported delivery cues, including situation-dependent "
+    "changes. Copy ref_text exactly from one supplied reference_sample or sample line; do not "
+    "paraphrase, combine samples, or invent dialogue. Return one JSON object with description "
+    "and a single ref_text string."
+)
+
+PERSONA_CUE_INSTRUCTIONS = (
+    "\nUse the source-indexed entries as independent evidence. Their list positions do not "
+    "establish relationships between facts. Describe age uncertainty and accent uncertainty "
+    "independently. Unknown accent must be omitted; never say the voice lacks an accent or has "
+    "a neutral accent. Keep ALL explicit delivery variations supported by these entries, "
+    "including shouting when stated. Do not add statements about traits that are not reported. "
+    "Description length is a maximum guideline, not a requirement to fill missing information."
 )
 
 
@@ -673,6 +687,24 @@ def get_selected_character_reference(character_ref, sample_limit=30):
     }
 
 
+def get_source_persona_cues(selected):
+    """Return bounded literal cues with independent source IDs, without rewriting."""
+    items = []
+    omitted_ids = []
+    seen = set()
+    for field in ("voice_clues", "features"):
+        for index, text in enumerate(selected[field]):
+            if not isinstance(text, str) or not text.strip() or (field, text) in seen:
+                continue
+            seen.add((field, text))
+            item = {"id": f"{field}:{index}", "text": text}
+            if len(json.dumps(items + [item], ensure_ascii=False)) <= 4000:
+                items.append(item)
+            else:
+                omitted_ids.append(item["id"])
+    return {"subject": selected["name"], "items": items, "omitted_ids": omitted_ids}
+
+
 def _compile_character_prompt(character_ref, prompt_template=None, reference_text=None, sample_limit=30):
     if reference_text is None:
         reference_text = json.dumps(get_selected_character_reference(character_ref, sample_limit),
@@ -923,6 +955,7 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
         messages[0]["content"] += PERSONA_GROUNDING_RULES
         params = _persona_params(messages[0]["content"], context_length, llm_config, 600, 0.25)
         selected = get_selected_character_reference(ref, sample_limit)
+        source_cues = get_source_persona_cues(selected)
         reference_samples = get_reference_samples(selected)
         if not reference_samples:
             raise PersonaContextRecoveryError("No safe source dialogue sample for persona compilation")
@@ -959,9 +992,10 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
                 payload = {"name": selected["name"], "selected_reference_fragments": [
                     {"field": field, "text": text} for field, text in parts]}
             payload["reference_sample"] = reference_sample
+            payload["source_cue_ledger"] = source_cues
             reference = json.dumps(payload, ensure_ascii=False)
-            return _compile_character_prompt(ref, advanced_prompt, reference_text=reference,
-                                             sample_limit=sample_limit)
+            return (_compile_character_prompt(ref, advanced_prompt, reference_text=reference,
+                                              sample_limit=sample_limit) + PERSONA_CUE_INSTRUCTIONS)
 
         # Bound each source request without cutting serialized JSON or losing its tail.
         # Oversized evidence is processed in smaller calls by the existing recovery path.
