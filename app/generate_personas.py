@@ -682,7 +682,7 @@ def _compile_character_prompt(character_ref, prompt_template=None, reference_tex
         "You are compiling an audiobook character reference into a final TTS voice persona.\n"
         "Use only supported observations. The final description should be practical for voice design.\n"
         "Return ONLY one JSON object with keys:\n"
-        "- description: 2-4 sentences covering apparent age/gender if inferable, timbre, accent/dialect, pace, emotional baseline, personality, and delivery guidance.\n"
+        "- description: 2-4 concise sentences using only traits explicitly supported in the reference. Include supported delivery changes. Omit unknown traits rather than supplying defaults.\n"
         "- ref_text: 1-2 representative spoken sentences from the character, or the best available sample line.\n\n"
         f"Character reference:\n{reference_text}"
     )

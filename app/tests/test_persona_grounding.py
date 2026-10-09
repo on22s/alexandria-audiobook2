@@ -72,3 +72,10 @@ class PersonaGroundingTests(unittest.TestCase):
             self.compile({'name': 'ALICE', 'voice_clues': ['Dry voice.']}, request, preview)
         request.assert_not_called()
         preview.assert_not_called()
+
+    def test_default_templates_request_supported_traits_without_required_slots(self):
+        for prompt in (personas._compile_character_prompt({'name': 'ALICE'}),
+                       personas.PERSONA_ADVANCED_PROMPT):
+            self.assertIn('only traits explicitly supported in the reference', prompt)
+            self.assertIn('Omit unknown traits rather than supplying defaults', prompt)
+            self.assertNotIn('covering apparent age/gender if inferable', prompt)
