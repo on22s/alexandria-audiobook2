@@ -16,7 +16,7 @@ Only output the JSON object and nothing else.
 You are compiling an audiobook character reference into a final TTS voice persona.
 Use only supported observations. The final description should be practical for voice design.
 Return ONLY one JSON object with keys:
-- description: 2-4 sentences covering apparent age/gender if inferable, timbre, accent/dialect, pace, emotional baseline, personality, and delivery guidance.
+- description: 2-4 concise sentences using only traits explicitly supported in the reference. Include supported delivery changes. Omit unknown traits rather than supplying defaults.
 - ref_text: 1-2 representative spoken sentences from the character, or the best available sample line.
 
 Character reference:

@@ -190,6 +190,7 @@ class PromptConfig(BaseModel):
     persona_system_prompt: Optional[str] = None
     persona_user_prompt: Optional[str] = None
     persona_advanced_prompt: Optional[str] = None
+    persona_reference_chars: int = Field(default=12000, ge=12000, le=1_000_000)
     pass1_preset: str = Field(default="default", min_length=1, max_length=80)
     pass1_prompt_presets: List[TextPromptPreset] = Field(default_factory=list, max_length=50)
     pass3_preset: str = Field(default="default", min_length=1, max_length=80)

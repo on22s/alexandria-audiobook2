@@ -24,10 +24,16 @@ class PersonaProvenanceTests(unittest.TestCase):
                 wav.setparams((1,2,24000,0,'NONE','not compressed'));wav.writeframes(b'\0\0' * 2400)
             engine = SimpleNamespace(generate_voice_design=lambda **kwargs: (str(source),None))
             config = {}
-            with patch.object(personas, 'call_llm_for_object', return_value={}), patch.object(personas.time,'sleep'):
-                self.assertEqual([], personas.run_advanced_persona_generation(script, ['ALICE'],
+            def source_backed_reply(*args, **kwargs):
+                if not kwargs.get('label', '').startswith('PERSONA COMPILE'):
+                    return {}
+                reference = json.JSONDecoder().raw_decode(args[3].split('Character reference:\n', 1)[1])[0]
+                return {'description': 'Warm voice.', 'ref_text': reference['reference_sample']}
+            with patch.object(personas, 'call_llm_for_object', side_effect=source_backed_reply), patch.object(personas.time,'sleep'):
+                failures, config = personas.run_advanced_persona_generation(script, ['ALICE'],
                     {'ALICE':['Original speaker evidence.']}, config, object(), 'fixture', engine, tmp,
-                    SimpleNamespace(batch_size=1)))
+                    SimpleNamespace(batch_size=1))
+                self.assertEqual([], failures)
             (root / 'voice_config.json').write_text(json.dumps(config))
             files = [root / config['ALICE'][key] for key in ('persona_ref','ref_audio')]
             original_bytes = [p.read_bytes() for p in files]
@@ -54,7 +60,7 @@ class PersonaProvenanceTests(unittest.TestCase):
 
     def test_shared_object_call_retains_raw_payload_and_compile_normalizes_it(self):
         import generate_script as gs
-        from persona_validation import validate_persona_payload
+        from persona_validation import validate_compiled_persona_payload
         payload = {'description':'  Calm warm voice.  ', 'ref_text':'  Hello there, friend.  '}
         response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)),
                                                            finish_reason='stop')],usage=None)
@@ -72,10 +78,10 @@ class PersonaProvenanceTests(unittest.TestCase):
             config={}
             with patch.object(gs,'get_response_log_path',return_value=str(root/'response.log')), \
                  patch.object(personas,'call_llm_for_object',side_effect=actual_call), \
-                 patch.object(personas,'validate_persona_payload',wraps=validate_persona_payload) as validate, \
+                 patch.object(personas,'validate_compiled_persona_payload',wraps=validate_compiled_persona_payload) as validate, \
                  patch.object(personas.time,'sleep'):
                 self.assertTrue(personas._compile_persona(client,'fixture',engine,config,tmp,str(ref_dir),'ALICE',
-                                   {'ALICE':['Hello there.']},'Return JSON',None,context_length=4096))
+                                   {'ALICE':['Hello there, friend.']},'Return JSON',None,context_length=4096))
                 self.assertEqual(3,validate.call_count)
             engine.generate_voice_design.assert_called_once_with(description='Calm warm voice.',sample_text='Hello there, friend.')
             self.assertEqual('Calm warm voice.',config['ALICE']['description'])

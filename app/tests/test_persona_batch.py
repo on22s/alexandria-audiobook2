@@ -22,7 +22,7 @@ class PersonaBatchTests(unittest.TestCase):
                 with patch.object(personas, '_discover_batch_characters', return_value=[]), \
                      patch.object(personas, 'request_persona_with_evidence', side_effect=request), \
                      patch.object(personas, '_save_generated_preview', return_value=True):
-                    failures = personas.run_advanced_persona_generation(script, ['ALICE'], {'ALICE': lines}, {}, None, 'fixture', None, tmp, SimpleNamespace(batch_size=40, context_lines=requested, recovered_speaker=''), book_id='fixture')
+                    failures, _ = personas.run_advanced_persona_generation(script, ['ALICE'], {'ALICE': lines}, {}, None, 'fixture', None, tmp, SimpleNamespace(batch_size=40, context_lines=requested, recovered_speaker=''), book_id='fixture')
                 self.assertEqual([], failures)
                 self.assertEqual([lines[:expected]], seen)
                 # The reference published by the actual compiler contains the same selection.
@@ -160,13 +160,15 @@ class PersonaBatchTests(unittest.TestCase):
                     calls = [0]
                     def compile_reply(*args, **kwargs):
                         calls[0] += 1
-                        if failure == 'exception' and calls[0] == 1:
+                        if failure == 'exception' and not advanced and calls[0] == 1:
                             raise OSError('fixture speaker request failed')
-                        return {'description':'Warm natural voice.', 'ref_text':'Hello there, my friend.'}
+                        sample = 'Hello there, my friend.'
+                        if advanced:
+                            sample = json.JSONDecoder().raw_decode(args[3].split('Character reference:\n', 1)[1])[0]['reference_sample']
+                        return {'description':'Warm natural voice.', 'ref_text':sample}
                     if failure == 'exception':
-                        # Standard currently catches this at speaker scope. Advanced
-                        # intentionally falls back after provider failure, so inject
-                        # an actual compile function failure instead.
+                        # Inject a speaker compile failure to exercise partial-save
+                        # reporting independently of provider response retries.
                         count[0] = 1
                     original_compile = personas._compile_persona
                     def compile_voice(*args, **kwargs):

@@ -295,7 +295,7 @@ class PersonaStartPreflightTests(unittest.TestCase):
                 self.assertEqual('generate_personas.py',command[2])
                 self.assertEqual(str(payload.get('context_lines',8)),command[command.index('--context-lines')+1])
                 if payload.get('speaker'):
-                    self.assertEqual('Hero',command[command.index('--speakers')+1])
+                    self.assertEqual('Hero',command[command.index('--speaker')+1])
                     self.assertEqual('teen',command[command.index('--age-group')+1])
                     self.assertIn('--new-only',command)
                 if payload.get('advanced'):

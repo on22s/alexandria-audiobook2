@@ -301,6 +301,14 @@ def _script_line_counts(path: str = SCRIPT_PATH) -> dict:
     return get_script_line_counts(safe_load_json(path))
 
 
+def get_cast_importance_order(names, line_counts):
+    """-> names in importance order: the narrator, then most lines, then name.
+    The one order for the Voices list and for voice casting, where earlier
+    characters get first pick of unused library voices (Rule 15)."""
+    return sorted(names, key=lambda name: (0 if _norm_name(name) == "narrator" else 1,
+                                           -int(line_counts.get(name, 0) or 0), _norm_name(name), name))
+
+
 def get_script_line_counts(script):
     """Count spoken rows consistently for whole books and scoped evidence."""
     counts = {}
@@ -334,11 +342,27 @@ def get_trait_assignment_metadata(source):
     }
 
 
+def get_portable_voice_config(config):
+    """-> a copy of a character's voice config without what belongs to one
+    book: its alias, its voice timeline (chunk indices), and character-state
+    versions (bound to that book's script). Manual versions travel with the
+    cast. The one definition for saving and applying casts (#1040 review C9)."""
+    cfg = dict(config or {})
+    cfg.pop("alias_of", None)
+    cfg.pop("version_timeline", None)
+    versions = {key: value for key, value in (cfg.get("versions") or {}).items()
+                if not (isinstance(value, dict) and "persona_state" in value)}
+    if "versions" in cfg:
+        cfg["versions"] = versions
+    if cfg.get("active_version") and cfg["active_version"] not in versions:
+        cfg.pop("active_version", None)
+    return cfg
+
+
 def _make_library_entry(display_name: str, config: dict, line_count: int,
                         book_id: Optional[str] = None, casting: Optional[dict] = None,
                         existing: Optional[dict] = None) -> dict:
-    cfg = dict(config or {})
-    cfg.pop("alias_of", None)  # aliases are book-specific; don't carry across books
+    cfg = get_portable_voice_config(config)  # book-specific parts never enter the library
     entry = dict(existing or {})
     assignments = dict(entry.get("assignments") or {})
     if book_id:

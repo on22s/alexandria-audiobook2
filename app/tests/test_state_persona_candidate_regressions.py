@@ -130,11 +130,12 @@ class StateApiCandidateRegressionTests(unittest.TestCase):
             for spelling, target in zip(('NARRATOR', 'Narrator'), targets):
                 saved = json.loads(path.read_text())
                 stale = copy.deepcopy(saved)
-                stale['Narrator']['versions'][target['version_id']]['persona_state']['source_sha256'] = '0' * 64
-                path.write_text(json.dumps(stale)); before = path.read_bytes()
+                stale['Narrator']['versions'][target['version_id']]['persona_state']['segment_sha256'] = '0' * 64
+                path.write_text(json.dumps(stale))
                 response = client.delete(f'/api/voices/{spelling}/versions/{target["version_id"]}', params={'book_token': token})
-                self.assertEqual(response.status_code, 409, response.text)
-                self.assertEqual(path.read_bytes(), before)
+                self.assertEqual(response.status_code, 200, response.text)   # stale states are removable (#1040 review C1)
+                self.assertNotIn(target['version_id'], json.loads(path.read_text())['Narrator']['versions'])
+                path.write_text(json.dumps(saved))
                 path.write_text(json.dumps(saved))
                 response = client.delete(f'/api/voices/{spelling}/versions/{target["version_id"]}', params={'book_token': token})
                 self.assertEqual(response.status_code, 200, response.text)
