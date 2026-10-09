@@ -271,7 +271,7 @@ class PersonaContextRecoveryError(RuntimeError):
 
 
 def request_persona_with_evidence(client, model_name, system_prompt, build_prompt,
-                                  evidence, params, label):
+                                  evidence, params, label, max_prompt_chars=None):
     """Preserve fixed instructions and recover selected evidence in smaller calls."""
     def request(prompt):
         attempts = []
@@ -295,7 +295,10 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
                   + json.dumps(drafts, ensure_ascii=False)
                   + "\nCombine all supported observations into one concise persona. "
                     "Keep ref_text from one draft. Return description and ref_text only.")
-        result, _ = request(prompt)
+        if max_prompt_chars is not None and len(prompt) > max_prompt_chars:
+            result = None
+        else:
+            result, _ = request(prompt)
         if isinstance(result, dict):
             return validate_persona_payload(result)
         if len(drafts) <= 2:
@@ -307,7 +310,11 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
         return merge(reduced)
 
     def recover(parts, required=False):
-        result, exhausted_context = request(build_prompt(parts))
+        prompt = build_prompt(parts)
+        if max_prompt_chars is not None and len(prompt) > max_prompt_chars:
+            result, exhausted_context = None, True
+        else:
+            result, exhausted_context = request(prompt)
         if isinstance(result, dict):
             return validate_persona_payload(result)
         if not exhausted_context:
@@ -485,13 +492,6 @@ def _batch_entries(script, batch_size):
         yield start, script[start:start + batch_size]
 
 
-def _json_preview(data, max_chars=12000):
-    text = json.dumps(data, ensure_ascii=False, indent=2)
-    if len(text) <= max_chars:
-        return text
-    return text[:max_chars] + "\n...TRUNCATED..."
-
-
 def _character_ref_path(ref_dir, speaker):
     safe = sanitize_filename(speaker or "unknown")
     return os.path.join(ref_dir, f"{safe}.json")
@@ -596,8 +596,8 @@ def _fallback_batch_characters(batch, batch_start=0):
     return list(by_speaker.values())
 
 
-def _compile_character_prompt(character_ref, prompt_template=None, reference_text=None, sample_limit=30):
-    compact = {
+def get_selected_character_reference(character_ref, sample_limit=30):
+    return {
         "name": character_ref.get("name", ""),
         "aliases": character_ref.get("aliases", [])[:20],
         "features": character_ref.get("features", [])[:80],
@@ -607,7 +607,12 @@ def _compile_character_prompt(character_ref, prompt_template=None, reference_tex
         "sample_lines": character_ref.get("sample_lines", [])[:sample_limit],
         "observations": character_ref.get("observations", [])[-30:],
     }
-    reference_text = _json_preview(compact) if reference_text is None else reference_text
+
+
+def _compile_character_prompt(character_ref, prompt_template=None, reference_text=None, sample_limit=30):
+    if reference_text is None:
+        reference_text = json.dumps(get_selected_character_reference(character_ref, sample_limit),
+                                    ensure_ascii=False, indent=2)
     if prompt_template:
         return prompt_template.format(character_ref=reference_text)
     return (
@@ -830,18 +835,34 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
         messages = [{"role": "system", "content": system_prompt or "You produce concise JSON only."},
                     {"role": "user", "content": _compile_character_prompt(ref, advanced_prompt, sample_limit=sample_limit)}]
         params = _persona_params(messages[0]["content"], context_length, llm_config, 600, 0.25)
-        # Preserve the existing selected preview, including its explicit truncation marker.
-        selected_reference = _compile_character_prompt(ref, "{character_ref}", sample_limit=sample_limit)
+        selected = get_selected_character_reference(ref, sample_limit)
+        evidence = []
+        for field, value in selected.items():
+            if field == "name":
+                continue
+            for item in value:
+                evidence.append((field, json.dumps(item, ensure_ascii=False)))
 
         def build_prompt(parts):
-            reference = (selected_reference if parts == [("character_ref", selected_reference)]
-                         else json.dumps({"name": speaker, "selected_reference_fragments": [
-                             text for _, text in parts]}, ensure_ascii=False))
-            return _compile_character_prompt(ref, advanced_prompt, reference_text=reference, sample_limit=sample_limit)
+            payload = {"name": selected["name"]}
+            try:
+                for field, text in parts:
+                    payload.setdefault(field, []).append(json.loads(text))
+            except json.JSONDecodeError:
+                # A single oversized item may be split by context recovery.
+                # Keep its fragments as escaped text inside a valid outer object.
+                payload = {"name": selected["name"], "selected_reference_fragments": [
+                    {"field": field, "text": text} for field, text in parts]}
+            reference = json.dumps(payload, ensure_ascii=False)
+            return _compile_character_prompt(ref, advanced_prompt, reference_text=reference,
+                                             sample_limit=sample_limit)
 
+        # Bound each source request without cutting serialized JSON or losing its tail.
+        # Oversized evidence is processed in smaller calls by the existing recovery path.
         parsed = request_persona_with_evidence(
             client, model_name, messages[0]["content"], build_prompt,
-            [("character_ref", selected_reference)], params, f"PERSONA COMPILE {speaker}")
+            evidence, params, f"PERSONA COMPILE {speaker}",
+            max_prompt_chars=len(build_prompt([])) + 12000)
         if isinstance(parsed, dict):
             try:
                 validated = validate_persona_payload(parsed)

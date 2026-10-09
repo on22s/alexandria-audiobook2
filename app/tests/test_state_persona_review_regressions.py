@@ -114,10 +114,11 @@ class StatePersonaReviewRegressions(unittest.TestCase):
                     row['speaker'] = name
             engine = PreviewEngine(); engine.root = root
             prompts = []
-            def compile_persona(client, model, system, build_prompt, parts, params, label):
+            def compile_persona(client, model, system, build_prompt, parts, params, label, **kwargs):
                 prompts.append(build_prompt(parts))
-                ref = json.loads(parts[0][1]); age = ref['sample_lines'][0].split()[0]
-                return {'description': f'A natural {age} character voice.', 'ref_text': ref['sample_lines'][0]}
+                line = next(json.loads(text) for field, text in parts if field == 'sample_lines')
+                age = line.split()[0]
+                return {'description': f'A natural {age} character voice.', 'ref_text': line}
             stack.enter_context(patch.object(personas, 'call_llm_for_object', side_effect=RuntimeError('fixture discovery fallback')))
             stack.enter_context(patch.object(personas, 'request_persona_with_evidence', side_effect=compile_persona))
             config = {}

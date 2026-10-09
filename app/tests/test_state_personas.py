@@ -313,9 +313,8 @@ class StatePersonaPipelineTests(unittest.TestCase):
             rows = [(int(index), text) for index, text in re.findall(r'\[(\d+)\] ARTHUR: ([^\n]+)', prompt)]
             return {'ARTHUR': {'evidence': [{'entry_index': index, 'quote': text} for index, text in rows],
                                'sample_lines': [text for _, text in rows], 'voice_clues': ['supported by this segment']}}
-        def compile_persona(client, model, system, build_prompt, parts, params, label):
-            selected = json.loads(parts[0][1])
-            line = selected['sample_lines'][0]
+        def compile_persona(client, model, system, build_prompt, parts, params, label, **kwargs):
+            line = next(json.loads(text) for field, text in parts if field == 'sample_lines')
             return {'description': f"Natural {line.split()[0]} voice.", 'ref_text': line}
         with ExitStack() as stack:
             for name, value in [('get_runtime_data_dir', str(root)), ('load_app_config', {}),
