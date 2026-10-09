@@ -95,17 +95,33 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
     def test_completed_in_time_later_request_survives_an_earlier_timeout(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);engine=self.engine();engine._external_timeout=.15
-            release=threading.Event();done=threading.Event()
+            clock=[0.0]
+            class EarlierTimeout(concurrent.futures.Future):
+                def result(self, timeout=None):
+                    clock[0]=.2
+                    raise concurrent.futures.TimeoutError()
+            earlier=EarlierTimeout()
+            later=concurrent.futures.Future()
             def render(text,instruct,speaker,config,path,endpoint=None,cancelled=None):
-                try:
-                    if text=='0':release.wait(2)
-                    sf.write(path,np.full(240,.1),24000,format='WAV');return True
-                finally:
-                    if text=='0':done.set()
+                sf.write(path,np.full(240,.1),24000,format='WAV')
+                return True
+            def submit(callback,chunk,*args):
+                if chunk['index']==0:
+                    return earlier
+                # Complete the real audio write before the first wait expires,
+                # independent of CPU scheduling or filesystem latency in CI.
+                clock[0]=.05
+                later.set_result(callback(chunk,*args))
+                return later
+            executor=SimpleNamespace(submit=submit,shutdown=lambda **kwargs:None)
             chunks=[{'index':i,'speaker':'A','text':str(i)} for i in (0,1)]
-            with patch.object(engine,'_external_generate_custom',side_effect=render):
-                try:result=engine._external_batch(chunks,{'A':{'voice':'Ryan'}},str(root),'custom')
-                finally:release.set();self.assertTrue(done.wait(2))
+            with patch.object(engine,'_external_generate_custom',side_effect=render), \
+                    patch('concurrent.futures.ThreadPoolExecutor',return_value=executor), \
+                    patch('time.monotonic',side_effect=lambda:clock[0]):
+                result=engine._external_batch(chunks,{'A':{'voice':'Ryan'}},str(root),'custom')
+            self.assertGreater(clock[0],engine._external_timeout)
+            self.assertTrue(earlier.cancelled())
+            self.assertLess(later.result()[1],engine._external_timeout)
             self.assertEqual([1],result['completed'],result);self.assertEqual([0],[i for i,_ in result['failed']])
             audio,rate=sf.read(root/'temp_batch_1.wav');self.assertEqual(24000,rate);self.assertEqual(240,len(audio))
 
