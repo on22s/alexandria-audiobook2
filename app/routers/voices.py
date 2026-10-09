@@ -15,9 +15,11 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field, model_validator, field_validator
 from config_settings import load_app_config
 from voice_config_store import apply_voice_config_update, get_voice_config_revision, VoiceConfigConflict
+from project import ProjectManager
 
 from core import (
     CHUNKS_PATH,
+    DESIGNED_VOICES_DIR,
     CAST_MAJOR_LINE_THRESHOLD,
     CONFIG_PATH,
     LLMConfigError,
@@ -51,8 +53,8 @@ from lmstudio_settings import get_active_llm_config, get_current_status, get_eff
 from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows
 from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, resolve_narrator_voice_config, voice_category, voice_is_set
 from speaker_traits import (get_age_distance, get_chunk_index_for_entry, get_library_age_group,
-                            get_normalized_age_group,
-                            get_speaker_trait_summary, get_state_timeline, get_persona_state_targets, get_persona_state_chunk_indices, get_persona_state_entries)
+                            get_normalized_age_group, get_normalized_gender,
+                            get_speaker_trait_summary, get_state_timeline, get_persona_state_targets, get_persona_state_chunk_indices, get_persona_state_entries, is_possible_gender_reveal)
 from utils import (
     atomic_json_write,
     atomic_json_write_pair,
@@ -246,6 +248,21 @@ def _mutate_voice_entry(speaker, mutator):
         return entry
 
 
+def _apply_book_voice_update(transform, expected_revision=None):
+    """Publish voice changes while fencing affected renders under chunk locks."""
+    root = os.path.dirname(VOICE_CONFIG_PATH)
+    chunks_path = CHUNKS_PATH if os.path.dirname(CHUNKS_PATH) == root else os.path.join(root, "chunks.json")
+    manager = project_manager if project_manager.chunks_path == chunks_path else ProjectManager(root)
+    if manager is not project_manager:
+        manager.chunks_path = chunks_path
+    with manager._chunks_lock, file_lock(chunks_path):
+        def update(current):
+            updated = transform(current)
+            manager._apply_voice_timeline_audio_invalidation_locked(current, updated)
+            return updated
+        return apply_voice_config_update(VOICE_CONFIG_PATH, update, expected_revision=expected_revision)
+
+
 def _mutate_book_voice_entry(speaker, mutator, book_token=None):
     with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)):
         if book_token is not None:
@@ -255,10 +272,12 @@ def _mutate_book_voice_entry(speaker, mutator, book_token=None):
         if speaker == "NARRATOR":
             speaker = get_script_narrator_speaker()
         _require_script_speaker(speaker)
-        entry = _mutate_voice_entry(speaker, mutator)
-        with file_lock(VOICE_CONFIG_PATH):
-            config = safe_load_json(VOICE_CONFIG_PATH, default={})
-            return entry, get_voice_config_revision(config)
+        def update(current):
+            config = copy.deepcopy(current)
+            mutator(config.setdefault(speaker, {}))
+            return config
+        config = _apply_book_voice_update(update)
+        return config[speaker], get_voice_config_revision(config)
 
 
 def get_current_persona_state(speaker, version_id):
@@ -572,29 +591,75 @@ async def add_style_point(speaker: str, request: StylePointRequest):
 
 
 def get_library_voice_config(candidate):
-    """The voice config a library LoRA voice is assigned with - the one shape
+    """The voice config a library candidate is assigned with - the one shape
     _apply_voice_suggestions writes, reused for a state's version."""
+    if candidate["type"] == "clone":
+        return copy.deepcopy(candidate["config"])
     return {"type": candidate["type"], "adapter_id": candidate["adapter_id"],
             "adapter_path": (f"builtin_lora/{candidate['adapter_id']}"
                              if candidate["type"] == "builtin_lora"
                              else f"lora_models/{candidate['adapter_id']}")}
 
 
-def get_adapter_users(voice_config):
+def get_adapter_users(voice_config, candidates=()):
     """-> {adapter_id: [speakers]} for every LoRA voice the book already uses,
-    as a main voice or as a version."""
+    as a main voice or as a version; optionally include Designer references."""
+    def get_reference_path(value):
+        return os.path.normcase(os.path.realpath(os.path.join(
+            os.path.dirname(DESIGNED_VOICES_DIR), value.replace("\\", "/"))))
+    clone_ids = {get_reference_path(c["config"]["ref_audio"]): c["adapter_id"]
+                 for c in candidates if c.get("type") == "clone"}
     users = {}
     for name, entry in (voice_config or {}).items():
         if not isinstance(entry, dict):
             continue
         configs = [entry, *[v for v in (entry.get("versions") or {}).values() if isinstance(v, dict)]]
         for config in configs:
-            adapter_id = config.get("adapter_id")
-            if adapter_id and config.get("type") in ("lora", "builtin_lora"):
+            adapter_id = config.get("adapter_id") if config.get("type") in ("lora", "builtin_lora") else None
+            if config.get("type") == "clone" and isinstance(config.get("ref_audio"), str):
+                adapter_id = clone_ids.get(get_reference_path(config["ref_audio"]))
+            if adapter_id:
                 users.setdefault(adapter_id, [])
                 if name not in users[adapter_id]:
                     users[adapter_id].append(name)
     return users
+
+
+def get_state_voice_candidates():
+    """Downloaded adapters plus playable saved Designer clone references."""
+    from routers.voice_design import get_voice_asset_path
+    from audio_validation import validate_generated_audio, GeneratedAudioError
+    candidates = _build_lora_candidates()
+    for row in _load_manifest(os.path.join(DESIGNED_VOICES_DIR, "manifest.json")):
+        if not isinstance(row, dict) or not isinstance(row.get("id"), str) or not row["id"]:
+            continue
+        text = row.get("sample_text")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        try:
+            validate_generated_audio(get_voice_asset_path(DESIGNED_VOICES_DIR, row), "saved designed voice")
+        except (HTTPException, GeneratedAudioError, OSError, ValueError) as error:
+            logger.warning("Skipping unusable designed voice %s: %s", row["id"], error)
+            continue
+        description = row.get("description") if isinstance(row.get("description"), str) else ""
+        name = row.get("name") if isinstance(row.get("name"), str) and row["name"] else row["id"]
+        # Casting labels are explicit metadata; vocal style is not identity.
+        age = get_normalized_age_group(row.get("age_group"))
+        candidates.append({"adapter_id": "designed:" + row["id"], "type": "clone",
+            "name": name, "gender": get_normalized_gender(row.get("gender")),
+            "age_group": age, "description": description,
+            "config": {"type": "clone", "ref_audio": "designed_voices/" + row["filename"],
+                       "ref_text": text, "description": description,
+                       "gender": get_normalized_gender(row.get("gender"))}})
+    return candidates
+
+
+def get_state_candidate_age_distance(state_age, candidate):
+    """Designer metadata retains child bands; adapters use legacy library bands."""
+    age = candidate.get("age_group", "unknown")
+    if candidate.get("type") != "clone":
+        state_age, age = get_library_age_group(state_age), get_library_age_group(age)
+    return get_age_distance(state_age, age)
 
 
 def get_chapter_label(script, index):
@@ -617,18 +682,19 @@ def get_state_voice_sources(state, speaker, entry, candidates, users, limit=6):
     for version_id, version in sorted((entry.get("versions") or {}).items()):
         if not isinstance(version, dict):
             continue
-        version_age = get_library_age_group(get_normalized_age_group(version.get("age_group")))
+        version_age = get_normalized_age_group(version.get("age_group"))
         version_gender = version.get("gender") or "unknown"
-        if (get_age_distance(age, version_age) <= 1 and version_age != "unknown"
+        if (get_state_candidate_age_distance(state["age_group"], {**version, "age_group": version_age}) <= 1 and version_age != "unknown"
                 and version_gender in ("unknown", gender)):
             versions.append({"version_id": version_id, "age_group": version.get("age_group")})
-    ranked = _rank_heuristic_candidates("", candidates, gender if gender in ("male", "female") else None,
-                                        age, filter_gender=True)
+    ranked = _rank_heuristic_candidates("", [{**c, "age_group": get_library_age_group(c.get("age_group", "unknown"))} for c in candidates],
+                                        gender if gender in ("male", "female") else None, age, filter_gender=True)
     by_id = {c["adapter_id"]: c for c in candidates}
+    ranked.sort(key=lambda key: get_state_candidate_age_distance(state["age_group"], by_id[key]))
     fitting = [by_id[i] for i in ranked
                if (by_id[i].get("gender") in ("unknown", gender) or gender not in ("male", "female"))
                and (age == "unknown" or (by_id[i].get("age_group", "unknown") != "unknown"
-                                         and get_age_distance(age, by_id[i]["age_group"]) <= 1))]
+                                         and get_state_candidate_age_distance(state["age_group"], by_id[i]) <= 1))]
     def describe(candidate):
         return {"adapter_id": candidate["adapter_id"], "name": candidate["name"],
                 "gender": candidate.get("gender", "unknown"),
@@ -659,8 +725,8 @@ async def get_voice_state_timeline(speaker: str):
         targets = state_targets.get(speaker, [])
         strict_mapping = get_persona_state_chunk_indices(script, chunks, speaker, state_targets=state_targets)
         targets_by_entry = {target["from_entry"]: target for target in targets}
-        candidates = _build_lora_candidates()
-        users = get_adapter_users(voice_config)
+        candidates = get_state_voice_candidates()
+        users = get_adapter_users(voice_config, candidates)
         # Map the character's lines in order, so a line said twice ("Yes.")
         # maps to the chunk at ITS place in the book, not the first one.
         line_chunks, start = {}, 0
@@ -683,7 +749,7 @@ async def get_voice_state_timeline(speaker: str):
             sources["offer_generate"] = not any(sources[key] for key in ("versions", "library_unused", "library_used"))
             if has_generated:
                 sources["versions"].sort(key=lambda version: version["version_id"] != target["version_id"])
-            out.append({**state, "from_index": chunk_index,
+            out.append({**state, "possible_gender_reveal": bool(out and is_possible_gender_reveal(out[-1], state)), "from_index": chunk_index,
                         "chapter": get_chapter_label(script, state["from_entry"]),
                         "line": (line.get("text") or "")[:120],
                         "sources": sources, "state_version": target["version_id"] if target else None})
@@ -915,8 +981,7 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                 updated[voice_name] = candidate
             return updated
 
-        updated = apply_voice_config_update(VOICE_CONFIG_PATH, apply_updates,
-                                            expected_revision=expected_revision)
+        updated = _apply_book_voice_update(apply_updates, expected_revision=expected_revision)
         return {"status": "saved", "revision": get_voice_config_revision(updated),
                 "book_token": book_token}
 
