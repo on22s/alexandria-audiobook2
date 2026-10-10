@@ -6,7 +6,7 @@ Regenerate with `python3 collect_results.py`. Machine-readable copy in `results_
 
 `resolution_tier` says how confidently an artifact's origin is known: `provenance` records the script and its arguments and can be re-run exactly (`replayable=yes`); `git+naming` means the producing script and the commit that added the file are known but the arguments are not, so it can be read but not reproduced; `none` is neither. 999 of 4414 rows are replayable.
 
-`cited_by_goal` is populated on 338 rows of 4414. It lists goals that cite an artifact by filename. An empty value means no filename citation was found for that artifact.
+`cited_by_goal` is populated on 340 rows of 4414. It lists goals that cite an artifact by filename. An empty value means no filename citation was found for that artifact.
 
 `evidence_status` comes from the committed audit snapshots. `supported_structure` validates provenance shape only; `supported_measurement` is the strongest attribution classification. `not_audited` is explicit and must not be treated as support.
 
