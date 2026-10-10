@@ -1517,6 +1517,12 @@ class ProjectManager:
                 rows.append(row)
             cursor += duration
 
+        # Selected new filenames can collide with filenames retained from an
+        # older plan even when the new plan itself has unique names.  Reject
+        # before publishing anything, or a retained chapter would be replaced.
+        filenames = [row["file"].casefold() for row in rows]
+        if len(filenames) != len(set(filenames)):
+            return False, "Chapter filenames collide with retained exports; export all chapters or choose a different filename template"
         atomic_json_write({**options, "chapters": rows},
                           os.path.join(staging_dir, "manifest.json"))
         note = f"{written} chapter file(s) written"
