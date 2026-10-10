@@ -963,7 +963,8 @@ class ThreePassPipelineRuntimeRecoveryTests(unittest.TestCase):
         self.assertEqual(source.split(), ' '.join(e['text'] for e in artifact).split())
         self.assertTrue(all(e['speaker'] == 'NARRATOR' and e['instruct'] == 'Fixture calm narration.' for e in artifact))
         self.assertEqual('done', checkpoint['stage'])
-        self.assertEqual(1, checkpoint['chunks_done'])
+        # Opt-in targets above 30k now split before exceeding output allowance.
+        self.assertEqual(3, checkpoint['chunks_done'])
         self.assertEqual(artifact, checkpoint['annotated'])
         self.assertEqual('complete', manifest['status'])
         self.assertEqual([], manifest['diagnostic_failures'])

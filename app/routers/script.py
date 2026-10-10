@@ -2263,13 +2263,17 @@ def get_validated_batch_script_source(job):
     return _read_and_validate_batch_script_source(job)
 
 
-def get_batch_script_sizing_identity(text, settings, context_windows):
+def get_batch_script_sizing_identity(text, settings, context_windows, context_length=0):
     """Identify all request-shape inputs; server capacity is applied separately."""
     inputs = {"source": hashlib.sha256(text.encode("utf-8")).hexdigest(),
               "settings": settings,
               "context_windows": get_context_rescue_windows(context_windows),
               "prompts": [load_segment_prompts(), load_attribute_prompts(),
                           load_instruct_prompts()]}
+    if (settings.get("attribute_target_chars") or settings.get("instruct_target_chars")
+            or settings.get("chunk_size", 0) > 30000
+            or settings.get("attribute_context_chars", 0) > 20000):
+        inputs["context_length"] = context_length
     return hashlib.sha256(json.dumps(inputs, sort_keys=True, ensure_ascii=False,
                                     allow_nan=False).encode("utf-8")).hexdigest()
 
@@ -2278,7 +2282,7 @@ def get_batch_script_source_preflight(job, text, settings, context, context_wind
     """Reuse this request's sizing summary only while its inputs still match."""
     receipt = (job.get("prepared_source") or {}).get("preflight")
     if receipt and receipt["identity"] == get_batch_script_sizing_identity(
-            text, settings, context_windows):
+            text, settings, context_windows, context):
         return get_three_pass_preflight_capacity(receipt["report"], context, 1)
     return build_three_pass_request_preflight(
         text, settings, context, 1, context_windows=context_windows)
