@@ -6921,9 +6921,24 @@
             });
         };
 
+        function captureChunkMutation(id) {
+            const book = currentBookFilename;
+            const token = chunkSnapshotBookToken;
+            const uid = cachedChunks.find(chunk => chunk.id === id)?.uid;
+            if (!token || !uid || chunkSnapshotBook !== book) {
+                throw new Error('Reload the Editor before changing this row.');
+            }
+            return {
+                query: new URLSearchParams({expected_book_token: token, expected_uid: uid}).toString(),
+                isCurrent: () => book === currentBookFilename && token === chunkSnapshotBookToken
+            };
+        }
+
         window.insertChunkAfter = async (id) => {
             try {
-                await API.post(`/api/chunks/${id}/insert`, {});
+                const context = captureChunkMutation(id);
+                await API.post(`/api/chunks/${id}/insert?${context.query}`, {});
+                if (!context.isCurrent()) { return; }
                 await loadChunks(true);
             } catch (e) {
                 showActionError("Failed to insert line", e, "Refresh the Editor and check whether the new line exists before inserting again.", "error");
@@ -6936,9 +6951,11 @@
 
         window.deleteChunk = async (id) => {
             try {
-                const res = await fetch(`/api/chunks/${id}`, { method: 'DELETE' });
+                const context = captureChunkMutation(id);
+                const res = await fetch(`/api/chunks/${id}?${context.query}`, { method: 'DELETE' });
                 await API._handleError(res);
                 const data = await res.json();
+                if (!context.isCurrent()) { return; }
 
                 // Store for undo
                 const toastId = 'toast-undo-' + Date.now() + '-' + (++_undoToastSequence);
