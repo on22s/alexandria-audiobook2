@@ -1222,7 +1222,8 @@ async def snapshot_script(request: SnapshotRequest):
     entries = completed_script_prefix(checkpoint)
     if not entries:
         raise HTTPException(status_code=409, detail="Nothing is fully finished yet - Step 3 has not completed a window.")
-    safe_name = _require_safe_filename(request.name, "Invalid snapshot name.")
+    from routers.scripts_library import _require_saved_book_name
+    safe_name = _require_saved_book_name(request.name)
     dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     os.makedirs(SCRIPTS_DIR, exist_ok=True)
     companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
@@ -2684,7 +2685,7 @@ def _ensure_annotated_script_diff():
 @router.get("/api/status")
 async def get_task_statuses():
     """Discover registered tasks without serializing logs or live process handles."""
-    return {name: {"running": bool(state.get("running"))}
+    return {name: {"running": is_task_running(name)}
             for name, state in process_state.items()}
 
 
@@ -2693,6 +2694,7 @@ async def get_status(task_name: str, include_health: bool = False):
     if task_name not in process_state:
         raise HTTPException(status_code=404, detail="Task not found")
     state = dict(process_state[task_name])
+    state["running"] = is_task_running(task_name)
     state.pop("process", None)
     state.pop("processes", None)
     if task_name == "batch_review":
