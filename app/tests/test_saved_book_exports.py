@@ -47,6 +47,7 @@ class SavedBookExportTests(unittest.TestCase):
                             ("CHUNKS_PATH", str(self.root / "chunks.json")),
                             ("process_state", self.state)):
             self.stack.enter_context(patch.object(library, name, value))
+        self.stack.enter_context(patch.object(core, "DATA_DIR", str(self.root)))
         self.stack.enter_context(patch.object(core, "process_state", self.state))
         self.stack.enter_context(patch.object(core, "_task_claims", {}))
         self.stack.enter_context(patch.object(core, "_gpu_leases", {}))
