@@ -807,6 +807,8 @@ async def get_default_prompts():
     pass3_system_prompt, pass3_user_prompt = load_instruct_prompts()
     result = {
         "generation": GenerationConfig().model_dump(),
+        "persona_reference_chars": PromptConfig().persona_reference_chars,
+        "persona_allow_unknown_network_context": PromptConfig().persona_allow_unknown_network_context,
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         "pass1_system_prompt": pass1_system_prompt,

@@ -24,7 +24,7 @@ def validate_persona_payload(payload):
     return {"description": description, "ref_text": ref_text}
 
 
-def get_reference_samples(character_ref):
+def get_reference_samples(character_ref, max_chars=2000):
     """Return exact, bounded dialogue samples; long lines use a source prefix."""
     lines = list(character_ref.get("sample_lines", [])) if isinstance(character_ref.get("sample_lines"), list) else []
     for observation in character_ref.get("observations", []):
@@ -35,13 +35,13 @@ def get_reference_samples(character_ref):
         if not isinstance(line, str) or not line.strip():
             continue
         text = line.strip()
-        if len(text) > 2000:
+        if len(text) > max_chars:
             import re
-            boundary = re.search(r"[.!?](?:[\"’”])?(?=\s|$)", text[:2000])
+            boundary = re.search(r"[.!?](?:[\"’”])?(?=\s|$)", text[:max_chars])
             if boundary:
                 text = text[:boundary.end()]
             else:
-                prefix = text[:2000]
+                prefix = text[:max_chars]
                 text = prefix.rsplit(" ", 1)[0] if " " in prefix else prefix
         if not get_unsafe_text_controls(text) and text not in samples:
             samples.append(text)

@@ -48,6 +48,18 @@ class ProviderRequestSettingsTest(unittest.TestCase):
     def setUp(self):
         _FakeOpenAI.instances.clear()
 
+    def test_context_rejections_are_distinct_from_other_bad_requests(self):
+        from types import SimpleNamespace
+        for body in ({'code': 'context_length_exceeded'},
+                     {'error': {'code': 'context_length_exceeded'}}):
+            error = SimpleNamespace(status_code=400, body=body)
+            result = classify_llm_error(error)
+            self.assertEqual(result['category'], 'context_budget')
+            self.assertFalse(result['retryable'])
+        error = SimpleNamespace(status_code=400, body={'error': {'code': 'invalid_api_key'}})
+        self.assertEqual(classify_llm_error(error)['category'], 'api_error')
+        self.assertTrue(classify_llm_error(error)['retryable'])
+
     def test_profile_keeps_json_provider_options(self):
         profile = LLMConfig(
             base_url="http://localhost:1234/v1", api_key="key", model_name="model",

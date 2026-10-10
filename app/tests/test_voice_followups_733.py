@@ -122,6 +122,49 @@ class VoiceTimelineAudioTests(unittest.TestCase):
                 self.assertEqual(original,(root/rows[2]['audio_path']).read_bytes())
                 for index in (0,1,3):self.assertEqual('done',saved[index]['status'])
 
+    def test_manual_selection_invalidates_only_changed_effective_voices(self):
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            root, manager, client, _, _, rows = self.fixture(directory, stack)
+            self.apply(client, [{'from_index': 2, 'version_id': 'different'},
+                                {'from_index': 3, 'version_id': None}])
+            current = manager.load_chunks()
+            current[2].update(status='done', audio_path=rows[2]['audio_path'])
+            manager.save_chunks(current)
+            before = copy.deepcopy(current)
+            audio = {row['audio_path']: (root / row['audio_path']).read_bytes() for row in rows}
+            response = client.post('/api/voices/A/versions/different/select')
+            self.assertEqual(response.status_code, 200, response.text)
+            saved = manager.load_chunks()
+            self.assertEqual([row['id'] for row in saved if row['status'] != 'done'], [0, 3])
+            for index in (0, 3):
+                self.assertIsNone(saved[index]['audio_path'])
+                self.assertTrue(saved[index]['voice_revision'])
+            for index in (1, 2):
+                self.assertEqual(saved[index], before[index])
+            for name, data in audio.items():
+                self.assertEqual((root / name).read_bytes(), data)
+            chunk_bytes = Path(manager.chunks_path).read_bytes()
+            self.assertEqual(client.post('/api/voices/A/versions/different/select').status_code, 200)
+            self.assertEqual(Path(manager.chunks_path).read_bytes(), chunk_bytes)
+
+    def test_manual_selection_during_render_rejects_stale_audio(self):
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            root, manager, client, _, _, rows = self.fixture(directory, stack)
+            audio = (root / rows[0]['audio_path']).read_bytes()
+            def render(text, instruct, speaker, config, output):
+                response = client.post('/api/voices/A/versions/different/select')
+                self.assertEqual(response.status_code, 200, response.text)
+                sf.write(output, np.full(240, .8), 24000)
+                return True
+            manager.engine = SimpleNamespace(generate_voice=render)
+            success, message = manager.generate_chunk_audio(0)
+            self.assertFalse(success)
+            self.assertIn('generation inputs', message)
+            saved = manager.load_chunks()[0]
+            self.assertEqual(saved['status'], 'pending')
+            self.assertIsNone(saved['audio_path'])
+            self.assertEqual((root / rows[0]['audio_path']).read_bytes(), audio)
+
     def test_equivalent_voice_version_does_not_invalidate_audio(self):
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
             _, manager, client, _, _, _ = self.fixture(directory, stack)

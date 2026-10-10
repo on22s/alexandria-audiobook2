@@ -1438,7 +1438,12 @@
                             <div class="mb-3">
                                 <label class="form-label" for="persona-reference-chars">Persona reference characters per request</label>
                                 <input class="form-control mb-2" id="persona-reference-chars" type="number" min="12000" max="1000000" step="1" value="12000">
-                                <div class="form-text mb-2">Evidence allowance; instructions are additional. The model context may require smaller requests. Unknown context uses at most 12,000 characters.</div>
+                                <div class="form-text mb-2">Final compilation evidence allowance; instructions are additional. Discovery uses separate script-entry batches. The model context may require smaller requests. Unknown context defaults to at most 12,000 characters.</div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" id="persona-unknown-network-context" type="checkbox">
+                                    <label class="form-check-label" for="persona-unknown-network-context">Advanced: use this allowance for network models with unknown context</label>
+                                    <div class="form-text">Opt in only if your provider supports larger requests. Context rejections trigger smaller batches. Local models retain their safeguards.</div>
+                                </div>
                                 <label class="form-label" for="persona-advanced-prompt">Persona Advanced Compilation Prompt</label>
                                 <textarea class="form-control font-monospace" id="persona-advanced-prompt" rows="8" style="font-size: 0.85em;"></textarea>
                                 <div class="form-text">Template for advanced mode final compilation. Use <code>{character_ref}</code> for the accumulated character reference data.</div>

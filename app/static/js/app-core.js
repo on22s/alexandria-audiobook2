@@ -1837,6 +1837,7 @@
                         document.getElementById('persona-user-prompt').value = config.prompts.persona_user_prompt;
                     }
                     document.getElementById('persona-reference-chars').value = config.prompts.persona_reference_chars ?? 12000;
+                    document.getElementById('persona-unknown-network-context').checked = config.prompts.persona_allow_unknown_network_context ?? false;
                     if (config.prompts.persona_advanced_prompt) {
                         document.getElementById('persona-advanced-prompt').value = config.prompts.persona_advanced_prompt;
                     }
@@ -1913,6 +1914,8 @@
                 if (defaults.persona_advanced_prompt) {
                     document.getElementById('persona-advanced-prompt').value = defaults.persona_advanced_prompt;
                 }
+                document.getElementById('persona-reference-chars').value = defaults.persona_reference_chars ?? 12000;
+                document.getElementById('persona-unknown-network-context').checked = defaults.persona_allow_unknown_network_context ?? false;
                 applyGenerationSettings(g);
                 showToast('Default prompts and generation settings are on this form. Click Save Configuration to keep them.', 'success');
             } catch (e) {
@@ -1971,6 +1974,7 @@
                     persona_user_prompt: document.getElementById('persona-user-prompt').value,
                     persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value,
                     persona_reference_chars: Number(document.getElementById('persona-reference-chars').value || 12000),
+                    persona_allow_unknown_network_context: document.getElementById('persona-unknown-network-context').checked,
                     pass1_preset: pass1Payload.active,
                     pass1_prompt_presets: pass1Payload.own,
                     pass3_preset: pass3Payload.active,

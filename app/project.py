@@ -669,10 +669,7 @@ class ProjectManager:
         Invalidate before publishing voices: an interrupted save can require
         extra regeneration, but cannot leave changed voices with current audio.
         """
-        def get_timeline(config):
-            return config.get("version_timeline", []) if isinstance(config, dict) else []
-        if not any(get_timeline(before.get(name)) or get_timeline(after.get(name))
-                   for name in set(before) | set(after)) or not os.path.exists(self.chunks_path):
+        if not os.path.exists(self.chunks_path):
             return []
         chunks = self._read_chunks()
         changed = [index for index, chunk in enumerate(chunks)

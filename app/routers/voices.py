@@ -535,9 +535,9 @@ async def select_voice_version(speaker: str, version_id: str):
         get_validated_voice_changes(speaker, entry, after)
         entry.clear()
         entry.update(after)
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, select)
+    entry, revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, select)
     return {"status": "selected", "speaker": speaker, "version_id": version_id,
-            "config": entry}
+            "config": entry, "revision": revision}
 
 
 @router.post("/api/voices/{speaker}/candidates")

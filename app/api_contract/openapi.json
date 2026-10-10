@@ -2370,6 +2370,11 @@
             ],
             "title": "Persona Advanced Prompt"
           },
+          "persona_allow_unknown_network_context": {
+            "default": false,
+            "title": "Persona Allow Unknown Network Context",
+            "type": "boolean"
+          },
           "persona_reference_chars": {
             "default": 12000,
             "maximum": 1000000.0,
