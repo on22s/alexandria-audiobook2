@@ -2446,6 +2446,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                         batch, request_params, roster, contexts, surround,
                         attribute_prompt_variant, attribute_prompt_texts, cast,
                         get_established_traits(named) if speaker_traits else None)
+                    if hasattr(entries_provider, "build_request"):
+                        system_prompt, user_prompt = entries_provider.build_request(
+                            batch, request_params, roster, contexts, surround,
+                            get_established_traits(named) if speaker_traits else None)
                     if not does_request_fit_context(system_prompt, user_prompt, request_params,
                                                     max(256, (128 if speaker_traits else 24) * len(batch))):
                         if len(current) == 1:
