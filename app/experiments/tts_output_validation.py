@@ -272,8 +272,9 @@ def main():
         try:
             heard = transcribe(seg["wav"])
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            print(f"  [{i}/{len(segments)}] transcribe failed: {e}")
-            continue
+            raise RuntimeError(
+                f"transcription failed for segment {i}/{len(segments)}; "
+                "validation is incomplete and no result was written") from e
         r = validate(seg["text"], heard, args.strictness)
         # `source` is what the model was ASKED to say. Without it an artifact
         # records only what was HEARD, so a 32% word error rate cannot be
@@ -288,8 +289,7 @@ def main():
               f"errors, {r['chars']} chars")
 
     if not rows:
-        print("nothing validated")
-        return
+        raise RuntimeError("nothing validated; no result was written")
 
     failed = sum(r["failed"] for r in rows)
     trunc = sum(r["possible_truncation"] for r in rows)
