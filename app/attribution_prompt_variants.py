@@ -487,14 +487,20 @@ def make_provider(variant, alias_groups=None, texts=None):
     run_id = uuid.uuid4().hex
     memory = {"previous": [], "summary": "", "tail": []}
 
+    def build_request(frozen_batch, params, roster=None, neighbor_contexts=None,
+                      surround=None, roster_traits=None):
+        """Preview the exact next request, including this run's rolling memory."""
+        return build_variant_request(
+            variant, frozen_batch, params, roster, alias_groups, neighbor_contexts,
+            surround, memory, texts, roster_traits)
+
     def provider(client, model_name, sys_prompt, user_prompt, params, log_name, label,
                  max_retries, validate_entries, attempt_observer, frozen_batch,
                  roster=None, neighbor_contexts=None, surround=None, roster_traits=None,
                  **_ignored):
         michel2_family = variant.startswith("michel2")
-        sys_prompt, body = build_variant_request(
-            variant, frozen_batch, params, roster, alias_groups, neighbor_contexts,
-            surround, memory, texts, roster_traits)
+        sys_prompt, body = build_request(
+            frozen_batch, params, roster, neighbor_contexts, surround, roster_traits)
         validator = validate_entries
         if variant == "judge":
             from dataclasses import replace
@@ -512,13 +518,15 @@ def make_provider(variant, alias_groups=None, texts=None):
             client, model_name, sys_prompt, body, params, log_name=log_name, label=label,
             max_retries=max_retries, validate_entries=validator,
             attempt_observer=attempt_observer)
-        if named:
-            spoken = [(i, item.get("speaker")) for i, (f, item) in enumerate(zip(frozen_batch, named))
+        from pass_quality import index_head_check
+        aligned, _reason, ordered = index_head_check(frozen_batch, named)
+        if named and aligned:
+            spoken = [(i, item.get("speaker")) for i, (f, item) in enumerate(zip(frozen_batch, ordered))
                       if f["type"] == "SPOKEN" and item.get("speaker")]
             memory["previous"] = spoken[-8:]
             if variant == "continuity" or michel2_family:
                 memory["tail"] = [(item.get("speaker"), f["text"])
-                                  for f, item in zip(frozen_batch, named)
+                                  for f, item in zip(frozen_batch, ordered)
                                   if f["type"] == "SPOKEN"][-TAIL_LINES:]
         if variant == "judge":
             record_judge_reasons(frozen_batch, named, run_id)
@@ -529,4 +537,5 @@ def make_provider(variant, alias_groups=None, texts=None):
         return named
 
     provider.variant = variant
+    provider.build_request = build_request
     return provider
