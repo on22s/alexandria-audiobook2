@@ -1064,7 +1064,8 @@ class ProjectManager:
                 audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides,
                 cancel_check=cancel_check)
             ensure_audio_export_active(cancel_check)
-            _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE)
+            _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE,
+                                  cancel_check=cancel_check)
             ensure_audio_export_active(cancel_check)
             os.replace(pending_output, output_path)
         except ExportCancelled:

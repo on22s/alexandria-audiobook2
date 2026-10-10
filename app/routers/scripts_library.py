@@ -24,7 +24,7 @@ from core import (
     UPLOADS_DIR,
     VOICE_CONFIG_PATH,
     _get_saved_book_id,
-    _gpu_lock,
+    _gpu_lock, ensure_book_switch_allowed,
     _require_safe_filename,
     _save_active_book_id,
     _saved_book_meta_path,
@@ -192,7 +192,7 @@ def _load_script_sync(request: ScriptLoadRequest):
 
     # The durable book transaction protects the entire switch, including old
     # exports and recovery sidecars, rather than publishing unrelated copies.
-    with _gpu_lock, ensure_book_state(DATA_DIR), ensure_book_state(SCRIPTS_DIR), file_lock(src), file_lock(SCRIPT_PATH), file_lock(VOICE_CONFIG_PATH), file_lock(CHUNKS_PATH):
+    with ensure_book_switch_allowed(), ensure_book_state(DATA_DIR, timeout=0), ensure_book_state(SCRIPTS_DIR), file_lock(src), file_lock(SCRIPT_PATH), file_lock(VOICE_CONFIG_PATH), file_lock(CHUNKS_PATH):
         if not os.path.isfile(src):
             raise HTTPException(status_code=404, detail=f"Saved script '{request.name}' not found.")
         _require_saved_book_idle()

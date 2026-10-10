@@ -1,6 +1,7 @@
 import json
 import asyncio
 import contextvars
+from contextlib import contextmanager
 import functools
 import logging
 import math
@@ -36,7 +37,7 @@ from lmstudio_settings import (get_active_llm_config, get_current_status, get_ef
 from hf_utils import fetch_builtin_manifest, is_adapter_downloaded
 from run_history import finish_run, prune_runs, record_artifact, start_run
 from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
-from task_ownership import acquire_task_lease
+from task_ownership import acquire_task_lease, ensure_startup_recovery
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -648,6 +649,24 @@ _gpu_lock = threading.Lock()
 _gpu_leases = {}
 _task_claims = {}
 _request_task_claims = contextvars.ContextVar("alexandria_request_task_claims", default=None)
+
+
+@contextmanager
+def ensure_book_switch_allowed():
+    """Exclude local and foreign task admission until a book switch commits."""
+    try:
+        with _gpu_lock, ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
+            busy = [name for name in process_state if is_task_running(name)]
+            if busy:
+                raise HTTPException(status_code=409, detail=(
+                    "Cannot switch books while tasks are running: " + ", ".join(busy)
+                    + ". Wait for them to finish or cancel them."))
+            if not idle:
+                raise HTTPException(status_code=409, detail=(
+                    "Cannot switch books while another process owns a task. Wait for it to finish or cancel it."))
+            yield
+    except TimeoutError as exc:
+        raise HTTPException(status_code=409, detail="Book is busy; try switching again.") from exc
 
 
 def _reap_gpu_leases():
