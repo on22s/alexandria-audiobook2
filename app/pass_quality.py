@@ -549,6 +549,48 @@ NAME_TITLE_PREFIXES = frozenset({
 })
 
 
+# These words are routinely capitalised by sentence position alone. They may
+# still be character names, but need an occurrence outside that position or an
+# explicit reporting clause. A supplied cast continues to bypass this gate.
+_NON_PERSON_NAME_WORDS = frozenset({
+    "a", "an", "the", "he", "she", "it", "they", "we", "you", "i",
+    "this", "that", "these", "those",
+})
+_SENTENCE_OPENING_WORDS = frozenset({
+    "and", "but", "or", "however", "still", "yet", "then",
+    "therefore", "thus", "meanwhile", "nevertheless", "nonetheless", "otherwise",
+})
+_NUMBER_WORDS = frozenset({
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+    "seventeen", "eighteen", "nineteen", "twenty", "hundred", "thousand",
+})
+_INTERJECTION_NAME = re.compile(r"(?:a+h+|o+h+|u+h+|h+m+|h+a+|w+o+w+)", re.IGNORECASE)
+
+
+def is_weak_sentence_name(name):
+    """Whether sentence-position capitals are ambiguous for this label."""
+    words = re.findall(r"[^\W\d_]+|\d+", name.casefold())
+    return (not words or
+            (len(words) == 1 and
+             (words[0] in _SENTENCE_OPENING_WORDS or
+              bool(_INTERJECTION_NAME.fullmatch(words[0])))) or
+            all(word in _NUMBER_WORDS or word.isdigit() for word in words))
+
+
+def is_name_context(match, source_text):
+    """Distinguish forced capitals from name use for an ambiguous label."""
+    prefix = source_text[max(0, match.start() - 120):match.start()].rstrip(' \t\r')
+    suffix = source_text[match.end():match.end() + 120]
+    # Both 'Still said' and 'said Still' identify a reporting subject, including
+    # a name at the start of a paragraph or after a closing dialogue quote.
+    if (re.match(rf"\s+(?:[\w’'-]+ly\s+)?{_REPORTING_VERBS}\b", suffix,
+                 re.IGNORECASE) or
+            re.search(rf"\b{_REPORTING_VERBS}\s*$", prefix, re.IGNORECASE)):
+        return True
+    return bool(prefix and prefix[-1] not in _SENTENCE_END | _QUOTE_CHARS | {"\n"})
+
+
 def get_name_attestation_threshold(source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     """Retain the long-source gate while requiring evidence in short sources."""
     return 1 if len(source_text) < MIN_SOURCE_FOR_ATTESTATION else min_attestations
@@ -572,16 +614,26 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     """
     if not source_text or not name:
         return True
+    # Reporting verbs after a pronoun ("He said") are not personal-name
+    # evidence. Explicit cast names are handled by the caller before this gate.
+    if name.casefold().strip(".?!…") in _NON_PERSON_NAME_WORDS:
+        return False
     min_attestations = get_name_attestation_threshold(source_text, min_attestations)
     # Match case-insensitively and judge by the first letter, because str.title()
     # capitalises after every non-letter: "BRI-CHAN".title() is "Bri-Chan" but
     # the book writes "Bri-chan". That spelling mismatch rejected three real
     # grimgar03 characters - Bri-chan (55 mentions), Zodiac-kun, Barbara-sensei -
     # as inventions, which is every honorific-suffixed name in a translated work.
-    occurrences = re.findall(r"(?<!\w)" + re.escape(name) + r"(?!\w)", source_text,
-                             re.IGNORECASE)
-    capitalized = sum(1 for found in occurrences if found[:1].isupper())
+    occurrences = list(re.finditer(r"(?<!\w)" + re.escape(name) + r"(?!\w)",
+                                   source_text, re.IGNORECASE))
+    capitalized = sum(1 for found in occurrences if found.group()[:1].isupper())
     lowercase = len(occurrences) - capitalized
+    if is_weak_sentence_name(name):
+        capitalized = sum(1 for found in occurrences
+                          if found.group()[:1].isupper() and
+                          is_name_context(found, source_text))
+        # Do not let the full-name fallback turn a countdown into a person.
+        return capitalized >= min_attestations and capitalized > lowercase * 2
     if capitalized >= min_attestations and capitalized > lowercase * 2:
         return True
     # A full name the book writes once - "Ian Fairytale" at his introduction,

@@ -7050,6 +7050,15 @@
     "tests.test_segmentation_mode_names.SegmentationModeNamesTest.test_every_stored_value_has_a_user_facing_name",
     "tests.test_segmentation_mode_names.SegmentationModeNamesTest.test_the_checker_can_fail"
   ],
+  "test_sentence_initial_speaker_names": [
+    "tests.test_sentence_initial_speaker_names.SentenceInitialSpeakerNamesTest.test_ambiguous_real_names_require_name_context",
+    "tests.test_sentence_initial_speaker_names.SentenceInitialSpeakerNamesTest.test_explicit_cast_remains_authoritative",
+    "tests.test_sentence_initial_speaker_names.SentenceInitialSpeakerNamesTest.test_full_name_fallback_cannot_use_weak_first_component",
+    "tests.test_sentence_initial_speaker_names.SentenceInitialSpeakerNamesTest.test_issue_reproduction_short_and_long_sources",
+    "tests.test_sentence_initial_speaker_names.SentenceInitialSpeakerNamesTest.test_pronouns_and_articles_are_not_reporting_subject_names",
+    "tests.test_sentence_initial_speaker_names.SentenceInitialSpeakerNamesTest.test_quoted_openings_and_paragraphs_are_weak_evidence",
+    "tests.test_sentence_initial_speaker_names.SentenceInitialSpeakerNamesTest.test_ratio_and_threshold_still_apply_to_ambiguous_names"
+  ],
   "test_separator_earcheck_explicit_terms": [],
   "test_serialized_save_queue": [
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_actual_dataset_row_handler_serializes_inflight_saves_and_persists_latest_rows",
