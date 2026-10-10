@@ -67,6 +67,11 @@ class CiEnvParityTests(unittest.TestCase):
         self.assertEqual([f"{i}/{count}" for i in range(1, count + 1)], shards)
         self.assertIn(f"python check_shard_reports.py ../shard-reports --shards {count}", workflow)
         self.assertIn("actions/upload-artifact@v6", workflow)
+        identity = "release-verification-report-run-${{ github.run_id }}-sha-${{ github.sha }}"
+        self.assertIn(f"name: {identity}-attempt-${{{{ github.run_attempt }}}}-shard-${{{{ strategy.job-index }}}}", workflow)
+        self.assertIn(f"pattern: {identity}-attempt-*-shard-*", workflow)
+        for flag, context in (("run-id", "run_id"), ("run-attempt", "run_attempt"), ("commit-sha", "sha")):
+            self.assertIn(f'--{flag} "${{{{ github.{context} }}}}"', workflow)
         self.assertIn("Diagnose whether failure exists on the base commit", workflow)
         self.assertIn("fetch-depth: 0", workflow)
 

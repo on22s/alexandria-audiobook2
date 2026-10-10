@@ -362,5 +362,94 @@ class ShardReportCheckTests(unittest.TestCase):
         self.assertEqual(sum(len(v) for v in INVENTORY.values()), checker.get_inventory_total())
 
 
+class CiArtifactSelectionTests(unittest.TestCase):
+    sha = "a" * 40
+    run_id = "38079958337"
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name) / "artifacts"
+        self.root.mkdir()
+        self.inventory = Path(directory.name) / "inventory.json"
+        self.inventory.write_text(json.dumps({"fixture": [f"shard{i}.test0" for i in (1, 2, 3)]}))
+
+    def artifact(self, index, attempt, status="passed", *, sha=None, run_id=None, report=True):
+        folder = self.root / (f"release-verification-report-run-{run_id or self.run_id}"
+                              f"-sha-{sha or self.sha}-attempt-{attempt}-shard-{index - 1}")
+        folder.mkdir()
+        if report:
+            (folder / "release-report.json").write_text(json.dumps(passing_report(index, 3, 1, status=status)))
+        return folder
+
+    def check(self, attempt=2):
+        with patch.object(sys, "stdout", io.StringIO()), patch.object(sys, "stderr", io.StringIO()):
+            return checker.main([str(self.root), "--shards", "3", "--inventory", str(self.inventory),
+                                 "--run-id", self.run_id, "--run-attempt", str(attempt), "--commit-sha", self.sha])
+
+    def test_stale_failed_duplicate_is_replaced_on_partial_retry(self):
+        for index in (1, 2, 3):
+            self.artifact(index, 1, "failed" if index == 3 else "passed")
+        self.artifact(3, 2)
+        reports = [json.loads(p.read_text()) for p in self.root.rglob("release-report.json")]
+        self.assertTrue(checker.get_shard_report_errors(reports, 3, 3))
+        self.assertEqual(0, self.check())
+        selected = checker.load_ci_reports(self.root, 3, self.run_id, 2, self.sha)
+        self.assertEqual(["passed"] * 3, [report["status"] for report in selected])
+
+    def test_full_retry_and_aggregate_only_retry_select_by_attempt_not_mtime(self):
+        import os
+        for index in (1, 2, 3):
+            self.artifact(index, 1, "failed")
+            folder = self.artifact(index, 2)
+            os.utime(folder, (1, 1))
+        self.assertEqual(0, self.check())
+        self.assertEqual(0, self.check(attempt=3))
+
+    def test_latest_failure_never_falls_back_to_an_older_pass(self):
+        for index in (1, 2, 3):
+            self.artifact(index, 1)
+        self.artifact(3, 2, "failed")
+        self.assertEqual(1, self.check())
+
+    def test_missing_shard_and_missing_latest_report_fail_closed(self):
+        self.artifact(1, 1)
+        self.artifact(2, 1)
+        self.assertEqual(1, self.check())
+        self.artifact(3, 1)
+        self.artifact(3, 2, report=False)
+        self.assertEqual(1, self.check())
+
+    def test_incompatible_run_head_future_attempt_and_report_shard_are_rejected(self):
+        for case in ("run", "head", "future", "shard", "legacy", "duplicate report", "malformed"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                original = self.root
+                self.root = Path(directory)
+                for index in (1, 2, 3):
+                    self.artifact(index, 1)
+                folder = self.artifact(3, 3 if case == "future" else 2,
+                                       run_id="99" if case == "run" else None,
+                                       sha="b" * 40 if case == "head" else None)
+                if case == "shard":
+                    (folder / "release-report.json").write_text(json.dumps(passing_report(2, 3, 1)))
+                elif case == "legacy":
+                    folder.rename(self.root / "release-verification-report-shard-2")
+                elif case == "duplicate report":
+                    (folder / "nested").mkdir()
+                    (folder / "nested" / "release-report.json").write_text("{}")
+                elif case == "malformed":
+                    (folder / "release-report.json").write_text("{")
+                self.assertEqual(1, self.check())
+                self.root = original
+
+    def test_selected_reports_still_enforce_exact_test_identities(self):
+        for index in (1, 2, 3):
+            folder = self.artifact(index, 2)
+        report = passing_report(3, 3, 1)
+        report["gates"][0]["result"]["test_ids"] = ["shard2.test0"]
+        (folder / "release-report.json").write_text(json.dumps(report))
+        self.assertEqual(1, self.check())
+
+
 if __name__ == "__main__":
     unittest.main()

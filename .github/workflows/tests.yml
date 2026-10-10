@@ -135,7 +135,8 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           # A shard name contains "/", which artifact names forbid.
-          name: release-verification-report-shard-${{ strategy.job-index }}
+          # Keep historical reports, but never download two attempts into one directory.
+          name: release-verification-report-run-${{ github.run_id }}-sha-${{ github.sha }}-attempt-${{ github.run_attempt }}-shard-${{ strategy.job-index }}
           path: |
             app/release-report.json
             app/base-release-report.json
@@ -164,11 +165,17 @@ jobs:
 
       - uses: actions/download-artifact@v6
         with:
-          pattern: release-verification-report-shard-*
+          pattern: release-verification-report-run-${{ github.run_id }}-sha-${{ github.sha }}-attempt-*-shard-*
           path: shard-reports
 
       - name: Verify the shards together ran every test exactly once
-        run: python check_shard_reports.py ../shard-reports --shards 3
+        # Failed-job retries may retain successful shards from earlier attempts of
+        # this exact run/checkout SHA. The checker selects each shard's highest
+        # attempt, including failures; it never falls back to an older pass.
+        run: >-
+          python check_shard_reports.py ../shard-reports --shards 3
+          --run-id "${{ github.run_id }}" --run-attempt "${{ github.run_attempt }}"
+          --commit-sha "${{ github.sha }}"
 
   windows-owner:
     runs-on: windows-latest
