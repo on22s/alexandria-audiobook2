@@ -188,16 +188,52 @@ class SpeakerReviewApiTests(unittest.TestCase):
                 self.assertEqual(before_aliases, Path(c.CHARACTER_ALIASES_PATH).read_bytes()
                                  if Path(c.CHARACTER_ALIASES_PATH).exists() else None)
 
-    def test_existing_alias_disables_apply_in_review_report(self):
+    def test_existing_alias_disables_only_owned_direction(self):
         sel = fixture('existing_alias')
         save(c.CHARACTER_ALIASES_PATH, {'ALICE0': 'OTHER'})
         preview = self.preview(sel)
         run_id = self.start(sel, preview)
         report = client.get('/api/speaker_review/' + run_id).json()
         self.assertEqual('completed', report['status'])
-        self.assertFalse(report['candidates'][0]['can_apply'])
-        self.assertIn('already has a saved alias', report['candidates'][0]['apply_refusal'])
+        self.assertTrue(report['candidates'][0]['can_apply'])
+        directions = report['candidates'][0]['apply_directions']
+        self.assertFalse(directions[0]['can_apply'])
+        self.assertTrue(directions[1]['can_apply'])
+        self.assertIn('already has a saved alias', directions[0]['apply_refusal'])
         self.assertEqual({'ALICE0': 'OTHER'}, json.loads(Path(c.CHARACTER_ALIASES_PATH).read_text()))
+
+    def test_directional_eligibility_matches_guarded_apply(self):
+        for aliases, expected in (({'ALICE0': 'OTHER'}, [False, True]),
+                                  ({'AL0': 'OTHER'}, [True, False]),
+                                  ({'ALICE0': 'OTHER', 'AL0': 'OTHER'}, [False, False]),
+                                  ({'AL0': 'ALICE0'}, [False, False])):
+            with self.subTest(aliases=aliases):
+                sel = fixture('direction_' + json.dumps(aliases, sort_keys=True))
+                save(c.CHARACTER_ALIASES_PATH, aliases)
+                preview = self.preview(sel)
+                run_id = self.start(sel, preview)
+                report = client.get('/api/speaker_review/' + run_id).json()
+                candidate = report['candidates'][0]
+                self.assertEqual(expected, [item['can_apply'] for item in candidate['apply_directions']])
+                self.assertEqual(any(expected), candidate['can_apply'])
+                before_script = Path(c.SCRIPT_PATH).read_bytes()
+                for item in candidate['apply_directions']:
+                    if not item['can_apply']:
+                        response = client.post('/api/speaker_review/' + run_id + '/apply', json={
+                            'snapshot': preview['snapshot'], 'candidate_id': candidate['id'],
+                            'alias': item['alias'], 'canonical': item['canonical']})
+                        self.assertEqual(409, response.status_code)
+                        self.assertEqual(aliases, json.loads(Path(c.CHARACTER_ALIASES_PATH).read_text()))
+                if any(expected):
+                    item = next(item for item in candidate['apply_directions'] if item['can_apply'])
+                    response = client.post('/api/speaker_review/' + run_id + '/apply', json={
+                        'snapshot': preview['snapshot'], 'candidate_id': candidate['id'],
+                        'alias': item['alias'], 'canonical': item['canonical']})
+                    self.assertEqual(200, response.status_code, response.text)
+                    stale = client.get('/api/speaker_review/' + run_id).json()
+                    self.assertTrue(stale['stale'])
+                    self.assertFalse(any(item['can_apply'] for item in stale['candidates'][0]['apply_directions']))
+                self.assertEqual(before_script, Path(c.SCRIPT_PATH).read_bytes())
 
     def test_protected_labels_and_cycles(self):
         candidate={'id':'x','labels':['ALICE','NARRATOR']};reviews=[{'candidate_id':'x','mode':mode,'verdict':{'same_identity':True,'reason':'x'}} for mode in m.MODES]

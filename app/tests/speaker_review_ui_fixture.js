@@ -54,7 +54,7 @@ panel=panel.slice(0,panel.lastIndexOf('            <div class="card">'));
 const core=fs.readFileSync(root+'/app/static/js/app-core.js','utf8');
 const book=core.slice(core.indexOf("        let currentBookFilename = '';"),core.indexOf('        function getCurrentBookName('));
 const script=fs.readFileSync(root+'/app/static/js/app-speaker-review.js','utf8');
-const setup="\nwindow.calls=[];window.confirmed=true;window.confirmations=[];window.clearedAliases=0;\nfunction showConfirm(message, options){confirmations.push({message, options});return window.holdConfirm?new Promise(r=>window.resolveConfirm=r):Promise.resolve(confirmed);}\nfunction clearCharacterAliases(){clearedAliases++;}\nfunction getActionErrorMessage(action,error,recovery){return `${action}. ${recovery} Details: ${error.message}`;}\nconst clone=v=>JSON.parse(JSON.stringify(v));\nwindow.mockOptions={book_id:'book-token-a',sources:[{id:'current',label:'Current script',available:true,entries:5,total:5,complete:true},{id:'checkpoint',label:'Attribution checkpoint',available:true,entries:3,total:5,complete:false}],references:[{name:'Reference <img src=x onerror=window.xss=true>'}],profile:{model:'test-model',endpoint:'https://model.example/v1',available:true},limits:{max_pairs:20,max_attempts:40,modes:['none','low']}};\nwindow.mockPreview={snapshot:'snapshot-one',book_id:'book-token-a',source:'current',reference_name:mockOptions.references[0].name,phase:'reconciled',warning:'Provisional reference.',candidates:[{id:'pair-one',entry_index:0,labels:['Al','Alice'],prediction_label:'Al',reference_label:'Alice',context:[{text:'<img src=x onerror=window.xss=true> Hello',type:'SPOKEN',speaker:'Al'}],reference_context:[{text:'Hello',type:'SPOKEN',speaker:'Alice'}],can_apply:false}],skipped:[],call_count:2,profile:mockOptions.profile,limits:mockOptions.limits};\nwindow.mockReport={...clone(mockPreview),run_id:'run-one',status:'completed',attempts:2,reviews:[{candidate_id:'pair-one',entry_index:0,mode:'none',verdict:{same_identity:true,reason:'Same evidence <script>window.xss=true</script>'}},{candidate_id:'pair-one',entry_index:0,mode:'low',verdict:{same_identity:true,reason:'Supported by the scene'}}],applied:[],stale:false};\nmockReport.candidates[0].can_apply=true;\nwindow.errorResponse=null;\nconst API={get:async url=>{calls.push({method:'GET',url});if(window.errorResponse?.url===url)throw Object.assign(new Error(errorResponse.message),{status:errorResponse.status});if(url.endsWith('/options')){if(window.holdOptions)await new Promise(r=>window.resolveOptions=r);return clone(mockOptions);}if(window.holdReport)await new Promise(r=>window.resolveReport=r);return clone(mockReport);},post:async(url,body)=>{calls.push({method:'POST',url,body});if(window.errorResponse?.url===url)throw Object.assign(new Error(errorResponse.message),{status:errorResponse.status});if(url.endsWith('/preview')){if(window.holdPreview)await new Promise(r=>window.resolvePreview=r);return clone(mockPreview);}if(url.endsWith('/start')){if(window.holdStart)await new Promise(r=>window.resolveStart=r);return {run_id:'run-one',status:'running'};}if(url.endsWith('/cancel')){mockReport.status='cancelled';return {status:'cancelling'};}if(url.endsWith('/apply')){return {status:'saved',alias:body.alias,canonical:body.canonical,run_id:'run-one',applied:['pair-one']};}throw Error('Unexpected URL '+url);}};\n";
+const setup="\nwindow.calls=[];window.confirmed=true;window.confirmations=[];window.clearedAliases=0;\nfunction showConfirm(message, options){confirmations.push({message, options});return window.holdConfirm?new Promise(r=>window.resolveConfirm=r):Promise.resolve(confirmed);}\nfunction clearCharacterAliases(){clearedAliases++;}\nfunction getActionErrorMessage(action,error,recovery){return `${action}. ${recovery} Details: ${error.message}`;}\nconst clone=v=>JSON.parse(JSON.stringify(v));\nwindow.mockOptions={book_id:'book-token-a',sources:[{id:'current',label:'Current script',available:true,entries:5,total:5,complete:true},{id:'checkpoint',label:'Attribution checkpoint',available:true,entries:3,total:5,complete:false}],references:[{name:'Reference <img src=x onerror=window.xss=true>'}],profile:{model:'test-model',endpoint:'https://model.example/v1',available:true},limits:{max_pairs:20,max_attempts:40,modes:['none','low']}};\nwindow.mockPreview={snapshot:'snapshot-one',book_id:'book-token-a',source:'current',reference_name:mockOptions.references[0].name,phase:'reconciled',warning:'Provisional reference.',candidates:[{id:'pair-one',entry_index:0,labels:['Al','Alice'],prediction_label:'Al',reference_label:'Alice',context:[{text:'<img src=x onerror=window.xss=true> Hello',type:'SPOKEN',speaker:'Al'}],reference_context:[{text:'Hello',type:'SPOKEN',speaker:'Alice'}],can_apply:false}],skipped:[],call_count:2,profile:mockOptions.profile,limits:mockOptions.limits};\nwindow.mockReport={...clone(mockPreview),run_id:'run-one',status:'completed',attempts:2,reviews:[{candidate_id:'pair-one',entry_index:0,mode:'none',verdict:{same_identity:true,reason:'Same evidence <script>window.xss=true</script>'}},{candidate_id:'pair-one',entry_index:0,mode:'low',verdict:{same_identity:true,reason:'Supported by the scene'}}],applied:[],stale:false};\nmockReport.candidates[0].can_apply=true;\nmockReport.candidates[0].apply_directions=[{direction:'forward',alias:'Al',canonical:'Alice',can_apply:true,apply_refusal:null},{direction:'reverse',alias:'Alice',canonical:'Al',can_apply:true,apply_refusal:null}];\nwindow.errorResponse=null;\nconst API={get:async url=>{calls.push({method:'GET',url});if(window.errorResponse?.url===url)throw Object.assign(new Error(errorResponse.message),{status:errorResponse.status});if(url.endsWith('/options')){if(window.holdOptions)await new Promise(r=>window.resolveOptions=r);return clone(mockOptions);}if(window.holdReport)await new Promise(r=>window.resolveReport=r);return window.lastReport=clone(mockReport);},post:async(url,body)=>{calls.push({method:'POST',url,body});if(window.errorResponse?.url===url)throw Object.assign(new Error(errorResponse.message),{status:errorResponse.status});if(url.endsWith('/preview')){if(window.holdPreview)await new Promise(r=>window.resolvePreview=r);return clone(mockPreview);}if(url.endsWith('/start')){if(window.holdStart)await new Promise(r=>window.resolveStart=r);return {run_id:'run-one',status:'running'};}if(url.endsWith('/cancel')){mockReport.status='cancelled';return {status:'cancelling'};}if(url.endsWith('/apply')){return {status:'saved',alias:body.alias,canonical:body.canonical,run_id:'run-one',applied:['pair-one']};}throw Error('Unexpected URL '+url);}};\n";
 let assertions=0;const passed=[],errors=[];
 const settle=async()=>{for(let i=0;i<4;i++)await new Promise(r=>setImmediate(r));};
 function fresh(extra=''){
@@ -163,6 +163,61 @@ function check(w,condition,label){assert.equal(!!w.eval(condition),true,label);a
  check(w,"document.querySelector('#speaker-review-results').children.length===0&&!document.querySelector('#speaker-review-load').disabled",'Late status response cannot repopulate switched book');w.close();
  w=fresh("mockOptions.sources.forEach(s=>s.available=false);mockOptions.references=[];");await load(w);
  check(w,"document.querySelector('#speaker-review-preview').disabled&&document.querySelector('#speaker-review-status').textContent.includes('No saved reference')",'Missing sources and references fail safely');w.close();
+ w=fresh();await load(w);await select(w);await preview(w);await start(w);await click(w,'#speaker-review-refresh');await click(w,'[data-apply]');
+ check(w,"calls.filter(c=>c.url.endsWith('/apply')).length===1&&calls.find(c=>c.url.endsWith('/apply')).body.alias==='Al'",'Unchanged status refresh retains a usable eligible Apply');w.close();
+ // Registry eligibility is directional even when both judgments agree.
+ for(const blocked of ['forward','reverse']){
+  const allowed=blocked==='forward'?'reverse':'forward';
+  w=fresh(`const candidate=mockReport.candidates[0];candidate.prediction_label='Ally';candidate.labels=['Ally','Alice'];candidate.apply_directions=[{direction:'forward',alias:'Ally',canonical:'Alice',can_apply:${blocked!=='forward'},apply_refusal:${blocked==='forward'?"'Ally already aliases Alicia'":'null'}},{direction:'reverse',alias:'Alice',canonical:'Ally',can_apply:${blocked!=='reverse'},apply_refusal:${blocked==='reverse'?"'Alice already aliases Alicia'":'null'}}];`);
+  await load(w);await select(w);await preview(w);await start(w);
+  check(w,`document.querySelectorAll('[data-direction] option').length===1&&document.querySelector('[data-direction]').value==='${allowed}'&&!document.querySelector('[data-apply]').disabled`,`${allowed}-only registry eligibility renders only the available direction`);
+  await change(w,'[data-direction]',blocked);await click(w,'[data-apply]');
+  check(w,"confirmations.length===0&&!calls.some(c=>c.url.endsWith('/apply'))",`Forged ${blocked} selection cannot confirm or Apply`);
+  await change(w,'[data-direction]',allowed);await click(w,'[data-apply]');
+  const alias=allowed==='forward'?'Ally':'Alice',canonical=allowed==='forward'?'Alice':'Ally';
+  check(w,`calls.filter(c=>c.url.endsWith('/apply')).length===1&&calls.find(c=>c.url.endsWith('/apply')).body.alias==='${alias}'&&calls.find(c=>c.url.endsWith('/apply')).body.canonical==='${canonical}'&&confirmations[0].message.includes('“${alias}” → “${canonical}”')`,`${allowed}-only Apply confirms and submits the exact eligible alias`);w.close();
+ }
+ for(const [mutation,label] of [
+  ['delete mockReport.candidates[0].apply_directions','Missing directions'],
+  ['mockReport.candidates[0].apply_directions=[]','Empty directions'],
+  ['mockReport.candidates[0].apply_directions={}','Malformed directions'],
+  ['mockReport.candidates[0].apply_directions.forEach(d=>d.can_apply=false)','Both directions blocked'],
+  ['mockReport.candidates[0].apply_directions.forEach(d=>delete d.can_apply)','Missing direction eligibility'],
+  ["mockReport.candidates[0].apply_directions.forEach(d=>d.alias='Unreviewed')",'Unreviewed direction labels'],
+  ['mockReport.candidates[0].can_apply=false','Candidate eligibility blocked'],
+  ['mockReport.stale=true','Stale report'],
+  ["mockReport.status='stale'",'Stale report status'],
+  ["mockReport.status='failed'",'Failed report with optimistic eligibility'],
+  ["mockReport.status='interrupted'",'Interrupted report with optimistic eligibility'],
+  ["mockReport.status='cancelled'",'Cancelled report with optimistic eligibility'],
+  ["mockReport.reviews=mockReport.reviews.filter(r=>r.mode!=='none')",'Missing none judgment'],
+  ["mockReport.reviews=mockReport.reviews.filter(r=>r.mode!=='low')",'Missing low judgment']
+ ]){
+  w=fresh(mutation+';');await load(w);await select(w);await preview(w);await start(w);
+  check(w,"document.querySelectorAll('[data-apply]').length===0&&document.querySelectorAll('[data-direction]').length===0",`${label} fails closed without direction controls`);w.close();
+ }
+ w=fresh();await load(w);await select(w);await preview(w);await start(w);await change(w,'[data-direction]','reverse');
+ w.mockReport.attempts=3;await click(w,'#speaker-review-refresh');
+ check(w,"document.querySelector('[data-direction]').value==='reverse'",'Still-eligible direction survives report refresh');
+ w.oldApply=$(w,'[data-apply]');w.mockReport.candidates[0].apply_directions[1].can_apply=false;await click(w,'#speaker-review-refresh');
+ check(w,"document.querySelectorAll('[data-direction] option').length===1&&document.querySelector('[data-direction]').value==='forward'",'Unavailable previous direction is discarded on refresh');
+ w.oldApply.click();await settle();
+ check(w,"confirmations.length===0&&!calls.some(c=>c.url.endsWith('/apply'))",'Detached prior report control cannot Apply a revoked direction');
+ await click(w,'[data-apply]');
+ check(w,"calls.find(c=>c.url.endsWith('/apply')).body.alias==='Al'&&calls.find(c=>c.url.endsWith('/apply')).body.canonical==='Alice'",'Fallback after unavailable selection applies the remaining eligible direction');w.close();
+ for(const [mutation,label] of [
+  ['lastReport.candidates[0].apply_directions[0].can_apply=false','Chosen direction revoked'],
+  ['delete lastReport.candidates[0].apply_directions','Directions removed'],
+  ['lastReport.reviews.pop()','Judgment removed'],
+  ['lastReport.candidates=[]','Candidate removed'],
+  ['lastReport.stale=true','Report made stale'],
+  ["lastReport.status='stale'",'Report status made stale'],
+  ["lastReport.candidates[0].prediction_label='Changed';lastReport.candidates[0].apply_directions[0].alias='Changed'",'Eligible direction target changed']
+ ]){
+  w=fresh();await load(w);await select(w);await preview(w);await start(w);w.holdConfirm=true;await click(w,'[data-apply]');
+  w.eval(mutation);w.resolveConfirm(true);await settle();
+  check(w,"confirmations.length===1&&!calls.some(c=>c.url.endsWith('/apply'))",`${label} during confirmation prevents Apply`);w.close();
+ }
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({harness:'dependency-free Node DOM fixture, not a real browser',assertions,passed,errors},null,2));
 })().catch(e=>{console.error(e);process.exitCode=1;});

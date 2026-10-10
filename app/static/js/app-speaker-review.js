@@ -265,11 +265,15 @@
         }
         details.append(list); container.append(details);
     }
-    function eligible(candidate, report) {
-        return candidate.can_apply === true && !report.stale
-            && ['none', 'low'].every(mode => (report.reviews || []).some(review =>
+    function getEligibleDirections(candidate, report) {
+        if (!candidate || candidate.can_apply !== true || report.stale || report.status !== 'completed'
+            || !['none', 'low'].every(mode => (report.reviews || []).some(review =>
                 review.candidate_id === candidate.id && review.mode === mode
-                && !review.error && review.verdict?.same_identity === true));
+                && !review.error && review.verdict?.same_identity === true))) { return []; }
+        return (Array.isArray(candidate.apply_directions) ? candidate.apply_directions : []).filter(choice =>
+            choice?.can_apply === true && ['forward', 'reverse'].includes(choice.direction)
+            && choice.alias === (choice.direction === 'reverse' ? candidate.reference_label : candidate.prediction_label)
+            && choice.canonical === (choice.direction === 'reverse' ? candidate.prediction_label : candidate.reference_label));
     }
     function renderResults(report) {
         const fingerprint = JSON.stringify(report);
@@ -277,7 +281,8 @@
         state.fingerprint = fingerprint;
         const container = element('results');
         const expanded = [...container.querySelectorAll('details')].map(detail => detail.open);
-        const directions = [...container.querySelectorAll('[data-direction]')].map(select => select.value);
+        const directions = new Map([...container.querySelectorAll('[data-direction]')]
+            .map(select => [select.dataset.candidateId, select.value]));
         const focused = document.activeElement?.id;
         container.replaceChildren();
         if (report.run_id) {
@@ -292,6 +297,7 @@
             skipped.append(list); container.append(skipped);
         }
         for (const [index, candidate] of (report.candidates || []).entries()) {
+            const choices = getEligibleDirections(candidate, report);
             const card = node('section', undefined, 'border rounded p-3 mb-2');
             const title = node('h6', `Entry ${Number(candidate.entry_index) + 1}: ${candidate.prediction_label} → ${candidate.reference_label}`);
             title.id = `speaker-review-pair-${index}`; card.setAttribute('aria-labelledby', title.id);
@@ -306,20 +312,24 @@
             }
             if ((report.applied || []).includes(candidate.id)) {
                 card.append(node('p', 'Alias saved in the shared registry. Future Review runs can use it; the script has not been rewritten here.', 'small text-success mt-2 mb-0'));
-            } else if (report.run_id && eligible(candidate, report)) {
+            } else if (report.run_id && choices.length) {
                 const controls = node('div', undefined, 'd-flex flex-wrap gap-2 align-items-center mt-2');
                 const direction = node('select', undefined, 'form-select form-select-sm');
                 direction.style.width = 'auto'; direction.style.maxWidth = '100%'; direction.dataset.direction = 'true';
+                direction.dataset.candidateId = candidate.id;
                 direction.id = `speaker-review-direction-${index}`;
                 const label = node('label', 'Alias direction', 'small'); label.htmlFor = direction.id;
-                for (const [value, text] of [['forward', `${candidate.prediction_label} → ${candidate.reference_label}`],
-                    ['reverse', `${candidate.reference_label} → ${candidate.prediction_label}`]]) {
-                    const option = node('option', text); option.value = value; direction.append(option);
+                for (const choice of choices) {
+                    const option = node('option', `${choice.alias} → ${choice.canonical}`);
+                    option.value = choice.direction; direction.append(option);
+                }
+                if (choices.some(choice => choice.direction === directions.get(candidate.id))) {
+                    direction.value = directions.get(candidate.id);
                 }
                 const button = node('button', 'Apply alias…', 'btn btn-sm btn-outline-primary');
                 button.type = 'button'; button.dataset.apply = 'true'; button.id = `speaker-review-apply-${index}`;
                 button.setAttribute('aria-label', `Review and apply alias for entry ${Number(candidate.entry_index) + 1}`);
-                button.addEventListener('click', () => apply(candidate, direction.value));
+                button.addEventListener('click', () => apply(candidate.id, direction.value));
                 controls.append(label, direction, button); card.append(controls);
             } else if (report.run_id) {
                 card.append(node('p', report.stale ? 'Apply disabled: this report is stale.'
@@ -328,21 +338,25 @@
             container.append(card);
         }
         container.querySelectorAll('details').forEach((detail, index) => { detail.open = !!expanded[index]; });
-        container.querySelectorAll('[data-direction]').forEach((select, index) => { if (directions[index]) { select.value = directions[index]; } });
         if (focused && container.querySelector(`[id="${focused.replace(/[^\w-]/g, '')}"]`)) { document.getElementById(focused).focus(); }
         syncControls();
     }
-    async function apply(candidate, direction) {
-        if (state.pending || state.polling || active() || !state.reliable || !state.run || !eligible(candidate, state.run)
+    async function apply(candidateId, direction) {
+        if (state.pending || state.polling || active() || !state.reliable || !state.run
             || window._existingUploadSelectionPending) { return; }
         const owner = context(), run = state.run;
-        const alias = direction === 'reverse' ? candidate.reference_label : candidate.prediction_label;
-        const canonical = direction === 'reverse' ? candidate.prediction_label : candidate.reference_label;
+        const candidate = run.candidates?.find(item => item.id === candidateId);
+        const choice = getEligibleDirections(candidate, run).find(item => item.direction === direction);
+        if (!choice) { return; }
+        const {alias, canonical} = choice;
         state.pending = 'apply'; syncControls();
         try {
             const confirmed = await showConfirm(`Save alias “${alias}” → “${canonical}” in the shared character registry? Later Review runs can merge these names using this registry. This does not rewrite the current script. The reference and model judgments are provisional. This single change makes the remaining report stale.`,
                 {title: 'Apply this one alias?', actionLabel: 'Save alias'});
-            if (!confirmed || !current(owner) || state.run !== run || !eligible(candidate, run)
+            if (!confirmed || !current(owner) || state.run !== run
+                || !getEligibleDirections(run.candidates?.find(item => item.id === candidateId), run)
+                    .some(item => item.direction === direction
+                    && item.alias === alias && item.canonical === canonical)
                 || window._existingUploadSelectionPending) { return; }
             const result = await API.post(`/api/speaker_review/${encodeURIComponent(run.run_id)}/apply`,
                 {snapshot: run.snapshot, candidate_id: candidate.id, alias, canonical});

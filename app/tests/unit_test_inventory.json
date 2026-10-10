@@ -7307,9 +7307,10 @@
   ],
   "test_speaker_review_api": [
     "tests.test_speaker_review_api.SpeakerReviewApiTests.test_attempt_ceiling_and_resume_cache",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_directional_eligibility_matches_guarded_apply",
     "tests.test_speaker_review_api.SpeakerReviewApiTests.test_disagreement_prevents_apply",
     "tests.test_speaker_review_api.SpeakerReviewApiTests.test_each_changed_revision_refuses_apply_without_relabeling",
-    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_existing_alias_disables_apply_in_review_report",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_existing_alias_disables_only_owned_direction",
     "tests.test_speaker_review_api.SpeakerReviewApiTests.test_failed_calls_do_not_leak_or_retry_past_ceiling",
     "tests.test_speaker_review_api.SpeakerReviewApiTests.test_model_free_preview_unavailable_profile",
     "tests.test_speaker_review_api.SpeakerReviewApiTests.test_native_saved_script_api_lifecycle",

@@ -10,4 +10,4 @@ class SpeakerReviewUiTests(unittest.TestCase):
         result = subprocess.run(['node', str(Path(__file__).with_name('speaker_review_ui_fixture.js')), str(root)],
                                 capture_output=True, text=True, timeout=30)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertEqual(45, json.loads(result.stdout)['assertions'])
+        self.assertEqual(77, json.loads(result.stdout)['assertions'])

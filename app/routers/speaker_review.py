@@ -274,15 +274,22 @@ def _public_run(record, stale=False, aliases=None):
     if result['stale']:
         result['status'] = 'stale'
     for candidate in result['candidates']:
-        try:
-            if result['stale'] or result['status'] != 'completed':
-                raise ValueError('This review is stale or unfinished; preview and review again')
-            require_alias_pair(candidate, record['reviews'], candidate['prediction_label'],
-                               candidate['reference_label'], aliases or {})
-        except ValueError as exc:
-            candidate.update(can_apply=False, apply_refusal=str(exc))
-        else:
-            candidate.update(can_apply=True, apply_refusal=None)
+        directions = []
+        for direction, alias, canonical in (
+                ('forward', candidate['prediction_label'], candidate['reference_label']),
+                ('reverse', candidate['reference_label'], candidate['prediction_label'])):
+            refusal = None
+            try:
+                if result['stale'] or result['status'] != 'completed':
+                    raise ValueError('This review is stale or unfinished; preview and review again')
+                require_alias_pair(candidate, record['reviews'], alias, canonical, aliases or {})
+            except ValueError as exc:
+                refusal = str(exc)
+            directions.append({'direction': direction, 'alias': alias, 'canonical': canonical,
+                               'can_apply': refusal is None, 'apply_refusal': refusal})
+        allowed = any(item['can_apply'] for item in directions)
+        candidate.update(apply_directions=directions, can_apply=allowed,
+                         apply_refusal=None if allowed else directions[0]['apply_refusal'])
     return result
 
 
