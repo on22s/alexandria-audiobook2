@@ -13,7 +13,7 @@ const posts = [], cards = [];
 let filter = 'all', pauseFlush = null;
 const context = {window: null, document: {
     querySelectorAll: () => cards,
-    getElementById: id => id === 'voices-state-filter' ? {value: filter} : {checked: false}
+    getElementById: id => id === 'voices-state-filter' ? {value: filter} : {checked: false, dataset: {}, addEventListener() {}}
 }, AVAILABLE_VOICES: ['Ryan'], BUILTIN_LORAS: [],
     getLibraryVoiceReference: () => null, getTraitBadgeHtml: () => '', getVoiceCandidateMarkup: () => '',
     renderStyleTimeline: () => '', ensembleMembersMarkup: () => '', getLoraModelsById: () => new Map(),
@@ -31,6 +31,7 @@ function load(first, last) {
     const end = source.indexOf(last, start); assert(end > start, last);
     vm.runInContext(source.slice(start, end), context);
 }
+load('// Voice roster dropdowns:', '// End voice roster dropdowns.');
 load('function escapeHtml(', '// Parse a numeric input');
 load('function getVoiceCardMetadata(', '// Suggest members');
 load('function collectVoiceConfig()', 'function onVoiceReadyChange(');

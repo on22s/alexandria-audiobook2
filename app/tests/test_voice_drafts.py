@@ -28,7 +28,7 @@ function storageFor(file){
 }
 function client(storage,API,value={ALICE:{type:'design',description:'pending',seed:'0'}}){
  const status={innerHTML:'',textContent:''},panel={innerHTML:'',textContent:''},events={},errors=[],confirmations=[];
- const context={window:{localStorage:storage,addEventListener:(name,fn)=>events[name]=fn},
+ const context={currentBookFilename:'',ensureVoiceRosterCache:()=>{},window:{localStorage:storage,addEventListener:(name,fn)=>events[name]=fn},
  document:{getElementById:id=>id==='voice-save-status'?status:id==='voice-save-drafts'?panel:null,querySelectorAll:()=>[{}]},
  setTimeout:()=>1,clearTimeout(){},console:{error(){}},Date,Math,API,fetch:(url,options)=>fetch(new URL(url,process.argv[3]),options),
  collectVoiceConfig:()=>value,escapeHtml:text=>String(text).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),

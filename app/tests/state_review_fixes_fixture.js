@@ -4,7 +4,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const source = fs.readFileSync(process.argv[2], 'utf8');
 const posts = [], deletes = [], toasts = [], errors = [];
 const token = 'a'.repeat(64);
-const ctx = {window: null, currentBookFilename: 'book.json', pendingVoiceStateSaves: new Set(),
+const ctx = {document: {getElementById: () => null}, window: null, currentBookFilename: 'book.json', pendingVoiceStateSaves: new Set(),
     _voiceCardsBookToken: token, _voiceSaveSnapshot: {book_token: token},
     API: {post: async (path, body) => { posts.push({path, body}); return {}; },
           del: async path => { deletes.push(path); return {}; }},
@@ -20,6 +20,7 @@ function load(start, end) {
     assert(a >= 0 && b > a, start);
     vm.runInContext(source.slice(a, b), ctx);
 }
+load('// Voice roster dropdowns:', '// End voice roster dropdowns.');
 load('function escapeHtml(', '// Parse a numeric input');
 load('async function ensureStateCardCurrent(', 'function getStateVoiceCardsMarkup(');
 load('function getSuggestionCandidateConfig(', 'async function suggestVoices(');
