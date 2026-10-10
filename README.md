@@ -896,8 +896,8 @@ leaving the sidebar stuck on **Starting**.
 1. Open **Terminal** next to the running or failed Start entry and read the first
    traceback or startup error. The navbar build label shows which revision is actually
    running; hover over it for the Python and package versions.
-2. Open Pinokio's **Logs** page and select the latest Alexandria session. Its **Get
-   Help** report bundles the related launcher logs and system details, with Pinokio's
+2. Open Pinokio's **Logs** page and select the latest Alexandria session. Its **Get Help**
+   report bundles the related launcher logs and system details, with Pinokio's
    usual redaction of secrets and paths, ready to share.
 3. To read the files directly:
    - the current launcher log is `logs/api/start.js/latest`, with timestamped runs beside it;
