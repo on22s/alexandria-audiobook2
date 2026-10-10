@@ -3474,6 +3474,19 @@
             "default": "Ryan",
             "title": "Voice"
           },
+          "voice_presentation": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Voice Presentation"
+          },
           "voice_status": {
             "default": "unassigned",
             "title": "Voice Status",

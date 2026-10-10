@@ -8884,6 +8884,12 @@
   "test_voice_panel_restore_js": [
     "tests.test_voice_panel_restore_js.VoicePanelRestoreJsTests.test_preserves_completed_panels_and_rejects_pending_or_other_books"
   ],
+  "test_voice_presentation_controls": [
+    "tests.test_voice_presentation_controls.VoicePresentationControlTests.test_actual_suggestion_prompt_has_hint_but_initial_traits_do_not",
+    "tests.test_voice_presentation_controls.VoicePresentationControlTests.test_continuity_shortcut_available_without_gender_reveal",
+    "tests.test_voice_presentation_controls.VoicePresentationControlTests.test_hint_is_bounded_and_profile_extension_is_pure",
+    "tests.test_voice_presentation_controls.VoicePresentationControlTests.test_save_and_reload_hint_preserves_script_audio_and_voice_choice"
+  ],
   "test_voice_presentation_probe": [
     "tests.test_voice_presentation_probe.VoicePresentationProbeTests.test_child_probe_publishes_four_real_waveform_pairs_without_catalog_writes",
     "tests.test_voice_presentation_probe.VoicePresentationProbeTests.test_real_probe_publishes_every_verified_response",

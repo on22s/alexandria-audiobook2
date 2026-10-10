@@ -4287,6 +4287,12 @@
                                     </div>
                                 </div>
 
+                                <div class="mb-2">
+                                    <label class="form-label small" for="voice-presentation-${index}">Voice presentation (optional, user confirmed)</label>
+                                    <input type="text" class="form-control form-control-sm voice-presentation" id="voice-presentation-${index}" maxlength="500" aria-label="${escapeHtml('Voice presentation for ' + label)}" placeholder="e.g. lower, resonant female voice; soft, light male voice" value="${escapeHtml(config.voice_presentation || '')}">
+                                    <div class="form-text">Describe how this character should sound, separately from gender or appearance. Used by model-based voice suggestions; saving this hint does not change the assigned voice or rendered audio.</div>
+                                </div>
+
                                 <!-- Voice Design Options -->
                                 <div class="design-opts" style="display: ${voiceType === 'design' ? 'block' : 'none'}">
                                     <input type="text" class="form-control design-description mb-1" aria-label="${escapeHtml('Base voice description for ' + label)}" placeholder="Base voice description (e.g. Young strong soldier)" value="${escapeHtml(config.description || '')}">
@@ -5656,8 +5662,7 @@
                     + (state.possible_gender_reveal ? '<div class="alert alert-warning py-1 px-2 mb-1" role="note">Possible identity reveal: the text may have misidentified this character earlier. Review their actual voice; a gender label change alone does not require a different voice.</div>' : '')
                     + `<select class="form-select form-select-sm voice-state-source" aria-label="${escapeHtml(`Voice for ${speaker}, ${state.gender}, ${state.age_group.replace(/_/g, ' ')}, ${where}`)}"${where.startsWith('from') ? '' : ' disabled'}>${options}</select>${generate}</div>`;
             }).join('');
-            const revealHelp = states.some(state => state.possible_gender_reveal)
-                ? `<div class="small mt-2">For one consistent voice, set the character’s base voice and choose Main voice for every segment. <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(`Choose Main voice throughout for ${speaker}`)}" onclick="chooseMainVoiceStates(this)">Choose Main voice throughout</button> Review, then Apply.</div>` : '';
+            const revealHelp = `<div class="small mt-2">Narrative age and gender labels are evidence, not instructions to change the voice. For one consistent voice, set the character’s base voice and choose Main voice for every segment. <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(`Choose Main voice throughout for ${speaker}`)}" onclick="chooseMainVoiceStates(this)">Choose Main voice throughout</button> Review, then Apply.</div>`;
             return rows + revealHelp + `<div class="mt-1"><button class="btn btn-sm btn-primary" type="button" aria-label="${escapeHtml(`Apply voice changes for ${speaker}`)}" onclick="applyVoiceStates(this)">Apply</button> <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(`Clear voice changes for ${speaker}`)}" onclick="clearVoiceStates(this)">Clear</button></div>`;
         }
 
@@ -5919,6 +5924,8 @@
                         seed: "-1"
                     };
                 }
+                const presentation = card.querySelector('.voice-presentation');
+                if (presentation) { config[name].voice_presentation = presentation.value.trim(); }
                 // Explicitly clear aliases; omitted fields retain their saved values.
                 config[name].alias_of = alias || null;
                 const readyBox = card.querySelector('.voice-ready');
