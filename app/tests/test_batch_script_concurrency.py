@@ -49,7 +49,7 @@ class BatchScriptConcurrencyTests(OwnedScriptTestCase):
                                   (None, "A short story.", True)):
             with self.subTest(name=name, valid=valid), tempfile.TemporaryDirectory() as tmp:
                 source = Path(tmp, "book.txt"); source.write_text(text)
-                state = Path(tmp, "state.json"); state.write_text("{}")
+                state = Path(tmp, "state.json"); state.write_text(json.dumps({"input_file_path": str(source)}) if valid else "{}")
                 request = script.GenerateScriptRequest(first_person_narrator=name, start_over=True)
                 background = BackgroundTasks()
                 with patch.object(script, "DATA_DIR", tmp), \
@@ -386,6 +386,7 @@ class OutputCeilingRefusalTests(OwnedScriptTestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "book.txt")
             path.write_text('"Hello," she said. ' * 50, encoding="utf-8")
+            Path(tmp, "state.json").write_text(json.dumps({"input_file_path": str(path)}))
             script_path = str(Path(tmp, "annotated_script.json"))
             ckpt = Path(script.three_pass_checkpoint_path(script_path))
             manifest = Path(script.three_pass_manifest_path(script_path))
