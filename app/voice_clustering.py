@@ -78,31 +78,67 @@ def cluster_voices(labels: list[str], similarities, threshold: float,
         clusters = [cluster for cluster in clusters if cluster not in matched] + [merged]
         decisions.append({"type": "manual_merge", "labels": sorted(merged)})
 
-    def blocked(left, right):
-        return any(frozenset((a, b)) in split_pairs for a in left for b in right)
+    # Retain the simple path for small groups and signed-zero evidence:
+    # NumPy minima can select a different zero sign than Python min.
+    if len(labels) <= 16 or np.any((matrix == 0) & np.signbit(matrix)):
+        def blocked(left, right):
+            return any(frozenset((a, b)) in split_pairs for a in left for b in right)
 
-    while True:
-        candidates = []
-        for left_index in range(len(clusters)):
-            for right_index in range(left_index + 1, len(clusters)):
-                left, right = clusters[left_index], clusters[right_index]
-                if blocked(left, right):
-                    continue
-                cross = [matrix[label_to_index[a], label_to_index[b]]
-                         for a in left for b in right]
-                minimum = float(min(cross))
-                if minimum > threshold:
-                    combined = tuple(sorted(left | right))
-                    candidates.append((-minimum, combined, left_index, right_index, minimum))
-        if not candidates:
-            break
-        _negative, combined, left_index, right_index, minimum = min(candidates)
-        left, right = clusters[left_index], clusters[right_index]
-        decisions.append({"type": "threshold_merge", "labels": list(combined),
-                          "minimum_cross_similarity": minimum, "threshold": threshold})
-        clusters = [cluster for index, cluster in enumerate(clusters)
-                    if index not in (left_index, right_index)] + [left | right]
-        clusters.sort(key=lambda cluster: tuple(sorted(cluster)))
+        while True:
+            candidates = []
+            for left_index in range(len(clusters)):
+                for right_index in range(left_index + 1, len(clusters)):
+                    left, right = clusters[left_index], clusters[right_index]
+                    if blocked(left, right):
+                        continue
+                    cross = [matrix[label_to_index[a], label_to_index[b]]
+                             for a in left for b in right]
+                    minimum = float(min(cross))
+                    if minimum > threshold:
+                        combined = tuple(sorted(left | right))
+                        candidates.append((-minimum, combined, left_index, right_index, minimum))
+            if not candidates:
+                break
+            _negative, combined, left_index, right_index, minimum = min(candidates)
+            left, right = clusters[left_index], clusters[right_index]
+            decisions.append({"type": "threshold_merge", "labels": list(combined),
+                              "minimum_cross_similarity": minimum, "threshold": threshold})
+            clusters = [cluster for index, cluster in enumerate(clusters)
+                        if index not in (left_index, right_index)] + [left | right]
+            clusters.sort(key=lambda cluster: tuple(sorted(cluster)))
+
+    else:
+        # Cache complete-link minima; -inf represents inactive or forbidden pairs.
+        members = {index: cluster for index, cluster in enumerate(clusters)}
+        if not members:
+            return [], decisions
+        groups = [[label_to_index[label] for label in sorted(cluster)] for cluster in clusters]
+        order = [index for group in groups for index in group]
+        starts = np.cumsum([0] + [len(group) for group in groups[:-1]])
+        scores = matrix[np.ix_(order, order)]
+        if len(groups) != len(labels):
+            scores = np.minimum.reduceat(np.minimum.reduceat(scores, starts, axis=0), starts, axis=1)
+        np.fill_diagonal(scores, -np.inf)
+        owner = {label: index for index, cluster in members.items() for label in cluster}
+        for pair in split_pairs:
+            a, b = (owner[label] for label in pair)
+            scores[a, b] = scores[b, a] = -np.inf
+        while len(members) > 1:
+            minimum = float(scores.max())
+            if not minimum > threshold:
+                break
+            rows, columns = np.where(np.triu(scores == minimum, k=1))
+            left_index, right_index = min(zip(rows, columns),
+                key=lambda pair: tuple(sorted(members[pair[0]] | members[pair[1]])))
+            combined = members[left_index] | members.pop(right_index)
+            members[left_index] = combined
+            decisions.append({'type': 'threshold_merge', 'labels': sorted(combined),
+                              'minimum_cross_similarity': minimum, 'threshold': threshold})
+            scores[left_index, :] = np.minimum(scores[left_index, :], scores[right_index, :])
+            scores[:, left_index] = scores[left_index, :]
+            scores[right_index, :] = scores[:, right_index] = -np.inf
+            scores[left_index, left_index] = -np.inf
+        clusters = list(members.values())
 
     ordered = sorted((sorted(cluster) for cluster in clusters), key=lambda cluster: tuple(cluster))
     return [[label_to_index[label] for label in cluster] for cluster in ordered], decisions
