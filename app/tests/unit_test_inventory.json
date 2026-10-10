@@ -3858,6 +3858,19 @@
     "tests.test_improvement_ui_errors_js.ImprovementUiErrorTests.test_config_retry_confirms_draft_replacement_and_preserves_pending_edits",
     "tests.test_improvement_ui_errors_js.ImprovementUiErrorTests.test_sample_error_is_escaped_visible_cleared_on_retry_and_not_applied_to_other_project"
   ],
+  "test_incremental_alias_review": [
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_ambiguous",
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_cap_and_verdict",
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_cli_opt_in_and_local_lock",
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_completion_budget_policy_invalidates_prior_cache",
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_failure_budget",
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_interruption",
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_invalidation",
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_restart_final_and_immutability",
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_tail",
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_utf8_cli_real_request_budgets_and_cached_replay_on_non_utf8_locale",
+    "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_validation"
+  ],
   "test_index_added_commit_lag": [
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_change_in_any_other_column_is_not_forgiven",
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_changed_header_is_not_forgiven",
