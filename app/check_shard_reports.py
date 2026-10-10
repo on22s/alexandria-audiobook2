@@ -9,12 +9,18 @@ already ties to discovery.
     python check_shard_reports.py DIR --shards 3
 
 DIR holds the downloaded per-shard artifacts (any depth); every file named
-release-report.json is read.
+release-report.json is read. In CI, --run-id/--run-attempt/--commit-sha select
+one immutable artifact per shard: the highest attempt no later than the current
+attempt, within the same run and exact checkout SHA. Successful shards retained
+by a failed-job retry may come from earlier attempts. A newer failed or missing
+report must never fall back to an older passing report. Artifact identity comes
+from GitHub's workflow context, not report timestamps or artifact listing order.
 """
 
 import argparse
 from collections import Counter
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -84,14 +90,67 @@ def get_shard_report_errors(reports, shard_count, expected_tests, expected_test_
     return errors
 
 
+_ARTIFACT_NAME = re.compile(
+    r"release-verification-report-run-(\d+)-sha-([0-9a-f]{40})-attempt-([1-9]\d*)-shard-(\d+)"
+)
+
+
+def load_ci_reports(directory, shard_count, run_id, run_attempt, commit_sha):
+    """Select attempts before reading reports, so bad latest reports fail closed.
+
+    download-artifact keeps each artifact in its own immediate child directory.
+    The suffix is the zero-based matrix job index; report shards are one-based.
+    No Actions API access or additional token permissions are required.
+    """
+    selected = {}
+    for folder in sorted(Path(directory).iterdir()):
+        match = _ARTIFACT_NAME.fullmatch(folder.name)
+        if not folder.is_dir() or match is None:
+            raise ValueError(f"unexpected shard artifact: {folder.name}")
+        artifact_run, artifact_sha, attempt, index = match.groups()
+        attempt, index = int(attempt), int(index)
+        if artifact_run != run_id or artifact_sha != commit_sha:
+            raise ValueError(f"artifact does not match the expected run/commit: {folder.name}")
+        if attempt > run_attempt or not 0 <= index < shard_count:
+            raise ValueError(f"artifact has an invalid attempt/shard: {folder.name}")
+        if index not in selected or attempt > selected[index][0]:
+            selected[index] = (attempt, folder)
+    reports = []
+    for index, (attempt, folder) in sorted(selected.items()):
+        paths = list(folder.rglob("release-report.json"))
+        if len(paths) != 1:
+            raise ValueError(f"{folder.name}: expected one release-report.json, found {len(paths)}")
+        report = json.loads(paths[0].read_text(encoding="utf-8"))
+        if not isinstance(report, dict) or report.get("shard") != f"{index + 1}/{shard_count}":
+            raise ValueError(f"{folder.name}: report shard does not match artifact identity")
+        print(f"Selected shard {index + 1}/{shard_count} from run attempt {attempt}")
+        reports.append(report)
+    return reports
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("directory")
     parser.add_argument("--shards", type=int, required=True)
     parser.add_argument("--inventory", default=str(INVENTORY_PATH))
+    parser.add_argument("--run-id")
+    parser.add_argument("--run-attempt", type=int)
+    parser.add_argument("--commit-sha")
     args = parser.parse_args(argv)
-    paths = sorted(Path(args.directory).rglob("release-report.json"))
-    reports = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
+    context = (args.run_id, args.run_attempt, args.commit_sha)
+    if any(value is not None for value in context):
+        if (any(value is None for value in context) or not args.run_id.isdigit()
+                or args.run_attempt < 1 or not re.fullmatch(r"[0-9a-f]{40}", args.commit_sha)):
+            parser.error("CI selection requires a run ID, positive attempt, and full commit SHA")
+    try:
+        if args.run_id is not None:
+            reports = load_ci_reports(args.directory, args.shards, *context)
+        else:
+            paths = sorted(Path(args.directory).rglob("release-report.json"))
+            reports = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
+    except (OSError, ValueError) as error:
+        print(f"SHARD CHECK FAILED: {error}", file=sys.stderr)
+        return 1
     expected = get_inventory_total(args.inventory)
     inventory = json.loads(Path(args.inventory).read_text(encoding="utf-8"))
     identities = [identifier for tests in inventory.values() for identifier in tests]
