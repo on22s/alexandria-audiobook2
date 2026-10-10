@@ -102,6 +102,7 @@ class VoiceVersionPoint(BaseModel):
 
 
 class VoiceConfigItem(BaseModel):
+    voice_presentation: Optional[str] = Field(default="", max_length=500)
     type: str = "custom"
     voice: Optional[str] = "Ryan"
     character_style: Optional[str] = ""
@@ -1337,6 +1338,14 @@ def _select_representative_lines(lines: List[str], limit: int) -> List[str]:
     return [lines[i] for i in dict.fromkeys(indices)]
 
 
+def get_voice_matching_profile(profile, config):
+    """Add only user-saved vocal guidance, without altering character traits."""
+    hint = config.get("voice_presentation")
+    if not isinstance(hint, str) or not hint.strip():
+        return profile
+    return f"User-confirmed voice presentation: {hint.strip()[:500]}. {profile}"
+
+
 def _rank_heuristic_candidates(profile: str, candidates: List[dict], preferred_gender=None,
                                preferred_age="unknown", filter_gender=True) -> List[str]:
     gender = preferred_gender if preferred_gender in ("male", "female") else _infer_character_gender(profile)
@@ -1520,6 +1529,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             member_key = None
         characters[speaker] = {
             "profile": profile,
+            "voice_matching_profile": get_voice_matching_profile(profile, cfg),
             "lines": _select_representative_lines(lines, line_limit),
             "line_count": count,
             "priority": "major" if _norm_name(speaker) == "narrator" or count >= CAST_MAJOR_LINE_THRESHOLD else "minor",
@@ -1574,6 +1584,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             "For each character, rank up to three fitting voice ids and write concise TTS delivery guidance based only on the book text. "
             "The style should describe cadence, energy, formality, confidence, and supported emotion; do not invent biography or accent. "
             "Infer gender and broad apparent age only when supported by the supplied book evidence. "
+            "User-confirmed voice presentation guides vocal matching, not gender or age inference; a lower female voice remains female. "
             "Known character gender must match voice gender; prefer the closest available age group. "
             "Among compatible voices, prefer one marked favorite=yes. "
             "Only use provided voice ids. Return every requested character in the structured response."
@@ -1620,7 +1631,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
         for start in range(0, len(character_items), 2):
             batch = character_items[start:start + 2]
             char_block = "\n\n".join(
-                f'CHARACTER: {name}\nLines: {info["line_count"]} ({info["priority"]})\nCurrent trait estimate: gender={info["gender"]}, age={info["age_group"]}\nPersona/style: {(info["profile"] or "(none)")[:200]}\nSample lines:\n'
+                f'CHARACTER: {name}\nLines: {info["line_count"]} ({info["priority"]})\nCurrent trait estimate: gender={info["gender"]}, age={info["age_group"]}\nPersona/style and user-confirmed voice presentation: {(info["voice_matching_profile"] or "(none)")[:800]}\nSample lines:\n'
                 + "\n".join(f'  - "{ln[:140]}"' for ln in info["lines"])
                 for name, info in batch
             )
