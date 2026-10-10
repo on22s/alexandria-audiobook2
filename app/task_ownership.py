@@ -80,10 +80,10 @@ def acquire_task_lease(data_dir, task_name, conflicts, *, cpu_only=False):
 
 
 @contextmanager
-def ensure_startup_recovery(data_dir):
+def ensure_startup_recovery(data_dir, timeout=10):
     """Permit cleanup only without any live lease; hold admission through cleanup."""
     directory = ensure_task_ownership_directory(data_dir)
-    with file_lock(directory / 'admission'):
+    with file_lock(directory / 'admission', timeout=timeout):
         busy = []
         for path in sorted(directory.glob('task-*.lock')):
             name = path.name[len('task-'):-len('.lock')]
