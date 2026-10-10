@@ -4,7 +4,7 @@
 
 # Alexandria Audiobook2
 
-[English](README.md) | 中文 · [示例音频](https://github.com/user-attachments/files/25276110/sample.mp3)
+[English](README.md) | 中文 | [日本語](README_JA.md) · [示例音频](https://github.com/user-attachments/files/25276110/sample.mp3)
 
 [Alexandria](https://github.com/Finrandojin/alexandria-audiobook) 的研究分支：把一本书变成多角色配音的有声书，并且**对每一个选择都做测量**——哪个模型、哪种提示词能在标注好的金标数据上正确判断“这句话是谁说的”，合成的声音离真人朗读有多近，日语的音高重音在合成后是否还在。胜出的设置就是默认值——`michel2_full` 归属提示词在 2026-09-19 最后一个基座确认后成为产品默认，其他变体仍可在 Setup 页选择。数字、失败和配方都在仓库里，而不是在博客里。
 

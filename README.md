@@ -4,7 +4,7 @@
 
 # Alexandria Audiobook2
 
-English | [中文](README_CN.md) · [Listen to a sample](https://github.com/user-attachments/files/25276110/sample.mp3)
+English | [中文](README_CN.md) | [日本語](README_JA.md) · [Listen to a sample](https://github.com/user-attachments/files/25276110/sample.mp3)
 
 Alexandria Audiobook2 turns a book into an audiobook with a different voice for
 every character. You give it a `.txt`, `.md` or `.epub` file; a language model

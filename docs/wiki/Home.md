@@ -19,6 +19,8 @@ and how; the user-guide pages say how to use the app.
   [contributor instructions](../../README.md#contributing) preserve the measurements,
   reproduction steps and development workflow. None is a prerequisite for making a book.
 
+- **日本語：**[日本語 Wiki](Home-JA.md)と[インストール・最初のオーディオブック](../../README_JA.md#インストール)。
+
 ## Using the app
 
 - [Setup and serving](Setup-and-Serving.md) — connecting a language model, and serving
