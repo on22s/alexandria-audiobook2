@@ -775,7 +775,12 @@ async def lora_delete_dataset(dataset_id: str):
     dataset_dir = get_lora_dataset_path(dataset_id)
     # Voice Lab also reads these datasets.  Claim atomically rather than only
     # inspecting this process's LoRA flag; foreign server leases count too.
-    claim_id = claim_gpu_task("lora_training")
+    try:
+        claim_id = claim_gpu_task("lora_training")
+    except HTTPException as exc:
+        if exc.status_code == 400:
+            raise HTTPException(status_code=409, detail=exc.detail) from exc
+        raise
     try:
         if not os.path.isdir(dataset_dir):
             raise HTTPException(status_code=404, detail="Dataset not found")
