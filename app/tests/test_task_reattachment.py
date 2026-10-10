@@ -26,7 +26,7 @@ class TaskDiscoveryTests(unittest.TestCase):
                 'future_task':{'running':True,'processes':[object()]},'idle':{'running':False}}
         before={name:dict(state) for name,state in states.items()}
         app=FastAPI();app.include_router(script.router)
-        with patch.object(script,'process_state',states),TestClient(app) as client:
+        with patch.object(script,'process_state',states), patch.object(core,'process_state',states), patch.object(core,'_task_claims',{}), TestClient(app) as client:
             res=client.get('/api/status')
             self.assertEqual(200,res.status_code,res.text)
             self.assertEqual({'review':{'running':True},'future_task':{'running':True},'idle':{'running':False}},res.json())
