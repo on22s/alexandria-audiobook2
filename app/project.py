@@ -36,6 +36,7 @@ from tts import (
     SAME_SPEAKER_PAUSE_MS,
                  voice_config_for_chunk, resolve_narrator_voice_config)
 from pydub import AudioSegment
+from audio_assembly import AudioSegmentBuilder
 
 MAX_CHUNK_CHARS = 500
 NARRATOR_GENERATION_FIELDS = (
@@ -1156,18 +1157,20 @@ class ProjectManager:
                         progress_callback(f"Writing track: {speaker}")
                     ensure_audio_export_active(cancel_check)
                     track_cursor = 0
-                    track = AudioSegment.empty()
+                    track_builder = AudioSegmentBuilder(AudioSegment.empty())
                     for segment, start_ms in speaker_chunks[speaker]:
                         ensure_audio_export_active(cancel_check)
                         gap = start_ms - track_cursor
                         if gap > 0:
-                            track += AudioSegment.silent(duration=gap)
-                        track += segment
+                            track_builder.append(AudioSegment.silent(duration=gap))
+                        track_builder.append(segment)
                         track_cursor = start_ms + len(segment)
                     remaining = total_duration_ms - track_cursor
                     if remaining > 0:
-                        track += AudioSegment.silent(duration=remaining)
+                        track_builder.append(AudioSegment.silent(duration=remaining))
 
+                    track = track_builder.finish()
+                    del track_builder
                     safe_name = speaker_filenames[speaker]
                     with io.BytesIO() as wav_buffer:
                         track.export(wav_buffer, format="wav")
