@@ -116,7 +116,7 @@ def main():
                      "weight_sha256": weight_hash(odir), "final_loss": loss})
         print(f"  run {i}: rc={rc} loss={loss} sha={str(runs[-1]['weight_sha256'])[:12]}")
 
-    ok = [r for r in runs if r["weight_sha256"]]
+    ok = [r for r in runs if r["rc"] == 0 and r["weight_sha256"]]
     hashes = {r["weight_sha256"] for r in ok}
     identical = len(hashes) == 1 and len(ok) > 1
     print(f"\n  distinct weight hashes: {len(hashes)} across {len(ok)} runs")
