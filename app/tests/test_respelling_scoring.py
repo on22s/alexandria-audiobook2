@@ -7,6 +7,7 @@ pronounced words when it rescues 13%.
 """
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -30,6 +31,26 @@ REAL_CASES = [
     ("saya",    "サヤ",    "「スーパーズ」と言って「サイヤー」がある",                  False),
     ("shizu",   "シズ",    "「シポーズン」と言って、シーブ・フューを見つけた",              False),
 ]
+
+
+class TranscriptionFailureTests(unittest.TestCase):
+    def run_transcription(self, exit_code):
+        with tempfile.TemporaryDirectory() as directory:
+            binary = os.path.join(directory, "synthetic-whisper")
+            with open(binary, "w", encoding="utf-8") as handle:
+                handle.write("#!/bin/sh\nprintf 'known   answer\\n'\nexit "
+                             + str(exit_code) + "\n")
+            os.chmod(binary, 0o700)
+            return measure.transcribe("synthetic.wav", binary, "synthetic-model")
+
+    def test_successful_child_output_is_normalized(self):
+        self.assertEqual("known answer", self.run_transcription(0))
+
+    def test_failed_child_output_is_not_a_transcript(self):
+        with self.assertRaises(subprocess.CalledProcessError) as caught:
+            self.run_transcription(7)
+        self.assertEqual(7, caught.exception.returncode)
+        self.assertEqual("known   answer\n", caught.exception.stdout)
 
 
 class RecoveryScoringTests(unittest.TestCase):
