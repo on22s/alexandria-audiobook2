@@ -3240,13 +3240,32 @@ listening), or adopt one onset rule for truth and scoring alike. Artifact:
 
 **Metric** — checks whose rejecting case is exercised, over checks relied on.
 
-**Current — OPEN, seven tranches in** (the seventh, 2026-09-28, is below). Tranches 1–5 audited guards found by
-their cost; the sixth (2026-09-19) enumerated the 44 guard-shaped functions in
-the app and covered the 17 that had no rejecting test. Still owed: the same
-enumeration over `app/experiments/` (the measurement scripts' own refusals)
-and the shell chains' wait predicates — a `.ready` marker written with
-`touch` and waited on with `test -s` held a GPU idle for four hours the same
-day, and no test can see a chain.
+**Current — OPEN, seven historical tranches plus the 2026-10-10 follow-up below.**
+Tranches 1–5 audited guards found by their cost; the sixth (2026-09-19)
+enumerated the 44 guard-shaped functions in the app and covered the 17 that
+had no rejecting test. The seventh began the experiment-helper enumeration.
+The remaining scope must distinguish those completed checks from unverified
+helpers and external queue consumers; it is not a fresh audit of everything.
+
+**2026-10-10 follow-up.** Merged [#1065](https://github.com/on22s/alexandria-audiobook2/pull/1065)
+prevents failed transcription output from entering respelling scores;
+[#1067](https://github.com/on22s/alexandria-audiobook2/pull/1067) migrates nine
+legacy waits to exact chain identity while preserving deadlines, polling and
+existing inspection-error behavior; and
+[#1068](https://github.com/on22s/alexandria-audiobook2/pull/1068) excludes failed
+training children from successful determinism comparisons even when stale
+weight files exist. Focused acceptance/rejection checks and guard-removal
+controls were exercised. The stale-weight negative-control fixture was
+external, not a newly checked-in test suite. A bounded local CPU audit also
+exercised the nested no-supervised-answer-token loss guard and subprocess
+helpers; that scoped audit is not an exhaustive inventory of every driver.
+
+**Still owed:** finish the remaining inline-driver/legacy-wait inventory and
+verify external marker consumers against their actual producers. The remote
+`.ready` consumer has not been located. A separate same-script empty-marker
+resume mismatch has a proposed local fix, not an applied or published one.
+Do not infer that either external workflow is repaired from the merged PRs,
+or close 6.6 from passing CI alone.
 
 **SEVENTH AUDIT TRANCHE, 2026-09-28 — the `app/experiments/` enumeration, first pass.**
 126 guard-shaped functions in `app/experiments/`; a text search flagged 43 with no
@@ -3262,9 +3281,10 @@ refuse and one it must accept, and each shown RED with its guard removed:
 - `blinded_listening._resolve_source` — a path outside the repository refused;
 - `library_voice_fidelity_resume_20260831.is_valid_audio` — a truncated WAV is invalid.
 Five copies of one guard is itself a Rule 15 finding, recorded, not refactored here.
-Still owed: `distill_train.compute_loss`'s "no supervised answer tokens" (defined inside
-the trainer, not testable alone), the remaining helpers that only re-raise a subprocess
-failure, and the shell chains' wait predicates.
+At this tranche's close, the nested no-supervised-answer-token loss guard,
+subprocess-failure helpers and shell waits were still owed. The 2026-10-10
+follow-up above records the bounded checks and repairs completed since then;
+its remaining inventory and external-consumer limits still apply.
 
 **FIRST AUDIT TRANCHE, 2026-09-04.** Seven more checks could pass without
 looking: the goal-evidence freshness gate explicitly returned PASS without a
@@ -3737,10 +3757,20 @@ once, thinly, by a non-naive rater.
 **What this goal now needs.** The non-owner listener requirement received
 its first evidence on 2026-09-13 (below); the 2026-09-30 chapter and voice
 follow-ups add different, still limited listening evidence. The `per_char`
-no-op remains unresolved: fix or remove it and verify the intended audio
-contrast before asking anyone to rate that comparison again. Fluent Japanese/
-Chinese validation of the existing packages remains pending. These sittings
-do not establish broad audiobook preference or a new passing threshold.
+arm-isolation implementation was repaired in
+[#537](https://github.com/on22s/alexandria-audiobook2/pull/537):
+`app/experiments/instruct_listening.py` clears inherited styles, supplies each
+arm's instruction explicitly and rejects byte-identical renders. Existing
+`app/tests/test_instruct_listening.py` checks those distinctions. This is a
+harness repair, not listening evidence. The manifest
+`ab_test_runtime/experiments/instruct_listening_fixed.json` records an August
+22 run, before that repair; its filename does not establish a post-fix audio
+contrast. Verify post-fix harness/input provenance, decoded audio and per-line
+arm hashes before preparing or rating a replacement comparison. The current
+repository audit did not verify a post-fix rendered package; local assets
+were not inspected. Fluent Japanese/Chinese validation of the existing
+packages remains pending. These sittings do not establish broad audiobook
+preference or a new passing threshold.
 
 #### The ECAPA gap is audible, and it was checked blind — 2026-09-06
 
