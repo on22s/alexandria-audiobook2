@@ -7,7 +7,7 @@ target is a commitment. Where there is no baseline yet, the goal is *to take
 the measurement*, and it says so — an unmeasured target is a wish, and this
 document does not contain wishes.
 
-**Last updated:** 2026-09-30
+**Last updated:** 2026-10-10 (current guidance reconciled; measurements retain their recorded dates)
 
 ## How to read this
 
@@ -1253,6 +1253,17 @@ points at an input we choose rather than at the method.
 > correct — the trainer just doesn't use it.
 
 **Metric** — adapters whose training set includes their validation split.
+**Latest recorded inventory and next step.** The 2026-09-29 audit below leaves
+**9 contaminated adapters plus 1 without a validation split**. The subsequent
+[2026-09-30 two-voice comparison](docs/results/thunder-campaign-2026-09-30.md)
+already tested clean candidates for `silky_mezzo_30s_f` and
+`silky_alto_40s_f_literary_2` on matched unseen-volume clips. Their identity and
+ASR comparisons do not support a blanket improvement or automatic promotion;
+perceptual assessment remains pending. Reconcile each remaining adapter's
+hash-matched training metadata and existing candidate evidence before deciding
+whether another retrain is needed. The dated counts and queue descriptions
+below are history, not a current queue-status check.
+
 **Audited from the datasets themselves, 2026-09-28**
 (`voice_val_contamination_audit_20260928.json`, `app/experiments/voice_val_audit.py`):
 each shipped adapter's dataset zip found by name or by its stored reference text, and its
@@ -2462,8 +2473,10 @@ says it should have.
 | English | lora | 0.282 | 0.475 |
 
 The fused measure — produced f0 against the *expected* accent, which is the
-one that works on a real audiobook rather than an eval set — now has a first
-coarse baseline. The linguistically aligned comparison was built on 2026-09-19 (below).
+one that works without a matching human recording — has both an aligned
+Japanese baseline (2026-09-19) and a contextual Mandarin baseline (2026-08-23),
+below. The equal-time baseline is historical; neither aligned comparison
+replaces fluent-listener calibration.
 
 **Expectation extraction expanded to every available line, 2026-08-22.** The
 reference-free half now runs on all 150 Japanese and all 150 Chinese evaluation
@@ -2542,9 +2555,11 @@ ordering the reference-based f0 correlation gave (0.742 / 0.717). On these
 The Chinese half keeps its own contextual baseline above; this does not
 replace it. No target is set from a first run.
 
-**No target yet, deliberately.** A correlation threshold invented before the
-fused measure has ever run would be the "invented number" this document's
-rules forbid. The first task is the measurement.
+**No target yet, deliberately.** The aligned Japanese and contextual Mandarin
+measurements above exist. A listener-calibrated quality threshold does not.
+The next task is fluent Japanese/Chinese assessment of the existing listening
+packages and calibration of these measures against those judgments, not
+another first fused baseline. No threshold is inferred from the first runs.
 
 **Two things already worth carrying forward.** The Japanese and Chinese arms
 disagree about which method wins — clone leads on Japanese pitch accent, LoRA
@@ -2741,8 +2756,11 @@ OPEN; the work is now nine named books rather than two.
 > book. That is worse than mispronouncing it.
 
 **Metric** — character names spoken the same way across a book.
-**Probe** — `app/pronunciation.py`, `pronunciation.json` (ships empty).
-**Current** — infrastructure exists, lexicon empty. **BASELINE TAKEN 2026-08-08** (`name_consistency.py`, 48 saved books):
+**Probe** — `app/pronunciation.py`, `pronunciation.json`.
+**Current, checked 2026-10-10** — infrastructure exists; the committed lexicon
+has 42 name entries and **0 active replacements** (all values are empty).
+The existing listening packages below await ratings before any replacement
+is selected. **BASELINE TAKEN 2026-08-08** (`name_consistency.py`, 48 saved books):
 
 | | |
 |---|---|
@@ -2856,8 +2874,12 @@ They do not close the Japanese boundary goal. See [historical comparison](docs/r
 **Metric** — WER (CER for CJK) against human transcripts, plus alignment error
 against known boundaries.
 **Probe** — `app/experiments/asr_backends.py`. The alignment probe concatenates
-clips with 0.5 s gaps, so boundary truth is *arithmetic* — the only answer key
-in this project that cannot itself be wrong.
+clips with 0.5 s gaps, making file-start positions arithmetic. Those positions
+are not necessarily speech onsets: the 2026-09-28 lead-in audit in
+[Measurement integrity](#6-measurement-integrity) found quiet before the first
+word. Before judging the boundary target, hand-mark the existing 50 onsets or
+adopt and validate one onset definition for truth and scoring alike. This
+measurement ambiguity is not evidence that the alignment target is met.
 **Current** — 50 clips per language, 2026-08-06:
 
 | lang | backend | WER/CER | align median | within 300 ms |
@@ -3136,9 +3158,12 @@ transcriber (44.3% → 14.1% CER) and **ten times worse at boundaries**.
 SenseVoice is the best Chinese transcriber of all and effectively cannot
 segment — 1 of 10 boundaries, a 17-second median error.
 
-So the reachable path is probably not to pick one. Words and boundaries can
-come from different passes, and the failure modes are exactly complementary.
-That hybrid is untested; nothing measured rules it out.
+Words and boundaries can come from different passes. The hybrid was measured
+above: it met the Chinese pilot's targets but did not meet the Japanese
+alignment target. For Japanese, the later 2026-09-28 lead-in audit changes the next
+step: establish speech-onset truth before interpreting another alignment
+comparison. The target remains unchanged; a repeated hybrid baseline alone
+cannot resolve that ambiguity.
 
 ---
 
@@ -3685,10 +3710,13 @@ one rater and one session would be the same invented number the rules forbid.
 What has changed is that the goal is no longer unmeasured — it is measured
 once, thinly, by a non-naive rater.
 
-**What this goal now needs** is no longer "someone, headphones, ten minutes".
-It is: fix or delete the `per_char` no-op arm and re-run the instruction
-comparison so its four sets are real; then a second rater who is not the
-project owner, because every limitation below turns on that.
+**What this goal now needs.** The non-owner listener requirement received
+its first evidence on 2026-09-13 (below); the 2026-09-30 chapter and voice
+follow-ups add different, still limited listening evidence. The `per_char`
+no-op remains unresolved: fix or remove it and verify the intended audio
+contrast before asking anyone to rate that comparison again. Fluent Japanese/
+Chinese validation of the existing packages remains pending. These sittings
+do not establish broad audiobook preference or a new passing threshold.
 
 #### The ECAPA gap is audible, and it was checked blind — 2026-09-06
 
@@ -6753,24 +6781,28 @@ If only three things get worked on:
    complete: Qwen3-8B LoRA scores 69.28% on nineteen book-held-out novels versus
    72.54% on its nine development books (3.27-point gap). This configuration
    is inside the five-point criterion; other model-specific gaps remain
-   open. The saved error analysis identifies answered selection errors and
-   unanswered regressions for follow-up, not a need for another identical
-   matching-development run. See the dated evidence in 1.3.
+   open. Reproduce answered selection failures and unanswered windows on
+   development material, with controls for currently correct answers. The
+   saved reports lack raw responses and per-row prompt hashes, so they do not
+   identify why blanks occurred. Record author exclusions in an artifact;
+   the existing book exclusion alone does not verify them. Do not tune on the
+   nineteen-book holdout or repeat the completed matching-development run.
 2. **Per-line duration spread (2.4)** — the narrator-controlled Japanese clone
-   median is 0.927 and meets the goal, disproving the earlier cross-reader
-   0.758 diagnosis. However, 43% of individual Japanese clips remain outside
-   the band, similar to the other language arms.
-3. **Train/val contamination (2.7)** — the "arithmetic" half of this entry was
-   done on 2026-09-04: scored on unseen volumes of the same narrator, the clean
-   retrains beat the shipped adapters (+0.029, +0.027; three identical-weight
-   controls read exactly 0). **Recounted 2026-09-27 from each shipped adapter's
-   training metadata:** 58 trained on the 180-clip split; **9 on all 200
-   clips**; and **8 on every clip of a smaller dataset** (24–188 clips, one of
-   just **2**: `warm_baritone_40s_m_gothic`). **Inventoried 2026-09-28:** 7 of those 8
-   trained on their own val clips and the eighth has no val split, so the live figure is
-   **15 contaminated plus 1 unsplit** (see 2.7); the retrains are queued. **Re-audited 2026-09-29, after the unseen-gate
-  promotion:** 9 contaminated (6 on all 200 clips and 3 small datasets still on their full
-  counts) plus 1 unsplit; the retrains for those remain queued.
+   median already meets the goal; per-line spread remains open. The September
+   30 grouping comparison produced 180 valid clips and improved paired duration
+   at both seeds. Use its existing package for fluent Japanese listening before
+   any product change or wider narrator confirmation. Matched-duration identity
+   controls removed the earlier apparent ECAPA advantage; duration improvement
+   is not a pronunciation, identity or listening pass. See the
+   [completed Japanese comparison](docs/results/thunder-japanese-development-2026-09-30.md).
+3. **Train/val contamination (2.7)** — the latest explicit shipped-library audit
+   is September 29: **9 contaminated plus 1 unsplit**, not the older 15 or 21.
+   Verify current hashes/metadata and reuse existing clean candidates and
+   unseen-volume comparisons. Two remaining voices were already compared on
+   September 30, with mixed results and no perceptual approval. Decide per
+   voice what evidence or source data is still missing; do not infer that all
+   remaining candidates need retraining or that any is approved for promotion.
+   See 2.7 and the [completed voice comparison](docs/results/thunder-campaign-2026-09-30.md).
 
 **Selection (1.2) was #1 on this list until 2026-08-08 and is now MET** — the
 29.9% it was built on came from a model that does not ship. Re-measuring goals
@@ -6784,24 +6816,32 @@ CONTEXT. But 1.2 established that the roster already holds the right name
 about 85% of the time while the model picks it 29.9% — a SELECTION failure,
 not a context one. The later character-style selector also failed its gate,
 while the 2026-08-24 LoRA training intervention produced the first large
-held-out gain. The next experiment should therefore confirm the trained
-adapters on never-trained books rather than spend another sealed set on a
-prompt-only context arm.
+held-out gain. The September 30 frozen-adapter confirmation now supplies that
+never-trained-book comparison. The next intervention needs a diagnosed
+failure on development material and fresh held-out confirmation, rather than
+another prompt-only context arm or a repeat of the completed fold-swap run.
 
-**7.1 was rated on 2026-08-22 and is no longer the cheap one.** Its controls
-passed 3/3, so the instrument works — but the per-character instruction arm
-turned out to render byte-identical audio, so a real listening session was
-spent partly on a comparison that could not have had an outcome. The next
-move there is to fix or delete that arm and re-run the instruction sets, then
-find a rater who is not the project owner. Both are cheaper than a GPU
-experiment and neither is a ten-minute job any more.
+**Listening (7.1) already includes a non-owner rater** from September 13 and
+English chapter/voice follow-ups from September 30. The unresolved work is
+repairing or removing the byte-identical per-character instruction arm and
+obtaining appropriate listening coverage, especially fluent Japanese/Chinese
+ratings. Reuse the unrated language-specific packages before another campaign.
+The aligned Japanese and contextual Mandarin measures in 2.9 already exist;
+listener calibration, not a missing fused evaluator, is the gap.
 
-The Japanese transcription gap (5.4)
-is now measured rather than pending, and may be a metric problem rather than a
-pipeline one; its open axis is boundary alignment, where the 2026-08-23
-CTC and text-aware-grouping pilots were both rejected at their gates. The three-pass baseline (5.3) is already answered and should not
-be listed as pending. Reliability 3.1 is MET after the 2026-08-16 unseen
-four-book current-path rerun completed all 807 chunks.
+**Pronunciation (5.2)** has zero active replacements. Rate the existing
+candidate takes before selecting a few demonstrated improvements; retain
+case-sensitive matching and the ordinary-word collision guards. The measured
+harm from blanket respelling rules out populating the dictionary indiscriminately.
+
+**Japanese boundaries (5.4)** need a common definition of speech onset before
+the alignment target can be judged. The September 28 lead-in audit showed
+that file starts and speech starts disagree; repeating the rejected CTC or
+text-grouping pilots does not resolve that truth problem. Hand-mark the
+existing onsets or validate a shared onset rule first. The three-pass baseline
+(5.3) is already answered and should not be listed as pending. Reliability 3.1
+is MET after the 2026-08-16 unseen four-book current-path rerun completed all
+807 chunks.
 
 ## Rules for changing this file
 
