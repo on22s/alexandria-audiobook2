@@ -19,12 +19,15 @@ cause cannot be checked against anything.
 import os
 import sys
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
 sys.path.insert(0, os.path.join(REPO, "app", "experiments"))
 
-from experiments.distill_eval import merge_validation_into_diagnostics  # noqa: E402
+from experiments.distill_eval import merge_validation_into_diagnostics, _Response  # noqa: E402
+from generate_script import LLMGenParams, call_llm_for_entries  # noqa: E402
 
 
 class _Client:
@@ -37,43 +40,64 @@ class DiagnosticRecordsCause(unittest.TestCase):
     def _client(self):
         return _Client([{"finish_reason": "stop", "raw_response": "[]"}])
 
+    def _observe(self, client, record):
+        # Simulate the client's append occurring inside the observed batch.
+        diagnostic = client.diagnostics.pop() if client.diagnostics else None
+        with merge_validation_into_diagnostics(client) as observe:
+            if diagnostic is not None:
+                client.diagnostics.append(diagnostic)
+            observe(record)
+
     def test_the_rejection_codes_reach_the_diagnostic(self):
-        client = self._client()
-        merge_validation_into_diagnostics(client)(
-            {"attempt": 1, "outcome": "quality_rejected",
-             "failure_codes": ["speaker_not_in_source", "spoken_not_named"]})
-        self.assertEqual(["speaker_not_in_source", "spoken_not_named"],
-                         client.diagnostics[-1]["failure_codes"])
+        client = _Client()
+
+        def create(**kwargs):
+            client.diagnostics.append({"finish_reason": "stop", "raw_response": "[{}]"})
+            return _Response("[{}]", "stop", 2)
+
+        client.chat = SimpleNamespace(completions=SimpleNamespace(create=create))
+        quality = {"passed": False, "findings": [
+            {"code": "spoken_not_named", "message": "Synthetic unnamed speaker"}],
+            "metrics": {}}
+        with patch("generate_script.get_response_log_path", side_effect=OSError("synthetic")):
+            with merge_validation_into_diagnostics(client) as observe:
+                out = call_llm_for_entries(
+                    client, "stub", "Synthetic system", "Synthetic prompt",
+                    LLMGenParams(max_tokens=512, context_length=4096),
+                    "test.log", "DIAGNOSTIC", max_retries=0,
+                    validate_entries=lambda entries: quality, attempt_observer=observe)
+        self.assertEqual([], out)
+        self.assertEqual(["spoken_not_named"], client.diagnostics[-1]["failure_codes"])
         self.assertEqual("quality_rejected", client.diagnostics[-1]["outcome"])
 
     def test_it_merges_and_does_not_append(self):
         """Appending would double-count attempts and make len(attempts) lie."""
         client = self._client()
-        merge_validation_into_diagnostics(client)(
+        self._observe(client,
             {"outcome": "quality_rejected", "failure_codes": ["x"]})
         self.assertEqual(1, len(client.diagnostics))
 
     def test_it_keeps_what_the_client_already_recorded(self):
         client = self._client()
-        merge_validation_into_diagnostics(client)({"outcome": "accepted"})
+        self._observe(client, {"outcome": "accepted"})
         self.assertEqual("stop", client.diagnostics[-1]["finish_reason"],
                          "the generation facts must survive the merge")
 
     def test_no_diagnostics_yet_is_survivable(self):
         """The observer can fire before any generation on an error path."""
         client = _Client([])
-        merge_validation_into_diagnostics(client)({"failure_codes": ["x"]})
+        self._observe(client, {"failure_codes": ["x"]})
         self.assertEqual([], client.diagnostics)
 
     def test_a_non_dict_record_is_ignored(self):
         client = self._client()
-        merge_validation_into_diagnostics(client)(None)
+        self._observe(client, None)
         self.assertNotIn("failure_codes", client.diagnostics[-1])
 
     def test_keys_the_observer_does_not_own_are_not_copied(self):
         """Only the validator's verdict; not the whole attempt record."""
         client = self._client()
-        merge_validation_into_diagnostics(client)(
+        self._observe(client,
             {"outcome": "quality_rejected", "prompt_tokens": 999})
         self.assertNotIn("prompt_tokens", client.diagnostics[-1],
                          "generation facts come from the client, not the observer")

@@ -138,9 +138,12 @@ class DistillEvalShimTest(unittest.TestCase):
         reply = json.dumps([{"n": 0, "head": "Where", "speaker": "HARUHIRO"},
                             {"n": 1, "head": "Somewhere", "speaker": "RANTA"}])
         client = self.module.LocalClient(_Model(), _Tok(reply))
-        out = attribute_batch(client, "stub", BATCH, self._params(),
-                              ["HARUHIRO", "RANTA"], neighbor_contexts=[{}, {}],
-                              source_text="Haruhiro and Ranta spoke. " + " ".join(e["text"] for e in BATCH))
+        with self.module.merge_validation_into_diagnostics(client) as observe:
+            out = attribute_batch(client, "stub", BATCH, self._params(),
+                                  ["HARUHIRO", "RANTA"], neighbor_contexts=[{}, {}],
+                                  source_text="Haruhiro and Ranta spoke. " + " ".join(e["text"] for e in BATCH),
+                                  attempt_observer=observe)
+        self.assertEqual("accepted", client.diagnostics[-1]["outcome"])
 
         self.assertEqual([o["speaker"] for o in out], ["HARUHIRO", "RANTA"])
         # The text freeze is the whole reason attribution returns only n/head/
