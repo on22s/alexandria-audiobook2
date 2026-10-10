@@ -157,6 +157,8 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
         "keep_scope": "batch" if gen.get("three_pass_keep_whole_batch") is True else "line",
         "attribute_batch_size": int(gen.get("three_pass_attribute_batch_size", BATCH_SIZE)),
         "attribute_context_chars": int(gen.get("three_pass_attribute_context_chars", 2000)),
+        "attribute_target_chars": int(gen.get("three_pass_attribute_target_chars", 0)),
+        "instruct_target_chars": int(gen.get("three_pass_instruct_target_chars", 0)),
         "attribute_prompt_variant": gen.get("three_pass_attribute_prompt_variant") or "michel2_full",
     }
 
@@ -294,17 +296,30 @@ def build_window_surround(segmented, window_indices, chars):
             "after": gather(range(last + 1, len(segmented)), False)}
 
 
-def iter_unique_entry_batches(entries, batch_size=BATCH_SIZE):
-    """Yield index/entry batches with unique normalized text.
+def iter_entry_windows(entries, batch_size=BATCH_SIZE, target_chars=0):
+    """Yield complete source windows; a single entry may exceed the soft target."""
+    if isinstance(target_chars, bool) or not isinstance(target_chars, int) or not 0 <= target_chars <= 1000000:
+        raise ValueError("character target must be an integer between 0 and 1000000")
+    if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size < 1:
+        raise ValueError("batch size must be a positive integer")
+    window, size = [], 0
+    for index, entry in enumerate(entries):
+        length = len(str(entry.get("text") or "")) if isinstance(entry, dict) else 0
+        if window and ((target_chars and size + length > target_chars)
+                       or (not target_chars and len(window) >= batch_size)):
+            yield window
+            window, size = [], 0
+        window.append((index, entry))
+        size += length
+    if window:
+        yield window
 
-    Each consecutive `batch_size` window is greedily colored into the fewest
-    duplicate-free calls. Unlike stopping at the first repeated short line, this
-    keeps the other entries in the window batched and preserves bounded source
-    locality. Returned indices let callers restore source order."""
-    for window_start in range(0, len(entries), batch_size):
+
+def iter_unique_entry_batches(entries, batch_size=BATCH_SIZE, target_chars=0):
+    """Color each source window into duplicate-free calls with stable indices."""
+    for window in iter_entry_windows(entries, batch_size, target_chars):
         batches = []
-        for index in range(window_start, min(window_start + batch_size, len(entries))):
-            entry = entries[index]
+        for index, entry in window:
             if not isinstance(entry, dict):
                 continue
             key = normalize_text(str(entry.get("text") or ""))
@@ -319,13 +334,16 @@ def iter_unique_entry_batches(entries, batch_size=BATCH_SIZE):
             yield batch
 
 
-def get_missing_attribute_contexts(entries, indices, batch_size):
+def get_missing_attribute_contexts(entries, indices, batch_size, window_bounds=None):
     """Read-only adjacent evidence omitted from the current source-window batch."""
     if not indices:
         return []
     included = set(indices)
-    start = indices[0] // batch_size * batch_size
-    end = min(start + batch_size, len(entries))
+    if window_bounds is None:
+        start = indices[0] // batch_size * batch_size
+        end = min(start + batch_size, len(entries))
+    else:
+        start, end = window_bounds[indices[0]]
     contexts = []
     for index in indices:
         context = {}
@@ -335,6 +353,13 @@ def get_missing_attribute_contexts(entries, indices, batch_size):
                 context[key] = entries[neighbor]
         contexts.append(context)
     return contexts
+
+
+def get_entry_window_bounds(entries, batch_size, target_chars):
+    """Map source indices to their unchanged physical batching windows."""
+    return {index: (window[0][0], window[-1][0] + 1)
+            for window in iter_entry_windows(entries, batch_size, target_chars)
+            for index, _ in window}
 
 
 MIN_ROSTER_ATTESTATIONS = 3
@@ -854,19 +879,36 @@ def retry_delivery_instructions(client, model_name, entries, params,
     return result
 
 
-def does_instruct_batch_fit_context(prior_batch, params, neighbor_contexts=None):
-    """Return whether an instruction request has room for a plausible response."""
-    sys_prompt, user_prompt = build_instruct_request(
-        prior_batch, params, neighbor_contexts)
-    messages = [{"role": "system", "content": sys_prompt},
-                {"role": "user", "content": user_prompt}]
+def does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
+    """Use the production token-budget helper for the full assembled request."""
     try:
         available = get_effective_max_tokens(
-            params.max_tokens, params.context_length, messages,
+            params.max_tokens, params.context_length,
+            [{"role": "system", "content": system_prompt},
+             {"role": "user", "content": user_prompt}],
             params.hard_max_tokens, scale_to_context=False)
     except TokenBudgetError:
         return False
-    return available >= max(256, 48 * len(prior_batch))
+    return available >= output_tokens + max(0, params.reasoning_allowance or 0)
+
+
+def does_instruct_batch_fit_context(prior_batch, params, neighbor_contexts=None):
+    """Return whether an instruction request has room for a plausible response."""
+    system_prompt, user_prompt = build_instruct_request(prior_batch, params, neighbor_contexts)
+    return does_request_fit_context(system_prompt, user_prompt, params,
+                                    max(256, 48 * len(prior_batch)))
+
+
+def get_attribute_sizing_request(batch, params, roster, contexts, surround,
+                                 variant="default", texts=None, cast=None, roster_traits=None):
+    """Build the same selected prompt for planning and character-mode fitting."""
+    if variant not in (None, "default") or texts:
+        from attribution_prompt_variants import build_variant_request
+        return build_variant_request(
+            variant or "default", batch, params, roster,
+            alias_groups=(cast or {}).get("alias_groups"), neighbor_contexts=contexts,
+            surround=surround, texts=texts, roster_traits=roster_traits)
+    return build_attribute_request(batch, params, roster, contexts, surround)
 
 
 _WS_ENTRY_GAP = re.compile(r'[\s"“”「」『』]*')
@@ -1354,10 +1396,33 @@ def validate_attribution_vote_settings(votes, temperature):
         raise ValueError("vote temperature must be a finite number between 0 and 2")
 
 
+def get_segment_chunk_records(source_text, chunk_size, params):
+    """Bound opt-in large Pass-1 targets with the same prompt/output budget."""
+    if chunk_size <= 30000 or not params.context_length:
+        return split_into_chunk_records(source_text, max_size=chunk_size)
+    size = chunk_size
+    system_prompt, user_template = load_segment_prompts()
+    if params.segment_system_prompt:
+        system_prompt = params.segment_system_prompt
+    system_prompt = apply_segment_gate_controls(system_prompt, params)
+    user_template = params.segment_user_prompt_template or user_template
+    while True:
+        records = split_into_chunk_records(source_text, max_size=size)
+        if chunk_size <= 30000 or not params.context_length:
+            return records
+        if all(does_request_fit_context(system_prompt, user_template.format(chunk=record["text"]),
+                                        params, resolve_completion_ceiling(len(record["text"].split()), params))
+               for record in records):
+            return records
+        if size <= 500:
+            raise TokenBudgetError("Pass-1 source plus prompt/output does not fit; use a capable endpoint or reduce the prompt.")
+        size = max(500, size // 2)
+
+
 def get_three_pass_planning_entries(source_text, settings, params):
     """Predict entries once using the execution quote-boundary policy."""
     chunk_size = settings["chunk_size"]
-    records = split_into_chunk_records(source_text, max_size=chunk_size)
+    records = get_segment_chunk_records(source_text, chunk_size, params)
     chunks = [record["text"] for record in records]
     predicted_entries = []
     unresolved_chunks = []
@@ -1387,16 +1452,20 @@ def get_three_pass_planned_calls(source_text, settings, params):
     """Count predicted calls without formatting request prompts or token reports."""
     validate_attribution_vote_settings(settings.get("attribution_votes", 1),
                                        settings.get("vote_temperature", 0.3))
+    if (settings.get("attribute_target_chars") or settings.get("instruct_target_chars")
+            or settings["chunk_size"] > 30000 or settings.get("attribute_context_chars", 0) > 20000):
+        return planned_calls_from_preflight(build_three_pass_request_preflight(
+            source_text, settings, params.context_length or 0, 1, params=params))
     _, predicted, unresolved, _ = get_three_pass_planning_entries(source_text, settings, params)
     batch_size = int(settings.get("attribute_batch_size") or BATCH_SIZE)
     attribute_calls = sum(
         any(entry.get("type") == "SPOKEN" for _, entry in batch)
-        for batch in iter_unique_entry_batches(predicted, batch_size))
+        for batch in iter_unique_entry_batches(predicted, batch_size, settings.get("attribute_target_chars", 0)))
     named = [{"speaker": ("UNKNOWN" if entry.get("type") == "SPOKEN" else "NARRATOR"),
               "text": entry["text"]} for entry in predicted]
     return {1: len(unresolved),
             2: attribute_calls * settings.get("attribution_votes", 1),
-            3: sum(1 for _ in iter_unique_entry_batches(named))}
+            3: sum(1 for _ in iter_unique_entry_batches(named, target_chars=settings.get("instruct_target_chars", 0)))}
 
 
 def build_three_pass_request_preflight(source_text, settings, context_length,
@@ -1424,10 +1493,26 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
 
     def add_request(stage, system_prompt, user_prompt, completion_tokens):
         prompt_tokens = math.ceil((len(system_prompt) + len(user_prompt)) / 3)
-        total = prompt_tokens + int(completion_tokens) + reserve
+        completion_tokens = int(completion_tokens) + max(0, params.reasoning_allowance or 0)
+        total = prompt_tokens + completion_tokens + reserve
         requests.append({"stage": stage, "prompt_tokens": prompt_tokens,
                          "predicted_completion_tokens": int(completion_tokens),
                          "predicted_total_tokens": total})
+
+    def add_indexed_requests(stage, indexed, build_request, output_per_entry, target_chars, votes=1):
+        work = [indexed]
+        while work:
+            current = work.pop(0)
+            system_prompt, user_prompt = build_request(current)
+            output_tokens = max(256, output_per_entry * len(current))
+            if target_chars and not does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
+                if len(current) == 1:
+                    raise TokenBudgetError(f"One {stage} entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
+                midpoint = len(current) // 2
+                work[0:0] = [current[:midpoint], current[midpoint:]]
+                continue
+            for _ in range(votes):
+                add_request(stage, system_prompt, user_prompt, output_tokens)
 
     segment_system, segment_template = load_segment_prompts()
     if params.segment_system_prompt:
@@ -1464,45 +1549,40 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     estimated_roster = ["R" * roster_chars] if roster_chars else []
     attribute_batch_size = int(settings.get("attribute_batch_size") or BATCH_SIZE)
     context_chars = int(settings.get("attribute_context_chars") or 0)
-    for indexed_batch in iter_unique_entry_batches(predicted_entries, attribute_batch_size):
-        pending = [(index, entry) for index, entry in indexed_batch
-                   if entry.get("type") == "SPOKEN"]
-        if not pending:
-            continue
-        batch = [entry for _, entry in pending]
+    attribute_budgeted = bool(settings.get("attribute_target_chars") or context_chars > 20000)
+    attribute_bounds = (get_entry_window_bounds(predicted_entries, attribute_batch_size, settings.get("attribute_target_chars", 0))
+                        if settings.get("attribute_target_chars") else None)
+    def build_planned_attribute(current):
         contexts = get_missing_attribute_contexts(
-            predicted_entries, [index for index, _ in pending], attribute_batch_size)
-        surround = {"before": "x" * context_chars, "after": "x" * context_chars}
-        variant = settings.get("attribute_prompt_variant") or "default"
-        texts = settings.get("attribute_prompt_texts")
-        if variant != "default" or texts:
-            from attribution_prompt_variants import build_variant_request
-            system_prompt, user_prompt = build_variant_request(
-                variant, batch, params, estimated_roster,
-                alias_groups=(settings.get("cast") or {}).get("alias_groups"),
-                neighbor_contexts=contexts, surround=surround, texts=texts)
-        else:
-            system_prompt, user_prompt = build_attribute_request(
-                batch, params, estimated_roster, contexts, surround)
-        for _ in range(settings.get("attribution_votes", 1)):
-            add_request("attribute", system_prompt, user_prompt,
-                        max(256, 24 * len(batch)))
+            predicted_entries, [index for index, _ in current], attribute_batch_size, attribute_bounds)
+        surround = (build_window_surround(predicted_entries, [index for index, _ in current], context_chars)
+                    if attribute_budgeted else
+                    {"before": "x" * context_chars, "after": "x" * context_chars})
+        return get_attribute_sizing_request(
+            [entry for _, entry in current], params, estimated_roster, contexts, surround,
+            settings.get("attribute_prompt_variant") or "default",
+            settings.get("attribute_prompt_texts"), settings.get("cast"))
+
+    for indexed_batch in iter_unique_entry_batches(predicted_entries, attribute_batch_size, settings.get("attribute_target_chars", 0)):
+        pending = [(index, entry) for index, entry in indexed_batch if entry.get("type") == "SPOKEN"]
+        if pending:
+            add_indexed_requests("attribute", pending, build_planned_attribute,
+                                 128 if settings.get("speaker_traits") else 24,
+                                 attribute_budgeted, settings.get("attribution_votes", 1))
 
     named_entries = [{"speaker": ("UNKNOWN" if entry.get("type") == "SPOKEN"
                                    else "NARRATOR"),
                       "text": entry["text"]}
                      for entry in predicted_entries]
-    for indexed_batch in iter_unique_entry_batches(named_entries):
-        batch = [entry for _, entry in indexed_batch]
-        contexts = [{
-            "previous_context": named_entries[index - 1] if index else None,
-            "next_context": (named_entries[index + 1]
-                             if index + 1 < len(named_entries) else None),
-        } for index, _ in indexed_batch]
-        system_prompt, user_prompt = build_instruct_request(
-            batch, params, contexts)
-        add_request("instruct", system_prompt, user_prompt,
-                    max(256, 48 * len(batch)))
+    def build_planned_instruct(current):
+        contexts = [{"previous_context": named_entries[index - 1] if index else None,
+                     "next_context": named_entries[index + 1] if index + 1 < len(named_entries) else None}
+                    for index, _ in current]
+        return build_instruct_request([entry for _, entry in current], params, contexts)
+
+    for indexed_batch in iter_unique_entry_batches(named_entries, target_chars=settings.get("instruct_target_chars", 0)):
+        add_indexed_requests("instruct", indexed_batch, build_planned_instruct, 48,
+                             settings.get("instruct_target_chars", 0))
 
     totals = sorted(request["predicted_total_tokens"] for request in requests)
     worst = totals[-1] if totals else 0
@@ -1795,7 +1875,8 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
                            attribute_context_chars=0, attribute_prompt_variant="default",
                            attribute_prompt_texts=None, cast_sha256=None,
                            attribution_votes=1, vote_temperature=0.3,
-                           first_person_narrator=None, speaker_traits=False):
+                           first_person_narrator=None, speaker_traits=False,
+                           attribute_target_chars=0, instruct_target_chars=0):
     digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
     settings = {
         "model_name": model_name, "chunk_size": chunk_size,
@@ -1817,6 +1898,8 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         # before these knobs existed keeps its identity and resumes.
         **({"attribute_batch_size": attribute_batch_size}
            if attribute_batch_size != BATCH_SIZE else {}),
+        **({"attribute_target_chars": attribute_target_chars} if attribute_target_chars else {}),
+        **({"instruct_target_chars": instruct_target_chars} if instruct_target_chars else {}),
         **({"attribute_context_chars": attribute_context_chars}
            if attribute_context_chars else {}),
         **({"attribute_prompt_variant": attribute_prompt_variant}
@@ -1984,7 +2067,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    vote_temperature=0.3, first_person_narrator=None,
                    attribute_batch_size=BATCH_SIZE, attribute_context_chars=0,
                    attribute_prompt_variant="default", attribute_prompt_texts=None,
-                   planned_calls=None, cast=None, keep_scope="line", speaker_traits=False):
+                   planned_calls=None, cast=None, keep_scope="line", speaker_traits=False,
+                   attribute_target_chars=0, instruct_target_chars=0):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -2000,6 +2084,11 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     text is sent through the variant provider for every variant, default
     included, so what Setup shows is what the model gets."""
     require_nonempty_source(source_text)
+    for target in (attribute_target_chars, instruct_target_chars):
+        list(iter_entry_windows([], attribute_batch_size, target))
+    if attribute_target_chars or instruct_target_chars or chunk_size > 30000 or attribute_context_chars > 20000:
+        if not params.context_length or params.context_length <= 0:
+            raise TokenBudgetError("Character batching and larger targets require a configured model context length.")
     # Preserve None in checkpoint identity while validating explicit controls.
     get_context_rescue_windows(context_windows)
     validate_attribution_vote_settings(attribution_votes, vote_temperature)
@@ -2015,7 +2104,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                                          alias_groups=(cast or {}).get("alias_groups"),
                                          texts=texts or None)
     narrator = normalize_narrator_name(first_person_narrator)
-    chunk_records = split_into_chunk_records(source_text, max_size=chunk_size)
+    chunk_records = get_segment_chunk_records(source_text, chunk_size, params)
     chunks = [record["text"] for record in chunk_records]
     quote_analyses = []
     quote_depth = 0
@@ -2034,7 +2123,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         attribute_prompt_texts=attribute_prompt_texts,
         cast_sha256=(cast or {}).get("sha256"),
         attribution_votes=attribution_votes, vote_temperature=vote_temperature,
-        first_person_narrator=narrator, speaker_traits=speaker_traits)
+        first_person_narrator=narrator, speaker_traits=speaker_traits,
+        attribute_target_chars=attribute_target_chars, instruct_target_chars=instruct_target_chars)
     initial_binding = get_run_model_binding(client, model_name)
     if initial_binding["failover_model"] is not None:
         fingerprint["model_binding"] = initial_binding
@@ -2307,11 +2397,13 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # The batch in flight, so a fail-fast can record exactly what failed for
     # the recovery panel (issue #522 s23 / s4.4).
     in_flight = {"current": None, "attempt_start": 0}
-    window_total = sum(1 for _ in iter_unique_entry_batches(segmented, attribute_batch_size))
+    attribute_bounds = (get_entry_window_bounds(segmented, attribute_batch_size, attribute_target_chars)
+                        if attribute_target_chars else None)
+    window_total = sum(1 for _ in iter_unique_entry_batches(segmented, attribute_batch_size, attribute_target_chars))
     window_number = 0
     if progress:
         model_total, model_done = 0, 0
-        for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size):
+        for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size, attribute_target_chars):
             if not any(get_deterministic_named_entry(entry) is None for _, entry in indexed_batch):
                 continue
             model_total += 1
@@ -2321,7 +2413,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         progress.set_total(2, model_total)
         progress.restore_done(2, model_done)
     try:
-        for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size):
+        for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size, attribute_target_chars):
             window_number += 1
             pending = get_attribute_pending_entries(
                 indexed_batch, named, deterministic, diagnostic_failures)
@@ -2337,9 +2429,23 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 # entries. Include only missing neighbors inside this source
                 # window; outer evidence remains controlled by the context knob.
                 contexts = get_missing_attribute_contexts(
-                    segmented, [index for index, _ in current], attribute_batch_size)
+                    segmented, [index for index, _ in current], attribute_batch_size, attribute_bounds)
                 surround = build_window_surround(
                     segmented, [index for index, _ in current], attribute_context_chars)
+                if attribute_target_chars or attribute_context_chars > 20000:
+                    request_params = ensure_run_request_params(client, params)
+                    system_prompt, user_prompt = get_attribute_sizing_request(
+                        batch, request_params, roster, contexts, surround,
+                        attribute_prompt_variant, attribute_prompt_texts, cast,
+                        get_established_traits(named) if speaker_traits else None)
+                    if not does_request_fit_context(system_prompt, user_prompt, request_params,
+                                                    max(256, (128 if speaker_traits else 24) * len(batch))):
+                        if len(current) == 1:
+                            raise TokenBudgetError("One attribution entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
+                        midpoint = len(current) // 2
+                        print(f"  Attribution request exceeds budget; subdividing {len(current)} entries")
+                        work[0:0] = [current[:midpoint], current[midpoint:]]
+                        continue
                 announce_step(2, "window", window_number, window_total)
                 if progress:
                     progress.note_call_started()
@@ -2452,12 +2558,12 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             annotated[index] = {**entry, "instruct": default_instruct(entry)}
     inst_start = time.time()
     inst_base = elapsed_s.get("instruct", 0)
-    window_total = sum(1 for _ in iter_unique_entry_batches(named))
+    window_total = sum(1 for _ in iter_unique_entry_batches(named, target_chars=instruct_target_chars))
     window_number = 0
     instruction_progress_reported = False
     if progress:
         model_total, model_done = 0, 0
-        for indexed_batch in iter_unique_entry_batches(named):
+        for indexed_batch in iter_unique_entry_batches(named, target_chars=instruct_target_chars):
             model_indices = [index for index, entry in indexed_batch
                              if not is_nonverbal_text(entry.get("text"))]
             if not model_indices:
@@ -2466,7 +2572,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             model_done += all(annotated[index] is not None for index in model_indices)
         progress.set_total(3, model_total)
         progress.restore_done(3, model_done)
-    for indexed_batch in iter_unique_entry_batches(named):
+    for indexed_batch in iter_unique_entry_batches(named, target_chars=instruct_target_chars):
         window_number += 1
         pending = [(index, entry) for index, entry in indexed_batch
                    if annotated[index] is None]
@@ -2488,6 +2594,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                       f"{len(current)} -> {midpoint} + {len(current) - midpoint}")
                 work[0:0] = [current[:midpoint], current[midpoint:]]
                 continue
+            if instruct_target_chars and not does_instruct_batch_fit_context(batch, request_params, contexts):
+                raise TokenBudgetError("One instruction entry plus context/output does not fit; use a capable endpoint.")
             exhausted = []
             attempt_start = len(attempts)
             announce_step(3, "window", window_number, window_total)
@@ -2861,6 +2969,10 @@ def main():
     parser.add_argument("--attribute-batch-size", type=int, default=None,
                         help="Override generation.three_pass_attribute_batch_size "
                              "(entries per pass-2 request)")
+    parser.add_argument("--attribute-target-chars", type=int, default=None,
+                        help="Pass-2 source character target; 0 retains line batching")
+    parser.add_argument("--instruct-target-chars", type=int, default=None,
+                        help="Pass-3 source character target; 0 retains line batching")
     parser.add_argument("--attribute-context-chars", type=int, default=None,
                         help="Override generation.three_pass_attribute_context_chars "
                              "(characters of the book shown either side of each pass-2 window)")
@@ -2967,7 +3079,11 @@ def main():
                             else generation_settings["attribute_batch_size"])
     attribute_context_chars = (args.attribute_context_chars if args.attribute_context_chars is not None
                                else generation_settings["attribute_context_chars"])
-    if attribute_batch_size < 1 or attribute_context_chars < 0:
+    attribute_target_chars = (generation_settings["attribute_target_chars"] if args.attribute_target_chars is None else args.attribute_target_chars)
+    instruct_target_chars = (generation_settings["instruct_target_chars"] if args.instruct_target_chars is None else args.instruct_target_chars)
+    for target in (attribute_target_chars, instruct_target_chars):
+        list(iter_entry_windows([], attribute_batch_size, target))
+    if attribute_batch_size < 1 or not 0 <= attribute_context_chars <= 1000000:
         raise SystemExit("attribute batch size must be >= 1 and context chars >= 0")
     try:
         configured_windows = gen.get("context_rescue_windows")
@@ -3046,6 +3162,8 @@ def main():
         "first_person_narrator": narrator,
         "attribute_batch_size": attribute_batch_size,
         "attribute_context_chars": attribute_context_chars,
+        "attribute_target_chars": attribute_target_chars,
+        "instruct_target_chars": instruct_target_chars,
         "attribute_prompt_variant": attribute_prompt_variant,
         "attribute_prompt_texts": attribute_prompt_texts,
         "cast": cast,

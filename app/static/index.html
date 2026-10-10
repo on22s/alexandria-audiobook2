@@ -1247,7 +1247,7 @@
                                 <div class="row g-2 mt-1">
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-chunk-size">Step 1: text per request (characters)</label>
-                                        <input type="number" class="form-control form-control-sm" id="tp-chunk-size" min="500" max="30000" step="100" value="3000">
+                                        <input type="number" class="form-control form-control-sm" id="tp-chunk-size" min="500" max="1000000" step="100" value="3000">
                                         <div class="form-text">How much of the book is sent per request when splitting it into lines. Bigger pieces mean fewer requests, but the AI has to write every word back, so its reply grows with the piece, and if one word comes back wrong the whole piece is redone. If a piece is too big for the model to write back in one reply, generation stops before it starts and tells you a size that fits.</div>
                                     </div>
                                     <div class="col-md-4">
@@ -1257,8 +1257,18 @@
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-attribute-context-chars">Step 2: extra text around each request (characters, each side)</label>
-                                        <input type="number" class="form-control form-control-sm" id="tp-attribute-context-chars" min="0" max="20000" step="500" value="2000">
+                                        <input type="number" class="form-control form-control-sm" id="tp-attribute-context-chars" min="0" max="1000000" step="500" value="2000">
                                         <div class="form-text">Also show the AI this much of the book before and after the lines it is deciding on, for context only (it is told not to assign speakers to it). 0 = off. Every 1,000 characters adds roughly 300 tokens to each request, so it costs time (and money on paid APIs). Whether it improves accuracy is being measured; see RECIPES.md.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-attribute-target-chars">Step 2: text per request (characters)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-attribute-target-chars" min="0" max="1000000" step="500" value="0">
+                                        <div class="form-text">0 keeps existing line-based batching. A positive value targets complete source entries, excluding extra context. Requests may be smaller to fit the selected model; a single entry can exceed this target. Larger targets do not increase the loaded model context.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-instruct-target-chars">Step 3: text per request (characters)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-instruct-target-chars" min="0" max="1000000" step="500" value="0">
+                                        <div class="form-text">0 keeps existing line-based batching. A positive value targets complete source entries, excluding extra context. Requests may be smaller to fit the selected model; a single entry can exceed this target. Larger targets do not increase the loaded model context.</div>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-segment-output-ratio">Segment output ratio</label>

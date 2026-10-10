@@ -7848,6 +7848,18 @@
     "tests.test_three_pass_cast.RequestCastTests.test_the_old_path_could_not_tell_a_loop_from_an_answer",
     "tests.test_three_pass_cast.RequestCastTests.test_truncated_reply_is_discarded_and_the_retry_is_used"
   ],
+  "test_three_pass_character_batches": [
+    "tests.test_three_pass_character_batches.CharacterBatchTests.test_actual_pipeline_subdivides_and_replays_checkpoint_without_calls",
+    "tests.test_three_pass_character_batches.CharacterBatchTests.test_defaults_ranges_and_legacy_windows",
+    "tests.test_three_pass_character_batches.CharacterBatchTests.test_fingerprint_compatibility_and_target_changes",
+    "tests.test_three_pass_character_batches.CharacterBatchTests.test_full_prompt_output_and_reasoning_budget",
+    "tests.test_three_pass_character_batches.CharacterBatchTests.test_invalid_targets_stop_before_client_or_artifacts",
+    "tests.test_three_pass_character_batches.CharacterBatchTests.test_large_pass1_target_splits_using_real_prompt_and_output_budget",
+    "tests.test_three_pass_character_batches.CharacterBatchTests.test_larger_context_is_budgeted_even_in_legacy_line_mode",
+    "tests.test_three_pass_character_batches.CharacterBatchTests.test_preflight_cache_context_binding_only_for_new_sizing_modes",
+    "tests.test_three_pass_character_batches.CharacterBatchTests.test_preflight_subdivides_and_refuses_single_oversized_entry",
+    "tests.test_three_pass_character_batches.CharacterBatchTests.test_unicode_boundaries_duplicates_and_context"
+  ],
   "test_three_pass_checkpoint_recovery": [
     "tests.test_three_pass_checkpoint_recovery.CheckpointShapeTests.test_emitted_attribute_incomplete_stage_can_resume",
     "tests.test_three_pass_checkpoint_recovery.CheckpointShapeTests.test_loader_rejects_matching_schema_errors_before_returning_state",

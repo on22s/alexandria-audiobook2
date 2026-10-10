@@ -1263,7 +1263,7 @@
           },
           "three_pass_attribute_context_chars": {
             "default": 2000,
-            "maximum": 20000.0,
+            "maximum": 1000000.0,
             "minimum": 0.0,
             "title": "Three Pass Attribute Context Chars",
             "type": "integer"
@@ -1284,6 +1284,13 @@
             "title": "Three Pass Attribute Prompt Variant",
             "type": "string"
           },
+          "three_pass_attribute_target_chars": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Three Pass Attribute Target Chars",
+            "type": "integer"
+          },
           "three_pass_attribute_temperature": {
             "default": 0.1,
             "maximum": 2.0,
@@ -1293,7 +1300,7 @@
           },
           "three_pass_chunk_size": {
             "default": 3000,
-            "maximum": 30000.0,
+            "maximum": 1000000.0,
             "minimum": 500.0,
             "title": "Three Pass Chunk Size",
             "type": "integer"
@@ -1302,6 +1309,13 @@
             "default": false,
             "title": "Three Pass Group Rule",
             "type": "boolean"
+          },
+          "three_pass_instruct_target_chars": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Three Pass Instruct Target Chars",
+            "type": "integer"
           },
           "three_pass_instruct_temperature": {
             "default": 0.1,

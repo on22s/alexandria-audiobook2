@@ -134,13 +134,16 @@ class GenerationConfig(BaseModel):
     three_pass_attribute_temperature: float = Field(default=0.1, ge=0, le=2)
     three_pass_instruct_temperature: float = Field(default=0.1, ge=0, le=2)
     three_pass_segment_output_ratio: float = Field(default=3.0, ge=1.25, le=6.0)
-    three_pass_chunk_size: int = Field(default=3000, ge=500, le=30000)
+    three_pass_chunk_size: int = Field(default=3000, ge=500, le=1000000)
     # How much text pass 2 sees: entries per attribution window, and characters
     # of the book before/after the window shown as evidence. 2000 is the
     # michel2_full setting that won on every base measured (RECIPES, "Prompt
     # variants x bases"); 0 is what the pre-2026-09-19 scores were taken with.
     three_pass_attribute_batch_size: int = Field(default=25, ge=5, le=100)
-    three_pass_attribute_context_chars: int = Field(default=2000, ge=0, le=20000)
+    three_pass_attribute_context_chars: int = Field(default=2000, ge=0, le=1000000)
+    # Zero retains the saved line-based behavior; positive values opt in.
+    three_pass_attribute_target_chars: int = Field(default=0, ge=0, le=1000000)
+    three_pass_instruct_target_chars: int = Field(default=0, ge=0, le=1000000)
     # Which way the attribution question is asked (attribution_prompt_variants;
     # measured results per variant in RECIPES.md). michel2_full since
     # 2026-09-19, when Muse's cell (90.5 vs michel2 86.6) made it the winner
