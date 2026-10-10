@@ -41,6 +41,7 @@ from narrator_prompt import (add_narrator_prior, get_valid_narrator_name,
 from pass_quality import (is_attested_name, strip_roster_alias_echo,
                           classify_lexical_quote_regions,
                           validate_segment_quality, validate_attribution,
+                          get_attribution_tag_evidence,
                           validate_instruct, index_head_check,
                           analyze_outer_quote_regions, split_outer_quote_regions,
                           QUOTE_MARKS)
@@ -531,7 +532,8 @@ def get_attribution_response_schema(speaker_traits=False):
 # phrase pass 1 took for speech ("the Hands," / "Scarlet Coat") where the model
 # correctly answered that nobody speaks. narrator_renamed was right 29 of 29 and
 # is deliberately NOT here.
-KEEPABLE_ATTRIBUTION_FAILURES = frozenset({"speaker_not_in_source", "spoken_not_named"})
+KEEPABLE_ATTRIBUTION_FAILURES = frozenset({"speaker_not_in_source", "spoken_not_named",
+                                        "speaker_contradicts_source_tag"})
 
 
 PASS2_KEEP_SCOPES = ("line", "batch")
@@ -639,6 +641,9 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     params = ensure_run_request_params(client, params)
     sys_prompt, user_prompt = build_attribute_request(
         frozen_batch, params, roster, neighbor_contexts, surround)
+    tag_evidence = get_attribution_tag_evidence(
+        frozen_batch, source_text, set(roster or ()) | set((cast or {}).get("known_names") or ()),
+        (cast or {}).get("alias_to_name"))
     validated = {}
     attempts = []
 
@@ -650,7 +655,10 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     def validate(entries):
         validated["last"] = entries
         report = validate_attribution(frozen_batch, entries, source_text,
-                                      known_names=(cast or {}).get("known_names"))
+                                      known_names=(cast or {}).get("known_names"),
+                                      tag_evidence=tag_evidence,
+                                      speaker_aliases=(cast or {}).get("alias_to_name"),
+                                      established_names=roster)
         validated["last_report"] = report
         if report["passed"]:
             validated["ordered"] = index_head_check(frozen_batch, entries)[2]
