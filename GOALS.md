@@ -1246,6 +1246,16 @@ is a product decision" until this is replicated.** The product decision was
 the honest reading of the evidence that existed; this is new evidence, and it
 points at an input we choose rather than at the method.
 
+**Evidence reconciliation required, 2026-10-10.** The Chinese long-reference
+improvement above must not close this goal. `pitch_quality_longref.json`
+points to the same `longref__zh_generate.json` manifest that 2.1 identifies
+with runaway generation; it records all pairs without drops, and carries no
+provenance binding the scored WAV bytes to a particular generation. Shared
+paths alone do not prove those bytes were unchanged between scorers. Resolve
+that provenance and apply a valid-duration inclusion rule before treating the
+Chinese pitch/tract result as confirmation. The existing summaries alone
+cannot settle the discrepancy; no new quality measurement is claimed here.
+
 **Target — jitter, shimmer and HNR within 0.85–1.15x; tract length within
 0.95–1.05x.**
 
@@ -2700,6 +2710,120 @@ Evidence: `ab_test_runtime/experiments/time_split__warm_baritone_30s_m_1_generat
 ---
 
 ## 4. Speed and cost
+
+### 4.1 Faster than real time
+
+**Metric** — generation seconds ÷ audio seconds. LOWER is better.
+**Target — median ≤ 0.90x, worst case ≤ 1.50x.**
+
+**Current — OPEN.** Single-adapter timings meet the target, but the real
+multi-voice run required below remains unverified. This goal belongs in Part I;
+its historical use of “MET” is not its current verdict.
+
+**Open — demoted from met on 2026-09-04.** The goal recorded median
+0.91x / 0.98x / 0.97x, slowest 1.21x, and called itself "MET, barely". That
+figure does not say which VOICE PATH produced it, and the paths differ by half
+again. Measured the same day on the same RX 9070 XT, from the raw seconds in
+the TTS logs:
+
+| path | clips | median | worst | verdict |
+|---|---|---|---|---|
+| **LoRA voices** | 4,251 | **1.23x** | 1.38x | **MISSES** the 0.90x target |
+| stock voice | 1,417 | 0.83x | 0.96x | meets it |
+
+**The LoRA path is what the product ships.** Multi-voice audiobooks assign a
+LoRA per character, so the arm that misses is the arm in use, and it misses by
+37%. It is also slower than the 1.21x this goal recorded as its WORST case,
+across 4,251 consecutive clips rather than 300.
+
+**The cost is the adapter, not the card.** Same machine, same day, same
+validation clips, differing only in whether a LoRA is applied: 1.23x against
+0.83x. Applying an adapter costs about **50% more generation time**, and
+nothing here had recorded that.
+
+**A trap worth naming, because it inverts the answer.** `tts.py` logs
+`17.9s -> 14.5s audio (0.81x real-time)` — that is audio ÷ generation, where
+HIGHER is better. This goal measures generation ÷ audio, where LOWER is
+better. Read one as the other and a 1.23x failure reads as a 0.81x pass.
+`generation_realtime_rate.py` parses the raw seconds and reports only this
+goal's convention.
+
+**What would close it** is either a faster LoRA path or an explicit decision
+that 1.23x is acceptable for multi-voice work — a target change is a legitimate
+outcome, but it has to be made rather than inherited from a measurement that
+did not separate the paths.
+
+Evidence: `ab_test_runtime/experiments/generation_realtime_rate.json`,
+`app/experiments/generation_realtime_rate.py`.
+
+**The adapter cost is the unmerged forward pass, and merging removes it —
+2026-09-12.** `tts._init_local_lora` wraps the talker in
+`PeftModel.from_pretrained` and leaves it there, so every decoder step
+computes `W·x + B·A·x` for every targeted module. `peft`'s `merge_and_unload`
+folds `B·A` into `W` once. Same engine, same adapter
+(`breathy_alto_50s_f_fantasy`), same seed, same six lines, three arms in one
+process on the RX 9070 XT — `app/experiments/lora_merge_speed_probe.py`:
+
+| arm | n | median | worst | best |
+|---|---:|---:|---:|---:|
+| LoRA unmerged (as shipped) | 6 | **1.250x** | 1.272x | 1.226x |
+| LoRA merged | 6 | **0.835x** | 0.844x | 0.828x |
+| stock voice, no adapter | 6 | 0.928x | 1.005x | 0.828x |
+
+The merge itself took 0.03 s. Merged, the adapter path runs at the stock
+model's speed and inside this goal's target on both the median and the worst
+case; unmerged it reproduces the 1.23x measured over 4,251 clips above, so
+the six lines are standing in for the production figure rather than
+contradicting it. A second, one-line run sixteen minutes later
+(`lora_merge_speed_probe__9070xt-20260912-fixed.json`) reads 1.241x / 0.826x / 0.821x. n = 6 on one adapter: the *ordering* and the
+size of the gap are what this measures; the third decimal is not.
+
+What this does not yet show: that the merged model's audio is the same. The
+probe keeps every wav (`lora_merge_speed_probe__9070xt-20260912_wavs/`, not
+committed) and they have not been compared. `merge_and_unload` is
+mathematically the same forward pass in exact arithmetic; in bfloat16 it is
+not guaranteed to be bit-identical, and the engine already reloads the base
+model whenever the adapter changes, so a merged talker cannot be un-merged
+without that reload. Closing this goal is a change to `tts.py` plus a
+listening or waveform check on the merged output, not this probe. It is not
+in this entry.
+
+Evidence: `ab_test_runtime/experiments/lora_merge_speed_probe__9070xt-20260912.json`
+(six lines),
+`lora_merge_speed_probe__9070xt-20260912-fixed.json` (one line), `app/experiments/lora_merge_speed_probe.py`.
+
+**The merge is shipped; the goal stays open until re-measured — 2026-09-12.**
+`tts._init_local_lora` now calls `merge_and_unload` on the PEFT wrapper and
+serves the plain talker (test: `app/tests/test_lora_merge_into_talker.py`,
+which fails against the unmerged code). The audio check the previous entry
+asked for, on the probe's kept wavs: each arm reproduces itself bit-for-bit
+(sample correlation 1.000 warm-up vs run), and merged vs unmerged is a
+different waveform — sample correlation ≈ 0, envelope correlation 0.82,
+identical duration on all six lines — so bf16 rounding of the merged weights
+changes the token path. ECAPA speaker similarity, six lines: merged vs
+unmerged on the same line **0.714** (min 0.508), the unmerged adapter against
+itself across different lines 0.538, the adapter against the stock voice
+0.057. The merged render is the same voice, differing from the unmerged one
+by less than the adapter differs from itself line to line. What closes the
+goal is `generation_realtime_rate.py` over a real multi-voice run on the
+merged path, not six lines.
+
+**Re-measured from real renders since the merge, 2026-09-29: the target reads as met on
+single-adapter renders; the multi-voice run is still to do.** `generation_realtime_rate.py` over the three TTS logs written after the merge
+shipped whose generations are all LoRA-path, on the RX 9070 XT (each log names the card): the
+2026-09-12 merged library-fidelity run (n = 479), the 2026-09-28 goal-2.7 retrain evaluation
+(n = 597) and the 2026-09-28 run after goal 4.2 (n = 122). **Median 0.83x / 0.83x / 0.82x, worst
+0.88x / 0.98x / 0.90x**, against the target of 0.90x and 1.50x, and against the 1.23x median and
+1.38x worst measured unmerged over 4,251 clips above. Artifact:
+`ab_test_runtime/experiments/generation_realtime_rate__postmerge-20260929.json`. **What this does
+not show:** these are single-adapter fidelity and retrain evaluations, not the real multi-voice
+run the entry above says closes the goal, so it does not stand in for that run; and
+the logs record only the `TTS [local lora]` tag, not whether the talker was merged, so that the
+merged path served the 2026-09-28 runs is inferred from the merge being shipped behaviour since
+2026-09-12. A fourth log (the hifitts_9017 generate log, 2026-09-13) mixes clone and LoRA
+generations, which the script does not separate, so it is left out.
+
+---
 
 ### 4.2 Local should not need the cloud
 
@@ -5668,116 +5792,6 @@ now derives a stable per-character seed. **MET for TTS.**
 ## 4. Speed and cost
 
 
-### 4.1 Faster than real time
-
-**Metric** — generation seconds ÷ audio seconds. LOWER is better.
-**Target — median ≤ 0.90x, worst case ≤ 1.50x.**
-
-**Open — demoted from met on 2026-09-04.** The goal recorded median
-0.91x / 0.98x / 0.97x, slowest 1.21x, and called itself "MET, barely". That
-figure does not say which VOICE PATH produced it, and the paths differ by half
-again. Measured the same day on the same RX 9070 XT, from the raw seconds in
-the TTS logs:
-
-| path | clips | median | worst | verdict |
-|---|---|---|---|---|
-| **LoRA voices** | 4,251 | **1.23x** | 1.38x | **MISSES** the 0.90x target |
-| stock voice | 1,417 | 0.83x | 0.96x | meets it |
-
-**The LoRA path is what the product ships.** Multi-voice audiobooks assign a
-LoRA per character, so the arm that misses is the arm in use, and it misses by
-37%. It is also slower than the 1.21x this goal recorded as its WORST case,
-across 4,251 consecutive clips rather than 300.
-
-**The cost is the adapter, not the card.** Same machine, same day, same
-validation clips, differing only in whether a LoRA is applied: 1.23x against
-0.83x. Applying an adapter costs about **50% more generation time**, and
-nothing here had recorded that.
-
-**A trap worth naming, because it inverts the answer.** `tts.py` logs
-`17.9s -> 14.5s audio (0.81x real-time)` — that is audio ÷ generation, where
-HIGHER is better. This goal measures generation ÷ audio, where LOWER is
-better. Read one as the other and a 1.23x failure reads as a 0.81x pass.
-`generation_realtime_rate.py` parses the raw seconds and reports only this
-goal's convention.
-
-**What would close it** is either a faster LoRA path or an explicit decision
-that 1.23x is acceptable for multi-voice work — a target change is a legitimate
-outcome, but it has to be made rather than inherited from a measurement that
-did not separate the paths.
-
-Evidence: `ab_test_runtime/experiments/generation_realtime_rate.json`,
-`app/experiments/generation_realtime_rate.py`.
-
-**The adapter cost is the unmerged forward pass, and merging removes it —
-2026-09-12.** `tts._init_local_lora` wraps the talker in
-`PeftModel.from_pretrained` and leaves it there, so every decoder step
-computes `W·x + B·A·x` for every targeted module. `peft`'s `merge_and_unload`
-folds `B·A` into `W` once. Same engine, same adapter
-(`breathy_alto_50s_f_fantasy`), same seed, same six lines, three arms in one
-process on the RX 9070 XT — `app/experiments/lora_merge_speed_probe.py`:
-
-| arm | n | median | worst | best |
-|---|---:|---:|---:|---:|
-| LoRA unmerged (as shipped) | 6 | **1.250x** | 1.272x | 1.226x |
-| LoRA merged | 6 | **0.835x** | 0.844x | 0.828x |
-| stock voice, no adapter | 6 | 0.928x | 1.005x | 0.828x |
-
-The merge itself took 0.03 s. Merged, the adapter path runs at the stock
-model's speed and inside this goal's target on both the median and the worst
-case; unmerged it reproduces the 1.23x measured over 4,251 clips above, so
-the six lines are standing in for the production figure rather than
-contradicting it. A second, one-line run sixteen minutes later
-(`lora_merge_speed_probe__9070xt-20260912-fixed.json`) reads 1.241x / 0.826x / 0.821x. n = 6 on one adapter: the *ordering* and the
-size of the gap are what this measures; the third decimal is not.
-
-What this does not yet show: that the merged model's audio is the same. The
-probe keeps every wav (`lora_merge_speed_probe__9070xt-20260912_wavs/`, not
-committed) and they have not been compared. `merge_and_unload` is
-mathematically the same forward pass in exact arithmetic; in bfloat16 it is
-not guaranteed to be bit-identical, and the engine already reloads the base
-model whenever the adapter changes, so a merged talker cannot be un-merged
-without that reload. Closing this goal is a change to `tts.py` plus a
-listening or waveform check on the merged output, not this probe. It is not
-in this entry.
-
-Evidence: `ab_test_runtime/experiments/lora_merge_speed_probe__9070xt-20260912.json`
-(six lines),
-`lora_merge_speed_probe__9070xt-20260912-fixed.json` (one line), `app/experiments/lora_merge_speed_probe.py`.
-
-**The merge is shipped; the goal stays open until re-measured — 2026-09-12.**
-`tts._init_local_lora` now calls `merge_and_unload` on the PEFT wrapper and
-serves the plain talker (test: `app/tests/test_lora_merge_into_talker.py`,
-which fails against the unmerged code). The audio check the previous entry
-asked for, on the probe's kept wavs: each arm reproduces itself bit-for-bit
-(sample correlation 1.000 warm-up vs run), and merged vs unmerged is a
-different waveform — sample correlation ≈ 0, envelope correlation 0.82,
-identical duration on all six lines — so bf16 rounding of the merged weights
-changes the token path. ECAPA speaker similarity, six lines: merged vs
-unmerged on the same line **0.714** (min 0.508), the unmerged adapter against
-itself across different lines 0.538, the adapter against the stock voice
-0.057. The merged render is the same voice, differing from the unmerged one
-by less than the adapter differs from itself line to line. What closes the
-goal is `generation_realtime_rate.py` over a real multi-voice run on the
-merged path, not six lines.
-
-**Re-measured from real renders since the merge, 2026-09-29: the target reads as met on
-single-adapter renders; the multi-voice run is still to do.** `generation_realtime_rate.py` over the three TTS logs written after the merge
-shipped whose generations are all LoRA-path, on the RX 9070 XT (each log names the card): the
-2026-09-12 merged library-fidelity run (n = 479), the 2026-09-28 goal-2.7 retrain evaluation
-(n = 597) and the 2026-09-28 run after goal 4.2 (n = 122). **Median 0.83x / 0.83x / 0.82x, worst
-0.88x / 0.98x / 0.90x**, against the target of 0.90x and 1.50x, and against the 1.23x median and
-1.38x worst measured unmerged over 4,251 clips above. Artifact:
-`ab_test_runtime/experiments/generation_realtime_rate__postmerge-20260929.json`. **What this does
-not show:** these are single-adapter fidelity and retrain evaluations, not the real multi-voice
-run the entry above says closes the goal, so it does not stand in for that run; and
-the logs record only the `TTS [local lora]` tag, not whether the talker was merged, so that the
-merged path served the 2026-09-28 runs is inferred from the merge being shipped behaviour since
-2026-09-12. A fourth log (the hifitts_9017 generate log, 2026-09-13) mixes clone and LoRA
-generations, which the script does not separate, so it is left out.
-
----
-
 ### Tested and not adopted — a compact wire format for generation (2026-09-02)
 
 *Not a numbered goal: this is a result, and every `### N.N` heading is parsed
@@ -6878,9 +6892,10 @@ another prompt-only context arm or a repeat of the completed fold-swap run.
 
 **Listening (7.1) already includes a non-owner rater** from September 13 and
 English chapter/voice follow-ups from September 30. The unresolved work is
-repairing or removing the byte-identical per-character instruction arm and
+verifying a post-repair per-character instruction audio comparison and
 obtaining appropriate listening coverage, especially fluent Japanese/Chinese
-ratings. Reuse the unrated language-specific packages before another campaign.
+ratings. The arm-isolation code is already repaired; the older manifest's
+“fixed” filename does not establish post-repair evidence (see 7.1). Reuse the unrated language-specific packages before another campaign.
 The aligned Japanese and contextual Mandarin measures in 2.9 already exist;
 listener calibration, not a missing fused evaluator, is the gap.
 
