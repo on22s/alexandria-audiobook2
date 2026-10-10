@@ -13,7 +13,7 @@ const fields = {'.voice-type:checked': {value: 'design'}, '.design-description':
 const card = {dataset: {voice: 'ARTHUR', version: target.version_id}, querySelector: selector => fields[selector] || null};
 const baseFields = {...fields, '.voice-type:checked': {value: 'clone'}, '.ref-audio': {value: 'base.wav'}, '.persona-description': {value: 'base'}};
 const base = {dataset: {voice: 'ARTHUR', version: ''}, querySelector: selector => baseFields[selector] || null};
-const context = {window: null, document: {getElementById: id => elements[id] || null,
+const context = {ensureVoiceRosterOptions:()=>true,window: null, document: {getElementById: id => elements[id] || null,
     querySelectorAll: () => [base, card], querySelector: () => ({click() {}})},
     _voiceCardsBookToken: snapshot.book_token, _voiceSaveSnapshot: snapshot,
     getLoraModelsById: () => new Map(), API: {post: async (path, body) => posts.push({path, body})},

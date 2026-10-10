@@ -1184,9 +1184,10 @@
         }
 
         // Init
-        loadConfig();
+        window._voiceRosterStartupPending = loadConfig().then(() => loadVoices()).catch(e => {
+            showActionError('Could not load voices', e, 'Retry loading Voices after configuration finishes loading.');
+        }).finally(() => { window._voiceRosterStartupPending = null; });
         loadCastList(false);
-        loadVoices();
         loadSavedScripts();
         loadDesignedVoices();
         dsbLoadProjects();

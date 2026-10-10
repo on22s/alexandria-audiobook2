@@ -20,7 +20,7 @@ const descriptionHelpers = core.slice(core.indexOf('function getVoiceCardMetadat
 const reset = source.slice(source.indexOf('function getDesignerFormSnapshot('), source.indexOf('window.generateDesignPreview ='));
 const open = source.slice(source.indexOf('window.openVoiceDesignEditor ='), source.indexOf('window.onDesignedVoiceSelect ='));
 const elements = {};
-const context = {showConfirm:async()=>true,showToast:()=>{},
+const context = {ensureVoiceRosterOptions:()=>true,showConfirm:async()=>true,showToast:()=>{},
     window: {_currentPreviewFile:'A.wav',_editingDesignedVoiceId:'A'},
     document: {
         getElementById(id) {
@@ -87,7 +87,7 @@ async function run(lookupFails) {
     const aliasCard = {value: 'Old'};
     const sourceCard = {querySelector: () => aliasCard};
     let autosaves = 0;
-    const context = {
+    const context = {ensureVoiceRosterOptions:()=>true,
         CSS: {escape:value=>value},
         window: {_designedVoicesCache: [{id: 'id1', name: 'Voice', filename: 'voice.wav'}], _voicesNames: ['Stale']},
         document: {
@@ -137,7 +137,7 @@ async function run(name, escaped) {
     const sourceCard = {querySelector: selector => { assert.strictEqual(selector, '.alias-select'); return alias; }};
     const posts = [], toasts = [], escapes = [];
     let saves = 0;
-    const context = {
+    const context = {ensureVoiceRosterOptions:()=>true,
         window: {_currentPreviewFile:'preview.wav', _designerPreviewInputs:{file:'preview.wav',description:'Description',sample_text:'Transcript'}, _designedVoicesCache:[]},
         CSS: {escape(value) { escapes.push(value); assert.strictEqual(value, name); return escaped; }},
         document: {
@@ -184,7 +184,7 @@ async function run(fail) {
  const elements = {'design-voice-name':{value:'Voice'},'design-description':{value:'Calm'},
   'design-sample-text':{value:'Sample'},'design-source-name':{value:''},'design-alias-select':{value:'',dataset:{}}};
  const requests=[], toasts=[]; let reloads=0; let pending=deferred();
- const context={window:{_currentPreviewFile:'preview.wav',_designerPreviewInputs:{file:'preview.wav',description:'Calm',sample_text:'Sample'},_editingDesignedVoiceId:'existing',_designedVoicesCache:[{id:'existing'}]},
+ const context={ensureVoiceRosterOptions:()=>true,window:{_currentPreviewFile:'preview.wav',_designerPreviewInputs:{file:'preview.wav',description:'Calm',sample_text:'Sample'},_editingDesignedVoiceId:'existing',_designedVoicesCache:[{id:'existing'}]},
   document:{getElementById:id=>elements[id]||(elements[id]={value:'',style:{},dataset:{},innerHTML:''})}, API:{post(path,payload){requests.push({path,payload});return pending.promise;}},
   showToast:(...args)=>toasts.push(args),loadDesignedVoices(){reloads++;}};
  const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+code,context);
@@ -224,7 +224,7 @@ const code = source.slice(source.indexOf('function getDesignerFormSnapshot('), s
 const elements={'design-voice-name':{value:''},'design-description':{value:'Calm'},'design-sample-text':{value:'Sample'},
  'design-source-name':{value:''},'design-alias-select':{value:'',dataset:{}}};
 const requests=[],toasts=[];
-const context={window:{_currentPreviewFile:'preview.wav',_designerPreviewInputs:{file:'preview.wav',description:'Calm',sample_text:'Sample'},_designedVoicesCache:[]},document:{getElementById:id=>elements[id]||(elements[id]={value:'',style:{},dataset:{},innerHTML:''})},
+const context={ensureVoiceRosterOptions:()=>true,window:{_currentPreviewFile:'preview.wav',_designerPreviewInputs:{file:'preview.wav',description:'Calm',sample_text:'Sample'},_designedVoicesCache:[]},document:{getElementById:id=>elements[id]||(elements[id]={value:'',style:{},dataset:{},innerHTML:''})},
  API:{post:async(path,payload)=>{requests.push({path,payload});return {}; }},showToast:(...args)=>toasts.push(args),loadDesignedVoices(){}};
 const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+code,context);
 (async()=>{

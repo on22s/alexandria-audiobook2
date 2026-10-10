@@ -107,7 +107,8 @@
                     resetDesignerForm();
                     showToast(`Script "${name}" loaded.`, 'success');
                     clearVoiceSuggestions();
-                    await Promise.all([loadCharacterAliases(false), loadCastList(false), loadChunks(true)]);
+                    await Promise.all([loadCharacterAliases(false), loadCastList(false),
+                        refreshVoiceMetadata().then(() => { if (isCurrent()) { return loadChunks(true); } })]);
                     if (!isCurrent()) { return; }
                     await loadVoices();
                     if (!isCurrent()) { return; }
@@ -381,8 +382,10 @@
                         const card = document.querySelector(sourceSelector);
                         const aliasSel = card?.querySelector('.alias-select');
                         if (aliasSel && !aliasSel.disabled && card === sourceCard && aliasSel === sourceAlias && aliasSel.value === sourceAliasValue) {
-                            aliasSel.value = selectedAlias || '';
-                            saveVoicesDebounced();
+                            if (ensureVoiceRosterOptions(aliasSel)) {
+                                aliasSel.value = selectedAlias || '';
+                                saveVoicesDebounced();
+                            }
                         }
                     }
                     if (unchanged) {
@@ -568,6 +571,11 @@
             const cardRoot = button.closest('.voice-card');
             const voiceName = cardRoot ? cardRoot.dataset.voice : '';
             const description = card ? getVoiceCardDescription(cardRoot || card) : '';
+            const cardAlias = card?.querySelector('.alias-select');
+            if (cardAlias && !ensureVoiceRosterOptions(cardAlias)) {
+                showToast('The book changed. Reopen the Designer from the current voice card.', 'warning');
+                return;
+            }
 
             document.querySelector('[data-tab="designer"]').click();
             resetDesignerForm();
@@ -579,7 +587,6 @@
             }
             document.getElementById('design-description').value = description;
             document.getElementById('design-sample-text').value = card?.querySelector('.ref-text')?.value || '';
-            const cardAlias = card?.querySelector('.alias-select');
             const aliasSelect = document.getElementById('design-alias-select');
             aliasSelect.innerHTML = cardAlias?.innerHTML || '<option value="">-- None --</option>';
             aliasSelect.value = cardAlias?.value || '';

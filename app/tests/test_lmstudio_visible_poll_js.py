@@ -43,7 +43,7 @@ const doc={hidden:false,getElementById:id=>elements[id],querySelectorAll:selecto
 let failGet=false,failPost=false;const status={remote:true,optimized:true};
 const ctx={document:doc,setInterval:(fn,ms)=>{timers.push({fn,ms});},rememberTab:()=>{},
  showToast:(...args)=>toasts.push(args),API:{get:async url=>{assert.equal(url,'/api/lmstudio/status');calls.push(url);if(failGet){throw Error('offline');}return status;},post:async(url,body)=>{assert.equal(url,'/api/lmstudio/optimize');posts.push(body);if(failPost){throw Error('rejected');}}}};
-for(const name of ['loadConfig','loadCastList','loadVoices','loadSavedScripts','loadDesignedVoices','dsbLoadProjects','updateSystemStats','updateEtaStatus','reattachRunningPollers','loadChunks']){ctx[name]=()=>{};}
+for(const name of ['loadConfig','loadCastList','loadVoices','loadSavedScripts','loadDesignedVoices','dsbLoadProjects','updateSystemStats','updateEtaStatus','reattachRunningPollers','loadChunks']){ctx[name]=name==='loadConfig'?async()=>{}:()=>{};}
 ctx.window=ctx.window||{};ctx.window.location={hash:'#setup'};ctx.window.history={pushState:(_s,_t,hash)=>ctx.window.location.hash=hash};ctx.window.addEventListener=()=>{};
 vm.createContext(ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);
 let a=work.indexOf('function pollLmStudioStatus()'),b=work.indexOf('function reattachTaskActivity(',a);assert(a>=0&&b>a);vm.runInContext(work.slice(a,b),ctx);

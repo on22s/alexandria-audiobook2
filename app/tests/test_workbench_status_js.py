@@ -75,7 +75,7 @@ for (const mode of ['running','idle','unavailable']) {
     };
     for (const name of ['loadConfig','loadCastList','loadVoices','loadSavedScripts','loadDesignedVoices',
                         'dsbLoadProjects','updateSystemStats','updateEtaStatus','refreshLmStudioStatus','pollLmStudioStatus']) {
-        context[name] = () => {};
+        context[name] = name === 'loadConfig' ? async () => {} : () => {};
     }
     vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);
     const start = workbench.indexOf('function reattachTaskActivity(');

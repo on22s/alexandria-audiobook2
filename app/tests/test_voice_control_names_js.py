@@ -24,9 +24,9 @@ class VoiceControlNamesJsTests(unittest.TestCase):
     def test_card_names_and_radio_labels_preserve_exact_character(self):
         name = 'RUDY "< & 日本語'
         script = r'''const fs=require('fs'),vm=require('vm');const s=fs.readFileSync(process.argv[1],'utf8');
-const c={window:{_voicesNames:['OTHER']},AVAILABLE_VOICES:['Ryan'],BUILTIN_LORAS:[],
+const c={document:{getElementById:()=>null},window:{_voicesNames:['OTHER']},AVAILABLE_VOICES:['Ryan'],BUILTIN_LORAS:[],
  getLibraryVoiceReference:()=>null,getTraitBadgeHtml:()=>'',getVoiceCandidateMarkup:()=>'',renderStyleTimeline:()=>'',ensembleMembersMarkup:()=>''};
-vm.createContext(c);let a=s.indexOf('function escapeHtml(');vm.runInContext(s.slice(a,s.indexOf('// Parse a numeric input',a)),c);
+vm.createContext(c);vm.runInContext(s.slice(s.indexOf('// Voice roster dropdowns:'),s.indexOf('// End voice roster dropdowns.')),c);let a=s.indexOf('function escapeHtml(');vm.runInContext(s.slice(a,s.indexOf('// Parse a numeric input',a)),c);
 a=s.indexOf('function createVoiceCard(');vm.runInContext(s.slice(a,s.indexOf('// Suggest members',a)),c);
 console.log(JSON.stringify(c.createVoiceCard({name:JSON.parse(process.argv[2]),config:{type:'clone',ref_audio:'clip.wav',voice:'Ryan'},traits:{states:[{},{}]}},4)));'''
         result = subprocess.run(['node', '-e', script, str(SOURCE), json.dumps(name)], text=True, capture_output=True, timeout=15)

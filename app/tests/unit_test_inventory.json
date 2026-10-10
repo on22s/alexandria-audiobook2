@@ -6130,6 +6130,8 @@
     "tests.test_release_verifier.ReleaseVerifierTests.test_api_summary_rejects_inconsistent_counts_and_duplicate_names",
     "tests.test_release_verifier.ReleaseVerifierTests.test_api_summary_rejects_wrong_skip_identity_with_same_counts",
     "tests.test_release_verifier.ReleaseVerifierTests.test_api_summary_uses_suite_inventory_for_quick_and_full_results",
+    "tests.test_release_verifier.ReleaseVerifierTests.test_broken_control_socket_with_live_owner_still_fails_at_timeout",
+    "tests.test_release_verifier.ReleaseVerifierTests.test_exited_owner_socket_keeps_original_command_failure",
     "tests.test_release_verifier.ReleaseVerifierTests.test_failed_command_terminates_grandchild_process",
     "tests.test_release_verifier.ReleaseVerifierTests.test_git_quoted_unicode_and_newline_names_are_compiled_as_actual_paths",
     "tests.test_release_verifier.ReleaseVerifierTests.test_json_report_is_written_on_failure_with_secrets_redacted",
@@ -8946,6 +8948,19 @@
     "tests.test_voice_removal_safeguards_js.VoiceRemovalSafeguardsJsTests.test_cast_selection_changes_do_not_delete_or_clear_the_new_selection",
     "tests.test_voice_removal_safeguards_js.VoiceRemovalSafeguardsJsTests.test_designed_delete_refreshes_cards_only_after_successful_acknowledgment",
     "tests.test_voice_removal_safeguards_js.VoiceRemovalSafeguardsJsTests.test_native_removal_guards"
+  ],
+  "test_voice_roster_dropdowns_js": [
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_alias_save_without_opening_and_self_exclusion",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_book_switch_refuses_old_controls_and_accepts_new_controls",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_cached_options_and_roster_invalidation_preserve_unsaved_value",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_designer_open_materializes_options_before_copy_and_rejects_old_book",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_designer_save_populates_native_value_and_refuses_book_change",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_initial_options_and_editor_order_custom_blank_and_empty",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_metadata_refresh_rejects_book_switch_before_installing_roster",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_pointer_keyboard_focus_disabled_and_redraw_delegation",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_programmatic_alias_assignment_requires_population",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_saved_book_load_installs_roster_before_editor_rows_and_unchanged_poll",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_startup_waits_for_configuration_before_roster_ownership"
   ],
   "test_voice_script_speakers": [
     "tests.test_voice_script_speakers.VoiceScriptSpeakerTests.test_listing_and_required_speaker_share_legacy_precedence",

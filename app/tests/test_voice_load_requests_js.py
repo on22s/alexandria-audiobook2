@@ -12,7 +12,7 @@ function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve
 function client(){
  const fields={},reads=[],gates=new Map(),debug=[],draws=[];let saveGate=deferred(),revision=0,dirty=false;
  const el=id=>fields[id]||(fields[id]={value:'',innerHTML:id==='voices-list'?'old cards':'',style:{}});
- const ctx={window:null,performance:{now:()=>0},document:{getElementById:el},console:{debug:(...args)=>debug.push(args)},API:{get:url=>{reads.push(url);const gate=deferred();gates.set(url,gate);return gate.promise;}},
+ const ctx={currentBookFilename:'',ensureVoiceRosterCache:()=>{},window:null,performance:{now:()=>0},document:{getElementById:el},console:{debug:(...args)=>debug.push(args)},API:{get:url=>{reads.push(url);const gate=deferred();gates.set(url,gate);return gate.promise;}},
  voiceSaveQueue:{flush:()=>saveGate.promise,getRevision:()=>revision,isDirty:()=>dirty},renderVoiceDrafts(){},refreshVoicesScope(){},updateNarratorPreviewFields(){},renderReadyCount(){},onToggleHideReady(){},renderVoiceSuggestions(){},saveVoicesDebounced(){throw Error('unexpected default save');},
  createVoiceCard:voice=>{draws.push(voice);return `<card>${voice.name}:${ctx._designedVoicesCache[0].id}:${ctx._cloneVoicesCache[0].id}:${ctx._loraModelsCache[0].id}</card>`;}};ctx.window=ctx;
  vm.createContext(ctx);const load=(a,b)=>{const first=source.indexOf(a);vm.runInContext(source.slice(first,source.indexOf(b,first)),ctx);};

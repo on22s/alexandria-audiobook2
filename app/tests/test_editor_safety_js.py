@@ -482,7 +482,7 @@ const context = {
     document: {
         getElementById(id) {
             if (id === 'voice-save-drafts') { return null; }
-            if (!elements[id]) { elements[id] = {innerHTML:'',style:{},textContent:''}; }
+            if (!elements[id]) { elements[id] = {innerHTML:'',style:{},textContent:'',dataset:{},addEventListener(){}}; }
             return elements[id];
         },
         querySelectorAll(selector) {
@@ -515,6 +515,7 @@ function load(startMarker, endMarker) {
     run(source.slice(start, end));
 }
 const plain = value => JSON.parse(JSON.stringify(value));
+load('// Voice roster dropdowns:', '// End voice roster dropdowns.');
 load('function escapeHtml(', '// Parse a numeric input');load('async function confirmIfRemote(', '// navigator.clipboard');
 load('function createSerializedSaveQueue(', '// --- API Helpers ---');
 if(source.includes('function getLoraModelsById(')){load('function getLoraModelsById(', 'async function suggestVoices(');}
