@@ -773,12 +773,20 @@ def get_lora_dataset_path(dataset_id):
 async def lora_delete_dataset(dataset_id: str):
     """Delete an uploaded dataset."""
     dataset_dir = get_lora_dataset_path(dataset_id)
-    if not os.path.isdir(dataset_dir):
-        raise HTTPException(status_code=404, detail="Dataset not found")
-    if process_state["lora_training"]["running"]:
-        raise HTTPException(status_code=409, detail="Wait for LoRA training to finish before deleting datasets")
-
-    shutil.rmtree(dataset_dir)
+    # Voice Lab also reads these datasets.  Claim atomically rather than only
+    # inspecting this process's LoRA flag; foreign server leases count too.
+    try:
+        claim_id = claim_gpu_task("lora_training")
+    except HTTPException as exc:
+        if exc.status_code == 400:
+            raise HTTPException(status_code=409, detail=exc.detail) from exc
+        raise
+    try:
+        if not os.path.isdir(dataset_dir):
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        shutil.rmtree(dataset_dir)
+    finally:
+        release_gpu_task_claim("lora_training", claim_id)
     logger.info(f"LoRA dataset deleted: {dataset_id}")
     return {"status": "deleted", "dataset_id": dataset_id}
 
@@ -854,10 +862,16 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
 
     def on_training_complete():
         """After training subprocess finishes, update manifest if adapter was saved."""
+        state = process_state["lora_training"]
+        state.update(status="running", error=None)
         return_code = run_process(command, "lora_training")
         if return_code != 0 or process_state["lora_training"].get("cancel"):
+            state["status"] = "cancelled" if state.get("cancel") else "failed"
             logger.warning("LoRA training did not complete successfully; adapter not registered: %s", adapter_id)
             return
+
+        state["status"] = "registering"
+        state["logs"].append("Registering the trained adapter in the library...")
 
         # Check if training produced an adapter
         if os.path.isdir(output_dir) and os.path.exists(os.path.join(output_dir, "training_meta.json")):
@@ -886,8 +900,17 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
                     })
                     _save_manifest(LORA_MODELS_MANIFEST, manifest)
                 logger.info(f"LoRA adapter registered: {adapter_id}")
+                state["status"] = "done"
+                state["logs"].append("Adapter registration completed successfully.")
             except Exception as e:
                 logger.error(f"Failed to update LoRA manifest: {e}")
+                state["status"] = "failed"
+                state["error"] = "Adapter registration failed; trained files are retained. Resolve the library error before retrying registration."
+                state["logs"].append("[ERROR] " + state["error"])
+        else:
+            state["status"] = "failed"
+            state["error"] = "Training exited without the adapter metadata required for registration."
+            state["logs"].append("[ERROR] " + state["error"])
 
     schedule_claimed_background_task(background_tasks, "lora_training", on_training_complete)
     return {"status": "started", "adapter_id": adapter_id}

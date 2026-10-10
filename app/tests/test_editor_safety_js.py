@@ -625,13 +625,24 @@ for (const [name,id] of [['exportAudacity','audacity-status'],['exportM4B','m4b-
 
     def test_old_undo_toast_cannot_restore_latest_deletion(self):
         self.run_scenario(r'''
+context.URLSearchParams = URLSearchParams;
+context.currentBookFilename = 'book';
+context.chunkSnapshotBook = 'book';
+context.chunkSnapshotBookToken = 'a'.repeat(64);
+run('cachedChunks = [1,2,3,4].map(id => ({id,uid:"row"+id}));');
+load('function captureChunkMutation(', 'window.insertChunkAfter =');
 load('let _lastDeleted =', 'window.stopOthers =');
 const toastNodes = [];
 context.Date = {now:() => 1};
 context.setTimeout = () => 1;
 context.clearTimeout = () => {};
 context.loadChunks = async () => {};
-context.fetch = async url => ({json:async () => ({deleted:{speaker:url,text:url},undo_token:"receipt"+url})});
+context.fetch = async url => {
+    const parsed = new URL(url, 'http://fixture');
+    assert.strictEqual(parsed.searchParams.get('expected_book_token'), 'a'.repeat(64));
+    assert.strictEqual(parsed.searchParams.get('expected_uid'), 'row'+parsed.pathname.split('/').at(-1));
+    return {json:async () => ({deleted:{speaker:parsed.pathname,text:parsed.pathname},undo_token:"receipt"+parsed.pathname})};
+};
 context.API._handleError = async () => {};
 context.bootstrap = {Toast:class {
     constructor() {}
