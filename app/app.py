@@ -159,6 +159,10 @@ from routers.script import router as script_router
 
 app.include_router(script_router)
 
+from routers.speaker_review import router as speaker_review_router
+
+app.include_router(speaker_review_router)
+
 from routers.voices import router as voices_router
 
 app.include_router(voices_router)

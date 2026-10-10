@@ -321,6 +321,7 @@ class ApiContractTests(unittest.TestCase):
         self.assertEqual([
             "system_router",
             "script_router",
+            "speaker_review_router",
             "voices_router",
             "editor_router",
             "scripts_library_router",

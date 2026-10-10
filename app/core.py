@@ -538,6 +538,7 @@ process_state = {
     "m4b_export": {"running": False, "logs": []},
     "chapter_export": {"running": False, "logs": [], "cancel": False},
     "drift_check": {"running": False, "logs": []},
+    "speaker_review": {"running": False, "logs": [], "cancel": False, "status": "idle"},
     "report_explanation": {"running": False, "logs": [], "cancel": False, "status": "idle"},
     "review": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "batch_review": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None, "bidirectional": False,
@@ -570,7 +571,7 @@ GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
 # profile is not on this machine's GPU (hosted API, a CPU-served model, a
 # box across the network), these contend with each other for the endpoint
 # but not with the TTS/LoRA tasks for the card.
-LLM_TASKS = {"report_explanation", "script", "batch_script", "review", "batch_review", "persona",
+LLM_TASKS = {"speaker_review", "report_explanation", "script", "batch_script", "review", "batch_review", "persona",
              "voices", "nicknames", "cast_list"} & set(process_state.keys())
 
 
