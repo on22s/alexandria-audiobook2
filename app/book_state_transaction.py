@@ -189,10 +189,10 @@ def require_book_snapshot_current(data_dir, snapshot):
 
 
 
-def apply_book_input_selection(data_dir, input_path, book_id):
+def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10):
     """Select an input under the same book-operation contract as load/jobs."""
     from utils import safe_load_json
-    with ensure_book_state(data_dir):
+    with ensure_book_state(data_dir, timeout=timeout):
         state_path = Path(data_dir) / "state.json"
         with file_lock(str(state_path)):
             state = safe_load_json(str(state_path), default={})
