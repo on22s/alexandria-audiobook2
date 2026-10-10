@@ -7,6 +7,18 @@ text-to-speech model (Qwen3-TTS) reads it; and you get an MP3 or a chaptered M4B
 This fork measures every choice it makes. The research pages below say what was measured
 and how; the user-guide pages say how to use the app.
 
+## Start here
+
+- **Use the app:** [Install](../../README.md#installation), connect an LLM, then follow
+  [Your first audiobook](../../README.md#your-first-audiobook). Start with the original
+  [short sample](../examples/first-book.txt), assign CustomVoice presets, render, merge and
+  download an MP3 before trying a full book.
+- **中文入门：**[安装与第一本有声书](../../README_CN.md#从这里开始)。本 Wiki 的详细页面目前为英文。
+- **Research or develop:** the [research pages below](#research),
+  [GOALS](../../GOALS.md), [RECIPES](../../RECIPES.md) and
+  [contributor instructions](../../README.md#contributing) preserve the measurements,
+  reproduction steps and development workflow. None is a prerequisite for making a book.
+
 ## Using the app
 
 - [Setup and serving](Setup-and-Serving.md) — connecting a language model, and serving
@@ -63,11 +75,13 @@ from the `app` folder — but note that it creates and deletes uploads, scripts 
 in that app's data. (Running `python tests/test_api.py` directly fails with
 `ModuleNotFoundError: utils`; it must be run with `-m` from `app`.)
 
-- **Quick mode** (82 checks; 70 run, 12 need a GPU and an LLM) covers settings round-trips,
+- **Quick mode** reports its own run/skip counts and covers settings round-trips,
   upload, the script library, voice settings, chunks, status polling, voice design, LoRA
   listings, the dataset builder and error handling, without loading any model.
 - **Full mode** adds script generation, audio generation, batch rendering, voice design previews
   and LoRA testing.
 
-If quick mode passes but generation fails, the problem is loading the TTS model or reaching
-the language model, not the app itself.
+Passing quick mode checks the model-free API paths exercised by that suite. It does not
+rule out application bugs in generation, model loading, GPU execution or provider integration.
+Use the failing task's logs to distinguish those causes; full mode covers additional paths
+but is not an exhaustive test of every model or book.

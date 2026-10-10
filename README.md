@@ -11,6 +11,21 @@ every character. You give it a `.txt`, `.md` or `.epub` file; a language model
 works out who says each line and how it should sound; a text-to-speech model
 reads it; and you get an MP3 or a chaptered M4B.
 
+## Where to start
+
+| I want to… | Start here |
+|---|---|
+| **Make an audiobook** | [Install](#installation), then follow [your first audiobook](#your-first-audiobook). |
+| **Pick a model for my graphics card** | [Which model for your card](#which-model-for-your-card), then the [full guide](docs/wiki/Which-Model-For-Your-Card.md). |
+| **Understand the research results** | [Results at a glance](#results-at-a-glance), then [RECIPES.md](RECIPES.md) and the [Muse quant comparison](docs/results/muse-quant-baselines.md). |
+| **Find a particular run or its raw data** | Search the [results index](RESULTS_INDEX.md); each entry links to the committed artifact. |
+| **Browse all documentation** | The [documentation map](docs/README.md) lists user guides, operations notes, results and history. |
+| **Contribute** | The [project wiki](https://github.com/on22s/alexandria-audiobook2/wiki), then [Contributing](#contributing) and [GOALS.md](GOALS.md). |
+
+You do not need to read any of the research sections to install or use the app.
+
+## Research and development
+
 It is a research fork of [Alexandria](https://github.com/Finrandojin/alexandria-audiobook).
 What makes it different is that **every choice is measured**:
 
@@ -30,19 +45,6 @@ numbers, the failures and the recipes are all in this repository.
 - **[RECIPES.md](RECIPES.md)** — the training and serving settings that worked, each with the look-alike setting that failed
 - **[RESULTS_INDEX.md](RESULTS_INDEX.md)** — every experiment artifact
 - **[Adapters on Hugging Face](https://huggingface.co/Om22s/alexandria-qwen3-attribution)**, and **[HF_MODEL_GUIDE.md](HF_MODEL_GUIDE.md)** for how they are released
-
-## Where to start
-
-| I want to… | Start here |
-|---|---|
-| **Make an audiobook** | [Install](#installation), then follow [your first audiobook](#your-first-audiobook). |
-| **Pick a model for my graphics card** | [Which model for your card](#which-model-for-your-card), then the [full guide](docs/wiki/Which-Model-For-Your-Card.md). |
-| **Understand the research results** | [Results at a glance](#results-at-a-glance), then [RECIPES.md](RECIPES.md) and the [Muse quant comparison](docs/results/muse-quant-baselines.md). |
-| **Find a particular run or its raw data** | Search the [results index](RESULTS_INDEX.md); each entry links to the committed artifact. |
-| **Browse all documentation** | The [documentation map](docs/README.md) lists user guides, operations notes, results and history. |
-| **Contribute** | The [project wiki](https://github.com/on22s/alexandria-audiobook2/wiki), then [Contributing](#contributing) and [GOALS.md](GOALS.md). |
-
-You do not need to read any of the research sections to install or use the app.
 
 ---
 
@@ -133,25 +135,30 @@ must be running and reachable from the **Base URL** in the Setup tab.
 
   ```bash
   llama-server -m Qwen3-14B-Q4_K_M.gguf --host 127.0.0.1 --port 8090 \
-    -ngl 99 -c 32768 --parallel 1 --flash-attn on \
-    --reasoning on --reasoning-format deepseek --reasoning-budget 1024 \
-    --lora rightsclean.f16.gguf        # optional: an attribution adapter
+    -ngl 99 -c 8192 --parallel 1 --flash-attn on \
+    --reasoning on --reasoning-format deepseek --reasoning-budget 1024
   ```
 
   In Setup, use Base URL `http://127.0.0.1:8090/v1`, API key `local`, and as the model
   name whatever `--alias` says (or the file name).
 
 - **LM Studio**: load a model, start its server, and use `http://localhost:1234/v1`.
-  Tick **Optimize LM Studio settings** in Setup so the app pins the context length and
-  parallel slots it needs.
-  - The most common cause of "it's ten times slower than yesterday" is a model that
-    silently loaded with an 8k context because the GPU memory was already in use.
+  **Optimize LM Studio settings** applies the app's guarded, model-specific load settings;
+  its local fallback is 8,192 tokens and one slot, not a universal 32k setting.
 
 - **Ollama**: use `http://localhost:11434/v1` and the model name that `ollama list` shows.
 
 - **A hosted API**: set **LLM Location** to *Remote*, paste the URL and key (or
   `env:DEEPSEEK_API_KEY` to read the key from an environment variable), and open
   **Provider request options**. Set **Runs on this machine's GPU?** to **No** so audio can render while the hosted model works.
+
+The command is a starting configuration for a small first run, not a guarantee that every
+request fits. Use your downloaded model's actual path. Context must hold the full prompt
+(including roster and surrounding text) plus the response and any reasoning tokens. Larger
+batches, review windows or custom prompts may need more; see
+[choosing a context size](docs/wiki/Setup-and-Serving.md#choosing-a-context-size).
+Attribution adapters are optional and must match their training prompt; leave them out of
+the first run, then follow [Adapters](#adapters).
 
 **Reasoning ("thinking") models work well — better, in fact.** Set **Reasoning effort**
 to *low* and let the server cap the budget. Do not add `<think>` to the banned tokens.
@@ -187,16 +194,24 @@ a second machine). Then annotation and rendering can run together.
 
 ## Your first audiobook
 
+Follow **Setup → Script → Voices → Editor → Result**. The screenshots show the existing
+interface; labels may vary by build. First success means downloading an MP3 and listening
+for missing lines and incorrect speakers.
+
 ### Before you start
 
-- A book as `.txt`, `.md` or `.epub`.
+- Start with a few paragraphs as `.txt`, `.md` or `.epub`, rather than a whole book.
+  Save [this original two-character sample](docs/examples/first-book.txt) as a `.txt` file
+  to try the complete flow without finding a book first.
 - An LLM server running (see [the previous section](#1-start-an-llm-server-first)).
   A 9 GB Qwen3-14B model on a 16 GB card is enough for a good script;
   [Recommended LLM models](#recommended-llm-models) says what each size gets you.
-- About twenty minutes for a short book on a mid-range GPU. The Script tab tells you how
-  long the rest will take as it goes.
+- Time for the first model download and warm-up. Runtime depends on text length, model,
+  hardware and settings; the Script tab estimates remaining time after it has made progress.
 
 ### Step 1 — Setup
+
+![Setup screen: LLM connection and TTS settings](docs/screenshots/setup.png)
 
 1. Pick **LLM Location** (Local or Remote).
 2. Fill in **Base URL**, **API Key** and **Model Name**. The refresh button lists the
@@ -205,15 +220,18 @@ a second machine). Then annotation and rendering can run together.
 4. Click **Test Connection**.
 5. Leave the TTS section on `local` / `auto`. **Auto-Configure** fills in the TTS batch
    settings for your card.
-6. Under **Prompt Settings**, the attribution prompt is already `michel2_full`, the best
-   measured prompt on every model.
+6. Under **Prompt Settings**, the attribution prompt is already `michel2_full`, the project's
+   measured default; model-specific exceptions are in the results below.
 7. Click **Save Configuration**.
 
 ### Step 2 — Script
 
+![Script screen: upload text and generate an annotated script](docs/screenshots/script.png)
+
 1. Choose the book, or reuse one you uploaded before.
 2. If the novel is told in the first person, type that character's exact name.
-3. Click **Generate Annotated Script**. The activity line shows the three steps as they
+3. Click **Test this book with the LLM** to sample the book first. A pass does not guarantee
+   every later chunk will work. Then click **Generate Annotated Script**. The activity line shows the three steps as they
    run — *Step 1 (split) · unit 3 of 41 — asking the model*, then *Step 2 (speakers)*,
    then *Step 3 (delivery)* — with retries and, once it knows its speed, the time left.
    - You can **Pause**, **Save snapshot** (keep the finished part as a script),
@@ -225,7 +243,13 @@ a second machine). Then annotation and rendering can run together.
 
 ### Step 3 — Voices
 
-Every speaker gets a card. For each character, either:
+![Voices screen: assign a voice to each speaker](docs/screenshots/voices.png)
+
+Every speaker gets a card, including the narrator. For the first run, assign a
+**CustomVoice** preset to each card and preview it. This avoids needing a reference recording
+or a trained adapter. Once that works, try the other options below.
+
+For each character, either:
 
 - choose a voice type yourself — **CustomVoice** (fastest), **Clone**, **LoRA**, or
   **Voice Design**; or
@@ -242,6 +266,8 @@ Other tools on this tab:
 - **Save to cast** and **Apply cast** carry a cast of voices across a series.
 
 ### Step 4 — Editor
+
+![Editor screen: listen, correct and render chunks](docs/screenshots/editor.png)
 
 1. **Render Pending** renders every chunk in batches.
 2. Listen, edit the text or the delivery instruction inline, and regenerate any single
@@ -662,8 +688,10 @@ What the measurements say about choosing:
 - **A small quant of a big model beats a big quant of a small model.** Qwen3.8-27B at
   IQ2_XXS (6.9 GB) scores 88.7%; Qwen3-14B at Q4_K_M (9.0 GB) scores 84.3%.
 - **Context length, not file size, decides whether a model fits.** The same 5.4 GB model
-  needs 5.1 GB at `-c 4096` and 11.3 GB at `-c 32768`. The product prompt's longest
-  window is 5,966 tokens, so `-c 8192` is enough.
+  was reported at 5.1 GB with `-c 4096` and 11.3 GB with `-c 32768`. These are
+  model-specific measurements, not a sizing rule. See the
+  [context-size guide](docs/wiki/Setup-and-Serving.md#choosing-a-context-size) for workload
+  and response-budget limits; 8k is not enough for every request.
 - **If speed matters more than the last few points**, Qwen3.6-35B-A3B runs about as fast
   as an 8B model (about 20 s per window) while scoring about 11 points higher; see the
   [speed table](docs/wiki/Which-Model-For-Your-Card.md).
@@ -868,8 +896,8 @@ leaving the sidebar stuck on **Starting**.
 1. Open **Terminal** next to the running or failed Start entry and read the first
    traceback or startup error. The navbar build label shows which revision is actually
    running; hover over it for the Python and package versions.
-2. Open Pinokio's **Logs** page and select the latest Alexandria session. Its **Get
-   Help** report bundles the related launcher logs and system details, with Pinokio's
+2. Open Pinokio's **Logs** page and select the latest Alexandria session. Its **Get Help**
+   report bundles the related launcher logs and system details, with Pinokio's
    usual redaction of secrets and paths, ready to share.
 3. To read the files directly:
    - the current launcher log is `logs/api/start.js/latest`, with timestamped runs beside it;
@@ -902,8 +930,10 @@ failing on every click. Cancel and Resume failed run still work.
 - **The model answered outside the JSON format.** Pick a model from the
   [recommended table](#recommended-llm-models), keep the schema on, and set reasoning to
   low. `logs/review_responses.log` shows the exact reply.
-- **Context length.** A model loaded with an 8k context silently fails on long windows.
-  In LM Studio tick **Optimize LM Studio settings**; in llama.cpp pass `-c 32768`.
+- **Context length.** Check the server error and prompt/output token counts. If the complete
+  request exceeds the loaded context, reduce request size or choose a larger context that
+  fits your model and VRAM. 8k is not inherently faulty, and 32k is not always safe; see
+  [context sizing](docs/wiki/Setup-and-Serving.md#choosing-a-context-size).
 - **No API at all.** Set **How requests are sent** to `manual` and answer the prompts
   yourself from the Script tab panel.
 
@@ -1299,186 +1329,6 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `GET` | `/api/benchmark/status` | benchmark status |
 
 </details>
-
-## Recommended LLM models
-
-Every row is measured on the four-book product fixture (768 rows) with the
-app's pipeline at temperature 0 and a JSON schema, reasoning low with a
-1,024-token budget where the model reasons (RECIPES §"Prompt variants ×
-bases", 2026-09-18). "best variant" is the attribution prompt to pick in
-Setup.
-
-| model | GGUF | card it fits (file + context) | best variant | score | what it is good for |
-|---|---|---:|---|---:|---|
-| DeepSeek v4-pro (hosted API) | — | none | `michel2_full`, thinking low 8k | **95.4** | the ceiling; ~$0.50–0.75 for a fixture-sized book |
-| Qwen3.8-27B UD-Q4_K_M | 16.5 GB | 24 GB | `michel2` | **90.9** | best local; the worked example (`michel2_shot`) gives the best score on the hardest book (94.4) |
-| Qwen3.6-35B-A3B UD-Q4_K_XL / IQ3_XXS / IQ2_XXS | 22.4 / 13.2 / 10.8 GB | 24 / 16 / 16 GB | `michel2_full` | 89.6 four-book; 91.6 / 90.5 nine-book at IQ3 / IQ2 | the MoE that fits a 16 GB card at IQ3 or IQ2 (with `--n-cpu-moe` offloading some experts) and holds within a point of Q4 — the quant ladder is being measured down to IQ1_M |
-| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 16 GB | `michel2_full` | **90.5** | strong, but serve with reasoning on + the deepseek reasoning format, and never `--skip-chat-parsing` |
-| Qwen3-14B Q4_K_M | 9.0 GB | 12 GB | `michel2_full` | 82.0 | +16 from the prompt; the rights-clean adapter adds +8.6 on top under the `default` prompt |
-| Qwen3.5-9B / Qwen3-8B Q4_K_M | 5–6 GB | 8 GB | `michel2_full` | ~72 | the 8 GB-card option; both collapse on the hardest book (47 / 62) |
-
-Rules that held on every base:
-- `michel2_full` ≥ `michel2` ≥ `michel` ≥ `default` (Qwen3.8 is the one
-  exception, where `michel2` edges `michel2_full` by a point). The
-  surrounding-text block is the single biggest step.
-- The worked example (`michel2_shot`) never helps except on Qwen3.8.
-- **An adapter trained on the `default` prompt loses under another prompt.**
-  Serve the rights-clean Qwen3-14B adapter with `default`; the `michel2`
-  adapters with `michel2_full`.
-- Reasoning low with a server-side budget beats reasoning off on every base
-  that reasons; medium and high budgets were flat (+8.1 / +8.6 / +8.8 at
-  512 / 1024 / 2048 for the adapter cell). Don't ban `<think>`.
-- Temperature 0 is deterministic on an idle GPU: a repeat gives the same
-  score to the row. Any "noise" you see is another job sharing the card.
-
-## Troubleshooting
-
-### Pinokio does not reach "Open Web UI"
-
-`start.js` waits for Alexandria to print its serving URL. Import failures,
-port-binding failures, Python tracebacks and FastAPI startup failures stop
-the launcher visibly instead of leaving the sidebar at **Starting**.
-
-1. Open **Terminal** beside the running or failed Start entry and read the
-   first traceback or startup error. The navbar build label identifies the
-   revision that is actually running; hover it for Python and package
-   versions.
-2. Open Pinokio's **Logs** page and select the latest Alexandria session. Its
-   **Get Help** report bundles the related launcher logs and system context,
-   with Pinokio's normal secret/path redaction, for sharing.
-3. For direct file inspection the current launcher log is
-   `logs/api/start.js/latest`; timestamped runs sit beside it, and
-   `logs/sessions/` groups related install/start/helper runs. App task logs
-   (script generation, review, audio) stay under `logs/api/*-latest.log`.
-4. Fix the first startup error, then stop and start the existing `start.js`
-   entry. Do not launch a second copy to work around an address-in-use error.
-   `env_doctor.py` reports a missing `app/env` or a torch that a later install
-   swapped for a CPU build — the two causes seen most.
-
-The launcher uses a Pinokio-selected free port and binds Alexandria to
-`127.0.0.1`; a hard-coded port is neither required nor recommended.
-
-### "Idle" for a long time during script generation
-Read the activity line under Generate: it names the step, the unit, the
-attempt, and what it is waiting on (the model, a rate-limit backoff, a
-retry). If it says nothing for minutes, the LLM server has stopped answering
-— test it from Setup. A run paused by "When retries run out → pause" waits
-for Resume.
-
-### Pause is greyed out
-On Windows the app cannot suspend the worker process; Pause is disabled
-there instead of failing on every click. Cancel and Resume failed run work.
-
-### Script generation fails
-- The model answered outside the JSON contract: pick a model from the table
-  above, keep the schema on, set reasoning to low. `logs/review_responses.log`
-  shows the exact reply.
-- Context length: a model loaded at 8k silently fails long windows. In LM
-  Studio tick **Optimize LM Studio settings**; in llama.cpp pass `-c 32768`.
-- No API at all: switch **How requests are sent** to `manual` and answer the
-  prompts yourself from the Script tab panel.
-
-### Model download fails or is slow
-The TTS weights come from Hugging Face on the first render; a proxy or a
-half-downloaded cache shows as a stall at 0%. Delete the partial file under
-the Hugging Face cache and retry; `download_model.py` fetches them outside
-the app.
-
-### TTS generation fails
-- `logs/api/audio-latest.log` — the first traceback is the real one.
-- AMD APU: the app uses fp32 automatically; if you forced `bf16`, remove it.
-- A merged adapter that "stops talking" (goal 2.3) is a trained-voice defect
-  the identity gate catches before promotion; use a shipped preset for that
-  character meanwhile.
-
-### Slow batch generation
-Compile Codec on, Sub-batching on, Parallel Workers to what VRAM allows; the
-first batch includes model load and compile warm-up. An LLM on the same card
-halves what the TTS can use — mark a hosted LLM as not on this GPU.
-
-### Out of memory
-Lower Parallel Workers and Max Items/Batch; the VRAM-headroom check refuses
-to start a batch it cannot fit, so "OOM" mid-run usually means another
-process took the card after the check.
-
-### Broken or tiny MP3 files (428 bytes)
-ffmpeg missing or not on PATH; the installer builds it into the environment,
-so a 428-byte file means the app is running outside `app/env`. Every
-generated file is validated (goal 3.2) — the Editor flags the chunk.
-
-### Audio quality
-Clone references shorter than ~7 s make an unstable voice (goal 2.2's
-finding); the import gate now normalises and measures them. Instruct text
-that describes timbre ("deep", "raspy") fights the voice — the identity
-anchor strips those terms; the audit found 1–4% of instructs carry them.
-
-### Mojibake or missing characters in the text
-Source repair on upload fixes common encodings; for a book that still shows
-`â€™`, run the repair preview from Saved Scripts. Pictographic kana and other
-unspeakables are dropped before the TTS by design (goal 5.1).
-
-## Prompt customization
-
-The three passes each read a prompt file in `app/`:
-`default_prompts_segment.txt`, `default_prompts_attribute.txt`,
-`default_prompts_instruct.txt` (system message, `---SEPARATOR---`, user
-message with `{roster}` and `{batch}` placeholders). Review uses
-`review_prompts.txt`.
-
-- **Variants**: `app/attribution_prompt_variants.py` defines how each
-  attribution variant reshapes the request (the `michel2_full` surround
-  block, the `michel2_shot` worked example …). The Setup dropdown selects
-  one; the text shown is what will be sent.
-- **Presets**: edit the text in Setup and **Save as preset**; presets persist
-  in `config.json` and survive restarts. **Reset to Defaults** reloads the
-  files without restarting.
-- **What the model will see** shows the exact system and user messages pass
-  2 would send for the current settings (`POST /api/prompts/attribution_preview`).
-- Changing the prompt changes the measurement: a score in RECIPES belongs
-  to its variant, and an adapter belongs to the prompt it was trained on.
-
-## Project structure
-
-<details>
-<summary>Expand the repository map (for contributors and developers)</summary>
-
-```
-alexandria-audiobook2/
-├── app/
-│   ├── app.py                       # FastAPI app: routers, auth, static mount
-│   ├── routers/                     # system, script, scripts_library, voices, voice_library,
-│   │                                #   voice_design, editor, lora, dataset_builder, preparer,
-│   │                                #   voicelab, benchmark  (181 routes)
-│   ├── core.py                      # process_state, GPU lock, ETA, run bookkeeping
-│   ├── three_pass_generate.py       # pass 1 split · pass 2 attribute · pass 3 instruct
-│   ├── attribution_prompt_variants.py, default_prompts*.txt, review_prompts.txt
-│   ├── generate_script.py, review_script.py, generate_personas.py, find_nicknames.py
-│   ├── llm_provider.py              # profiles, retries, reasoning shape, manual transport
-│   ├── lmstudio_settings.py, llm_bench.py
-│   ├── tts.py                       # TTSEngine: local Qwen3-TTS / external pool; trim, anchor
-│   ├── project.py                   # chunks, batch rendering, merge, M4B, chapter export
-│   ├── train_lora.py, voice_reference.py, speaker_identity.py
-│   ├── experiments/                 # ~290 measurement scripts (lora_serving_eval, voice_drift,
-│   │                                #   aligned_japanese_accent, quote_segmenter, …)
-│   ├── tests/                       # 3,330 unit tests + unit_test_inventory.json
-│   ├── static/index.html            # the SPA (no build step)
-│   ├── static/js/app-*.js           # core, scripts, workbench, training, voicelab, reports
-│   └── requirements.txt, torch-constraints.txt
-├── ab_test_runtime/experiments/     # every artifact cited in GOALS/RECIPES (indexed)
-├── builtin_lora/                    # shipped voice adapters
-├── docs/                            # architecture diagram, screenshots, audits, history
-├── alexandria_preparer_rocm_compatible.py, alexandria_batch_processor.py, alexandria_compare.py
-├── tools/voice_lab/                # Voice Lab stage scripts and dataset audit
-├── gpu_job.sh, gpu_pause.sh         # the local experiment queue (one job per card)
-├── ready.sh, verify_release.py, resolve_generated.sh
-├── GOALS.md, RECIPES.md, RESULTS_INDEX.md, HF_MODEL_GUIDE.md
-├── install.js, start.js, update.js, reset.js, pinokio.js, pinokio.json
-└── Dockerfile, docker-compose.yml, alexandria_colab.ipynb
-```
-
-</details>
-
----
 
 ## Project structure
 

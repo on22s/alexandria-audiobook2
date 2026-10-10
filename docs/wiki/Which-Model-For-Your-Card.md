@@ -28,10 +28,13 @@ ask for. Measured on one 5.4 GB model:
 | `-c 4096` | **5.1 GB** |
 | `-c 32768` | **11.3 GB** |
 
-The same file needs twice its own size at 32k, and barely more than its own size at 4k. The
-product prompt's longest window is **5,966 tokens**, so **`-c 8192` is enough**. Choosing 8192
-over 32768 saves several gigabytes — often the difference between fitting and not. Set it
-deliberately.
+These reported figures illustrate context-dependent memory use for one model; they do not
+predict memory for other architectures or quantizations. The earlier guidance reports a
+5,966-token attribution window, but does not link the underlying token-count artifact.
+That input length alone cannot establish the context needed for an entire run: output,
+reasoning, longer rosters and review requests also need space. Start small and follow
+[Choosing a context size](Setup-and-Serving.md#choosing-a-context-size). 8,192 can save
+memory compared with 32,768, but neither is the right setting for every workload.
 
 ## The recommendations
 
