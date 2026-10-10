@@ -552,6 +552,16 @@
     "tests.test_attribution_prompt_variants.RepeatedNarrationContextTests.test_separate_equal_narration_survives_but_shared_boundary_is_once",
     "tests.test_attribution_prompt_variants.VariantProviderKeepsNarrationTests.test_aliases_request_is_the_canonical_request_with_contexts"
   ],
+  "test_attribution_source_tags": [
+    "tests.test_attribution_source_tags.SourceTagTests.test_aliases_and_first_name_ambiguity",
+    "tests.test_attribution_source_tags.SourceTagTests.test_both_tag_orders_reject_another_real_character",
+    "tests.test_attribution_source_tags.SourceTagTests.test_fail_and_fallback_keep_existing_policies",
+    "tests.test_attribution_source_tags.SourceTagTests.test_keep_exhaustion_is_flagged_and_cannot_seed_roster",
+    "tests.test_attribution_source_tags.SourceTagTests.test_matching_is_shared_across_the_batch",
+    "tests.test_attribution_source_tags.SourceTagTests.test_real_retry_corrects_the_label_without_changing_text",
+    "tests.test_attribution_source_tags.SourceTagTests.test_uncertain_sources_abstain",
+    "tests.test_attribution_source_tags.SourceTagTests.test_unresolved_proposed_name_and_unknown_abstain"
+  ],
   "test_attribution_voting": [
     "tests.test_attribution_voting.MajorityVoteTest.test_empty_votes_are_handled",
     "tests.test_attribution_voting.MajorityVoteTest.test_majority_wins_over_minority",

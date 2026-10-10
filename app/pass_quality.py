@@ -651,8 +651,78 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     return False
 
 
+_TAG_NAME = r"[^\W\d_][\w’'-]*(?:[ \t]+[^\W\d_][\w’'-]*){0,3}"
+_SOURCE_SPEECH_TAG = re.compile(
+    rf"^[ \t]*(?:[,;][ \t]*)?(?:"
+    rf"(?P<before>{_TAG_NAME})[ \t]+{_REPORTING_VERBS}|"
+    rf"{_REPORTING_VERBS}[ \t]+(?P<after>{_TAG_NAME}))"
+    r"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
+
+
+def get_attribution_tag_evidence(entries, source_text, established_names=(),
+                                 speaker_aliases=None):
+    """Map batch indexes to uniquely resolved, immediately following tags.
+
+    Repeated text and incomplete quotation spans are deliberately uncheckable.
+    Source matching is one shared traversal per batch, outside the retry loop.
+    """
+    if not source_text or not established_names:
+        return {}
+    from dialogue_spans import get_source_match_positions, spoken_spans
+    from speaker_identity import get_speaker_label_index
+    aliases = speaker_aliases or {}
+    identities = {}
+    for label in set(established_names) | set(aliases):
+        canonical = aliases.get(label, label)
+        words = label.split()
+        while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
+            words = words[1:]
+        forms = [label] + ([words[0]] if words else [])
+        for key in get_speaker_label_index(forms):
+            identities.setdefault(key, set()).add(canonical)
+    needles = [entry.get("text", "").strip() for entry in entries
+               if entry.get("type") == "SPOKEN"]
+    positions = get_source_match_positions(source_text, needles)
+    quote_bounds = set()
+    for start, end in spoken_spans(source_text, "paired_quotes"):
+        content = source_text[start:end]
+        quote_bounds.add((start + len(content) - len(content.lstrip(" \t")),
+                          end - len(content) + len(content.rstrip(" \t"))))
+    evidence = {}
+    for index, entry in enumerate(entries):
+        if entry.get("type") != "SPOKEN":
+            continue
+        text = entry.get("text", "").strip()
+        matches = positions.get(text, [])
+        if len(matches) != 1:
+            continue
+        start, end = matches[0], matches[0] + len(text)
+        if (start, end) not in quote_bounds:
+            continue
+        before = source_text[max(0, start - 8):start].rstrip(" \t")
+        after = source_text[end:end + 160].lstrip(" \t")
+        pairs = {'"': '"', '“': '”', '「': '」', '『': '』'}
+        if not before or not after or pairs.get(before[-1]) != after[0]:
+            continue
+        tag = _SOURCE_SPEECH_TAG.match(after[1:].split("\n", 1)[0])
+        if not tag:
+            continue
+        name = tag.group("before") or tag.group("after")
+        if (name.casefold() in _NON_PERSON_NAME_WORDS or
+                any(word.casefold().endswith(("'s", "’s", "'", "’"))
+                    for word in name.split()) or
+                not all(word[:1].isupper() for word in name.split())):
+            continue
+        key = next(iter(get_speaker_label_index([name])), None)
+        candidates = identities.get(key, set())
+        if len(candidates) == 1:
+            evidence[index] = next(iter(candidates))
+    return evidence
+
+
 def validate_attribution(frozen_entries, response_entries, source_text=None,
-                         known_names=None):
+                         known_names=None, tag_evidence=None, speaker_aliases=None,
+                         established_names=None):
     """Pass 2 gate. Verifies the index+head alignment, then requires every SPOKEN
     span to have a non-empty speaker other than NARRATOR, and every NARRATOR span
     to stay NARRATOR. `known_names` (a supplied cast, upper-case) skips only the
@@ -663,6 +733,11 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
     if not ok:
         return {"passed": False,
                 "findings": [{"code": "alignment_violated", "message": reason}]}
+    established_names = set(established_names or ()) | set(known_names)
+    if tag_evidence is None:
+        tag_evidence = get_attribution_tag_evidence(
+            frozen_entries, source_text, established_names, speaker_aliases)
+    aliases = speaker_aliases or {}
     findings = []
     for i, (frozen, item) in enumerate(zip(frozen_entries, ordered), 1):
         source_line = frozen.get("text", "")
@@ -707,6 +782,18 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
                                  "message": "The speaker repeats the entry type "
                                             "instead of naming a character."})
                 continue
+            expected_speaker = tag_evidence.get(i - 1)
+            if expected_speaker and speaker.upper() not in ("UNKNOWN", "NARRATOR", ""):
+                from speaker_identity import resolve_speaker_label
+                canonical = aliases.get(speaker.upper(), speaker.upper())
+                if (resolve_speaker_label(canonical, established_names | set(aliases.values()))
+                        and not resolve_speaker_label(canonical, [expected_speaker])):
+                    findings.append({"code": "speaker_contradicts_source_tag",
+                                     "entry_number": i, "value": speaker,
+                                     "source_line": source_line,
+                                     "expected": expected_speaker,
+                                     "message": "The immediately following source speech tag "
+                                                f"names {expected_speaker}, not {speaker}."})
             if not speaker or speaker.upper() == "NARRATOR":
                 findings.append({"code": "spoken_not_named", "entry_number": i,
                                  "source_line": source_line,
