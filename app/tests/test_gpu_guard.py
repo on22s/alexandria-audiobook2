@@ -81,7 +81,8 @@ class GpuGuardTest(unittest.TestCase):
         self.addCleanup(core.process_state.pop, key, None)
         with patch.object(core, 'llm_is_on_this_gpu', return_value=True), \
              patch.object(core, 'acquire_gpu_lock', side_effect=lambda: acquire_gpu_lock(self.lock)):
-            core.claim_gpu_task(key)
+            token = core.claim_gpu_task(key)
+            self.addCleanup(core.release_gpu_task_claim, key, token)
         self.assertTrue(gpu_is_busy(self.lock))
         core.process_state[key]['running'] = False
         deadline = time.monotonic() + 2
