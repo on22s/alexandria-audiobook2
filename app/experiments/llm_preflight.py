@@ -38,6 +38,8 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 APP = os.path.join(REPO, "app")
+sys.path.insert(0, APP)
+from utils import get_app_config_path, get_runtime_data_dir
 
 # ASKS FOR JSON, because that is what the real passes ask for and it is where
 # this stack actually breaks. The first version asked for prose and passed
@@ -70,28 +72,46 @@ def find_json_array(text):
     return None
 
 
-def get_endpoint(config_path):
-    """-> (base_url, model_name) for whichever mode config.json selects."""
+def get_endpoint_profile(config_path):
+    """Read the selected endpoint and authentication settings together."""
     with open(config_path, encoding="utf-8") as handle:
         config = json.load(handle)
+    if not isinstance(config, dict):
+        raise ValueError("config.json must contain an object")
     mode = config.get("llm_mode", "local")
     section = config.get(f"llm_{mode}") or {}
+    if not isinstance(section, dict):
+        raise ValueError(f"llm_{mode} must contain an object")
     if not section.get("base_url"):
         raise RuntimeError(
             f"config.json selects llm_mode={mode!r} but llm_{mode} has no "
             "base_url, so there is no endpoint to check")
+    return section
+
+
+def get_endpoint(config_path):
+    """-> (base_url, model_name) for whichever mode config.json selects."""
+    section = get_endpoint_profile(config_path)
     return section["base_url"], section.get("model_name")
 
 
-def check(base_url, model, timeout=180, max_tokens=400):
+def check(base_url, model, timeout=180, max_tokens=400, api_key="local", profile=None):
     """-> (ok, detail). Never raises: a preflight that crashes is a preflight
     that tells you nothing about the server."""
     try:
-        from openai import OpenAI
-    except ImportError as exc:
-        return False, f"openai package unavailable: {exc}"
+        from llm_provider import make_llm_client
+    except Exception as exc:                                # noqa: BLE001
+        return False, f"LLM client unavailable: {exc}"
 
-    client = OpenAI(base_url=base_url, api_key="local", timeout=timeout)
+    try:
+        if profile is not None and not isinstance(profile, dict):
+            raise ValueError("LLM profile must contain an object")
+        settings = dict(profile) if profile is not None else {"api_key": api_key}
+        settings["base_url"] = base_url
+        client = make_llm_client(settings, timeout)
+    except Exception as exc:                                # noqa: BLE001
+        return False, (f"cannot create LLM client for {base_url} "
+                       f"({type(exc).__name__}: {str(exc)[:120]})")
     try:
         served = [m.id for m in client.models.list().data]
     except Exception as exc:                                # noqa: BLE001
@@ -108,11 +128,24 @@ def check(base_url, model, timeout=180, max_tokens=400):
                        f"({type(exc).__name__}: {str(exc)[:120]}); served "
                        f"models: {served}")
     elapsed = time.time() - started
-    choice = reply.choices[0]
-    content = (choice.message.content or "").strip()
+    try:
+        choice = reply.choices[0]
+        content = choice.message.content
+        if content is not None and not isinstance(content, str):
+            raise ValueError("completion content must be text")
+        content = (content or "").strip()
+        reasoning = getattr(choice.message, "reasoning_content", None)
+        if reasoning is not None and not isinstance(reasoning, str):
+            raise ValueError("completion reasoning must be text")
+        reasoning = (reasoning or "").strip()
+        finish_reason = getattr(choice, "finish_reason", "unknown")
+        completion_tokens = getattr(getattr(reply, "usage", None), "completion_tokens", None)
+    except Exception as exc:                                # noqa: BLE001
+        return False, (f"server returned a malformed completion in {elapsed:.1f}s "
+                       f"({type(exc).__name__}: {str(exc)[:120]})")
     if not content:
         return False, (f"server returned an EMPTY completion in {elapsed:.1f}s "
-                       f"(finish_reason={choice.finish_reason}). With "
+                       f"(finish_reason={finish_reason}). With "
                        f"finish_reason='length' this is the reasoning-token "
                        f"trap - raise --max-tokens above {max_tokens}.")
     # THINKING ON IS A FAILURE EVEN WHEN THE PROBE SUCCEEDS. This check asks
@@ -122,7 +155,6 @@ def check(base_url, model, timeout=180, max_tokens=400):
     # in SEGMENT response". The real passes cap at 512 tokens over far longer
     # inputs, where reasoning crowds the JSON out entirely. So the presence of
     # reasoning is the signal, not the outcome of this one easy prompt.
-    reasoning = (getattr(choice.message, "reasoning_content", None) or "").strip()
     if reasoning and os.environ.get("ALLOW_LLM_THINKING") != "1":
         return False, (
             f"the server has THINKING ENABLED ({len(reasoning)} reasoning "
@@ -136,14 +168,14 @@ def check(base_url, model, timeout=180, max_tokens=400):
                        f"{elapsed:.1f}s: {content[:80]!r}. Every "
                        f"segment/attribute pass needs parseable JSON.")
     return True, (f"{base_url} answered with JSON in {elapsed:.1f}s "
-                  f"(finish={choice.finish_reason}, "
-                  f"{reply.usage.completion_tokens} completion tokens): "
+                  f"(finish={finish_reason}, "
+                  f"{completion_tokens if completion_tokens is not None else 'unknown'} completion tokens): "
                   f"{content[:60]!r}")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--config", default=os.path.join(APP, "config.json"))
+    ap.add_argument("--config", default=get_app_config_path(get_runtime_data_dir(REPO), REPO, APP))
     ap.add_argument("--timeout", type=float, default=180)
     ap.add_argument("--max-tokens", type=int, default=400)
     ap.add_argument("--quiet", action="store_true",
@@ -151,12 +183,13 @@ def main():
     args = ap.parse_args()
 
     try:
-        base_url, model = get_endpoint(args.config)
+        profile = get_endpoint_profile(args.config)
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"llm_preflight: {exc}", file=sys.stderr)
         return 1
 
-    ok, detail = check(base_url, model, args.timeout, args.max_tokens)
+    ok, detail = check(profile["base_url"], profile.get("model_name"),
+                       args.timeout, args.max_tokens, profile=profile)
     if ok:
         if not args.quiet:
             print(f"llm_preflight: OK - {detail}")
