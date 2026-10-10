@@ -107,11 +107,16 @@ nine this adapter trained on, so this is a train-versus-held-out gap for one
 frozen adapter and quant, not a 28-novel-instrument measurement like the rows
 above. This completes the previously requested matching comparison; broader
 model-specific generalisation remains OPEN. Book exclusion is verified (none
-of the nineteen held-out books appears in the training windows). Author
-exclusion is not verified by any artifact: matching titles to authors by hand,
-the training books (Austen, Doyle, Hemingway, Chopin) share no author with the
-held-out nineteen, but no recorded author field backs that, so it stays open
-until one does. Sixteen held-out books improve and three regress.
+of the nineteen held-out books appears in the training windows). At that
+point, author exclusion rested on a provisional manual title-to-author
+comparison; the retrospective audit below supersedes that limitation.
+Sixteen held-out books improve and three regress.
+
+**Author separation, 2026-10-10.** A retrospective audit of canonical public
+author metadata confirms author separation between the frozen adapter-training
+and evaluation splits, with no missing or ambiguous mappings. This does not
+establish exclusion from base-model pretraining or close the broader
+generalisation goal.
 
 CPU error analysis finds alias-aware gold-speaker coverage on all 5,543 IDs
 in both fixture-augmented full rosters; this does not test production roster
@@ -122,6 +127,13 @@ support investigating selection and response handling before expanding
 rosters for this run. Evidence: [fold-swap report](docs/results/thunder-a100-foldswap-2026-09-30.md),
 [matching development report](docs/results/thunder-japanese-development-2026-09-30.md)
 and [CPU error analysis](docs/results/thunder-cpu-followups-2026-09-30.md).
+
+**Bounded diagnostic follow-up, 2026-10-10.** Measured on a local set that
+is not in the repo; the inputs and detailed results remain private. Capture-only
+work improves future diagnosis, but establishes neither a cause for the
+historical unanswered rows nor an accuracy gain. The next step remains to
+reproduce and classify failures on development data, then confirm any
+intervention on fresh held-out material.
 
 **Metric** — accuracy on held-out books never used in development.
 **Probe** — PDNC gold sets (`attribution_gold_pdnc_*.json`, 1270 / 640 / 584
@@ -1259,10 +1271,15 @@ points at an input we choose rather than at the method.
 already tested clean candidates for `silky_mezzo_30s_f` and
 `silky_alto_40s_f_literary_2` on matched unseen-volume clips. Their identity and
 ASR comparisons do not support a blanket improvement or automatic promotion;
-perceptual assessment remains pending. Reconcile each remaining adapter's
-hash-matched training metadata and existing candidate evidence before deciding
-whether another retrain is needed. The dated counts and queue descriptions
+perceptual assessment remains pending. The dated counts and queue descriptions
 below are history, not a current queue-status check.
+
+**Local verification follow-up, 2026-10-10.** Measured on a local set that is
+not in the repo; detailed inventory and comparison proof remain private.
+Review the existing candidate assets and published matched comparisons before
+scheduling more training or sourcing replacement data. Listening approval is
+still needed, and differently conditioned comparisons must remain separate.
+The published measurements above do not support blanket promotion.
 
 **Audited from the datasets themselves, 2026-09-28**
 (`voice_val_contamination_audit_20260928.json`, `app/experiments/voice_val_audit.py`):
@@ -2870,6 +2887,13 @@ Five historical boundary audits were recounted on CPU: 93/1,000 sampled
 chunks alert (per-source 4.5–14.0%). These are saved ASR/source edge
 conflicts, not manually confirmed cut errors or new alignment measurements.
 They do not close the Japanese boundary goal. See [historical comparison](docs/results/thunder-historical-comparison-2026-09-30.md).
+
+**Private text-reading check, 2026-10-10.** Measured on a local set that is
+not in the repo; source material and detailed results remain private. This
+text-only check does not establish audio, ASR, speech-onset, pitch-accent,
+pacing or native-listener quality. Use the existing audio and listening
+packages for the remaining fluent-listener and onset-definition work before
+sourcing or generating more material. No target or goal status changes.
 
 **Metric** — WER (CER for CJK) against human transcripts, plus alignment error
 against known boundaries.
@@ -6784,9 +6808,10 @@ If only three things get worked on:
    open. Reproduce answered selection failures and unanswered windows on
    development material, with controls for currently correct answers. The
    saved reports lack raw responses and per-row prompt hashes, so they do not
-   identify why blanks occurred. Record author exclusions in an artifact;
-   the existing book exclusion alone does not verify them. Do not tune on the
-   nineteen-book holdout or repeat the completed matching-development run.
+   identify why blanks occurred. The retrospective audit in 1.3 confirms author
+   separation for the frozen adapter splits; base-model pretraining exclusion
+   remains unestablished. Do not tune on the nineteen-book holdout or repeat
+   the completed matching-development run.
 2. **Per-line duration spread (2.4)** — the narrator-controlled Japanese clone
    median already meets the goal; per-line spread remains open. The September
    30 grouping comparison produced 180 valid clips and improved paired duration
@@ -6797,9 +6822,9 @@ If only three things get worked on:
    [completed Japanese comparison](docs/results/thunder-japanese-development-2026-09-30.md).
 3. **Train/val contamination (2.7)** — the latest explicit shipped-library audit
    is September 29: **9 contaminated plus 1 unsplit**, not the older 15 or 21.
-   Verify current hashes/metadata and reuse existing clean candidates and
-   unseen-volume comparisons. Two remaining voices were already compared on
-   September 30, with mixed results and no perceptual approval. Decide per
+   Following the local verification noted in 2.7, review the existing candidate
+   assets and unseen-volume comparisons before scheduling more training. Two
+   remaining voices were already compared on September 30, with mixed results and no perceptual approval. Decide per
    voice what evidence or source data is still missing; do not infer that all
    remaining candidates need retraining or that any is approved for promotion.
    See 2.7 and the [completed voice comparison](docs/results/thunder-campaign-2026-09-30.md).
