@@ -27,7 +27,7 @@ cause, and the fix is a higher-precision base (Q6_K or Q8_0), not retraining.
 Reporting a shortfall as "distillation does not work" would be wrong, and the
 bf16 result stands on its own artifact.
 """
-import argparse, collections, json, os, re, sys, time
+import argparse, base64, collections, hashlib, json, os, re, sys, time
 import urllib.request
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -47,7 +47,7 @@ def _sha256_file(path):
 
 sys.path.insert(0, APP)
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
-from openai import OpenAI
+from openai import DefaultHttpxClient, OpenAI
 from experiments.manifest import ExperimentRecord, strict_shared_summary
 from experiments.scoring import (alias_groups, roster_membership_names,
                                  same_speaker)
@@ -65,6 +65,72 @@ M = REPO + "/ab_test_runtime/results/matrix_20260725-115148/"
 INPUT_RUN = "qwen3.5-9b-uncensored-hauhaucs-aggressive"
 SPECIAL = {"UNKNOWN", "UNNAMED", "NOT_DIALOGUE"}
 BATCH = 25
+
+
+class ServingResponseCapture:
+    """Observe HTTP exchanges without changing requests or provider decisions.
+
+    Raw bodies remain private in an explicitly external output directory. Keep
+    observer records live until the window ends: validation fills them after
+    the callback. HTTP exchanges include the SDK's retries and schema fallback.
+    """
+
+    def __init__(self):
+        self.attempts = []
+        self.pending = {}
+        self.validation = []
+
+    def observe_request(self, request):
+        body = request.content
+        payload = json.loads(body)
+        messages = json.dumps(payload.get("messages"), ensure_ascii=False,
+                              sort_keys=True, separators=(",", ":"))
+        diagnostic = {
+            "request_sha256": hashlib.sha256(body).hexdigest(),
+            "prompt_sha256": hashlib.sha256(messages.encode("utf-8")).hexdigest(),
+            "requested_max_tokens": payload.get("max_tokens"),
+            "http_status": None, "raw_response": None,
+        }
+        self.attempts.append(diagnostic)
+        self.pending[id(request)] = diagnostic
+
+    def observe_response(self, response):
+        diagnostic = self.pending.pop(id(response.request))
+        # The synchronous SDK reads this same body before parsing it. Reading
+        # here preserves its bytes and makes non-2xx replies observable too.
+        body = response.read()
+        diagnostic["http_status"] = response.status_code
+        diagnostic["raw_response_body_base64"] = base64.b64encode(body).decode("ascii")
+        try:
+            payload = json.loads(body)
+            choices = payload.get("choices") or []
+            choice = choices[0] if choices else {}
+            message = choice.get("message") or {}
+            diagnostic.update(raw_response=message.get("content"),
+                              reasoning_content=message.get("reasoning_content"),
+                              finish_reason=choice.get("finish_reason"),
+                              usage=payload.get("usage"))
+        except (ValueError, AttributeError, TypeError, IndexError):
+            diagnostic["response_decode_error"] = True
+
+    def observe_validation(self, record):
+        self.validation.append((len(self.attempts) - 1, record))
+
+    def finalize_window(self, start):
+        for index, record in self.validation:
+            if index >= start:
+                # Do not copy the observer's request or exception text: prompt
+                # identity and classified failures suffice, without headers.
+                self.attempts[index]["validation"] = {
+                    key: record[key] for key in (
+                        "attempt", "phase", "split_part", "outcome", "failure_codes",
+                        "recovery_codes", "quality_metrics", "response_repeat_count",
+                        "elapsed_seconds", "effective_max_tokens", "prompt_tokens",
+                        "completion_tokens", "reasoning_tokens",
+                        "error_category", "retryable", "next_retry_seconds")
+                    if key in record}
+        self.validation.clear()
+        return self.attempts[start:]
 
 
 def bind_last_attempt(entries, size):
@@ -348,6 +414,11 @@ def main():
     ap.add_argument("--keep-traces", action="store_true",
                     help="store each window's reasoning trace (message.reasoning_content) "
                          "on its rows, to compare how base and adapter reason")
+    ap.add_argument("--capture-responses", action="store_true",
+                    help="capture private HTTP replies and final validation; requires "
+                         "--output-dir outside the repository")
+    ap.add_argument("--output-dir", help="directory for the result and checkpoint "
+                    "(default: ab_test_runtime/experiments)")
     ap.add_argument("--api-key-env", default=None,
                     help="environment variable holding the API key for a hosted endpoint")
     ap.add_argument("--provider-extra-body", default=None,
@@ -389,13 +460,25 @@ def main():
             if args.window_cuts else {})
     if args.batch_size < 1:
         ap.error("--batch-size must be at least 1")
+    output_dir = os.path.realpath(args.output_dir or os.path.join(
+        REPO, "ab_test_runtime", "experiments"))
+    if args.capture_responses:
+        if not args.output_dir or os.path.commonpath((output_dir, os.path.realpath(REPO))) == os.path.realpath(REPO):
+            ap.error("--capture-responses requires --output-dir outside the repository")
+        os.makedirs(output_dir, mode=0o700, exist_ok=True)
+        if os.stat(output_dir).st_mode & 0o077:
+            ap.error("capture output directory must be private (mode 0700)")
 
     # A hosted API needs a key and, for DeepSeek, the thinking switch in the
     # request body; a local llama-server needs neither. ConfiguredOpenAI is
     # the product's own wrapper, so the extra body merges exactly as it does
     # for a profile's provider_extra_body.
     api_key = os.environ.get(args.api_key_env, "local") if args.api_key_env else "local"
-    client = OpenAI(base_url=args.base_url, api_key=api_key)
+    capture = ServingResponseCapture() if args.capture_responses else None
+    capture_options = ({"http_client": DefaultHttpxClient(event_hooks={
+        "request": [capture.observe_request], "response": [capture.observe_response]})}
+                       if capture else {})
+    client = OpenAI(base_url=args.base_url, api_key=api_key, **capture_options)
     if args.provider_extra_body:
         from llm_provider import ConfiguredOpenAI
         client = ConfiguredOpenAI(client, json.loads(args.provider_extra_body))
@@ -423,6 +506,7 @@ def main():
     decoding["temperature"] = args.temperature
     decoding["keep_traces"] = args.keep_traces
     decoding["provider_extra_body"] = args.provider_extra_body
+    decoding["capture_responses"] = args.capture_responses
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
@@ -431,7 +515,7 @@ def main():
         environment=json.loads(_env) if _env else None,
         notes=notes)
     record.enable_checkpoint(os.path.join(
-        REPO, "ab_test_runtime", "experiments",
+        output_dir,
         f"lora_serving_eval__{args.tag}.json.ckpt"))
     per_book, answers = {}, {"base": {}, "lora": {}}
     for book in args.books:
@@ -557,11 +641,17 @@ def main():
                 surround = window_surround(seg, win, send, args.surround_chars)
                 why = f"{arm}|scale={scale}"
                 traces = []
-                observer = ((lambda rec: traces.append(rec.get("reasoning_content")))
-                            if args.keep_traces else None)
+                capture_start = len(capture.attempts) if capture else 0
+                def observe(rec):
+                    if args.keep_traces:
+                        traces.append(rec.get("reasoning_content"))
+                    if capture:
+                        capture.observe_validation(rec)
+                observer = observe if args.keep_traces or capture else None
                 # Reset per window: a stale value would label this window with
                 # the previous one's failure.
                 failed = f"{arm}|batch_failed=NoOutput"
+                outcome = "ok"
                 try:
                     out = attribute_batch(client, args.model, frozen, params,
                                           shown_roster, neighbor_contexts=ctx,
@@ -570,6 +660,7 @@ def main():
                                           attempt_observer=observer,
                                           surround=surround)
                 except PassExhausted as exc:
+                    outcome = "exhausted"
                     # The model answered; one line failed the speaker check and
                     # took the window with it. Score what it said, per row.
                     out = bind_last_attempt(exc.last_entries, len(send))
@@ -579,9 +670,17 @@ def main():
                     why = f"{arm}|scale={scale}|exhausted_last_attempt"
                     failed = get_batch_failed_provenance(arm, exc)
                 except Exception as exc:
+                    outcome = type(exc).__name__
                     print(f"  {arm} window {k}: {type(exc).__name__}", flush=True)
                     out = None
                     failed = get_batch_failed_provenance(arm, exc)
+                finally:
+                    if capture:
+                        record.meta.setdefault("generation_diagnostics", []).append({
+                            "arm": arm, "book": book, "window": k,
+                            "outcome": outcome,
+                            "attempts": capture.finalize_window(capture_start)})
+                last = capture.attempts[-1] if capture and len(capture.attempts) > capture_start else {}
                 if out is None:
                     for i in rows:
                         g = want[norm(seg[i].get("text"))]
@@ -589,7 +688,8 @@ def main():
                             record.add(arm, f"{book}:{g['id']}", g["line"],
                                        g["expected_speaker"].upper(), None,
                                        False, candidates=membership,
-                                       provenance=failed)
+                                       provenance=failed, raw=last.get("raw_response"),
+                                       prompt_sha256=last.get("prompt_sha256"))
                     continue
                 carried = sorted({str((o or {}).get("speaker") or "").upper()
                                   for o in (out or []) if (o or {}).get("speaker")}
@@ -609,6 +709,8 @@ def main():
                                # The roster the model was shown; see distill_eval.
                                candidates=membership,
                                provenance=why,
+                               raw=last.get("raw_response"),
+                               prompt_sha256=last.get("prompt_sha256"),
                                reasoning=(next((t for t in reversed(traces) if t), None)
                                           if args.keep_traces else None))
                 if k % 25 == 0:
@@ -671,7 +773,7 @@ def main():
                   f"unanswered {dropped or 'none'}")
 
     out = record.write(os.path.join(
-        REPO, "ab_test_runtime", "experiments",
+        output_dir,
         f"lora_serving_eval__{args.tag}.json"),
         contract={"expected_arms": tuple(a for a, _ in
                                            get_eval_arms(args.base_only, args.lora_only))})
