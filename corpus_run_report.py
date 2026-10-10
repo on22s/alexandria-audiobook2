@@ -164,6 +164,9 @@ def save_corpus_report(index, output_dir):
 
 
 def run_corpus(repo, pairs_path, output_dir, model, fallback):
+    if not isinstance(model, str) or not model.strip():
+        raise ValueError('--model is required when running --pairs')
+    fallback = fallback or None
     pairs = json.loads(pairs_path.read_text(encoding='utf-8'))
     if not isinstance(pairs, list):
         raise ValueError('pairs must be a JSON array')
@@ -195,9 +198,12 @@ def run_corpus(repo, pairs_path, output_dir, model, fallback):
                 options={'summary_output': str(summary), 'output': str(output), 'model': model,
                          'fallback_model': fallback, 'chunk_size': 10.0, 'lang': 'en'})
             save_index()
-            result = subprocess.run([str(repo / 'run_with_restart.sh'), '--audio', str(audio), '--source', str(source),
-                '--model', model, '--fallback-model', fallback, '--output', str(output),
-                '--summary-output', str(summary), '--chunk-size', '10.0', '--lang', 'en'], cwd=repo)
+            command = [str(repo / 'run_with_restart.sh'), '--audio', str(audio), '--source', str(source),
+                '--model', model, '--output', str(output),
+                '--summary-output', str(summary), '--chunk-size', '10.0', '--lang', 'en']
+            if fallback:
+                command += ['--fallback-model', fallback]
+            result = subprocess.run(command, cwd=repo)
             row['worker_exit'] = result.returncode
             if result.returncode:
                 raise ValueError(f'worker exit {result.returncode}')
@@ -228,7 +234,7 @@ def main():
                 return run_corpus(args.repo.resolve(), args.pairs, output_dir, args.model, args.fallback)
             path = output_dir / 'corpus_attempts.json'
             if not path.is_file():
-                raise ValueError('No owned corpus attempt index; run --run first')
+                raise ValueError('No owned corpus attempt index; run with --pairs and --model first')
             return save_corpus_report(json.loads(path.read_text(encoding='utf-8')), output_dir)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         print(f'Corpus report failed: {error}', file=sys.stderr, flush=True)

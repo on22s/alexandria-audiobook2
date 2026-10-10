@@ -25,6 +25,7 @@ from alexandria_run_manifest import sync_run_directory
 from gpu_stats import run_rocm_smi_json
 sys.path.append(str(Path(__file__).resolve().parent / "app"))
 from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
+from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
 
 # Setup logging
 log_dir = "logs"
@@ -622,7 +623,18 @@ class BatchProcessor:
         logger.info("─" * 70 + " [subprocess output begins]")
 
         process = None
+        watchdog = None
+        watchdog_stop = threading.Event()
+        stop_lock = threading.Lock()
         last_stderr_lines = []
+
+        def stop_worker(timeout=0, interrupt=False):
+            # The watchdog and stream error path can arrive together. Retain
+            # ownership until every descendant is stopped before closing it.
+            with stop_lock:
+                stop_owned_subprocess(process, timeout=timeout, interrupt=interrupt,
+                                      force_after_grace=True)
+
         try:
             # A failed re-run must not leave an old success marker authorizing
             # whatever subset of volumes the child may overwrite.
@@ -630,14 +642,19 @@ class BatchProcessor:
             if os.path.exists(marker):
                 os.unlink(marker)
             text_source_identity = get_text_source_identity(matched_source)
-            # Use Popen for real-time output streaming
-            process = subprocess.Popen(
+            # The preparer launches phase/enrichment workers of its own. Keep
+            # the entire tree owned, including workers that leave its group.
+            process = start_owned_subprocess(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,  # Merge stderr into stdout for ordering
                 text=True,
                 bufsize=1,  # Line-buffered
+                start_new_session=(os.name == "posix"),
+                creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
             )
+            if os.name == "posix":
+                process._alexandria_pgid = process.pid
 
             # Stream output line by line in real-time. `for line in process.stdout`
             # blocks on readline, so an inline deadline check can't fire while the
@@ -648,12 +665,12 @@ class BatchProcessor:
             timed_out = threading.Event()
 
             def _watchdog():
-                while process.poll() is None:
+                while not watchdog_stop.is_set() and process.poll() is None:
                     if time.monotonic() > deadline:
                         timed_out.set()
-                        process.kill()
+                        stop_worker()
                         return
-                    time.sleep(5)
+                    watchdog_stop.wait(5)
 
             watchdog = threading.Thread(target=_watchdog, daemon=True)
             watchdog.start()
@@ -670,8 +687,7 @@ class BatchProcessor:
                         remaining_gb = max(0.5, self.get_disk_estimate_gb(audio_file)
                                            - published_bytes / 1024 ** 3)
                         if not self.ensure_disk_space(audio_file, remaining_gb):
-                            process.kill()
-                            process.wait()
+                            stop_worker()
                             return
                     # Keep last 20 lines for error context
                     last_stderr_lines.append(line)
@@ -745,8 +761,7 @@ class BatchProcessor:
         except subprocess.TimeoutExpired:
             logger.error(f"✗ TIMEOUT: {Path(audio_file).name} exceeded 24 hours")
             if process:
-                process.kill()
-                process.wait()
+                stop_worker()
             self.results["failed"].append({
                 "file": audio_file,
                 "reason": "Timeout (>24 hours)"
@@ -754,12 +769,7 @@ class BatchProcessor:
         except KeyboardInterrupt:
             logger.warning(f"⚠ INTERRUPTED: User cancelled processing of {Path(audio_file).name}")
             if process:
-                process.terminate()
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+                stop_worker(timeout=10, interrupt=True)
             self.results["failed"].append({
                 "file": audio_file,
                 "reason": "User interrupted (KeyboardInterrupt)"
@@ -768,12 +778,24 @@ class BatchProcessor:
         except Exception as e:
             logger.error(f"✗ ERROR: {Path(audio_file).name} - {e}")
             if process:
-                process.kill()
-                process.wait()  # reap the killed child (mirrors the Timeout handler)
+                stop_worker()
             self.results["failed"].append({
                 "file": audio_file,
                 "reason": str(e)
             })
+        finally:
+            watchdog_stop.set()
+            if process is not None:
+                try:
+                    stop_worker()
+                finally:
+                    if watchdog is not None and watchdog.is_alive():
+                        watchdog.join()
+                    control = getattr(process, "_alexandria_control", None)
+                    if control is not None:
+                        control.close()
+                    if process.stdout is not None:
+                        process.stdout.close()
 
     def is_batch_successful(self):
         return not self.results["failed"] and all(

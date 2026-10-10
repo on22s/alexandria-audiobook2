@@ -6,8 +6,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import alexandria_batch_processor as batch
+import io
+from tests.batch_mock_support import adapt_owner_fixture
 
 class BatchDiskScratchTests(unittest.TestCase):
+    def setUp(self):
+        adapt_owner_fixture(self)
+
     def test_zip_capacity_alone_does_not_admit_long_book_scratch(self):
         processor = batch.BatchProcessor('fixture.gguf')
         with patch.object(processor, 'validate_files', return_value=['book.wav']), \
@@ -126,7 +131,7 @@ class BatchDiskScratchTests(unittest.TestCase):
         processor.output_bytes_per_second = 1024 ** 3 / 3600
         with patch.object(batch, 'get_audio_duration_seconds', return_value=7200) as duration, \
                 patch.object(processor, 'ensure_disk_space', return_value=False) as admission, \
-                patch.object(batch.subprocess, 'Popen') as child:
+                patch.object(batch, 'start_owned_subprocess') as child:
             processor.process_file('book.wav', 1, 1)
         duration.assert_called_once_with('book.wav')
         admission.assert_called_once_with('book.wav', 2)
@@ -173,9 +178,9 @@ class BatchDiskScratchTests(unittest.TestCase):
                         archive.writestr('metadata.jsonl', '{"audio_filepath":"train/clip.wav"}\n')
                         if valid:
                             archive.writestr('train/clip.wav', b'fixture clip')
-                    return SimpleNamespace(stdout=[], returncode=0, wait=lambda: 0, poll=lambda: 0)
+                    return SimpleNamespace(pid=99999999,stdout=io.StringIO(''), returncode=0, wait=lambda: 0, poll=lambda: 0)
                 with patch.object(batch, 'get_output_name', return_value=str(output)), \
-                        patch.object(batch.subprocess, 'Popen', side_effect=launch) as child, \
+                        patch.object(batch, 'start_owned_subprocess', side_effect=launch) as child, \
                         patch.object(batch, 'check_disk_space', side_effect=OSError('unreadable')) as probe:
                     processor.process_file(str(audio), 1, 1)
                 child.assert_called_once()

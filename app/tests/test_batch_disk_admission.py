@@ -7,10 +7,13 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import alexandria_batch_processor as batch
+import io
+from tests.batch_mock_support import adapt_owner_fixture
 
 
 class BatchDiskAdmissionTests(unittest.TestCase):
     def setUp(self):
+        adapt_owner_fixture(self)
         # Pin these output-budget regressions to one filesystem; separate-volume
         # scratch admission is covered by test_batch_disk_scratch.
         probe = patch.object(batch, 'get_disk_probe_path', return_value='.')
@@ -79,6 +82,7 @@ class BatchDiskAdmissionTests(unittest.TestCase):
             processor = batch.BatchProcessor('fixture.gguf')
             processor.audio_durations[str(audio)] = 3600
             class Child:
+                pid = 99999999
                 returncode = None
                 killed = False
                 waited = False
@@ -95,7 +99,7 @@ class BatchDiskAdmissionTests(unittest.TestCase):
             child = Child()
             with patch.object(batch, 'get_output_name', return_value=str(output)), \
                  patch.object(batch, 'check_disk_space', side_effect=[True, False]), \
-                 patch.object(batch.subprocess, 'Popen', return_value=child), \
+                 patch.object(batch, 'start_owned_subprocess', return_value=child), \
                  patch.object(batch.threading.Thread, 'start'):
                 processor.process_file(str(audio), 1, 1)
             self.assertTrue(child.killed)
@@ -118,13 +122,13 @@ class BatchDiskAdmissionTests(unittest.TestCase):
                 with zipfile.ZipFile(output,'w') as archive:
                     archive.writestr('metadata.jsonl',json.dumps({'audio_filepath':'train/clip.wav'})+'\n')
                     archive.writestr('train/clip.wav',b'fixture')
-                return SimpleNamespace(stdout=io.StringIO(''),returncode=0,wait=lambda:None,poll=lambda:0)
+                return SimpleNamespace(pid=99999999,stdout=io.StringIO(''),returncode=0,wait=lambda:None,poll=lambda:0)
             actual_size=0.75*1024**3
             native_getsize=batch.os.path.getsize
             def size(path): return actual_size if str(path)==str(output) else native_getsize(path)
             with patch.object(batch,'get_output_name',return_value=str(output)), \
                  patch.object(batch,'check_disk_space',return_value=True), \
-                 patch.object(batch.subprocess,'Popen',side_effect=launch), \
+                 patch.object(batch,'start_owned_subprocess',side_effect=launch), \
                  patch.object(batch.os.path,'getsize',side_effect=size), \
                  patch.object(batch.threading.Thread,'start'):
                 processor.process_file(str(audio),1,2)
@@ -153,7 +157,7 @@ class BatchDiskAdmissionTests(unittest.TestCase):
                 start=time.monotonic()
                 with patch.object(batch,'get_output_name',return_value=str(output)), \
                      patch.object(batch,'check_disk_space',side_effect=[True,False]), \
-                     patch.object(batch.subprocess,'Popen',side_effect=launch):
+                     patch.object(batch,'start_owned_subprocess',side_effect=launch):
                     processor.process_file(str(audio),1,1)
                 self.assertLess(time.monotonic()-start,5)
                 self.assertIsNotNone(children[0].poll())
@@ -171,7 +175,7 @@ class BatchDiskAdmissionTests(unittest.TestCase):
             processor=batch.BatchProcessor('fixture.gguf')
             processor.audio_durations[str(audio)] = 3600
             with patch.object(batch,'check_disk_space',return_value=False), \
-                 patch.object(batch.subprocess,'Popen') as launch:
+                 patch.object(batch,'start_owned_subprocess') as launch:
                 processor.process_file(str(audio),1,1)
             launch.assert_not_called()
             self.assertTrue(processor.disk_refused)
@@ -220,11 +224,11 @@ class BatchDiskAdmissionTests(unittest.TestCase):
                 with zipfile.ZipFile(output,'w') as archive:
                     archive.writestr('metadata.jsonl',json.dumps({'audio_filepath':'train/clip.wav'})+'\n')
                     archive.writestr('train/clip.wav',b'fixture')
-                return SimpleNamespace(stdout=io.StringIO('Volume 1 saved: fixture\n'),returncode=0,wait=lambda:None,poll=lambda:0)
+                return SimpleNamespace(pid=99999999,stdout=io.StringIO('Volume 1 saved: fixture\n'),returncode=0,wait=lambda:None,poll=lambda:0)
             with patch.object(batch,'get_output_name',return_value=str(output)), \
                  patch.object(batch,'get_volume_state',side_effect=[{}, {str(output):(0.75*1024**3,1)}, {str(output):(0.75*1024**3,1)}]), \
                  patch.object(batch,'check_disk_space',return_value=True) as check, \
-                 patch.object(batch.subprocess,'Popen',side_effect=launch), \
+                 patch.object(batch,'start_owned_subprocess',side_effect=launch), \
                  patch.object(batch.threading.Thread,'start'):
                 processor.process_file(str(audio),1,1)
             scratch = 0.75 + 3600 * (208000 + 32000) / 1024 ** 3
@@ -248,13 +252,13 @@ class BatchDiskAdmissionTests(unittest.TestCase):
                 with zipfile.ZipFile(output,'w') as archive:
                     archive.writestr('metadata.jsonl',json.dumps({'audio_filepath':'train/clip.wav'})+'\n')
                     archive.writestr('train/clip.wav',b'fixture')
-                return SimpleNamespace(stdout=io.StringIO(''),returncode=0,wait=lambda:None,poll=lambda:0)
+                return SimpleNamespace(pid=99999999,stdout=io.StringIO(''),returncode=0,wait=lambda:None,poll=lambda:0)
             sizes={str(outputs[0]):0.75*1024**3,str(outputs[1]):0.125*1024**3}
             native_size=batch.os.path.getsize
             def size(path):return sizes[str(path)] if str(path) in sizes else native_size(path)
             with patch.object(batch,'get_output_name',side_effect=lambda path:str(outputs[audio.index(Path(path))])), \
                  patch.object(batch,'check_disk_space',return_value=True), \
-                 patch.object(batch.subprocess,'Popen',side_effect=launch), \
+                 patch.object(batch,'start_owned_subprocess',side_effect=launch), \
                  patch.object(batch.os.path,'getsize',side_effect=size), \
                  patch.object(batch.threading.Thread,'start'):
                 for index,path in enumerate(audio,1):processor.process_file(str(path),index,2)

@@ -10,10 +10,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import alexandria_batch_processor as batch
+import io
+from tests.batch_mock_support import adapt_owner_fixture
 
 
 class BatchProcessorPreflightTests(unittest.TestCase):
     def setUp(self):
+        adapt_owner_fixture(self)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -144,7 +147,7 @@ class BatchProcessorPreflightTests(unittest.TestCase):
             return original_scandir(path)
 
         with patch.object(batch.os, "scandir", side_effect=record_scan), \
-             patch.object(batch.subprocess, "Popen", side_effect=OSError("stop")) as popen:
+             patch.object(batch, "start_owned_subprocess", side_effect=OSError("stop")) as popen:
             self.assertEqual(audio_files, processor.validate_files(audio_files))
             processor.process_file(audio_files[0], 1, 2)
         self.assertEqual(1, len(scans))
@@ -155,7 +158,7 @@ class BatchProcessorPreflightTests(unittest.TestCase):
         audio = self.root / "book.wav"
         audio.touch()
         processor = batch.BatchProcessor(str(self.model))
-        with patch.object(batch.subprocess, "Popen", side_effect=OSError("stop")) as popen:
+        with patch.object(batch, "start_owned_subprocess", side_effect=OSError("stop")) as popen:
             processor.process_file(str(audio), 1, 1)
         cmd = popen.call_args.args[0]
         self.assertEqual(str(Path(batch.__file__).resolve().with_name(
@@ -168,10 +171,13 @@ class BatchProcessorPreflightTests(unittest.TestCase):
         processor = batch.BatchProcessor(str(self.model))
 
         class InterruptedOutput:
+            def close(self):
+                pass
             def __iter__(self):
                 raise KeyboardInterrupt
 
         class Child:
+            pid = 99999999
             stdout = InterruptedOutput()
             def __init__(self):
                 self.wait_calls = []
@@ -188,11 +194,32 @@ class BatchProcessorPreflightTests(unittest.TestCase):
                 self.killed = True
 
         child = Child()
-        with patch.object(batch.subprocess, "Popen", return_value=child):
+        with patch.object(batch, "start_owned_subprocess", return_value=child):
             with self.assertRaises(KeyboardInterrupt):
                 processor.process_file(str(audio), 1, 1)
         self.assertTrue(child.killed)
         self.assertEqual([10, None], child.wait_calls)
+
+    def test_thread_start_failure_stops_worker_and_retains_process_group(self):
+        from types import SimpleNamespace
+        audio = self.root / "book.wav"
+        audio.touch()
+        child = SimpleNamespace(pid=99999999, stdout=io.StringIO(""), poll=lambda: None)
+        processor = batch.BatchProcessor(str(self.model))
+        with patch.object(batch, "start_owned_subprocess", return_value=child), \
+                patch.object(batch, "stop_owned_subprocess") as stop, \
+                patch.object(batch.threading.Thread, "start", side_effect=RuntimeError("fixture thread start")), \
+                patch.object(batch.threading.Thread, "join") as join:
+            processor.process_file(str(audio), 1, 1)
+        if os.name == "posix":
+            self.assertEqual(child.pid, child._alexandria_pgid)
+        self.assertGreaterEqual(stop.call_count, 1)
+        for call in stop.call_args_list:
+            self.assertIs(child, call.args[0])
+            self.assertTrue(call.kwargs["force_after_grace"])
+        join.assert_not_called()
+        self.assertTrue(child.stdout.closed)
+        self.assertEqual("fixture thread start", processor.results["failed"][0]["reason"])
 
     def test_receipt_write_failure_keeps_previous_receipt(self):
         receipt = self.root / "batch_results.json"
@@ -255,7 +282,9 @@ class BatchProcessorPreflightTests(unittest.TestCase):
         source=self.root/'book.txt';source.write_text('old synthetic source')
         output=self.root/'dataset.zip'
         class Child:
-            stdout=[];returncode=0
+            pid = 99999999
+            returncode=0
+            def __init__(self): self.stdout=io.StringIO('')
             def poll(self):return 0
             def wait(self):return 0
         def publish(*args,**kwargs):
@@ -269,7 +298,7 @@ class BatchProcessorPreflightTests(unittest.TestCase):
                 settings={'source_folder':str(self.root)} if folder else {'source_path':str(source)}
                 processor=batch.BatchProcessor(str(self.model),**settings)
                 with patch.object(batch,'get_output_name',return_value=str(output)), \
-                     patch.object(batch.subprocess,'Popen',side_effect=publish),patch.object(sys.stdin,'isatty',return_value=False):
+                     patch.object(batch,'start_owned_subprocess',side_effect=publish),patch.object(sys.stdin,'isatty',return_value=False):
                     processor.process_file(str(audio),1,1)
                     self.assertEqual([],processor.validate_files([str(audio)]))
                     stat=source.stat();source.write_text('new synthetic source')
@@ -290,7 +319,7 @@ class BatchProcessorPreflightTests(unittest.TestCase):
                             processor.validate_files([str(audio)])
                     else:
                         self.assertEqual([str(audio)],processor.validate_files([str(audio)]))
-                        with patch.object(batch.subprocess,'Popen') as child:
+                        with patch.object(batch,'start_owned_subprocess') as child:
                             processor.process_file(str(audio),1,1)
                         child.assert_not_called()
                         self.assertFalse(Path(str(output)+'.complete.json').exists())
@@ -301,7 +330,9 @@ class BatchProcessorPreflightTests(unittest.TestCase):
         output=self.root/'dataset.zip'
         processor=batch.BatchProcessor(str(self.model),source_path=str(source))
         class Child:
-            stdout=[];returncode=0
+            pid = 99999999
+            returncode=0
+            def __init__(self): self.stdout=io.StringIO('')
             def poll(self):return 0
             def wait(self):return 0
         def publish(*args,**kwargs):
@@ -312,7 +343,7 @@ class BatchProcessorPreflightTests(unittest.TestCase):
             os.utime(source,ns=(original.st_atime_ns,original.st_mtime_ns))
             return Child()
         with patch.object(batch,'get_output_name',return_value=str(output)), \
-             patch.object(batch.subprocess,'Popen',side_effect=publish):
+             patch.object(batch,'start_owned_subprocess',side_effect=publish):
             processor.process_file(str(audio),1,1)
         self.assertFalse(Path(str(output)+'.complete.json').exists())
         self.assertEqual([],processor.results['succeeded'])
@@ -327,7 +358,8 @@ class BatchProcessorPreflightTests(unittest.TestCase):
         processor = batch.BatchProcessor(str(self.model))
 
         class Child:
-            stdout = []
+            pid = 99999999
+            stdout = io.StringIO('')
             returncode = 0
             def poll(self):
                 return 0
@@ -341,7 +373,7 @@ class BatchProcessorPreflightTests(unittest.TestCase):
             return Child()
 
         with patch.object(batch, "get_output_name", return_value=str(output)), \
-             patch.object(batch.subprocess, "Popen", side_effect=write_volume):
+             patch.object(batch, "start_owned_subprocess", side_effect=write_volume):
             processor.process_file(str(audio), 1, 1)
             self.assertEqual([str(volume)], processor.results["succeeded"][0]["outputs"])
             self.assertEqual([], processor.validate_files([str(audio)]))
@@ -358,7 +390,7 @@ class BatchProcessorPreflightTests(unittest.TestCase):
             "source": batch.get_source_identity(str(audio)), "volumes": [str(output)]})
         processor = batch.BatchProcessor(str(self.model), force=True)
         with patch.object(batch, "get_output_name", return_value=str(output)), \
-             patch.object(batch.subprocess, "Popen", side_effect=OSError("launch failed")):
+             patch.object(batch, "start_owned_subprocess", side_effect=OSError("launch failed")):
             processor.process_file(str(audio), 1, 1)
         self.assertFalse(marker.exists())
         self.assertEqual("launch failed", processor.results["failed"][0]["reason"])

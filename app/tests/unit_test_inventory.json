@@ -726,6 +726,7 @@
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_source_catalog_is_scanned_once_and_match_reused",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_source_directory_is_rejected",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_source_guided_completion_rejects_changed_text_even_with_same_stat",
+    "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_thread_start_failure_stops_worker_and_retains_process_group",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_unresponsive_child_is_reaped_after_interrupt"
   ],
   "test_batch_reader_file_lifetime": [
@@ -6710,6 +6711,13 @@
     "tests.test_runtime_info_freshness.RuntimeInfoFreshnessTests.test_failed_git_probe_is_unknown_not_false_clean",
     "tests.test_runtime_info_freshness.RuntimeInfoFreshnessTests.test_head_tracked_untracked_and_staged_changes_refresh_without_cache_clear",
     "tests.test_runtime_info_freshness.RuntimeInfoFreshnessTests.test_returned_metadata_is_owned_and_explicit_build_override_refreshes"
+  ],
+  "test_runtime_preparation_fixes": [
+    "tests.test_runtime_preparation_fixes.CorpusOptionalModelTests.test_missing_model_is_rejected_before_creating_attempts",
+    "tests.test_runtime_preparation_fixes.CorpusOptionalModelTests.test_optional_fallback_is_omitted_from_subprocess_argv",
+    "tests.test_runtime_preparation_fixes.PreflightProviderTests.test_config_selects_complete_profile_and_rejects_wrong_shapes",
+    "tests.test_runtime_preparation_fixes.PreflightProviderTests.test_constructor_and_malformed_completions_fail_without_raising",
+    "tests.test_runtime_preparation_fixes.PreflightProviderTests.test_selected_provider_auth_headers_and_request_options_reach_sdk"
   ],
   "test_runtime_regressions": [
     "tests.test_runtime_regressions.RuntimeTests.test_active_cancel_arms_escalation_before_signalling",
