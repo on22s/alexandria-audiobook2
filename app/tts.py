@@ -158,7 +158,9 @@ def active_character_style(voice_data, chunk_index=None):
 # Bookkeeping a voice version carries that must never overlay the entry it is
 # applied to: its own label, and the entry's version/timeline structure.
 VERSION_OVERLAY_EXCLUDED = ("age_group", "versions", "version_timeline", "style_timeline",
-                            "candidates", "active_version", "active_candidate")
+                            "candidates", "active_version", "active_candidate",
+                            # a state version's own review bookkeeping (#1040 review C4)
+                            "persona_state", "persona_status", "voice_status", "persona_voice_audit")
 
 
 def get_version_fields(voice_data, version_id):

@@ -574,6 +574,49 @@ class PersonaAliasRuntimeRecoveryTests(unittest.TestCase):
 
 
 class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
+    def test_already_switched_compiler_uses_smaller_serving_context(self):
+        class PersonaTransport(RuntimeTransport):
+            def handle_request(self, request):
+                response = super().handle_request(request)
+                if response.is_error:
+                    return response
+                data = response.json()
+                data['choices'][0]['message']['content'] = json.dumps({
+                    'description': 'Dry voice.', 'ref_text': 'Hello there.'})
+                return httpx.Response(200, json=data)
+        transport = PersonaTransport(4096)
+        sdk = OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
+                     http_client=httpx.Client(transport=transport))
+        self.addCleanup(sdk.close)
+        wrapped = provider.ConfiguredOpenAI(sdk, {})
+        client = provider.FailoverClient(wrapped, 'primary', wrapped, 'secondary',
+            secondary_config={'base_url': 'http://fixture.invalid/v1', 'model_name': 'secondary',
+                              'api_retry_limit': 0, 'structured_output': 'off'})
+        client.failover({'category': 'rate_limited'})
+        ref = {'name': 'ALICE',
+               'voice_clues': ['cue %d ' % i + 'x' * 160 for i in range(80)],
+               'features': ['feature %d ' % i + 'y' * 120 for i in range(80)],
+               'sample_lines': [('world ' * 330).strip(), 'Hello there.']}
+        previews = []
+        with tempfile.TemporaryDirectory() as root, patch(
+                'lmstudio_settings.get_current_status', return_value={'available': True,
+                'loaded': True, 'context_length': 4096, 'parallel': 1}), patch.object(
+                gs, 'get_response_log_path', side_effect=lambda name: str(Path(root) / name)):
+            refs = Path(root) / 'refs'; refs.mkdir()
+            source = Path(personas._character_ref_path(str(refs), 'ALICE'))
+            source.write_text(json.dumps(ref))
+            before = source.read_bytes()
+            result = personas._compile_persona(client, 'primary', None, {}, root, str(refs),
+                'ALICE', {}, personas.PERSONA_SYSTEM_PROMPT, personas.PERSONA_ADVANCED_PROMPT,
+                98304, {'api_retry_limit': 0, 'structured_output': 'off'},
+                preview_saver=lambda *args: previews.append(args[5]) or True)
+            self.assertTrue(result)
+            self.assertEqual(source.read_bytes(), before)
+        self.assertEqual(previews, ['Hello there.'])
+        self.assertTrue(transport.requests)
+        self.assertTrue(all(request['footprint'] <= 4096 for request in transport.requests))
+        self.assertTrue(all(request['max_tokens'] == 600 for request in transport.requests))
+
     def run_case(self, mode, fail_child=False):
         class PersonaTransport(RuntimeTransport):
             def handle_request(self, request):

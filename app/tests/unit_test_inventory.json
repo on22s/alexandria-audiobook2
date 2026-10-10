@@ -2327,6 +2327,16 @@
     "tests.test_descriptor_candidates.DetectorTest.test_blank_input_is_not_a_descriptor",
     "tests.test_descriptor_candidates.DetectorTest.test_real_names_do_not"
   ],
+  "test_designed_state_voices": [
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_actual_state_route_apply_and_playback_resolve_the_saved_reference",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_adjacent_age_assignment_preserves_reference_age_for_new_and_legacy_versions",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_child_designs_do_not_hide_unknown_gender_adults_and_known_matches_rank_first",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_native_apply_preserves_clone_reference_and_reference_text",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_playable_references_only_and_exact_child_bands_rank_first",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_redesign_clears_stale_listening_metadata_but_identical_save_preserves_it",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_reuse_counts_main_versions_and_relative_or_absolute_references",
+    "tests.test_designed_state_voices.DesignedStateVoiceTests.test_saved_designer_version_retains_gender_and_excludes_opposite_state"
+  ],
   "test_designed_voice_alias_js": [
     "tests.test_designed_voice_alias_js.DesignedVoiceAliasJsTests.test_lookup_failure_preserves_alias_and_fresh_result_populates_options",
     "tests.test_designed_voice_alias_js.DesignedVoiceAliasJsTests.test_persona_editor_uses_selected_card_alias_and_transcript",
@@ -3034,6 +3044,7 @@
     "tests.test_failover_runtime_profile.PersonaDiscoveryRuntimeRecoveryTests.test_large_batch_preserves_global_source_indices_and_observed_features",
     "tests.test_failover_runtime_profile.PersonaDiscoveryRuntimeRecoveryTests.test_single_long_entry_splits_text_while_retaining_its_original_index",
     "tests.test_failover_runtime_profile.PersonaEvidenceRuntimeRecoveryTests.test_actual_simple_cli_publishes_recovered_persona_and_preserves_human_voice",
+    "tests.test_failover_runtime_profile.PersonaEvidenceRuntimeRecoveryTests.test_already_switched_compiler_uses_smaller_serving_context",
     "tests.test_failover_runtime_profile.PersonaEvidenceRuntimeRecoveryTests.test_failed_evidence_child_cannot_publish_partial_persona",
     "tests.test_failover_runtime_profile.PersonaEvidenceRuntimeRecoveryTests.test_native_compile_publishes_recovered_persona_preserving_selected_preview",
     "tests.test_failover_runtime_profile.PersonaEvidenceRuntimeRecoveryTests.test_oversized_fixed_instructions_report_failure",
@@ -7513,6 +7524,33 @@
     "tests.test_state_personas.StateVoiceApiTests.test_state_actions_and_guarded_form_save_leave_base_and_siblings_intact",
     "tests.test_state_personas.StateVoiceApiTests.test_timeline_selects_versions_and_refuses_a_boundary_inside_a_merged_chunk"
   ],
+  "test_state_review_fixes": [
+    "tests.test_state_review_fixes.StateCardJsTests.test_state_card_fixes",
+    "tests.test_state_review_fixes.T10PublisherTests.test_a_state_publication_writes_only_its_character_and_no_aliases",
+    "tests.test_state_review_fixes.T11CommaSpeakerTests.test_an_exact_speaker_name_with_a_comma_is_one_speaker",
+    "tests.test_state_review_fixes.T11CommaSpeakerTests.test_routes_pass_the_exact_speaker",
+    "tests.test_state_review_fixes.T12PromptBraceTests.test_braces_in_script_traits_survive_the_prompt_format",
+    "tests.test_state_review_fixes.T13EvidenceQuoteTests.test_a_shortened_quote_keeps_the_observation_and_a_borrowed_one_is_still_refused",
+    "tests.test_state_review_fixes.T13EvidenceQuoteTests.test_copied_quotes_with_normal_model_edits_still_count",
+    "tests.test_state_review_fixes.T14RecoveredStateIdentityTests.test_recovery_and_generation_share_the_state_fields",
+    "tests.test_state_review_fixes.T17LegacySeedTests.test_an_unchanged_legacy_seed_does_not_block_a_save_but_a_new_bad_seed_does",
+    "tests.test_state_review_fixes.T18NarrationWindowTests.test_state_evidence_keeps_only_narration_near_the_characters_lines",
+    "tests.test_state_review_fixes.T1SegmentFreshnessTests.test_a_stale_unapplied_state_can_be_removed",
+    "tests.test_state_review_fixes.T1SegmentFreshnessTests.test_an_applied_state_is_still_refused",
+    "tests.test_state_review_fixes.T1SegmentFreshnessTests.test_an_edit_outside_a_state_keeps_it_current_and_inside_makes_it_stale",
+    "tests.test_state_review_fixes.T21EntrySpeakerTests.test_one_speaker_reading_everywhere",
+    "tests.test_state_review_fixes.T23StateLookupTests.test_one_lookup_for_routes_and_cli",
+    "tests.test_state_review_fixes.T25CurrentFlagTests.test_voice_rows_flag_each_state_by_the_server_rule",
+    "tests.test_state_review_fixes.T2SelectStateVersionTests.test_a_state_version_is_refused_and_a_manual_one_overlays_without_bookkeeping",
+    "tests.test_state_review_fixes.T3OverlayBookkeepingTests.test_state_bookkeeping_never_reaches_a_chunk_render_config",
+    "tests.test_state_review_fixes.T4SaveOverStateVersionTests.test_saving_the_current_voice_into_a_state_keeps_its_state",
+    "tests.test_state_review_fixes.T5ServerOwnedStateTests.test_a_client_cannot_invent_or_change_a_state_or_take_a_state_id",
+    "tests.test_state_review_fixes.T6VoiceLibraryStateTests.test_casts_never_carry_state_versions_or_timelines_between_books",
+    "tests.test_state_review_fixes.T8TimelineExactSpeakerTests.test_case_variant_speakers_are_not_merged_in_the_timeline_view",
+    "tests.test_state_review_fixes.T9UnsetBaseFromCurrentFirstStateTests.test_an_unset_base_takes_a_current_state_one_even_while_a_later_state_is_pending",
+    "tests.test_state_review_fixes.VoicesListImportanceOrderTests.test_casting_uses_the_same_order",
+    "tests.test_state_review_fixes.VoicesListImportanceOrderTests.test_the_voices_list_is_narrator_then_most_lines"
+  ],
   "test_state_voices": [
     "tests.test_state_voices.LineToChunkTests.test_an_unmatched_line_is_none_not_a_guess",
     "tests.test_state_voices.LineToChunkTests.test_merged_and_reflowed_chunks_still_map_by_content",
@@ -8779,6 +8817,23 @@
     "tests.test_voice_focus_restore_js.VoiceFocusRestoreJsTests.test_native_control_identity_and_focus_ownership",
     "tests.test_voice_focus_restore_js.VoiceFocusRestoreJsTests.test_suggestion_reorder_preserves_style_focus_and_selection"
   ],
+  "test_voice_followups_733": [
+    "tests.test_voice_followups_733.RevealReviewTests.test_main_voice_save_finishes_before_apply_and_failure_stops_the_action",
+    "tests.test_voice_followups_733.RevealReviewTests.test_only_known_gender_changes_with_small_age_differences_are_flagged",
+    "tests.test_voice_followups_733.RevealReviewTests.test_real_state_endpoint_reports_reveal_without_rewriting_script",
+    "tests.test_voice_followups_733.RevealReviewTests.test_reveal_panel_and_main_choice_never_save_before_apply",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_active_version_edit_without_moving_anchor_invalidates_and_fences_render",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_alias_ensemble_and_narrator_effective_voices_are_included",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_apply_during_render_prevents_old_audio_from_being_published",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_apply_noop_clear_and_full_save_only_reset_effectively_changed_rows",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_equivalent_voice_version_does_not_invalidate_audio",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_failed_voice_publication_is_conservative_and_keeps_old_audio",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_journal_invalidation_and_regeneration_publish_a_real_replacement",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_manual_selection_during_render_rejects_stale_audio",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_manual_selection_invalidates_only_changed_effective_voices",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_parallel_journal_worker_cannot_publish_after_timeline_changes",
+    "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_wrong_book_and_revision_leave_audio_and_voices_unchanged"
+  ],
   "test_voice_library_transactions": [
     "tests.test_voice_library_transactions.VoiceLibraryTransactionTests.test_bulk_keeps_library_kernel_lock_through_each_config_publication",
     "tests.test_voice_library_transactions.VoiceLibraryTransactionTests.test_bulk_rejects_coerced_names_and_duplicate_writes",
@@ -8817,6 +8872,11 @@
   ],
   "test_voice_panel_restore_js": [
     "tests.test_voice_panel_restore_js.VoicePanelRestoreJsTests.test_preserves_completed_panels_and_rejects_pending_or_other_books"
+  ],
+  "test_voice_presentation_probe": [
+    "tests.test_voice_presentation_probe.VoicePresentationProbeTests.test_child_probe_publishes_four_real_waveform_pairs_without_catalog_writes",
+    "tests.test_voice_presentation_probe.VoicePresentationProbeTests.test_real_probe_publishes_every_verified_response",
+    "tests.test_voice_presentation_probe.VoicePresentationProbeTests.test_rejects_identity_only_wrong_speaker_and_invented_evidence"
   ],
   "test_voice_reference": [
     "tests.test_voice_reference.ConfiguredReferenceWorkerTests.test_actual_ranking_uses_runtime_voice_lab_python_and_preserves_config",

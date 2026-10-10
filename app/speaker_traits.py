@@ -170,6 +170,16 @@ def get_speaker_trait_summary(lines):
             "states": [{"gender": g, "age_group": a} for g, a in states] if len(states) > 1 else []}
 
 
+def is_possible_gender_reveal(previous, current):
+    """A known gender change without an established large age jump needs review."""
+    return (previous.get("gender") in {"male", "female"}
+            and current.get("gender") in {"male", "female"}
+            and previous["gender"] != current["gender"]
+            and previous.get("age_group") in AGE_GROUP_NAMES[:-1]
+            and current.get("age_group") in AGE_GROUP_NAMES[:-1]
+            and get_age_distance(previous["age_group"], current["age_group"]) < STATE_CHANGE_BANDS)
+
+
 def get_state_timeline(script_entries, *, exact_speakers=False):
     """-> {SPEAKER: [{"from_entry", "gender", "age_group"}]} for every speaker
     whose settled state changes; `from_entry` indexes `script_entries`."""
@@ -187,6 +197,31 @@ def get_state_timeline(script_entries, *, exact_speakers=False):
     return out
 
 
+def get_entry_speaker(entry):
+    """The speaker of a script entry (modern `speaker` or legacy `type`), or ''.
+    The one reading shared by state targets, voice routes and persona
+    generation (Rule 15)."""
+    if not isinstance(entry, dict):
+        return ""
+    value = entry.get("speaker") or entry.get("type") or ""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def get_segment_sha256(script_entries, speaker, start, end):
+    """Fingerprint of one state segment: the speaker's own lines and the
+    narration inside [start, end), with their positions. An edit elsewhere in
+    the book leaves it unchanged (owner, 2026-10-09: freshness follows the
+    state's own segment, not the whole script)."""
+    rows = []
+    for index in range(start, end):
+        entry = script_entries[index]
+        name = get_entry_speaker(entry)
+        if name == speaker or is_narrator_label(name):
+            rows.append([index, name, entry.get("text"), entry.get("speaker_gender"),
+                         entry.get("speaker_age_group")])
+    return hashlib.sha256(json.dumps(rows, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
 def is_narrator_label(speaker):
     """Recognize the narration labels supported by persona evidence."""
     return str(speaker or "").strip().upper() in {"NARRATOR", "NARRATION", "NARRATIVE"}
@@ -195,10 +230,7 @@ def is_narrator_label(speaker):
 def get_persona_state_targets(script_entries):
     """Describe settled state segments without changing speaker identities."""
     timeline = get_state_timeline(script_entries, exact_speakers=True)
-    digest = hashlib.sha256(json.dumps(script_entries, ensure_ascii=False,
-                                      sort_keys=True).encode("utf-8")).hexdigest()
-    speakers = {str(e.get("speaker") or e.get("type") or "").strip()
-                for e in script_entries if isinstance(e, dict)}
+    speakers = {get_entry_speaker(e) for e in script_entries if isinstance(e, dict)}
     targets = {}
     for speaker in sorted(speakers):
         states = timeline.get(speaker, [])
@@ -209,7 +241,7 @@ def get_persona_state_targets(script_entries):
             start = state["from_entry"] if number else 0
             while start > 0:
                 previous = script_entries[start - 1]
-                if not isinstance(previous, dict) or not is_narrator_label(previous.get("speaker") or previous.get("type")):
+                if not isinstance(previous, dict) or not is_narrator_label(get_entry_speaker(previous)):
                     break
                 start -= 1
             starts.append(start)
@@ -217,26 +249,59 @@ def get_persona_state_targets(script_entries):
         for number, state in enumerate(states):
             identity = [speaker, state["from_entry"], state["gender"], state["age_group"]]
             key = "state_" + hashlib.sha256(json.dumps(identity).encode("utf-8")).hexdigest()[:24]
+            end = starts[number + 1] if number + 1 < len(states) else len(script_entries)
             rows.append({**state, "version_id": key, "speaker": speaker,
-                         "segment_start": starts[number],
-                         "segment_end": starts[number + 1] if number + 1 < len(states) else len(script_entries),
-                         "state_number": number + 1, "source_sha256": digest})
+                         "segment_start": starts[number], "segment_end": end,
+                         "state_number": number + 1,
+                         "segment_sha256": get_segment_sha256(script_entries, speaker, starts[number], end)})
         targets[speaker] = rows
     return targets
 
 
-def get_persona_state_entries(script_entries, target):
-    """Copy target dialogue and narration with their original source indices."""
-    rows = []
+def get_state_version_identity(target):
+    """The fields every saved state version carries, whoever writes it (the
+    generator or persona recovery): its state, age, gender and its own seed.
+    One writer so a recovered state renders like a generated one (Rule 15)."""
+    from utils import character_voice_seed
+    return {"persona_state": dict(target), "age_group": target["age_group"],
+            "gender": target["gender"],
+            "seed": str(character_voice_seed(f"{target['speaker']}:{target['version_id']}"))}
+
+
+def is_state_version_current(version, target):
+    """Is a saved state version the persona of this state as the script now
+    reads? The one rule behind every route, the CLI and the cards (C37)."""
+    return isinstance(version, dict) and version.get("persona_state") == target
+
+
+def find_state_target(targets_by_speaker, speaker, version_id):
+    """-> the current state target `version_id` of `speaker`, or None. The one
+    lookup behind every route and the CLI (#1040 review C28)."""
+    return next((row for row in (targets_by_speaker or {}).get(speaker, [])
+                 if row["version_id"] == version_id), None)
+
+
+def get_persona_state_entries(script_entries, target, narration_window=None):
+    """Copy target dialogue and narration with their original source indices.
+
+    With `narration_window`, narration is kept only within that many entries
+    of the character's own lines, so a state's evidence is not every narration
+    line of its segment (#1040 review C25)."""
+    picked = []
     for index in range(target["segment_start"], target["segment_end"]):
         entry = script_entries[index]
         if not isinstance(entry, dict):
             continue
-        speaker = str(entry.get("speaker") or entry.get("type") or "").strip()
-        if speaker != target["speaker"] and not is_narrator_label(speaker):
-            continue
-        rows.append({**entry, "_source_entry_index": index})
-    return rows
+        speaker = get_entry_speaker(entry)
+        if speaker == target["speaker"]:
+            picked.append((index, entry, True))
+        elif is_narrator_label(speaker):
+            picked.append((index, entry, False))
+    if narration_window is not None:
+        own = [index for index, _, is_own in picked if is_own]
+        picked = [(index, entry, is_own) for index, entry, is_own in picked
+                  if is_own or any(abs(index - spoken) <= narration_window for spoken in own)]
+    return [{**entry, "_source_entry_index": index} for index, entry, _ in picked]
 
 
 def get_persona_state_chunk_indices(script_entries, chunks, speaker, *, state_targets=None):
@@ -250,7 +315,7 @@ def get_persona_state_chunk_indices(script_entries, chunks, speaker, *, state_ta
     prepared = get_speakable_entries([{**entry, "_source_entry_index": index}
                                     for index, entry in enumerate(script_entries) if isinstance(entry, dict)])
     source_rows = [(entry["_source_entry_index"], normalize(entry.get("text"))) for entry in prepared
-                   if str(entry.get("speaker") or entry.get("type") or "").strip() == speaker]
+                   if get_entry_speaker(entry) == speaker]
     chunk_rows = [(index, normalize(chunk.get("text"))) for index, chunk in enumerate(chunks)
                   if isinstance(chunk, dict) and str(chunk.get("speaker") or "").strip() == speaker]
     if not source_rows or not chunk_rows or any(not text for _, text in source_rows + chunk_rows):

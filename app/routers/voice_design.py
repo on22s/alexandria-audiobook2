@@ -1,4 +1,5 @@
 import asyncio
+import filecmp
 import logging
 import os
 import shutil
@@ -123,6 +124,14 @@ async def voice_design_save(request: VoiceDesignSaveRequest):
                 had_audio = os.path.exists(dest_path)
                 if had_audio:
                     shutil.copy2(dest_path, backup_path)
+                # Listening provenance describes the reviewed waveform and prompt.
+                # A redesign must not retain the old audit or the labels recorded with it.
+                if existing.get("synthetic_design") and (
+                        not had_audio or not filecmp.cmp(dest_path, staging_path, shallow=False)
+                        or any(existing.get(key) != entry[key]
+                               for key in ("description", "sample_text"))):
+                    for key in ("synthetic_design", "gender", "age_group"):
+                        existing.pop(key, None)
                 os.replace(staging_path, dest_path)
                 existing.update(entry)
                 try:

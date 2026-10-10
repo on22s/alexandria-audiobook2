@@ -45,6 +45,8 @@ load('function _voicesScopeState()', 'async function cancelPersonas()');
         posts.push({path, body});
         return {method: 'none', suggestions: {}, message: 'No characters found in script.'};
     };
+    load('async function ensureStateCardCurrent(', 'async function sendVoiceTarget(');
+    load('function getSuggestionCandidateConfig(', 'async function suggestVoices(');
     load('window.suggestMoreVoices =', 'function renderVoiceSuggestions()');
     const card = {dataset: {voice: 'ARTHUR', version: 'state'}, isConnected: true};
     const button = {disabled: false, closest: () => card};

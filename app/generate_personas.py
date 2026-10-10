@@ -15,14 +15,16 @@ from book_state_transaction import (ensure_book_state, get_book_snapshot,
                                     require_book_snapshot_current, get_book_snapshot_token)
 from config_settings import load_app_config
 from llm_provider import make_run_client
-from generate_script import LLMGenParams, call_llm_for_object, split_failed_chunk
+from generate_script import (LLMGenParams, call_llm_for_object, split_failed_chunk,
+                             ensure_run_request_params)
 
 from tts import TTSEngine, sanitize_filename, voice_is_set, VERSION_OVERLAY_EXCLUDED
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed, file_lock
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 from persona_validation import (validate_persona_payload, get_reference_samples,
                                validate_compiled_persona_payload)
-from speaker_traits import get_persona_state_targets, get_persona_state_entries, is_narrator_label
+from speaker_traits import (find_state_target, get_entry_speaker, get_persona_state_targets, get_persona_state_entries,
+                            get_state_version_identity, is_narrator_label, is_state_version_current)
 from speaker_identity import (is_speaker_merge_allowed, resolve_speaker_label,
                               get_validated_alias_graph, get_safe_alias_proposals)
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
@@ -299,23 +301,28 @@ class PersonaContextRecoveryError(RuntimeError):
 
 def request_persona_with_evidence(client, model_name, system_prompt, build_prompt,
                                   evidence, params, label, max_prompt_chars=None, validate_object=None,
-                                  ensure_prompt=None):
+                                  ensure_prompt=None, build_minimal_source_prompt=None,
+                                  unknown_context_prompt_chars=None):
     """Preserve fixed instructions and recover selected evidence in smaller calls."""
     validate = validate_object or validate_persona_payload
 
     def fits(prompt):
         if max_prompt_chars is None:
             return True
-        if len(prompt) > max_prompt_chars:
+        runtime_params = ensure_run_request_params(client, params)
+        context = getattr(runtime_params, 'context_length', None)
+        limit = max_prompt_chars
+        if not context and unknown_context_prompt_chars is not None:
+            limit = min(limit, unknown_context_prompt_chars)
+        if len(prompt) > limit:
             return False
-        context = getattr(params, 'context_length', None)
         if context:
             from lmstudio_settings import TokenBudgetError
-            budget = getattr(params, 'max_tokens', 600)
+            budget = getattr(runtime_params, 'max_tokens', 600)
             try:
                 return get_effective_max_tokens(
                     budget, context, [{'content': system_prompt}, {'content': prompt}],
-                    getattr(params, 'hard_max_tokens', None), scale_to_context=False) >= budget
+                    getattr(runtime_params, 'hard_max_tokens', None), scale_to_context=False) >= budget
             except TokenBudgetError:
                 return False
         return True
@@ -397,7 +404,11 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
         if ensure_prompt is not None:
             ensure_prompt(lambda: build_prompt([]), fits)
         prompt = build_prompt(parts)
-        if len(parts) <= 1 and ensure_prompt is not None:
+        if (not fits(prompt) and ensure_prompt is not None
+                and build_minimal_source_prompt is not None
+                and fits(build_minimal_source_prompt(parts))):
+            prompt = ensure_prompt(lambda: build_prompt(parts), fits)
+        elif len(parts) <= 1 and ensure_prompt is not None:
             prompt = ensure_prompt(lambda: build_prompt(parts), fits)
         if not fits(prompt):
             result, exhausted_context = None, True
@@ -569,7 +580,7 @@ def _unique_extend(existing, values, limit=80):
 
 
 def _entry_speaker(entry):
-    return (entry.get("speaker") or entry.get("type") or "").strip()
+    return get_entry_speaker(entry)
 
 
 def _entry_text(entry):
@@ -823,6 +834,28 @@ def _parse_discovered_characters(parsed):
     return characters
 
 
+_QUOTE_FOLD = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"', "\u2026": "..."})
+
+
+def is_quote_in_text(quote, text):
+    """Is an evidence quote taken from `text`? Tolerates what models do to a
+    quote they copy - straightened or curly quotes, collapsed whitespace, and
+    `...`/`…` elisions (each remaining part must appear, in order) - so real
+    observations are not discarded for punctuation (#1040 review C22)."""
+    def fold(value):
+        return " ".join(str(value or "").translate(_QUOTE_FOLD).split())
+    source = fold(text)
+    parts = [part.strip(" '\"") for part in fold(quote).split("...")]
+    parts = [part for part in parts if part]
+    position = 0
+    for part in parts:
+        found = source.find(part, position)
+        if found < 0:
+            return False
+        position = found + len(part)
+    return bool(parts)
+
+
 def get_discovered_character_name(character):
     """Read the supported discovery identity fields in their established order."""
     return str(character.get("name") or character.get("speaker")
@@ -841,11 +874,11 @@ def get_validated_state_discovery(characters, batch, batch_start, allowed_speake
         evidence = [item for item in character.get("evidence", []) if isinstance(item, dict)
                     and type(item.get("entry_index")) is int and item["entry_index"] in sources
                     and isinstance(item.get("quote"), str) and item["quote"].strip()
-                    and item["quote"] in _entry_text(sources[item["entry_index"]])]
+                    and is_quote_in_text(item["quote"], _entry_text(sources[item["entry_index"]]))]
         dialogue = [_entry_text(row) for row in batch
                     if _resolve_to_canonical(_entry_speaker(row), allowed_speakers) == speaker]
         samples = [line for line in _as_list(character.get("sample_lines", []))
-                   if any(line in text for text in dialogue)]
+                   if any(is_quote_in_text(line, text) if require_evidence else line in text for text in dialogue)]
         if require_evidence and not evidence:
             fallback = next((row for row in _fallback_batch_characters(batch, batch_start)
                              if row["name"] == speaker), None)
@@ -979,11 +1012,12 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
                 if len(json.dumps(candidate, ensure_ascii=False)) <= 1000:
                     shared_context = candidate
 
-        def build_prompt(parts):
+        def build_prompt(parts, repeat_context=True):
             payload = {"name": selected["name"]}
             if parts != evidence:
                 payload["partial_evidence"] = True
-                payload["shared_voice_context"] = shared_context
+                if repeat_context:
+                    payload["shared_voice_context"] = shared_context
             try:
                 for field, text in parts:
                     payload.setdefault(field, []).append(json.loads(text))
@@ -993,12 +1027,12 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
                 payload = {"name": selected["name"], "selected_reference_fragments": [
                     {"field": field, "text": text} for field, text in parts]}
             payload["reference_sample"] = reference_sample
-            if include_cue_context:
+            if repeat_context and include_cue_context:
                 payload["source_cue_ledger"] = source_cues
             reference = json.dumps(payload, ensure_ascii=False)
             return (_compile_character_prompt(ref, advanced_prompt, reference_text=reference,
                                               sample_limit=sample_limit)
-                    + (PERSONA_CUE_INSTRUCTIONS if include_cue_context else ""))
+                    + (PERSONA_CUE_INSTRUCTIONS if repeat_context and include_cue_context else ""))
 
         def ensure_repeated_context(builder, fits):
             nonlocal shared_context, reference_sample, include_cue_context
@@ -1030,15 +1064,17 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
 
         # Bound each source request without cutting serialized JSON or losing its tail.
         # Oversized evidence is processed in smaller calls by the existing recovery path.
+        base_prompt_chars = len(_compile_character_prompt(
+            ref, advanced_prompt, reference_text=json.dumps({"name": selected["name"]},
+                                                          ensure_ascii=False),
+            sample_limit=sample_limit))
         parsed = request_persona_with_evidence(
             client, model_name, messages[0]["content"], build_prompt,
             evidence, params, f"PERSONA COMPILE {speaker}",
-            max_prompt_chars=len(_compile_character_prompt(
-                ref, advanced_prompt, reference_text=json.dumps({"name": selected["name"]},
-                                                              ensure_ascii=False),
-                sample_limit=sample_limit))
-            + (reference_chars if context_length else min(reference_chars, 12000)),
-            validate_object=validate_compiled, ensure_prompt=ensure_repeated_context)
+            max_prompt_chars=base_prompt_chars + reference_chars,
+            unknown_context_prompt_chars=base_prompt_chars + 12000,
+            validate_object=validate_compiled, ensure_prompt=ensure_repeated_context,
+            build_minimal_source_prompt=lambda parts: build_prompt(parts, repeat_context=False))
         if not isinstance(parsed, dict):
             raise PersonaContextRecoveryError("Persona compilation exhausted retries without a validated result")
         if isinstance(parsed, dict):
@@ -1152,6 +1188,49 @@ def _run_advanced_speaker_generation(script, selected_speakers, samples, voice_c
     return failures
 
 
+class StatePublisher:
+    """Publishes each completed state persona as soon as it exists.
+
+    `base` is the baseline the final save diffs against: it advances only by
+    what was published, so a user's edits or deletions made to other targets
+    while a state was generating are kept. A publication writes ONLY the
+    completed character and no alias proposals - alias merges are committed
+    by the final save, so a cancelled run commits none (#1040 review C19).
+    Only that character's entry is copied (C26)."""
+
+    def __init__(self, path, initial, book_snapshot):
+        self.path, self.base, self.book_snapshot = path, copy.deepcopy(initial), book_snapshot
+
+    def publish(self, generated, speaker, version_id):
+        # Only the completed character's entry is offered for writing; other
+        # characters' in-progress work waits for the final save.
+        current = save_generated_voice_config(self.path, {speaker: generated[speaker]}, self.base, [speaker], {},
+                                              book_snapshot=self.book_snapshot)
+        # Refresh only the completed target's version baseline. A user may
+        # have edited/deleted a later target while this one was generating.
+        previous_versions = copy.deepcopy(self.base.get(speaker, {}).get("versions") or {})
+        completed = current.get(speaker, {}).get("versions", {}).get(version_id)
+        if completed is not None:
+            previous_versions[version_id] = copy.deepcopy(completed)
+        else:
+            previous_versions.pop(version_id, None)
+        refreshed = dict(self.base)
+        if speaker in current:
+            refreshed[speaker] = {**copy.deepcopy(current[speaker]), "versions": previous_versions}
+        else:
+            refreshed.pop(speaker, None)
+        self.base = refreshed
+        return current
+
+
+def get_requested_speakers(args):
+    """The speakers a run is limited to: the exact --speaker (names may hold
+    commas, #1040 review C20) or the comma-separated --speakers list."""
+    if getattr(args, "speaker", ""):
+        return {args.speaker.strip()}
+    return {s.strip() for s in (getattr(args, "speakers", "") or "").split(",") if s.strip()}
+
+
 def get_pending_state_targets(script, speaker, voice, new_only=False, version_id="", *, state_targets=None):
     targets = (get_persona_state_targets(script) if state_targets is None else state_targets).get(speaker, [])
     if version_id:
@@ -1159,25 +1238,31 @@ def get_pending_state_targets(script, speaker, voice, new_only=False, version_id
         if not targets:
             raise ValueError("The selected character state is no longer in the script")
     if new_only:
-        targets = [target for target in targets if not voice_is_set(
-            (voice or {}).get("versions", {}).get(target["version_id"])) or
-            (voice or {}).get("versions", {}).get(target["version_id"], {}).get("persona_state") != target]
+        saved = (voice or {}).get("versions", {})
+        targets = [target for target in targets if not voice_is_set(saved.get(target["version_id"]))
+                   or not is_state_version_current(saved.get(target["version_id"]), target)]
     return targets
 
 
 def get_initialized_state_base_voice(voice, state):
     """Initialize an unset base without importing state candidate bookkeeping."""
     return {**voice, **{key: copy.deepcopy(value) for key, value in state.items()
-                      if key not in {*VERSION_OVERLAY_EXCLUDED, "persona_state"} or key == "age_group"}}
+                      if key not in VERSION_OVERLAY_EXCLUDED
+                      or key in {"age_group", "persona_status", "voice_status"}}}
 
 
 def run_advanced_persona_generation(script, selected_speakers, samples, voice_config,
                                    client, model_name, engine, root, args, **options):
-    """Compile isolated settled-state evidence into existing voice versions."""
+    """Compile isolated settled-state evidence into versions of a COPY of
+    `voice_config`. -> (failures, voice_config): the caller's dict is never
+    mutated (Rule 17, #1040 review C24)."""
+    voice_config = copy.deepcopy(voice_config)
     publish = options.pop("state_publisher", None)
     all_targets = options.pop("state_targets", None)
     if all_targets is None:
         all_targets = get_persona_state_targets(script)
+    window = max(1, int(getattr(args, "narration_window", 4) or 4),
+                 get_persona_context_limit(getattr(args, "context_lines", DEFAULT_CONTEXT_LINES)) // 2)
     failures = []
     regular = []
     for speaker in selected_speakers:
@@ -1190,7 +1275,7 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
         # Completed states may remain after the user clears only the base.
         first = all_targets[speaker][0]
         saved_first = voice.get("versions", {}).get(first["version_id"])
-        if (not targets and not voice_is_set(voice) and voice_is_set(saved_first)
+        if (not voice_is_set(voice) and voice_is_set(saved_first)
                 and saved_first.get("persona_state") == first):
             voice = get_initialized_state_base_voice(voice, saved_first)
             voice_config[speaker] = copy.deepcopy(voice)
@@ -1198,7 +1283,7 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
         for number, target in enumerate(targets, 1):
             version_id = target["version_id"]
             print(f"State {number}/{len(targets)}: {speaker} · {target['gender']} · {target['age_group']} · segment {target['state_number']}")
-            entries = get_persona_state_entries(script, target)
+            entries = get_persona_state_entries(script, target, narration_window=window)
             state_samples = {speaker: [_entry_text(row) for row in entries
                                       if _entry_speaker(row) == speaker]}
             # Never import another state's compiled observations or preview.
@@ -1208,10 +1293,13 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
             state_args.recovered_speaker = (getattr(args, "recovered_speaker", "")
                                             if getattr(args, "state_version", "") == version_id else "")
             state_options = dict(options)
-            prompt_speaker = speaker.replace("{", "{{").replace("}", "}}")
+            # Everything inserted here is later run through str.format: escape
+            # braces in every script-derived value, not only the name (C21).
+            def literal(value):
+                return str(value).replace("{", "{{").replace("}", "}}")
             state_options["advanced_prompt"] = (options.get("advanced_prompt") or PERSONA_ADVANCED_PROMPT) + (
-                f"\nThis evidence is exclusively {prompt_speaker}'s settled {target['gender']}, "
-                f"{target['age_group']} state. Use only its supplied lines; do not mix other ages or states.\n")
+                f"\nThis evidence is exclusively {literal(speaker)}'s settled {literal(target['gender'])}, "
+                f"{literal(target['age_group'])} state. Use only its supplied lines; do not mix other ages or states.\n")
             try:
                 failed = _run_advanced_speaker_generation(entries, [speaker], state_samples,
                     state_config, client, model_name, engine, root, state_args, **state_options)
@@ -1222,11 +1310,8 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
                 failures.append(f"{speaker}/{version_id}")
                 continue
             generated = state_config[speaker]
-            generated["persona_state"] = copy.deepcopy(target)
-            generated["age_group"] = target["age_group"]
-            generated["gender"] = target["gender"]
+            generated.update(get_state_version_identity(target))
             generated.pop("active_candidate", None)
-            generated["seed"] = character_voice_seed(f"{speaker}:{version_id}")
             generated["persona_status"] = "generated"
             generated["voice_status"] = "generated"
             voice.setdefault("versions", {})[version_id] = generated
@@ -1234,16 +1319,14 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
                 voice = get_initialized_state_base_voice(voice, generated)
             voice_config[speaker] = copy.deepcopy(voice)
             if publish is not None:
-                published = publish(voice_config, speaker, version_id)
-                voice_config.clear()
-                voice_config.update(published)
+                voice_config = copy.deepcopy(publish(voice_config, speaker, version_id))
                 if speaker not in voice_config:
                     raise ValueError("Character removed during state persona generation")
                 voice = copy.deepcopy(voice_config[speaker])
     if regular:
         failures.extend(_run_advanced_speaker_generation(script, regular, samples,
             voice_config, client, model_name, engine, root, args, **options))
-    return failures
+    return failures, voice_config
 
 
 # _atomic_json_write imported from utils
@@ -1326,6 +1409,7 @@ def main():
     parser.add_argument("--advanced", action="store_true", help="Batch the full script into per-character reference files before compiling voice personas")
     parser.add_argument("--batch-size", type=int, default=40, help="Script entries per advanced discovery batch")
     parser.add_argument("--speakers", default="", help="Optional comma-separated speaker allowlist")
+    parser.add_argument("--speaker", default="", help="One exact speaker name (may contain commas); used by the app")
     parser.add_argument("--book-token", default="", help="Expected active-book identity for targeted generation")
     parser.add_argument("--state-version", default="", help="Regenerate one settled state version from its own evidence")
     parser.add_argument("--age-group", default="", help="Optional age profile to store as a separate voice version")
@@ -1356,10 +1440,9 @@ def main():
         raise ValueError("Active book changed before persona generation started")
     script = json.loads(book_snapshot["script_bytes"])
     state_targets = get_persona_state_targets(script) if args.advanced or args.state_version else {}
+    requested = get_requested_speakers(args)
     if args.state_version:
-        allowed = {target["version_id"] for speaker, targets in state_targets.items()
-                   if speaker in args.speakers.split(",") for target in targets}
-        if args.state_version not in allowed:
+        if not any(find_state_target(state_targets, speaker, args.state_version) for speaker in requested):
             raise ValueError("Character state changed before persona generation started")
 
     # Collect sample lines per speaker + first-appearance narrator context
@@ -1383,12 +1466,10 @@ def main():
 
     selected_speakers = list(samples.keys())
     if args.new_only:
-        from tts import voice_is_set
         selected_speakers = [s for s in selected_speakers if not voice_is_set(voice_config.get(s))
                              or (args.advanced and get_pending_state_targets(script, s, voice_config.get(s), True, state_targets=state_targets))]
-    if args.speakers.strip():
-        allow = {s.strip() for s in args.speakers.split(",") if s.strip()}
-        selected_speakers = [s for s in selected_speakers if s in allow]
+    if requested:
+        selected_speakers = [s for s in selected_speakers if s in requested]
 
     if not selected_speakers:
         print("No speakers to process.")
@@ -1523,31 +1604,9 @@ def main():
     print(f"Generating personas for {len(unique_speakers)} unique speakers...")
 
     if args.advanced:
-        publication_base = copy.deepcopy(initial_voice_config)
+        publisher = StatePublisher(voice_config_path, initial_voice_config, book_snapshot)
 
-        def publish_states(generated, speaker, version_id):
-            nonlocal publication_base
-            current = save_generated_voice_config(voice_config_path, generated,
-                        publication_base, samples.keys(), final_alias_proposals,
-                        book_snapshot=book_snapshot)
-            # Refresh only the completed target's version baseline. A user may
-            # have edited/deleted a later target while this one was generating.
-            previous_versions = copy.deepcopy(publication_base.get(speaker, {}).get("versions") or {})
-            completed = current.get(speaker, {}).get("versions", {}).get(version_id)
-            if completed is not None:
-                previous_versions[version_id] = copy.deepcopy(completed)
-            else:
-                previous_versions.pop(version_id, None)
-            refreshed = copy.deepcopy(publication_base)
-            if speaker in current:
-                refreshed[speaker] = copy.deepcopy(current[speaker])
-                refreshed[speaker]["versions"] = previous_versions
-            else:
-                refreshed.pop(speaker, None)
-            publication_base = refreshed
-            return current
-
-        failures = run_advanced_persona_generation(
+        failures, voice_config = run_advanced_persona_generation(
             script=script,
             selected_speakers=unique_speakers,
             samples=samples,
@@ -1562,7 +1621,7 @@ def main():
             context_length=lm_status.get("context_length"),
             llm_config=llm_cfg,
             book_id=book_snapshot["book_id"],
-            state_publisher=publish_states,
+            state_publisher=publisher.publish,
             state_targets=state_targets,
         )
         if args.age_group.strip():
@@ -1578,7 +1637,7 @@ def main():
                 current.setdefault("versions", {})[args.age_group.strip()] = snapshot
         try:
             save_generated_voice_config(voice_config_path, voice_config,
-                                        publication_base, samples.keys(), final_alias_proposals, book_snapshot=book_snapshot)
+                                        publisher.base, samples.keys(), final_alias_proposals, book_snapshot=book_snapshot)
             print(f"Updated voice_config saved to {voice_config_path}")
         except Exception as e:
             print(f"Failed to save voice_config.json: {e}")

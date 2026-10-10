@@ -22,7 +22,8 @@ ROWS = [None, 42, [], {'speaker': 42, 'type': 'Ignored', 'text': 'Bad'},
 class VoiceScriptSpeakerTests(unittest.TestCase):
     def test_listing_and_required_speaker_share_legacy_precedence(self):
         names = [row['name'] for row in voices.get_voice_rows(ROWS, {})]
-        self.assertEqual(['Legacy', 'Malformed', 'Modern', 'Silent'], names)
+        # Most lines first, then name (owner 2026-10-09): Legacy 3, Modern 1, the rest 0.
+        self.assertEqual(['Legacy', 'Modern', 'Malformed', 'Silent'], names)
         with tempfile.TemporaryDirectory() as root:
             script = Path(root, 'script.json')
             script.write_text(json.dumps(ROWS))

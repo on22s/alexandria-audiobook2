@@ -138,7 +138,7 @@ curl http://127.0.0.1:4200/api/status/persona
 curl -X POST http://127.0.0.1:4200/api/cancel_persona
 ```
 
-Advanced persona generation includes settled character states. `GET /api/voice_config/snapshot` returns `voices[].persona_states`, each with a server-generated `version_id`, original source range and source identity. Generated state personas live in `config[speaker].versions[version_id]` and carry `persona_state` provenance.
+Advanced persona generation includes settled character states. `GET /api/voice_config/snapshot` returns `voices[].persona_states`, each with a server-generated `version_id`, original source range, a `segment_sha256` fingerprint of that state's own segment, and `current` (whether the saved version is the persona of the state as the script now reads). Generated state personas live in `config[speaker].versions[version_id]` and carry `persona_state` provenance, which only generation and recovery set: a save may keep it but never introduce or change it, and ids of the form `state_<24 hex>` are reserved. `POST /api/voices/{speaker}/versions/{id}/select` refuses state versions; apply them on the voice timeline.
 
 To regenerate one state, POST `/api/generate_personas` with `speaker`, `state_version` and the current snapshot's `book_token`; advanced processing is enabled automatically. A state request cannot combine an age override. POST `/api/persona/recover` accepts the same state selector/token for saving validated persona JSON and optionally resuming its preview.
 

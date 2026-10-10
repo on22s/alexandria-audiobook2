@@ -22,7 +22,7 @@ class PersonaBatchTests(unittest.TestCase):
                 with patch.object(personas, '_discover_batch_characters', return_value=[]), \
                      patch.object(personas, 'request_persona_with_evidence', side_effect=request), \
                      patch.object(personas, '_save_generated_preview', return_value=True):
-                    failures = personas.run_advanced_persona_generation(script, ['ALICE'], {'ALICE': lines}, {}, None, 'fixture', None, tmp, SimpleNamespace(batch_size=40, context_lines=requested, recovered_speaker=''), book_id='fixture')
+                    failures, _ = personas.run_advanced_persona_generation(script, ['ALICE'], {'ALICE': lines}, {}, None, 'fixture', None, tmp, SimpleNamespace(batch_size=40, context_lines=requested, recovered_speaker=''), book_id='fixture')
                 self.assertEqual([], failures)
                 self.assertEqual([lines[:expected]], seen)
                 # The reference published by the actual compiler contains the same selection.
