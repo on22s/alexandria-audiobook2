@@ -1448,6 +1448,12 @@
     "tests.test_character_voice_seed.TestSeedDerivation.test_the_seed_fits_what_torch_accepts",
     "tests.test_character_voice_seed.TestSeedDerivation.test_the_seed_is_never_negative"
   ],
+  "test_child_voice_context_retest": [
+    "tests.test_child_voice_context_retest.ChildContextRetestTests.test_actual_clone_dispatch_writes_verified_complete_artifact_and_page",
+    "tests.test_child_voice_context_retest.ChildContextRetestTests.test_failed_generation_cannot_count_existing_wav_as_success",
+    "tests.test_child_voice_context_retest.ChildContextRetestTests.test_original_age_ratings_never_used_to_relabel_reference",
+    "tests.test_child_voice_context_retest.ChildContextRetestTests.test_reference_validation_rejects_changed_hash_duplicate_ids_and_escape"
+  ],
   "test_chinese_attribution": [
     "tests.test_chinese_attribution.TestNormalise.test_extracts_tag_index",
     "tests.test_chinese_attribution.TestNormalise.test_unparseable_is_none",

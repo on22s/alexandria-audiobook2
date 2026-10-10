@@ -1,0 +1,11 @@
+# Child-voice context retest
+
+The first listening comparison received 5/5 naturalness, consistency and clarity ratings for all twelve candidates. The listener clarified that dialogue content made age judgments difficult. Treat those age ratings as inconclusive; do not automatically relabel or remove voices from them.
+
+This runner reuses the exact synthetic references and seeds, rendering three unseen passages per voice: neutral wording, wording chosen for the requested age band, and a longer common passage. No training, voice design or library promotion occurs. Age-appropriate wording can itself bias age judgments, so compare within-voice ratings across conditions; neither condition proves an exact physical age.
+
+Run `python experiments/child_voice_context_retest.py --manifest /private/candidates.json --config /private/config.json --out /private/fresh-output`. The candidate manifest must contain a top-level `reference_text`, candidate `id`, `age_target` (3–11), `gender_target`, `seed`, and `clips[0]` with a relative reference path and SHA-256. References are validated before model loading. Use a fresh output directory outside the repository. The existing GPU lock, production clone dispatch and waveform validation remain in use. Failures are checkpointed and raised; failed output is not a success. Interrupted runs are retained for inspection; this initial runner does not resume generation automatically.
+
+Serve only on localhost: `python -m http.server 8883 --bind 127.0.0.1 --directory /private/fresh-output`, then open `http://127.0.0.1:8883/listen.html`. Ratings stay in browser storage until exported as `child_voice_context_ratings_private.json`. The page requires age ratings for each condition and quality ratings before export. Keep audio, manifests, configuration and raw ratings private. The report records hashes, Git/source provenance and clip timing without copying configuration contents.
+
+After listening, the owner selects references and confirms age metadata before library changes. Verify playback, unseen-text cloning, metadata persistence and library suggestions for those selections. Automated waveform checks do not establish perceived age, naturalness or long-form voice stability. The longer passage here is a screening sample, not an audiobook-length test.
