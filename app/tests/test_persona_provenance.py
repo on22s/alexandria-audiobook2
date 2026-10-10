@@ -47,6 +47,10 @@ class PersonaProvenanceTests(unittest.TestCase):
                     ('CHUNKS_PATH',str(root / 'chunks.json')), ('AUDIOBOOK_PATH',str(root / 'audiobook.mp3')),
                     ('M4B_PATH',str(root / 'audiobook.m4b')), ('process_state',{})):
                     stack.enter_context(patch.object(lib,name,value))
+                import core
+                for name, value in (("DATA_DIR", tmp), ("process_state", {}),
+                                    ("_task_claims", {}), ("_gpu_leases", {})):
+                    stack.enter_context(patch.object(core, name, value))
                 client = stack.enter_context(TestClient(app))
                 for action,book in (('save','first'),('load','second'),('load','first')):
                     response = client.post('/api/scripts/' + action, json={'name':book})
