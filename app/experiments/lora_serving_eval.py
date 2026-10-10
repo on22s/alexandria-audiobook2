@@ -496,7 +496,7 @@ def main():
     decoding, notes = get_eval_metadata(
         args.base_only, args.batch_size, args.reasoning_effort, args.max_tokens,
         args.structured_output, lora_only=args.lora_only)
-    if cuts:
+    if args.window_cuts:
         decoding["window_cuts"] = {"file": os.path.abspath(args.window_cuts),
                                    "arm": args.cut_arm}
     decoding["hard_max_tokens"] = params.hard_max_tokens
@@ -507,6 +507,23 @@ def main():
     decoding["keep_traces"] = args.keep_traces
     decoding["provider_extra_body"] = args.provider_extra_body
     decoding["capture_responses"] = args.capture_responses
+    decoding["surround_chars"] = args.surround_chars
+    # Resume identity must include the actual source and reconstructed
+    # checkpoint, including shard/delta contents rather than just its header.
+    decoding["book_inputs"] = {}
+    for book in args.books:
+        source_path, checkpoint_path = get_book_paths(book, args.input_dir, args.checkpoint_dir)
+        with open(source_path, "rb") as source:
+            source_hash = hashlib.sha256(source.read()).hexdigest()
+        checkpoint = load_generation_delta_checkpoint(checkpoint_path)
+        checkpoint_hash = hashlib.sha256(json.dumps(
+            checkpoint, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")).hexdigest()
+        decoding["book_inputs"][book] = {"source_sha256": source_hash,
+                                        "checkpoint_sha256": checkpoint_hash}
+    if args.window_cuts:
+        decoding["window_cuts"]["sha256"] = hashlib.sha256(
+            json.dumps(cuts, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
     record = ExperimentRecord(
         "lora_serving_eval", REPO, args.model, args.base_url,
         # Every book, so gold_files covers every row this run scores.
@@ -762,7 +779,9 @@ def main():
         print(f"  paired  {(tl/max(nl,1)-tb/max(nb,1))*100:+.1f} points  "
               f"+{y}/-{x} of {n}  p={p:.4g}")
         strict = strict_shared_summary(record.rows)
-        if strict:
+        if strict and not strict["shared_ids"]:
+            print("  strict  nothing shared; accuracy, paired difference and p-value are n/a")
+        elif strict:
             sa, sb = strict["arms"]["base"], strict["arms"]["lora"]
             dropped = {a: len(v) for a, v in strict["dropped_ids_by_arm"].items() if v}
             print(f"  strict  base {sa['correct']}/{sa['n']} = {100*(sa['accuracy'] or 0):.1f}%  "

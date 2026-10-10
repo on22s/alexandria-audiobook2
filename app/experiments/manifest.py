@@ -519,6 +519,8 @@ class ExperimentRecord:
                 "model": meta.get("model"),
                 "endpoint": meta.get("endpoint"),
                 "gold_sha256": meta.get("gold_sha256"),
+                "gold_files": meta.get("gold_files"),
+                "read_inputs": meta.get("read_inputs"),
                 "harness_sha256": (meta.get("git") or {}).get("harness_sha256"),
                 "decoding": meta.get("decoding")}
 
