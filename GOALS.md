@@ -123,6 +123,13 @@ rosters for this run. Evidence: [fold-swap report](docs/results/thunder-a100-fol
 [matching development report](docs/results/thunder-japanese-development-2026-09-30.md)
 and [CPU error analysis](docs/results/thunder-cpu-followups-2026-09-30.md).
 
+**Bounded diagnostic follow-up, 2026-10-10.** Measured on a local set that
+is not in the repo; the inputs and detailed results remain private. Capture-only
+work improves future diagnosis, but establishes neither a cause for the
+historical unanswered rows nor an accuracy gain. The next step remains to
+reproduce and classify failures on development data, then confirm any
+intervention on fresh held-out material.
+
 **Metric** — accuracy on held-out books never used in development.
 **Probe** — PDNC gold sets (`attribution_gold_pdnc_*.json`, 1270 / 640 / 584
 rows) plus `attribution_gold_random.json`.
@@ -1259,10 +1266,15 @@ points at an input we choose rather than at the method.
 already tested clean candidates for `silky_mezzo_30s_f` and
 `silky_alto_40s_f_literary_2` on matched unseen-volume clips. Their identity and
 ASR comparisons do not support a blanket improvement or automatic promotion;
-perceptual assessment remains pending. Reconcile each remaining adapter's
-hash-matched training metadata and existing candidate evidence before deciding
-whether another retrain is needed. The dated counts and queue descriptions
+perceptual assessment remains pending. The dated counts and queue descriptions
 below are history, not a current queue-status check.
+
+**Local verification follow-up, 2026-10-10.** Measured on a local set that is
+not in the repo; detailed inventory and comparison proof remain private.
+Review the existing candidate assets and published matched comparisons before
+scheduling more training or sourcing replacement data. Listening approval is
+still needed, and differently conditioned comparisons must remain separate.
+The published measurements above do not support blanket promotion.
 
 **Audited from the datasets themselves, 2026-09-28**
 (`voice_val_contamination_audit_20260928.json`, `app/experiments/voice_val_audit.py`):
@@ -2870,6 +2882,13 @@ Five historical boundary audits were recounted on CPU: 93/1,000 sampled
 chunks alert (per-source 4.5–14.0%). These are saved ASR/source edge
 conflicts, not manually confirmed cut errors or new alignment measurements.
 They do not close the Japanese boundary goal. See [historical comparison](docs/results/thunder-historical-comparison-2026-09-30.md).
+
+**Private text-reading check, 2026-10-10.** Measured on a local set that is
+not in the repo; source material and detailed results remain private. This
+text-only check does not establish audio, ASR, speech-onset, pitch-accent,
+pacing or native-listener quality. Use the existing audio and listening
+packages for the remaining fluent-listener and onset-definition work before
+sourcing or generating more material. No target or goal status changes.
 
 **Metric** — WER (CER for CJK) against human transcripts, plus alignment error
 against known boundaries.
@@ -6797,9 +6816,9 @@ If only three things get worked on:
    [completed Japanese comparison](docs/results/thunder-japanese-development-2026-09-30.md).
 3. **Train/val contamination (2.7)** — the latest explicit shipped-library audit
    is September 29: **9 contaminated plus 1 unsplit**, not the older 15 or 21.
-   Verify current hashes/metadata and reuse existing clean candidates and
-   unseen-volume comparisons. Two remaining voices were already compared on
-   September 30, with mixed results and no perceptual approval. Decide per
+   Following the local verification noted in 2.7, review the existing candidate
+   assets and unseen-volume comparisons before scheduling more training. Two
+   remaining voices were already compared on September 30, with mixed results and no perceptual approval. Decide per
    voice what evidence or source data is still missing; do not infer that all
    remaining candidates need retraining or that any is approved for promotion.
    See 2.7 and the [completed voice comparison](docs/results/thunder-campaign-2026-09-30.md).
