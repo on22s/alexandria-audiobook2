@@ -108,7 +108,9 @@ process.on('beforeExit',()=>assert(done,'report failure checks must complete'));
 const s=fs.readFileSync(process.argv[1],'utf8');let messages=[],posts=[],refreshes=0,done=false;
 let failure=new TypeError('Failed to fetch');
 const c={window:{},showToast:(...a)=>messages.push(a),API:{post:async(p,b)=>{posts.push(p);if(failure){throw failure;}}},
-loadChunks:async()=>refreshes++};vm.createContext(c);
+loadChunks:async()=>refreshes++, URLSearchParams, currentBookFilename:"book-a", chunkSnapshotBook:"book-a",
+chunkSnapshotBookToken:"book-token-a", cachedChunks:[{id:7,uid:"row-7"}]};vm.createContext(c);
+vm.runInContext(s.slice(s.indexOf("function captureChunkMutation("),s.indexOf("window.insertChunkAfter =")),c);
 vm.runInContext(s.slice(s.indexOf('function showActionError('),s.indexOf('function showConfirm(')),c);
 vm.runInContext(s.slice(s.indexOf('window.insertChunkAfter ='),s.indexOf('window.deleteChunk =')),c);
 (async()=>{
@@ -118,7 +120,7 @@ assert(messages.at(-1)[0].includes('Failed to fetch'));assert.strictEqual(refres
 failure=new Error('Stale book');failure.status=409;await c.window.insertChunkAfter(7);
 assert(messages.at(-1)[0].includes('Stale book'));assert(!messages.at(-1)[0].includes('Could not reach Alexandria'));
 assert.strictEqual(messages.at(-1)[1],'error');failure=null;await c.window.insertChunkAfter(7);
-assert.strictEqual(refreshes,1);assert.deepStrictEqual(posts,['/api/chunks/7/insert','/api/chunks/7/insert','/api/chunks/7/insert']);done=true;
+assert.strictEqual(refreshes,1);assert.deepStrictEqual(posts,Array(3).fill('/api/chunks/7/insert?expected_book_token=book-token-a&expected_uid=row-7'));done=true;
 })().catch(e=>{console.error(e);process.exitCode=1;});
 process.on('beforeExit',()=>assert(done,'insert failure checks must complete'));'''
         result = subprocess.run(['node', '-e', code, str(source)], capture_output=True,
