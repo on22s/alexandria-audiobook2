@@ -198,10 +198,6 @@ Follow **Setup → Script → Voices → Editor → Result**. The screenshots sh
 interface; labels may vary by build. First success means downloading an MP3 and listening
 for missing lines and incorrect speakers.
 
-The screenshots show the existing interface; labels can vary by build. Follow the numbered
-tabs: **Setup → Script → Voices → Editor → Result**. A first success is a downloaded MP3
-that you have listened to and checked for missing lines and incorrect speakers.
-
 ### Before you start
 
 - Start with a few paragraphs as `.txt`, `.md` or `.epub`, rather than a whole book.

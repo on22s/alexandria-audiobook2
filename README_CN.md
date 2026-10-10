@@ -81,7 +81,7 @@ Alexandria 不包含 LLM。生成脚本前，下面之一必须在运行并能�
   Base URL 填 `http://127.0.0.1:8090/v1`，密钥 `local`，模型名填 `--alias`（或文件名）。
 - **LM Studio**：加载模型、启动服务器，`http://localhost:1234/v1`。**Optimize LM Studio settings** 按模型和显存选择加载设置；本地回退值是 8,192 token、1 个并行槽位，并非统一设置成 32k。
 - **Ollama**：`http://localhost:11434/v1`，模型名按 `ollama list` 显示的填。
-- **托管 API**：把 LLM Location 切到 *Remote*，填 URL 和密钥（或 `env:DEEPSEEK_API_KEY` 从环境变量读取），并取消勾选“Runs on this machine's GPU”，这样它标注时本机可以同时渲染音频。
+- **托管 API**：把 LLM Location 切到 *Remote*，填 URL 和密钥（或 `env:DEEPSEEK_API_KEY` 从环境变量读取），并将 **Runs on this machine's GPU?** 设为 **No**，这样它标注时本机可以同时渲染音频。
 
 思考型模型没问题——反而更好。把 **Reasoning effort** 设为 *low*，让服务器限制预算；不要把 `<think>` 加进禁用 token。用 Setup 里的 **Test Connection** 确认连接并查看模型回复。
 
