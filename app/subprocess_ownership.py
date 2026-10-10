@@ -250,6 +250,15 @@ def get_process_identity(pid):
     return get_process_record(pid)[1]
 
 
+def ensure_procfs_descendant_support():
+    """Refuse work if Linux cannot enumerate the live reaper's children."""
+    pid = os.getpid()
+    try:
+        Path(f"/proc/{pid}/task/{pid}/children").read_text()
+    except OSError as error:
+        raise OSError(error.errno, "Subprocess ownership requires readable Linux procfs task/children support") from error
+
+
 def get_owned_descendants():
     """Walk this reaper's descendants, rejecting stale parent/child identities."""
     root = os.getpid()
@@ -358,6 +367,7 @@ def run_owned_command(control, command, *, disconnect_signal=None, stop_timeout=
     if libc.prctl(36, 1, 0, 0, 0) != 0:
         raise OSError(ctypes.get_errno(), "Could not establish subprocess ownership")
     libc = ensure_pidfd_support()
+    ensure_procfs_descendant_support()
     received = []
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(sig, lambda value, frame: received.append(value))
