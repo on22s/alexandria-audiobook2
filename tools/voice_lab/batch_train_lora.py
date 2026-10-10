@@ -40,7 +40,11 @@ from app_venv import get_app_python
 from batch_adapter_registration import (
     get_batch_registration_intent, apply_batch_registration_intent,
     get_batch_registration_entry, save_batch_registration_entry, clear_batch_registration_intent,
+    acquire_batch_registration_lease, restart_incomplete_batch_registration, BATCH_OWNERSHIP_PROTOCOL,
+    get_fresh_batch_adapter_id,
 )
+from task_ownership import TaskOwnershipBusy
+from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
 from adapter_artifacts import AdapterValidationError, validate_adapter_artifacts
 from archive_utils import validate_zip_members
 from device_utils import normalize_device
@@ -271,7 +275,7 @@ def parse_epoch_losses(lines: list[str]) -> dict[int, float]:
 
 def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | None:
     """Extract, train, register. Returns the training_meta dict or None on failure."""
-    dataset_dir = os.path.join(args.datasets_dir, dataset_id)
+    dataset_dir = getattr(args, "_batch_dataset_path", None) or os.path.join(args.datasets_dir, dataset_id)
     output_dir  = os.path.join(args.models_dir, adapter_id)
     output_existed = os.path.exists(output_dir)
     dataset_existed = os.path.lexists(dataset_dir)
@@ -350,8 +354,12 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
     t0 = time.time()
     log_lines = []
     try:
-        proc = subprocess.Popen(
+        lease_fd = getattr(args, "_batch_task_lease_fd", None)
+        launch = subprocess.Popen if lease_fd is None else start_owned_subprocess
+        ownership = {} if lease_fd is None else {"task_lease_fd": lease_fd}
+        proc = launch(
             command,
+            **ownership,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -370,7 +378,9 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
             proc.wait()
         finally:
             try:
-                if proc.poll() is None:
+                if lease_fd is not None:
+                    stop_owned_subprocess(proc, timeout=5, force_after_grace=True)
+                elif proc.poll() is None:
                     proc.terminate()
                     try:
                         proc.wait(timeout=5)
@@ -379,6 +389,9 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
                         proc.wait()
             finally:
                 proc.stdout.close()
+                control = getattr(proc, "_alexandria_control", None)
+                if control is not None:
+                    control.close()
         elapsed = time.time() - t0
 
         if proc.returncode != 0:
@@ -534,87 +547,139 @@ def main() -> int:
             continue
 
         try:
-            pending_registration = get_batch_registration_intent(args.models_dir, dataset_id)
-            if pending_registration is not None:
-                adapter_id = pending_registration['adapter_id']
-                result = get_batch_registration_entry(args.models_dir, dataset_id, zip_path)
-                print(f"[{i:3d}/{len(zips)}] RECOVER registration {os.path.basename(zip_path)}", flush=True)
-            else:
-                existing = adapter_exists(args.models_dir, dataset_id, manifest)
-                if existing:
-                    print(f"[{i:3d}/{len(zips)}] SKIP  {os.path.basename(zip_path)}")
-                    print(f"          (adapter exists: {os.path.basename(existing)})")
-                    skip += 1
-                    continue
-                with lock_adapter_naming(args.models_dir, args.manifest):
-                    apply_batch_registration_intent(args.models_dir, dataset_id, adapter_id, zip_path,
-                        {"lora_r": args.lora_r, "lr": args.lr, "target_loss": args.target_loss})
-                print(f"[{i:3d}/{len(zips)}] TRAIN {os.path.basename(zip_path)}", flush=True)
-                attempted += 1
-                result = train_one(zip_path, dataset_id, adapter_id, args)
-        except (OSError, ValueError) as error:
+            lease = acquire_batch_registration_lease(args.models_dir, dataset_id)
+        except (OSError, ValueError, TaskOwnershipBusy) as error:
             err += 1
-            print(f"  ERROR: pending registration admission failed: {error}\n", flush=True)
+            print(f"  ERROR: batch dataset is busy or unsafe: {error}", flush=True)
             continue
-
-        if result is None:
-            err += 1
-            if not os.path.exists(os.path.join(args.models_dir, adapter_id)):
-                try:
+        args._batch_task_lease_fd = lease.fileno() if sys.platform in ('linux', 'darwin') else None
+        args._batch_dataset_path = None
+        try:
+            try:
+                pending_registration = get_batch_registration_intent(args.models_dir, dataset_id)
+                if pending_registration is not None:
+                    adapter_id = pending_registration['adapter_id']
+                    if (pending_registration.get('ownership') != BATCH_OWNERSHIP_PROTOCOL
+                            and pending_registration.get('entry') is None):
+                        raise ValueError('Unowned legacy/unsupported batch intent: confirm the original trainer is stopped before manual recovery')
                     with lock_adapter_naming(args.models_dir, args.manifest):
-                        clear_batch_registration_intent(args.models_dir, dataset_id, adapter_id)
-                except (OSError, ValueError) as error:
-                    print(f"  WARNING: failed training intent cleanup: {error}", flush=True)
-            print(f"  FAILED\n", flush=True)
-            continue
-
-        # Register in manifest
-        try:
-            with lock_adapter_naming(args.models_dir, args.manifest):
-                pending = get_adapter_publication_recovery_command(args.models_dir)
-                if pending:
-                    raise ValueError('Adapter publication recovery is required: ' + pending)
-                result = save_batch_registration_entry(args.models_dir, dataset_id, result)
-                get_batch_registration_entry(args.models_dir, dataset_id, zip_path)
-                manifest = load_manifest(args.manifest)
-                existing_row = next((row for row in manifest if row.get('id') == result['id']), None)
-                if existing_row is not None:
-                    if any(existing_row.get(key) != value for key, value in result.items()):
-                        raise ValueError('Manifest conflicts with the pending registration entry')
+                        pending = get_adapter_publication_recovery_command(args.models_dir)
+                        if pending:
+                            raise ValueError('Adapter publication recovery is required: ' + pending)
+                    try:
+                        result = get_batch_registration_entry(args.models_dir, dataset_id, zip_path)
+                    except AdapterValidationError:
+                        if args._batch_task_lease_fd is None:
+                            raise ValueError('Automatic incomplete recovery requires retained POSIX task ownership')
+                        with lock_adapter_naming(args.models_dir, args.manifest):
+                            pending = get_adapter_publication_recovery_command(args.models_dir)
+                            if pending:
+                                raise ValueError('Adapter publication recovery is required: ' + pending)
+                            replacement_id = get_fresh_batch_adapter_id(args.models_dir, dataset_id)
+                            validate_adapter_registration_id_locked(args.models_dir, replacement_id, load_manifest(args.manifest))
+                            restart_incomplete_batch_registration(args.models_dir, dataset_id, zip_path,
+                                replacement_id, {"lora_r": args.lora_r, "lr": args.lr, "target_loss": args.target_loss})
+                        adapter_id = replacement_id
+                        pending_registration = None
+                        args._batch_dataset_path = tempfile.mkdtemp(prefix=dataset_id + '-', dir=args.datasets_dir)
+                        attempted += 1
+                        print(f"[{i:3d}/{len(zips)}] RETRY incomplete training {os.path.basename(zip_path)} (prior artifacts preserved)", flush=True)
+                        result = train_one(zip_path, dataset_id, adapter_id, args)
+                    else:
+                        print(f"[{i:3d}/{len(zips)}] RECOVER registration {os.path.basename(zip_path)}", flush=True)
                 else:
-                    validate_adapter_registration_id_locked(args.models_dir, result['id'], manifest)
-                    manifest.append(result)
-                    save_manifest(args.manifest, manifest)
-                confirmed = next((row for row in load_manifest(args.manifest) if row.get('id') == result['id']), None)
-                if confirmed is None or any(confirmed.get(key) != value for key, value in result.items()):
-                    raise ValueError('Manifest read-back did not confirm pending registration')
-                try:
-                    clear_batch_registration_intent(args.models_dir, dataset_id, adapter_id)
-                except OSError as error:
-                    print(f"  WARNING: adapter registered; intent cleanup failed: {error}", flush=True)
-        except (OSError, ValueError) as e:
-            err += 1
-            print(f"  ERROR: unable to register adapter in manifest: {e}\n", flush=True)
-            continue
-        if pending_registration is not None:
-            recovered += 1
-            print(f"  Registration recovered without retraining: {result['id']}\n", flush=True)
-            continue
-        done += 1
+                    manifest = load_manifest(args.manifest)
+                    existing = adapter_exists(args.models_dir, dataset_id, manifest)
+                    if existing:
+                        print(f"[{i:3d}/{len(zips)}] SKIP  {os.path.basename(zip_path)}")
+                        print(f"          (adapter exists: {os.path.basename(existing)})")
+                        skip += 1
+                        continue
+                    with lock_adapter_naming(args.models_dir, args.manifest):
+                        adapter_id = get_fresh_batch_adapter_id(args.models_dir, dataset_id)
+                        apply_batch_registration_intent(args.models_dir, dataset_id, adapter_id, zip_path,
+                            {"lora_r": args.lora_r, "lr": args.lr, "target_loss": args.target_loss},
+                            ownership=BATCH_OWNERSHIP_PROTOCOL if args._batch_task_lease_fd is not None else None)
+                    print(f"[{i:3d}/{len(zips)}] TRAIN {os.path.basename(zip_path)}", flush=True)
+                    attempted += 1
+                    args._batch_dataset_path = tempfile.mkdtemp(prefix=dataset_id + '-', dir=args.datasets_dir)
+                    result = train_one(zip_path, dataset_id, adapter_id, args)
+            except (OSError, ValueError) as error:
+                err += 1
+                print(f"  ERROR: pending registration admission failed: {error}\n", flush=True)
+                continue
 
-        elapsed_all = time.time() - start_all
-        try:
-            remaining = sum(1 for path in zips[i:]
-                            if not adapter_exists(args.models_dir, sanitize(path), manifest))
-        except (OSError, ValueError) as e:
+            if result is None:
+                err += 1
+                if not os.path.exists(os.path.join(args.models_dir, adapter_id)):
+                    try:
+                        with lock_adapter_naming(args.models_dir, args.manifest):
+                            clear_batch_registration_intent(args.models_dir, dataset_id, adapter_id)
+                    except (OSError, ValueError) as error:
+                        print(f"  WARNING: failed training intent cleanup: {error}", flush=True)
+                print(f"  FAILED\n", flush=True)
+                continue
+
+            # Register in manifest
+            try:
+                with lock_adapter_naming(args.models_dir, args.manifest):
+                    pending = get_adapter_publication_recovery_command(args.models_dir)
+                    if pending:
+                        raise ValueError('Adapter publication recovery is required: ' + pending)
+                    result = save_batch_registration_entry(args.models_dir, dataset_id, result)
+                    get_batch_registration_entry(args.models_dir, dataset_id, zip_path)
+                    manifest = load_manifest(args.manifest)
+                    existing_row = next((row for row in manifest if row.get('id') == result['id']), None)
+                    if existing_row is not None:
+                        if any(existing_row.get(key) != value for key, value in result.items()):
+                            raise ValueError('Manifest conflicts with the pending registration entry')
+                    else:
+                        validate_adapter_registration_id_locked(args.models_dir, result['id'], manifest)
+                        manifest.append(result)
+                        save_manifest(args.manifest, manifest)
+                    confirmed = next((row for row in load_manifest(args.manifest) if row.get('id') == result['id']), None)
+                    if confirmed is None or any(confirmed.get(key) != value for key, value in result.items()):
+                        raise ValueError('Manifest read-back did not confirm pending registration')
+                    try:
+                        clear_batch_registration_intent(args.models_dir, dataset_id, adapter_id)
+                    except OSError as error:
+                        print(f"  WARNING: adapter registered; intent cleanup failed: {error}", flush=True)
+            except (OSError, ValueError) as e:
+                err += 1
+                print(f"  ERROR: unable to register adapter in manifest: {e}\n", flush=True)
+                continue
+            if pending_registration is not None:
+                recovered += 1
+                print(f"  Registration recovered without retraining: {result['id']}\n", flush=True)
+                continue
+            done += 1
+
+            elapsed_all = time.time() - start_all
+            try:
+                remaining = sum(1 for path in zips[i:]
+                                if not adapter_exists(args.models_dir, sanitize(path), manifest))
+            except (OSError, ValueError) as e:
+                print(f"  Progress: {done} done, {skip} skipped, {err} errors — "
+                      f"ETA unavailable: {e}\n", flush=True)
+                continue
+            avg_per = elapsed_all / attempted
+            eta_s = remaining * avg_per
+            eta_min = eta_s / 60
             print(f"  Progress: {done} done, {skip} skipped, {err} errors — "
-                  f"ETA unavailable: {e}\n", flush=True)
-            continue
-        avg_per = elapsed_all / attempted
-        eta_s = remaining * avg_per
-        eta_min = eta_s / 60
-        print(f"  Progress: {done} done, {skip} skipped, {err} errors — "
-              f"ETA: {eta_min:.0f} min for {remaining} remaining\n", flush=True)
+                  f"ETA: {eta_min:.0f} min for {remaining} remaining\n", flush=True)
+        finally:
+            # Closing keeps an inherited lease owned until the outside broker
+            # has reaped all training descendants, even after parent SIGKILL.
+            lease.close()
+            args._batch_task_lease_fd = None
+            # Remove only the empty directory created by this attempt. A
+            # killed or interrupted trainer's extracted data stays untouched.
+            if args._batch_dataset_path is not None:
+                try:
+                    os.rmdir(args._batch_dataset_path)
+                except OSError:
+                    pass
+            args._batch_dataset_path = None
 
     total = time.time() - start_all
     print(f"\n{'='*60}")
