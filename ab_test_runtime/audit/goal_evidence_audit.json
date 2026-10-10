@@ -184,16 +184,16 @@
   {
    "goal": "2.6",
    "title": "Voice quality, the measures the field says matter most",
-   "cited": 4,
+   "cited": 6,
    "not_in_audit": [],
    "not_experiment_artifacts": [],
    "weakest_evidence": "exploratory",
    "classifications": {
-    "supported_structure": 1,
-    "exploratory": 3
+    "supported_structure": 2,
+    "exploratory": 4
    },
    "dirty_artifacts": 1,
-   "no_commit": 3,
+   "no_commit": 4,
    "artifacts": [
     {
      "name": "aishell3_SSB0748_generate.json",
@@ -208,7 +208,19 @@
      "commit": ""
     },
     {
+     "name": "longref__zh_generate.json",
+     "classification": "supported_structure",
+     "dirty": false,
+     "commit": "e301c313"
+    },
+    {
      "name": "pitch_quality_SSB0748.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
+    },
+    {
+     "name": "pitch_quality_longref.json",
      "classification": "exploratory",
      "dirty": null,
      "commit": ""
@@ -383,6 +395,27 @@
      "classification": "supported_structure",
      "dirty": false,
      "commit": "88436803"
+    }
+   ]
+  },
+  {
+   "goal": "4.1",
+   "title": "Faster than real time",
+   "cited": 1,
+   "not_in_audit": [],
+   "not_experiment_artifacts": [],
+   "weakest_evidence": "exploratory",
+   "classifications": {
+    "exploratory": 1
+   },
+   "dirty_artifacts": 0,
+   "no_commit": 1,
+   "artifacts": [
+    {
+     "name": "lora_merge_speed_probe__9070xt-20260912-fixed.json",
+     "classification": "exploratory",
+     "dirty": null,
+     "commit": ""
     }
    ]
   },
@@ -848,27 +881,6 @@
    "artifacts": [
     {
      "name": "chapter_validation.json",
-     "classification": "exploratory",
-     "dirty": null,
-     "commit": ""
-    }
-   ]
-  },
-  {
-   "goal": "4.1",
-   "title": "Faster than real time",
-   "cited": 1,
-   "not_in_audit": [],
-   "not_experiment_artifacts": [],
-   "weakest_evidence": "exploratory",
-   "classifications": {
-    "exploratory": 1
-   },
-   "dirty_artifacts": 0,
-   "no_commit": 1,
-   "artifacts": [
-    {
-     "name": "lora_merge_speed_probe__9070xt-20260912-fixed.json",
      "classification": "exploratory",
      "dirty": null,
      "commit": ""
