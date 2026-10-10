@@ -656,9 +656,14 @@ def ensure_book_switch_allowed():
     """Exclude local and foreign task admission until a book switch commits."""
     try:
         with _gpu_lock, ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
-            if not idle or any(is_task_running(name) for name in process_state):
+            busy = [name for name in process_state if is_task_running(name)]
+            if busy:
                 raise HTTPException(status_code=409, detail=(
-                    "Cannot switch books while a task is running. Wait for it to finish or cancel it."))
+                    "Cannot switch books while tasks are running: " + ", ".join(busy)
+                    + ". Wait for them to finish or cancel them."))
+            if not idle:
+                raise HTTPException(status_code=409, detail=(
+                    "Cannot switch books while another process owns a task. Wait for it to finish or cancel it."))
             yield
     except TimeoutError as exc:
         raise HTTPException(status_code=409, detail="Book is busy; try switching again.") from exc
