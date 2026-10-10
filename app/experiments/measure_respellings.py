@@ -271,7 +271,7 @@ def build_run_identity(args):
 def transcribe(wav, binary, model, language="ja"):
     out = subprocess.run([binary, "-m", model, "-f", wav, "-l", language,
                           "-np", "-nt"], capture_output=True, text=True,
-                         timeout=180)
+                         timeout=180, check=True)
     return " ".join(out.stdout.split())
 
 

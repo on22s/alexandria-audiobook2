@@ -6428,7 +6428,9 @@
     "tests.test_respelling_scoring.RescoreTests.test_a_phantom_help_is_demoted_and_the_old_verdict_preserved",
     "tests.test_respelling_scoring.RescoreTests.test_a_skipped_row_passes_through_untouched",
     "tests.test_respelling_scoring.RescoreTests.test_breaking_a_working_word_is_recorded_as_hurting",
-    "tests.test_respelling_scoring.RescoreTests.test_the_summary_counts_phantom_helps"
+    "tests.test_respelling_scoring.RescoreTests.test_the_summary_counts_phantom_helps",
+    "tests.test_respelling_scoring.TranscriptionFailureTests.test_failed_child_output_is_not_a_transcript",
+    "tests.test_respelling_scoring.TranscriptionFailureTests.test_successful_child_output_is_normalized"
   ],
   "test_response_codecs": [
     "tests.test_response_codecs.EndToEndThroughTheRealPipeline.test_json_path_is_unchanged_by_the_refactor",
