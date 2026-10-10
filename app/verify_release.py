@@ -33,7 +33,12 @@ def is_process_group_running(process):
 
 def stop_process_group(process, interrupt=False, timeout=5):
     """Retain the verifier grace while using shared descendant ownership."""
-    return stop_owned_subprocess(process, interrupt=interrupt, timeout=timeout)
+    try:
+        return stop_owned_subprocess(process, interrupt=interrupt, timeout=timeout)
+    except BrokenPipeError:
+        # The owner can finish between the liveness probe and signal send.
+        # Its exit proves descendant cleanup completed; retain the same bound.
+        process.wait(timeout=timeout)
 
 
 def run_command(label, command, cwd, reject_unittest_skips=False, capture_output=True):

@@ -205,6 +205,34 @@ class ReleaseVerifierTests(unittest.TestCase):
             with self.assertRaises(ProcessLookupError):
                 os.kill(grandchild_pid, 0)
 
+    @unittest.skipUnless(sys.platform == "linux", "native owned supervisor control socket")
+    def test_exited_owner_socket_keeps_original_command_failure(self):
+        import subprocess_ownership
+        original = subprocess_ownership.send_subprocess_signal
+        is_running = subprocess_ownership.is_subprocess_tree_running
+        probes = []
+        signals = []
+        def stale_liveness(process):
+            probes.append(process)
+            return True if len(probes) == 1 else is_running(process)
+        def exit_before_signal(process, sig, **kwargs):
+            signals.append(sig)
+            process.wait(timeout=5)
+            return original(process, sig, **kwargs)
+        with patch.object(subprocess_ownership, 'is_subprocess_tree_running', side_effect=stale_liveness), \
+                patch.object(subprocess_ownership, 'send_subprocess_signal', side_effect=exit_before_signal):
+            with self.assertRaisesRegex(RuntimeError, "exit status 3"):
+                verify_release.run_command("exited owner", [sys.executable, "-c", "raise SystemExit(3)"], Path(__file__).parent.parent)
+        self.assertTrue(signals, "the closed-socket race must be exercised")
+
+    def test_broken_control_socket_with_live_owner_still_fails_at_timeout(self):
+        process = unittest.mock.Mock()
+        process.wait.side_effect = subprocess.TimeoutExpired('owner', 5)
+        with patch.object(verify_release, 'stop_owned_subprocess', side_effect=BrokenPipeError):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                verify_release.stop_process_group(process)
+        process.wait.assert_called_once_with(timeout=5)
+
     def test_non_utf8_child_output_is_shown_not_fatal(self):
         """A child that writes a raw byte to the shared pipe must not abort
         the verifier: the byte is escaped into the log so its origin can be

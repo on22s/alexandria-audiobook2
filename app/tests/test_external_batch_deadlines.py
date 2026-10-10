@@ -128,14 +128,20 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
     def test_completion_timestamp_rejects_a_late_success_even_if_its_future_is_done(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);engine=self.engine();engine._external_timeout=.15
+            clock=[0.0]
             def render(text,instruct,speaker,config,path,endpoint=None,cancelled=None):
-                if text=='1':time.sleep(.21)
                 sf.write(path,np.full(240,.1),24000,format='WAV');return True
-            publish=tts.publish_audio_output
-            def slow_first_publish(staging,path,cancelled=None):
-                if path.endswith('temp_batch_0.wav'):time.sleep(.26)
-                return publish(staging,path,cancelled)
-            with patch.object(engine,'_external_generate_custom',side_effect=render),patch.object(tts,'publish_audio_output',side_effect=slow_first_publish):
+            def submit(callback,chunk,*args):
+                future=concurrent.futures.Future()
+                # Both futures are done before publication, but the second
+                # completion is recorded after its submission deadline.
+                clock[0]=.05 if chunk['index']==0 else .26
+                future.set_result(callback(chunk,*args))
+                return future
+            executor=SimpleNamespace(submit=submit,shutdown=lambda **kwargs:None)
+            with patch.object(engine,'_external_generate_custom',side_effect=render), \
+                    patch('concurrent.futures.ThreadPoolExecutor',return_value=executor), \
+                    patch('time.monotonic',side_effect=lambda:clock[0]):
                 result=engine._external_batch([{'index':i,'speaker':'A','text':str(i)} for i in (0,1)],{'A':{'voice':'Ryan'}},str(root),'custom')
             self.assertEqual([0],result['completed']);self.assertEqual([1],[i for i,_ in result['failed']])
             self.assertTrue((root/'temp_batch_0.wav').exists());self.assertFalse((root/'temp_batch_1.wav').exists())
