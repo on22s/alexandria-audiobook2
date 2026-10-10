@@ -27,8 +27,9 @@ python="$REPO/app/env/bin/python"
 STAGE_LOG_DIR="$runtime/logs/attribution_context_20260820"
 mkdir -p "$STAGE_LOG_DIR"
 source "$REPO/run_chains/lib/stage.sh"
+source "$REPO/run_chains/lib/queue.sh"
 
-running() { pgrep -f "run_chains/$1" 2>/dev/null | grep -qv -e "^$$\$" -e "^$PPID\$"; }
+running() { chain_running "$1"; }
 for chain in overnight_20260820b.sh settle_2_6_20260820.sh second_english_eval_20260820.sh; do
     stage_note "waiting for $chain"
     while running "$chain"; do sleep 120; done

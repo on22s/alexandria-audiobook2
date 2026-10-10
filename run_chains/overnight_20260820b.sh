@@ -21,10 +21,11 @@ python="$REPO/app/env/bin/python"
 STAGE_LOG_DIR="$runtime/logs/overnight_20260820b"
 mkdir -p "$STAGE_LOG_DIR"
 source "$REPO/run_chains/lib/stage.sh"
+source "$REPO/run_chains/lib/queue.sh"
 
 # Wait for the chain already running rather than fighting it for the lock, so
 # the queue log reads in order. gpu_job.sh would serialise us anyway.
-running() { pgrep -f "run_chains/$1" 2>/dev/null | grep -qv -e "^$$\$" -e "^$PPID\$"; }
+running() { chain_running "$1"; }
 stage_note "waiting for decide_respelling_20260820 to finish"
 while running decide_respelling_20260820.sh; do sleep 120; done
 stage_note "it is done; continuing"

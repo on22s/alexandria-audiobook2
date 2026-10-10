@@ -5957,6 +5957,7 @@
     "tests.test_queue_marker_drift.MarkerDriftTests.test_the_comparison_is_not_vacuous"
   ],
   "test_queue_process_identity": [
+    "tests.test_queue_process_identity.LegacyChainPredicateTests.test_migrated_predicates_ignore_mentions_and_detect_actual_scripts",
     "tests.test_queue_process_identity.QueueProcessTests.test_actual_shell_script_with_options_and_spaces_is_detected_until_exit",
     "tests.test_queue_process_identity.QueueProcessTests.test_invalid_identity_is_error_not_finished",
     "tests.test_queue_process_identity.QueueProcessTests.test_mentions_in_other_programs_command_strings_and_stale_suffixes_are_not_chains",

@@ -32,6 +32,7 @@ artifact_complete() {
 }
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+source "$REPO/run_chains/lib/queue.sh"
 runtime="$REPO/ab_test_runtime"
 python="$REPO/app/env/bin/python"
 LOG="$runtime/logs/overnight_20260818"
@@ -45,13 +46,8 @@ BLOCK_SECONDS=4200   # ~55 min measured for a 400-term block, plus headroom
 note() { echo "[$(date -u +%FT%TZ)] $*"; }
 
 note "REPLICATION WAITING for the overnight queue to drain"
-# Match the driver by its path and exclude our own pid: `pgrep -f` matches the
-# command line of whatever is doing the matching, which has killed a shell in
-# this repo twice.
-queue_running() {
-    pgrep -f "run_chains/overnight_20260818.sh" 2>/dev/null \
-        | grep -qv -e "^$$\$" -e "^$PPID\$"
-}
+# Match the actual shell script, not unrelated command-line mentions.
+queue_running() { chain_running "overnight_20260818.sh"; }
 
 while queue_running; do
     [ "$(date +%s)" -ge "$DEADLINE" ] && { note "deadline reached while waiting"; exit 0; }

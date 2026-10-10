@@ -77,3 +77,45 @@ class QueueProcessTests(unittest.TestCase):
             'fixture',str(LIB)],capture_output=True,text=True,timeout=5)
         self.assertEqual(2,result.returncode)
         self.assertNotIn('continuing',result.stdout)
+
+
+class LegacyChainPredicateTests(unittest.TestCase):
+    setUp = QueueProcessTests.setUp
+    stop_children = QueueProcessTests.stop_children
+    start = QueueProcessTests.start
+    def test_migrated_predicates_ignore_mentions_and_detect_actual_scripts(self):
+        import re
+        names = (
+            "attribution_context_20260820.sh", "longref_arm_20260826.sh",
+            "overnight_20260820b.sh", "second_english_eval_20260820.sh",
+            "settle_2_6_20260820.sh", "continuation_20260819.sh",
+            "continuation_20260819b.sh", "e_row_replication_20260818.sh",
+            "regate_finish_20260818.sh",
+        )
+        repo = LIB.parents[2]
+        for name in names:
+            with self.subTest(chain=name):
+                source = (repo / "run_chains" / name).read_text()
+                wiring = next(line for line in source.splitlines()
+                              if line == 'source "$REPO/run_chains/lib/queue.sh"')
+                match = re.search(r"(?m)^(running|queue_running|first_pass_running)\(\)\s*\{.*?\}", source, re.S)
+                target = ("overnight_20260818.sh" if match[1] == "queue_running"
+                          else "regate_rerun_20260818.sh" if match[1] == "first_pass_running"
+                          else self.name)
+                self.script = self.root / "run_chains" / target
+                self.script.write_text('printf ready > "$1"\nread -r finish\n')
+                def check():
+                    command = wiring + "\n" + match[0] + "\n" + match[1] + ' "$2"'
+                    return subprocess.run(
+                        ["bash", "-c", command, "fixture", str(repo), target],
+                        env={**os.environ, "REPO": str(repo)},
+                        capture_output=True, text=True, timeout=5)
+                mention = self.start([os.sys.executable, "-c",
+                    'import pathlib,sys;pathlib.Path(sys.argv[-1]).write_text("ready");input()',
+                    str(self.script)])
+                self.assertEqual(1, check().returncode)
+                actual = self.start(["bash", "--norc", "-o", "pipefail", str(self.script)])
+                self.assertEqual(0, check().returncode)
+                actual.communicate("finish\n", timeout=3)
+                self.assertEqual(1, check().returncode)
+                mention.communicate("finish\n", timeout=3)

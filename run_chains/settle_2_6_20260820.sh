@@ -21,8 +21,9 @@ python="$REPO/app/env/bin/python"
 STAGE_LOG_DIR="$runtime/logs/settle_2_6_20260820"
 mkdir -p "$STAGE_LOG_DIR"
 source "$REPO/run_chains/lib/stage.sh"
+source "$REPO/run_chains/lib/queue.sh"
 
-running() { pgrep -f "run_chains/$1" 2>/dev/null | grep -qv -e "^$$\$" -e "^$PPID\$"; }
+running() { chain_running "$1"; }
 stage_note "waiting for overnight_20260820b to finish"
 while running overnight_20260820b.sh; do sleep 120; done
 stage_note "it is done; continuing"
