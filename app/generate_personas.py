@@ -299,10 +299,22 @@ class PersonaContextRecoveryError(RuntimeError):
     """Selected evidence could not be recovered on the active runtime."""
 
 
+def is_persona_network_runtime(client, llm_mode, llm_config):
+    """Read endpoint classification from the serving profile or shared dispatch."""
+    from llm_provider import FailoverClient
+    from lmstudio_settings import is_remote_llm
+    if isinstance(client, FailoverClient):
+        profile = client.ensure_active_runtime_profile()
+        if profile is not None:
+            return profile["is_remote"]
+    return is_remote_llm(llm_mode, (llm_config or {}).get("base_url", ""))
+
+
 def request_persona_with_evidence(client, model_name, system_prompt, build_prompt,
                                   evidence, params, label, max_prompt_chars=None, validate_object=None,
                                   ensure_prompt=None, build_minimal_source_prompt=None,
-                                  unknown_context_prompt_chars=None):
+                                  unknown_context_prompt_chars=None, allow_unknown_network_context=False,
+                                  llm_mode="local", llm_config=None):
     """Preserve fixed instructions and recover selected evidence in smaller calls."""
     validate = validate_object or validate_persona_payload
 
@@ -312,7 +324,9 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
         runtime_params = ensure_run_request_params(client, params)
         context = getattr(runtime_params, 'context_length', None)
         limit = max_prompt_chars
-        if not context and unknown_context_prompt_chars is not None:
+        if (not context and unknown_context_prompt_chars is not None
+                and not (allow_unknown_network_context
+                         and is_persona_network_runtime(client, llm_mode, llm_config))):
             limit = min(limit, unknown_context_prompt_chars)
         if len(prompt) > limit:
             return False
@@ -364,7 +378,9 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
         result = call_llm_for_object(
             client, model_name, system_prompt, prompt, params, label=label,
             validate_object=validate, max_retries=2, attempt_observer=observe)
-        exhausted_context = (getattr(client, "switched", False) and any(
+        exhausted_context = ((getattr(client, "switched", False)
+            or (allow_unknown_network_context
+                and is_persona_network_runtime(client, llm_mode, llm_config))) and any(
             attempt.get("error_category") == "context_budget"
             or attempt.get("finish_reason") == "length" for attempt in attempts))
         return result, exhausted_context
@@ -967,7 +983,8 @@ def _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_nu
 
 def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, speaker,
                      samples, system_prompt, advanced_prompt, context_length=None,
-                     llm_config=None, book_id=None, preview_saver=None, context_lines=DEFAULT_CONTEXT_LINES, reference_chars=12000):
+                     llm_config=None, book_id=None, preview_saver=None, context_lines=DEFAULT_CONTEXT_LINES, reference_chars=12000,
+                     allow_unknown_network_context=False, llm_mode="local"):
     """Compile one speaker's accumulated reference data into a final persona
     (description + ref_text) and generate its preview audio. A supplied
     preview_saver handles this call only; production uses its usual saver.
@@ -1073,6 +1090,8 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
             evidence, params, f"PERSONA COMPILE {speaker}",
             max_prompt_chars=base_prompt_chars + reference_chars,
             unknown_context_prompt_chars=base_prompt_chars + 12000,
+            allow_unknown_network_context=allow_unknown_network_context,
+            llm_mode=llm_mode, llm_config=llm_config,
             validate_object=validate_compiled, ensure_prompt=ensure_repeated_context,
             build_minimal_source_prompt=lambda parts: build_prompt(parts, repeat_context=False))
         if not isinstance(parsed, dict):
@@ -1180,7 +1199,9 @@ def _run_advanced_speaker_generation(script, selected_speakers, samples, voice_c
                                 speaker, samples, system_prompt, advanced_prompt, context_length,
                                 llm_config, book_id=book_id,
                                 context_lines=getattr(args, "context_lines", DEFAULT_CONTEXT_LINES),
-                                reference_chars=getattr(args, "persona_reference_chars", 12000)) is False:
+                                reference_chars=getattr(args, "persona_reference_chars", 12000),
+                                allow_unknown_network_context=getattr(args, "persona_allow_unknown_network_context", False),
+                                llm_mode=getattr(args, "llm_mode", "local")) is False:
                 failures.append(speaker)
         except Exception as error:
             print(f"Unhandled error for {speaker}: {error}")
@@ -1505,6 +1526,8 @@ def main():
     # Load persona prompts from config, fall back to defaults
     prompts_cfg = config.get("prompts") or {}
     args.persona_reference_chars = prompts_cfg.get("persona_reference_chars", 12000)
+    args.persona_allow_unknown_network_context = prompts_cfg.get("persona_allow_unknown_network_context", False)
+    args.llm_mode = llm_mode
     persona_system = prompts_cfg.get("persona_system_prompt") or PERSONA_SYSTEM_PROMPT
     persona_user = prompts_cfg.get("persona_user_prompt") or PERSONA_USER_PROMPT
     persona_advanced = prompts_cfg.get("persona_advanced_prompt") or PERSONA_ADVANCED_PROMPT

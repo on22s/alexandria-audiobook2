@@ -574,6 +574,58 @@ class PersonaAliasRuntimeRecoveryTests(unittest.TestCase):
 
 
 class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
+    def test_unknown_network_override_accepts_and_recovers_rejection_or_truncation(self):
+        for mode in ('accept', 'reject', 'truncate', 'local', 'default'):
+            with self.subTest(mode=mode):
+                class PersonaTransport(RuntimeTransport):
+                    def handle_request(self, request):
+                        body = json.loads(request.content)
+                        response = super().handle_request(request)
+                        if response.is_error:
+                            return response
+                        data = response.json()
+                        if mode == 'truncate' and len(body['messages'][-1]['content']) > 12000:
+                            data['choices'][0]['finish_reason'] = 'length'
+                            data['choices'][0]['message']['content'] = '{"description":'
+                        else:
+                            data['choices'][0]['message']['content'] = json.dumps({
+                                'description': 'Dry voice.', 'ref_text': 'Hello.'})
+                        return httpx.Response(200, json=data)
+                transport = PersonaTransport(4096 if mode == 'reject' else 1000000)
+                sdk = OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
+                             http_client=httpx.Client(transport=transport))
+                self.addCleanup(sdk.close)
+                client = provider.ConfiguredOpenAI(sdk, {})
+                ref = {'name': 'ALICE', 'features': ['clue %d ' % i + 'x' * 900 for i in range(15)],
+                       'sample_lines': ['Hello.']}
+                previews = []
+                with tempfile.TemporaryDirectory() as root, patch.object(
+                        gs, 'get_response_log_path', side_effect=lambda name: str(Path(root) / name)), \
+                     patch.object(gs.time, 'sleep'):
+                    refs = Path(root) / 'refs'; refs.mkdir()
+                    source = Path(personas._character_ref_path(str(refs), 'ALICE'))
+                    source.write_text(json.dumps(ref)); before = source.read_bytes()
+                    result = personas._compile_persona(client, 'fixture', None, {}, root, str(refs),
+                        'ALICE', {}, None, '{character_ref}', None,
+                        {'api_retry_limit': 0, 'structured_output': 'off',
+                         'base_url': 'http://127.0.0.1:1/v1' if mode == 'local' else 'https://fixture.invalid/v1'},
+                        reference_chars=1000000, allow_unknown_network_context=mode != 'default',
+                        preview_saver=lambda *args: previews.append(args[5]) or True)
+                    self.assertTrue(result)
+                    self.assertEqual(source.read_bytes(), before)
+                self.assertEqual(previews, ['Hello.'])
+                if mode == 'accept':
+                    self.assertEqual(len(transport.requests), 1)
+                    self.assertGreater(transport.requests[0]['prompt_chars'], 12000)
+                else:
+                    self.assertGreater(len(transport.requests), 1)
+                if mode == 'local':
+                    self.assertTrue(all(len(body['messages'][-1]['content']) < 12100
+                                        for body in transport.bodies))
+                if mode == 'reject':
+                    self.assertGreater(transport.requests[0]['footprint'], 4096)
+                    self.assertLessEqual(transport.requests[-1]['footprint'], 4096)
+
     def test_already_switched_compiler_uses_smaller_serving_context(self):
         class PersonaTransport(RuntimeTransport):
             def handle_request(self, request):
@@ -609,6 +661,7 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
             result = personas._compile_persona(client, 'primary', None, {}, root, str(refs),
                 'ALICE', {}, personas.PERSONA_SYSTEM_PROMPT, personas.PERSONA_ADVANCED_PROMPT,
                 98304, {'api_retry_limit': 0, 'structured_output': 'off'},
+                reference_chars=1000000, allow_unknown_network_context=True, llm_mode='remote',
                 preview_saver=lambda *args: previews.append(args[5]) or True)
             self.assertTrue(result)
             self.assertEqual(source.read_bytes(), before)
