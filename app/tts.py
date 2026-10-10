@@ -23,6 +23,7 @@ from lora_evidence import get_file_sha256
 from audio_validation import GeneratedAudioError, publish_audio_output
 from speech_text import normalize_for_speech, get_speech_preparation
 from pydub import AudioSegment
+from audio_assembly import AudioSegmentBuilder
 from voice_manifest import get_resolved_adapter_path, get_adapter_asset_snapshot
 
 try:
@@ -465,8 +466,11 @@ def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_M
 
     ensure_audio_export_active(cancel_check)
     audio_segments = [trim_edge_silence(s, cancel_check=cancel_check) for s in audio_segments]
-    combined = audio_segments[0]
     prev_speaker = speakers[0]
+    if len(audio_segments) == 1:
+        ensure_audio_export_active(cancel_check)
+        return audio_segments[0]
+    combined = AudioSegmentBuilder(audio_segments[0])
 
     for i, (segment, speaker) in enumerate(zip(audio_segments[1:], speakers[1:])):
         ensure_audio_export_active(cancel_check)
@@ -474,9 +478,10 @@ def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_M
         gap = AudioSegment.silent(duration=get_pause_duration_ms(
             {"speaker": prev_speaker, "pause_after": override}, {"speaker": speaker},
             pause_ms, same_speaker_pause_ms))
-        combined += gap + segment
+        combined.append(gap + segment)
         prev_speaker = speaker
 
+    combined = combined.finish()
     ensure_audio_export_active(cancel_check)
     return combined
 
