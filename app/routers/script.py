@@ -110,7 +110,7 @@ from core import (
     _task_log_path,
     _warn_corrupted_json,
     check_global_gpu_lock,
-    claim_gpu_task, schedule_claimed_background_task,
+    claim_gpu_task, schedule_claimed_background_task, ensure_book_switch_allowed,
     reserve_background_task, register_claimed_background_task, release_gpu_task_claim,
     process_state,
     run_process,
@@ -788,7 +788,8 @@ def _select_upload(filename: str) -> str:
     path = os.path.join(UPLOADS_DIR, safe_name)
     if not os.path.isfile(path) or os.path.splitext(path)[1].lower() not in {".txt", ".md"}:
         raise HTTPException(status_code=404, detail=f"Reusable upload '{filename}' not found.")
-    apply_book_input_selection(DATA_DIR, path, secure_filename(os.path.splitext(safe_name)[0]))
+    with ensure_book_switch_allowed():
+        apply_book_input_selection(DATA_DIR, path, secure_filename(os.path.splitext(safe_name)[0]), timeout=0)
     return path
 
 
@@ -901,8 +902,9 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
         if cancelled is not None:
             raise cancelled
         if select_active:
-            apply_book_input_selection(DATA_DIR, file_path,
-                                      secure_filename(os.path.splitext(os.path.basename(file_path))[0]))
+            with ensure_book_switch_allowed():
+                apply_book_input_selection(DATA_DIR, file_path,
+                                          secure_filename(os.path.splitext(os.path.basename(file_path))[0]), timeout=0)
         return {"filename": file.filename, "stored_filename": os.path.basename(file_path),
                 "path": file_path, "reused": reused}
     except BaseException:
@@ -1320,6 +1322,9 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
     claim_id = None
     try:
         with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+            current_state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+            if current_state.get("input_file_path") != input_file:
+                raise HTTPException(status_code=409, detail="Selected source changed before generation started.")
             if require_recovery and get_script_recovery_manifest() is None:
                 raise HTTPException(status_code=409, detail="Recovery checkpoint changed before start.")
             claim_id = reserve_background_task("script")
