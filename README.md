@@ -368,6 +368,9 @@ running build, GPU memory in use, and a light/dark toggle.
     backward)**, then **Start Batch Review**.
 - **Saved Scripts** — **Save Current**, load, preview repairs for content and speakers,
   delete.
+- **Speaker-label review** — preview saved-reference disagreements without model calls;
+  explicitly review bounded suggestions and manually save guarded aliases.
+  See [speaker-label review](docs/speaker-label-review.md) for limitations.
 - The manual-transport panel — **Copy prompt**, paste the reply, **Submit reply**.
 
 ### 3 · Voices

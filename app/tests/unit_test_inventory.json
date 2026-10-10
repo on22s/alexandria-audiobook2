@@ -7338,6 +7338,26 @@
     "tests.test_speaker_repair_transaction.SpeakerRepairTransactionTests.test_missing_token_refuses_before_backup_or_write",
     "tests.test_speaker_repair_transaction.SpeakerRepairTransactionTests.test_text_changes_same_speaker_insertions_and_other_rows_refuse_old_preview"
   ],
+  "test_speaker_review_api": [
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_attempt_ceiling_and_resume_cache",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_directional_eligibility_matches_guarded_apply",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_disagreement_prevents_apply",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_each_changed_revision_refuses_apply_without_relabeling",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_existing_alias_disables_only_owned_direction",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_failed_calls_do_not_leak_or_retry_past_ceiling",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_model_free_preview_unavailable_profile",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_native_saved_script_api_lifecycle",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_protected_labels_and_cycles",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_real_checkpoint_prefix_missing_native_types",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_real_completed_checkpoint_script_alignment",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_requires_explicit_consent_and_fresh_preview",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_transport_caps_reasoning_adaptation_and_no_retries",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_unique_reference_matching_and_evidence_bounds",
+    "tests.test_speaker_review_api.SpeakerReviewApiTests.test_wrong_checkpoint_source_and_type_rejected"
+  ],
+  "test_speaker_review_ui": [
+    "tests.test_speaker_review_ui.SpeakerReviewUiTests.test_review_lifecycle_and_stale_book_guards"
+  ],
   "test_speaker_similarity": [
     "tests.test_speaker_similarity.TestSpeakerSimilarity.test_embedding_decodes_and_resamples_without_torchaudio",
     "tests.test_speaker_similarity.TestSpeakerSimilarity.test_empty_audio_fails_loudly",

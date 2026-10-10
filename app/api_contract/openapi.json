@@ -90,6 +90,41 @@
         "title": "AppConfig",
         "type": "object"
       },
+      "ApplyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Alias",
+            "type": "string"
+          },
+          "candidate_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "canonical": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Canonical",
+            "type": "string"
+          },
+          "snapshot": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "candidate_id",
+          "alias",
+          "canonical"
+        ],
+        "title": "ApplyRequest",
+        "type": "object"
+      },
       "AttributionPreviewRequest": {
         "properties": {
           "context_chars": {
@@ -2642,6 +2677,43 @@
         "title": "ScriptSaveRequest",
         "type": "object"
       },
+      "Selection": {
+        "additionalProperties": false,
+        "properties": {
+          "allow_partial": {
+            "default": false,
+            "title": "Allow Partial",
+            "type": "boolean"
+          },
+          "max_pairs": {
+            "default": 20,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Pairs",
+            "type": "integer"
+          },
+          "reference_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Reference Name",
+            "type": "string"
+          },
+          "source": {
+            "default": "current",
+            "enum": [
+              "current",
+              "checkpoint"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference_name"
+        ],
+        "title": "Selection",
+        "type": "object"
+      },
       "SkipChunkRequest": {
         "properties": {
           "chunk": {
@@ -2718,6 +2790,54 @@
           "new_speaker"
         ],
         "title": "SpeakerSelection",
+        "type": "object"
+      },
+      "StartRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "allow_network": {
+            "default": false,
+            "title": "Allow Network",
+            "type": "boolean"
+          },
+          "allow_partial": {
+            "default": false,
+            "title": "Allow Partial",
+            "type": "boolean"
+          },
+          "max_pairs": {
+            "default": 20,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Pairs",
+            "type": "integer"
+          },
+          "reference_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Reference Name",
+            "type": "string"
+          },
+          "snapshot": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Snapshot",
+            "type": "string"
+          },
+          "source": {
+            "default": "current",
+            "enum": [
+              "current",
+              "checkpoint"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference_name",
+          "snapshot"
+        ],
+        "title": "StartRequest",
         "type": "object"
       },
       "StylePointRequest": {
@@ -8784,6 +8904,233 @@
           }
         },
         "summary": "Preview Speaker Repair"
+      }
+    },
+    "/api/speaker_review/options": {
+      "get": {
+        "operationId": "options_api_speaker_review_options_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Options",
+        "tags": [
+          "speaker_review"
+        ]
+      }
+    },
+    "/api/speaker_review/preview": {
+      "post": {
+        "operationId": "preview_api_speaker_review_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Selection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview",
+        "tags": [
+          "speaker_review"
+        ]
+      }
+    },
+    "/api/speaker_review/start": {
+      "post": {
+        "operationId": "start_api_speaker_review_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start",
+        "tags": [
+          "speaker_review"
+        ]
+      }
+    },
+    "/api/speaker_review/{run_id}": {
+      "get": {
+        "operationId": "get_run_api_speaker_review__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run",
+        "tags": [
+          "speaker_review"
+        ]
+      }
+    },
+    "/api/speaker_review/{run_id}/apply": {
+      "post": {
+        "operationId": "apply_api_speaker_review__run_id__apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply",
+        "tags": [
+          "speaker_review"
+        ]
+      }
+    },
+    "/api/speaker_review/{run_id}/cancel": {
+      "post": {
+        "operationId": "cancel_api_speaker_review__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel",
+        "tags": [
+          "speaker_review"
+        ]
       }
     },
     "/api/status": {

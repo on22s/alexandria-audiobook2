@@ -138,7 +138,7 @@ assert(calls.indexOf('batch_review')<calls.indexOf('nicknames'));
         # Dispatch coverage only; simultaneous admission is verified separately.
         self.run_js('const names=' + json.dumps(list(core.process_state)) + r""";
 statuses=Object.fromEntries(names.map(name=>[name,{running:true,dataset_name:'Book'}]));
-await ctx.reattachRunningPollers();assert.strictEqual(calls.length,names.length);assert.deepStrictEqual(warnings,[['drift check is still running.','info'],['report explanation is still running.','info']]);
+await ctx.reattachRunningPollers();assert.strictEqual(calls.length,names.length);assert.deepStrictEqual(warnings,[['drift check is still running.','info'],['speaker review is still running.','info'],['report explanation is still running.','info']]);
 """)
 
     def test_report_explanation_reload_uses_activity_observer_until_completion(self):

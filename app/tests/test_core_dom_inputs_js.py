@@ -45,7 +45,7 @@ const old=c.loads.length;c.ctx.activateTab('unknown');assert.strictEqual(c.loads
         output = self.run_js('const names=' + json.dumps(names) + r''';
 const fields={},errors=[],rendered=[];let filename;
 const element=id=>fields[id]||(fields[id]={value:'preset text',innerHTML:'',checked:false});
-const ctx={console:{error:(...args)=>errors.push(args),warn:(...args)=>errors.push(args)},document:{getElementById:element},llmProfiles:{},passPromptDefaults:{pass1:{system_prompt:'preset',user_prompt:'preset'},pass3:{system_prompt:'preset',user_prompt:'preset'}},API:{get:async path=>{assert.strictEqual(path,'/api/config');return {tts:{},current_file:filename};}}};
+const ctx={window:{},console:{error:(...args)=>errors.push(args),warn:(...args)=>errors.push(args)},document:{getElementById:element},llmProfiles:{},passPromptDefaults:{pass1:{system_prompt:'preset',user_prompt:'preset'},pass3:{system_prompt:'preset',user_prompt:'preset'}},API:{get:async path=>{assert.strictEqual(path,'/api/config');return {tts:{},current_file:filename};}}};
 for(const name of ['renderConfigWarnings','applyPauseSupport','renderActiveLlmModeBadge','populateLlmInputs','onLlmModeChange','toggleSubBatchFields','toggleTTSMode','renderPromptPresets','renderPassPromptPresets']){ctx[name]=()=>{};}
 vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')),ctx);
 const bookStart=source.indexOf('let currentBookFilename =');if(bookStart>=0){vm.runInContext(source.slice(bookStart,source.indexOf('async function loadConfig()',bookStart)),ctx);}

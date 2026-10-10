@@ -1414,7 +1414,25 @@ def test_dataset_builder_generate_sample():
 
 # ── Run all tests ────────────────────────────────────────────
 
+def test_speaker_review_options():
+    response = requests.get(BASE_URL + '/api/speaker_review/options', headers=get_api_test_headers())
+    assert_status(response)
+    for key in ('sources', 'references', 'profile', 'limits'):
+        assert_key(response.json(), key)
+
+
+def test_speaker_review_requires_consent():
+    response = requests.post(BASE_URL + '/api/speaker_review/start',
+                             headers=get_api_test_headers(),
+                             json={'reference_name': '_test_missing_reference', 'snapshot': '0' * 64})
+    assert_status(response, 400)
+
+
 def run_all_tests():
+    section("Speaker-label review (model-free)")
+    run_test("speaker_review_options", test_speaker_review_options)
+    run_test("speaker_review_requires_consent", test_speaker_review_requires_consent)
+
     section("Server")
     run_test("server_reachable", test_server_reachable)
 
