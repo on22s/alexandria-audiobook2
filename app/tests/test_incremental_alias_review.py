@@ -150,3 +150,79 @@ class IncrementalAliasReviewTests(unittest.TestCase):
                 self.assertEqual(release.call_count, 3)
             self.assertEqual(json.loads((root / 'output/report.json').read_text())['reviews'][0]['verdict'], verdict)
             self.assertEqual(prediction.read_text(), json.dumps(self.prediction[0]) + '\n')
+
+
+    def test_utf8_cli_real_request_budgets_and_cached_replay_on_non_utf8_locale(self):
+        from types import SimpleNamespace as NS
+        from unittest.mock import patch
+        from experiments import incremental_alias_review as runner
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = [row('こんにちは。', 'アルファ')]
+            reference = [row('こんにちは。', 'ベータ')]
+            config = {'llm_local': {'model_name': 'モデル',
+                      'base_url': 'http://localhost:1234/v1', 'context_length': 4096}}
+            for name, value in (('source', source), ('reference', reference), ('config', config)):
+                (root / name).write_text(json.dumps(value, ensure_ascii=False), encoding='utf-8')
+            (root / 'prediction').write_text(json.dumps(dict(source[0], entry_index=0),
+                                            ensure_ascii=False) + '\n', encoding='utf-8')
+            argv = ['runner', '--allow-network']
+            for name in ('source', 'reference', 'config', 'prediction', 'output'):
+                argv += ['--' + name, str(root / name)]
+            from lmstudio_settings import get_active_llm_config
+            previous_settings = {'profile_digest': runner.get_digest(get_active_llm_config(config)),
+                                 'max_tokens': 512, 'temperature': 0,
+                                 'reasoning_allowance': 512, 'structured_output': 'off'}
+            previous_candidates = runner.get_candidates(source, [dict(source[0], entry_index=0)], reference)
+            apply_reviews(root / 'output', *previous_candidates, previous_settings,
+                          lambda *args: {'same_identity': False, 'reason': '旧ポリシーの結果。'})
+            requests = []
+            verdict = {'same_identity': None, 'reason': '証拠が足りません。'}
+
+            def create(**kwargs):
+                requests.append(kwargs)
+                low = kwargs['extra_body']['reasoning_effort'] == 'low'
+                exhausted = low and kwargs['max_tokens'] < 1024
+                return NS(choices=[NS(message=NS(
+                    content='' if exhausted else json.dumps(verdict, ensure_ascii=False),
+                    reasoning_content='thinking' if exhausted else ''),
+                    finish_reason='length' if exhausted else 'stop')],
+                    usage=NS(prompt_tokens=100, completion_tokens=512 if exhausted else 30,
+                             completion_tokens_details=None))
+
+            client = NS(chat=NS(completions=NS(create=create)), close=lambda: None)
+            original_open = Path.open
+
+            def locale_open(path, mode='r', buffering=-1, encoding=None, errors=None, newline=None):
+                if 'b' not in mode and encoding is None:
+                    encoding = 'cp1252'
+                return original_open(path, mode, buffering, encoding, errors, newline)
+
+            with patch.object(sys, 'argv', argv), patch.object(Path, 'open', locale_open), \
+                    patch('llm_provider.make_llm_client', return_value=client), \
+                    patch('experiments.gpu_guard.acquire_gpu_lock', return_value=None), \
+                    patch('experiments.gpu_guard.release_gpu_lock'), \
+                    patch('generate_script.get_response_log_path', return_value=str(root / 'responses.log')):
+                self.assertEqual(runner.main(), 0)
+                self.assertEqual([(r['extra_body']['reasoning_effort'], r['max_tokens'])
+                                  for r in requests], [('none', 512), ('low', 1024)])
+                self.assertTrue(all(r['model'] == 'モデル' for r in requests))
+                report = json.loads((root / 'output/report.json').read_text(encoding='utf-8'))
+                self.assertEqual(report['candidates'][0]['context'][0]['text'], 'こんにちは。')
+                self.assertEqual(report['candidates'][0]['labels'], ['アルファ', 'ベータ'])
+                self.assertTrue(all(r['verdict'] == verdict for r in report['reviews']))
+                self.assertEqual(runner.main(), 0)
+                self.assertEqual(len(requests), 2)
+                self.assertEqual(json.loads((root / 'output/cache.json').read_text(encoding='utf-8'))['attempts'], 4)
+
+    def test_completion_budget_policy_invalidates_prior_cache(self):
+        from experiments import incremental_alias_review as runner
+        with tempfile.TemporaryDirectory() as tmp:
+            previous = {'max_tokens': 512, 'reasoning_allowance': 512}
+            apply_reviews(tmp, *self.candidates(), previous, self.review)
+            current = dict(previous, completion_budgets=runner.COMPLETION_BUDGETS)
+            report = apply_reviews(tmp, *self.candidates(), current, self.review)
+            self.assertEqual(self.calls, ['none', 'low', 'none', 'low'])
+            self.assertEqual(report['attempts'], 4)
+            apply_reviews(tmp, *self.candidates(), current, self.review)
+            self.assertEqual(len(self.calls), 4)

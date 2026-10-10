@@ -26,7 +26,10 @@ complete lines. This is a snapshot runner, not a daemon or automatic queue task.
 
 Each snapshot selects the first 20 distinct disagreeing label pairs in checkpoint
 file order and reviews each with requested `reasoning_effort` values `none` and
-`low`. Use an endpoint that supports and honours these options; the mode names
+`low`. Both allow 512 visible completion tokens; `low` additionally reserves
+512 reasoning tokens (1,024 total requested), subject to the shared context
+budget. The completion-budget policy participates in cache identity so verdicts
+from the old 512-total policy are not reused. Use an endpoint that supports and honours these options; the mode names
 record requests, not a measurement of actual server reasoning. It uses two entries
 of surrounding source/reference context; unavailable predicted neighbours are
 explicitly unknown. Keep checkpoints append-only for stable ordering. Cache keys

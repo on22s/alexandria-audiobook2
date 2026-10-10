@@ -17,6 +17,7 @@ PROMPT = ('Compare two proposed speaker labels using only the supplied evidence.
           'and reason (a nonempty explanation grounded in the evidence).')
 MODES = ('none', 'low')
 MAX_ATTEMPTS = 40
+COMPLETION_BUDGETS = {'none': 512, 'low': 1024}
 
 
 def get_digest(value):
@@ -25,7 +26,7 @@ def get_digest(value):
 
 
 def get_entries(path):
-    value = json.loads(Path(path).read_text())
+    value = json.loads(Path(path).read_text(encoding='utf-8'))
     return value['entries'] if isinstance(value, dict) else value
 
 
@@ -115,7 +116,7 @@ def apply_reviews(output, candidates, skipped, complete, settings, reviewer, pro
             settings_digest=get_digest(settings), evidence_digest=get_digest(candidates),
             complete=complete, prompt_digest=get_digest(prompt), max_attempts=MAX_ATTEMPTS))
         cache_path = output / 'cache.json'
-        cache = json.loads(cache_path.read_text()) if cache_path.exists() else {
+        cache = json.loads(cache_path.read_text(encoding='utf-8')) if cache_path.exists() else {
             'schema': 1, 'attempts': 0, 'reviews': {}}
         if (cache.get('schema') != 1 or type(cache.get('attempts')) is not int
                 or not 0 <= cache['attempts'] <= MAX_ATTEMPTS
@@ -178,7 +179,7 @@ def main():
     from llm_provider import make_llm_client
     from generate_script import LLMGenParams, call_llm_for_object
     from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
-    config = json.loads(args.config.read_text())
+    config = json.loads(args.config.read_text(encoding='utf-8'))
     profile = get_active_llm_config(config)
     if config.get('llm_failover') or profile.get('transport') == 'manual':
         parser.error('This experiment requires one explicit API profile without failover')
@@ -188,14 +189,15 @@ def main():
         parser.error('Set an explicit model_name and context_length in the active profile')
     # Hash the entire profile so private credentials/headers never appear in artifacts.
     settings = {'profile_digest': get_digest(profile), 'max_tokens': 512,
-                'temperature': 0, 'reasoning_allowance': 512, 'structured_output': 'off'}
+                'temperature': 0, 'reasoning_allowance': 512, 'structured_output': 'off',
+                'completion_budgets': COMPLETION_BUDGETS}
     local = not is_remote_llm(config.get('llm_mode'), profile.get('base_url', ''))
     handle = acquire_gpu_lock() if local or profile.get('on_this_gpu') else None
     client = None
     try:
         client = make_llm_client(profile, timeout=120)
         def review(candidate, mode, prompt):
-            params = LLMGenParams(max_tokens=512, hard_max_tokens=1024, temperature=0,
+            params = LLMGenParams(max_tokens=COMPLETION_BUDGETS[mode], hard_max_tokens=1024, temperature=0,
                                   context_length=profile['context_length'],
                                   reasoning_effort=mode, reasoning_allowance=512 if mode == 'low' else 0,
                                   structured_output='off', api_retry_limit=0)
