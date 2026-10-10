@@ -34,11 +34,16 @@ better than reasoning off on every model that reasons.
 
 ### A model loaded with too little context
 
-A model that silently loaded with an 8k context (often because GPU memory was already in use)
-fails on long requests and can be ten times slower.
+A request can exceed any loaded context size; 8k is not inherently broken and 32k is not
+always safe for your VRAM. Count the prompt, response and reasoning budget together.
 
-- In LM Studio, tick **Optimize LM Studio settings** in Setup.
-- In llama.cpp, pass the context size yourself; `-c 8192` is enough for this app.
+- Read the server error and token counts before changing settings.
+- Reduce the affected request's text, line count or review window, or increase context if
+  the model and available memory support it.
+- LM Studio's optimizer uses model-specific guarded profiles with an 8,192-token local
+  fallback; it does not always select 32k.
+- Follow [Choosing a context size](Setup-and-Serving.md#choosing-a-context-size), then run
+  **Test this book with the LLM**. A sample pass does not prove every later chunk will fit.
 
 ### "Idle" for a long time
 
@@ -221,11 +226,12 @@ and retries with backoff. If errors continue:
 
 ```bash
 cd app
-python run_isolated_api_tests.py          # quick — every endpoint, on a throwaway copy of the app
+python run_isolated_api_tests.py          # quick — model-free API checks in a throwaway copy
 python run_isolated_api_tests.py --full   # also generation — needs a GPU and an LLM
 ```
 
 It starts its own copy of the app with an empty data folder, so your books and voices are not
-touched. If quick mode passes but generation fails, the problem is loading the TTS model or
-reaching the language model, not the app itself. See [Home](Home.md#checking-an-installation)
-for testing an app that is already running.
+touched. Passing quick mode verifies only the model-free paths it exercises; generation
+can still fail because of app code, model loading, GPU resources or provider integration.
+Inspect the failing task's logs. See [Home](Home.md#checking-an-installation) for testing an
+app that is already running.

@@ -10,6 +10,155 @@
 
 **[GOALS.md](GOALS.md)** — 每个目标的定义和当前测量值 · **[RECIPES.md](RECIPES.md)** — 产生过有效结果的训练/推理设置，以及每一个“看起来像但其实失败”的对照 · **[RESULTS_INDEX.md](RESULTS_INDEX.md)** — 全部实验产物索引 · **[Hugging Face 上的适配器](https://huggingface.co/Om22s/alexandria-qwen3-attribution)** · **[HF_MODEL_GUIDE.md](HF_MODEL_GUIDE.md)** — 适配器的发布规范
 
+## 从这里开始
+
+- **使用应用**：[系统要求](#系统要求) → [安装](#安装) → [首次启动](#首次启动必读) → [第一本有声书](#新手指南你的第一本有声书)。不需要先读研究结果。
+- **研究与开发**：[结果速览](#结果速览)、[RECIPES.md](RECIPES.md)、[实验索引](RESULTS_INDEX.md)和[贡献](#贡献)。
+- **更多帮助**：[常见问题](#常见问题)、[文档地图（英文）](docs/README.md)和[项目 Wiki（英文）](https://github.com/on22s/alexandria-audiobook2/wiki)。
+
+## 系统要求
+
+- [Pinokio](https://pinokio.computer/)（或下面的 Docker / Colab）
+- 一个应用能通过 OpenAI 兼容 API 访问的 **LLM 服务器**——测过什么见[推荐的 LLM 模型](#推荐的-llm-模型)：
+  - [llama.cpp](https://github.com/ggml-org/llama.cpp) 的 `llama-server`——上面所有数字都用它产生；支持 `--lora` 加载归属适配器，`--reasoning-budget` 限制推理预算
+  - [LM Studio](https://lmstudio.ai/) 或 [Ollama](https://ollama.ai/)
+  - 托管 API（测过 DeepSeek v4-pro；任何 OpenAI 风格接口都可以）
+- **GPU**（用于 TTS）：最低 8 GB 显存，推荐 16 GB。每个 TTS 模型约 3.4 GB，其余决定批大小。LLM 需要自己的显存——16 GB 的卡可以*要么*跑一个 9–13 GB 的 GGUF，*要么*渲染音频；应用的 GPU 锁会防止两者相撞，除非你告诉它 LLM 在别处。
+- **内存**：推荐 16 GB。**磁盘**：环境和 TTS 权重约 20 GB，另加你的 LLM 文件和音频。
+
+### GPU 兼容性
+
+| GPU | 系统 | TTS | 说明 |
+|-----|-----|--------|-------|
+| **NVIDIA** | Windows / Linux | 完整支持 | 通过 `torch.js` 安装 CUDA 版，含 flash attention；Preparer 用的 whisper.cpp 以 CUDA 编译 |
+| **AMD 独显** | Linux | 完整支持 | ROCm；每天在 RX 9070 XT（RDNA4，ROCm 7.0）上测。安装时按你的 `gfx` 目标用 HIP 编译 llama-cpp-python 和 whisper.cpp |
+| **AMD APU / 核显** | Linux | 完整支持，较慢 | TTS 以 fp32 加载（660M/680M/780M 这一类的 bf16 有问题）；其余相同 |
+| **AMD** | Windows | 仅 CPU | Windows 没有 ROCm；要用 GPU 请用 Linux |
+| **Apple Silicon** | macOS | 仅 CPU | Qwen3-TTS 不支持 MPS；whisper.cpp 以 Metal 编译 |
+| **Intel** | macOS | 仅 CPU | |
+
+> **文档：**上游的 [Wiki](https://github.com/Finrandojin/alexandria-audiobook/wiki) 对声音类型、LoRA 训练、批量生成的说明仍然适用；本分支不同之处以本 README 和 `RECIPES.md` 为准。
+
+## 安装
+
+### 方式 A：Pinokio（推荐）
+
+1. 安装 [Pinokio](https://pinokio.computer/)
+2. 在 Pinokio 里点 **Download**，粘贴 `https://github.com/on22s/alexandria-audiobook2`
+3. 点 **Install**——创建 `app/env`，安装与平台匹配的 torch（`torch.js`），并把它钉住，防止后续安装换成 CPU 版；为你的 GPU 编译 llama-cpp-python 和 whisper.cpp
+4. 点 **Start**，然后 **Open Web UI**
+
+### 方式 B：Google Colab（无需安装）
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/on22s/alexandria-audiobook2/blob/main/alexandria_colab.ipynb)
+
+在免费 T4 上运行。需要一个免费的 [ngrok](https://dashboard.ngrok.com/signup) 账号做隧道；笔记本里有完整步骤。
+
+### 方式 C：Docker（NVIDIA）
+
+```bash
+git clone https://github.com/on22s/alexandria-audiobook2.git
+cd alexandria-audiobook2
+docker compose up --build
+```
+
+需要 [Docker](https://docs.docker.com/get-docker/) 和 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)。界面在 `http://localhost:4200`；TTS 权重首次使用时下载到卷里；上传、声音配置、适配器和音频通过绑定挂载持久化。
+
+> Compose 默认只发布在 `127.0.0.1`。容器内部绑定 `0.0.0.0`（Docker 转发需要）。如果你把宿主机端口发布到 `0.0.0.0`，请同时设置 `ALEXANDRIA_AUTH_PASSWORD`——见英文页的 [Authentication](README.md#authentication-optional)。如果通过域名访问（例如 `audiobooks.example.com`），还需设置 `ALEXANDRIA_ALLOWED_HOSTS`，否则请求会被拒绝（防 DNS 重绑定）——见英文页的 [Requests from other sites](README.md#requests-from-other-sites)。
+
+## 首次启动——必读
+
+### 1. 先启动 LLM 服务器
+
+Alexandria 不包含 LLM。生成脚本前，下面之一必须在运行并能从 Setup 页的 Base URL 访问：
+
+- **llama.cpp**（推荐，也是所有数字的测量环境）：
+  ```bash
+  llama-server -m Qwen3-14B-Q4_K_M.gguf --host 127.0.0.1 --port 8090 \
+    -ngl 99 -c 8192 --parallel 1 --flash-attn on \
+    --reasoning on --reasoning-format deepseek --reasoning-budget 1024
+  ```
+  Base URL 填 `http://127.0.0.1:8090/v1`，密钥 `local`，模型名填 `--alias`（或文件名）。
+- **LM Studio**：加载模型、启动服务器，`http://localhost:1234/v1`。**Optimize LM Studio settings** 按模型和显存选择加载设置；本地回退值是 8,192 token、1 个并行槽位，并非统一设置成 32k。
+- **Ollama**：`http://localhost:11434/v1`，模型名按 `ollama list` 显示的填。
+- **托管 API**：把 LLM Location 切到 *Remote*，填 URL 和密钥（或 `env:DEEPSEEK_API_KEY` 从环境变量读取），并取消勾选“Runs on this machine's GPU”，这样它标注时本机可以同时渲染音频。
+
+思考型模型没问题——反而更好。把 **Reasoning effort** 设为 *low*，让服务器限制预算；不要把 `<think>` 加进禁用 token。用 Setup 里的 **Test Connection** 确认连接并查看模型回复。
+
+上面的命令用于小规模初试，请把模型路径换成实际下载的文件。8k 不是通用保证：完整提示词、输出和推理都占用上下文。更大的批量、角色表、审阅窗口或自定义提示词可能需要更多空间；见[上下文设置说明（英文）](docs/wiki/Setup-and-Serving.md#choosing-a-context-size)。首次运行可不加载归属适配器；以后使用时必须匹配训练提示词。
+
+### 2. 首次 TTS 生成会下载约 3.5 GB
+
+Qwen3-TTS 权重（每个变体约 3.4 GB：CustomVoice，以及用于克隆/设计/LoRA 的 Base）在第一次渲染时下载。看 Editor 的日志；卡在 0% 的下载是网络问题，不是死机。
+
+### 3. 首批生成有预热
+
+模型加载，若开启 Compile Codec 还有 30–60 秒的 `torch.compile`。Editor 的活动行会告诉你是哪一个。
+
+### 4. 显存决定你能同时做什么
+
+TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间。脚本生成占着卡时，GPU 锁会拒绝启动音频渲染，*除非*当前 LLM 配置档标记为不在本机 GPU（托管 API 或另一台机器）——那样标注和渲染可以重叠。
+
+### 5. 出问题时去哪里看
+
+- Script 页 Generate 按钮下方的**活动行**：运行在等什么、第几次尝试、剩余时间估计。
+- `logs/api/<task>-latest.log`——每个后台任务的完整日志。
+- `logs/review_responses.log`——脚本生成和审阅的每一次 LLM 请求与回复，含结束原因、token 数和耗时。
+- 运行中的任务：`GET /api/status/eta` 和 `GET /api/status/<task>`。
+- **Reports** 页：带产物的运行历史、审阅存档点。
+
+## 新手指南：你的第一本有声书
+
+### 开始之前
+- 先用几段 `.txt`、`.md` 或 `.epub` 文本。[原创双角色示例](docs/examples/first-book-zh.txt)可保存为 `.txt` 后上传。
+- 一个运行中的 LLM 服务器（见上一节）。16 GB 显卡上一个 9 GB 的 Qwen3-14B GGUF 就能得到不错的脚本；[推荐的 LLM 模型](#推荐的-llm-模型)一节的表说明每种规模能换来什么。
+- 首次下载模型和预热需要时间。耗时取决于文本、模型、硬件和设置；Script 页在获得运行速度后估算剩余时间。
+
+截图来自现有界面，不同版本的标签可能略有变化。第一次成功的标准是：下载 MP3，试听并检查是否漏行、角色是否正确。
+
+### 第 1 步——Setup
+
+![Setup：连接语言模型并设置 TTS](docs/screenshots/setup.png)
+
+1. 选择 **LLM Location**（Local 或 Remote），填写 **Base URL**、**API Key**、**Model Name**；刷新按钮可列出模型。
+2. 思考型模型将 **Reasoning effort** 设为 *low*，点击 **Test Connection**。
+3. TTS 保持 `local` / `auto`；**Auto-Configure** 可填写适合显卡的批处理设置。
+4. **Prompt Settings** 保持默认 `michel2_full`；模型间的例外见研究结果。点击 **Save Configuration**。
+
+### 第 2 步——Script
+
+![Script：上传文本并生成标注脚本](docs/screenshots/script.png)
+
+1. 上传短文本，或选择以前的上传。第一人称小说需填写叙述角色的准确名字。
+2. 先点击 **Test this book with the LLM** 检查样本；通过并不保证后面每个请求都成功。再点击 **Generate Annotated Script**。活动行依次显示切分、说话人归属、演绎指令，以及重试和预计剩余时间。
+3. 完成后检查文本和角色。可选 **Review Script**、**Contextual Review (+/- N)**、**Find Nicknames** 和 **Edit aliases**；用 **Save Current** 保存。
+4. 需要中断时可用 **Pause**、**Save snapshot**、**Start over** 或 **Resume failed run**；Windows 不支持 Pause。
+
+### 第 3 步——Voices
+
+![Voices：为每个说话人分配声音](docs/screenshots/voices.png)
+
+1. 为每张角色卡（包括旁白）选择 **CustomVoice** 预设并试听。首次运行不必准备克隆录音或训练适配器。
+2. 跑通后再尝试 **Clone**、**LoRA**、**Voice Design**，或 **Generate Personas**（生成描述、参考音频并分配克隆声音）。
+3. 可选 **Suggest LoRA Voices**、风格时间线和系列角色表；**Save to cast** / **Apply cast** 可复用角色声音。
+
+### 第 4 步——Editor
+
+![Editor：试听、修改并渲染分块](docs/screenshots/editor.png)
+
+1. 点击 **Render Pending**；首次运行可能需要下载 TTS 权重并预热。
+2. 试听，修改文本、说话人或演绎指令，重新生成有问题的分块。
+3. 可选 **Check Voices**，再勾选 **flagged only** 检查偏离角色声音的分块。
+4. 点击 **Merge All**。
+
+### 第 5 步——Result
+
+1. 播放并下载 MP3，检查短文本是否完整、声音是否符合预期。
+2. 跑通后再上传整本书。可选 **Export chapters**、**Export to Audacity** 或带元数据和章节标记的 **Export M4B**。
+
+### 出问题了
+活动行会说明运行在等什么。查看 `logs/api/<task>-latest.log`，然后看[常见问题](#常见问题)。
+
 ## 结果速览
 
 下面的每个数字都在固定的测试集上、带成对对照测得，并注明测试集。它们是基准测试结果，不是对你那本书的保证。
@@ -116,121 +265,6 @@
 - 适配器**盲评**——对比、晋升、带回执回滚。
 - **Reports**——运行历史、审阅存档点、基准测试清单。
 
-## 系统要求
-
-- [Pinokio](https://pinokio.computer/)（或下面的 Docker / Colab）
-- 一个应用能通过 OpenAI 兼容 API 访问的 **LLM 服务器**——测过什么见[推荐的 LLM 模型](#推荐的-llm-模型)：
-  - [llama.cpp](https://github.com/ggml-org/llama.cpp) 的 `llama-server`——上面所有数字都用它产生；支持 `--lora` 加载归属适配器，`--reasoning-budget` 限制推理预算
-  - [LM Studio](https://lmstudio.ai/) 或 [Ollama](https://ollama.ai/)
-  - 托管 API（测过 DeepSeek v4-pro；任何 OpenAI 风格接口都可以）
-- **GPU**（用于 TTS）：最低 8 GB 显存，推荐 16 GB。每个 TTS 模型约 3.4 GB，其余决定批大小。LLM 需要自己的显存——16 GB 的卡可以*要么*跑一个 9–13 GB 的 GGUF，*要么*渲染音频；应用的 GPU 锁会防止两者相撞，除非你告诉它 LLM 在别处。
-- **内存**：推荐 16 GB。**磁盘**：环境和 TTS 权重约 20 GB，另加你的 LLM 文件和音频。
-
-### GPU 兼容性
-
-| GPU | 系统 | TTS | 说明 |
-|-----|-----|--------|-------|
-| **NVIDIA** | Windows / Linux | 完整支持 | 通过 `torch.js` 安装 CUDA 版，含 flash attention；Preparer 用的 whisper.cpp 以 CUDA 编译 |
-| **AMD 独显** | Linux | 完整支持 | ROCm；每天在 RX 9070 XT（RDNA4，ROCm 7.0）上测。安装时按你的 `gfx` 目标用 HIP 编译 llama-cpp-python 和 whisper.cpp |
-| **AMD APU / 核显** | Linux | 完整支持，较慢 | TTS 以 fp32 加载（660M/680M/780M 这一类的 bf16 有问题）；其余相同 |
-| **AMD** | Windows | 仅 CPU | Windows 没有 ROCm；要用 GPU 请用 Linux |
-| **Apple Silicon** | macOS | 仅 CPU | Qwen3-TTS 不支持 MPS；whisper.cpp 以 Metal 编译 |
-| **Intel** | macOS | 仅 CPU | |
-
-> **文档：**上游的 [Wiki](https://github.com/Finrandojin/alexandria-audiobook/wiki) 对声音类型、LoRA 训练、批量生成的说明仍然适用；本分支不同之处以本 README 和 `RECIPES.md` 为准。
-
-## 安装
-
-### 方式 A：Pinokio（推荐）
-
-1. 安装 [Pinokio](https://pinokio.computer/)
-2. 在 Pinokio 里点 **Download**，粘贴 `https://github.com/on22s/alexandria-audiobook2`
-3. 点 **Install**——创建 `app/env`，安装与平台匹配的 torch（`torch.js`），并把它钉住，防止后续安装换成 CPU 版；为你的 GPU 编译 llama-cpp-python 和 whisper.cpp
-4. 点 **Start**，然后 **Open Web UI**
-
-### 方式 B：Google Colab（无需安装）
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/on22s/alexandria-audiobook2/blob/main/alexandria_colab.ipynb)
-
-在免费 T4 上运行。需要一个免费的 [ngrok](https://dashboard.ngrok.com/signup) 账号做隧道；笔记本里有完整步骤。
-
-### 方式 C：Docker（NVIDIA）
-
-```bash
-git clone https://github.com/on22s/alexandria-audiobook2.git
-cd alexandria-audiobook2
-docker compose up --build
-```
-
-需要 [Docker](https://docs.docker.com/get-docker/) 和 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)。界面在 `http://localhost:4200`；TTS 权重首次使用时下载到卷里；上传、声音配置、适配器和音频通过绑定挂载持久化。
-
-> Compose 默认只发布在 `127.0.0.1`。容器内部绑定 `0.0.0.0`（Docker 转发需要）。如果你把宿主机端口发布到 `0.0.0.0`，请同时设置 `ALEXANDRIA_AUTH_PASSWORD`——见英文页的 [Authentication](README.md#authentication-optional)。如果通过域名访问（例如 `audiobooks.example.com`），还需设置 `ALEXANDRIA_ALLOWED_HOSTS`，否则请求会被拒绝（防 DNS 重绑定）——见英文页的 [Requests from other sites](README.md#requests-from-other-sites)。
-
-## 首次启动——必读
-
-### 1. 先启动 LLM 服务器
-
-Alexandria 不包含 LLM。生成脚本前，下面之一必须在运行并能从 Setup 页的 Base URL 访问：
-
-- **llama.cpp**（推荐，也是所有数字的测量环境）：
-  ```bash
-  llama-server -m Qwen3-14B-Q4_K_M.gguf --host 127.0.0.1 --port 8090 \
-    -ngl 99 -c 32768 --parallel 1 --flash-attn on \
-    --reasoning on --reasoning-format deepseek --reasoning-budget 1024 \
-    --lora rightsclean.f16.gguf        # 可选：归属适配器
-  ```
-  Base URL 填 `http://127.0.0.1:8090/v1`，密钥 `local`，模型名填 `--alias`（或文件名）。
-- **LM Studio**：加载模型、启动服务器，`http://localhost:1234/v1`。在 Setup 里勾选 **Optimize LM Studio settings**，应用会钉住需要的上下文长度和并行槽位（显存被占时模型悄悄以 8k 上下文加载，是“今天比昨天慢十倍”最常见的原因）。
-- **Ollama**：`http://localhost:11434/v1`，模型名按 `ollama list` 显示的填。
-- **托管 API**：把 LLM Location 切到 *Remote*，填 URL 和密钥（或 `env:DEEPSEEK_API_KEY` 从环境变量读取），并取消勾选“Runs on this machine's GPU”，这样它标注时本机可以同时渲染音频。
-
-思考型模型没问题——反而更好。把 **Reasoning effort** 设为 *low*，让服务器限制预算；不要把 `<think>` 加进禁用 token。用 Setup 里的 **Test Connection** 确认连接并查看模型回复。
-
-### 2. 首次 TTS 生成会下载约 3.5 GB
-
-Qwen3-TTS 权重（每个变体约 3.4 GB：CustomVoice，以及用于克隆/设计/LoRA 的 Base）在第一次渲染时下载。看 Editor 的日志；卡在 0% 的下载是网络问题，不是死机。
-
-### 3. 首批生成有预热
-
-模型加载，若开启 Compile Codec 还有 30–60 秒的 `torch.compile`。Editor 的活动行会告诉你是哪一个。
-
-### 4. 显存决定你能同时做什么
-
-TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间。脚本生成占着卡时，GPU 锁会拒绝启动音频渲染，*除非*当前 LLM 配置档标记为不在本机 GPU（托管 API 或另一台机器）——那样标注和渲染可以重叠。
-
-### 5. 出问题时去哪里看
-
-- Script 页 Generate 按钮下方的**活动行**：运行在等什么、第几次尝试、剩余时间估计。
-- `logs/api/<task>-latest.log`——每个后台任务的完整日志。
-- `logs/review_responses.log`——脚本生成和审阅的每一次 LLM 请求与回复，含结束原因、token 数和耗时。
-- 运行中的任务：`GET /api/status/eta` 和 `GET /api/status/<task>`。
-- **Reports** 页：带产物的运行历史、审阅存档点。
-
-## 新手指南：你的第一本有声书
-
-### 开始之前
-- 一本 `.txt`、`.md` 或 `.epub` 格式的书。
-- 一个运行中的 LLM 服务器（见上一节）。16 GB 显卡上一个 9 GB 的 Qwen3-14B GGUF 就能得到不错的脚本；[推荐的 LLM 模型](#推荐的-llm-模型)一节的表说明每种规模能换来什么。
-- 中端 GPU 上一本短书约二十分钟；其余的 Script 页会边跑边告诉你。
-
-### 第 1 步——Setup
-选择 **LLM Location**（Local 或 Remote），填 **Base URL**、**API Key**、**Model Name**（刷新按钮列出服务器提供的模型），思考型模型把 **Reasoning effort** 设为 *low*，点 **Test Connection**。TTS 部分保持 `local` / `auto`。**Prompt Settings** 里的归属提示词已经是 `michel2_full`（所有基座上测得的最佳），直接 **Save Configuration**。**Auto-Configure** 会根据你的显卡填好 TTS 批处理设置。
-
-### 第 2 步——Script
-选择书（或复用之前的上传）。如果小说是第一人称叙述，填入该角色的准确名字。点 **Generate Annotated Script**。按钮下方的活动行会显示 *Step 1 (split) · unit 3 of 41 — asking the model*，然后 *Step 2 (speakers)*、*Step 3 (delivery)*，重试按尝试次数显示，流水线掌握速度后给出剩余时间。你可以 **Pause**、**Save snapshot**（把完成的部分存成脚本）、**Start over**，或之后 **Resume failed run**。完成后可选 **Review Script** 或 **Contextual Review (+/- N)**，用 **Find Nicknames** 和 **Edit aliases** 让“Betty”和“BEATRICE”共用一个声音，再 **Save Current** 存入库。
-
-### 第 3 步——Voices
-每个说话人一张卡片。为每个角色选择类型——CustomVoice（最快）、Clone、LoRA 或 Voice Design——或者点 **Generate Personas**，让模型描述每个角色、渲染参考音频并分配克隆声音。范围选择器默认只处理*还没有声音的角色*，“Save the current voices to the library first”会保留你已有的。**Suggest LoRA Voices** 把训练好的声音匹配给角色。卡片上的**风格时间线**可以让声音从某一行起改变（“时间跳跃后变老”），身份锚点保证还是同一个人。**Save to cast** 和 **Apply cast** 把角色表带到整个系列。
-
-### 第 4 步——Editor
-**Render Pending** 批量渲染所有分块。试听，在线编辑文本或 instruct，重新生成单块，勾选 **flagged only** 查看音频偏离说话人声音的分块（**Check Voices** 运行漂移检查），然后 **Merge All**。
-
-### 第 5 步——Result
-播放有声书；下载 MP3；用文件名模板 **Export chapters**；**Export to Audacity** 得到每说话人一轨；**Export M4B** 带标题、作者、朗读者、封面和章节标记。
-
-### 出问题了
-活动行会说明运行在等什么。查看 `logs/api/<task>-latest.log`，然后看[常见问题](#常见问题)。
-
 ## 界面说明
 
 各页的每一个控件在英文页的 [Web interface](README.md#web-interface) 一节逐项列出；这里只概括：
@@ -332,7 +366,7 @@ Windows 上应用无法挂起工作进程；那里 Pause 直接禁用，而不�
 
 ### 脚本生成失败
 - 模型的回答不在 JSON 约定内：从上表选模型，保持 schema 开启，推理设为 low。`logs/review_responses.log` 有原始回复。
-- 上下文长度：以 8k 加载的模型会静默地在长窗口上失败。LM Studio 勾选 **Optimize LM Studio settings**；llama.cpp 传 `-c 32768`。
+- 上下文长度：检查服务器错误和 token 数。完整提示词、角色表、上下文、输出与推理预算都必须放得下。请求过大时缩小批量/审阅窗口，或在显存允许时增加上下文；8k 并非一定有问题，32k 也并非总能安全加载。见[上下文设置说明（英文）](docs/wiki/Setup-and-Serving.md#choosing-a-context-size)。
 - 完全没有 API：把 **How requests are sent** 切到 `manual`，在 Script 页面板里自己回答提示词。
 
 ### 模型下载失败或很慢

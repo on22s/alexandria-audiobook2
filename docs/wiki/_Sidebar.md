@@ -3,6 +3,8 @@
 **Start here**
 
 - [Home](Home.md)
+- [Install and first audiobook](../../README.md#installation)
+- [中文入门](../../README_CN.md#从这里开始)
 - [Setup and serving](Setup-and-Serving.md)
 - [Troubleshooting](Troubleshooting.md)
 
