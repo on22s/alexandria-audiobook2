@@ -27,6 +27,7 @@ STAGE_LOG_DIR="$runtime/logs/second_english_eval_20260820"
 work="$runtime/second_english_eval"
 mkdir -p "$STAGE_LOG_DIR" "$work"
 source "$REPO/run_chains/lib/stage.sh"
+source "$REPO/run_chains/lib/queue.sh"
 
 selection="$(mktemp "$work/.voice-selection.XXXXXX")" || exit 1
 trap 'rm -f "$selection"' EXIT
@@ -62,7 +63,7 @@ PY_SELECTION
 selection_rc=$?
 [ "$selection_rc" -eq 0 ] || exit "$selection_rc"
 
-running() { pgrep -f "run_chains/$1" 2>/dev/null | grep -qv -e "^$$\$" -e "^$PPID\$"; }
+running() { chain_running "$1"; }
 for chain in overnight_20260820b.sh settle_2_6_20260820.sh; do
     stage_note "waiting for $chain"
     while running "$chain"; do sleep 120; done

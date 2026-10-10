@@ -31,8 +31,9 @@ python="$REPO/app/env/bin/python"
 STAGE_LOG_DIR="$runtime/logs/longref_arm_20260826"
 mkdir -p "$STAGE_LOG_DIR"
 source "$REPO/run_chains/lib/stage.sh"
+source "$REPO/run_chains/lib/queue.sh"
 
-running() { pgrep -f "run_chains/$1" 2>/dev/null | grep -qv -e "^$$\$" -e "^$PPID\$"; }
+running() { chain_running "$1"; }
 for chain in second_english_eval_20260820.sh unseen_books_20260819b.sh \
              attribution_context_20260820.sh; do
     stage_note "waiting for $chain"

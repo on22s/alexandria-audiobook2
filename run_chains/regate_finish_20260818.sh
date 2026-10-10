@@ -17,17 +17,14 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 runtime="$REPO/ab_test_runtime"
 STAGE_LOG_DIR="$runtime/logs/regate_finish"
 source "$REPO/run_chains/lib/stage.sh"
+source "$REPO/run_chains/lib/queue.sh"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 
 # 11:45, so everything including the index refresh is done before noon.
 DEADLINE=$(date -d "2026-08-18 11:45" +%s)
 
-# By path and excluding our own pids: `pgrep -f` matches the shell doing the
-# matching, which has killed a shell four times in this repo (Rule 22).
-first_pass_running() {
-    pgrep -f "run_chains/regate_rerun_20260818.sh" 2>/dev/null \
-        | grep -qv -e "^$$\$" -e "^$PPID\$"
-}
+# Match the actual shell script, not unrelated command-line mentions.
+first_pass_running() { chain_running "regate_rerun_20260818.sh"; }
 
 stage_note "waiting for the first re-gate pass to exit"
 while first_pass_running; do

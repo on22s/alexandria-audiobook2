@@ -26,12 +26,11 @@ python="$REPO/app/env/bin/python"
 inputs="$runtime/results/collect_all_20260722-155801/inputs"
 STAGE_LOG_DIR="$runtime/logs/continuation_20260819b"
 source "$REPO/run_chains/lib/stage.sh"
+source "$REPO/run_chains/lib/queue.sh"
 export GPU_QLOG="$runtime/logs/gpu_jobq.log"
 mkdir -p "$STAGE_LOG_DIR"
 
-running() {
-    pgrep -f "run_chains/$1" 2>/dev/null | grep -qv -e "^$$\$" -e "^$PPID\$"
-}
+running() { chain_running "$1"; }
 
 stage_note "waiting for the overnight chain to finish"
 while running overnight_20260819.sh; do sleep 300; done
