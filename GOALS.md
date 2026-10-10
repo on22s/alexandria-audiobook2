@@ -107,11 +107,16 @@ nine this adapter trained on, so this is a train-versus-held-out gap for one
 frozen adapter and quant, not a 28-novel-instrument measurement like the rows
 above. This completes the previously requested matching comparison; broader
 model-specific generalisation remains OPEN. Book exclusion is verified (none
-of the nineteen held-out books appears in the training windows). Author
-exclusion is not verified by any artifact: matching titles to authors by hand,
-the training books (Austen, Doyle, Hemingway, Chopin) share no author with the
-held-out nineteen, but no recorded author field backs that, so it stays open
-until one does. Sixteen held-out books improve and three regress.
+of the nineteen held-out books appears in the training windows). At that
+point, author exclusion rested on a provisional manual title-to-author
+comparison; the retrospective audit below supersedes that limitation.
+Sixteen held-out books improve and three regress.
+
+**Author separation, 2026-10-10.** A retrospective audit of canonical public
+author metadata confirms author separation between the frozen adapter-training
+and evaluation splits, with no missing or ambiguous mappings. This does not
+establish exclusion from base-model pretraining or close the broader
+generalisation goal.
 
 CPU error analysis finds alias-aware gold-speaker coverage on all 5,543 IDs
 in both fixture-augmented full rosters; this does not test production roster
@@ -6803,9 +6808,10 @@ If only three things get worked on:
    open. Reproduce answered selection failures and unanswered windows on
    development material, with controls for currently correct answers. The
    saved reports lack raw responses and per-row prompt hashes, so they do not
-   identify why blanks occurred. Record author exclusions in an artifact;
-   the existing book exclusion alone does not verify them. Do not tune on the
-   nineteen-book holdout or repeat the completed matching-development run.
+   identify why blanks occurred. The retrospective audit in 1.3 confirms author
+   separation for the frozen adapter splits; base-model pretraining exclusion
+   remains unestablished. Do not tune on the nineteen-book holdout or repeat
+   the completed matching-development run.
 2. **Per-line duration spread (2.4)** — the narrator-controlled Japanese clone
    median already meets the goal; per-line spread remains open. The September
    30 grouping comparison produced 180 valid clips and improved paired duration
