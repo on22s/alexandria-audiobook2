@@ -82,6 +82,7 @@ class RecoveryTests(unittest.TestCase):
     def test_generation_claim_occurs_under_checkpoint_lock(self):
         with tempfile.TemporaryDirectory() as tmp:
             script_path = os.path.join(tmp, "annotated_script.json")
+            atomic_json_write({"input_file_path": os.path.join(tmp, "book.txt")}, os.path.join(tmp, "state.json"))
             held = False
 
             @contextmanager
