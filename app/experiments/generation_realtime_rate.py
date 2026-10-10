@@ -23,12 +23,16 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LINE = re.compile(r"done:\s*([0-9.]+)s\s*->\s*([0-9.]+)s audio")
-PATH = re.compile(r"TTS \[local (lora|[a-z]+)\]")
+PATH = re.compile(r"TTS \[local(?: ([a-z]+))?\]")
 
 
-def rates(path):
-    """-> [generation/audio] for every completed generation in one log."""
-    out = []
+def rates_by_path(path):
+    """Return per-call generation/audio ratios, separated by logged voice path.
+
+    Unlabelled historical lines stay explicitly unknown. These timings exclude
+    model/adapter loading and are not end-to-end multi-voice wall time.
+    """
+    out = {}
     with open(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             m = LINE.search(line)
@@ -36,8 +40,18 @@ def rates(path):
                 continue
             gen, audio = float(m.group(1)), float(m.group(2))
             if audio > 0:
-                out.append(gen / audio)
+                tag = PATH.search(line)
+                voice_path = (tag.group(1) or "stock") if tag else "unknown"
+                out.setdefault(voice_path, []).append(gen / audio)
     return out
+
+
+def rates(path):
+    """Compatibility helper for homogeneous logs; refuse pooled voice paths."""
+    groups = rates_by_path(path)
+    if len(groups) > 1:
+        raise ValueError("mixed voice paths; use rates_by_path for separate results")
+    return next(iter(groups.values()), [])
 
 
 def summarise(name, values, target_median=0.90, target_worst=1.50):
@@ -64,15 +78,19 @@ def main():
 
     arms = []
     for path in args.logs:
-        s = summarise(os.path.basename(path), rates(path))
-        if s:
-            arms.append(s)
+        for voice_path, values in rates_by_path(path).items():
+            s = summarise(os.path.basename(path), values)
+            if s:
+                s["voice_path"] = voice_path
+                arms.append(s)
     if not arms:
         raise SystemExit("no completed generations found in any log")
 
     doc = {"note": "Goal 4.1's metric is generation/audio, LOWER is better. "
                    "The TTS log prints audio/generation; these are inverses "
                    "and reading one as the other flips the verdict.",
+           "timing_scope": "per-generation call; excludes loading and switching "
+                           "overhead, not end-to-end multi-voice wall time",
            "target_median": 0.90, "target_worst": 1.50, "arms": arms}
     try:
         sys.path.insert(0, os.path.join(REPO, "app", "experiments"))
@@ -84,8 +102,9 @@ def main():
     json.dump(doc, open(args.out, "w", encoding="utf-8"), indent=1)
     for a in arms:
         print("%-46s n=%-6d median %.2fx  worst %.2fx  %s"
-              % (a["log"][:46], a["clips"], a["median_generation_over_audio"],
-                 a["worst"], "MET" if a["meets_median_target"] else "MISSES 4.1"))
+              % ((a["log"] + ":" + a["voice_path"])[:46], a["clips"], a["median_generation_over_audio"],
+                 a["worst"], "MET (per-call)" if (a["meets_median_target"] and
+                                       a["meets_worst_target"]) else "MISSES 4.1"))
     print("\nwrote %s" % args.out)
 
 
