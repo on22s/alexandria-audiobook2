@@ -19,8 +19,8 @@ settings that were measured to matter.
 hold the entire prompt (instructions, cast roster and surrounding text), the generated
 response and any reasoning tokens. Larger contexts also consume more KV-cache memory.
 
-1. Start with a short text and one server slot (`--parallel 1`). The README's llama.cpp
-   example uses `-c 8192` to limit memory use for that first run.
+1. Start with a short text and one server slot (`--parallel 1`). In llama.cpp, try
+   `-c 8192` to limit memory use for that first run, then check the request budget.
 2. In Script, run **Test this book with the LLM** before generating the full script. It
    samples the beginning, middle and a dialogue-dense chunk; passing is useful evidence,
    not a guarantee for every later request.
