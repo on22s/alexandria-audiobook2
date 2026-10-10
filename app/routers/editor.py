@@ -2,6 +2,7 @@ from merge_integrity import get_source_integrity
 from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
 from book_state_transaction import ensure_book_state
+from task_ownership import ensure_startup_recovery
 import asyncio
 import copy
 import logging
@@ -152,9 +153,28 @@ def get_editor_book_identity(root):
 _deleted_chunk_receipts = {}
 
 
-def apply_chunk_deletion(index):
+def check_chunk_identity(index, expected_book_token=None, expected_uid=None):
+    """Caller holds the book lock through the following mutation."""
+    root = os.path.dirname(SCRIPT_PATH)
+    if (expected_book_token is not None
+            and expected_book_token != get_snapshot_digest(get_editor_book_identity(root))):
+        raise HTTPException(status_code=409, detail="Active book changed; reload the Editor before saving")
+    if expected_uid is not None:
+        chunks = project_manager.load_chunks()
+        if not (0 <= index < len(chunks)) or chunks[index].get("uid") != expected_uid:
+            raise HTTPException(status_code=409, detail="Editor row changed; reload before saving")
+
+
+def apply_chunk_insertion(index, expected_book_token=None, expected_uid=None):
+    with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
+        check_chunk_identity(index, expected_book_token, expected_uid)
+        return project_manager.insert_chunk(index)
+
+
+def apply_chunk_deletion(index, expected_book_token=None, expected_uid=None):
     root = os.path.dirname(SCRIPT_PATH)
     with ensure_book_state(root):
+        check_chunk_identity(index, expected_book_token, expected_uid)
         result = project_manager.delete_chunk(index)
         if result is None:
             return None
@@ -262,17 +282,23 @@ async def update_chunk(index: int, update: ChunkUpdate):
     return chunk
 
 @router.post("/api/chunks/{index}/insert")
-async def insert_chunk(index: int):
+async def insert_chunk(index: int,
+                       expected_book_token: Annotated[Optional[str], Query(min_length=64, max_length=64)] = None,
+                       expected_uid: Annotated[Optional[str], Query(max_length=128)] = None):
     """Insert an empty chunk after the given index."""
-    chunks = await asyncio.to_thread(_apply_chunk_edit, project_manager.insert_chunk, index)
+    chunks = await asyncio.to_thread(_apply_chunk_edit, apply_chunk_insertion, index,
+                                    expected_book_token, expected_uid)
     if chunks is None:
         raise HTTPException(status_code=404, detail="Invalid chunk index")
     return {"status": "ok", "total": len(chunks)}
 
 @router.delete("/api/chunks/{index}")
-async def delete_chunk(index: int):
+async def delete_chunk(index: int,
+                       expected_book_token: Annotated[Optional[str], Query(min_length=64, max_length=64)] = None,
+                       expected_uid: Annotated[Optional[str], Query(max_length=128)] = None):
     """Delete a chunk at the given index."""
-    result = await asyncio.to_thread(_apply_chunk_edit, apply_chunk_deletion, index)
+    result = await asyncio.to_thread(_apply_chunk_edit, apply_chunk_deletion, index,
+                                    expected_book_token, expected_uid)
     if result is None:
         raise HTTPException(status_code=400, detail="Cannot delete chunk (invalid index or last remaining chunk)")
     deleted, chunks, token = result
@@ -891,15 +917,24 @@ def _apply_audio_cancel():
             process_state["audio"]["logs"].append("[CANCEL] Cancellation requested")
             return {"status": "cancelling"}
 
+        # A foreign server may own the render even when our local flag is idle.
+        # Hold admission closed through recovery and update only still-generating
+        # UIDs, never replace a full snapshot over newer journal completions.
         reset_count = 0
-        chunks = project_manager.load_chunks()
-        if chunks:
-            for chunk in chunks:
-                if chunk.get("status") == "generating":
-                    chunk["status"] = "pending"
-                    reset_count += 1
-            if reset_count:
-                project_manager.save_chunks(chunks)
+        try:
+            with ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
+                if not idle:
+                    raise HTTPException(status_code=409, detail="Another worker owns an active task; cancel it on its owning server")
+                with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
+                    for chunk in project_manager.load_chunks():
+                        if chunk.get("status") == "generating":
+                            updated = project_manager._update_chunk_fields_by_uid(
+                                chunk.get("uid"), expected_chunk=chunk,
+                                required_status="generating", status="pending")
+                            if updated is not None:
+                                reset_count += 1
+        except TimeoutError as exc:
+            raise HTTPException(status_code=409, detail="Task admission is busy; retry cancellation") from exc
         return {"status": "not_running", "reset_chunks": reset_count}
 
 ## ── Saved Scripts ──────────────────────────────────────────────
