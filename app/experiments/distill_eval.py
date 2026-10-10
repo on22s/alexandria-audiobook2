@@ -320,8 +320,9 @@ def classify_gold_population(gold, seg):
     return want, exclusions
 
 
+@contextlib.contextmanager
 def merge_validation_into_diagnostics(client):
-    """-> an attempt_observer that records WHY a batch was rejected.
+    """Observe a batch and merge its final validation verdicts on exit.
 
     THE TWO HALVES EXISTED AND WERE NOT CONNECTED. `call_llm_for_entries`
     already computes `outcome` and `failure_codes` from the validator's
@@ -341,14 +342,26 @@ def merge_validation_into_diagnostics(client):
     generation and the observer fires once for the same attempt, so appending
     would double-count attempts and make `len(attempts)` lie.
     """
+    pending = []
+    observed_count = len(client.diagnostics)
+
     def observe(record):
-        if not isinstance(record, dict) or not client.diagnostics:
+        nonlocal observed_count
+        if not isinstance(record, dict) or len(client.diagnostics) <= observed_count:
             return
-        for key in ("outcome", "failure_codes", "recovery_codes",
-                    "quality_metrics", "response_repeat_count"):
-            if key in record:
-                client.diagnostics[-1][key] = record[key]
-    return observe
+        observed_count = len(client.diagnostics)
+        # The shared caller fills outcome/failure_codes AFTER this callback.
+        # Keep the live record until the batch exits, including on exhaustion.
+        pending.append((client.diagnostics[-1], record))
+
+    try:
+        yield observe
+    finally:
+        for diagnostic, record in pending:
+            for key in ("outcome", "failure_codes", "recovery_codes",
+                        "quality_metrics", "response_repeat_count"):
+                if key in record:
+                    diagnostic[key] = record[key]
 
 
 def reject_duplicate_books(books):
@@ -593,9 +606,8 @@ def main():
                 ctxmgr = (model.disable_adapter() if arm == "base"
                           else contextlib.nullcontext())
                 diagnostic_start = len(client.diagnostics)
-                observer = merge_validation_into_diagnostics(client)
                 try:
-                    with ctxmgr:
+                    with ctxmgr, merge_validation_into_diagnostics(client) as observer:
                         out = attribute_batch(client, args.model, frozen, params,
                                               roster, neighbor_contexts=ctx,
                                               source_text=src,
