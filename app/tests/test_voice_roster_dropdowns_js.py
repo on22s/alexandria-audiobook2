@@ -105,3 +105,47 @@ context.API={get:async()=>{context.currentBookFilename='new';return {voices:[{na
 const refreshStart=source.indexOf('async function refreshVoiceMetadata()');vm.runInContext(source.slice(refreshStart,source.indexOf('let _voiceResourcesRefreshedAt',refreshStart)),context);
 (async()=>{await assert.rejects(context.refreshVoiceMetadata());assert.deepEqual(context.window._voicesNames,['Zed','Alice','Alice','  Bob  ']);})().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
+
+
+    def test_saved_book_load_installs_roster_before_editor_rows_and_unchanged_poll(self):
+        self.run_js(r"""
+const scripts=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-scripts.js'),'utf8');
+function extract(s,name){const start=s.indexOf('async function '+name+'(');const end=s.slice(start).match(/^        }$/m);return s.slice(start,start+end.index+end[0].length);}
+context.currentBookFilename='old.json';context.window._voiceRosterFilename='old.json';
+context.document.getElementById=()=>({style:{}});let editorSelect=null,errors=[];
+Object.assign(context,{showConfirm:async()=>true,flushVoiceSaves:async()=>{},ensureCastListEditsDiscardable:async()=>true,
+ applyCurrentBookFilename:name=>{context.currentBookFilename=name;},clearCastListEditor:()=>{},clearCharacterAliases:()=>{},resetDesignerForm:()=>{},
+ showToast:()=>{},clearVoiceSuggestions:()=>{},loadCharacterAliases:async()=>{},loadCastList:async()=>{},loadSavedScripts:()=>{},loadDesignedVoices:()=>{},
+ showActionError:(...args)=>errors.push(args),voiceSaveQueue:{getRevision:()=>0,isDirty:()=>false},renderVoiceDrafts:()=>{},
+ API:{post:async()=>({name:'new'}),get:async()=>({voices:[{name:'New'},{name:'Alternate'}],revision:'a'.repeat(64),book_token:'b'.repeat(64)})},
+ loadChunks:async force=>{if(force){const html=context.buildSpeakerSelect({id:0,speaker:'New'});editorSelect=select('speaker','New');editorSelect.dataset.rosterBook=html.match(/data-roster-book="([^"]+)"/)[1];}}
+});
+const queueStart=source.indexOf('function enqueueBookSelection(');vm.runInContext(source.slice(queueStart,source.indexOf('function getCurrentBookName(',queueStart)),context);
+vm.runInContext(extract(source,'refreshVoiceMetadata'),context);
+context.loadVoices=async()=>context.refreshVoiceMetadata();
+vm.runInContext(extract(scripts,'loadScript'),context);
+(async()=>{await context.loadScript('new');assert.equal(errors.length,0);assert(editorSelect);assert.equal(ensure(editorSelect),true);
+ assert.equal(editorSelect.value,'New');assert.deepEqual(editorSelect.options.map(o=>o.value),['Alternate','New']);
+ const previous=editorSelect;await context.loadChunks(false);assert.equal(editorSelect,previous);assert.equal(ensure(editorSelect),true);
+ context.API.get=async()=>{throw Error('snapshot unavailable');};editorSelect=null;await context.loadScript('new');assert.equal(editorSelect,null);assert.equal(errors.length,1);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+""")
+
+    def test_startup_waits_for_configuration_before_roster_ownership(self):
+        self.run_js(r"""
+const workbench=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-workbench.js'),'utf8');
+let completeConfig,voiceCalls=0;
+context.currentBookFilename='';context.window._voiceRosterFilename='';
+Object.assign(context,{loadConfig:()=>new Promise(resolve=>{completeConfig=()=>{context.currentBookFilename='saved.json';resolve();};}),
+ loadVoices:async()=>{voiceCalls++;context.window._voiceRosterFilename=context.currentBookFilename;},showActionError:()=>{throw Error('unexpected');},
+ loadCastList:()=>{},loadSavedScripts:()=>{},loadDesignedVoices:()=>{},dsbLoadProjects:()=>{},updateSystemStats:()=>{},updateEtaStatus:()=>{},pollLmStudioStatus:()=>{},reattachRunningPollers:()=>{},setInterval:()=>{}});
+context.document.addEventListener=()=>{};
+let chunkCalls=0;Object.assign(context,{invalidateEditorIntegrity:()=>{},deliveryReviewView:0,refreshEditorIntegrity:()=>{},refreshDeliveryReview:async()=>{},
+ ensureChunkRefresh:async()=>{chunkCalls++;const html=context.buildSpeakerSelect({id:0,speaker:'Alice'});return html;}});
+const chunksStart=source.indexOf('async function loadChunks(');const chunksEnd=source.slice(chunksStart).match(/^        }$/m);vm.runInContext(source.slice(chunksStart,chunksStart+chunksEnd.index+chunksEnd[0].length),context);
+vm.runInContext(workbench.slice(workbench.indexOf('// Init'),workbench.indexOf('// ── Preparer')),context);
+(async()=>{assert.equal(voiceCalls,0);const loading=context.loadChunks();await new Promise(resolve=>setImmediate(resolve));assert.equal(chunkCalls,0);completeConfig();await loading;assert.equal(voiceCalls,1);assert.equal(chunkCalls,1);assert.equal(context.window._voiceRosterStartupPending,null);
+ const fresh=select('speaker','Alice');assert.equal(ensure(fresh),true);assert.equal(fresh.options.length,3);
+ context.currentBookFilename='another.json';assert.equal(ensure(fresh),false);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+""")

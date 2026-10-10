@@ -107,7 +107,8 @@
                     resetDesignerForm();
                     showToast(`Script "${name}" loaded.`, 'success');
                     clearVoiceSuggestions();
-                    await Promise.all([loadCharacterAliases(false), loadCastList(false), loadChunks(true)]);
+                    await Promise.all([loadCharacterAliases(false), loadCastList(false),
+                        refreshVoiceMetadata().then(() => { if (isCurrent()) { return loadChunks(true); } })]);
                     if (!isCurrent()) { return; }
                     await loadVoices();
                     if (!isCurrent()) { return; }

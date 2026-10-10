@@ -10,7 +10,7 @@ class SavedScriptHydrationTests(unittest.TestCase):
         code = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');const posts=[],events=[],toasts=[];
 const ctx={document:{getElementById:()=>({style:{}})},console:{error(){}},showConfirm:async()=>true,flushVoiceSaves:async()=>{},ensureCastListEditsDiscardable:async()=>true,API:{post:(path,body)=>new Promise((resolve,reject)=>posts.push({path,body,resolve,reject}))},applyCurrentBookFilename:name=>events.push(name),showToast:(...args)=>toasts.push(args)};
-for(const name of ['clearCastListEditor','clearCharacterAliases','resetDesignerForm','clearVoiceSuggestions','loadCharacterAliases','loadCastList','loadChunks','loadVoices','loadSavedScripts','loadDesignedVoices']){ctx[name]=async()=>{};}
+for(const name of ['clearCastListEditor','clearCharacterAliases','resetDesignerForm','clearVoiceSuggestions','loadCharacterAliases','loadCastList','loadChunks','refreshVoiceMetadata','loadVoices','loadSavedScripts','loadDesignedVoices']){ctx[name]=async()=>{};}
 ctx.window=ctx;vm.createContext(ctx);const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function enqueueBookSelection('),core.indexOf('function getCurrentBookName(')),ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(source.slice(source.indexOf('async function loadScript(name)'),source.indexOf('async function deleteScript(name)')),ctx);
 const turn=()=>new Promise(resolve=>setImmediate(resolve));let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{
 const a=ctx.loadScript('A');await turn();const b=ctx.loadScript('B');await turn();assert.strictEqual(posts.length,1);posts[0].resolve({name:'A'});await a;await turn();assert.deepStrictEqual(events,[]);assert.strictEqual(posts.length,2);assert.strictEqual(posts[1].body.name,'B');posts[1].resolve({name:'B'});await b;assert.deepStrictEqual(events,['B.json']);assert.strictEqual(toasts.length,1);
@@ -40,7 +40,7 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'async cases must
    showToast:(message,type)=>toasts.push([message,type]),
    loadCharacterAliases:show=>{assert.equal(show,false);calls.push('aliases');return new Promise(resolve=>{aliasDone=resolve;});},
    loadChunks:force=>{assert.equal(force,true);calls.push('chunks');return new Promise((resolve,reject)=>{chunkDone=()=>failure==='chunks'?reject(Error('chunks failed')):resolve();});},
-   loadVoices:async()=>calls.push('voices'),loadSavedScripts:()=>calls.push('library'),loadDesignedVoices:()=>calls.push('designed')};
+   refreshVoiceMetadata:async()=>calls.push('metadata'),loadVoices:async()=>calls.push('voices'),loadSavedScripts:()=>calls.push('library'),loadDesignedVoices:()=>calls.push('designed')};
   context.window=context;vm.createContext(context);const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function enqueueBookSelection('),core.indexOf('function getCurrentBookName(')),context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);vm.runInContext(source.slice(start,end),context);
   const pending=context.loadScript('book');
   for(let i=0;i<20;i++){await Promise.resolve();}
@@ -50,7 +50,7 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'async cases must
   }
   assert(aliasDone);assert(chunkDone,'chunks must start while alias hydration is gated');
   assert(calls.indexOf('flush')<calls.indexOf('post'));assert(calls.indexOf('post')<calls.indexOf('aliases'));
-  assert(!calls.includes('voices'));aliasDone();for(let i=0;i<10;i++){await Promise.resolve();}
+  assert(calls.indexOf('metadata')<calls.indexOf('chunks'));assert(!calls.includes('voices'));aliasDone();for(let i=0;i<10;i++){await Promise.resolve();}
   assert(!calls.includes('voices'),'voice rendering must also wait for chunks');
   chunkDone();await pending;
   if(failure==='chunks'){assert(!calls.includes('voices'));assert(!calls.includes('library'));assert(toasts.some(t=>t[1]==='error'&&t[0].includes('chunks failed')));}

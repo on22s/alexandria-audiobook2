@@ -6630,6 +6630,7 @@
             invalidateEditorIntegrity();
             ++deliveryReviewView;
             try {
+                if (window._voiceRosterStartupPending) { await window._voiceRosterStartupPending; }
                 const chunks = await ensureChunkRefresh(forceFullRedraw);
                 const status = document.getElementById('chunk-load-status');
                 if (status) { status.innerHTML = ''; }
