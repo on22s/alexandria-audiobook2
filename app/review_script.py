@@ -418,7 +418,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
     (index, key, new_value) tuples to apply to the caller's own entries list."""
     samples = _collect_speaker_samples(entries)
     speakers = sorted(samples.keys())
-    if len(speakers) < 2:
+    if not speakers:
         return {}, 0, []
 
     # Load existing alias map / cross-book canonical registry. Entries here are
@@ -446,13 +446,11 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
 
     # Pre-seed forced merges from the alias file for labels present in this script
     forced_map = {}
-    for variant, canonical in registry.items():
-        actual = _resolve_label(variant)
-        if not actual or not canonical or actual == canonical:
-            continue
-        if not is_speaker_merge_allowed(actual, canonical):
-            continue
-        forced_map[actual] = canonical
+    for actual in speakers:
+        variant = resolve_speaker_label(actual, registry)
+        canonical = registry.get(variant)
+        if canonical and actual != canonical and is_speaker_merge_allowed(actual, canonical):
+            forced_map[actual] = canonical
 
     catalog_lines = []
     for sp in speakers:
@@ -479,9 +477,9 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
                               context_length=(context_length if context_length is not None
                                               else params.context_length if params else None),
                               hard_max_tokens=12000)
-        result = call_llm_for_object(
+        result = (call_llm_for_object(
             client, model_name, SPEAKER_DEDUPE_SYSTEM_PROMPT, user_prompt, call_params,
-            label="SPEAKER DEDUPE")
+            label="SPEAKER DEDUPE") if len(speakers) >= 2 else {})
         mapping = result if isinstance(result, dict) else {}
     except Exception as e:
         # LLM unavailable — still apply the known aliases from the file
@@ -509,9 +507,10 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         updated.update(accepted)
         resolved = get_resolved_speaker_merge_map(updated)
         clean = {}
-        for variant, canonical in resolved.items():
-            actual = _resolve_label(variant)
-            if actual and actual != canonical and is_speaker_merge_allowed(actual, canonical):
+        for actual in speakers:
+            variant = resolve_speaker_label(actual, resolved)
+            canonical = resolved.get(variant)
+            if canonical and actual != canonical and is_speaker_merge_allowed(actual, canonical):
                 clean[actual] = canonical
         return updated, clean
 
