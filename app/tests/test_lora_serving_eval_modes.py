@@ -1,7 +1,7 @@
 import unittest
 
 from experiments.lora_serving_eval import (get_book_paths, get_eval_arms,
-                                           get_eval_metadata)
+                                           get_eval_metadata, ServingResponseCapture)
 from experiments.distill_eval import (get_book_paths as get_distill_book_paths,
                                       get_model_loader_name,
                                       get_model_load_kwargs,
@@ -9,6 +9,69 @@ from experiments.distill_eval import (get_book_paths as get_distill_book_paths,
 
 
 class LoraServingEvalModeTests(unittest.TestCase):
+
+    def test_http_capture_preserves_request_and_attribution_decision(self):
+        import base64, json, tempfile
+        from unittest.mock import patch
+        import httpx
+        from openai import DefaultHttpxClient, OpenAI
+        from generate_script import LLMGenParams
+        from three_pass_generate import attribute_batch
+
+        frozen = [{"type": "SPOKEN", "text": "Tell me."}]
+        for speaker in ("ELENA", ""):
+            with self.subTest(speaker=speaker), tempfile.TemporaryDirectory() as tmp:
+                requests, decisions = [], []
+                raw = "  " + json.dumps([{"n": 0, "head": "Tell me.",
+                                          "speaker": speaker}]) + "\n"
+                body = json.dumps({"id": "synthetic", "object": "chat.completion",
+                    "created": 0, "model": "stub", "choices": [{"index": 0,
+                    "message": {"role": "assistant", "content": raw},
+                    "finish_reason": "stop"}]}).encode()
+                def serve(request):
+                    requests.append(request.content)
+                    return httpx.Response(200, content=body)
+                capture = ServingResponseCapture()
+                for enabled in (False, True):
+                    hooks = {"request": [capture.observe_request],
+                             "response": [capture.observe_response]} if enabled else {}
+                    with OpenAI(base_url="http://localhost/v1", api_key="synthetic-secret",
+                        http_client=DefaultHttpxClient(transport=httpx.MockTransport(serve),
+                                                      event_hooks=hooks)) as client:
+                        with patch("generate_script.get_response_log_path", return_value=tmp + "/responses.log"):
+                            try:
+                                out = attribute_batch(client, "stub", frozen,
+                                    LLMGenParams(max_tokens=512, context_length=4096),
+                                    roster=["ELENA"], max_retries=0,
+                                    attempt_observer=capture.observe_validation if enabled else None)
+                                decisions.append(out)
+                            except Exception as exc:
+                                decisions.append(type(exc).__name__)
+                self.assertEqual(requests[0], requests[1])
+                self.assertEqual(decisions[0], decisions[1])
+                diagnostic = capture.finalize_window(0)[0]
+                self.assertEqual(raw, diagnostic["raw_response"])
+                self.assertEqual(body, base64.b64decode(diagnostic["raw_response_body_base64"]))
+                self.assertEqual("accepted" if speaker == "ELENA" else "quality_rejected",
+                                 diagnostic["validation"]["outcome"])
+                self.assertNotIn("synthetic-secret", json.dumps(diagnostic))
+                self.assertEqual(64, len(diagnostic["prompt_sha256"]))
+
+    def test_http_capture_retains_sdk_retry_reply(self):
+        import httpx
+        from openai import DefaultHttpxClient, OpenAI
+        capture = ServingResponseCapture()
+        replies = [httpx.Response(500, content=b'{"error":{"message":"synthetic"}}'),
+                   httpx.Response(200, json={"id": "stub", "object": "chat.completion",
+                       "created": 0, "model": "stub", "choices": []})]
+        with OpenAI(base_url="http://localhost/v1", api_key="local", max_retries=1,
+                    http_client=DefaultHttpxClient(transport=httpx.MockTransport(
+                        lambda request: replies.pop(0)), event_hooks={
+                            "request": [capture.observe_request],
+                            "response": [capture.observe_response]})) as client:
+            client.chat.completions.create(model="stub", messages=[])
+        self.assertEqual([500, 200], [a["http_status"] for a in capture.attempts])
+        self.assertTrue(all(a.get("raw_response_body_base64") for a in capture.attempts))
     def test_normal_mode_toggles_both_adapter_scales(self):
         self.assertEqual((("base", 0.0), ("lora", 1.0)), get_eval_arms())
 
