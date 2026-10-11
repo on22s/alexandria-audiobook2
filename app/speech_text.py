@@ -67,28 +67,38 @@ def verbalize_symbols(text):
     already handle keeps its existing behaviour - `■` stays a sentence break
     rather than becoming a silent drop.
     """
-    counts = Counter(text)
-    spoken, dropped, replacements = [], [], {}
-    for ch in counts:
+    # Preserve iteration/error behavior for unusual iterable and str-subclass
+    # inputs; the normal speech pipeline supplies plain strings.
+    counts = Counter(text) if type(text) is str else None
+    spoken, dropped, out, replacements = [], [], [], {}
+    for ch in counts if counts is not None else text:
         word = get_spoken_symbol(ch)
         if word:
-            replacements[ord(ch)] = f" {word} "
+            replacement = f" {word} "
             spoken.append(ch)
         elif is_unspeakable_character(ch):
-            replacements[ord(ch)] = " "
+            replacement = " "
             dropped.append(ch)
+        else:
+            replacement = ch
+        if counts is None:
+            out.append(replacement)
+        elif replacement != ch:
+            replacements[ord(ch)] = replacement
     transformations = []
     if spoken:
         transformations.append({"type": "verbalized_symbol",
-                                "symbols": sorted(spoken)})
+                                "symbols": sorted(set(spoken))})
     if dropped:
         # Recorded, not silent: a character removed without a trace is
         # indistinguishable from one that was never in the source, and this
         # list is the evidence for goal 5.1's count.
         transformations.append({"type": "dropped_unspeakable",
-                                "symbols": sorted(dropped),
-                                "count": sum(counts[ch] for ch in dropped)})
-    return text.translate(replacements), transformations
+                                "symbols": sorted(set(dropped)),
+                                "count": (len(dropped) if counts is None
+                                          else sum(counts[ch] for ch in dropped))})
+    normalized = "".join(out) if counts is None else text.translate(replacements)
+    return normalized, transformations
 
 
 def get_speech_normalization(text):
