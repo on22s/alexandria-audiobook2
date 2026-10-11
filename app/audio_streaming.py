@@ -11,6 +11,63 @@ from tts import (ensure_audio_export_active, get_pause_duration_ms,
                  trim_edge_silence)
 
 
+# Python wave and Pydub's plain-WAV exporter write a 44-byte PCM header:
+# the RIFF size field includes the 36 bytes following the first eight bytes.
+MAX_RIFF_PCM_BYTES = 0xffffffff - 36
+
+
+def ensure_riff_pcm_size(data_bytes):
+    if data_bytes > MAX_RIFF_PCM_BYTES:
+        raise ValueError(f"WAV export requires {data_bytes} PCM bytes; "
+                         f"RIFF WAV permits at most {MAX_RIFF_PCM_BYTES}. "
+                         "Export shorter sections instead.")
+
+
+def get_pcm_shape(segment):
+    """Return (layout, frames) for ordinary PCM, without copying its data."""
+    if not isinstance(segment, AudioSegment):
+        return None
+    layout = (segment.channels, segment.frame_rate, segment.sample_width)
+    if (any(type(value) is not int or value <= 0 for value in layout)
+            or layout[2] not in (1, 2, 4)
+            or len(segment.raw_data) % (layout[0] * layout[2])):
+        return None
+    return layout, len(segment.raw_data) // (layout[0] * layout[2])
+
+
+def get_promoted_pcm_shape(shape, layout):
+    source, frames = shape
+    if source[0] != layout[0] and source[0] != 1:
+        # Pydub cannot promote a multichannel source to more channels.
+        return None
+    if frames and source[1] != layout[1]:
+        frames = ((frames - 1) * layout[1]) // source[1] + 1
+    return layout, frames
+
+
+def get_joined_pcm_shape(left, right):
+    """Mirror builder/Pydub promotion, including fresh-state ratecv rounding."""
+    if left is None or right is None:
+        return None
+    layout = tuple(max(a, b) for a, b in zip(left[0], right[0]))
+    left = get_promoted_pcm_shape(left, layout)
+    right = get_promoted_pcm_shape(right, layout)
+    if left is None or right is None:
+        return None
+    return layout, left[1] + right[1]
+
+
+def get_silence_pcm_shape(duration_ms):
+    # AudioSegment.silent() defaults; zero/negative pauses produce empty PCM.
+    return (1, 11025, 2), max(0, int(11025 * (duration_ms / 1000.0)))
+
+
+def ensure_pcm_shape_fits_riff(shape):
+    if shape is not None:
+        layout, frames = shape
+        ensure_riff_pcm_size(frames * layout[0] * layout[2])
+
+
 def get_streamable_layout(segments):
     if not segments or any(type(segment) is not AudioSegment for segment in segments):
         return None
@@ -57,7 +114,29 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
     """Return rounded duration, or None without writing for a legacy fallback."""
     ensure_audio_export_active(cancel_check)
     layout = get_streamable_layout(segments)
-    if layout is None or len(speakers) != len(segments):
+    if len(speakers) != len(segments):
+        return None
+    segments = [trim_edge_silence(segment, cancel_check=cancel_check)
+                for segment in segments]
+    shape = get_pcm_shape(segments[0]) if segments else None
+    frames = shape[1] if shape is not None else 0
+    for index, segment in enumerate(segments[1:], 1):
+        ensure_audio_export_active(cancel_check)
+        override = pause_overrides[index - 1] if pause_overrides else None
+        duration = get_pause_duration_ms(
+            {'speaker': speakers[index - 1], 'pause_after': override},
+            {'speaker': speakers[index]}, pause_ms, same_speaker_pause_ms)
+        if layout is not None:
+            frames += (get_silence_frame_count(duration, layout[1])
+                       + len(segment.raw_data) // (layout[0] * layout[2]))
+        else:
+            # Legacy combine appends (gap + segment), then promotes the prefix.
+            piece = get_joined_pcm_shape(get_silence_pcm_shape(duration),
+                                         get_pcm_shape(segment))
+            shape = get_joined_pcm_shape(shape, piece)
+    ensure_audio_export_active(cancel_check)
+    ensure_pcm_shape_fits_riff((layout, frames) if layout is not None else shape)
+    if layout is None:
         return None
     destination = Path(path)
     channels, frame_rate, sample_width = layout
@@ -71,7 +150,6 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
             stream.setsampwidth(sample_width)
             for index, segment in enumerate(segments):
                 ensure_audio_export_active(cancel_check)
-                segment = trim_edge_silence(segment, cancel_check=cancel_check)
                 if index:
                     override = pause_overrides[index - 1] if pause_overrides else None
                     duration = get_pause_duration_ms(
@@ -117,8 +195,18 @@ def get_silence_frame_count(duration_ms, frame_rate):
 
 def get_track_wav_plan(entries, total_duration_ms, cancel_check=None):
     """Count silence frames without generating or resampling their PCM."""
+    ensure_audio_export_active(cancel_check)
     layout = get_streamable_layout([segment for segment, _ in entries])
     if layout is None:
+        # Preserve valid legacy layouts, but count their final promoted PCM
+        # before the caller allocates silence or joins the complete track.
+        shape = get_pcm_shape(AudioSegment.empty())
+        for kind, value in iter_track_pieces(entries, total_duration_ms, cancel_check):
+            piece = (get_pcm_shape(value) if kind == 'audio'
+                     else get_silence_pcm_shape(value))
+            shape = get_joined_pcm_shape(shape, piece)
+        ensure_audio_export_active(cancel_check)
+        ensure_pcm_shape_fits_riff(shape)
         return None
     data_bytes = 0
     for kind, value in iter_track_pieces(entries, total_duration_ms, cancel_check):
@@ -126,8 +214,8 @@ def get_track_wav_plan(entries, total_duration_ms, cancel_check=None):
             data_bytes += len(value.raw_data)
         else:
             data_bytes += get_silence_frame_count(value, layout[1]) * layout[0] * layout[2]
-    if data_bytes > 0xffffffff - 36:
-        return None
+    ensure_audio_export_active(cancel_check)
+    ensure_riff_pcm_size(data_bytes)
     return layout, data_bytes // (layout[0] * layout[2])
 
 
