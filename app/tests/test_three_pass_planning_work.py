@@ -69,7 +69,7 @@ class ThreePassPlanningWorkTests(unittest.TestCase):
                  {'speaker':'CAROL','text':spoken[2], 'attribution_unchecked':True},
                  {'speaker':'BOB','text':spoken[3]}, None, {'speaker':'ALICE','text':spoken[5]}]
         params = LLMGenParams(max_tokens=4096, segmentation='quotes', structured_output='off')
-        scan_sizes, rosters = [], []
+        scan_sizes, rosters, dispatched_rosters = [], [], []
         original_roster, original_request = tp.build_roster, tp.build_attribute_request
         def scan(entries, *args):
             entries = list(entries)
@@ -83,6 +83,8 @@ class ThreePassPlanningWorkTests(unittest.TestCase):
             match = re.search(r'\[\{"n":', user)
             rows = json.JSONDecoder().raw_decode(user[match.start():])[0]
             attribute = 'type' in rows[0]
+            if attribute:
+                dispatched_rosters.append(rosters[-1])
             payload = []
             for row in rows:
                 speaker = {'Utterance 0.':'ALICE', 'Utterance 1.':'CAROL', 'Utterance 4.':'BOB'}.get(row['text'], 'NARRATOR')
@@ -98,6 +100,6 @@ class ThreePassPlanningWorkTests(unittest.TestCase):
                 entries = tp.run_three_pass(client,'fixture',source,params,6000,output_path=output,on_exhaustion='fallback',attribute_batch_size=1)
             checkpoint = json.loads(Path(tp.three_pass_checkpoint_path(output)).read_text())
             self.assertEqual(entries, checkpoint['annotated'])
-        self.assertEqual([['BOB','ALICE'], ['ALICE','BOB'], ['ALICE','CAROL','BOB']], rosters)
+        self.assertEqual([['BOB','ALICE'], ['ALICE','BOB'], ['ALICE','CAROL','BOB']], dispatched_rosters)
         self.assertEqual(['NARRATOR','ALICE','CAROL','CAROL','BOB','BOB','ALICE'], [entry['speaker'] for entry in entries])
         self.assertLessEqual(sum(scan_sizes), len(segmented), f'full named rescans: {scan_sizes}')

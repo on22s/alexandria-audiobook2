@@ -167,6 +167,10 @@ def get_generation_fingerprint(source_text, chunks, model_name, base_url, params
     # before that key existed was a JSON run, so including it unconditionally
     # would discard resumable work that is still valid (Rule 9). Structured
     # output is included above because it changes the request contract.
+    if getattr(params, "max_input_tokens", None) is not None:
+        settings["max_input_tokens"] = params.max_input_tokens
+    from llm_request_budget import get_task_output_fingerprint
+    settings.update(get_task_output_fingerprint(params))
     output_format = getattr(params, "output_format", "json") or "json"
     if output_format != "json":
         settings["output_format"] = output_format
@@ -673,6 +677,13 @@ class LLMGenParams:
     quoted_must_be_spoken: bool = True
     unquoted_must_be_narrator: bool = True
     request_admission: object = field(default=None, repr=False, compare=False)
+    # Appended to preserve positional constructors from older releases.
+    max_input_tokens: int = None
+    # Preserve task policy independently of a serving profile override.
+    task_max_tokens: int = None
+    task_hard_max_tokens: int = None
+    # A request-specific safety ceiling survives serving-profile switches.
+    request_output_ceiling: int = None
 
 
 
@@ -944,7 +955,16 @@ def ensure_run_request_params(client, params):
         "provider_extra_body", "structured_output", "api_retry_limit",
         "retry_initial_delay_seconds", "retry_multiplier", "retry_max_delay_seconds",
         "retry_jitter", "on_api_exhaustion")}
-    changes["context_length"] = profile["context_length"]
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(config, profile["context_length"])
+    changes["context_length"] = limits["context_length"]
+    changes["max_input_tokens"] = limits["max_input_tokens"]
+    # A blank secondary limit keeps the run's own task ceiling (review 32768,
+    # three-pass 16384+); the dataclass default would lower it on failover.
+    changes["hard_max_tokens"] = limits["max_output_tokens"] or params.task_hard_max_tokens or params.hard_max_tokens
+    if params.request_output_ceiling is not None:
+        changes["hard_max_tokens"] = min(changes["hard_max_tokens"], params.request_output_ceiling)
+    changes["max_tokens"] = min(params.task_max_tokens or params.max_tokens, changes["hard_max_tokens"])
     return replace(params, **changes)
 
 
@@ -1041,7 +1061,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             ]
             effective_max = get_effective_max_tokens(
                 requested_max, params.context_length, messages,
-                params.hard_max_tokens, scale_to_context=False)
+                params.hard_max_tokens, scale_to_context=False,
+                max_input_tokens=params.max_input_tokens)
             # Only when the sampler is deterministic. Above 0 a repeated prompt
             # is a legitimate second sample and must still be sent. The key is
             # the prompt AND the completion budget: a truncated response raises
@@ -1173,7 +1194,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         requested_max, "token_truncated", params.hard_max_tokens)
                     next_effective = get_effective_max_tokens(
                         next_max, params.context_length, base_messages,
-                        params.hard_max_tokens, scale_to_context=False)
+                        params.hard_max_tokens, scale_to_context=False,
+                        max_input_tokens=params.max_input_tokens)
                     if next_effective > effective_max:
                         print(f"  Token budget: requested={requested_max}, effective={effective_max}, "
                               f"next_requested={next_max}, next_effective={next_effective}")
@@ -2051,9 +2073,11 @@ def main():
     total_chunks = len(chunks)
 
     print(f"Split into {total_chunks} chunks at paragraph/sentence boundaries")
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(llm_config, lm_status.get("context_length"))
     request_preflight = build_book_request_preflight(
         chunks, system_prompt, user_prompt_template, max_tokens,
-        lm_status.get("context_length"), lm_status.get("parallel"))
+        limits["context_length"], lm_status.get("parallel"))
     print(f"Request preflight: worst={request_preflight['worst_predicted_tokens']} tokens, "
           f"p95={request_preflight['p95_predicted_tokens']}, "
           f"per-slot={request_preflight['per_slot_context']}, "
@@ -2078,6 +2102,9 @@ def main():
         print("Output format: lines (SPEAKER|INSTRUCT|TEXT)")
 
     gen_params = LLMGenParams(
+        task_max_tokens=max_tokens, task_hard_max_tokens=LLMGenParams.hard_max_tokens,
+        max_input_tokens=limits["max_input_tokens"],
+        hard_max_tokens=limits["max_output_tokens"] or LLMGenParams.hard_max_tokens,
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
         max_tokens=max_tokens,
@@ -2087,7 +2114,7 @@ def main():
         min_p=min_p,
         presence_penalty=presence_penalty,
         banned_tokens=banned_tokens,
-        context_length=lm_status.get("context_length"),
+        context_length=limits["context_length"],
         output_format=args.output_format,
         provider_extra_body=llm_config.get("provider_extra_body"),
         structured_output=llm_config.get("structured_output", "auto"),

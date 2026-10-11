@@ -41,7 +41,7 @@ from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
 from config_settings import load_app_config
 from generate_script import fix_mojibake
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
-                               get_planned_ideal_settings)
+                               get_planned_request_context)
 from narrator_prompt import get_valid_narrator_name, is_narrator_attested
 from script_preflight import audit_unicode_text
 from source_normalization import normalize_known_source_corruptions
@@ -50,6 +50,7 @@ from three_pass_generate import (build_attribute_request,
                                  build_three_pass_request_preflight,
                                  get_three_pass_preflight_capacity,
                                  get_context_rescue_windows,
+                                 is_three_pass_context_required,
                                  apply_segment_gate_controls,
                                  default_instruct,
                                  read_source_text,
@@ -2276,9 +2277,9 @@ def get_batch_script_sizing_identity(text, settings, context_windows, context_le
               "context_windows": get_context_rescue_windows(context_windows),
               "prompts": [load_segment_prompts(), load_attribute_prompts(),
                           load_instruct_prompts()]}
-    if (settings.get("attribute_target_chars") or settings.get("instruct_target_chars")
-            or settings.get("chunk_size", 0) > 30000
-            or settings.get("attribute_context_chars", 0) > 20000):
+    if is_three_pass_context_required(
+            settings.get("chunk_size", 0), settings.get("attribute_context_chars", 0),
+            settings.get("attribute_target_chars", 0), settings.get("instruct_target_chars", 0)):
         inputs["context_length"] = context_length
     return hashlib.sha256(json.dumps(inputs, sort_keys=True, ensure_ascii=False,
                                     allow_nan=False).encode("utf-8")).hexdigest()
@@ -2297,12 +2298,8 @@ def get_batch_script_source_preflight(job, text, settings, context, context_wind
 def build_batch_script_preflight(jobs):
     """Build the shared read-only sizing report used by the UI and dispatcher."""
     config = load_app_config(CONFIG_PATH)
-    llm = get_active_llm_config(config)
-    status = get_planned_ideal_settings(
-        config.get("llm_mode", "local"), llm.get("base_url", ""),
-        llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
-    parallel = max(1, int(status.get("parallel") or 1))
-    context = int(status.get("context_length") or 0)
+    planned = get_planned_request_context(config)
+    parallel, context = planned["parallel"], planned["context"]
     generation = config.get("generation") or {}
     settings = resolve_three_pass_generation_settings(config)
     context_windows = generation.get("context_rescue_windows")
@@ -2353,16 +2350,33 @@ UNQUOTED_BOOK_THRESHOLD = 0.5
 def three_pass_refusal(jobs):
     """-> the 400 message that stops a single or batch run before it starts,
     or None. One helper for both routes so they cannot drift (Rule 15):
-    first the output-ceiling check, then the quotes-only check. Needs no
-    server status - only the configured settings and the source text."""
+    read runtime context for larger requests, then check output ceilings
+    and quote coverage against the configured settings and source text."""
     config = load_app_config(CONFIG_PATH)
     settings = resolve_three_pass_generation_settings(config)
     context_windows = (config.get("generation") or {}).get("context_rescue_windows")
+    needs_context = is_three_pass_context_required(
+        settings["chunk_size"], settings["attribute_context_chars"],
+        settings["attribute_target_chars"], settings["instruct_target_chars"])
+    context = 0
+    if needs_context:
+        # Planned, not current: a JIT/unloaded model the run's heal will load
+        # is admitted. A probe failure defers to run_three_pass's own check
+        # rather than refusing a run that may well succeed.
+        try:
+            planned = get_planned_request_context(config)
+        except Exception as error:
+            print(f"Context admission skipped; the run will check it: {type(error).__name__}: {error}")
+            planned = None
+        if planned and not planned["known"]:
+            return ("Larger requests require a known model context. Set Total context budget "
+                    "(tokens) in Setup for the active LLM profile, or use a server exposing its loaded context.")
+        context = planned["context"] if planned else 0
     reports = []
     for job in jobs:
         text, _ = get_validated_batch_script_source(job)
         reports.append((job["filename"], get_batch_script_source_preflight(
-            job, text, settings, 0, context_windows)))
+            job, text, settings, context, context_windows)))
     return (output_ceiling_refusal(settings, reports)
             or unquoted_book_refusal(settings, reports))
 
@@ -2397,8 +2411,8 @@ def output_ceiling_refusal(settings, reports):
     return (f"\"Step 1: text per request\" is set to {settings['chunk_size']} characters, which is "
             f"more than this model can write back in one reply: a piece of {name} would need "
             f"about {worst['largest_predicted_completion']} tokens and the most it can reply is "
-            f"{worst['output_ceiling']} (Baseline Response Tokens in Setup, or 16384 if that is lower). "
-            f"Set it to {suggested} or below, or raise Baseline Response Tokens.")
+            f"{worst['output_ceiling']} (the profile Output ceiling, else Baseline Response Tokens in Setup or 16384 if that is lower). "
+            f"Set it to {suggested} or below, or raise the profile Output ceiling / Baseline Response Tokens.")
 
 
 def _get_batch_script_workers(jobs):

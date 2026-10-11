@@ -26,6 +26,15 @@ class LlmProfileRequestJsTests(unittest.TestCase):
     def run_js(self,code):
         return ui.TrainingUiContractTests().run_js(SETUP+code)
 
+    def test_profile_token_limits_survive_switching_and_reject_invalid_edits(self):
+        self.run_js(r"""
+element('llm-context-length').value='16000';element('llm-max-input-tokens').value='6000';element('llm-max-output-tokens').value='';
+ctx.syncCurrentLlmProfile();assert.strictEqual(ctx.llmProfiles.local.context_length,16000);assert.strictEqual(ctx.llmProfiles.local.max_input_tokens,6000);assert.strictEqual(ctx.llmProfiles.local.max_output_tokens,null);
+ctx.populateLlmInputs('remote');assert.strictEqual(element('llm-context-length').value,'');
+ctx.populateLlmInputs('local');assert.strictEqual(element('llm-context-length').value,16000);
+for(const bad of ['0','-1','1.5','Infinity','NaN']){element('llm-context-length').value=bad;assert.throws(()=>ctx.getEditedLlmProfile(),error=>error.fieldId==='llm-context-length');}
+""")
+
     def test_picker_suppresses_old_success_failure_mode_switch_edit_and_empty_url(self):
         self.run_js(r'''
 const first=deferred(),second=deferred();let count=0;ctx.API.post=()=>++count===1?first.promise:second.promise;

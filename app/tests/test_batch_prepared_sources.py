@@ -42,7 +42,7 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
             stack.enter_context(patch.object(script,'SCRIPTS_DIR',str(scripts)))
             stack.enter_context(patch.object(script,'ensure_book_state',side_effect=lambda *args:nullcontext()))
             stack.enter_context(patch.object(script,'load_app_config',return_value={}))
-            stack.enter_context(patch.object(script,'get_planned_ideal_settings',return_value={'parallel':2,'context_length':32768}))
+            stack.enter_context(patch('lmstudio_settings.get_planned_ideal_settings', return_value={'parallel':2,'context_length':32768}))
             stack.enter_context(patch.object(script,'ensure_ideal_settings',return_value=(True,{},'fixture')))
             stack.enter_context(patch.object(script,'_init_task_log',return_value=str(root/'task.log')))
             worker = stack.enter_context(patch.object(script,'_run_batch_script_job'))

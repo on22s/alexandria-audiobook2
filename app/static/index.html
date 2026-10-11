@@ -975,6 +975,16 @@
                             <datalist id="llm-model-options"></datalist>
                             <small id="llm-model-hint" class="text-muted"></small>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label mt-2" for="llm-context-length">Total context budget (tokens)</label>
+                            <input type="number" class="form-control" id="llm-context-length" min="1" step="1" placeholder="Detected loaded context">
+                            <small class="text-muted d-block">Optional declared budget for this profile, including input and output. A smaller detected loaded context still wins. This does not reload the model or release allocated VRAM.</small>
+                            <label class="form-label mt-2" for="llm-max-input-tokens">Input ceiling (tokens)</label>
+                            <input type="number" class="form-control" id="llm-max-input-tokens" min="1" step="1" placeholder="Inherit global input ceiling">
+                            <label class="form-label mt-2" for="llm-max-output-tokens">Output ceiling (tokens)</label>
+                            <input type="number" class="form-control" id="llm-max-output-tokens" min="1" step="1" placeholder="No profile cap">
+                            <small class="text-muted d-block">Includes reasoning tokens where the provider counts them toward output. A blank output ceiling leaves each task's own retry ceiling in place; a blank input ceiling inherits the global one. Context checks always apply.</small>
+                        </div>
                         <div class="row g-2 mb-3">
                             <div class="col-md-4">
                                 <label class="form-label" for="llm-request-timeout">Request timeout (seconds)</label>
@@ -1200,7 +1210,10 @@
                                 <div class="col-md-6">
                                     <label class="form-label" for="max-tokens">Baseline Response Tokens</label>
                                     <input type="number" class="form-control" id="max-tokens" value="4096" min="256">
-                                    <div class="form-text">Conservative baseline. Verified LM Studio context may raise the effective allowance, up to each task's hard safety ceiling.</div>
+                                    <label class="form-label mt-2" for="max-input-tokens">Global input ceiling (tokens)</label>
+                                    <input type="number" class="form-control" id="max-input-tokens" min="1" step="1" placeholder="Use existing context checks">
+                                    <small class="text-muted">Optional fallback for profiles with a blank input ceiling. Existing configurations keep this blank.</small>
+                                    <div class="form-text">Conservative baseline. Verified LM Studio context may raise the effective allowance, up to each task's hard safety ceiling. Set a profile Output ceiling to cap it.</div>
                                 </div>
                             </div>
                             <h6 class="mb-3">LLM Sampling Parameters</h6>

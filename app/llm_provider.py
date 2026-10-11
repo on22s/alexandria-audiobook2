@@ -193,10 +193,11 @@ class _RequestPacer:
 
 
 class _ConfiguredCompletions:
-    def __init__(self, completions, provider_extra_body, pacer):
+    def __init__(self, completions, provider_extra_body, pacer, limits):
         self._completions = completions
         self._provider_extra_body = provider_extra_body
         self._pacer = pacer
+        self._limits = limits
 
     def create(self, *args, **kwargs):
         self._pacer.wait()
@@ -206,6 +207,9 @@ class _ConfiguredCompletions:
         }
         kwargs["extra_body"] = merge_provider_extra_body(
             provider_extra_body, kwargs.get("extra_body"))
+        if self._limits:
+            from llm_request_budget import get_budgeted_request
+            kwargs = get_budgeted_request(kwargs, self._limits)
         return self._completions.create(*args, **adapt_request_for_reasoning_model(kwargs))
 
     def __getattr__(self, name):
@@ -213,9 +217,9 @@ class _ConfiguredCompletions:
 
 
 class _ConfiguredChat:
-    def __init__(self, chat, provider_extra_body, pacer):
+    def __init__(self, chat, provider_extra_body, pacer, limits):
         self._chat = chat
-        self.completions = _ConfiguredCompletions(chat.completions, provider_extra_body, pacer)
+        self.completions = _ConfiguredCompletions(chat.completions, provider_extra_body, pacer, limits)
 
     def __getattr__(self, name):
         return getattr(self._chat, name)
@@ -224,17 +228,18 @@ class _ConfiguredChat:
 class ConfiguredOpenAI:
     """Proxy an OpenAI client while applying one profile's completion defaults."""
     def __init__(self, client, provider_extra_body, request_interval_seconds=0,
-                 pacer=None):
+                 pacer=None, limits=None):
         self._client = client
         self._provider_extra_body = dict(provider_extra_body or {})
         self._pacer = pacer or _RequestPacer(request_interval_seconds)
-        self.chat = _ConfiguredChat(client.chat, self._provider_extra_body, self._pacer)
+        self._limits = limits
+        self.chat = _ConfiguredChat(client.chat, self._provider_extra_body, self._pacer, limits)
 
     def with_options(self, **kwargs):
         """Return a configured timeout/retry variant without losing body defaults."""
         return ConfiguredOpenAI(
             self._client.with_options(**kwargs), self._provider_extra_body,
-            pacer=self._pacer)
+            pacer=self._pacer, limits=self._limits)
 
     def __getattr__(self, name):
         return getattr(self._client, name)
@@ -331,6 +336,8 @@ class FailoverClient:
                               "runtime_error": f"{type(error).__name__}: {error}"}
                 context = (status.get("context_length") if status.get("available")
                            and status.get("loaded") else None)
+                from llm_request_budget import get_request_limits
+                context = get_request_limits(config, context)["context_length"]
                 if not isinstance(context, int) or isinstance(context, bool) or context < 1:
                     context = 4096
                     print("[FAILOVER] secondary context could not be verified; "
@@ -654,10 +661,17 @@ class _ManualChat:
 def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
     """Create an OpenAI-compatible client with the profile's provider options."""
     llm_config = llm_config or {}
+    # Declared limits only: no runtime probe here. Construction stays pure and
+    # cacheable on config alone; detected context reaches each call through
+    # its params (ensure_run_request_params / context_length) instead.
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(llm_config)
+    limits = limits if any(limits.values()) else None
     if llm_config.get("transport") == "manual":
         from utils import get_runtime_data_dir
-        return ManualClient(get_runtime_data_dir(
+        client = ManualClient(get_runtime_data_dir(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        return ConfiguredOpenAI(client, get_provider_extra_body(llm_config), limits=limits) if limits else client
     client = OpenAI(
         base_url=llm_config.get("base_url", "http://localhost:11434/v1"),
         api_key=resolve_api_key(llm_config.get("api_key", "local")),
@@ -667,4 +681,4 @@ def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
     )
     return ConfiguredOpenAI(
         client, get_provider_extra_body(llm_config),
-        request_interval_seconds=llm_config.get("request_interval_seconds", 0))
+        request_interval_seconds=llm_config.get("request_interval_seconds", 0), limits=limits)

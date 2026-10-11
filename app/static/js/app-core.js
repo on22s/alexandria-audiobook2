@@ -432,6 +432,24 @@
             showToast(error.message, 'error');
         }
 
+        function getOptionalNumberInput(id, label) {
+            const raw = document.getElementById(id).value.trim();
+            if (!raw) { return null; }
+            const value = Number(raw);
+            if (!Number.isFinite(value)) {
+                throw getConfigValidationError(id, label + ' must be a number.');
+            }
+            return value;
+        }
+
+        function getOptionalTokenInput(id, label) {
+            const value = getOptionalNumberInput(id, label);
+            if (value !== null && (!Number.isSafeInteger(value) || value <= 0)) {
+                throw getConfigValidationError(id, label + ' must be a positive whole number or blank.');
+            }
+            return value;
+        }
+
         function getIntListInput(id, label, def) {
             const raw = document.getElementById(id).value.trim();
             if (!raw) { return def; }
@@ -1553,6 +1571,9 @@
         function populateLlmInputs(mode) {
             const p = llmProfiles[mode] || {};
             document.getElementById('llm-url').value = p.base_url || '';
+            document.getElementById('llm-context-length').value = p.context_length ?? '';
+            document.getElementById('llm-max-input-tokens').value = p.max_input_tokens ?? '';
+            document.getElementById('llm-max-output-tokens').value = p.max_output_tokens ?? '';
             document.getElementById('llm-key').value = p.api_key || 'local';
             document.getElementById('llm-model').value = p.model_name || '';
             document.getElementById('llm-request-timeout').value =
@@ -1598,18 +1619,11 @@
             return parsed;
         }
 
-        function getOptionalNumberInput(id, label) {
-            const raw = document.getElementById(id).value.trim();
-            if (!raw) { return null; }
-            const value = Number(raw);
-            if (!Number.isFinite(value)) {
-                throw getConfigValidationError(id, label + ' must be a number.');
-            }
-            return value;
-        }
-
         function getEditedLlmProfile() {
             return {
+                context_length: getOptionalTokenInput('llm-context-length', 'Total context budget'),
+                max_input_tokens: getOptionalTokenInput('llm-max-input-tokens', 'Input ceiling'),
+                max_output_tokens: getOptionalTokenInput('llm-max-output-tokens', 'Output ceiling'),
                 base_url: document.getElementById('llm-url').value,
                 api_key: document.getElementById('llm-key').value,
                 model_name: document.getElementById('llm-model').value,
@@ -1730,6 +1744,7 @@
             'tp-segmentation': 'three_pass_segmentation', 'context-rescue-retries': 'context_rescue_retries',
         };
         function applyGenerationSettings(g) {
+            document.getElementById('max-input-tokens').value = g.max_input_tokens ?? '';
             if (g.chunk_size != null) { legacyChunkSize = g.chunk_size; }
             for (const [id, key] of Object.entries(generationControlFields)) {
                 if (g[key] != null) { document.getElementById(id).value = g[key]; }
@@ -2059,6 +2074,7 @@
                 generation: {
                     chunk_size: legacyChunkSize,
                     max_tokens: parseInt(document.getElementById('max-tokens').value) || 4096,
+                    max_input_tokens: getOptionalTokenInput('max-input-tokens', 'Global input ceiling'),
                     temperature: getNumFieldValue('temperature', 0.6),
                     top_p: getNumFieldValue('top-p', 0.8),
                     top_k: getNumFieldValue('top-k', 0, true),
@@ -2980,7 +2996,7 @@
                     showToast(
                         `"Step 1: text per request" (${preflight.chunk_size} characters) is more than this model can write back in one reply ` +
                         `(${overCeiling.map(book => book.filename).join(', ')}). ` +
-                        `Set it to ${suggested} or below in Setup, or raise Baseline Response Tokens.`, 'error');
+                        `Set it to ${suggested} or below in Setup, or raise the profile Output ceiling / Baseline Response Tokens.`, 'error');
                     statusMsg.innerHTML = '<span class="text-danger">Not started: the text-per-request setting is more than this model can write back in one reply.</span>';
                     btn.disabled = false;
                     pauseBtn.style.display = 'none';

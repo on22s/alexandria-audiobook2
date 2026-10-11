@@ -1753,6 +1753,7 @@
   "test_config_numbers_js": [
     "tests.test_config_numbers_js.ConfigNumericJsTests.test_empty_nonfinite_and_malformed_fields_keep_existing_defaults_and_zero_is_preserved",
     "tests.test_config_numbers_js.ConfigNumericJsTests.test_fractional_integer_fields_reach_server_validation_without_truncation",
+    "tests.test_config_numbers_js.ConfigNumericJsTests.test_global_input_ceiling_saves_blank_and_positive_whole_numbers",
     "tests.test_config_numbers_js.ConfigNumericJsTests.test_integer_fields_preserve_exponent_and_decimal_notation"
   ],
   "test_config_refresh_feedback_js": [
@@ -4295,7 +4296,8 @@
   "test_llm_profile_requests_js": [
     "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_invalid_profile_json_is_visible_and_sends_no_diagnostic_request",
     "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_models_and_connection_test_send_same_complete_edited_profile_without_cache_mutation",
-    "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_picker_suppresses_old_success_failure_mode_switch_edit_and_empty_url"
+    "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_picker_suppresses_old_success_failure_mode_switch_edit_and_empty_url",
+    "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_profile_token_limits_survive_switching_and_reject_invalid_edits"
   ],
   "test_llm_provider": [
     "tests.test_llm_provider.ApiKeyReferenceTests.test_client_is_built_with_the_resolved_key",
@@ -4321,6 +4323,21 @@
     "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_omitted_effort_drops_sampling_for_reasoning_defaults",
     "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_omitted_effort_preserves_sampling_for_documented_none_defaults",
     "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_top_level_effort_and_extra_body_override_control_sampling"
+  ],
+  "test_llm_request_budget": [
+    "tests.test_llm_request_budget.ProfileBudgetAdmissionTests.test_declared_context_allows_unknown_manual_large_target_and_preserves_cache_capacity",
+    "tests.test_llm_request_budget.ProfileBudgetAdmissionTests.test_unknown_context_refuses_before_claiming_a_job",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_existing_config_gets_no_output_cap_or_input_ceiling",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_explicit_profile_overrides_and_blank_inheritance",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_extra_body_cannot_bypass_input_or_output_ceiling",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_http_client_enforces_declared_limits_without_probing_and_manual_does_not_reload",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_input_checks_apply_with_unknown_context_and_output_includes_reserve",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_invalid_limits_never_become_unlimited",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_native_params_and_preflight_share_limits",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_single_pass_with_input_limit_runs_real_chunk_path",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_smaller_limit_wins_both_directions_unknown_uses_declaration",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_timeout_variants_preserve_limits_and_block_before_dispatch",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_unknown_context_large_targets_rejected_before_pipeline_work"
   ],
   "test_llm_review_regressions": [
     "tests.test_llm_review_regressions.DedupeSpeakersResolverTests.test_cycles_and_aliases_entering_them_are_rejected_without_swapping",
@@ -5652,6 +5669,26 @@
     "tests.test_production_trigram_audit.ParsingTest.test_aliases_become_scoring_groups",
     "tests.test_production_trigram_audit.ParsingTest.test_spoken_is_read_from_the_string_form_too",
     "tests.test_production_trigram_audit.ParsingTest.test_the_span_is_read_from_the_string_form_too"
+  ],
+  "test_profile_budget_review_regressions": [
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_admission_uses_planned_context_not_pre_heal_status",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_blank_profile_http_client_does_not_clamp_to_baseline",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_blank_profile_keeps_three_pass_escalation_ceiling",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_failover_with_blank_secondary_keeps_the_run_ceiling",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_preflight_sizes_declared_context_against_planned_not_current",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_rescue_fits_ample_context_and_respects_input_ceiling",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_setup_migration_does_not_bake_inherited_limits_into_profile",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_core_inherits_global_limits_with_cached_client",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_count_attribution_splits_before_dispatch",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_nickname_client_is_built_after_heal_with_profile_output_cap",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_persona_recovery_splits_under_profile_limits",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_real_rescue_context_admitted_and_oversized_input_rejected",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_attribute_fit_allows_bounded_retry_growth",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_capped_primary_does_not_cap_blank_failover",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_declared_context_alone_subdivides_actual_attribution",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_named_benchmark_profiles_inherit_global_input_limit",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_short_segment_ceiling_survives_blank_and_explicit_failover_limits",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_task_policy_fingerprint_preserves_defaults_and_distinguishes_failover"
   ],
   "test_profile_failover": [
     "tests.test_profile_failover.FailoverClientTests.test_requests_go_to_the_primary_until_a_switch_then_the_secondary_with_its_model",

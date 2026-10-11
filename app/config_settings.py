@@ -32,6 +32,10 @@ class LLMConfig(BaseModel):
     base_url: str
     api_key: str
     model_name: str
+    # Blank limits inherit existing global settings / detected context.
+    context_length: Optional[int] = Field(default=None, gt=0, strict=True)
+    max_input_tokens: Optional[int] = Field(default=None, gt=0, strict=True)
+    max_output_tokens: Optional[int] = Field(default=None, gt=0, strict=True)
     provider_headers: Dict[str, str] = Field(default_factory=dict)
     provider_extra_body: Dict[str, JsonValue] = Field(default_factory=dict)
     # Does this LLM run on this machine's GPU? None = decide from the
@@ -120,6 +124,7 @@ class ThreePassModelProfile(BaseModel):
 class GenerationConfig(BaseModel):
     chunk_size: int = Field(default=3000, ge=500)
     max_tokens: int = Field(default=4096, ge=256)
+    max_input_tokens: Optional[int] = Field(default=None, gt=0, strict=True)
     temperature: float = Field(default=0.6, ge=0, le=2)
     top_p: float = Field(default=0.8, ge=0, le=1)
     top_k: int = Field(default=0, ge=0, le=200)

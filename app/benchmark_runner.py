@@ -1111,7 +1111,8 @@ def _get_llm_benchmark_target(config, target):
         raise ValueError(
             f"{target} LM Studio model is loaded but its server isn't reachable "
             "on the forwarded port (likely bound to 127.0.0.1 instead of 0.0.0.0)")
-    return llm, status
+    from llm_request_budget import get_inherited_profile_limits
+    return get_inherited_profile_limits(llm, config.get("generation") or {}), status
 
 
 def _run_script_generation_case(fixture, text, repetition, client, model_name,

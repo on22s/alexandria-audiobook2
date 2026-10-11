@@ -476,7 +476,9 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
                               temperature=temperature,
                               context_length=(context_length if context_length is not None
                                               else params.context_length if params else None),
-                              hard_max_tokens=12000)
+                              hard_max_tokens=12000,
+                              task_max_tokens=max_tokens, task_hard_max_tokens=12000,
+                              request_output_ceiling=12000)
         result = (call_llm_for_object(
             client, model_name, SPEAKER_DEDUPE_SYSTEM_PROMPT, user_prompt, call_params,
             label="SPEAKER DEDUPE") if len(speakers) >= 2 else {})
@@ -1039,8 +1041,14 @@ def main():
     is_remote, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key)
     print(heal_msg)
-    gen_params.context_length = lm_status.get("context_length")
-    gen_params.hard_max_tokens = 32768
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(llm_config, lm_status.get("context_length"))
+    gen_params.context_length = limits["context_length"]
+    gen_params.max_input_tokens = limits["max_input_tokens"]
+    gen_params.task_max_tokens = gen_params.max_tokens
+    gen_params.task_hard_max_tokens = 32768
+    gen_params.hard_max_tokens = limits["max_output_tokens"] or 32768
+    gen_params.max_tokens = min(gen_params.max_tokens, gen_params.hard_max_tokens)
 
     client = make_run_client(config, llm_config, llm_timeout_seconds())
 
