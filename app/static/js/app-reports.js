@@ -1,7 +1,10 @@
+        /** @type {string|null} */
         let currentReportFilename = null;
         let reportViewRequest = 0;
         let reportExplanationPending = false;
+        /** @type {string|null} */
         let reportExplanationRunId = null;
+        /** @type {Map<string, boolean>} */
         const reportExplanationEligibility = new Map();
 
         // ── Reports ────────────────────────────────────────────────────
@@ -77,6 +80,7 @@
             }
         }
 
+        /** @param {string} filename */
         async function viewReport(filename) {
             currentReportFilename = filename;
             const viewRequest = ++reportViewRequest;
@@ -119,7 +123,7 @@
                 started = true;
                 document.getElementById('btn-report-explanation-cancel').style.display = '';
                 _startPolling('report_explanation', () => API.get('/api/status/report_explanation'), {
-                    interval: 1000,
+                    intervalMs: 1000,
                     doneCheck: data => data.run_id !== runId || !data.running,
                     onDone: async data => {
                         reportExplanationPending = false;
@@ -147,6 +151,7 @@
         }
 
         async function onCancelReportExplanation() {
+            if (!reportExplanationRunId) { return; }
             try { await API.post('/api/reports/explanation/cancel', {run_id: reportExplanationRunId}); }
             catch (e) { showActionError('Explanation cancellation is unconfirmed', e, 'Check explanation status before cancelling again; the provider call may still be running.'); }
         }
@@ -168,6 +173,7 @@
         }
         loadBuildBadge();
 
+        /** @param {RunStatus} status */
         function runStatusBadge(status) {
             const cls = { running: 'bg-primary', completed: 'bg-success', failed: 'bg-danger',
                           interrupted: 'bg-warning text-dark', cancelled: 'bg-secondary' }[status] || 'bg-secondary';
@@ -187,7 +193,7 @@
                 listEl.innerHTML = runs.map(r => {
                     const started = r.started_at ? new Date(r.started_at).toLocaleString() : '';
                     const took = (r.started_at && r.finished_at)
-                        ? `${Math.round((new Date(r.finished_at) - new Date(r.started_at)) / 1000)} s` : '';
+                        ? `${Math.round((new Date(r.finished_at).getTime() - new Date(r.started_at).getTime()) / 1000)} s` : '';
                     return `<div class="list-group-item small py-2">
                         <div class="d-flex justify-content-between align-items-center">
                             <div><strong>${escapeHtml(r.task || '')}</strong> ${runStatusBadge(r.status)}</div>
@@ -201,12 +207,15 @@
             }
         }
 
+        /** @type {string|null} */
         let _benchmarkPreflightId = null;
+        /** @type {string|null} */
         let _benchmarkPreflightManifest = null;
         let _benchmarkPreflightGeneration = 0;
         let _benchmarkStarting = false;
         let _benchmarkRunning = false;
         let _benchmarkRunRevision = 0;
+        /** @type {(()=>void)|null} */
         let _benchmarkPoll = null;
         let _benchmarkStatusPending = false;
 
@@ -233,9 +242,10 @@
         function readBenchmarkManifest() {
             const raw = document.getElementById('benchmark-manifest')?.value || '';
             try {
+                /** @type {unknown} */
                 const manifest = JSON.parse(raw);
                 if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) { throw new Error('manifest must be a JSON object'); }
-                return manifest;
+                return /** @type {Manifest} */ (manifest);
             } catch (e) {
                 showActionError('Manifest is not valid JSON', e, 'Keep the manifest text and correct the JSON syntax. It must be an object, then pass Preflight before Start.');
                 return null;

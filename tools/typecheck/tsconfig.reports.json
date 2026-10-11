@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2022",
+    "module": "preserve",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "types": [],
+    "skipLibCheck": false,
+    "moduleDetection": "legacy"
+  },
+  "files": [
+    "reports.d.ts",
+    "../../app/static/js/app-reports.js"
+  ]
+}
