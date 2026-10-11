@@ -1,6 +1,9 @@
 """Conservative speech preparation and non-prose risk classification."""
 import re
 import logging
+import sys
+
+import ascii_speech_native
 
 
 from speech_policy import (SPEECH_BREAKS, SPEECH_WORDS, VERBALIZED_SYMBOLS,
@@ -66,6 +69,10 @@ def verbalize_symbols(text):
     already handle keeps its existing behaviour - `■` stays a sentence break
     rather than becoming a silent drop.
     """
+    if ascii_speech_native.IS_REQUESTED:
+        native = ascii_speech_native.try_verbalize_ascii(text, sys.modules[__name__])
+        if native is not None:
+            return native
     spoken, dropped, out = [], [], []
     for ch in text:
         word = get_spoken_symbol(ch)

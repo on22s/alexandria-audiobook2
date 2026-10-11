@@ -51,6 +51,13 @@ def is_unspeakable_character(char):
         not char.isspace() and unicodedata.category(char) in UNSPEAKABLE_CATEGORIES)
 
 
+# Definition-time witnesses for the experimental ASCII backend. Mutable helper
+# aliases and in-place __code__ edits must never silently reuse native actions.
+_ASCII_NATIVE_FUNCTIONS = (get_spoken_symbol, is_unspeakable_character,
+                           unicodedata.category)
+_ASCII_NATIVE_CODES = (get_spoken_symbol.__code__, is_unspeakable_character.__code__)
+
+
 # Scene / section breaks: silence, never speech. Ordered by measured frequency.
 SCENE_BREAK_CHARS = frozenset(SPEECH_BREAKS.replace("*", "").replace("_", ""))
 
