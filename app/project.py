@@ -711,6 +711,7 @@ class ProjectManager:
             chunks = self._read_chunks()
             if not (0 <= after_index < len(chunks)):
                 return None
+            before = copy.deepcopy(chunks)
 
             # Copy speaker from the row we're splitting from
             source = chunks[after_index]
@@ -729,6 +730,7 @@ class ProjectManager:
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
 
+            self._invalidate_reindexed_audio_locked(before, chunks)
             self._save_chunks_locked(chunks, uids_backfilled=True)
             return chunks
 
@@ -740,13 +742,17 @@ class ProjectManager:
                 return None
             if len(chunks) <= 1:
                 return None  # don't allow deleting the last chunk
+            before = copy.deepcopy(chunks)
 
+            voices = self.get_voice_config_for_update()
             deleted = chunks.pop(index)
+            deleted["_deleted_voice_inputs"] = self.get_chunk_voice_inputs(voices, deleted, index)
 
             # Re-number all IDs
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
 
+            self._invalidate_reindexed_audio_locked(before, chunks)
             self._save_chunks_locked(chunks, uids_backfilled=True)
             return deleted, chunks
 
@@ -768,13 +774,43 @@ class ProjectManager:
             if isinstance(chunk_data, dict):
                 chunk_data.setdefault("uid", _new_chunk_uid())
             chunks.insert(at_index, chunk_data)
+            old_voice_inputs = chunk_data.pop("_deleted_voice_inputs", None)
+            voices = self.get_voice_config_for_update()
+            if chunk_data.get("audio_path") and (
+                    old_voice_inputs is None or
+                    old_voice_inputs != self.get_chunk_voice_inputs(voices, chunk_data, at_index)):
+                chunk_data.update(status="pending", audio_path=None, error=None, drift=None,
+                                  voice_revision=uuid.uuid4().hex)
 
             # Re-number all IDs
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
 
+            self._invalidate_reindexed_audio_locked(
+                [row for row in chunks if row is not chunk_data], chunks)
             self._save_chunks_locked(chunks, uids_backfilled=bool(chunk_data.get("uid")))
             return chunks
+
+    def get_voice_config_for_update(self):
+        """Read voice inputs without turning damaged state into empty inputs."""
+        try:
+            with open(self.voice_config_path, "r", encoding="utf-8") as handle:
+                voices = json.load(handle)
+        except FileNotFoundError:
+            return {}
+        if not isinstance(voices, dict):
+            raise ValueError("Cannot update chunks with malformed voice configuration")
+        return voices
+
+    def _invalidate_reindexed_audio_locked(self, before, after):
+        """Keep completed renders only when reindexing preserves their voice."""
+        voices = self.get_voice_config_for_update()
+        previous = {row.get("uid"): (index, row) for index, row in enumerate(before)}
+        for index, row in enumerate(after):
+            old = previous.get(row.get("uid"))
+            if old is not None and self.get_chunk_voice_inputs(voices, old[1], old[0]) != self.get_chunk_voice_inputs(voices, row, index):
+                row.update(status="pending", audio_path=None, error=None, drift=None,
+                           voice_revision=uuid.uuid4().hex)
 
     def _is_project_audio_path(self, path):
         """Whether a persisted chunk audio path remains inside this project."""
@@ -802,6 +838,7 @@ class ProjectManager:
             if render_changed:
                 chunk["status"] = "pending"
                 chunk["audio_path"] = None
+                chunk["drift"] = None
 
         return self._modify_chunk(index, mutator)
 
@@ -817,7 +854,7 @@ class ProjectManager:
         return self._modify_chunk(index, mutator)
 
     def _update_chunk_fields_by_uid(self, uid, expected_chunk=None, required_status=None,
-                                    audio_source=None, **kwargs):
+                                    audio_source=None, expected_fields=None, expected_related_chunks=None, **kwargs):
         """Conditionally publish to the live UID under one lock, preserving other rows.
 
         Generation compares only captured render inputs. An owned converted temp
@@ -840,6 +877,15 @@ class ProjectManager:
                 return None
             if required_status is not None and chunk.get("status") != required_status:
                 return None
+            if expected_fields is not None and any(chunk.get(key) != value for key, value in expected_fields.items()):
+                return None
+            for expected in expected_related_chunks or ():
+                related = (journal.get_row(expected.get("uid")) if journal else
+                           next((row for row in chunks if row.get("uid") == expected.get("uid")), None))
+                if related is None or get_chunk_generation_inputs(related) != get_chunk_generation_inputs(expected):
+                    return None
+                if any(related.get(key) != expected.get(key) for key in ("status", "audio_path", "audio_revision")):
+                    return None
             if audio_source is not None:
                 publish_audio_output(audio_source, self.get_chunk_audio_path(kwargs["audio_path"]))
             if kwargs:

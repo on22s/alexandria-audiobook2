@@ -252,7 +252,8 @@ async def drift_check_endpoint(request: DriftCheckRequest, background_tasks: Bac
             if report["error"]:
                 state["logs"].append(f"NOT MEASURED: {report['error']}")
                 return
-            flagged = voice_drift.apply_drift_results(project_manager, report["results"], threshold)
+            flagged = voice_drift.apply_drift_results(
+                project_manager, report["results"], threshold, expected_chunks=chunks)
             scored = sum(1 for r in report["results"] if r["score"] is not None)
             state["logs"].append(
                 f"Checked {scored} chunk(s) at threshold {threshold}: {flagged} flagged.")
