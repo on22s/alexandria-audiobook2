@@ -49,6 +49,10 @@ CHUNK_GENERATION_FIELDS = (
 GENERATION_INPUTS_CHANGED = "Chunk removed or generation inputs changed during generation"
 
 
+class ChunkTargetMissingError(LookupError):
+    """A captured publication target disappeared before its locked update."""
+
+
 def get_index_selection(indices, count):
     """Validate an explicit selection and return unique indices in source order."""
     if not indices:
@@ -838,7 +842,8 @@ class ProjectManager:
             if render_changed:
                 chunk["status"] = "pending"
                 chunk["audio_path"] = None
-                chunk["drift"] = None
+                if "drift" in chunk:
+                    chunk["drift"] = None
 
         return self._modify_chunk(index, mutator)
 
@@ -854,7 +859,8 @@ class ProjectManager:
         return self._modify_chunk(index, mutator)
 
     def _update_chunk_fields_by_uid(self, uid, expected_chunk=None, required_status=None,
-                                    audio_source=None, expected_fields=None, expected_related_chunks=None, **kwargs):
+                                    audio_source=None, expected_fields=None, expected_related_chunks=None,
+                                    require_target=False, **kwargs):
         """Conditionally publish to the live UID under one lock, preserving other rows.
 
         Generation compares only captured render inputs. An owned converted temp
@@ -871,6 +877,8 @@ class ProjectManager:
             chunk = (journal.get_row(uid) if journal
                      else next((item for item in chunks if item.get("uid") == uid), None))
             if chunk is None:
+                if require_target:
+                    raise ChunkTargetMissingError(uid)
                 return None
             if expected_chunk is not None and (
                     get_chunk_generation_inputs(chunk) != get_chunk_generation_inputs(expected_chunk)):

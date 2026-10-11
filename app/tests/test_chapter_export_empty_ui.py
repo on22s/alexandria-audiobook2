@@ -17,7 +17,7 @@ class ChapterExportEmptyUiTests(unittest.TestCase):
             self.assertEqual(list(Path(root).iterdir()), [])
         code = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8'),receipt=JSON.parse(process.argv[2]);const elements={};const el=id=>elements[id]||(elements[id]={innerHTML:'',style:{}});
-const c={document:{getElementById:el},API:{get:async()=>receipt},escapeHtml:String};vm.createContext(c);const a=source.indexOf('function renderChapterList(');vm.runInContext(source.slice(a,source.indexOf('async function getChapterExportPreview(',a)),c);
+const c={currentBookFilename:'book.txt',document:{getElementById:el},API:{get:async()=>receipt},escapeHtml:String};vm.createContext(c);vm.runInContext('let chapterPreviewRequest=0;',c);const a=source.indexOf('function renderChapterList(');vm.runInContext(source.slice(a,source.indexOf('async function getChapterExportPreview(',a)),c);
 const previous=[{file:'prior.wav',exists:true,bytes:16}];
 (async()=>{
 c.renderChapterList(previous,true);assert(el('chapter-list').innerHTML.includes('/api/chapter_exports/file/prior.wav'));assert.strictEqual(el('chapter-zip-link').style.display,'');await c.loadChapterExports();assert(!el('chapter-list').innerHTML.includes('prior.wav'));assert.strictEqual(el('chapter-zip-link').style.display,'none');assert(el('chapter-list').innerHTML.includes('No exported'));

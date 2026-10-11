@@ -252,6 +252,7 @@ def apply_drift_results(project_manager, results, threshold, *, expected_chunks=
     """Write each result onto its chunk as `drift` (chunks.json). Returns the
     number of flagged chunks. Missing targets raise after the remaining
     results are applied, so the caller cannot report a complete saved check."""
+    from project import ChunkTargetMissingError
     flagged = 0
     applied = 0
     missing = []
@@ -277,10 +278,14 @@ def apply_drift_results(project_manager, results, threshold, *, expected_chunks=
                 if reference is None:
                     continue
                 related.append(reference)
-            updated = project_manager._update_chunk_fields_by_uid(
-                uid, expected_chunk=expected, required_status="done",
-                expected_related_chunks=related,
-                expected_fields={key: expected.get(key) for key in ("audio_path", "audio_revision")}, drift=drift)
+            try:
+                updated = project_manager._update_chunk_fields_by_uid(
+                    uid, expected_chunk=expected, required_status="done", require_target=True,
+                    expected_related_chunks=related,
+                    expected_fields={key: expected.get(key) for key in ("audio_path", "audio_revision")}, drift=drift)
+            except ChunkTargetMissingError:
+                missing.append(str(uid))
+                continue
             if updated is None:
                 continue
         else:
