@@ -232,8 +232,15 @@ def start_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=None,
         control.close()
         if process is not None:
             process.wait()
-            if process.stdout is not None:
-                process.stdout.close()
+            closed = set()
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream is not None and id(stream) not in closed:
+                    closed.add(id(stream))
+                    try:
+                        stream.close()
+                    except BaseException:
+                        # Preserve the admission error while closing other pipes.
+                        pass
         raise
     finally:
         child_control.close()
