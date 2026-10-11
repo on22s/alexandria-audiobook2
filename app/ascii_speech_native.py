@@ -9,17 +9,50 @@ _FLAG = "AA2_EXPERIMENTAL_ASCII_NATIVE"
 IS_REQUESTED = os.environ.get(_FLAG) == "1"
 _EXPECTED_FUNCTIONS = speech_policy._ASCII_NATIVE_FUNCTIONS
 _EXPECTED_CODES = speech_policy._ASCII_NATIVE_CODES
+
+
+def _get_native_runtime_rejection():
+    # Reject the free-threaded build even if its GIL is currently enabled.
+    # Unknown probe shapes must not admit the native policy-validation path.
+    import sys
+    import sysconfig
+    get_config_var = getattr(sysconfig, "get_config_var", None)
+    if not callable(get_config_var):
+        return "unknown_gil_build_flag"
+    build_flag = get_config_var("Py_GIL_DISABLED")
+    if type(build_flag) is int and build_flag == 1:
+        return "free_threaded_build"
+    if build_flag is not None and not (type(build_flag) is int and build_flag == 0):
+        return "unknown_gil_build_flag"
+    missing = object()
+    is_gil_enabled = getattr(sys, "_is_gil_enabled", missing)
+    if is_gil_enabled is not missing:
+        if not callable(is_gil_enabled):
+            return "unknown_gil_status"
+        gil_enabled = is_gil_enabled()
+        if type(gil_enabled) is not bool:
+            return "unknown_gil_status"
+        if not gil_enabled:
+            return "gil_disabled_runtime"
+    return None
+
+
+_RUNTIME_REJECTION = _get_native_runtime_rejection() if IS_REQUESTED else None
 _UNSET = object()
 _backend = _UNSET
 _policy = None
-_status = "disabled"
+_status = "unsupported_runtime_python_fallback" if _RUNTIME_REJECTION else "disabled"
 logger = logging.getLogger(__name__)
+if _RUNTIME_REJECTION:
+    logger.warning("Experimental ASCII native runtime unsupported; using Python (%s)",
+                   _RUNTIME_REJECTION)
 
 
 def get_ascii_native_status():
     """Report this worker's state without importing or building a backend."""
     return {"experimental": True, "requested": IS_REQUESTED,
-            "state": _status, "native_input_range": [64, 4096],
+            "state": _status, "runtime_rejection": _RUNTIME_REJECTION,
+            "native_input_range": [64, 4096],
             "platform_qualification": "Linux CPython 3.10 local review only"}
 
 
@@ -30,7 +63,7 @@ def try_verbalize_ascii(text, speech_module):
     retry. Unexpected native errors and interrupts always propagate.
     """
     global _backend, _policy, _status
-    if not IS_REQUESTED:
+    if not IS_REQUESTED or _RUNTIME_REJECTION:
         return None
     if type(text) is not str or not 64 <= len(text) <= 4096 or not text.isascii():
         return None
