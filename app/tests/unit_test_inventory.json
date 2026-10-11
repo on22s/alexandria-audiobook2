@@ -6294,6 +6294,7 @@
     "tests.test_repeated_work_efficiency.RepeatedWorkEfficiencyTests.test_emoji_replacement_and_count_use_one_regex_pass"
   ],
   "test_repetition_scan": [
+    "tests.test_repetition_scan.RepetitionScanTests.test_disabled_phrase_width_preserves_source",
     "tests.test_repetition_scan.RepetitionScanTests.test_novel_sized_alternating_run_finishes_with_full_evidence",
     "tests.test_repetition_scan.RepetitionScanTests.test_phrase_widths_case_and_whitespace_keep_exact_receipts",
     "tests.test_repetition_scan.RepetitionScanTests.test_punctuation_breaks_runs_and_disjoint_runs_keep_offsets",

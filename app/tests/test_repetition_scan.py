@@ -65,6 +65,12 @@ class RepetitionScanTests(unittest.TestCase):
         self.assertEqual([1, 2], [row['line'] for row in evidence])
         self.assertEqual([first, second], [row['before'] for row in evidence])
 
+    def test_disabled_phrase_width_preserves_source(self):
+        source = 'alpha ' * 30
+        with patch.object(normalization, 'EXTREME_PHRASE_MAX_WORDS', 0):
+            self.assertEqual((source, []),
+                             normalization.normalize_extreme_phrase_repetitions(source))
+
     def test_novel_sized_alternating_run_finishes_with_full_evidence(self):
         source = 'alpha beta ' * 50000
         output, evidence = normalization.normalize_extreme_phrase_repetitions(source)

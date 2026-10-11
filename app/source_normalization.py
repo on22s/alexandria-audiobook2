@@ -84,14 +84,23 @@ def normalize_extreme_phrase_repetitions(text):
     whitespace = [text[tokens[index - 1].end():tokens[index].start()].isspace()
                   for index in range(1, len(tokens))]
     candidates = [None] * len(tokens)
-    for width in range(1, EXTREME_PHRASE_MAX_WORDS + 1):
-        # A suffix's run length extends the already computed next unit's run.
-        # Each token is revisited only for the five supported phrase widths.
-        runs = [1] * len(tokens)
-        for start in range(len(tokens) - width, -1, -1):
+    size = len(tokens)
+    if EXTREME_PHRASE_MAX_WORDS >= 1:
+        streak = 1
+        for start in range(size - 1, -1, -1):
+            if start + 1 < size and whitespace[start] and words[start] == words[start + 1]:
+                streak += 1
+            else:
+                streak = 1
+            if streak >= EXTREME_PHRASE_REPEAT_MIN:
+                candidates[start] = (tokens[start].start(), tokens[start + streak - 1].end(), 1, streak)
+    for width in range(2, EXTREME_PHRASE_MAX_WORDS + 1):
+        runs = [1] * size
+        for start in range(size - width, -1, -1):
             offset = start + width
-            if (offset + width <= len(tokens) and whitespace[offset - 1]
-                    and words[start:offset] == words[offset:offset + width]):
+            if (offset + width <= size and whitespace[offset - 1]
+                    and words[start] == words[offset]
+                    and words[start + 1:offset] == words[offset + 1:offset + width]):
                 runs[start] += runs[offset]
             repeats = runs[start]
             if repeats < EXTREME_PHRASE_REPEAT_MIN:
