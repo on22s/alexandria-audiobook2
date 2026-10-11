@@ -178,11 +178,17 @@
 
         window.dsbDeleteProject = async () => {
             if (!dsbCurrentProject || !ensureDatasetRowsEditable()) { return; }
-            if (!await showConfirm(`Delete project "${dsbCurrentProject}" and all its samples?`, {title: 'Delete project?', actionLabel: 'Delete project', danger: true})) { return; }
-            if (!ensureDatasetRowsEditable()) { return; }
+            const project = dsbCurrentProject;
+            const loadSequence = dsbProjectLoadSequence;
+            if (!await showConfirm(`Delete project "${project}" and all its samples?`, {title: 'Delete project?', actionLabel: 'Delete project', danger: true})) { return; }
+            if (!ensureDatasetRowsEditable() || project !== dsbCurrentProject || loadSequence !== dsbProjectLoadSequence) { return; }
             try {
-                const res = await fetch(`/api/dataset_builder/${encodeURIComponent(dsbCurrentProject)}`, { method: 'DELETE' });
+                const res = await fetch(`/api/dataset_builder/${encodeURIComponent(project)}`, { method: 'DELETE' });
                 await API._handleError(res);
+                if (project !== dsbCurrentProject || loadSequence !== dsbProjectLoadSequence) {
+                    await dsbLoadProjects();
+                    return;
+                }
                 dsbCurrentProject = '';
                 dsbLoadedProject = '';
                 document.getElementById('dsb-form-area').style.display = 'none';
