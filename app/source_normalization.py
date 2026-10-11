@@ -163,6 +163,10 @@ def normalize_homoglyph_words(text):
     document is overwhelmingly Latin and every Cyrillic character in the
     word has a homoglyph mapping - one unmappable character leaves the whole
     word untouched."""
+    # The word matcher requires Cyrillic; plain text needs no language scan.
+    # Keep the original path for subclasses, where re.sub returns a base str.
+    if type(text) is str and not _CYRILLIC_CHAR_RE.search(text):
+        return text, []
     if not is_predominantly_latin_source(text):
         return text, []
 
