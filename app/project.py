@@ -37,6 +37,7 @@ from tts import (
                  voice_config_for_chunk, resolve_narrator_voice_config)
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
+from audio_streaming import get_track_wav_plan, write_track_wav, write_combined_wav
 
 MAX_CHUNK_CHARS = 500
 NARRATOR_GENERATION_FIELDS = (
@@ -1156,6 +1157,17 @@ class ProjectManager:
                     if progress_callback:
                         progress_callback(f"Writing track: {speaker}")
                     ensure_audio_export_active(cancel_check)
+                    entries = speaker_chunks[speaker]
+                    plan = get_track_wav_plan(entries, total_duration_ms, cancel_check)
+                    if plan is not None:
+                        layout, frames = plan
+                        member = zipfile.ZipInfo(f"{speaker_filenames[speaker]}.wav", time.localtime()[:6])
+                        member.compress_type = zf.compression
+                        member._compresslevel = zf.compresslevel
+                        member.file_size = 44 + frames * layout[0] * layout[2]
+                        with zf.open(member, "w") as stream:
+                            write_track_wav(stream, entries, total_duration_ms, plan, cancel_check)
+                        continue
                     track_cursor = 0
                     track_builder = AudioSegmentBuilder(AudioSegment.empty())
                     for segment, start_ms in speaker_chunks[speaker]:
@@ -1227,9 +1239,6 @@ class ProjectManager:
             audio_segments = [seg for _, seg, _ in timeline]
             speakers = [chunk["speaker"] for chunk, _, _ in timeline]
             pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
-            final_audio = combine_audio_with_pauses(
-                audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check
-            )
 
         except ExportCancelled:
             return False, "Export cancelled"
@@ -1241,7 +1250,13 @@ class ProjectManager:
         pending_output = output_path + f".pending.{uuid.uuid4().hex}"
 
         try:
-            _export_audio_segment(final_audio, temp_wav, "wav", cancel_check=cancel_check)
+            duration_ms = write_combined_wav(audio_segments, speakers, temp_wav,
+                pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check)
+            if duration_ms is None:
+                final_audio = combine_audio_with_pauses(audio_segments, speakers,
+                    pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check)
+                _export_audio_segment(final_audio, temp_wav, "wav", cancel_check=cancel_check)
+                duration_ms = len(final_audio)
 
             # Phase 4 — Write FFmpeg metadata file with book metadata
             meta_lines = [";FFMETADATA1"]
@@ -1285,7 +1300,7 @@ class ProjectManager:
                 pending_output
             ]
             from m4b_encode import encode_m4b
-            result, stderr = encode_m4b(cmd, len(final_audio) / 1000, cancel_check, progress_callback)
+            result, stderr = encode_m4b(cmd, duration_ms / 1000, cancel_check, progress_callback)
             if result != 0:
                 if progress_callback:
                     progress_callback("FFmpeg stderr: " + stderr[-500:])
