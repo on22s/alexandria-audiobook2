@@ -378,12 +378,15 @@ def _to_plain(value):
     return value
 
 
-def load_app_config(path: str) -> dict:
+def load_app_config(path: str, *, for_update=False) -> dict:
     """Return the sanitized config data from :func:`load_app_config_result`.
 
     The result is JSON-native, so a caller may write it back unchanged.
     """
-    return _to_plain(load_app_config_result(path).data)
+    result = load_app_config_result(path)
+    if for_update and result.needs_backup:
+        raise ValueError(f"Cannot update unreadable or damaged configuration: {path}")
+    return _to_plain(result.data)
 
 
 def backup_damaged_app_config(path: str) -> str:

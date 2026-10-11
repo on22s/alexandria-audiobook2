@@ -51,9 +51,18 @@ def _warn_corrupted_json(kind: str, path: str, action: str, e: Exception) -> Non
     logger.warning(f"Corrupted {kind} at {path}, {action}: {e}")
 
 
-def _load_manifest(path):
-    """Load a JSON manifest file, returning [] on missing or corrupt file."""
-    entries = safe_load_json(path, default=[])
+def _load_manifest(path, *, for_update=False):
+    """Allow read-only fallback, but never replace an unreadable roster."""
+    if for_update:
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                entries = json.load(handle)
+        except FileNotFoundError:
+            entries = []
+        if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
+            raise ValueError(f"Cannot update malformed voice manifest: {path}")
+    else:
+        entries = safe_load_json(path, default=[])
     valid = [entry for entry in entries if isinstance(entry, dict)]
     if len(valid) != len(entries):
         logger.warning("Ignoring malformed entries in manifest %s", path)
