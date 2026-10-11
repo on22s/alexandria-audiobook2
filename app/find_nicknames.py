@@ -455,7 +455,6 @@ def main():
     config = load_app_config(config_path)
     llm = get_active_llm_config(config)
     base_url = llm.get("base_url", "")
-    client = make_run_client(config, llm, llm_timeout_seconds())
     model_name = llm.get("model_name", "local-model")
     llm_mode = config.get("llm_mode", "local")
     print(f"Using model: {model_name}")
@@ -469,6 +468,7 @@ def main():
     _, status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
     print(heal_msg)
+    client = make_run_client(config, llm, llm_timeout_seconds())
 
     if status.get("loaded") and status.get("context_length"):
         context_length = status["context_length"]

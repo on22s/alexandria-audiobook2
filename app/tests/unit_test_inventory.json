@@ -5670,6 +5670,13 @@
     "tests.test_production_trigram_audit.ParsingTest.test_spoken_is_read_from_the_string_form_too",
     "tests.test_production_trigram_audit.ParsingTest.test_the_span_is_read_from_the_string_form_too"
   ],
+  "test_profile_budget_review_regressions": [
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_core_inherits_global_limits_with_cached_client",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_count_attribution_splits_before_dispatch",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_nickname_client_uses_post_heal_live_context",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_persona_recovery_splits_under_profile_limits",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_real_rescue_context_admitted_and_oversized_input_rejected"
+  ],
   "test_profile_failover": [
     "tests.test_profile_failover.FailoverClientTests.test_requests_go_to_the_primary_until_a_switch_then_the_secondary_with_its_model",
     "tests.test_profile_failover.FailoverClientTests.test_switching_is_sticky_and_a_second_switch_reports_nothing_left",

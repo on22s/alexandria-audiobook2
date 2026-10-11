@@ -1530,7 +1530,7 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             current = work.pop(0)
             system_prompt, user_prompt = build_request(current)
             output_tokens = max(256, output_per_entry * len(current))
-            if (target_chars or params.max_input_tokens or settings.get("profile_output_ceiling")) and not does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
+            if not does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
                 if len(current) == 1:
                     raise TokenBudgetError(f"One {stage} entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
                 midpoint = len(current) // 2
@@ -1554,20 +1554,26 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     for chunk in chunks:
         largest_completion = max(largest_completion, resolve_completion_ceiling(
             max(1, len(chunk.split())), params))
-    for chunk in unresolved_chunks:
+    unresolved = set(unresolved_chunks)
+    for index, chunk in enumerate(chunks):
+        if chunk not in unresolved:
+            continue
         completion = min(
             int(settings["max_tokens"]),
             resolve_completion_ceiling(
                 max(1, len(chunk.split())), params))
         add_request("segment", segment_system,
                     segment_template.format(chunk=chunk), completion)
-        windows = context_windows
-        if windows:
-            window = max(windows)
-            rescue_user = _CONTEXT_SEGMENT_USER.format(
-                before="x" * window, after="x" * window, chunk=chunk)
-            add_request("segment_context_rescue", segment_system,
-                        rescue_user, completion)
+        max_window = max(context_windows)
+        before_all = _tail_join(chunks[:index], max_window)
+        after_all = _head_join(chunks[index + 1:], max_window)
+        overhead_chars = len(segment_system) + len(_CONTEXT_SEGMENT_USER)
+        for window in context_windows:
+            before, after = before_all[-window:], after_all[:window]
+            if not _rescue_prompt_fits(chunk, before, after, overhead_chars, params):
+                continue
+            rescue_user = _CONTEXT_SEGMENT_USER.format(before=before, after=after, chunk=chunk)
+            add_request("segment_context_rescue", segment_system, rescue_user, completion)
 
     roster_chars = min(4096, 32 * sum(
         entry.get("type") == "SPOKEN" for entry in predicted_entries))
@@ -1580,9 +1586,8 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     def build_planned_attribute(current):
         contexts = get_missing_attribute_contexts(
             predicted_entries, [index for index, _ in current], attribute_batch_size, attribute_bounds)
-        surround = (build_window_surround(predicted_entries, [index for index, _ in current], context_chars)
-                    if attribute_budgeted else
-                    {"before": "x" * context_chars, "after": "x" * context_chars})
+        surround = build_window_surround(
+            predicted_entries, [index for index, _ in current], context_chars)
         return get_attribute_sizing_request(
             [entry for _, entry in current], params, estimated_roster, contexts, surround,
             settings.get("attribute_prompt_variant") or "default",
@@ -2460,24 +2465,23 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                     segmented, [index for index, _ in current], attribute_batch_size, attribute_bounds)
                 surround = build_window_surround(
                     segmented, [index for index, _ in current], attribute_context_chars)
-                if attribute_target_chars or attribute_context_chars > 20000:
-                    request_params = ensure_run_request_params(client, params)
-                    system_prompt, user_prompt = get_attribute_sizing_request(
+                request_params = ensure_run_request_params(client, params)
+                system_prompt, user_prompt = get_attribute_sizing_request(
+                    batch, request_params, roster, contexts, surround,
+                    attribute_prompt_variant, attribute_prompt_texts, cast,
+                    get_established_traits(named) if speaker_traits else None)
+                if hasattr(entries_provider, "build_request"):
+                    system_prompt, user_prompt = entries_provider.build_request(
                         batch, request_params, roster, contexts, surround,
-                        attribute_prompt_variant, attribute_prompt_texts, cast,
                         get_established_traits(named) if speaker_traits else None)
-                    if hasattr(entries_provider, "build_request"):
-                        system_prompt, user_prompt = entries_provider.build_request(
-                            batch, request_params, roster, contexts, surround,
-                            get_established_traits(named) if speaker_traits else None)
-                    if not does_request_fit_context(system_prompt, user_prompt, request_params,
-                                                    max(256, (128 if speaker_traits else 24) * len(batch))):
-                        if len(current) == 1:
-                            raise TokenBudgetError("One attribution entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
-                        midpoint = len(current) // 2
-                        print(f"  Attribution request exceeds budget; subdividing {len(current)} entries")
-                        work[0:0] = [current[:midpoint], current[midpoint:]]
-                        continue
+                if not does_request_fit_context(system_prompt, user_prompt, request_params,
+                                                max(256, (128 if speaker_traits else 24) * len(batch))):
+                    if len(current) == 1:
+                        raise TokenBudgetError("One attribution entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
+                    midpoint = len(current) // 2
+                    print(f"  Attribution request exceeds budget; subdividing {len(current)} entries")
+                    work[0:0] = [current[:midpoint], current[midpoint:]]
+                    continue
                 announce_step(2, "window", window_number, window_total)
                 if progress:
                     progress.note_call_started()

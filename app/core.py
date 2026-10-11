@@ -1817,8 +1817,8 @@ _REPORT_SUMMARY_SYSTEM_PROMPT = (
 
 
 def _load_llm_config() -> dict:
-    """Return the `llm` section of config.json, or {} if missing/unreadable."""
-    return load_app_config(CONFIG_PATH).get("llm", {})
+    """Return the active profile with inherited global request limits."""
+    return get_active_llm_config(load_app_config(CONFIG_PATH))
 
 
 class LLMConfigError(ValueError):

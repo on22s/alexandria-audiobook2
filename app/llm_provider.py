@@ -660,7 +660,7 @@ def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
         from lmstudio_settings import get_current_status
         status = get_current_status(
             "local", llm_config.get("base_url", ""), llm_config.get("model_name", ""),
-            api_key=resolve_api_key(llm_config.get("api_key")), use_cache=True, cache_local=True)
+            api_key=resolve_api_key(llm_config.get("api_key")), use_cache=False)
         limits = get_request_limits(llm_config, status.get("context_length"))
     limits = limits if any(limits.values()) else None
     if llm_config.get("transport") == "manual":

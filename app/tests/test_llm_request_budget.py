@@ -88,6 +88,7 @@ class RequestBudgetTests(unittest.TestCase):
         self.assertEqual((8000,2000,700,700),(params.context_length,params.max_input_tokens,params.max_tokens,params.hard_max_tokens))
         self.assertFalse(tp.does_request_fit_context('','x'*6001,params,256))
         self.assertFalse(tp.does_request_fit_context('','small',params,701))
+        settings["max_input_tokens"]=100  # Reject the actual fixed prompt, not fabricated context.
         with self.assertRaises(TokenBudgetError):
             tp.build_three_pass_request_preflight('She stood. "Yes."',settings,8000,1)
         settings['max_input_tokens']=10000

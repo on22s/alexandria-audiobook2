@@ -2362,8 +2362,8 @@ UNQUOTED_BOOK_THRESHOLD = 0.5
 def three_pass_refusal(jobs):
     """-> the 400 message that stops a single or batch run before it starts,
     or None. One helper for both routes so they cannot drift (Rule 15):
-    first the output-ceiling check, then the quotes-only check. Needs no
-    server status - only the configured settings and the source text."""
+    read runtime context for larger requests, then check output ceilings
+    and quote coverage against the configured settings and source text."""
     config = load_app_config(CONFIG_PATH)
     settings = resolve_three_pass_generation_settings(config)
     context_windows = (config.get("generation") or {}).get("context_rescue_windows")
