@@ -273,25 +273,34 @@ def get_gpu_stats():
     if configured in ("cpu", "mps"):
         return None
 
+    torch = _get_torch()
+    cuda_available = torch is not None and torch.cuda.is_available()
+    device = None
+    if cuda_available:
+        try:
+            device = int(configured.split(":", 1)[1]) if configured.startswith("cuda:") else torch.cuda.current_device()
+        except Exception as error:
+            logger.debug("Could not resolve GPU statistics device: %s", error)
+            return None
+    cache_device = (configured, device)
+
     # Return cached stats if still fresh
     cached = _gpu_stats_cache
-    if (cached.get("device") == configured and
+    if (cached.get("device") == cache_device and
             (now - cached["timestamp"]) < _GPU_STATS_CACHE_TTL):
         return cached["data"]
 
-    torch = _get_torch()
-    if torch is None or not torch.cuda.is_available():
+    if not cuda_available:
         # torch can't see the GPU (e.g. a CUDA-only build on an AMD box) —
         # fall back to rocm-smi so AMD GPUs are still detected.
         stats = _gpu_stats_via_rocm_smi() if configured in ("auto", "cuda") else None
         if stats is None:
             logger.debug("GPU stats: No GPU available (torch + rocm-smi both failed)")
-        _gpu_stats_cache = {"data": stats, "timestamp": now, "device": configured}
+        _gpu_stats_cache = {"data": stats, "timestamp": now, "device": cache_device}
         return stats
 
     stats = {}
     try:
-        device = int(configured.split(":", 1)[1]) if configured.startswith("cuda:") else torch.cuda.current_device()
         # Memory stats (works for both NVIDIA and AMD ROCm)
         allocated = torch.cuda.memory_allocated(device) / 1e9  # GB
         reserved = torch.cuda.memory_reserved(device) / 1e9    # GB
@@ -299,7 +308,7 @@ def get_gpu_stats():
 
         if total <= 0:
             logger.warning("GPU stats: Total memory reported as 0, skipping utilization check")
-            _gpu_stats_cache = {"data": None, "timestamp": now, "device": configured}
+            _gpu_stats_cache = {"data": None, "timestamp": now, "device": cache_device}
             return None
 
         stats['allocated_gb'] = allocated
@@ -310,7 +319,7 @@ def get_gpu_stats():
         stats['name'] = torch.cuda.get_device_name(device)
     except Exception as e:
         logger.debug(f"Could not get GPU memory stats: {e}")
-        _gpu_stats_cache = {"data": None, "timestamp": now, "device": configured}
+        _gpu_stats_cache = {"data": None, "timestamp": now, "device": cache_device}
         return None
 
     # Utilization via rocm-smi is a separate, independent try - same reason
@@ -332,7 +341,7 @@ def get_gpu_stats():
         logger.debug(f"Could not get GPU utilization via rocm-smi: {e}")
 
     # Cache the result
-    _gpu_stats_cache = {"data": stats, "timestamp": now, "device": configured}
+    _gpu_stats_cache = {"data": stats, "timestamp": now, "device": cache_device}
     return stats
 
 

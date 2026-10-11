@@ -146,12 +146,16 @@ def classify_llm_error(error):
         return {"category": "rate_limited", "status_code": status_code, "retryable": True}
     if isinstance(status_code, int) and 500 <= status_code <= 599:
         return {"category": "server_error", "status_code": status_code, "retryable": True}
+    error_type = type(error).__name__.lower()
+    if "timeout" in error_type:
+        return {"category": "timeout", "status_code": status_code, "retryable": True}
+    if "connection" in error_type:
+        return {"category": "connection_error", "status_code": status_code, "retryable": True}
     if any(token in lowered for token in ("safety", "policy", "content filter", "nsfw")):
         return {"category": "content_policy", "status_code": status_code, "retryable": False}
-    error_type = type(error).__name__.lower()
-    if "timeout" in error_type or "timeout" in lowered:
+    if "timeout" in lowered:
         return {"category": "timeout", "status_code": status_code, "retryable": True}
-    if "connection" in error_type or "connect" in lowered:
+    if "connect" in lowered:
         return {"category": "connection_error", "status_code": status_code, "retryable": True}
     return {"category": "api_error", "status_code": status_code, "retryable": True}
 
