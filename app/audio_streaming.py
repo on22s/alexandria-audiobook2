@@ -64,7 +64,8 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
     frames = 0
     with tempfile.TemporaryDirectory(prefix='.stream-wave-', dir=destination.parent) as directory:
         staged = Path(directory) / 'output.wav'
-        with wave.open(str(staged), 'wb') as stream:
+        stream = wave.open(str(staged), 'wb')
+        try:
             stream.setnchannels(channels)
             stream.setframerate(frame_rate)
             stream.setsampwidth(sample_width)
@@ -82,6 +83,15 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
                 for data in iter_segment_pcm(segment, cancel_check):
                     stream.writeframesraw(data)
                     frames += len(data) // (channels * sample_width)
+        except BaseException:
+            # Discard this staged WAV; preserve the original cancellation or write fault.
+            try:
+                stream.close()
+            except BaseException:
+                pass
+            raise
+        else:
+            stream.close()
         ensure_audio_export_active(cancel_check)
         os.replace(staged, destination)
     return round(1000 * (frames / frame_rate))
