@@ -5682,7 +5682,12 @@
     "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_count_attribution_splits_before_dispatch",
     "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_nickname_client_is_built_after_heal_with_profile_output_cap",
     "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_persona_recovery_splits_under_profile_limits",
-    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_real_rescue_context_admitted_and_oversized_input_rejected"
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_real_rescue_context_admitted_and_oversized_input_rejected",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_attribute_fit_allows_bounded_retry_growth",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_capped_primary_does_not_cap_blank_failover",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_declared_context_alone_subdivides_actual_attribution",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_named_benchmark_profiles_inherit_global_input_limit",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_task_policy_fingerprint_preserves_defaults_and_distinguishes_failover"
   ],
   "test_profile_failover": [
     "tests.test_profile_failover.FailoverClientTests.test_requests_go_to_the_primary_until_a_switch_then_the_secondary_with_its_model",

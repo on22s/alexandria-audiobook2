@@ -1043,6 +1043,8 @@ def main():
     limits = get_request_limits(llm_config, lm_status.get("context_length"))
     gen_params.context_length = limits["context_length"]
     gen_params.max_input_tokens = limits["max_input_tokens"]
+    gen_params.task_max_tokens = gen_params.max_tokens
+    gen_params.task_hard_max_tokens = 32768
     gen_params.hard_max_tokens = limits["max_output_tokens"] or 32768
     gen_params.max_tokens = min(gen_params.max_tokens, gen_params.hard_max_tokens)
 

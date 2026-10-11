@@ -156,3 +156,82 @@ class ReviewFindingFixTests(unittest.TestCase):
             planned=get_planned_request_context(config)
         self.assertEqual({'context':32768,'known':True,'parallel':planned['parallel']},planned)
         self.assertEqual(1,probe.call_count)
+
+class SecondReviewRegressionTests(unittest.TestCase):
+    def test_task_policy_fingerprint_preserves_defaults_and_distinguishes_failover(self):
+        from generate_script import LLMGenParams
+        from llm_request_budget import get_task_output_fingerprint
+        self.assertEqual({},get_task_output_fingerprint(LLMGenParams()))
+        self.assertEqual({},get_task_output_fingerprint(LLMGenParams(task_max_tokens=4096,task_hard_max_tokens=16384)))
+        self.assertEqual({'task_max_tokens':4096,'task_hard_max_tokens':16384},
+                         get_task_output_fingerprint(LLMGenParams(max_tokens=512,hard_max_tokens=512,
+                                                                 task_max_tokens=4096,task_hard_max_tokens=16384)))
+
+    def test_declared_context_alone_subdivides_actual_attribution(self):
+        from lmstudio_settings import get_effective_max_tokens
+        source='\n'.join('"This is statement %d %s."'%(i,'word '*106) for i in range(20))
+        cfg={'llm':{'context_length':4096},'generation':{'max_tokens':4096,'three_pass_segmentation':'auto','three_pass_attribute_context_chars':0}}
+        params=tp.get_three_pass_run_params(cfg,{})
+        sizes=[]
+        def attribute(c,m,b,p,**kw):
+            sizes.append(len(b))
+            system,user=tp.get_attribute_sizing_request(b,p,kw.get('roster'),kw.get('neighbor_contexts'),kw.get('surround'))
+            get_effective_max_tokens(p.max_tokens,p.context_length,[{'content':system},{'content':user}],p.hard_max_tokens,scale_to_context=False)
+            return ([{'speaker':'Speaker','text':e['text']} for e in b],None)
+        with patch.object(tp,'attribute_batch_voted',side_effect=attribute),patch.object(tp,'instruct_batch',side_effect=lambda c,m,b,p,**kw:[dict(e,instruct='Neutral.') for e in b]):
+            entries=tp.run_three_pass(SimpleNamespace(),'fixture',source,params,3000,on_exhaustion='fail',attribute_context_chars=0)
+        self.assertGreater(len(sizes),1)
+        self.assertEqual(20,sum(sizes))
+        self.assertEqual(20,len(entries))
+        self.assertTrue(all(entry['text'] in source for entry in entries))
+
+    def test_attribute_fit_allows_bounded_retry_growth(self):
+        from generate_script import LLMGenParams
+        params=LLMGenParams(max_tokens=256,hard_max_tokens=16384,context_length=16000)
+        self.assertFalse(tp.does_request_fit_context('','short',params,480))
+        self.assertTrue(tp.does_request_fit_context('','short',params,480,allow_retry_growth=True))
+        sizes=[]
+        source='\n'.join('"Short statement %d."'%i for i in range(20))
+        params.segmentation='auto'
+        def attribute(c,m,b,p,**kw):
+            sizes.append(len(b))
+            return ([{'speaker':'Speaker','text':e['text']} for e in b],None)
+        with patch.object(tp,'attribute_batch_voted',side_effect=attribute),patch.object(tp,'instruct_batch',side_effect=lambda c,m,b,p,**kw:[dict(e,instruct='Neutral.') for e in b]):
+            tp.run_three_pass(SimpleNamespace(),'fixture',source,params,3000,on_exhaustion='fail',attribute_context_chars=0)
+        self.assertEqual([20],sizes)
+        params.hard_max_tokens=400
+        self.assertFalse(tp.does_request_fit_context('','short',params,480,allow_retry_growth=True))
+
+    def test_capped_primary_does_not_cap_blank_failover(self):
+        from unittest.mock import Mock
+        from llm_provider import FailoverClient
+        from generate_script import LLMGenParams, ensure_run_request_params
+        primary=tp.get_three_pass_run_params({'llm':{'max_output_tokens':512},'generation':{'max_tokens':4096}},{})
+        client=Mock(spec=FailoverClient)
+        client.ensure_active_runtime_profile.return_value={'config':{},'context_length':32768}
+        secondary=ensure_run_request_params(client,primary)
+        self.assertEqual((4096,16384),(secondary.max_tokens,secondary.hard_max_tokens))
+        review=LLMGenParams(max_tokens=512,hard_max_tokens=512,task_max_tokens=4096,task_hard_max_tokens=32768)
+        self.assertEqual(32768,ensure_run_request_params(client,review).hard_max_tokens)
+        client.ensure_active_runtime_profile.return_value={'config':{'max_output_tokens':2000},'context_length':32768}
+        secondary=ensure_run_request_params(client,primary)
+        self.assertEqual((2000,2000),(secondary.max_tokens,secondary.hard_max_tokens))
+        self.assertEqual(512,primary.hard_max_tokens)
+
+    def test_named_benchmark_profiles_inherit_global_input_limit(self):
+        import benchmark_runner as br
+        from llm_provider import make_llm_client
+        profile={'model_name':'fixture','base_url':'http://localhost:1234/v1','api_key':'local','max_input_tokens':None}
+        cfg={'llm_local':dict(profile),'llm_remote':dict(profile),'generation':{'max_input_tokens':100}}
+        status={'available':True,'loaded':True,'context_length':8192}
+        with patch.object(br,'get_lmstudio_status',return_value=status),patch.object(br,'get_remote_lmstudio_status',return_value=status),patch('llm_provider.OpenAI') as raw:
+            for target in ('local','thunder'):
+                selected,_=br._get_llm_benchmark_target(cfg,target)
+                with self.assertRaises(TokenBudgetError):
+                    make_llm_client(selected,10).chat.completions.create(messages=[{'content':'x'*600}],max_tokens=100)
+                raw.return_value.chat.completions.create.assert_not_called()
+            self.assertIsNone(cfg['llm_local']['max_input_tokens'])
+            cfg['llm_local']['max_input_tokens']=300
+            selected,_=br._get_llm_benchmark_target(cfg,'local')
+            make_llm_client(selected,10).chat.completions.create(messages=[{'content':'x'*600}],max_tokens=100)
+            self.assertEqual(1,raw.return_value.chat.completions.create.call_count)

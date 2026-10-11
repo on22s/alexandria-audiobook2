@@ -256,6 +256,7 @@ def _persona_params(system_prompt, context_length, llm_config, max_tokens, tempe
         temperature=temperature, context_length=limits["context_length"],
         max_input_tokens=limits["max_input_tokens"],
         hard_max_tokens=limits["max_output_tokens"] or LLMGenParams.hard_max_tokens,
+        task_max_tokens=max_tokens, task_hard_max_tokens=LLMGenParams.hard_max_tokens,
         provider_extra_body=llm_config.get("provider_extra_body"),
         structured_output=llm_config.get("structured_output", "auto"),
         api_retry_limit=llm_config.get("api_retry_limit"),

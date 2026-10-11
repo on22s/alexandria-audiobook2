@@ -169,6 +169,8 @@ def get_generation_fingerprint(source_text, chunks, model_name, base_url, params
     # output is included above because it changes the request contract.
     if getattr(params, "max_input_tokens", None) is not None:
         settings["max_input_tokens"] = params.max_input_tokens
+    from llm_request_budget import get_task_output_fingerprint
+    settings.update(get_task_output_fingerprint(params))
     output_format = getattr(params, "output_format", "json") or "json"
     if output_format != "json":
         settings["output_format"] = output_format
@@ -677,6 +679,9 @@ class LLMGenParams:
     request_admission: object = field(default=None, repr=False, compare=False)
     # Appended to preserve positional constructors from older releases.
     max_input_tokens: int = None
+    # Preserve task policy independently of a serving profile override.
+    task_max_tokens: int = None
+    task_hard_max_tokens: int = None
 
 
 
@@ -954,8 +959,8 @@ def ensure_run_request_params(client, params):
     changes["max_input_tokens"] = limits["max_input_tokens"]
     # A blank secondary limit keeps the run's own task ceiling (review 32768,
     # three-pass 16384+); the dataclass default would lower it on failover.
-    changes["hard_max_tokens"] = limits["max_output_tokens"] or params.hard_max_tokens
-    changes["max_tokens"] = min(params.max_tokens, changes["hard_max_tokens"])
+    changes["hard_max_tokens"] = limits["max_output_tokens"] or params.task_hard_max_tokens or params.hard_max_tokens
+    changes["max_tokens"] = min(params.task_max_tokens or params.max_tokens, changes["hard_max_tokens"])
     return replace(params, **changes)
 
 
@@ -2093,6 +2098,7 @@ def main():
         print("Output format: lines (SPEAKER|INSTRUCT|TEXT)")
 
     gen_params = LLMGenParams(
+        task_max_tokens=max_tokens, task_hard_max_tokens=LLMGenParams.hard_max_tokens,
         max_input_tokens=limits["max_input_tokens"],
         hard_max_tokens=limits["max_output_tokens"] or LLMGenParams.hard_max_tokens,
         system_prompt=system_prompt,

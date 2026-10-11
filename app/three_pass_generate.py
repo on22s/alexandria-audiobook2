@@ -184,6 +184,8 @@ def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generati
     from llm_request_budget import get_request_limits
     limits = get_request_limits(llm, lm_status.get("context_length"))
     params = LLMGenParams(
+        task_max_tokens=gen.get("max_tokens", 10000),
+        task_hard_max_tokens=resolve_hard_max_tokens(gen.get("max_tokens", 10000)),
         max_tokens=min(generation_settings["max_tokens"], limits["max_output_tokens"] or generation_settings["max_tokens"]),
         max_input_tokens=limits["max_input_tokens"],
         # Profile override / global fallback bounds every retry. Raw legacy
@@ -894,11 +896,12 @@ def retry_delivery_instructions(client, model_name, entries, params,
     return result
 
 
-def does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
+def does_request_fit_context(system_prompt, user_prompt, params, output_tokens,
+                             allow_retry_growth=False):
     """Use the production token-budget helper for the full assembled request."""
     try:
         available = get_effective_max_tokens(
-            params.max_tokens, params.context_length,
+            params.hard_max_tokens if allow_retry_growth else params.max_tokens, params.context_length,
             [{"role": "system", "content": system_prompt},
              {"role": "user", "content": user_prompt}],
             params.hard_max_tokens, scale_to_context=False,
@@ -1530,7 +1533,8 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             current = work.pop(0)
             system_prompt, user_prompt = build_request(current)
             output_tokens = max(256, output_per_entry * len(current))
-            if not does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
+            if not does_request_fit_context(system_prompt, user_prompt, params, output_tokens,
+                                            allow_retry_growth=stage == "attribute"):
                 if len(current) == 1:
                     raise TokenBudgetError(f"One {stage} entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
                 midpoint = len(current) // 2
@@ -1962,6 +1966,8 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
             "response_schema")})
         if getattr(params, "max_input_tokens", None) is not None:
             settings["max_input_tokens"] = params.max_input_tokens
+        from llm_request_budget import get_task_output_fingerprint
+        settings.update(get_task_output_fingerprint(params))
         if not getattr(params, "quoted_must_be_spoken", True):
             settings["quoted_must_be_spoken"] = False
         if not getattr(params, "unquoted_must_be_narrator", True):
@@ -2472,28 +2478,24 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 surround = build_window_surround(
                     segmented, [index for index, _ in current], attribute_context_chars)
                 request_params = ensure_run_request_params(client, params)
-                # Plain count batches keep their size unless a target, extra
-                # context or a profile input ceiling makes the request budgeted;
-                # checking every batch halved default runs whose output estimate
-                # exceeds the starting max_tokens they escalate past anyway.
-                if (attribute_target_chars or attribute_context_chars > 20000
-                        or request_params.max_input_tokens):
-                    system_prompt, user_prompt = get_attribute_sizing_request(
+                # Admission considers bounded retry growth, not just the starting allowance.
+                system_prompt, user_prompt = get_attribute_sizing_request(
+                    batch, request_params, roster, contexts, surround,
+                    attribute_prompt_variant, attribute_prompt_texts, cast,
+                    get_established_traits(named) if speaker_traits else None)
+                if hasattr(entries_provider, "build_request"):
+                    system_prompt, user_prompt = entries_provider.build_request(
                         batch, request_params, roster, contexts, surround,
-                        attribute_prompt_variant, attribute_prompt_texts, cast,
                         get_established_traits(named) if speaker_traits else None)
-                    if hasattr(entries_provider, "build_request"):
-                        system_prompt, user_prompt = entries_provider.build_request(
-                            batch, request_params, roster, contexts, surround,
-                            get_established_traits(named) if speaker_traits else None)
-                    if not does_request_fit_context(system_prompt, user_prompt, request_params,
-                                                    max(256, (128 if speaker_traits else 24) * len(batch))):
-                        if len(current) == 1:
-                            raise TokenBudgetError("One attribution entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
-                        midpoint = len(current) // 2
-                        print(f"  Attribution request exceeds budget; subdividing {len(current)} entries")
-                        work[0:0] = [current[:midpoint], current[midpoint:]]
-                        continue
+                if not does_request_fit_context(system_prompt, user_prompt, request_params,
+                                                max(256, (128 if speaker_traits else 24) * len(batch)),
+                                                allow_retry_growth=True):
+                    if len(current) == 1:
+                        raise TokenBudgetError("One attribution entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
+                    midpoint = len(current) // 2
+                    print(f"  Attribution request exceeds budget; subdividing {len(current)} entries")
+                    work[0:0] = [current[:midpoint], current[midpoint:]]
+                    continue
                 announce_step(2, "window", window_number, window_total)
                 if progress:
                     progress.note_call_started()

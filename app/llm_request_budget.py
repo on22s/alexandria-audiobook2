@@ -15,6 +15,14 @@ def get_inherited_profile_limits(profile, generation):
     return result
 
 
+def get_task_output_fingerprint(params):
+    """Include distinct failover policy without invalidating legacy task defaults."""
+    return {name: getattr(params, name) for name, current in (
+        ("task_max_tokens", "max_tokens"), ("task_hard_max_tokens", "hard_max_tokens"))
+        if getattr(params, name, None) is not None
+        and getattr(params, name) != getattr(params, current)}
+
+
 def get_request_limits(profile, detected_context=None):
     """Resolve finite positive limits; declarations never enlarge live context."""
     limits = {}
