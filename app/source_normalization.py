@@ -34,17 +34,27 @@ def get_located_source_changes(text, changes):
 def normalize_known_source_corruptions(text):
     """Return normalized text and location evidence without mutating its source file."""
     changes = []
+    repair_start = 0
 
     def replace(match):
         before = match.group(0)
         after = KNOWN_SOURCE_CORRUPTIONS[before.casefold()]
         if before[:1].isupper():
             after = after.capitalize()
-        offset = match.start()
+        offset = repair_start + match.start()
         changes.append({"offset": offset, "before": before, "after": after})
         return after
 
-    normalized = _KNOWN_RE.sub(replace, text) if is_predominantly_latin_source(text) else text
+    # Start replacement at the first match, preserving absolute evidence
+    # offsets while avoiding a second scan of the preceding prefix.
+    first = _KNOWN_RE.search(text) if type(text) is str else None
+    needs_repair = type(text) is not str or first
+    if needs_repair and is_predominantly_latin_source(text):
+        repair_start = first.start() if first is not None else 0
+        normalized = (text[:repair_start] + _KNOWN_RE.sub(replace, text[repair_start:])
+                      if repair_start else _KNOWN_RE.sub(replace, text))
+    else:
+        normalized = text
 
     caption_changes = []
 
