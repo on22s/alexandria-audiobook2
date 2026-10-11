@@ -46,7 +46,8 @@ def export_audio_segment(segment, path, format_name, cancel_check, **kwargs):
                 ensure_audio_export_active(cancel_check)
                 stream.write(data[start:start + 8 * 1024 * 1024])
         settings = {'sample_width': segment.sample_width, 'frame_rate': segment.frame_rate,
-                    'channels': segment.channels, 'format': format_name, 'options': kwargs}
+                    'channels': segment.channels, 'format': format_name, 'options': kwargs,
+                    'encoder_temp': str(encoder_temp.resolve())}
         if cancel_check is None:
             settings['exception_path'] = str(Path(directory) / 'encoder-error.json')
         process = None
@@ -96,6 +97,10 @@ def run_encoder(raw_path, output_path, settings):
 if __name__ == '__main__':
     settings = json.loads(sys.argv[3])
     try:
+        # Pin the fresh encoder's cache: environment hints alone can fall back
+        # outside staging when tempfile's directory probe fails. Allocation
+        # errors here must propagate rather than select an unowned directory.
+        tempfile.tempdir = settings['encoder_temp']
         run_encoder(sys.argv[1], sys.argv[2], settings)
     except Exception as error:
         if settings.get('exception_path'):
