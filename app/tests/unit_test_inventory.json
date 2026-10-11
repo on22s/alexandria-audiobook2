@@ -5687,6 +5687,7 @@
     "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_capped_primary_does_not_cap_blank_failover",
     "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_declared_context_alone_subdivides_actual_attribution",
     "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_named_benchmark_profiles_inherit_global_input_limit",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_short_segment_ceiling_survives_blank_and_explicit_failover_limits",
     "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_task_policy_fingerprint_preserves_defaults_and_distinguishes_failover"
   ],
   "test_profile_failover": [

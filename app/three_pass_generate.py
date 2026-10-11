@@ -1009,6 +1009,8 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
     bounded_params = replace(
         params, max_tokens=min(params.max_tokens, completion_ceiling),
         hard_max_tokens=min(params.hard_max_tokens, completion_ceiling),
+        request_output_ceiling=min(params.request_output_ceiling or completion_ceiling,
+                                   completion_ceiling),
         temperature=(params.segment_temperature
                      if params.segment_temperature is not None else params.temperature))
     def repair(entries):

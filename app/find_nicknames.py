@@ -309,7 +309,9 @@ def find_nicknames(client, model_name, entries, existing_aliases=None,
               f"context-safe chunk(s) for {context_length}-token model.")
     call_params = replace(params or LLMGenParams(), max_tokens=max_tokens,
                           temperature=temperature, context_length=context_length,
-                          hard_max_tokens=12000)
+                          hard_max_tokens=12000,
+                          task_max_tokens=max_tokens, task_hard_max_tokens=12000,
+                          request_output_ceiling=12000)
 
     def _process_chunk(item):
         ci, ev_lines, accumulated_snapshot, wave_roster, total_chunks = item

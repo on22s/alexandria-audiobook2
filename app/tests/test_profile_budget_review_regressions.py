@@ -158,6 +158,31 @@ class ReviewFindingFixTests(unittest.TestCase):
         self.assertEqual(1,probe.call_count)
 
 class SecondReviewRegressionTests(unittest.TestCase):
+    def test_short_segment_ceiling_survives_blank_and_explicit_failover_limits(self):
+        from unittest.mock import Mock
+        from generate_script import ensure_run_request_params
+        from llm_provider import FailoverClient
+        params=tp.get_three_pass_run_params({'llm':{'max_output_tokens':2000},
+                                           'generation':{'max_tokens':4096}},{})
+        client=Mock(spec=FailoverClient)
+        observed=[]
+        def dispatch(c,m,system,user,bounded,**kw):
+            serving=ensure_run_request_params(c,bounded)
+            observed.append((serving.max_tokens,serving.hard_max_tokens))
+            request=get_budgeted_request({'messages':[{'content':user}],
+                                         'max_tokens':serving.hard_max_tokens},
+                                        get_request_limits({'max_output_tokens':serving.hard_max_tokens},32768))
+            self.assertLessEqual(request['max_tokens'],512)
+            return [{'type':'NARRATOR','text':'Short source.'}]
+        with patch.object(tp,'call_llm_for_entries',side_effect=dispatch):
+            for profile in ({},{'max_output_tokens':8000},{'max_output_tokens':256}):
+                client.ensure_active_runtime_profile.return_value={'config':profile,'context_length':32768}
+                result=tp._call_segment(client,'fixture','Short source.','','Short source.',params,
+                                        'SEGMENT',2,None)
+                self.assertEqual('Short source.',result[0]['text'])
+        self.assertEqual([(512,512),(512,512),(256,256)],observed)
+        self.assertEqual((2000,2000),(params.max_tokens,params.hard_max_tokens))
+
     def test_task_policy_fingerprint_preserves_defaults_and_distinguishes_failover(self):
         from generate_script import LLMGenParams
         from llm_request_budget import get_task_output_fingerprint

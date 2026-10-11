@@ -476,7 +476,9 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
                               temperature=temperature,
                               context_length=(context_length if context_length is not None
                                               else params.context_length if params else None),
-                              hard_max_tokens=12000)
+                              hard_max_tokens=12000,
+                              task_max_tokens=max_tokens, task_hard_max_tokens=12000,
+                              request_output_ceiling=12000)
         result = (call_llm_for_object(
             client, model_name, SPEAKER_DEDUPE_SYSTEM_PROMPT, user_prompt, call_params,
             label="SPEAKER DEDUPE") if len(speakers) >= 2 else {})

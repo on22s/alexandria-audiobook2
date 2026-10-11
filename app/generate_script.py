@@ -682,6 +682,8 @@ class LLMGenParams:
     # Preserve task policy independently of a serving profile override.
     task_max_tokens: int = None
     task_hard_max_tokens: int = None
+    # A request-specific safety ceiling survives serving-profile switches.
+    request_output_ceiling: int = None
 
 
 
@@ -960,6 +962,8 @@ def ensure_run_request_params(client, params):
     # A blank secondary limit keeps the run's own task ceiling (review 32768,
     # three-pass 16384+); the dataclass default would lower it on failover.
     changes["hard_max_tokens"] = limits["max_output_tokens"] or params.task_hard_max_tokens or params.hard_max_tokens
+    if params.request_output_ceiling is not None:
+        changes["hard_max_tokens"] = min(changes["hard_max_tokens"], params.request_output_ceiling)
     changes["max_tokens"] = min(params.task_max_tokens or params.max_tokens, changes["hard_max_tokens"])
     return replace(params, **changes)
 
