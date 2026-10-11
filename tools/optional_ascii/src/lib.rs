@@ -56,12 +56,23 @@ fn plain_strings(value: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<bool> {
 fn current_functions<'py>(
     policy: &Bound<'py, PyModule>,
     speech: &Bound<'py, PyModule>,
-) -> PyResult<Vec<Bound<'py, PyAny>>> {
-    Ok(vec![
-        speech.getattr("get_spoken_symbol")?,
-        speech.getattr("is_unspeakable_character")?,
-        policy.getattr("unicodedata")?.getattr("category")?,
-    ])
+) -> PyResult<Option<Vec<Bound<'py, PyAny>>>> {
+    let Some(spoken) = speech.dict().get_item("get_spoken_symbol")? else {
+        return Ok(None);
+    };
+    let Some(unspeakable) = speech.dict().get_item("is_unspeakable_character")? else {
+        return Ok(None);
+    };
+    let Some(unicode) = policy.dict().get_item("unicodedata")? else {
+        return Ok(None);
+    };
+    if !unicode.get_type().is(&policy.py().get_type::<PyModule>()) {
+        return Ok(None);
+    }
+    let Some(category) = unicode.cast::<PyModule>()?.dict().get_item("category")? else {
+        return Ok(None);
+    };
+    Ok(Some(vec![spoken, unspeakable, category]))
 }
 
 #[pyfunction]
@@ -72,7 +83,9 @@ fn create_policy(
     expected: Vec<Py<PyAny>>,
     codes: Vec<Py<PyAny>>,
 ) -> PyResult<Option<AsciiPolicy>> {
-    let functions = current_functions(policy, speech)?;
+    let Some(functions) = current_functions(policy, speech)? else {
+        return Ok(None);
+    };
     if expected.len() != 3
         || functions
             .iter()
@@ -92,15 +105,27 @@ fn create_policy(
     }
     // Only the canonical Python functions and built-in category may define
     // this table. Custom functions remain on the authoritative Python path.
-    if !functions[0].is(&policy.getattr("get_spoken_symbol")?)
-        || !functions[1].is(&policy.getattr("is_unspeakable_character")?)
+    let Some(spoken) = policy.dict().get_item("get_spoken_symbol")? else {
+        return Ok(None);
+    };
+    let Some(unspeakable) = policy.dict().get_item("is_unspeakable_character")? else {
+        return Ok(None);
+    };
+    if !functions[0].is(&spoken)
+        || !functions[1].is(&unspeakable)
         || !functions[2].get_type().is(&py.get_type::<PyCFunction>())
     {
         return Ok(None);
     }
-    let symbols = policy.getattr("SPOKEN_SYMBOLS")?;
-    let categories = policy.getattr("UNSPEAKABLE_CATEGORIES")?;
-    let replacement = policy.getattr("REPLACEMENT_CHARACTER")?;
+    let Some(symbols) = policy.dict().get_item("SPOKEN_SYMBOLS")? else {
+        return Ok(None);
+    };
+    let Some(categories) = policy.dict().get_item("UNSPEAKABLE_CATEGORIES")? else {
+        return Ok(None);
+    };
+    let Some(replacement) = policy.dict().get_item("REPLACEMENT_CHARACTER")? else {
+        return Ok(None);
+    };
     if !plain_strings(&symbols, py)?
         || !plain_strings(&categories, py)?
         || !plain_string(&replacement, py)?
@@ -155,10 +180,18 @@ impl AsciiPolicy {
             ));
         }
         py.check_signals()?;
-        let functions = current_functions(policy, speech)?;
-        let symbols = policy.getattr("SPOKEN_SYMBOLS")?;
-        let categories = policy.getattr("UNSPEAKABLE_CATEGORIES")?;
-        let replacement = policy.getattr("REPLACEMENT_CHARACTER")?;
+        let Some(functions) = current_functions(policy, speech)? else {
+            return Ok(None);
+        };
+        let Some(symbols) = policy.dict().get_item("SPOKEN_SYMBOLS")? else {
+            return Ok(None);
+        };
+        let Some(categories) = policy.dict().get_item("UNSPEAKABLE_CATEGORIES")? else {
+            return Ok(None);
+        };
+        let Some(replacement) = policy.dict().get_item("REPLACEMENT_CHARACTER")? else {
+            return Ok(None);
+        };
         // Exact built-in types avoid user equality callbacks that could release
         // the GIL or mutate policy between validation and translation.
         if !plain_strings(&symbols, py)?
