@@ -135,6 +135,9 @@ def classify_llm_error(error):
     body = getattr(error, "body", None)
     details = body.get("error", body) if isinstance(body, dict) else {}
     code = details.get("code") if isinstance(details, dict) else None
+    refusal_codes = ("content_filter", "content_policy_violation", "safety_violation", "refusal")
+    if isinstance(details, dict) and any(details.get(field) in refusal_codes for field in ("code", "type")):
+        return {"category": "content_policy", "status_code": status_code, "retryable": False}
     if status_code in (400, 413) and (code == "context_length_exceeded" or any(
             token in lowered for token in ("context window exceeded", "maximum context length",
                                             "exceeds the context window"))):
