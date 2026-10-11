@@ -290,7 +290,8 @@ class OutputCeilingRefusalTests(OwnedScriptTestCase):
         message = self._refusal(30000)
         self.assertIsNotNone(message)
         self.assertIn("30000", message)
-        self.assertIn("16384", message)
+        # The saved global output value is now the inherited ceiling.
+        self.assertIn("4096", message)
         self.assertRegex(message, r"Set it to \d+ or below")
 
     def test_a_chunk_that_fits_is_not_refused(self):

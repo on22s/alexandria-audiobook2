@@ -50,6 +50,7 @@ from three_pass_generate import (build_attribute_request,
                                  build_three_pass_request_preflight,
                                  get_three_pass_preflight_capacity,
                                  get_context_rescue_windows,
+                                 is_three_pass_context_required,
                                  apply_segment_gate_controls,
                                  default_instruct,
                                  read_source_text,
@@ -2276,9 +2277,9 @@ def get_batch_script_sizing_identity(text, settings, context_windows, context_le
               "context_windows": get_context_rescue_windows(context_windows),
               "prompts": [load_segment_prompts(), load_attribute_prompts(),
                           load_instruct_prompts()]}
-    if (settings.get("attribute_target_chars") or settings.get("instruct_target_chars")
-            or settings.get("chunk_size", 0) > 30000
-            or settings.get("attribute_context_chars", 0) > 20000):
+    if is_three_pass_context_required(
+            settings.get("chunk_size", 0), settings.get("attribute_context_chars", 0),
+            settings.get("attribute_target_chars", 0), settings.get("instruct_target_chars", 0)):
         inputs["context_length"] = context_length
     return hashlib.sha256(json.dumps(inputs, sort_keys=True, ensure_ascii=False,
                                     allow_nan=False).encode("utf-8")).hexdigest()
@@ -2286,6 +2287,8 @@ def get_batch_script_sizing_identity(text, settings, context_windows, context_le
 
 def get_batch_script_source_preflight(job, text, settings, context, context_windows):
     """Reuse this request's sizing summary only while its inputs still match."""
+    from llm_request_budget import get_request_limits
+    context = get_request_limits({"context_length": settings.get("profile_context_length")}, context)["context_length"] or 0
     receipt = (job.get("prepared_source") or {}).get("preflight")
     if receipt and receipt["identity"] == get_batch_script_sizing_identity(
             text, settings, context_windows, context):
@@ -2302,7 +2305,13 @@ def build_batch_script_preflight(jobs):
         config.get("llm_mode", "local"), llm.get("base_url", ""),
         llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
     parallel = max(1, int(status.get("parallel") or 1))
-    context = int(status.get("context_length") or 0)
+    from llm_request_budget import get_request_limits
+    if llm.get("context_length"):
+        from lmstudio_settings import get_current_status
+        status = get_current_status(config.get("llm_mode", "local"), llm.get("base_url", ""),
+                                    llm.get("model_name", ""), config.get("llm_remote_ssh"),
+                                    api_key=llm.get("api_key"))
+    context = int(get_request_limits(llm, status.get("context_length"))["context_length"] or 0)
     generation = config.get("generation") or {}
     settings = resolve_three_pass_generation_settings(config)
     context_windows = generation.get("context_rescue_windows")
@@ -2358,11 +2367,26 @@ def three_pass_refusal(jobs):
     config = load_app_config(CONFIG_PATH)
     settings = resolve_three_pass_generation_settings(config)
     context_windows = (config.get("generation") or {}).get("context_rescue_windows")
+    needs_context = is_three_pass_context_required(
+        settings["chunk_size"], settings["attribute_context_chars"],
+        settings["attribute_target_chars"], settings["instruct_target_chars"])
+    context = 0
+    if needs_context:
+        from lmstudio_settings import get_current_status
+        from llm_request_budget import get_request_limits
+        llm = get_active_llm_config(config)
+        status = get_current_status(config.get("llm_mode", "local"), llm.get("base_url", ""),
+                                    llm.get("model_name", ""), config.get("llm_remote_ssh"),
+                                    api_key=llm.get("api_key")) if llm.get("transport") != "manual" else {}
+        context = get_request_limits(llm, status.get("context_length"))["context_length"] or 0
+        if not context:
+            return ("Larger requests require a known model context. Set Total context budget "
+                    "(tokens) in Setup for the active LLM profile, or use a server exposing its loaded context.")
     reports = []
     for job in jobs:
         text, _ = get_validated_batch_script_source(job)
         reports.append((job["filename"], get_batch_script_source_preflight(
-            job, text, settings, 0, context_windows)))
+            job, text, settings, context, context_windows)))
     return (output_ceiling_refusal(settings, reports)
             or unquoted_book_refusal(settings, reports))
 
@@ -2397,8 +2421,8 @@ def output_ceiling_refusal(settings, reports):
     return (f"\"Step 1: text per request\" is set to {settings['chunk_size']} characters, which is "
             f"more than this model can write back in one reply: a piece of {name} would need "
             f"about {worst['largest_predicted_completion']} tokens and the most it can reply is "
-            f"{worst['output_ceiling']} (Baseline Response Tokens in Setup, or 16384 if that is lower). "
-            f"Set it to {suggested} or below, or raise Baseline Response Tokens.")
+            f"{worst['output_ceiling']} (the effective output ceiling). "
+            f"Set it to {suggested} or below, or adjust the profile Output ceiling / Advanced global output ceiling.")
 
 
 def _get_batch_script_workers(jobs):

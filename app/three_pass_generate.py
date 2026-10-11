@@ -146,7 +146,10 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
         "chunk_size": resolve_chunk_size(
             chunk_size_override, gen.get("three_pass_chunk_size", 3000),
             model_profile.get("chunk_size")),
-        "max_tokens": gen.get("max_tokens", 10000),
+        "max_tokens": llm.get("max_output_tokens") or gen.get("max_tokens", 10000),
+        "max_input_tokens": llm.get("max_input_tokens"),
+        "profile_context_length": llm.get("context_length"),
+        "profile_output_ceiling": llm.get("max_output_tokens"),
         "segment_output_ratio": model_profile.get(
             "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)),
         "segmentation": segmentation_override or model_profile.get(
@@ -164,6 +167,13 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
     }
 
 
+def is_three_pass_context_required(chunk_size, attribute_context_chars,
+                                   attribute_target_chars=0, instruct_target_chars=0):
+    """One policy for admission, sizing identity and native execution."""
+    return bool(chunk_size > 30000 or attribute_context_chars > 20000
+                or attribute_target_chars or instruct_target_chars)
+
+
 def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generation_settings=None):
     """Build the shared native generation/retry policy without changing config."""
     generation_settings = (generation_settings if generation_settings is not None
@@ -171,21 +181,18 @@ def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generati
     gen = config.get("generation") or {}
     llm = get_active_llm_config(config)
     model_profile = generation_settings["model_profile"]
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(llm, lm_status.get("context_length"))
     params = LLMGenParams(
-        max_tokens=generation_settings["max_tokens"],
-        # The escalation ceiling follows the configured budget. It used to stay
-        # at the dataclass default (16384) whatever Setup said, so a hosted
-        # reasoning model that thinks for 16k tokens was cut off at exactly
-        # that point with "cannot grow beyond 16384" while the user had set
-        # 65536 (reported 2026-09-17 against an OpenRouter model via a
-        # GPT-Load gateway). Never below the default, so local setups keep
-        # their headroom; get_effective_max_tokens still clamps to the
-        # server's real context when one is known.
-        hard_max_tokens=resolve_hard_max_tokens(generation_settings["max_tokens"]),
+        max_tokens=min(generation_settings["max_tokens"], limits["max_output_tokens"] or generation_settings["max_tokens"]),
+        max_input_tokens=limits["max_input_tokens"],
+        # Profile override / global fallback bounds every retry. Raw legacy
+        # harness configs without either retain their existing task ceiling.
+        hard_max_tokens=limits["max_output_tokens"] or resolve_hard_max_tokens(generation_settings["max_tokens"]),
         temperature=gen.get("temperature", 0.6),
         top_p=gen.get("top_p", 0.8),
         top_k=gen.get("top_k"), min_p=gen.get("min_p"),
-        context_length=lm_status.get("context_length"),
+        context_length=limits["context_length"],
         segment_temperature=model_profile.get(
             # Segmentation and attribution are classification, not writing:
             # each has one right answer, so sampling only adds noise. Measured
@@ -894,7 +901,8 @@ def does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
             params.max_tokens, params.context_length,
             [{"role": "system", "content": system_prompt},
              {"role": "user", "content": user_prompt}],
-            params.hard_max_tokens, scale_to_context=False)
+            params.hard_max_tokens, scale_to_context=False,
+            max_input_tokens=params.max_input_tokens)
     except TokenBudgetError:
         return False
     return available >= output_tokens + max(0, params.reasoning_allowance or 0)
@@ -1484,8 +1492,15 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     validate_attribution_vote_settings(settings.get("attribution_votes", 1),
                                        settings.get("vote_temperature", 0.3))
     chunk_size = settings["chunk_size"]
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits({"context_length": settings.get("profile_context_length"),
+                                 "max_input_tokens": settings.get("max_input_tokens"),
+                                 "max_output_tokens": settings.get("profile_output_ceiling")}, context_length)
+    context_length = limits["context_length"]
     params = params or LLMGenParams(
         max_tokens=settings["max_tokens"], context_length=context_length,
+        max_input_tokens=limits["max_input_tokens"],
+        hard_max_tokens=limits["max_output_tokens"] or resolve_hard_max_tokens(settings["max_tokens"]),
         segment_output_ratio=settings["segment_output_ratio"],
         segmentation=settings["segmentation"],
         quoted_must_be_spoken=settings.get("quoted_must_be_spoken", True),
@@ -1503,6 +1518,8 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
         prompt_tokens = math.ceil((len(system_prompt) + len(user_prompt)) / 3)
         completion_tokens = int(completion_tokens) + max(0, params.reasoning_allowance or 0)
         total = prompt_tokens + completion_tokens + reserve
+        if params.max_input_tokens and prompt_tokens > params.max_input_tokens:
+            raise TokenBudgetError(f"{stage} prompt estimate ({prompt_tokens}) exceeds the input ceiling ({params.max_input_tokens}). Reduce the source/context target or adjust the profile input ceiling.")
         requests.append({"stage": stage, "prompt_tokens": prompt_tokens,
                          "predicted_completion_tokens": int(completion_tokens),
                          "predicted_total_tokens": total})
@@ -1513,7 +1530,7 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             current = work.pop(0)
             system_prompt, user_prompt = build_request(current)
             output_tokens = max(256, output_per_entry * len(current))
-            if target_chars and not does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
+            if (target_chars or params.max_input_tokens or settings.get("profile_output_ceiling")) and not does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
                 if len(current) == 1:
                     raise TokenBudgetError(f"One {stage} entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
                 midpoint = len(current) // 2
@@ -1532,7 +1549,7 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     # The run's escalation ceiling is the most it can ever ask for; a chunk
     # whose predicted output exceeds it cannot succeed at any retry, and the
     # caller should refuse the run rather than let it fail chunk by chunk.
-    output_ceiling = resolve_hard_max_tokens(int(settings["max_tokens"]))
+    output_ceiling = params.hard_max_tokens
     largest_completion = 0
     for chunk in chunks:
         largest_completion = max(largest_completion, resolve_completion_ceiling(
@@ -1731,13 +1748,13 @@ def _rescue_prompt_fits(chunk, before, after, overhead_chars, params):
     context, leaving room to emit the chunk. Uses the pipeline's chars//3 token
     estimate. Returns True when context_length is unknown (keep prior behavior)."""
     ctx_len = getattr(params, "context_length", None)
-    if not ctx_len:
+    if not ctx_len and not params.max_input_tokens:
         return True
     prompt_tokens = math.ceil((overhead_chars + len(chunk) + len(before) + len(after)) / 3)
     # Segment output reproduces the chunk text wrapped in JSON; reserve ~1.5x the
     # chunk's token estimate plus a small structural margin as the output budget.
     output_budget = math.ceil(len(chunk) / 3 * 1.5) + 64
-    return prompt_tokens + output_budget <= ctx_len
+    return does_request_fit_context("", "x" * (prompt_tokens * 3), params, output_budget)
 
 
 def rescue_chunk_with_context(client, model_name, chunks, index, params,
@@ -1932,6 +1949,8 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
             "segment_system_prompt", "segment_user_prompt_template",
             "instruct_system_prompt", "instruct_user_prompt_template",
             "response_schema")})
+        if getattr(params, "max_input_tokens", None) is not None:
+            settings["max_input_tokens"] = params.max_input_tokens
         if not getattr(params, "quoted_must_be_spoken", True):
             settings["quoted_must_be_spoken"] = False
         if not getattr(params, "unquoted_must_be_narrator", True):
@@ -2094,9 +2113,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     require_nonempty_source(source_text)
     for target in (attribute_target_chars, instruct_target_chars):
         list(iter_entry_windows([], attribute_batch_size, target))
-    if attribute_target_chars or instruct_target_chars or chunk_size > 30000 or attribute_context_chars > 20000:
+    if is_three_pass_context_required(chunk_size, attribute_context_chars,
+                                      attribute_target_chars, instruct_target_chars):
         if not params.context_length or params.context_length <= 0:
-            raise TokenBudgetError("Character batching and larger targets require a configured model context length.")
+            raise TokenBudgetError("Character batching and larger targets require a known model context length. Set Total context budget (tokens) in Setup for this LLM profile, or use a server exposing its loaded context.")
     # Preserve None in checkpoint identity while validating explicit controls.
     get_context_rescue_windows(context_windows)
     validate_attribution_vote_settings(attribution_votes, vote_temperature)

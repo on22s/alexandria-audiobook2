@@ -117,7 +117,8 @@ class TokenBudgetError(ValueError):
 
 
 def get_effective_max_tokens(fallback, context_length=None, messages=None,
-                             hard_max=None, reserve=512, scale_to_context=True):
+                             hard_max=None, reserve=512, scale_to_context=True,
+                             max_input_tokens=None):
     """Return a context-safe completion budget for a production LLM call.
 
     ``fallback`` is the conservative allowance used when live model context is
@@ -129,17 +130,20 @@ def get_effective_max_tokens(fallback, context_length=None, messages=None,
     fallback = max(1, int(fallback))
     hard_max = max(1, int(hard_max or fallback))
     fallback = min(fallback, hard_max)
+    from llm_request_budget import get_prompt_token_estimate
+    prompt_tokens = get_prompt_token_estimate(messages)
+    if max_input_tokens is not None and prompt_tokens > max_input_tokens:
+        raise TokenBudgetError(
+            f"Prompt estimate ({prompt_tokens}) exceeds the input ceiling "
+            f"({max_input_tokens}). Reduce the input or adjust the profile input limit.")
     if not context_length:
         return min(fallback, hard_max)
     context_length = max(1, int(context_length))
-    prompt_chars = sum(len(str(message.get("content") or ""))
-                       for message in (messages or []))
-    prompt_tokens = (prompt_chars + 2) // 3
     available = context_length - prompt_tokens - max(0, int(reserve))
     if available < 1:
         raise TokenBudgetError(
             f"Prompt estimate ({prompt_tokens}) plus reserve ({reserve}) exceeds "
-            f"the loaded context ({context_length}). Reduce the input or increase LM Studio context.")
+            f"the loaded context ({context_length}). Reduce the input or review the profile/server context settings.")
     scaled_target = max(fallback, context_length // 4) if scale_to_context else fallback
     return max(1, min(hard_max, scaled_target, available))
 
@@ -210,7 +214,8 @@ def get_active_llm_config(config):
     block = config.get(f"llm_{mode}")
     if not isinstance(block, dict) or not block:
         block = config.get("llm")
-    return block if isinstance(block, dict) else {}
+    from llm_request_budget import get_inherited_profile_limits
+    return get_inherited_profile_limits(block, config.get("generation") or {}) if isinstance(block, dict) else {}
 
 
 def get_failover_llm_config(config):
@@ -223,7 +228,8 @@ def get_failover_llm_config(config):
     block = config.get(f"llm_{other}")
     if not isinstance(block, dict) or not block.get("base_url") or not block.get("model_name"):
         return {}
-    return block
+    from llm_request_budget import get_inherited_profile_limits
+    return get_inherited_profile_limits(block, config.get("generation") or {})
 
 
 def find_lms_binary():

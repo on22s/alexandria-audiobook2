@@ -44,6 +44,11 @@ console.log(JSON.stringify(out));
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         return json.loads(result.stdout)
 
+    def test_global_input_ceiling_saves_blank_and_positive_whole_numbers(self):
+        payloads=self.run_inputs([{'max-input-tokens':''},{'max-input-tokens':'32768'}])
+        self.assertIsNone(payloads[0]['generation']['max_input_tokens'])
+        self.assertEqual(32768,payloads[1]['generation']['max_input_tokens'])
+
     def test_integer_fields_preserve_exponent_and_decimal_notation(self):
         cases = [{id: value} for id, _, _, value, _ in FIELDS]
         cases += [{id: str(expected) + ".0"} for id, _, _, _, expected in FIELDS]
