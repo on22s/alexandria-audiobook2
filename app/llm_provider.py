@@ -132,8 +132,6 @@ def classify_llm_error(error):
     status_code = getattr(error, "status_code", None)
     message = str(error)
     lowered = message.lower()
-    if any(token in lowered for token in ("safety", "policy", "content filter", "nsfw")):
-        return {"category": "content_policy", "status_code": status_code, "retryable": False}
     body = getattr(error, "body", None)
     details = body.get("error", body) if isinstance(body, dict) else {}
     code = details.get("code") if isinstance(details, dict) else None
@@ -145,6 +143,8 @@ def classify_llm_error(error):
         return {"category": "rate_limited", "status_code": status_code, "retryable": True}
     if isinstance(status_code, int) and 500 <= status_code <= 599:
         return {"category": "server_error", "status_code": status_code, "retryable": True}
+    if any(token in lowered for token in ("safety", "policy", "content filter", "nsfw")):
+        return {"category": "content_policy", "status_code": status_code, "retryable": False}
     error_type = type(error).__name__.lower()
     if "timeout" in error_type or "timeout" in lowered:
         return {"category": "timeout", "status_code": status_code, "retryable": True}

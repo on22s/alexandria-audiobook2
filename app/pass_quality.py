@@ -407,7 +407,7 @@ def validate_segment_quality(source_text, entries, quote_analysis=None, *,
         if missing:
             findings.append({"code": "missing_fields", "entry_number": number,
                              "fields": missing, "message": "Entry is missing required fields."})
-        if entry.get("type") not in _VALID_SEGMENT_TYPES:
+        if not isinstance(entry.get("type"), str) or entry["type"] not in _VALID_SEGMENT_TYPES:
             findings.append({"code": "invalid_type", "entry_number": number,
                              "value": entry.get("type"),
                              "message": "Each entry's type must be NARRATOR or SPOKEN."})
