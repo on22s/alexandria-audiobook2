@@ -1,6 +1,7 @@
 """Conservative speech preparation and non-prose risk classification."""
 import re
 import logging
+from collections import Counter
 
 
 from speech_policy import (SPEECH_BREAKS, SPEECH_WORDS, VERBALIZED_SYMBOLS,
@@ -66,29 +67,28 @@ def verbalize_symbols(text):
     already handle keeps its existing behaviour - `■` stays a sentence break
     rather than becoming a silent drop.
     """
-    spoken, dropped, out = [], [], []
-    for ch in text:
+    counts = Counter(text)
+    spoken, dropped, replacements = [], [], {}
+    for ch in counts:
         word = get_spoken_symbol(ch)
         if word:
-            out.append(f" {word} ")
+            replacements[ord(ch)] = f" {word} "
             spoken.append(ch)
         elif is_unspeakable_character(ch):
-            out.append(" ")
+            replacements[ord(ch)] = " "
             dropped.append(ch)
-        else:
-            out.append(ch)
     transformations = []
     if spoken:
         transformations.append({"type": "verbalized_symbol",
-                                "symbols": sorted(set(spoken))})
+                                "symbols": sorted(spoken)})
     if dropped:
         # Recorded, not silent: a character removed without a trace is
         # indistinguishable from one that was never in the source, and this
         # list is the evidence for goal 5.1's count.
         transformations.append({"type": "dropped_unspeakable",
-                                "symbols": sorted(set(dropped)),
-                                "count": len(dropped)})
-    return "".join(out), transformations
+                                "symbols": sorted(dropped),
+                                "count": sum(counts[ch] for ch in dropped)})
+    return text.translate(replacements), transformations
 
 
 def get_speech_normalization(text):
