@@ -952,7 +952,9 @@ def ensure_run_request_params(client, params):
     limits = get_request_limits(config, profile["context_length"])
     changes["context_length"] = limits["context_length"]
     changes["max_input_tokens"] = limits["max_input_tokens"]
-    changes["hard_max_tokens"] = limits["max_output_tokens"] or defaults.hard_max_tokens
+    # A blank secondary limit keeps the run's own task ceiling (review 32768,
+    # three-pass 16384+); the dataclass default would lower it on failover.
+    changes["hard_max_tokens"] = limits["max_output_tokens"] or params.hard_max_tokens
     changes["max_tokens"] = min(params.max_tokens, changes["hard_max_tokens"])
     return replace(params, **changes)
 

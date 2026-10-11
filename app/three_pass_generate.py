@@ -1751,15 +1751,21 @@ def _head_join(parts, limit):
 def _rescue_prompt_fits(chunk, before, after, overhead_chars, params):
     """Estimate whether a context-rescue prompt for this window fits the model's
     context, leaving room to emit the chunk. Uses the pipeline's chars//3 token
-    estimate. Returns True when context_length is unknown (keep prior behavior)."""
+    estimate. A profile input ceiling bounds the prompt on its own; with
+    neither limit known, returns True (keep prior behavior). Deliberately not
+    does_request_fit_context: that caps the room at max_tokens, which a large
+    chunk's echo exceeds, and would drop every window however ample the context."""
     ctx_len = getattr(params, "context_length", None)
-    if not ctx_len and not params.max_input_tokens:
-        return True
+    max_input = getattr(params, "max_input_tokens", None)
     prompt_tokens = math.ceil((overhead_chars + len(chunk) + len(before) + len(after)) / 3)
+    if max_input and prompt_tokens > max_input:
+        return False
+    if not ctx_len:
+        return True
     # Segment output reproduces the chunk text wrapped in JSON; reserve ~1.5x the
     # chunk's token estimate plus a small structural margin as the output budget.
     output_budget = math.ceil(len(chunk) / 3 * 1.5) + 64
-    return does_request_fit_context("", "x" * (prompt_tokens * 3), params, output_budget)
+    return prompt_tokens + output_budget <= ctx_len
 
 
 def rescue_chunk_with_context(client, model_name, chunks, index, params,
@@ -2466,22 +2472,28 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 surround = build_window_surround(
                     segmented, [index for index, _ in current], attribute_context_chars)
                 request_params = ensure_run_request_params(client, params)
-                system_prompt, user_prompt = get_attribute_sizing_request(
-                    batch, request_params, roster, contexts, surround,
-                    attribute_prompt_variant, attribute_prompt_texts, cast,
-                    get_established_traits(named) if speaker_traits else None)
-                if hasattr(entries_provider, "build_request"):
-                    system_prompt, user_prompt = entries_provider.build_request(
+                # Plain count batches keep their size unless a target, extra
+                # context or a profile input ceiling makes the request budgeted;
+                # checking every batch halved default runs whose output estimate
+                # exceeds the starting max_tokens they escalate past anyway.
+                if (attribute_target_chars or attribute_context_chars > 20000
+                        or request_params.max_input_tokens):
+                    system_prompt, user_prompt = get_attribute_sizing_request(
                         batch, request_params, roster, contexts, surround,
+                        attribute_prompt_variant, attribute_prompt_texts, cast,
                         get_established_traits(named) if speaker_traits else None)
-                if not does_request_fit_context(system_prompt, user_prompt, request_params,
-                                                max(256, (128 if speaker_traits else 24) * len(batch))):
-                    if len(current) == 1:
-                        raise TokenBudgetError("One attribution entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
-                    midpoint = len(current) // 2
-                    print(f"  Attribution request exceeds budget; subdividing {len(current)} entries")
-                    work[0:0] = [current[:midpoint], current[midpoint:]]
-                    continue
+                    if hasattr(entries_provider, "build_request"):
+                        system_prompt, user_prompt = entries_provider.build_request(
+                            batch, request_params, roster, contexts, surround,
+                            get_established_traits(named) if speaker_traits else None)
+                    if not does_request_fit_context(system_prompt, user_prompt, request_params,
+                                                    max(256, (128 if speaker_traits else 24) * len(batch))):
+                        if len(current) == 1:
+                            raise TokenBudgetError("One attribution entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
+                        midpoint = len(current) // 2
+                        print(f"  Attribution request exceeds budget; subdividing {len(current)} entries")
+                        work[0:0] = [current[:midpoint], current[midpoint:]]
+                        continue
                 announce_step(2, "window", window_number, window_total)
                 if progress:
                     progress.note_call_started()

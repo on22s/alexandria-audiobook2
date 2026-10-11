@@ -41,7 +41,7 @@ from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
 from config_settings import load_app_config
 from generate_script import fix_mojibake
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
-                               get_planned_ideal_settings)
+                               get_planned_request_context)
 from narrator_prompt import get_valid_narrator_name, is_narrator_attested
 from script_preflight import audit_unicode_text
 from source_normalization import normalize_known_source_corruptions
@@ -2287,8 +2287,6 @@ def get_batch_script_sizing_identity(text, settings, context_windows, context_le
 
 def get_batch_script_source_preflight(job, text, settings, context, context_windows):
     """Reuse this request's sizing summary only while its inputs still match."""
-    from llm_request_budget import get_request_limits
-    context = get_request_limits({"context_length": settings.get("profile_context_length")}, context)["context_length"] or 0
     receipt = (job.get("prepared_source") or {}).get("preflight")
     if receipt and receipt["identity"] == get_batch_script_sizing_identity(
             text, settings, context_windows, context):
@@ -2300,18 +2298,8 @@ def get_batch_script_source_preflight(job, text, settings, context, context_wind
 def build_batch_script_preflight(jobs):
     """Build the shared read-only sizing report used by the UI and dispatcher."""
     config = load_app_config(CONFIG_PATH)
-    llm = get_active_llm_config(config)
-    status = get_planned_ideal_settings(
-        config.get("llm_mode", "local"), llm.get("base_url", ""),
-        llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
-    parallel = max(1, int(status.get("parallel") or 1))
-    from llm_request_budget import get_request_limits
-    if llm.get("context_length"):
-        from lmstudio_settings import get_current_status
-        status = get_current_status(config.get("llm_mode", "local"), llm.get("base_url", ""),
-                                    llm.get("model_name", ""), config.get("llm_remote_ssh"),
-                                    api_key=llm.get("api_key"))
-    context = int(get_request_limits(llm, status.get("context_length"))["context_length"] or 0)
+    planned = get_planned_request_context(config)
+    parallel, context = planned["parallel"], planned["context"]
     generation = config.get("generation") or {}
     settings = resolve_three_pass_generation_settings(config)
     context_windows = generation.get("context_rescue_windows")
@@ -2372,16 +2360,18 @@ def three_pass_refusal(jobs):
         settings["attribute_target_chars"], settings["instruct_target_chars"])
     context = 0
     if needs_context:
-        from lmstudio_settings import get_current_status
-        from llm_request_budget import get_request_limits
-        llm = get_active_llm_config(config)
-        status = get_current_status(config.get("llm_mode", "local"), llm.get("base_url", ""),
-                                    llm.get("model_name", ""), config.get("llm_remote_ssh"),
-                                    api_key=llm.get("api_key")) if llm.get("transport") != "manual" else {}
-        context = get_request_limits(llm, status.get("context_length"))["context_length"] or 0
-        if not context:
+        # Planned, not current: a JIT/unloaded model the run's heal will load
+        # is admitted. A probe failure defers to run_three_pass's own check
+        # rather than refusing a run that may well succeed.
+        try:
+            planned = get_planned_request_context(config)
+        except Exception as error:
+            print(f"Context admission skipped; the run will check it: {type(error).__name__}: {error}")
+            planned = None
+        if planned and not planned["known"]:
             return ("Larger requests require a known model context. Set Total context budget "
                     "(tokens) in Setup for the active LLM profile, or use a server exposing its loaded context.")
+        context = planned["context"] if planned else 0
     reports = []
     for job in jobs:
         text, _ = get_validated_batch_script_source(job)
@@ -2421,8 +2411,8 @@ def output_ceiling_refusal(settings, reports):
     return (f"\"Step 1: text per request\" is set to {settings['chunk_size']} characters, which is "
             f"more than this model can write back in one reply: a piece of {name} would need "
             f"about {worst['largest_predicted_completion']} tokens and the most it can reply is "
-            f"{worst['output_ceiling']} (the effective output ceiling). "
-            f"Set it to {suggested} or below, or adjust the profile Output ceiling / Advanced global output ceiling.")
+            f"{worst['output_ceiling']} (the profile Output ceiling, else Baseline Response Tokens in Setup or 16384 if that is lower). "
+            f"Set it to {suggested} or below, or raise the profile Output ceiling / Baseline Response Tokens.")
 
 
 def _get_batch_script_workers(jobs):

@@ -777,11 +777,9 @@ class EndToEndTests(unittest.TestCase):
                      for i in range(26)]
         source = " ".join(entry["text"] for entry in segmented)
         observed_rosters = []
-        observed_sizes = []
 
         def attribute(_client, _model, batch, _params, **kwargs):
             observed_rosters.append(list(kwargs["roster"]))
-            observed_sizes.append(len(batch))
             return ([{"speaker": "UNKNOWN", "text": entry["text"]}
                      for entry in batch], [1.0] * len(batch))
 
@@ -798,8 +796,8 @@ class EndToEndTests(unittest.TestCase):
                 chunk_size=6000, on_exhaustion="fallback",
                 first_person_narrator="alexis")
 
-        self.assertGreaterEqual(len(observed_rosters), 2)
-        self.assertTrue(all(max(256, 24 * size) <= 500 for size in observed_sizes))
+        # Plain count batches are not resized by the fit check (main behavior).
+        self.assertEqual(2, len(observed_rosters))
         self.assertEqual([entry["text"] for entry in segmented], [entry["text"] for entry in entries])
         self.assertTrue(all(roster[0] == "ALEXIS"
                             for roster in observed_rosters))

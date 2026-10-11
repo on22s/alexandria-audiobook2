@@ -15,7 +15,8 @@ class ReviewRegressionTests(unittest.TestCase):
             with self.assertRaises(TokenBudgetError):client.chat.completions.create(messages=[{'content':'x'*301}],max_tokens=4000)
             raw.return_value.chat.completions.create.assert_not_called()
             client.chat.completions.create(messages=[{'content':'short'}],max_tokens=4000)
-            self.assertEqual(256,raw.return_value.chat.completions.create.call_args.kwargs['max_tokens'])
+            # The global input ceiling is inherited; the 256 baseline is not a cap.
+            self.assertEqual(4000,raw.return_value.chat.completions.create.call_args.kwargs['max_tokens'])
 
     def test_real_rescue_context_admitted_and_oversized_input_rejected(self):
         cfg={'llm':{'max_input_tokens':2000,'max_output_tokens':4096,'context_length':16000},'generation':{'three_pass_segmentation':'model','three_pass_chunk_size':500,'max_tokens':4096}}
@@ -54,7 +55,7 @@ class ReviewRegressionTests(unittest.TestCase):
             result=gp.request_persona_with_evidence(SimpleNamespace(),'fixture','',lambda parts:''.join(v for k,v in parts),[('source','x'*200),('source','y'*200)],params,'TEST',max_prompt_chars=10000,validate_object=lambda value:value)
         self.assertIsInstance(result,dict);self.assertIn('x'*200,calls);self.assertIn('y'*200,calls)
 
-    def test_nickname_client_uses_post_heal_live_context(self):
+    def test_nickname_client_is_built_after_heal_with_profile_output_cap(self):
         import find_nicknames as fn
         import tempfile, json, sys
         from pathlib import Path
@@ -70,8 +71,88 @@ class ReviewRegressionTests(unittest.TestCase):
             source=Path(tmp,'source.json');source.write_text(json.dumps([{'speaker':'Speaker','text':'Hello.'}]))
             with patch.object(sys,'argv',['find_nicknames.py','--input',str(source),'--aliases-file',str(Path(tmp,'aliases.json'))]), \
                  patch.object(fn,'load_app_config',return_value={'llm':profile}),patch.object(fn,'ensure_ideal_settings',side_effect=heal), \
-                 patch('lmstudio_settings.get_current_status',side_effect=lambda *a,**kw:dict(runtime)) as status,patch('llm_provider.OpenAI') as raw, \
+                 patch('lmstudio_settings.get_current_status',side_effect=lambda *a,**kw:dict(runtime)),patch('llm_provider.OpenAI') as raw, \
                  patch.object(fn,'get_cached_or_benchmarked_concurrency',return_value=1),patch.object(fn,'find_nicknames',side_effect=scan):
                 fn.main()
-                self.assertFalse(status.call_args.kwargs['use_cache'])
                 self.assertEqual(2000,raw.return_value.chat.completions.create.call_args.kwargs['max_tokens'])
+
+
+class ReviewFindingFixTests(unittest.TestCase):
+    """PR #1097 review: each case failed on the reviewed head (66d55bb2)."""
+    LOCAL={'model_name':'fixture','base_url':'http://localhost:1234/v1','api_key':'local'}
+
+    def test_blank_profile_keeps_three_pass_escalation_ceiling(self):
+        params=tp.get_three_pass_run_params({'llm':dict(self.LOCAL),'generation':{'max_tokens':4096}},{})
+        self.assertEqual(4096,params.max_tokens)
+        self.assertEqual(16384,params.hard_max_tokens)
+        capped=tp.get_three_pass_run_params({'llm':dict(self.LOCAL,max_output_tokens=2000),'generation':{'max_tokens':4096}},{})
+        self.assertEqual(2000,capped.hard_max_tokens)
+
+    def test_blank_profile_http_client_does_not_clamp_to_baseline(self):
+        from lmstudio_settings import get_active_llm_config
+        from llm_provider import make_llm_client
+        llm=get_active_llm_config({'llm':dict(self.LOCAL),'generation':{'max_tokens':4096}})
+        with patch('llm_provider.OpenAI') as raw:
+            make_llm_client(llm,10).chat.completions.create(messages=[{'content':'short'}],max_tokens=16000)
+        self.assertEqual(16000,raw.return_value.chat.completions.create.call_args.kwargs['max_tokens'])
+
+    def test_failover_with_blank_secondary_keeps_the_run_ceiling(self):
+        from unittest.mock import Mock
+        from llm_provider import FailoverClient
+        from generate_script import LLMGenParams, ensure_run_request_params
+        client=Mock(spec=FailoverClient)
+        client.ensure_active_runtime_profile.return_value={'config':{},'context_length':8192}
+        params=ensure_run_request_params(client,LLMGenParams(max_tokens=4096,hard_max_tokens=32768))
+        self.assertEqual(32768,params.hard_max_tokens)
+        self.assertEqual(8192,params.context_length)
+
+    def test_rescue_fits_ample_context_and_respects_input_ceiling(self):
+        from generate_script import LLMGenParams
+        chunk='x'*9000
+        # Output estimate (4564) exceeds max_tokens but fits the context.
+        self.assertTrue(tp._rescue_prompt_fits(chunk,'b'*2000,'a'*2000,500,
+                                               LLMGenParams(max_tokens=4096,context_length=131072)))
+        self.assertFalse(tp._rescue_prompt_fits(chunk,'b'*2000,'a'*2000,500,
+                                                LLMGenParams(max_tokens=4096,context_length=6000)))
+        self.assertFalse(tp._rescue_prompt_fits(chunk,'b'*2000,'a'*2000,500,
+                                                LLMGenParams(max_tokens=4096,max_input_tokens=1000)))
+        self.assertTrue(tp._rescue_prompt_fits(chunk,'','',500,LLMGenParams(max_tokens=4096)))
+
+    def test_setup_migration_does_not_bake_inherited_limits_into_profile(self):
+        from routers.system import get_config_local_profile
+        profile=get_config_local_profile({'llm':dict(self.LOCAL),
+                                          'generation':{'max_tokens':4096,'max_input_tokens':2000}})
+        self.assertEqual(dict(self.LOCAL),profile)
+
+    def _refusal(self,llm,status=None,error=None):
+        from routers import script
+        config={'llm_mode':'local','llm':llm,
+                'generation':{'three_pass_chunk_size':50000,'three_pass_segmentation':'quotes'}}
+        job={'filename':'sample.txt','prepared_source':{}}
+        probe=patch('lmstudio_settings.get_current_status',side_effect=error) if error else \
+              patch('lmstudio_settings.get_current_status',return_value=status)
+        with patch.object(script,'load_app_config',return_value=config), \
+             patch.object(script,'get_validated_batch_script_source',return_value=('Narration. "Hello."',0)), probe:
+            return script.three_pass_refusal([job])
+
+    def test_admission_uses_planned_context_not_pre_heal_status(self):
+        unloaded={'runtime':'lmstudio','management_verified':True,'available':True,'loaded':False,'context_length':None}
+        unverified={'runtime':'unknown','management_verified':False,'available':False,'loaded':False,'context_length':None}
+        # A managed model the run's heal will load is admitted.
+        self.assertIsNone(self._refusal(dict(self.LOCAL),unloaded))
+        # #1084: an endpoint that cannot report its context is refused up front...
+        self.assertIn('Total context budget',self._refusal(dict(self.LOCAL),unverified))
+        # ...unless the profile declares one.
+        self.assertIsNone(self._refusal(dict(self.LOCAL,context_length=32000),unverified))
+        # A probe failure defers to the run's own check instead of a 500.
+        self.assertIsNone(self._refusal(dict(self.LOCAL),error=RuntimeError('ssh down')))
+
+    def test_preflight_sizes_declared_context_against_planned_not_current(self):
+        from lmstudio_settings import get_planned_request_context
+        config={'llm_mode':'local','llm':dict(self.LOCAL,context_length=32768)}
+        loaded_small={'runtime':'lmstudio','management_verified':True,'loaded':True,'context_length':8192,
+                      'ideal_context_length':32768}
+        with patch('lmstudio_settings.get_current_status',return_value=loaded_small) as probe:
+            planned=get_planned_request_context(config)
+        self.assertEqual({'context':32768,'known':True,'parallel':planned['parallel']},planned)
+        self.assertEqual(1,probe.call_count)

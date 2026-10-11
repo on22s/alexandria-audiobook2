@@ -24,7 +24,8 @@ from persona_prompts import load_persona_prompts
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                get_failover_llm_config,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
-                               get_active_llm_config, get_current_status)
+                               get_active_llm_config, get_current_status,
+                               get_saved_llm_profile)
 
 from core import (
     API_LOG_DIR,
@@ -175,7 +176,7 @@ def _resolve_redacted_api_key(api_key, base_url, existing=None):
 
 def get_config_local_profile(config: dict):
     """Read the local profile, including the legacy single-profile shape."""
-    return get_active_llm_config({**config, "llm_mode": "local"})
+    return get_saved_llm_profile({**config, "llm_mode": "local"})
 
 
 def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:

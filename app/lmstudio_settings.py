@@ -208,14 +208,26 @@ def get_active_llm_config(config):
     measure the local and remote endpoints independently of the toggle. That
     is a different decision and deliberately does not use this function.
     """
+    block = get_saved_llm_profile(config)
+    if not block:
+        return {}
+    from llm_request_budget import get_inherited_profile_limits
+    return get_inherited_profile_limits(block, config.get("generation") or {})
+
+
+def get_saved_llm_profile(config):
+    """The active profile exactly as saved, without inherited global limits.
+
+    Settings round-trips (the Setup migration, secret restoration) must use
+    this, or an inherited fallback would be written back as a profile override.
+    """
     if not isinstance(config, dict):
         return {}
     mode = config.get("llm_mode") or "local"
     block = config.get(f"llm_{mode}")
     if not isinstance(block, dict) or not block:
         block = config.get("llm")
-    from llm_request_budget import get_inherited_profile_limits
-    return get_inherited_profile_limits(block, config.get("generation") or {}) if isinstance(block, dict) else {}
+    return block if isinstance(block, dict) else {}
 
 
 def get_failover_llm_config(config):
@@ -989,25 +1001,57 @@ def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, a
     target without reloading a model. Runtime callers must still call
     ``ensure_ideal_settings`` before dispatching work and size against its
     fresh post-heal status.
+
+    ``context_known`` is False only when the context is the conservative
+    fallback for a runtime that neither reported one nor can be healed to one.
     """
     status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
     if status.get("runtime") == "llama.cpp" or not status.get("management_verified"):
+        reported = status.get("ideal_context_length") or status.get("context_length")
         return {
-            "context_length": (status.get("ideal_context_length") or status.get("context_length")
-                               or IDEAL_SETTINGS["context_length"]),
+            "context_length": reported or IDEAL_SETTINGS["context_length"],
+            "context_known": bool(reported),
             "parallel": status.get("ideal_parallel") or status.get("parallel") or 1,
             "settings_reason": status.get("settings_reason") or "current settings or conservative fallback",
         }
     if is_remote_llm(llm_mode, base_url):
         return {"context_length": REMOTE_IDEAL_SETTINGS["context_length"],
+                "context_known": True,
                 "parallel": REMOTE_IDEAL_SETTINGS["parallel"],
                 "settings_reason": "remote ideal profile"}
     return {
         "context_length": (status.get("ideal_context_length")
                            or IDEAL_SETTINGS["context_length"]),
+        "context_known": True,
         "parallel": status.get("ideal_parallel") or IDEAL_SETTINGS["parallel"],
         "settings_reason": status.get("settings_reason") or "conservative fallback",
     }
+
+
+def get_planned_request_context(config):
+    """-> {context, known, parallel}: the one pre-run answer to "what context
+    will this run size against?" for admission and preflight alike (Rule 15).
+
+    Planned (post-heal) runtime, narrowed by the active profile's declared
+    context. A fallback guess never narrows a declaration; when neither is
+    known, `known` is False and `context` is that conservative guess, usable
+    for sizing but not as evidence that a larger request fits.
+    """
+    from llm_request_budget import get_request_limits
+    llm = get_active_llm_config(config)
+    if llm.get("transport") == "manual":
+        # Manual transport has no runtime to read; only a declaration is known.
+        planned = {"context_length": IDEAL_SETTINGS["context_length"],
+                   "context_known": False, "parallel": 1}
+    else:
+        planned = get_planned_ideal_settings(
+            config.get("llm_mode", "local"), llm.get("base_url", ""),
+            llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+    detected = planned["context_length"] if planned.get("context_known") else None
+    context = get_request_limits(llm, detected)["context_length"]
+    return {"context": int(context or planned.get("context_length") or 0),
+            "known": bool(context),
+            "parallel": max(1, int(planned.get("parallel") or 1))}
 
 
 def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None):

@@ -18,7 +18,7 @@ class BatchScriptSizingReuseTests(unittest.TestCase):
         self.config = {'generation': {}, 'prompts': {}}
         for context in (patch.object(script, 'UPLOADS_DIR', self.tmp.name),
                         patch.object(script, 'load_app_config', return_value=self.config),
-                        patch.object(script, 'get_planned_ideal_settings', return_value={
+                        patch('lmstudio_settings.get_planned_ideal_settings', return_value={
                             'context_length': 100000, 'parallel': 2})):
             context.start()
             self.addCleanup(context.stop)
@@ -47,10 +47,10 @@ class BatchScriptSizingReuseTests(unittest.TestCase):
         worst = jobs[0]['prepared_source']['preflight']['report']['worst_predicted_tokens']
         with patch.object(script, 'build_three_pass_request_preflight',
                           side_effect=AssertionError('unexpected rescan')):
-            with patch.object(script, 'get_planned_ideal_settings', return_value={
+            with patch('lmstudio_settings.get_planned_ideal_settings', return_value={
                     'context_length': worst * 2 + 1, 'parallel': 2}):
                 self.assertEqual(script.build_batch_script_preflight(jobs)['workers'], 2)
-            with patch.object(script, 'get_planned_ideal_settings', return_value={
+            with patch('lmstudio_settings.get_planned_ideal_settings', return_value={
                     'context_length': worst + 1, 'parallel': 2}):
                 self.assertEqual(script.build_batch_script_preflight(jobs)['workers'], 1)
 

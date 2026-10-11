@@ -43,7 +43,7 @@ class GenerationModelBindingTests(unittest.TestCase):
             self.assertEqual(MODEL,get_active_llm_config(out)['model_name'])
             other='remote' if mode=='local' else 'local'
             self.assertEqual(cfg['llm_'+other],out['llm_'+other])
-            self.assertEqual({**cfg['llm_'+mode],'model_name':MODEL,'max_output_tokens':4096},out['llm_'+mode])
+            self.assertEqual({**cfg['llm_'+mode],'model_name':MODEL},out['llm_'+mode])
             self.assertEqual(get_active_llm_config(out),out['llm'])
             out['llm_'+mode]['api_key']='fixture edit'
             self.assertEqual(before,cfg)
@@ -84,7 +84,7 @@ class GenerationModelBindingTests(unittest.TestCase):
             self.assertEqual('k', heal.call_args.kwargs['api_key'])
         self.assertEqual(before,cfg_path.read_bytes())
         self.assertEqual(MODEL if override else 'configured-local',seen[0]['model_name'])
-        self.assertEqual({**cfg['llm_remote'],'max_output_tokens':4096},seen[1])
+        self.assertEqual(cfg['llm_remote'],seen[1])
         self.assertEqual(cfg['llm_local']['provider_headers'],seen[0]['provider_headers'])
         self.assertTrue(output.is_file());self.assertEqual(TEXT,json.loads(output.read_text())[0]['text'])
         suffix='.generation_quality.json' if module is gs else '.threepass_manifest.json'

@@ -2992,7 +2992,7 @@
                     showToast(
                         `"Step 1: text per request" (${preflight.chunk_size} characters) is more than this model can write back in one reply ` +
                         `(${overCeiling.map(book => book.filename).join(', ')}). ` +
-                        `Set it to ${suggested} or below in Setup, or adjust the profile Output ceiling / Advanced global output ceiling.`, 'error');
+                        `Set it to ${suggested} or below in Setup, or raise the profile Output ceiling / Baseline Response Tokens.`, 'error');
                     statusMsg.innerHTML = '<span class="text-danger">Not started: the text-per-request setting is more than this model can write back in one reply.</span>';
                     btn.disabled = false;
                     pauseBtn.style.display = 'none';

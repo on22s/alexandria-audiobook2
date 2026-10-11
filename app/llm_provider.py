@@ -654,14 +654,11 @@ class _ManualChat:
 def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
     """Create an OpenAI-compatible client with the profile's provider options."""
     llm_config = llm_config or {}
+    # Declared limits only: no runtime probe here. Construction stays pure and
+    # cacheable on config alone; detected context reaches each call through
+    # its params (ensure_run_request_params / context_length) instead.
     from llm_request_budget import get_request_limits
     limits = get_request_limits(llm_config)
-    if any(limits.values()) and llm_config.get("transport") != "manual":
-        from lmstudio_settings import get_current_status
-        status = get_current_status(
-            "local", llm_config.get("base_url", ""), llm_config.get("model_name", ""),
-            api_key=resolve_api_key(llm_config.get("api_key")), use_cache=False)
-        limits = get_request_limits(llm_config, status.get("context_length"))
     limits = limits if any(limits.values()) else None
     if llm_config.get("transport") == "manual":
         from utils import get_runtime_data_dir

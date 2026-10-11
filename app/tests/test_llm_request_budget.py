@@ -13,11 +13,12 @@ import three_pass_generate as tp
 
 
 class RequestBudgetTests(unittest.TestCase):
-    def test_existing_config_inherits_saved_output_without_new_input_ceiling(self):
+    def test_existing_config_gets_no_output_cap_or_input_ceiling(self):
         config={'llm_mode':'remote','llm_remote':{'model_name':'fixture'},'generation':{'max_tokens':8192}}
         original=copy.deepcopy(config)
         active=get_active_llm_config(config)
-        self.assertEqual(8192,active['max_output_tokens'])
+        # The baseline stays a starting budget; a cap here truncated retries.
+        self.assertIsNone(active.get('max_output_tokens'))
         self.assertIsNone(active.get('max_input_tokens'))
         self.assertEqual(original,config)
         self.assertIsNone(GenerationConfig().max_input_tokens)
@@ -68,12 +69,20 @@ class RequestBudgetTests(unittest.TestCase):
         client.chat.completions.create(messages=[{'content':'short'}],max_tokens=4096)
         self.assertEqual(256,raw.chat.completions.create.call_args.kwargs['max_tokens'])
 
-    def test_http_detected_smaller_context_and_manual_do_not_reload(self):
+    def test_http_client_enforces_declared_limits_without_probing_and_manual_does_not_reload(self):
+        # Construction is pure (no status probe, no reload): a cached client
+        # cannot hold a stale detected context. Detected context is applied per
+        # call through params; the wrapper enforces the declaration.
         profile={'context_length':8192,'max_output_tokens':4096,'base_url':'http://fixture','api_key':'local','model_name':'fixture'}
-        with patch('llm_provider.OpenAI') as raw, patch('lmstudio_settings.get_current_status',return_value={'context_length':4096}), patch('lmstudio_settings.ensure_ideal_settings') as reload:
+        with patch('llm_provider.OpenAI') as raw, patch('lmstudio_settings.get_current_status') as status, patch('lmstudio_settings.ensure_ideal_settings') as reload:
             client=make_llm_client(profile,10)
-            client.chat.completions.create(model='fixture',messages=[{'content':'x'*1536}],max_tokens=4096)
-            self.assertEqual(3072,raw.return_value.chat.completions.create.call_args.kwargs['max_tokens'])
+            client.chat.completions.create(model='fixture',messages=[{'content':'x'*12288}],max_tokens=4096)
+            # 4096 prompt + 512 reserve leave 3584 of the declared 8192.
+            self.assertEqual(3584,raw.return_value.chat.completions.create.call_args.kwargs['max_tokens'])
+            with self.assertRaises(TokenBudgetError):
+                client.chat.completions.create(model='fixture',messages=[{'content':'x'*24000}],max_tokens=4096)
+            self.assertEqual(1,raw.return_value.chat.completions.create.call_count)
+            status.assert_not_called()
             reload.assert_not_called()
         with patch('llm_provider.ManualClient') as manual,patch('lmstudio_settings.get_current_status') as status:
             client=make_llm_client(dict(profile,transport='manual'),10)
@@ -146,9 +155,11 @@ class ProfileBudgetAdmissionTests(unittest.TestCase):
              patch.object(script,'get_validated_batch_script_source',return_value=('Narration. "Hello."',0)), \
              patch('lmstudio_settings.get_current_status') as probe:
             self.assertIsNone(script.three_pass_refusal([job]))
-            report=script.get_batch_script_source_preflight(job,'Narration. "Hello."',settings,0,None)
+            # Both callers size with the one planned-context answer.
+            context=script.get_planned_request_context(config)['context']
+            report=script.get_batch_script_source_preflight(job,'Narration. "Hello."',settings,context,None)
             job['prepared_source']['preflight']={'identity':script.get_batch_script_sizing_identity('Narration. "Hello."',settings,None,32000),'report':report}
-            cached=script.get_batch_script_source_preflight(job,'Narration. "Hello."',settings,0,None)
+            cached=script.get_batch_script_source_preflight(job,'Narration. "Hello."',settings,context,None)
             self.assertEqual(32000,cached['context_length'])
             probe.assert_not_called()
 

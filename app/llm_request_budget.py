@@ -2,12 +2,16 @@
 
 
 def get_inherited_profile_limits(profile, generation):
-    """Return a profile copy with optional global input/output fallbacks."""
+    """Return a profile copy with the optional global input fallback.
+
+    A blank output limit stays blank: generation.max_tokens is the starting
+    budget, and each task keeps its own escalation ceiling above it (16384+
+    for three-pass, 32768 for review). Inheriting it as a cap truncated
+    reasoning models at the baseline on retry.
+    """
     result = dict(profile)
     if result.get("max_input_tokens") is None and generation.get("max_input_tokens") is not None:
         result["max_input_tokens"] = generation["max_input_tokens"]
-    if result.get("max_output_tokens") is None and generation.get("max_tokens") is not None:
-        result["max_output_tokens"] = generation["max_tokens"]
     return result
 
 
