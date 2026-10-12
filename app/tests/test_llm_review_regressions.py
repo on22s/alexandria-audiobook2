@@ -920,6 +920,76 @@ class ReviewVramTests(unittest.TestCase):
                 stack.enter_context(patch.object(review_script, "ThreadPoolExecutor", executor))
             review_script.main()
 
+    def test_fail_fast_stops_without_waiting_when_vram_is_full_at_start(self):
+        # #1114: a local LLM server that allocates its KV cache at load sits
+        # above the threshold before any batch; waiting cannot free its memory.
+        from contextlib import redirect_stdout
+        from io import StringIO
+        full = (int(16.6 * 1024**3), int(17.1 * 1024**3))
+        output = StringIO()
+        with patch.object(review_script, "get_vram_usage", return_value=full), \
+             patch.object(review_script.time, "sleep") as sleep, redirect_stdout(output):
+            self.assertFalse(review_script.wait_for_vram_headroom(fail_fast=True))
+        sleep.assert_not_called()
+        self.assertIn("before review started", output.getvalue())
+        self.assertIn("smaller context", output.getvalue())
+
+    def test_fail_fast_proceeds_when_headroom_is_fine(self):
+        with patch.object(review_script, "get_vram_usage", return_value=(50, 100)), \
+             patch.object(review_script.time, "sleep") as sleep:
+            self.assertTrue(review_script.wait_for_vram_headroom(fail_fast=True))
+        sleep.assert_not_called()
+
+    def test_mid_run_check_still_waits_for_headroom(self):
+        # Growth during a run keeps the original wait-then-resume behaviour.
+        from contextlib import redirect_stdout
+        from io import StringIO
+        usage = iter([(97, 100), (50, 100)])
+        with patch.object(review_script, "get_vram_usage", side_effect=lambda: next(usage)), \
+             patch.object(review_script.time, "sleep") as sleep, redirect_stdout(StringIO()):
+            self.assertTrue(review_script.wait_for_vram_headroom())
+        sleep.assert_called_once()
+
+    def test_only_the_first_admission_of_a_run_fails_fast(self):
+        entry = {"speaker": "ALICE", "text": "One.", "instruct": "Neutral."}
+        for executor in (None, "parallel"):
+            with self.subTest(executor=executor), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp, "script.json")
+                path.write_text(json.dumps([entry, dict(entry, text="Two.")]))
+                headroom = MagicMock(return_value=True)
+                pool = None
+                if executor:
+                    class SerialExecutor:
+                        def __init__(self, **_kwargs):
+                            pass
+
+                        def __enter__(self):
+                            return self
+
+                        def __exit__(self, *_args):
+                            return False
+
+                        def map(self, function, items):
+                            return [function(item) for item in items]
+                    pool = SerialExecutor
+                review = MagicMock(side_effect=lambda _c, _m, batch, *_a, **_k: batch)
+                self.run_review(path, headroom, review, MagicMock(return_value=({}, 0, [])), executor=pool)
+                flags = [call.kwargs.get("fail_fast", False) for call in headroom.call_args_list]
+                self.assertTrue(flags[0])
+                self.assertFalse(any(flags[1:]))
+
+    def test_vram_full_at_start_skips_every_batch_as_incomplete(self):
+        entry = {"speaker": "ALICE", "text": "One.", "instruct": "Neutral."}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "script.json")
+            path.write_text(json.dumps([entry, dict(entry, text="Two.")]))
+            headroom = MagicMock(return_value=False)
+            review = MagicMock()
+            self.run_review(path, headroom, review, MagicMock(return_value=({}, 0, [])))
+            review.assert_not_called()
+            self.assertTrue(headroom.call_args_list[0].kwargs.get("fail_fast"))
+            self.assertTrue(Path(str(path) + ".review_checkpoint.json").exists())
+
     def test_out_of_order_vram_skip_is_retried_from_saved_checkpoint(self):
         class ReverseStartExecutor:
             def __init__(self, **_kwargs):

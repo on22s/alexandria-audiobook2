@@ -4439,9 +4439,14 @@
     "tests.test_llm_review_regressions.ReviewSummaryTests.test_incomplete_summary_is_deterministic_and_does_not_call_llm",
     "tests.test_llm_review_regressions.ReviewSummaryTests.test_unsupported_quality_claim_uses_deterministic_fallback",
     "tests.test_llm_review_regressions.ReviewVramTests.test_dedupe_rechecks_headroom_and_can_resume_without_repeating_review",
+    "tests.test_llm_review_regressions.ReviewVramTests.test_fail_fast_proceeds_when_headroom_is_fine",
+    "tests.test_llm_review_regressions.ReviewVramTests.test_fail_fast_stops_without_waiting_when_vram_is_full_at_start",
     "tests.test_llm_review_regressions.ReviewVramTests.test_legacy_minimal_entry_and_extra_metadata_remain_valid",
+    "tests.test_llm_review_regressions.ReviewVramTests.test_mid_run_check_still_waits_for_headroom",
+    "tests.test_llm_review_regressions.ReviewVramTests.test_only_the_first_admission_of_a_run_fails_fast",
     "tests.test_llm_review_regressions.ReviewVramTests.test_out_of_order_vram_skip_is_retried_from_saved_checkpoint",
     "tests.test_llm_review_regressions.ReviewVramTests.test_remote_review_does_not_probe_local_headroom",
+    "tests.test_llm_review_regressions.ReviewVramTests.test_vram_full_at_start_skips_every_batch_as_incomplete",
     "tests.test_llm_review_regressions.ReviewVramTests.test_watchdog_checks_both_gpu_backends_and_keeps_zero_usage"
   ],
   "test_lmstudio_cache_lifetime": [

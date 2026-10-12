@@ -106,10 +106,16 @@ def get_vram_usage():
     return (worst_used, worst_total) if worst_total > 0 else None
 
 
-def wait_for_vram_headroom():
+def wait_for_vram_headroom(fail_fast=False):
     """Pause if GPU VRAM usage is above VRAM_WARN_THRESHOLD, polling until it drops
     or VRAM_MAX_WAIT elapses. Returns True if safe to proceed, False if VRAM is
-    still saturated after waiting (caller should save progress and stop)."""
+    still saturated after waiting (caller should save progress and stop).
+
+    fail_fast is for the first check of a run, before any batch: a local LLM
+    server allocates its KV cache at load, so VRAM already full at that point
+    is the server review is about to call and waiting cannot free it (#1114).
+    Return False at once with the cause instead of a wait that cannot succeed.
+    The threshold is unchanged."""
     usage = get_vram_usage()
     if usage is None:
         return True  # rocm-smi unavailable (e.g. non-AMD GPU) - don't block on it
@@ -117,6 +123,14 @@ def wait_for_vram_headroom():
     used, total = usage
     if used / total < VRAM_WARN_THRESHOLD:
         return True
+
+    if fail_fast:
+        print(f"  VRAM is already {used/total:.0%} full ({used/1e9:.1f}/{total/1e9:.1f} GB) "
+              f"before review started - probably held by your local LLM server. "
+              f"Review needs headroom below {VRAM_WARN_THRESHOLD:.0%}: load the model "
+              f"with a smaller context (16k measured working on a 16 GB card) or free "
+              f"VRAM, then re-run. Nothing was reviewed; the script is unchanged.")
+        return False
 
     print(f"  WARNING: GPU VRAM at {used/total:.0%} ({used/1e9:.1f}/{total/1e9:.1f} GB) "
           f"- pausing to avoid an OOM crash...")
@@ -1130,7 +1144,8 @@ def main():
             before = entries[max(0, start - window):start]
             after = entries[end:min(len(entries), end + window)]
 
-            if not is_remote and not wait_for_vram_headroom():
+            # Only this run's first check fails fast (#1114); later ones wait.
+            if not is_remote and not wait_for_vram_headroom(fail_fast=offset_idx == 0):
                 unreviewed_remainder = entries[start:]
                 total_stats["batches_skipped_vram"] = total_batches - batch_index + 1
                 vram_aborted = True
@@ -1241,6 +1256,9 @@ def main():
         # tell not-yet-started siblings/waves to stop too.
         vram_abort = threading.Event()
         vram_lock = threading.Lock()
+        # Set by the run's first admission check, the only one that fails
+        # fast when VRAM is already full before any batch (#1114).
+        first_check_done = threading.Event()
         for wave_start in range(0, len(remaining_batches), wave_size):
             wave_batches = remaining_batches[wave_start:wave_start + wave_size]
             wave_indices = [completed_batches + 1 + wave_start + j for j in range(len(wave_batches))]
@@ -1261,7 +1279,9 @@ def main():
                     with vram_lock:
                         if vram_abort.is_set():
                             return "VRAM_SKIP"
-                        if not wait_for_vram_headroom():
+                        is_first_check = not first_check_done.is_set()
+                        first_check_done.set()
+                        if not wait_for_vram_headroom(fail_fast=is_first_check):
                             vram_abort.set()
                             return "VRAM_SKIP"
                 return review_batch(
