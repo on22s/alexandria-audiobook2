@@ -4,6 +4,7 @@ import errno
 import functools
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import select
@@ -186,7 +187,15 @@ def get_subprocess_lease_options(environment, task_lease_fd=None):
 def start_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=None,
                            stop_receipt_path=None, disconnect_signal=None, exit_notice_path=None,
                            termination_grace=None, **kwargs):
-    """Start a command with a dedicated reaper, retaining its signal channel."""
+    """Start a command with a dedicated reaper, retaining its signal channel.
+
+    `termination_grace` (seconds) is how long a graceful stop (TERM through
+    the control channel, or TERM on disconnect) may run before the owner
+    escalates the remaining descendants to KILL. On Linux an omitted grace
+    keeps the cooperative behaviour - no internal escalation - because callers
+    such as benchmark_remote_command rely on it and escalate themselves;
+    Windows and macOS apply SUBPROCESS_TERMINATE_GRACE_SECONDS instead.
+    """
     if sys.platform == "win32":
         from windows_subprocess_owner import start_windows_owned_subprocess
         return start_windows_owned_subprocess(
@@ -213,6 +222,12 @@ def start_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=None,
             raise ValueError('Unsupported subprocess disconnect signal')
         if exit_notice_path is not None:
             receipt_args.extend(['--exit-notice', str(exit_notice_path)])
+        if termination_grace is not None:
+            grace = termination_grace
+            if (isinstance(grace, bool) or not isinstance(grace, (int, float))
+                    or not math.isfinite(grace) or grace < 0):
+                raise ValueError('termination_grace must be a finite number of seconds >= 0')
+            receipt_args.extend(['--stop-timeout', repr(float(grace))])
         if receipt_args:
             receipt_args.append('--')
         process = subprocess.Popen(
@@ -482,14 +497,20 @@ if __name__ == "__main__":
     stop_receipt_path = None
     disconnect_signal = signal.SIGKILL
     exit_notice_path = None
+    stop_timeout = None
     has_options = False
-    while command[:1] in (['--stop-receipt'], ['--disconnect-term'], ['--exit-notice']):
+    while command[:1] in (['--stop-receipt'], ['--disconnect-term'], ['--exit-notice'],
+                          ['--stop-timeout']):
         has_options = True
         option = command.pop(0)
         if option == '--disconnect-term':
             disconnect_signal = signal.SIGTERM
         elif option == '--stop-receipt':
             stop_receipt_path = command.pop(0)
+        elif option == '--stop-timeout':
+            stop_timeout = float(command.pop(0))
+            if not math.isfinite(stop_timeout) or stop_timeout < 0:
+                raise ValueError('Invalid subprocess stop timeout')
         else:
             exit_notice_path = command.pop(0)
     if has_options:
@@ -507,7 +528,7 @@ if __name__ == "__main__":
                     raise OSError("GPU lease has no verified ancestor owner")
                 os.environ["ALEXANDRIA_GPU_LOCK_PID"] = str(os.getpid())
             result = run_owned_command(control, command, disconnect_signal=disconnect_signal,
-                                       exit_notice_path=exit_notice_path)
+                                       stop_timeout=stop_timeout, exit_notice_path=exit_notice_path)
             if stop_receipt_path is not None:
                 # run_owned_command returns only after waitpid proves there are
                 # no remaining descendants, including adopted detached children.

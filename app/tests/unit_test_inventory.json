@@ -4201,6 +4201,12 @@
     "tests.test_line_format.WhitespaceNormalisation.test_label_whitespace_is_normalised",
     "tests.test_line_format.WhitespaceNormalisation.test_text_is_byte_exact_including_edge_whitespace"
   ],
+  "test_linux_termination_grace": [
+    "tests.test_linux_termination_grace.LinuxTerminationGraceTest.test_explicit_grace_applies_to_term_on_disconnect",
+    "tests.test_linux_termination_grace.LinuxTerminationGraceTest.test_explicit_grace_escalates_a_term_ignoring_child",
+    "tests.test_linux_termination_grace.LinuxTerminationGraceTest.test_invalid_grace_is_refused_before_launch",
+    "tests.test_linux_termination_grace.LinuxTerminationGraceTest.test_omitted_grace_keeps_cooperative_term"
+  ],
   "test_literal_delivery_integration": [
     "tests.test_literal_delivery_integration.IntegrationChecks.test_changed_words_remain_refused",
     "tests.test_literal_delivery_integration.IntegrationChecks.test_missing_corrupt_and_foreign_provenance_are_refused",
