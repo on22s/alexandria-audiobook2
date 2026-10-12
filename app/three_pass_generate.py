@@ -1650,7 +1650,9 @@ def get_three_pass_planned_calls(source_text, settings, params):
               "text": entry["text"]} for entry in predicted]
     return {1: len(unresolved),
             2: attribute_calls * settings.get("attribution_votes", 1),
-            3: sum(1 for _ in iter_unique_entry_batches(named, target_chars=settings.get("instruct_target_chars", 0)))}
+            3: sum(any(not is_nonverbal_text(entry["text"]) for _, entry in batch)
+                   for batch in iter_unique_entry_batches(
+                       named, target_chars=settings.get("instruct_target_chars", 0)))}
 
 
 def build_three_pass_request_preflight(source_text, settings, context_length,
@@ -1784,8 +1786,13 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             build_instruct_surround(named_entries, [index for index, _ in current], instruct_context_chars))
 
     for indexed_batch in iter_unique_entry_batches(named_entries, target_chars=settings.get("instruct_target_chars", 0)):
-        add_indexed_requests("instruct", indexed_batch, build_planned_instruct, 48,
-                             settings.get("instruct_target_chars", 0))
+        # Runtime supplies default instructions for nonverbal entries without
+        # sending them as targets. Keep them in named_entries for source context.
+        pending = [(index, entry) for index, entry in indexed_batch
+                   if not is_nonverbal_text(entry["text"])]
+        if pending:
+            add_indexed_requests("instruct", pending, build_planned_instruct, 48,
+                                 settings.get("instruct_target_chars", 0))
 
     totals = sorted(request["predicted_total_tokens"] for request in requests)
     worst = totals[-1] if totals else 0
