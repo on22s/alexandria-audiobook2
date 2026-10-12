@@ -1036,8 +1036,11 @@
                     subBatchRatio: 5, subBatchMaxItems: 6 };
             } else if (vram < 20) {
                 // 12–20 GB: 8-item batches peak ~9.6 GB total — best measured RTF (3.5x)
+                // parallelWorkers is the fast-batch size in local mode. On the RX 9070 XT
+                // (2026-10-12, #1113) 4 rendered a chapter in 502 s vs ~650 s at 2, peak
+                // VRAM 76% vs 44%, same Whisper word recall, and passed a listening check.
                 tier = `High VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
+                settings = { ttsMode: 'local', parallelWorkers: 4, compileCodec: false,
                     batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
                     subBatchRatio: 5, subBatchMaxItems: 8 };
             } else if (vram < 30) {
