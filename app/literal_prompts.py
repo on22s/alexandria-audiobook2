@@ -1,4 +1,10 @@
 """Dedicated prompts selected only by the explicit literal annotation profile."""
+# Checkpoint identity for the set of passes these prompts are applied to. v2:
+# Pass 1 and review only; Pass 2/3 (index-only, text frozen) use the ordinary
+# prompts since 46b5eb0a. Bumped so a v1 checkpoint is not resumed with Pass 2
+# results produced under the old prompts. Script provenance
+# (literal_policy.PROMPT_VERSION) is unchanged: the word guarantee did not change.
+CHECKPOINT_PROMPT_POLICY = "literal_prompts_v2"
 LITERAL_RULE = (
     "Preserve every source word, its case, lexical spelling and order. "
     "Do not omit attribution, insert words, change pronouns, summarize, correct "

@@ -1992,7 +1992,8 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
     if params is not None:
         if getattr(params, "literal_source_preserving", False):
             settings["literal_source_preserving"] = "literal_words_v1"
-            settings["literal_prompt_policy"] = "literal_prompts_v1"
+            from literal_prompts import CHECKPOINT_PROMPT_POLICY
+            settings["literal_prompt_policy"] = CHECKPOINT_PROMPT_POLICY
         settings.update({name: getattr(params, name, None) for name in (
             "system_prompt", "attribute_system_prompt", "user_prompt_template",
             "max_tokens", "temperature", "seed", "reasoning_effort",

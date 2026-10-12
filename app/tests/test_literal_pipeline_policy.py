@@ -111,6 +111,24 @@ class LiteralPipelinePolicyTests(unittest.TestCase):
         self.assertNotEqual(legacy, three_pass.three_pass_fingerprint("Chapter IV.", "fixture", 100, params))
         self.assertIn("Do not omit attribution", ANNOTATION_SYSTEM)
 
+    def test_indexed_scope_change_moves_checkpoint_identity_not_script_provenance(self):
+        from literal_policy import PROMPT_VERSION
+        from literal_prompts import CHECKPOINT_PROMPT_POLICY
+        params = generation.LLMGenParams(literal_source_preserving=True)
+        captured = []
+        real = three_pass.json.dumps
+
+        def capture(obj, *a, **k):
+            if isinstance(obj, dict) and "literal_prompt_policy" in obj:
+                captured.append(obj["literal_prompt_policy"])
+            return real(obj, *a, **k)
+        with patch.object(three_pass.json, "dumps", side_effect=capture):
+            three_pass.three_pass_fingerprint("Chapter IV.", "fixture", 100, params)
+        self.assertEqual(["literal_prompts_v2"], captured)
+        self.assertEqual("literal_prompts_v2", CHECKPOINT_PROMPT_POLICY)
+        # Finished scripts keep their provenance: pass 2/3 never change words.
+        self.assertEqual("literal_prompts_v1", PROMPT_VERSION)
+
     def test_literal_indexed_prompts_keep_schema_and_reference_context(self):
         from dataclasses import replace
         frozen = [{"type": "SPOKEN", "text": "Wait for me!"}]
