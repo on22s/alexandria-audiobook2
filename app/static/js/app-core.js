@@ -432,6 +432,24 @@
             showToast(error.message, 'error');
         }
 
+        function getOptionalNumberInput(id, label) {
+            const raw = document.getElementById(id).value.trim();
+            if (!raw) { return null; }
+            const value = Number(raw);
+            if (!Number.isFinite(value)) {
+                throw getConfigValidationError(id, label + ' must be a number.');
+            }
+            return value;
+        }
+
+        function getOptionalTokenInput(id, label) {
+            const value = getOptionalNumberInput(id, label);
+            if (value !== null && (!Number.isSafeInteger(value) || value <= 0)) {
+                throw getConfigValidationError(id, label + ' must be a positive whole number or blank.');
+            }
+            return value;
+        }
+
         function getIntListInput(id, label, def) {
             const raw = document.getElementById(id).value.trim();
             if (!raw) { return def; }
@@ -809,8 +827,12 @@
             chapter_export: ['chapter-export-btn'],
         };
         const taskStartClaims = new Map();
+        const exportStatusGenerations = new Map();
         function claimTaskStart(taskName, initiatingButton = null) {
             if (taskStartClaims.has(taskName)) { return false; }
+            if (['audacity_export', 'm4b_export', 'chapter_export'].includes(taskName)) {
+                exportStatusGenerations.set(taskName, (exportStatusGenerations.get(taskName) || 0) + 1);
+            }
             const ids = Object.hasOwn(taskStartButtons, taskName) ? taskStartButtons[taskName] : [];
             const buttons = ids.map(id => document.getElementById(id)).filter(Boolean);
             if (initiatingButton && !buttons.includes(initiatingButton)) { buttons.push(initiatingButton); }
@@ -1014,8 +1036,11 @@
                     subBatchRatio: 5, subBatchMaxItems: 6 };
             } else if (vram < 20) {
                 // 12–20 GB: 8-item batches peak ~9.6 GB total — best measured RTF (3.5x)
+                // parallelWorkers is the fast-batch size in local mode. On the RX 9070 XT
+                // (2026-10-12, #1113) 4 rendered a chapter in 502 s vs ~650 s at 2, peak
+                // VRAM 76% vs 44%, same Whisper word recall, and passed a listening check.
                 tier = `High VRAM (${vram.toFixed(1)} GB)`;
-                settings = { ttsMode: 'local', parallelWorkers: 2, compileCodec: false,
+                settings = { ttsMode: 'local', parallelWorkers: 4, compileCodec: false,
                     batchGroupByType: true, subBatchEnabled: true, subBatchMinSize: 4,
                     subBatchRatio: 5, subBatchMaxItems: 8 };
             } else if (vram < 30) {
@@ -1549,6 +1574,9 @@
         function populateLlmInputs(mode) {
             const p = llmProfiles[mode] || {};
             document.getElementById('llm-url').value = p.base_url || '';
+            document.getElementById('llm-context-length').value = p.context_length ?? '';
+            document.getElementById('llm-max-input-tokens').value = p.max_input_tokens ?? '';
+            document.getElementById('llm-max-output-tokens').value = p.max_output_tokens ?? '';
             document.getElementById('llm-key').value = p.api_key || 'local';
             document.getElementById('llm-model').value = p.model_name || '';
             document.getElementById('llm-request-timeout').value =
@@ -1594,18 +1622,11 @@
             return parsed;
         }
 
-        function getOptionalNumberInput(id, label) {
-            const raw = document.getElementById(id).value.trim();
-            if (!raw) { return null; }
-            const value = Number(raw);
-            if (!Number.isFinite(value)) {
-                throw getConfigValidationError(id, label + ' must be a number.');
-            }
-            return value;
-        }
-
         function getEditedLlmProfile() {
             return {
+                context_length: getOptionalTokenInput('llm-context-length', 'Total context budget'),
+                max_input_tokens: getOptionalTokenInput('llm-max-input-tokens', 'Input ceiling'),
+                max_output_tokens: getOptionalTokenInput('llm-max-output-tokens', 'Output ceiling'),
                 base_url: document.getElementById('llm-url').value,
                 api_key: document.getElementById('llm-key').value,
                 model_name: document.getElementById('llm-model').value,
@@ -1724,8 +1745,10 @@
             'tp-attribute-temperature': 'three_pass_attribute_temperature',
             'tp-instruct-temperature': 'three_pass_instruct_temperature',
             'tp-segmentation': 'three_pass_segmentation', 'context-rescue-retries': 'context_rescue_retries',
+            'tp-pass1-format': 'three_pass_pass1_format',
         };
         function applyGenerationSettings(g) {
+            document.getElementById('max-input-tokens').value = g.max_input_tokens ?? '';
             if (g.chunk_size != null) { legacyChunkSize = g.chunk_size; }
             for (const [id, key] of Object.entries(generationControlFields)) {
                 if (g[key] != null) { document.getElementById(id).value = g[key]; }
@@ -2055,6 +2078,7 @@
                 generation: {
                     chunk_size: legacyChunkSize,
                     max_tokens: parseInt(document.getElementById('max-tokens').value) || 4096,
+                    max_input_tokens: getOptionalTokenInput('max-input-tokens', 'Global input ceiling'),
                     temperature: getNumFieldValue('temperature', 0.6),
                     top_p: getNumFieldValue('top-p', 0.8),
                     top_k: getNumFieldValue('top-k', 0, true),
@@ -2075,6 +2099,7 @@
                     three_pass_attribute_temperature: getNumFieldValue('tp-attribute-temperature', 0.1),
                     three_pass_instruct_temperature: getNumFieldValue('tp-instruct-temperature', 0.1),
                     three_pass_segmentation: document.getElementById('tp-segmentation').value || 'auto',
+                    three_pass_pass1_format: document.getElementById('tp-pass1-format').value || 'ordinary',
                     three_pass_quoted_must_be_spoken: document.getElementById('tp-quoted-must-be-spoken').checked,
                     three_pass_unquoted_must_be_narrator: document.getElementById('tp-unquoted-must-be-narrator').checked,
                     three_pass_keep_whole_batch: document.getElementById('tp-keep-whole-batch').checked,
@@ -2976,7 +3001,7 @@
                     showToast(
                         `"Step 1: text per request" (${preflight.chunk_size} characters) is more than this model can write back in one reply ` +
                         `(${overCeiling.map(book => book.filename).join(', ')}). ` +
-                        `Set it to ${suggested} or below in Setup, or raise Baseline Response Tokens.`, 'error');
+                        `Set it to ${suggested} or below in Setup, or raise the profile Output ceiling / Baseline Response Tokens.`, 'error');
                     statusMsg.innerHTML = '<span class="text-danger">Not started: the text-per-request setting is more than this model can write back in one reply.</span>';
                     btn.disabled = false;
                     pauseBtn.style.display = 'none';
@@ -6440,7 +6465,7 @@
 
         function _driftBadge(chunk) {
             const d = chunk.drift;
-            if (!d || !d.flagged) { return ''; }
+            if (!d || !d.flagged || chunk.status !== 'done' || !chunk.audio_path) { return ''; }
             const title = `Voice drift: similarity ${d.score} to ${d.reference} (threshold ${d.threshold}). Regenerate with Gen.`;
             return ` <span class="badge bg-warning text-dark drift-badge" title="${escapeHtml(title)}"><i class="fas fa-fingerprint me-1"></i>drift ${d.score}</span>`;
         }
@@ -6497,7 +6522,7 @@
                 const oldDrift = tr.querySelector('.drift-badge');
                 if (oldDrift) { oldDrift.remove(); }
                 badge.insertAdjacentHTML('afterend', _driftBadge(chunk));
-                tr.classList.toggle('drift-flagged', !!(chunk.drift && chunk.drift.flagged));
+                tr.classList.toggle('drift-flagged', !!_driftBadge(chunk));
             }
             applyDriftFilter();
 
@@ -7449,6 +7474,8 @@
             const config = exports[taskName];
             if (!config) { throw new Error('Unknown export task'); }
             claimTaskStart(taskName);
+            const generation = (exportStatusGenerations.get(taskName) || 0) + 1;
+            exportStatusGenerations.set(taskName, generation);
             const statusEl = document.getElementById(config.statusId);
             const cancelBtn = config.cancelId ? document.getElementById(config.cancelId) : null;
             statusEl.textContent = 'Exporting...';
@@ -7478,7 +7505,11 @@
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
-                        setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
+                        setTimeout(() => {
+                            if (exportStatusGenerations.get(taskName) === generation && !taskStartClaims.has(taskName)) {
+                                statusEl.innerHTML = '';
+                            }
+                        }, 5000);
                     }
                 },
             });
@@ -7680,8 +7711,11 @@
             }).join('') + '</ol>';
         }
         async function loadChapterExports() {
+            const request = ++chapterPreviewRequest;
+            const book = currentBookFilename;
             try {
                 const m = await API.get('/api/chapter_exports');
+                if (request !== chapterPreviewRequest || book !== currentBookFilename) { return; }
                 if (Array.isArray(m.chapters)) { renderChapterList(m.chapters, true); }
             } catch (e) { /* nothing exported yet */ }
         }

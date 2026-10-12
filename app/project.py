@@ -37,6 +37,7 @@ from tts import (
                  voice_config_for_chunk, resolve_narrator_voice_config)
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
+from audio_streaming import get_track_wav_plan, write_track_wav, write_combined_wav
 
 MAX_CHUNK_CHARS = 500
 NARRATOR_GENERATION_FIELDS = (
@@ -46,6 +47,10 @@ CHUNK_GENERATION_FIELDS = (
     "text", "speaker", "instruct", *NARRATOR_GENERATION_FIELDS,
     "character_style", "default_style", "style_timeline", "voice_revision")
 GENERATION_INPUTS_CHANGED = "Chunk removed or generation inputs changed during generation"
+
+
+class ChunkTargetMissingError(LookupError):
+    """A captured publication target disappeared before its locked update."""
 
 
 def get_index_selection(indices, count):
@@ -245,6 +250,30 @@ def get_speakable_entries(script_entries, review_sink=None):
     return speakable
 
 
+# A chunk that opens on a separator (", holding her hand…" after a closing
+# quote) is read as a fresh sentence that begins mid-clause. On 2026-10-12 one
+# such Alice chunk garbled at 2 of 5 seeds and opened with an invented "Heh" /
+# "Ugh" at the other 3; without the comma, 5 of 5 rendered clean (#1121, #1122).
+LEADING_SEPARATORS = re.compile(r"^[\s,;:]+")
+JOINS_WITHOUT_SPACE = re.compile(r"^[,;:.!?]")
+
+
+def get_tts_chunk_text(text):
+    """Return chunk text as sent to TTS: no leading separator punctuation.
+
+    Text made only of separators is returned unchanged; nonverbal entries are
+    already handled by get_speakable_entries."""
+    stripped = LEADING_SEPARATORS.sub("", text)
+    return stripped if stripped.strip() else text
+
+
+def get_chunk_text_key(text):
+    """Compare chunk text across the separator change: leading separators and
+    the space the old joiner put before punctuation are ignored, so a
+    chunks.json saved before #1121 still matches its regrouped script."""
+    return re.sub(r"\s+(?=[,;:.!?])", "", get_tts_chunk_text(text or ""))
+
+
 def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
                       review_sink=None, include_source_indices=False):
     """Group consecutive entries by same speaker into chunks up to max_chars"""
@@ -280,7 +309,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
                 and current_pause_after is None
                 and not _is_structural_text(current_text)
                 and not _is_structural_text(text)):
-            combined = current_text + " " + text
+            combined = current_text + ("" if JOINS_WITHOUT_SPACE.match(text) else " ") + text
             if len(combined) <= max_chars:
                 current_text = combined
                 if include_source_indices:
@@ -317,7 +346,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
             bounded.append(piece)
             remaining = remaining[cut:]
         bounded.append({**chunk, "text": remaining})
-    return bounded
+    return [{**chunk, "text": get_tts_chunk_text(chunk["text"])} for chunk in bounded]
 
 logger = logging.getLogger(__name__)
 
@@ -340,7 +369,9 @@ def _load_audio_segment(path, **kwargs):
 
 def _export_audio_segment(segment, path, format_name, cancel_check=None, **kwargs):
     """Export audio with an explicitly owned output handle."""
-    if cancel_check is not None:
+    easy_wav = (format_name == 'wav' and kwargs.get('codec') is None
+                and kwargs.get('parameters') is None)
+    if cancel_check is not None or not easy_wav:
         from audio_export import export_audio_segment
         return export_audio_segment(segment, path, format_name, cancel_check, **kwargs)
     with open(path, "wb+") as target:
@@ -710,6 +741,7 @@ class ProjectManager:
             chunks = self._read_chunks()
             if not (0 <= after_index < len(chunks)):
                 return None
+            before = copy.deepcopy(chunks)
 
             # Copy speaker from the row we're splitting from
             source = chunks[after_index]
@@ -728,6 +760,7 @@ class ProjectManager:
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
 
+            self._invalidate_reindexed_audio_locked(before, chunks)
             self._save_chunks_locked(chunks, uids_backfilled=True)
             return chunks
 
@@ -739,13 +772,17 @@ class ProjectManager:
                 return None
             if len(chunks) <= 1:
                 return None  # don't allow deleting the last chunk
+            before = copy.deepcopy(chunks)
 
+            voices = self.get_voice_config_for_update()
             deleted = chunks.pop(index)
+            deleted["_deleted_voice_inputs"] = self.get_chunk_voice_inputs(voices, deleted, index)
 
             # Re-number all IDs
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
 
+            self._invalidate_reindexed_audio_locked(before, chunks)
             self._save_chunks_locked(chunks, uids_backfilled=True)
             return deleted, chunks
 
@@ -767,13 +804,43 @@ class ProjectManager:
             if isinstance(chunk_data, dict):
                 chunk_data.setdefault("uid", _new_chunk_uid())
             chunks.insert(at_index, chunk_data)
+            old_voice_inputs = chunk_data.pop("_deleted_voice_inputs", None)
+            voices = self.get_voice_config_for_update()
+            if chunk_data.get("audio_path") and (
+                    old_voice_inputs is None or
+                    old_voice_inputs != self.get_chunk_voice_inputs(voices, chunk_data, at_index)):
+                chunk_data.update(status="pending", audio_path=None, error=None, drift=None,
+                                  voice_revision=uuid.uuid4().hex)
 
             # Re-number all IDs
             for i, chunk in enumerate(chunks):
                 chunk["id"] = i
 
+            self._invalidate_reindexed_audio_locked(
+                [row for row in chunks if row is not chunk_data], chunks)
             self._save_chunks_locked(chunks, uids_backfilled=bool(chunk_data.get("uid")))
             return chunks
+
+    def get_voice_config_for_update(self):
+        """Read voice inputs without turning damaged state into empty inputs."""
+        try:
+            with open(self.voice_config_path, "r", encoding="utf-8") as handle:
+                voices = json.load(handle)
+        except FileNotFoundError:
+            return {}
+        if not isinstance(voices, dict):
+            raise ValueError("Cannot update chunks with malformed voice configuration")
+        return voices
+
+    def _invalidate_reindexed_audio_locked(self, before, after):
+        """Keep completed renders only when reindexing preserves their voice."""
+        voices = self.get_voice_config_for_update()
+        previous = {row.get("uid"): (index, row) for index, row in enumerate(before)}
+        for index, row in enumerate(after):
+            old = previous.get(row.get("uid"))
+            if old is not None and self.get_chunk_voice_inputs(voices, old[1], old[0]) != self.get_chunk_voice_inputs(voices, row, index):
+                row.update(status="pending", audio_path=None, error=None, drift=None,
+                           voice_revision=uuid.uuid4().hex)
 
     def _is_project_audio_path(self, path):
         """Whether a persisted chunk audio path remains inside this project."""
@@ -801,6 +868,8 @@ class ProjectManager:
             if render_changed:
                 chunk["status"] = "pending"
                 chunk["audio_path"] = None
+                if "drift" in chunk:
+                    chunk["drift"] = None
 
         return self._modify_chunk(index, mutator)
 
@@ -816,7 +885,8 @@ class ProjectManager:
         return self._modify_chunk(index, mutator)
 
     def _update_chunk_fields_by_uid(self, uid, expected_chunk=None, required_status=None,
-                                    audio_source=None, **kwargs):
+                                    audio_source=None, expected_fields=None, expected_related_chunks=None,
+                                    require_target=False, **kwargs):
         """Conditionally publish to the live UID under one lock, preserving other rows.
 
         Generation compares only captured render inputs. An owned converted temp
@@ -833,12 +903,23 @@ class ProjectManager:
             chunk = (journal.get_row(uid) if journal
                      else next((item for item in chunks if item.get("uid") == uid), None))
             if chunk is None:
+                if require_target:
+                    raise ChunkTargetMissingError(uid)
                 return None
             if expected_chunk is not None and (
                     get_chunk_generation_inputs(chunk) != get_chunk_generation_inputs(expected_chunk)):
                 return None
             if required_status is not None and chunk.get("status") != required_status:
                 return None
+            if expected_fields is not None and any(chunk.get(key) != value for key, value in expected_fields.items()):
+                return None
+            for expected in expected_related_chunks or ():
+                related = (journal.get_row(expected.get("uid")) if journal else
+                           next((row for row in chunks if row.get("uid") == expected.get("uid")), None))
+                if related is None or get_chunk_generation_inputs(related) != get_chunk_generation_inputs(expected):
+                    return None
+                if any(related.get(key) != expected.get(key) for key in ("status", "audio_path", "audio_revision")):
+                    return None
             if audio_source is not None:
                 publish_audio_output(audio_source, self.get_chunk_audio_path(kwargs["audio_path"]))
             if kwargs:
@@ -1156,6 +1237,17 @@ class ProjectManager:
                     if progress_callback:
                         progress_callback(f"Writing track: {speaker}")
                     ensure_audio_export_active(cancel_check)
+                    entries = speaker_chunks[speaker]
+                    plan = get_track_wav_plan(entries, total_duration_ms, cancel_check)
+                    if plan is not None:
+                        layout, frames = plan
+                        member = zipfile.ZipInfo(f"{speaker_filenames[speaker]}.wav", time.localtime()[:6])
+                        member.compress_type = zf.compression
+                        member._compresslevel = zf.compresslevel
+                        member.file_size = 44 + frames * layout[0] * layout[2]
+                        with zf.open(member, "w") as stream:
+                            write_track_wav(stream, entries, total_duration_ms, plan, cancel_check)
+                        continue
                     track_cursor = 0
                     track_builder = AudioSegmentBuilder(AudioSegment.empty())
                     for segment, start_ms in speaker_chunks[speaker]:
@@ -1227,9 +1319,6 @@ class ProjectManager:
             audio_segments = [seg for _, seg, _ in timeline]
             speakers = [chunk["speaker"] for chunk, _, _ in timeline]
             pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
-            final_audio = combine_audio_with_pauses(
-                audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check
-            )
 
         except ExportCancelled:
             return False, "Export cancelled"
@@ -1241,7 +1330,13 @@ class ProjectManager:
         pending_output = output_path + f".pending.{uuid.uuid4().hex}"
 
         try:
-            _export_audio_segment(final_audio, temp_wav, "wav", cancel_check=cancel_check)
+            duration_ms = write_combined_wav(audio_segments, speakers, temp_wav,
+                pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check)
+            if duration_ms is None:
+                final_audio = combine_audio_with_pauses(audio_segments, speakers,
+                    pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check)
+                _export_audio_segment(final_audio, temp_wav, "wav", cancel_check=cancel_check)
+                duration_ms = len(final_audio)
 
             # Phase 4 — Write FFmpeg metadata file with book metadata
             meta_lines = [";FFMETADATA1"]
@@ -1285,7 +1380,7 @@ class ProjectManager:
                 pending_output
             ]
             from m4b_encode import encode_m4b
-            result, stderr = encode_m4b(cmd, len(final_audio) / 1000, cancel_check, progress_callback)
+            result, stderr = encode_m4b(cmd, duration_ms / 1000, cancel_check, progress_callback)
             if result != 0:
                 if progress_callback:
                     progress_callback("FFmpeg stderr: " + stderr[-500:])

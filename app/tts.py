@@ -11,6 +11,7 @@ import threading
 from contextvars import ContextVar, copy_context
 from dataclasses import dataclass
 from functools import wraps
+from types import MethodType
 import shutil
 import uuid
 
@@ -963,6 +964,13 @@ class TTSEngine:
     def _compile_codec(self, model):
         """Apply torch.compile to the audio codec for faster decoding.
 
+        CURRENTLY NO EFFECT (#1113, measured 2026-10-12): qwen_tts decodes via
+        `speech_tokenizer.model.decode(...)`, but torch.compile on the module
+        only compiles forward(), so renders are unchanged and no inductor cache
+        is written. Compiling `.decode` instead made compilation run, but on
+        ROCm it then stalled CPU-bound in symbolic-shape compilation (0 chunks
+        in 23 min). The speed figures below predate that library change.
+
         The codec decoder has 136 attention modules and many small ops that
         benefit enormously from compilation.  Profiling shows the codec is
         47% of single-gen time and 85% of batch time uncompiled.  With
@@ -1339,7 +1347,11 @@ class TTSEngine:
     def generate_custom_voice(self, text, instruct_text, speaker, voice_config, output_path):
         """Generate audio using CustomVoice model. Returns True on success."""
         prepared = get_speech_preparation(text, instruct_text)
-        text, instruct_text = prepared["text"], prepared["instruct"]
+        return self._generate_custom_voice_prepared(
+            prepared["text"], prepared["instruct"], speaker, voice_config, output_path)
+
+    def _generate_custom_voice_prepared(self, text, instruct_text, speaker, voice_config, output_path):
+        """Render explicitly prepared input; public callers use the raw wrapper."""
         if self.get_voice_backend("custom") == "local":
             return self._local_generate_custom(text, instruct_text, speaker, voice_config, output_path)
         else:
@@ -1350,7 +1362,11 @@ class TTSEngine:
 
     def generate_clone_voice(self, text, speaker, voice_config, output_path):
         """Generate audio using voice cloning. Returns True on success."""
-        text = normalize_for_speech(text)
+        return self._generate_clone_voice_prepared(
+            normalize_for_speech(text), speaker, voice_config, output_path)
+
+    def _generate_clone_voice_prepared(self, text, speaker, voice_config, output_path):
+        """Render explicitly prepared input; public callers use the raw wrapper."""
         if self.get_voice_backend("clone") == "local":
             return self._local_generate_clone(text, speaker, voice_config, output_path)
         else:
@@ -1396,7 +1412,12 @@ class TTSEngine:
             return False
 
         if category == "clone":
-            return self.generate_clone_voice(text, speaker, voice_config, output_path)
+            render = self.generate_clone_voice
+            if (isinstance(render, MethodType) and render.__self__ is self
+                    and render.__func__ is _RAW_CLONE_VOICE):
+                return self._generate_clone_voice_prepared(text, speaker, voice_config, output_path)
+            # Preserve historical override input and preparation semantics.
+            return render(text, speaker, voice_config, output_path)
         elif category == "lora":
             return self.generate_lora_voice(text, instruct_text, voice_data, output_path)
         elif category == "design":
@@ -1405,7 +1426,13 @@ class TTSEngine:
             return self.generate_ensemble_voice(text, instruct_text, voice_data,
                                                 voice_config, output_path)
         else:
-            return self.generate_custom_voice(text, instruct_text, speaker, voice_config, output_path)
+            render = self.generate_custom_voice
+            if (isinstance(render, MethodType) and render.__self__ is self
+                    and render.__func__ is _RAW_CUSTOM_VOICE):
+                return self._generate_custom_voice_prepared(
+                    text, instruct_text, speaker, voice_config, output_path)
+            # Preserve historical override input and preparation semantics.
+            return render(text, instruct_text, speaker, voice_config, output_path)
 
     def generate_ensemble_voice(self, text, instruct_text, voice_data, voice_config,
                                 output_path):
@@ -2742,3 +2769,8 @@ class TTSEngine:
         from audio_validation import save_generated_wav
         return save_generated_wav(audio_array, sample_rate, output_path,
                                   f"TTS generation to {os.path.basename(output_path)}")
+
+
+# Capture native wrappers once so class/instance replacements take the fallback.
+_RAW_CUSTOM_VOICE = TTSEngine.generate_custom_voice
+_RAW_CLONE_VOICE = TTSEngine.generate_clone_voice

@@ -32,6 +32,10 @@ class LLMConfig(BaseModel):
     base_url: str
     api_key: str
     model_name: str
+    # Blank limits inherit existing global settings / detected context.
+    context_length: Optional[int] = Field(default=None, gt=0, strict=True)
+    max_input_tokens: Optional[int] = Field(default=None, gt=0, strict=True)
+    max_output_tokens: Optional[int] = Field(default=None, gt=0, strict=True)
     provider_headers: Dict[str, str] = Field(default_factory=dict)
     provider_extra_body: Dict[str, JsonValue] = Field(default_factory=dict)
     # Does this LLM run on this machine's GPU? None = decide from the
@@ -106,6 +110,7 @@ PromptVariant = Literal[
 # "Quote marks first, model for the rest (recommended)", quotes as "Quote marks only", lexical as
 # "Quote-aware", llm as "Model only". The stored values must not change without a migration.
 SegmentationMode = Literal["auto", "quotes", "lexical", "llm"]
+Pass1Format = Literal["ordinary", "compact"]
 
 
 class ThreePassModelProfile(BaseModel):
@@ -115,11 +120,13 @@ class ThreePassModelProfile(BaseModel):
     instruct_temperature: Optional[float] = Field(default=None, ge=0, le=2)
     segment_output_ratio: Optional[float] = Field(default=None, ge=1.25, le=6.0)
     segmentation: Optional[SegmentationMode] = None
+    pass1_format: Optional[Pass1Format] = None
 
 
 class GenerationConfig(BaseModel):
     chunk_size: int = Field(default=3000, ge=500)
     max_tokens: int = Field(default=4096, ge=256)
+    max_input_tokens: Optional[int] = Field(default=None, gt=0, strict=True)
     temperature: float = Field(default=0.6, ge=0, le=2)
     top_p: float = Field(default=0.8, ge=0, le=1)
     top_k: int = Field(default=0, ge=0, le=200)
@@ -152,6 +159,8 @@ class GenerationConfig(BaseModel):
     # whatever it holds; only a fresh one gets the new default.
     three_pass_attribute_prompt_variant: PromptVariant = "michel2_full"
     three_pass_segmentation: SegmentationMode = "auto"
+    # #744 opt-in: compact labels with per-chunk fallback to full text
+    three_pass_pass1_format: Pass1Format = "ordinary"
     three_pass_quoted_must_be_spoken: bool = True
     three_pass_unquoted_must_be_narrator: bool = True
     # Pass 2: when a batch runs out of retries and the ONLY failures are a
@@ -378,12 +387,15 @@ def _to_plain(value):
     return value
 
 
-def load_app_config(path: str) -> dict:
+def load_app_config(path: str, *, for_update=False) -> dict:
     """Return the sanitized config data from :func:`load_app_config_result`.
 
     The result is JSON-native, so a caller may write it back unchanged.
     """
-    return _to_plain(load_app_config_result(path).data)
+    result = load_app_config_result(path)
+    if for_update and result.needs_backup:
+        raise ValueError(f"Cannot update unreadable or damaged configuration: {path}")
+    return _to_plain(result.data)
 
 
 def backup_damaged_app_config(path: str) -> str:

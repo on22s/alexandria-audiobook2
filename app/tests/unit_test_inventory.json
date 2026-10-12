@@ -1587,6 +1587,14 @@
     "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_native_process_death_retains_committed_transition",
     "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_torn_record_recovers_committed_prefix_with_warning_and_backup"
   ],
+  "test_chunk_text_normalisation": [
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_everything_but_the_text_is_unchanged",
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_leading_separators_are_dropped_from_tts_text",
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_merged_entry_starting_with_punctuation_joins_without_a_space",
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_separator_only_text_is_left_alone",
+    "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_a_real_editor_text_change_is_still_refused",
+    "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_chunks_saved_before_the_change_still_match"
+  ],
   "test_ci_import_policy": [
     "tests.test_ci_import_policy.CIImportPolicyTests.test_changed_policy_replaces_old_roots_and_preserves_foreign_finders",
     "tests.test_ci_import_policy.CIImportPolicyTests.test_generator_policy_purges_submodules_and_disables_cleanly",
@@ -1667,6 +1675,31 @@
     "tests.test_command_boundaries.CommandBoundaryTests.test_invalid_ports_reject_before_transport",
     "tests.test_command_boundaries.CommandBoundaryTests.test_repair_hint_executes_literal_filename_not_extra_shell_statements",
     "tests.test_command_boundaries.CommandBoundaryTests.test_windows_repair_hint_uses_current_interpreter_and_powershell_literals"
+  ],
+  "test_compact_pass1": [
+    "tests.test_compact_pass1.EntriesFromLabelsTest.test_bad_rows_become_unresolved",
+    "tests.test_compact_pass1.EntriesFromLabelsTest.test_mixed_unit_keeps_the_quote_parser_regions",
+    "tests.test_compact_pass1.EntriesFromLabelsTest.test_strips_quote_delimiters_and_merges_narration",
+    "tests.test_compact_pass1.FingerprintTest.test_default_leaves_identity_unchanged_and_compact_changes_it",
+    "tests.test_compact_pass1.ParseCompactTest.test_accepts_fenced_json_after_a_think_block",
+    "tests.test_compact_pass1.ParseCompactTest.test_missing_unit_is_reported_not_filled_in",
+    "tests.test_compact_pass1.ParseCompactTest.test_rejects_duplicates_bad_labels_and_out_of_range",
+    "tests.test_compact_pass1.RunThreePassHookTest.test_compact_failure_falls_back_to_ordinary",
+    "tests.test_compact_pass1.RunThreePassHookTest.test_compact_success_skips_the_ordinary_path",
+    "tests.test_compact_pass1.RunThreePassHookTest.test_default_ordinary_never_calls_compact",
+    "tests.test_compact_pass1.RunThreePassHookTest.test_parser_settled_chunks_never_call_compact",
+    "tests.test_compact_pass1.SegmentChunkCompactTest.test_accepts_labels_the_gate_passes_and_tags_the_attempt",
+    "tests.test_compact_pass1.SegmentChunkCompactTest.test_gate_rejection_returns_empty_for_fallback",
+    "tests.test_compact_pass1.SegmentChunkCompactTest.test_unusable_reply_returns_empty_for_fallback",
+    "tests.test_compact_pass1.SettingsTest.test_cli_flag_overrides_config",
+    "tests.test_compact_pass1.SettingsTest.test_config_schema_accepts_only_known_formats",
+    "tests.test_compact_pass1.SettingsTest.test_default_global_and_profile_override",
+    "tests.test_compact_pass1.SplitUnitsTest.test_no_text_is_lost",
+    "tests.test_compact_pass1.SplitUnitsTest.test_paragraph_break_always_cuts",
+    "tests.test_compact_pass1.SplitUnitsTest.test_quote_spanning_two_sentences_is_one_unit",
+    "tests.test_compact_pass1.SplitUnitsTest.test_sentence_end_inside_closing_quote_cuts_after_the_quote",
+    "tests.test_compact_pass1.SplitUnitsTest.test_straight_quotes",
+    "tests.test_compact_pass1.SplitUnitsTest.test_unterminated_quote_never_splits_inside"
   ],
   "test_compare_attribution_arms": [
     "tests.test_compare_attribution_arms.ComparisonArtifactSafetyTests.test_ambiguous_and_blank_lines_do_not_create_false_disagreements",
@@ -1753,6 +1786,7 @@
   "test_config_numbers_js": [
     "tests.test_config_numbers_js.ConfigNumericJsTests.test_empty_nonfinite_and_malformed_fields_keep_existing_defaults_and_zero_is_preserved",
     "tests.test_config_numbers_js.ConfigNumericJsTests.test_fractional_integer_fields_reach_server_validation_without_truncation",
+    "tests.test_config_numbers_js.ConfigNumericJsTests.test_global_input_ceiling_saves_blank_and_positive_whole_numbers",
     "tests.test_config_numbers_js.ConfigNumericJsTests.test_integer_fields_preserve_exponent_and_decimal_notation"
   ],
   "test_config_refresh_feedback_js": [
@@ -4295,7 +4329,8 @@
   "test_llm_profile_requests_js": [
     "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_invalid_profile_json_is_visible_and_sends_no_diagnostic_request",
     "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_models_and_connection_test_send_same_complete_edited_profile_without_cache_mutation",
-    "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_picker_suppresses_old_success_failure_mode_switch_edit_and_empty_url"
+    "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_picker_suppresses_old_success_failure_mode_switch_edit_and_empty_url",
+    "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_profile_token_limits_survive_switching_and_reject_invalid_edits"
   ],
   "test_llm_provider": [
     "tests.test_llm_provider.ApiKeyReferenceTests.test_client_is_built_with_the_resolved_key",
@@ -4321,6 +4356,21 @@
     "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_omitted_effort_drops_sampling_for_reasoning_defaults",
     "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_omitted_effort_preserves_sampling_for_documented_none_defaults",
     "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_top_level_effort_and_extra_body_override_control_sampling"
+  ],
+  "test_llm_request_budget": [
+    "tests.test_llm_request_budget.ProfileBudgetAdmissionTests.test_declared_context_allows_unknown_manual_large_target_and_preserves_cache_capacity",
+    "tests.test_llm_request_budget.ProfileBudgetAdmissionTests.test_unknown_context_refuses_before_claiming_a_job",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_existing_config_gets_no_output_cap_or_input_ceiling",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_explicit_profile_overrides_and_blank_inheritance",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_extra_body_cannot_bypass_input_or_output_ceiling",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_http_client_enforces_declared_limits_without_probing_and_manual_does_not_reload",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_input_checks_apply_with_unknown_context_and_output_includes_reserve",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_invalid_limits_never_become_unlimited",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_native_params_and_preflight_share_limits",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_single_pass_with_input_limit_runs_real_chunk_path",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_smaller_limit_wins_both_directions_unknown_uses_declaration",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_timeout_variants_preserve_limits_and_block_before_dispatch",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_unknown_context_large_targets_rejected_before_pipeline_work"
   ],
   "test_llm_review_regressions": [
     "tests.test_llm_review_regressions.DedupeSpeakersResolverTests.test_cycles_and_aliases_entering_them_are_rejected_without_swapping",
@@ -4383,6 +4433,12 @@
     "tests.test_llm_review_regressions.LlmReviewTests.test_token_budget_scales_with_verified_context",
     "tests.test_llm_review_regressions.LlmReviewTests.test_token_budget_uses_fallback_without_verified_context",
     "tests.test_llm_review_regressions.LlmReviewTests.test_two_word_adjacent_array_boundary_is_not_treated_as_overlap",
+    "tests.test_llm_review_regressions.LossyJsonSalvageTests.test_fixture_subset_would_pass_the_approximate_quality_gate",
+    "tests.test_llm_review_regressions.LossyJsonSalvageTests.test_malformed_object_in_any_position_is_not_partially_accepted",
+    "tests.test_llm_review_regressions.LossyJsonSalvageTests.test_missing_closing_bracket_recovers_every_complete_object",
+    "tests.test_llm_review_regressions.LossyJsonSalvageTests.test_process_chunk_rejects_malformed_and_accepts_complete_retry",
+    "tests.test_llm_review_regressions.LossyJsonSalvageTests.test_unclosed_final_object_is_not_truncated_to_a_prefix",
+    "tests.test_llm_review_regressions.LossyJsonSalvageTests.test_valid_internal_curly_quotes_still_parse",
     "tests.test_llm_review_regressions.NarratorMetadataMergeTests.test_actual_review_output_keeps_pause_and_metadata_boundaries",
     "tests.test_llm_review_regressions.NarratorMetadataMergeTests.test_compatible_metadata_merges_without_mutating_input",
     "tests.test_llm_review_regressions.NarratorMetadataMergeTests.test_metadata_differences_and_pauses_keep_entry_boundaries",
@@ -4416,9 +4472,14 @@
     "tests.test_llm_review_regressions.ReviewSummaryTests.test_incomplete_summary_is_deterministic_and_does_not_call_llm",
     "tests.test_llm_review_regressions.ReviewSummaryTests.test_unsupported_quality_claim_uses_deterministic_fallback",
     "tests.test_llm_review_regressions.ReviewVramTests.test_dedupe_rechecks_headroom_and_can_resume_without_repeating_review",
+    "tests.test_llm_review_regressions.ReviewVramTests.test_fail_fast_proceeds_when_headroom_is_fine",
+    "tests.test_llm_review_regressions.ReviewVramTests.test_fail_fast_stops_without_waiting_when_vram_is_full_at_start",
     "tests.test_llm_review_regressions.ReviewVramTests.test_legacy_minimal_entry_and_extra_metadata_remain_valid",
+    "tests.test_llm_review_regressions.ReviewVramTests.test_mid_run_check_still_waits_for_headroom",
+    "tests.test_llm_review_regressions.ReviewVramTests.test_only_the_first_admission_of_a_run_fails_fast",
     "tests.test_llm_review_regressions.ReviewVramTests.test_out_of_order_vram_skip_is_retried_from_saved_checkpoint",
     "tests.test_llm_review_regressions.ReviewVramTests.test_remote_review_does_not_probe_local_headroom",
+    "tests.test_llm_review_regressions.ReviewVramTests.test_vram_full_at_start_skips_every_batch_as_incomplete",
     "tests.test_llm_review_regressions.ReviewVramTests.test_watchdog_checks_both_gpu_backends_and_keeps_zero_usage"
   ],
   "test_lmstudio_cache_lifetime": [
@@ -5363,6 +5424,24 @@
     "tests.test_persona_text_controls.PersonaTextControlTests.test_near_duplicate_detector_uses_shared_normalization_for_both_entries",
     "tests.test_persona_text_controls.PersonaTextControlTests.test_shared_object_request_rejects_control_payload_with_validation_evidence"
   ],
+  "test_pidfd_compatibility": [
+    "tests.test_pidfd_compatibility.LibcFallbackTests.test_departed_descendant_is_skipped_not_raised",
+    "tests.test_pidfd_compatibility.LibcFallbackTests.test_exited_process_maps_to_process_lookup_error",
+    "tests.test_pidfd_compatibility.LibcFallbackTests.test_signals_a_real_child",
+    "tests.test_pidfd_compatibility.NativePidfdCompatibilityTests.test_real_probe_picks_the_available_implementation_and_signals_a_child",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_departed_process_is_not_recorded_as_signalled",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_kernel_open_failure_preserves_errno_without_sending",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_legacy_probe_preserves_errno_and_closes_on_signal_failure",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_legacy_python_uses_libc_handles_with_same_probe",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_missing_python_operation_refuses_admission",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_permission_failure_propagates_and_closes_handle",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_probe_checks_signal_zero_and_closes_descriptor",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_probe_error_names_the_failing_step",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_recycled_pid_is_not_signalled",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_selection_and_probe_run_once_per_process",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_signal_probe_failure_preserves_errno_and_closes_descriptor",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_signal_uses_handle_and_records_verified_identity"
+  ],
   "test_pipeline_repeat_scoring": [
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_duplicate_gold_ids_fail_loudly_and_empty_population_is_explicit",
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_missing_duplicate_unnamed_merged_and_wrong_lines_are_in_denominator",
@@ -5652,6 +5731,26 @@
     "tests.test_production_trigram_audit.ParsingTest.test_aliases_become_scoring_groups",
     "tests.test_production_trigram_audit.ParsingTest.test_spoken_is_read_from_the_string_form_too",
     "tests.test_production_trigram_audit.ParsingTest.test_the_span_is_read_from_the_string_form_too"
+  ],
+  "test_profile_budget_review_regressions": [
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_admission_uses_planned_context_not_pre_heal_status",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_blank_profile_http_client_does_not_clamp_to_baseline",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_blank_profile_keeps_three_pass_escalation_ceiling",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_failover_with_blank_secondary_keeps_the_run_ceiling",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_preflight_sizes_declared_context_against_planned_not_current",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_rescue_fits_ample_context_and_respects_input_ceiling",
+    "tests.test_profile_budget_review_regressions.ReviewFindingFixTests.test_setup_migration_does_not_bake_inherited_limits_into_profile",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_core_inherits_global_limits_with_cached_client",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_count_attribution_splits_before_dispatch",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_nickname_client_is_built_after_heal_with_profile_output_cap",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_persona_recovery_splits_under_profile_limits",
+    "tests.test_profile_budget_review_regressions.ReviewRegressionTests.test_real_rescue_context_admitted_and_oversized_input_rejected",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_attribute_fit_allows_bounded_retry_growth",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_capped_primary_does_not_cap_blank_failover",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_declared_context_alone_subdivides_actual_attribution",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_named_benchmark_profiles_inherit_global_input_limit",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_short_segment_ceiling_survives_blank_and_explicit_failover_limits",
+    "tests.test_profile_budget_review_regressions.SecondReviewRegressionTests.test_task_policy_fingerprint_preserves_defaults_and_distinguishes_failover"
   ],
   "test_profile_failover": [
     "tests.test_profile_failover.FailoverClientTests.test_requests_go_to_the_primary_until_a_switch_then_the_secondary_with_its_model",
@@ -6294,6 +6393,7 @@
     "tests.test_repeated_work_efficiency.RepeatedWorkEfficiencyTests.test_emoji_replacement_and_count_use_one_regex_pass"
   ],
   "test_repetition_scan": [
+    "tests.test_repetition_scan.RepetitionScanTests.test_disabled_phrase_width_preserves_source",
     "tests.test_repetition_scan.RepetitionScanTests.test_novel_sized_alternating_run_finishes_with_full_evidence",
     "tests.test_repetition_scan.RepetitionScanTests.test_phrase_widths_case_and_whitespace_keep_exact_receipts",
     "tests.test_repetition_scan.RepetitionScanTests.test_punctuation_breaks_runs_and_disjoint_runs_keep_offsets",
@@ -8089,6 +8189,19 @@
     "tests.test_three_pass_missing_context.ThreePassMissingContextTests.test_actual_run_prompts_omitted_neighbors_and_writes_exact_source_order",
     "tests.test_three_pass_missing_context.ThreePassMissingContextTests.test_oversized_adjacent_entries_do_not_hide_shorter_surrounding_evidence",
     "tests.test_three_pass_missing_context.ThreePassMissingContextTests.test_passage_variants_keep_spoken_evidence_unmarked_and_do_not_repeat_included_entries"
+  ],
+  "test_three_pass_output_ceiling": [
+    "tests.test_three_pass_output_ceiling.AttributeBatchTest.test_first_call_of_a_run_keeps_the_full_budget",
+    "tests.test_three_pass_output_ceiling.AttributeBatchTest.test_observed_run_caps_a_one_entry_window",
+    "tests.test_three_pass_output_ceiling.AttributeBatchTest.test_runaway_retry_is_not_given_more_tokens",
+    "tests.test_three_pass_output_ceiling.CeilingTest.test_never_raises_a_smaller_configured_budget",
+    "tests.test_three_pass_output_ceiling.CeilingTest.test_unbounded_until_a_call_has_been_observed",
+    "tests.test_three_pass_output_ceiling.CeilingTest.test_window_size_floor_and_reasoning_allowance",
+    "tests.test_three_pass_output_ceiling.InstructBatchTest.test_first_call_of_a_run_keeps_the_full_budget",
+    "tests.test_three_pass_output_ceiling.InstructBatchTest.test_observed_run_caps_a_one_entry_window",
+    "tests.test_three_pass_output_ceiling.RetryPolicyTest.test_findings_from_both_validators_carry_the_counts",
+    "tests.test_three_pass_output_ceiling.RetryPolicyTest.test_overlong_length_finish_keeps_the_budget",
+    "tests.test_three_pass_output_ceiling.RetryPolicyTest.test_short_length_finish_still_escalates"
   ],
   "test_three_pass_planning_work": [
     "tests.test_three_pass_planning_work.ThreePassPlanningWorkTests.test_actual_cli_uses_counts_without_full_preflight_report",

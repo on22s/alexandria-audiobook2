@@ -53,7 +53,7 @@ DESIGNED_VOICES_MANIFEST = os.path.join(DESIGNED_VOICES_DIR, "manifest.json")
 def _append_manifest_entry(path, entry):
     """Append one immutable voice entry without losing a concurrent upload."""
     with file_lock(path):
-        manifest = _load_manifest(path)
+        manifest = _load_manifest(path, for_update=True)
         manifest.append(entry)
         _save_manifest(path, manifest)
 
@@ -99,7 +99,7 @@ async def voice_design_save(request: VoiceDesignSaveRequest):
     safe_name = _require_safe_filename(request.name, "Invalid voice name")
 
     with file_lock(DESIGNED_VOICES_MANIFEST):
-        manifest = _load_manifest(DESIGNED_VOICES_MANIFEST)
+        manifest = _load_manifest(DESIGNED_VOICES_MANIFEST, for_update=True)
         existing = None
         if request.voice_id:
             existing = next((m for m in manifest if m.get("id") == request.voice_id), None)
@@ -182,7 +182,7 @@ def get_voice_asset_path(base_dir, entry):
 async def voice_design_delete(voice_id: str):
     """Delete a saved designed voice."""
     with file_lock(DESIGNED_VOICES_MANIFEST):
-        manifest = _load_manifest(DESIGNED_VOICES_MANIFEST)
+        manifest = _load_manifest(DESIGNED_VOICES_MANIFEST, for_update=True)
         entry = next((v for v in manifest if v["id"] == voice_id), None)
         if not entry:
             raise HTTPException(status_code=404, detail="Voice not found")
@@ -283,7 +283,7 @@ async def clone_voices_upload(file: UploadFile = File(...),
 async def clone_voices_delete(voice_id: str):
     """Delete an uploaded clone voice."""
     with file_lock(CLONE_VOICES_MANIFEST):
-        manifest = _load_manifest(CLONE_VOICES_MANIFEST)
+        manifest = _load_manifest(CLONE_VOICES_MANIFEST, for_update=True)
         entry = next((v for v in manifest if v["id"] == voice_id), None)
         if not entry:
             raise HTTPException(status_code=404, detail="Clone voice not found")

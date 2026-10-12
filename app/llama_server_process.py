@@ -5,7 +5,7 @@ import select
 import signal
 import sys
 
-from subprocess_ownership import ensure_pidfd_support, get_process_identity, open_owned_process
+from subprocess_ownership import ensure_pidfd_support, get_process_identity
 
 
 def get_loopback_listener_inodes(port):
@@ -97,8 +97,8 @@ def stop_llama_server_listener(port, binary, grace=10):
     executable = os.stat(f'/proc/{pid}/exe')
     if (expected.st_dev, expected.st_ino) != (executable.st_dev, executable.st_ino):
         raise RuntimeError('Configured port belongs to another executable; refusing replacement')
-    libc = ensure_pidfd_support()
-    descriptor = open_owned_process(libc, pid)
+    pidfds = ensure_pidfd_support()
+    descriptor = pidfds.pidfd_open(pid, 0)
     try:
         if (get_process_identity(pid) != birth or get_loopback_listener_inodes(port) != inodes
                 or get_listener_processes(inodes) != {pid}):
@@ -107,10 +107,16 @@ def stop_llama_server_listener(port, binary, grace=10):
         if (expected.st_dev, expected.st_ino) != (executable.st_dev, executable.st_ino):
             raise RuntimeError('Listener executable changed during ownership verification')
         for sig, timeout in ((signal.SIGTERM, grace), (signal.SIGKILL, 5)):
-            if libc.pidfd_send_signal(descriptor, sig, None, 0) < 0:
+            try:
+                pidfds.pidfd_send_signal(descriptor, sig, None, 0)
+            except ProcessLookupError:
+                # ESRCH: the server exited before this signal; its pidfd may not
+                # be readable yet, but the port is no longer held by it.
+                return True
+            except OSError as error:
                 if select.select([descriptor], [], [], 0)[0]:
                     return True
-                raise OSError('Failed to signal selected server through its kernel handle')
+                raise OSError(error.errno, 'Failed to signal selected server through its kernel handle') from error
             if select.select([descriptor], [], [], timeout)[0]:
                 return True
         raise RuntimeError('Selected server did not exit after bounded TERM/KILL cleanup')

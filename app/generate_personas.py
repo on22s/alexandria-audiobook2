@@ -249,9 +249,14 @@ def _collect_narrator_context(script, speaker, window=4):
 
 def _persona_params(system_prompt, context_length, llm_config, max_tokens, temperature):
     llm_config = llm_config or {}
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(llm_config, context_length)
     return LLMGenParams(
         system_prompt=system_prompt, user_prompt_template="", max_tokens=max_tokens,
-        temperature=temperature, context_length=context_length,
+        temperature=temperature, context_length=limits["context_length"],
+        max_input_tokens=limits["max_input_tokens"],
+        hard_max_tokens=limits["max_output_tokens"] or LLMGenParams.hard_max_tokens,
+        task_max_tokens=max_tokens, task_hard_max_tokens=LLMGenParams.hard_max_tokens,
         provider_extra_body=llm_config.get("provider_extra_body"),
         structured_output=llm_config.get("structured_output", "auto"),
         api_retry_limit=llm_config.get("api_retry_limit"),
@@ -319,24 +324,23 @@ def request_persona_with_evidence(client, model_name, system_prompt, build_promp
     validate = validate_object or validate_persona_payload
 
     def fits(prompt):
-        if max_prompt_chars is None:
-            return True
         runtime_params = ensure_run_request_params(client, params)
         context = getattr(runtime_params, 'context_length', None)
         limit = max_prompt_chars
         if (not context and unknown_context_prompt_chars is not None
                 and not (allow_unknown_network_context
                          and is_persona_network_runtime(client, llm_mode, llm_config))):
-            limit = min(limit, unknown_context_prompt_chars)
-        if len(prompt) > limit:
+            limit = min(limit, unknown_context_prompt_chars) if limit is not None else unknown_context_prompt_chars
+        if limit is not None and len(prompt) > limit:
             return False
-        if context:
+        if context or runtime_params.max_input_tokens:
             from lmstudio_settings import TokenBudgetError
             budget = getattr(runtime_params, 'max_tokens', 600)
             try:
                 return get_effective_max_tokens(
                     budget, context, [{'content': system_prompt}, {'content': prompt}],
-                    getattr(runtime_params, 'hard_max_tokens', None), scale_to_context=False) >= budget
+                    getattr(runtime_params, 'hard_max_tokens', None), scale_to_context=False,
+                    max_input_tokens=runtime_params.max_input_tokens) >= min(budget, runtime_params.hard_max_tokens)
             except TokenBudgetError:
                 return False
         return True

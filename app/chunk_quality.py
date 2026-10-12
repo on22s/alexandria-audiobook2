@@ -5,7 +5,7 @@ import unicodedata
 from difflib import SequenceMatcher
 
 from recall_core import tokens as _tokens, ngrams as _ngrams, counter_recall as _counter_recall
-from script_preflight import find_adjacent_duplicate_blocks
+from script_preflight import find_adjacent_duplicate_blocks, find_contained_source_duplicates
 
 
 MIN_SOURCE_TOKEN_RECALL = 0.90
@@ -111,6 +111,13 @@ def validate_chunk_quality(source_text, entries):
             findings.append({"code": "source_unsupported_duplicate",
                              "entry_numbers": duplicate["entry_numbers"],
                              "message": "An adjacent repeated block is not repeated in the source."})
+
+    for duplicate in find_contained_source_duplicates(entries, source_text):
+        if duplicate["severity"] == "blocking":
+            findings.append({"code": "source_unsupported_contained_duplicate",
+                             "entry_numbers": duplicate["entry_numbers"],
+                             "message": duplicate["message"],
+                             "details": duplicate.get("details", {})})
 
     recall_codes = {"low_source_token_recall", "low_ordered_trigram_recall"}
     missing_spans = (_missing_source_spans(source_tokens, output_tokens)

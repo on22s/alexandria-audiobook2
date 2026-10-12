@@ -248,14 +248,16 @@ def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, thresho
     return {"results": results, "error": None}
 
 
-def apply_drift_results(project_manager, results, threshold):
+def apply_drift_results(project_manager, results, threshold, *, expected_chunks=None):
     """Write each result onto its chunk as `drift` (chunks.json). Returns the
     number of flagged chunks. Missing targets raise after the remaining
     results are applied, so the caller cannot report a complete saved check."""
+    from project import ChunkTargetMissingError
     flagged = 0
     applied = 0
     missing = []
     checked_at = time.time()
+    expected_by_uid = get_chunk_uid_index(expected_chunks) if expected_chunks is not None else None
     for r in results:
         drift = {"score": r["score"], "flagged": bool(r["flagged"]),
                  "reference": r["reference"], "threshold": threshold,
@@ -266,7 +268,28 @@ def apply_drift_results(project_manager, results, threshold):
         if not uid:
             missing.append(f"index {r.get('index', '?')} (no UID)")
             continue
-        updated = project_manager._update_chunk_fields_by_uid(uid, drift=drift)
+        if expected_by_uid is not None:
+            expected = expected_by_uid.get(uid)
+            if expected is None:
+                continue
+            related = []
+            if str(r.get("reference", "")).startswith("chunk:"):
+                reference = expected_by_uid.get(r["reference"][6:])
+                if reference is None:
+                    continue
+                related.append(reference)
+            try:
+                updated = project_manager._update_chunk_fields_by_uid(
+                    uid, expected_chunk=expected, required_status="done", require_target=True,
+                    expected_related_chunks=related,
+                    expected_fields={key: expected.get(key) for key in ("audio_path", "audio_revision")}, drift=drift)
+            except ChunkTargetMissingError:
+                missing.append(str(uid))
+                continue
+            if updated is None:
+                continue
+        else:
+            updated = project_manager._update_chunk_fields_by_uid(uid, drift=drift)
         if updated is not None:
             applied += 1
             flagged += int(bool(r["flagged"]))

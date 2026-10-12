@@ -34,6 +34,7 @@ from speaker_identity import stabilize_speaker_identities
 from speaker_traits import get_established_traits
 from repair_source_encoding import preflight_source
 from script_repair import build_deterministic_repair
+from compact_pass1 import segment_chunk_compact
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from narrator_prompt import (add_narrator_prior, get_valid_narrator_name,
@@ -133,7 +134,8 @@ def resolve_hard_max_tokens(configured_max_tokens):
 
 
 def resolve_three_pass_generation_settings(config, chunk_size_override=None,
-                                           segmentation_override=None):
+                                           segmentation_override=None,
+                                           pass1_format_override=None):
     """Resolve model-profile-sensitive settings shared by runtime and preflight."""
     llm = get_active_llm_config(config)
     gen = config.get("generation") or {}
@@ -146,11 +148,18 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
         "chunk_size": resolve_chunk_size(
             chunk_size_override, gen.get("three_pass_chunk_size", 3000),
             model_profile.get("chunk_size")),
-        "max_tokens": gen.get("max_tokens", 10000),
+        "max_tokens": llm.get("max_output_tokens") or gen.get("max_tokens", 10000),
+        "max_input_tokens": llm.get("max_input_tokens"),
+        "profile_context_length": llm.get("context_length"),
+        "profile_output_ceiling": llm.get("max_output_tokens"),
         "segment_output_ratio": model_profile.get(
             "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)),
         "segmentation": segmentation_override or model_profile.get(
             "segmentation", gen.get("three_pass_segmentation") or "auto"),
+        # #744: "compact" = numbered units in, labels out, per-chunk fallback
+        # to the ordinary full-text path. Default "ordinary" is unchanged.
+        "pass1_format": pass1_format_override or model_profile.get(
+            "pass1_format", gen.get("three_pass_pass1_format") or "ordinary"),
         "quoted_must_be_spoken": gen.get(
             "three_pass_quoted_must_be_spoken", True) is not False,
         "unquoted_must_be_narrator": gen.get(
@@ -164,6 +173,13 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
     }
 
 
+def is_three_pass_context_required(chunk_size, attribute_context_chars,
+                                   attribute_target_chars=0, instruct_target_chars=0):
+    """One policy for admission, sizing identity and native execution."""
+    return bool(chunk_size > 30000 or attribute_context_chars > 20000
+                or attribute_target_chars or instruct_target_chars)
+
+
 def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generation_settings=None):
     """Build the shared native generation/retry policy without changing config."""
     generation_settings = (generation_settings if generation_settings is not None
@@ -171,21 +187,20 @@ def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generati
     gen = config.get("generation") or {}
     llm = get_active_llm_config(config)
     model_profile = generation_settings["model_profile"]
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(llm, lm_status.get("context_length"))
     params = LLMGenParams(
-        max_tokens=generation_settings["max_tokens"],
-        # The escalation ceiling follows the configured budget. It used to stay
-        # at the dataclass default (16384) whatever Setup said, so a hosted
-        # reasoning model that thinks for 16k tokens was cut off at exactly
-        # that point with "cannot grow beyond 16384" while the user had set
-        # 65536 (reported 2026-09-17 against an OpenRouter model via a
-        # GPT-Load gateway). Never below the default, so local setups keep
-        # their headroom; get_effective_max_tokens still clamps to the
-        # server's real context when one is known.
-        hard_max_tokens=resolve_hard_max_tokens(generation_settings["max_tokens"]),
+        task_max_tokens=gen.get("max_tokens", 10000),
+        task_hard_max_tokens=resolve_hard_max_tokens(gen.get("max_tokens", 10000)),
+        max_tokens=min(generation_settings["max_tokens"], limits["max_output_tokens"] or generation_settings["max_tokens"]),
+        max_input_tokens=limits["max_input_tokens"],
+        # Profile override / global fallback bounds every retry. Raw legacy
+        # harness configs without either retain their existing task ceiling.
+        hard_max_tokens=limits["max_output_tokens"] or resolve_hard_max_tokens(generation_settings["max_tokens"]),
         temperature=gen.get("temperature", 0.6),
         top_p=gen.get("top_p", 0.8),
         top_k=gen.get("top_k"), min_p=gen.get("min_p"),
-        context_length=lm_status.get("context_length"),
+        context_length=limits["context_length"],
         segment_temperature=model_profile.get(
             # Segmentation and attribution are classification, not writing:
             # each has one right answer, so sampling only adds noise. Measured
@@ -203,6 +218,7 @@ def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generati
             "instruct_temperature", gen.get("three_pass_instruct_temperature", 0.1)),
         segment_output_ratio=generation_settings["segment_output_ratio"],
         segmentation=generation_settings["segmentation"],
+        pass1_format=generation_settings["pass1_format"],
         quoted_must_be_spoken=generation_settings["quoted_must_be_spoken"],
         unquoted_must_be_narrator=generation_settings["unquoted_must_be_narrator"],
         reasoning_effort=reasoning_effort,
@@ -693,6 +709,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                                                if params.attribute_temperature is not None
                                                else params.temperature),
                           response_schema=get_attribution_response_schema(speaker_traits))
+    call_params = bound_index_request_params(call_params, len(frozen_batch),
+                                             ATTRIBUTE_TOKENS_PER_ENTRY)
     # entries_provider REPLACES ONLY THE LLM CALL. Everything that makes this
     # function safe - validate_attribution's text freeze, the index_head_check
     # binding, the exhaustion path - is shared by any provider, so an
@@ -795,6 +813,8 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
     call_params = replace(params, temperature=(params.instruct_temperature
                                                if params.instruct_temperature is not None
                                                else params.temperature))
+    call_params = bound_index_request_params(call_params, len(prior_batch),
+                                             INSTRUCT_TOKENS_PER_ENTRY)
     attempts = []
 
     def observe(attempt):
@@ -887,14 +907,16 @@ def retry_delivery_instructions(client, model_name, entries, params,
     return result
 
 
-def does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
+def does_request_fit_context(system_prompt, user_prompt, params, output_tokens,
+                             allow_retry_growth=False):
     """Use the production token-budget helper for the full assembled request."""
     try:
         available = get_effective_max_tokens(
-            params.max_tokens, params.context_length,
+            params.hard_max_tokens if allow_retry_growth else params.max_tokens, params.context_length,
             [{"role": "system", "content": system_prompt},
              {"role": "user", "content": user_prompt}],
-            params.hard_max_tokens, scale_to_context=False)
+            params.hard_max_tokens, scale_to_context=False,
+            max_input_tokens=params.max_input_tokens)
     except TokenBudgetError:
         return False
     return available >= output_tokens + max(0, params.reasoning_allowance or 0)
@@ -998,6 +1020,8 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
     bounded_params = replace(
         params, max_tokens=min(params.max_tokens, completion_ceiling),
         hard_max_tokens=min(params.hard_max_tokens, completion_ceiling),
+        request_output_ceiling=min(params.request_output_ceiling or completion_ceiling,
+                                   completion_ceiling),
         temperature=(params.segment_temperature
                      if params.segment_temperature is not None else params.temperature))
     def repair(entries):
@@ -1123,6 +1147,7 @@ def _resolved_near_miss(near_miss, resolution_sink):
 #   llm     -> "Model only"
 # Do not rename a stored value: config.json, model profiles and old results contain them.
 SEGMENTATION_MODES = ("auto", "quotes", "lexical", "llm")
+PASS1_FORMATS = ("ordinary", "compact")
 LEXICAL_QUOTE_CLASSIFIER_VERSION = 2
 
 
@@ -1484,8 +1509,15 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     validate_attribution_vote_settings(settings.get("attribution_votes", 1),
                                        settings.get("vote_temperature", 0.3))
     chunk_size = settings["chunk_size"]
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits({"context_length": settings.get("profile_context_length"),
+                                 "max_input_tokens": settings.get("max_input_tokens"),
+                                 "max_output_tokens": settings.get("profile_output_ceiling")}, context_length)
+    context_length = limits["context_length"]
     params = params or LLMGenParams(
         max_tokens=settings["max_tokens"], context_length=context_length,
+        max_input_tokens=limits["max_input_tokens"],
+        hard_max_tokens=limits["max_output_tokens"] or resolve_hard_max_tokens(settings["max_tokens"]),
         segment_output_ratio=settings["segment_output_ratio"],
         segmentation=settings["segmentation"],
         quoted_must_be_spoken=settings.get("quoted_must_be_spoken", True),
@@ -1503,6 +1535,8 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
         prompt_tokens = math.ceil((len(system_prompt) + len(user_prompt)) / 3)
         completion_tokens = int(completion_tokens) + max(0, params.reasoning_allowance or 0)
         total = prompt_tokens + completion_tokens + reserve
+        if params.max_input_tokens and prompt_tokens > params.max_input_tokens:
+            raise TokenBudgetError(f"{stage} prompt estimate ({prompt_tokens}) exceeds the input ceiling ({params.max_input_tokens}). Reduce the source/context target or adjust the profile input ceiling.")
         requests.append({"stage": stage, "prompt_tokens": prompt_tokens,
                          "predicted_completion_tokens": int(completion_tokens),
                          "predicted_total_tokens": total})
@@ -1513,7 +1547,8 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             current = work.pop(0)
             system_prompt, user_prompt = build_request(current)
             output_tokens = max(256, output_per_entry * len(current))
-            if target_chars and not does_request_fit_context(system_prompt, user_prompt, params, output_tokens):
+            if not does_request_fit_context(system_prompt, user_prompt, params, output_tokens,
+                                            allow_retry_growth=stage == "attribute"):
                 if len(current) == 1:
                     raise TokenBudgetError(f"One {stage} entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
                 midpoint = len(current) // 2
@@ -1532,25 +1567,31 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     # The run's escalation ceiling is the most it can ever ask for; a chunk
     # whose predicted output exceeds it cannot succeed at any retry, and the
     # caller should refuse the run rather than let it fail chunk by chunk.
-    output_ceiling = resolve_hard_max_tokens(int(settings["max_tokens"]))
+    output_ceiling = params.hard_max_tokens
     largest_completion = 0
     for chunk in chunks:
         largest_completion = max(largest_completion, resolve_completion_ceiling(
             max(1, len(chunk.split())), params))
-    for chunk in unresolved_chunks:
+    unresolved = set(unresolved_chunks)
+    for index, chunk in enumerate(chunks):
+        if chunk not in unresolved:
+            continue
         completion = min(
             int(settings["max_tokens"]),
             resolve_completion_ceiling(
                 max(1, len(chunk.split())), params))
         add_request("segment", segment_system,
                     segment_template.format(chunk=chunk), completion)
-        windows = context_windows
-        if windows:
-            window = max(windows)
-            rescue_user = _CONTEXT_SEGMENT_USER.format(
-                before="x" * window, after="x" * window, chunk=chunk)
-            add_request("segment_context_rescue", segment_system,
-                        rescue_user, completion)
+        max_window = max(context_windows)
+        before_all = _tail_join(chunks[:index], max_window)
+        after_all = _head_join(chunks[index + 1:], max_window)
+        overhead_chars = len(segment_system) + len(_CONTEXT_SEGMENT_USER)
+        for window in context_windows:
+            before, after = before_all[-window:], after_all[:window]
+            if not _rescue_prompt_fits(chunk, before, after, overhead_chars, params):
+                continue
+            rescue_user = _CONTEXT_SEGMENT_USER.format(before=before, after=after, chunk=chunk)
+            add_request("segment_context_rescue", segment_system, rescue_user, completion)
 
     roster_chars = min(4096, 32 * sum(
         entry.get("type") == "SPOKEN" for entry in predicted_entries))
@@ -1563,9 +1604,8 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     def build_planned_attribute(current):
         contexts = get_missing_attribute_contexts(
             predicted_entries, [index for index, _ in current], attribute_batch_size, attribute_bounds)
-        surround = (build_window_surround(predicted_entries, [index for index, _ in current], context_chars)
-                    if attribute_budgeted else
-                    {"before": "x" * context_chars, "after": "x" * context_chars})
+        surround = build_window_surround(
+            predicted_entries, [index for index, _ in current], context_chars)
         return get_attribute_sizing_request(
             [entry for _, entry in current], params, estimated_roster, contexts, surround,
             settings.get("attribute_prompt_variant") or "default",
@@ -1729,11 +1769,17 @@ def _head_join(parts, limit):
 def _rescue_prompt_fits(chunk, before, after, overhead_chars, params):
     """Estimate whether a context-rescue prompt for this window fits the model's
     context, leaving room to emit the chunk. Uses the pipeline's chars//3 token
-    estimate. Returns True when context_length is unknown (keep prior behavior)."""
+    estimate. A profile input ceiling bounds the prompt on its own; with
+    neither limit known, returns True (keep prior behavior). Deliberately not
+    does_request_fit_context: that caps the room at max_tokens, which a large
+    chunk's echo exceeds, and would drop every window however ample the context."""
     ctx_len = getattr(params, "context_length", None)
+    max_input = getattr(params, "max_input_tokens", None)
+    prompt_tokens = math.ceil((overhead_chars + len(chunk) + len(before) + len(after)) / 3)
+    if max_input and prompt_tokens > max_input:
+        return False
     if not ctx_len:
         return True
-    prompt_tokens = math.ceil((overhead_chars + len(chunk) + len(before) + len(after)) / 3)
     # Segment output reproduces the chunk text wrapped in JSON; reserve ~1.5x the
     # chunk's token estimate plus a small structural margin as the output budget.
     output_budget = math.ceil(len(chunk) / 3 * 1.5) + 64
@@ -1932,6 +1978,14 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
             "segment_system_prompt", "segment_user_prompt_template",
             "instruct_system_prompt", "instruct_user_prompt_template",
             "response_schema")})
+        # Only present when moved off the default, so existing checkpoints
+        # keep their identity; switching format restarts instead of mixing.
+        if getattr(params, "pass1_format", "ordinary") != "ordinary":
+            settings["pass1_format"] = params.pass1_format
+        if getattr(params, "max_input_tokens", None) is not None:
+            settings["max_input_tokens"] = params.max_input_tokens
+        from llm_request_budget import get_task_output_fingerprint
+        settings.update(get_task_output_fingerprint(params))
         if not getattr(params, "quoted_must_be_spoken", True):
             settings["quoted_must_be_spoken"] = False
         if not getattr(params, "unquoted_must_be_narrator", True):
@@ -2094,9 +2148,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     require_nonempty_source(source_text)
     for target in (attribute_target_chars, instruct_target_chars):
         list(iter_entry_windows([], attribute_batch_size, target))
-    if attribute_target_chars or instruct_target_chars or chunk_size > 30000 or attribute_context_chars > 20000:
+    if is_three_pass_context_required(chunk_size, attribute_context_chars,
+                                      attribute_target_chars, instruct_target_chars):
         if not params.context_length or params.context_length <= 0:
-            raise TokenBudgetError("Character batching and larger targets require a configured model context length.")
+            raise TokenBudgetError("Character batching and larger targets require a known model context length. Set Total context budget (tokens) in Setup for this LLM profile, or use a server exposing its loaded context.")
     # Preserve None in checkpoint identity while validating explicit controls.
     get_context_rescue_windows(context_windows)
     validate_attribution_vote_settings(attribution_votes, vote_temperature)
@@ -2202,6 +2257,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             attempt.get("reasoning_tokens"),
             truncated=attempt.get("finish_reason") == "length")
         params.reasoning_allowance = reasoning_allowance.current()
+        if attempt.get("finish_reason") is not None:
+            params.observed_calls += 1
 
     def last_attempt_for(_index):
         return last_attempts.get("latest")
@@ -2291,11 +2348,24 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             announce_step(1, "chunk", i + 1, len(chunks))
             if progress:
                 progress.note_call_started()
-        seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
-                                       resolution_sink=sink, failure_sink=failures,
-                                       attempt_sink=attempts,
-                                       quote_analysis=quote_analyses[i],
-                                       quote_decision=quote_decisions[i])
+        seg = []
+        if params.pass1_format == "compact" and not by_marks:
+            # #744: one compact attempt on a chunk the quote marks did not
+            # settle; anything it can't do falls back to the full ordinary path
+            # below. Top level only, as evaluated (split halves run ordinary).
+            seg = segment_chunk_compact(client, model_name, chunks[i], params,
+                                        attempt_sink=attempts)
+            if seg:
+                _record_resolution(sink, "compact")
+            else:
+                print(f"  chunk {i + 1}/{len(chunks)}: compact labels not accepted; "
+                      "using full-text Pass 1")
+        if not seg:
+            seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
+                                           resolution_sink=sink, failure_sink=failures,
+                                           attempt_sink=attempts,
+                                           quote_analysis=quote_analyses[i],
+                                           quote_decision=quote_decisions[i])
         finish_step(1, "chunk", i + 1, len(chunks),
                     "from quote marks" if by_marks else "from the model")
         if progress and not by_marks:
@@ -2440,24 +2510,25 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                     segmented, [index for index, _ in current], attribute_batch_size, attribute_bounds)
                 surround = build_window_surround(
                     segmented, [index for index, _ in current], attribute_context_chars)
-                if attribute_target_chars or attribute_context_chars > 20000:
-                    request_params = ensure_run_request_params(client, params)
-                    system_prompt, user_prompt = get_attribute_sizing_request(
+                request_params = ensure_run_request_params(client, params)
+                # Admission considers bounded retry growth, not just the starting allowance.
+                system_prompt, user_prompt = get_attribute_sizing_request(
+                    batch, request_params, roster, contexts, surround,
+                    attribute_prompt_variant, attribute_prompt_texts, cast,
+                    get_established_traits(named) if speaker_traits else None)
+                if hasattr(entries_provider, "build_request"):
+                    system_prompt, user_prompt = entries_provider.build_request(
                         batch, request_params, roster, contexts, surround,
-                        attribute_prompt_variant, attribute_prompt_texts, cast,
                         get_established_traits(named) if speaker_traits else None)
-                    if hasattr(entries_provider, "build_request"):
-                        system_prompt, user_prompt = entries_provider.build_request(
-                            batch, request_params, roster, contexts, surround,
-                            get_established_traits(named) if speaker_traits else None)
-                    if not does_request_fit_context(system_prompt, user_prompt, request_params,
-                                                    max(256, (128 if speaker_traits else 24) * len(batch))):
-                        if len(current) == 1:
-                            raise TokenBudgetError("One attribution entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
-                        midpoint = len(current) // 2
-                        print(f"  Attribution request exceeds budget; subdividing {len(current)} entries")
-                        work[0:0] = [current[:midpoint], current[midpoint:]]
-                        continue
+                if not does_request_fit_context(system_prompt, user_prompt, request_params,
+                                                max(256, (128 if speaker_traits else 24) * len(batch)),
+                                                allow_retry_growth=True):
+                    if len(current) == 1:
+                        raise TokenBudgetError("One attribution entry plus context/output does not fit; reduce extra context or use a capable endpoint.")
+                    midpoint = len(current) // 2
+                    print(f"  Attribution request exceeds budget; subdividing {len(current)} entries")
+                    work[0:0] = [current[:midpoint], current[midpoint:]]
+                    continue
                 announce_step(2, "window", window_number, window_total)
                 if progress:
                     progress.note_call_started()
@@ -2872,6 +2943,37 @@ class ReasoningAllowance:
         return max(REASONING_ALLOWANCE_FLOOR, ordered[index])
 
 
+# Visible output per entry for indexed passes, ~4x the observed need: accepted
+# ATTRIBUTE rows are p99 46 characters (~15 tokens) over 8,677 logged responses;
+# an instruct row carries a 10-20 word direction.
+ATTRIBUTE_TOKENS_PER_ENTRY = 64
+INSTRUCT_TOKENS_PER_ENTRY = 160
+INDEX_OUTPUT_FLOOR = 1024
+
+
+def resolve_index_output_ceiling(entry_count, per_entry_tokens, params):
+    """Bound a Pass 2/3 request to what its window can need, or None.
+
+    Without a bound a 1-entry window kept the full 10,000-token budget, and a
+    runaway spent it all listing 960 rows (Qwen3-14B, 2026-10-12: 213 s per
+    attempt). None until this run has observed a completed call: before that a
+    reasoning model's allowance reads 0 and a tight first cap would end in
+    reasoning_overflow. Only the first request is bounded; hard_max_tokens is
+    left alone so real truncation still escalates."""
+    if not getattr(params, "observed_calls", 0):
+        return None
+    visible = max(INDEX_OUTPUT_FLOOR, max(1, entry_count) * per_entry_tokens)
+    return visible + max(0, int(params.reasoning_allowance or 0))
+
+
+def bound_index_request_params(call_params, entry_count, per_entry_tokens):
+    """Return call_params with max_tokens capped by resolve_index_output_ceiling."""
+    ceiling = resolve_index_output_ceiling(entry_count, per_entry_tokens, call_params)
+    if ceiling is None or call_params.max_tokens <= ceiling:
+        return call_params
+    return replace(call_params, max_tokens=ceiling)
+
+
 def resolve_completion_ceiling(source_words, params, reasoning_allowance=0):
     """Bound segmentation output, leaving room for invisible reasoning.
 
@@ -2991,6 +3093,10 @@ def main():
     parser.add_argument("--prompt-variant", default=None,
                         help="Override generation.three_pass_attribute_prompt_variant "
                              "(one of attribution_prompt_variants.VARIANTS)")
+    parser.add_argument("--pass1-format", choices=PASS1_FORMATS, default=None,
+                        help="Override generation.three_pass_pass1_format: ordinary "
+                             "(full text, the default) or compact (numbered units in, "
+                             "labels out; falls back to ordinary per chunk, #744)")
     parser.add_argument("--segmentation", choices=SEGMENTATION_MODES, default=None,
                         help="Override generation.three_pass_segmentation: auto "
                              "(shown to users as 'Quote marks first, model for the rest'; "
@@ -3081,7 +3187,8 @@ def main():
               f"(sha256 {cast['sha256'][:12]})")
     try:
         generation_settings = resolve_three_pass_generation_settings(
-            config, args.chunk_size, segmentation_override=args.segmentation)
+            config, args.chunk_size, segmentation_override=args.segmentation,
+            pass1_format_override=args.pass1_format)
     except ValueError as exc:
         print(f"Error: {exc}")
         sys.exit(1)

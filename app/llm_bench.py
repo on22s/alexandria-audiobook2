@@ -254,7 +254,7 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
 
     try:
         with file_lock(config_path):
-            config = load_app_config(config_path)
+            config = load_app_config(config_path, for_update=True)
             profile = dict(config.get(profile_key) or {})
             profile["concurrency"] = concurrency
             profile["concurrency_for"] = cache_key

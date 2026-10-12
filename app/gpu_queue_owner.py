@@ -8,15 +8,15 @@ import subprocess
 import sys
 import threading
 
-from subprocess_ownership import ensure_pidfd_support, open_owned_process, run_owned_command
+from subprocess_ownership import ensure_pidfd_support, run_owned_command
 
 
 def open_parent_handle(parent_pid):
     """Verify the launching parent before monitoring its stable kernel handle."""
     if os.getppid() != parent_pid:
         raise OSError("GPU wrapper exited before owner admission")
-    libc = ensure_pidfd_support()
-    descriptor = open_owned_process(libc, parent_pid)
+    pidfds = ensure_pidfd_support()
+    descriptor = pidfds.pidfd_open(parent_pid, 0)
     if os.getppid() != parent_pid or select.select([descriptor], [], [], 0)[0]:
         os.close(descriptor)
         raise OSError("GPU wrapper exited before owner admission")

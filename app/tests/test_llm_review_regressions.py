@@ -349,9 +349,11 @@ class LlmReviewTests(unittest.TestCase):
             generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1),
             max_retries=0, attempt_observer=attempts.append)
 
+        # The malformed object now refuses salvage outright (#1111), so the
+        # partial array never reaches the quality gate at all.
         self.assertEqual([], result)
-        self.assertEqual("quality_rejected", attempts[0]["outcome"])
-        self.assertIn("low_source_token_recall", attempts[0]["failure_codes"])
+        self.assertEqual("response_rejected", attempts[0]["outcome"])
+        self.assertEqual(["malformed_json"], attempts[0]["failure_codes"])
 
     def test_bracketed_trailing_prose_does_not_discard_valid_array(self):
         entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
@@ -918,6 +920,76 @@ class ReviewVramTests(unittest.TestCase):
                 stack.enter_context(patch.object(review_script, "ThreadPoolExecutor", executor))
             review_script.main()
 
+    def test_fail_fast_stops_without_waiting_when_vram_is_full_at_start(self):
+        # #1114: a local LLM server that allocates its KV cache at load sits
+        # above the threshold before any batch; waiting cannot free its memory.
+        from contextlib import redirect_stdout
+        from io import StringIO
+        full = (int(16.6 * 1024**3), int(17.1 * 1024**3))
+        output = StringIO()
+        with patch.object(review_script, "get_vram_usage", return_value=full), \
+             patch.object(review_script.time, "sleep") as sleep, redirect_stdout(output):
+            self.assertFalse(review_script.wait_for_vram_headroom(fail_fast=True))
+        sleep.assert_not_called()
+        self.assertIn("before review started", output.getvalue())
+        self.assertIn("smaller context", output.getvalue())
+
+    def test_fail_fast_proceeds_when_headroom_is_fine(self):
+        with patch.object(review_script, "get_vram_usage", return_value=(50, 100)), \
+             patch.object(review_script.time, "sleep") as sleep:
+            self.assertTrue(review_script.wait_for_vram_headroom(fail_fast=True))
+        sleep.assert_not_called()
+
+    def test_mid_run_check_still_waits_for_headroom(self):
+        # Growth during a run keeps the original wait-then-resume behaviour.
+        from contextlib import redirect_stdout
+        from io import StringIO
+        usage = iter([(97, 100), (50, 100)])
+        with patch.object(review_script, "get_vram_usage", side_effect=lambda: next(usage)), \
+             patch.object(review_script.time, "sleep") as sleep, redirect_stdout(StringIO()):
+            self.assertTrue(review_script.wait_for_vram_headroom())
+        sleep.assert_called_once()
+
+    def test_only_the_first_admission_of_a_run_fails_fast(self):
+        entry = {"speaker": "ALICE", "text": "One.", "instruct": "Neutral."}
+        for executor in (None, "parallel"):
+            with self.subTest(executor=executor), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp, "script.json")
+                path.write_text(json.dumps([entry, dict(entry, text="Two.")]))
+                headroom = MagicMock(return_value=True)
+                pool = None
+                if executor:
+                    class SerialExecutor:
+                        def __init__(self, **_kwargs):
+                            pass
+
+                        def __enter__(self):
+                            return self
+
+                        def __exit__(self, *_args):
+                            return False
+
+                        def map(self, function, items):
+                            return [function(item) for item in items]
+                    pool = SerialExecutor
+                review = MagicMock(side_effect=lambda _c, _m, batch, *_a, **_k: batch)
+                self.run_review(path, headroom, review, MagicMock(return_value=({}, 0, [])), executor=pool)
+                flags = [call.kwargs.get("fail_fast", False) for call in headroom.call_args_list]
+                self.assertTrue(flags[0])
+                self.assertFalse(any(flags[1:]))
+
+    def test_vram_full_at_start_skips_every_batch_as_incomplete(self):
+        entry = {"speaker": "ALICE", "text": "One.", "instruct": "Neutral."}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "script.json")
+            path.write_text(json.dumps([entry, dict(entry, text="Two.")]))
+            headroom = MagicMock(return_value=False)
+            review = MagicMock()
+            self.run_review(path, headroom, review, MagicMock(return_value=({}, 0, [])))
+            review.assert_not_called()
+            self.assertTrue(headroom.call_args_list[0].kwargs.get("fail_fast"))
+            self.assertTrue(Path(str(path) + ".review_checkpoint.json").exists())
+
     def test_out_of_order_vram_skip_is_retried_from_saved_checkpoint(self):
         class ReverseStartExecutor:
             def __init__(self, **_kwargs):
@@ -1403,6 +1475,75 @@ class PassSpecificSalvageTests(unittest.TestCase):
 
         self.assertIsNone(review_script.review_batch(
             client, "m", original, 1, 1, params, max_retries=0))
+
+
+class LossyJsonSalvageTests(unittest.TestCase):
+    """#1111: one malformed delimiter must not become an accepted subset."""
+    PHRASE = "Amber boats drift quietly while seven bright lanterns illuminate distant hills."
+    MIDDLE = " ".join(f"word{i}" for i in range(200))
+    CLOSING = "Closing sentence."
+    SOURCE = PHRASE + " " + MIDDLE + " " + CLOSING
+
+    @staticmethod
+    def _entry(text):
+        return {"speaker": "NARRATOR", "text": text, "instruct": "Neutral."}
+
+    def _valid(self):
+        return json.dumps([self._entry(self.PHRASE), self._entry(self.MIDDLE),
+                           self._entry(self.CLOSING)], ensure_ascii=False)
+
+    def _malformed(self, text):
+        # Replace exactly one closing JSON quote with U+201D.
+        valid = self._valid()
+        index = valid.index(text + '"') + len(text)
+        return valid[:index] + "”" + valid[index + 1:]
+
+    def _parse(self, raw):
+        cleaned = generate_script.clean_json_string(raw)
+        return generate_script.repair_json_array(cleaned) if cleaned else None
+
+    def test_fixture_subset_would_pass_the_approximate_quality_gate(self):
+        # Keeps the fixture discriminating: the gate alone accepts this loss,
+        # so the parser is the only thing that can refuse it.
+        from chunk_quality import validate_chunk_quality
+        self.assertTrue(validate_chunk_quality(
+            self.SOURCE, [self._entry(self.MIDDLE)])["passed"])
+
+    def test_malformed_object_in_any_position_is_not_partially_accepted(self):
+        for text in (self.PHRASE, self.MIDDLE, self.CLOSING):
+            with self.subTest(position=text[:12]):
+                raw = self._malformed(text)
+                self.assertFalse(self._parse(raw))
+                self.assertFalse(generate_script.repair_json_array(raw))
+                self.assertIsNone(generate_script.salvage_json_entries(raw))
+
+    def test_process_chunk_rejects_malformed_and_accepts_complete_retry(self):
+        client = LlmReviewTests._client_with_responses([self._malformed(self.PHRASE)])
+        params = generate_script.LLMGenParams("system", "{chunk}", 4000, 0.1, 1)
+        attempts = []
+        self.assertEqual([], generate_script.process_chunk(
+            client, "model", self.SOURCE, 1, 1, params, max_retries=0,
+            attempt_observer=attempts.append))
+        self.assertEqual(["malformed_json"], attempts[0]["failure_codes"])
+
+        client = LlmReviewTests._client_with_responses(
+            [self._malformed(self.PHRASE), self._valid()])
+        result = generate_script.process_chunk(
+            client, "model", self.SOURCE, 1, 1, params, max_retries=1)
+        self.assertEqual(self.SOURCE, " ".join(entry["text"] for entry in result))
+
+    def test_valid_internal_curly_quotes_still_parse(self):
+        entries = [self._entry("He said “Hello”."), self._entry("Keep the words.")]
+        self.assertEqual(entries, self._parse(json.dumps(entries, ensure_ascii=False)))
+
+    def test_missing_closing_bracket_recovers_every_complete_object(self):
+        raw = self._valid()[:-1]
+        self.assertEqual(json.loads(self._valid()), self._parse(raw))
+
+    def test_unclosed_final_object_is_not_truncated_to_a_prefix(self):
+        raw = self._valid()[:-30]
+        self.assertFalse(self._parse(raw))
+        self.assertIsNone(generate_script.salvage_json_entries(raw))
 
 
 class ReviewAliasPublicationSafetyTests(unittest.TestCase):

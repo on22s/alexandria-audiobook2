@@ -34,17 +34,27 @@ def get_located_source_changes(text, changes):
 def normalize_known_source_corruptions(text):
     """Return normalized text and location evidence without mutating its source file."""
     changes = []
+    repair_start = 0
 
     def replace(match):
         before = match.group(0)
         after = KNOWN_SOURCE_CORRUPTIONS[before.casefold()]
         if before[:1].isupper():
             after = after.capitalize()
-        offset = match.start()
+        offset = repair_start + match.start()
         changes.append({"offset": offset, "before": before, "after": after})
         return after
 
-    normalized = _KNOWN_RE.sub(replace, text) if is_predominantly_latin_source(text) else text
+    # Start replacement at the first match, preserving absolute evidence
+    # offsets while avoiding a second scan of the preceding prefix.
+    first = _KNOWN_RE.search(text) if type(text) is str else None
+    needs_repair = type(text) is not str or first
+    if needs_repair and is_predominantly_latin_source(text):
+        repair_start = first.start() if first is not None else 0
+        normalized = (text[:repair_start] + _KNOWN_RE.sub(replace, text[repair_start:])
+                      if repair_start else _KNOWN_RE.sub(replace, text))
+    else:
+        normalized = text
 
     caption_changes = []
 
@@ -74,14 +84,23 @@ def normalize_extreme_phrase_repetitions(text):
     whitespace = [text[tokens[index - 1].end():tokens[index].start()].isspace()
                   for index in range(1, len(tokens))]
     candidates = [None] * len(tokens)
-    for width in range(1, EXTREME_PHRASE_MAX_WORDS + 1):
-        # A suffix's run length extends the already computed next unit's run.
-        # Each token is revisited only for the five supported phrase widths.
-        runs = [1] * len(tokens)
-        for start in range(len(tokens) - width, -1, -1):
+    size = len(tokens)
+    if EXTREME_PHRASE_MAX_WORDS >= 1:
+        streak = 1
+        for start in range(size - 1, -1, -1):
+            if start + 1 < size and whitespace[start] and words[start] == words[start + 1]:
+                streak += 1
+            else:
+                streak = 1
+            if streak >= EXTREME_PHRASE_REPEAT_MIN:
+                candidates[start] = (tokens[start].start(), tokens[start + streak - 1].end(), 1, streak)
+    for width in range(2, EXTREME_PHRASE_MAX_WORDS + 1):
+        runs = [1] * size
+        for start in range(size - width, -1, -1):
             offset = start + width
-            if (offset + width <= len(tokens) and whitespace[offset - 1]
-                    and words[start:offset] == words[offset:offset + width]):
+            if (offset + width <= size and whitespace[offset - 1]
+                    and words[start] == words[offset]
+                    and words[start + 1:offset] == words[offset + 1:offset + width]):
                 runs[start] += runs[offset]
             repeats = runs[start]
             if repeats < EXTREME_PHRASE_REPEAT_MIN:
@@ -163,6 +182,10 @@ def normalize_homoglyph_words(text):
     document is overwhelmingly Latin and every Cyrillic character in the
     word has a homoglyph mapping - one unmappable character leaves the whole
     word untouched."""
+    # The word matcher requires Cyrillic; plain text needs no language scan.
+    # Keep the original path for subclasses, where re.sub returns a base str.
+    if type(text) is str and not _CYRILLIC_CHAR_RE.search(text):
+        return text, []
     if not is_predominantly_latin_source(text):
         return text, []
 

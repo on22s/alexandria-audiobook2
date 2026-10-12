@@ -117,7 +117,8 @@ class TokenBudgetError(ValueError):
 
 
 def get_effective_max_tokens(fallback, context_length=None, messages=None,
-                             hard_max=None, reserve=512, scale_to_context=True):
+                             hard_max=None, reserve=512, scale_to_context=True,
+                             max_input_tokens=None):
     """Return a context-safe completion budget for a production LLM call.
 
     ``fallback`` is the conservative allowance used when live model context is
@@ -129,17 +130,20 @@ def get_effective_max_tokens(fallback, context_length=None, messages=None,
     fallback = max(1, int(fallback))
     hard_max = max(1, int(hard_max or fallback))
     fallback = min(fallback, hard_max)
+    from llm_request_budget import get_prompt_token_estimate
+    prompt_tokens = get_prompt_token_estimate(messages)
+    if max_input_tokens is not None and prompt_tokens > max_input_tokens:
+        raise TokenBudgetError(
+            f"Prompt estimate ({prompt_tokens}) exceeds the input ceiling "
+            f"({max_input_tokens}). Reduce the input or adjust the profile input limit.")
     if not context_length:
         return min(fallback, hard_max)
     context_length = max(1, int(context_length))
-    prompt_chars = sum(len(str(message.get("content") or ""))
-                       for message in (messages or []))
-    prompt_tokens = (prompt_chars + 2) // 3
     available = context_length - prompt_tokens - max(0, int(reserve))
     if available < 1:
         raise TokenBudgetError(
             f"Prompt estimate ({prompt_tokens}) plus reserve ({reserve}) exceeds "
-            f"the loaded context ({context_length}). Reduce the input or increase LM Studio context.")
+            f"the loaded context ({context_length}). Reduce the input or review the profile/server context settings.")
     scaled_target = max(fallback, context_length // 4) if scale_to_context else fallback
     return max(1, min(hard_max, scaled_target, available))
 
@@ -204,6 +208,19 @@ def get_active_llm_config(config):
     measure the local and remote endpoints independently of the toggle. That
     is a different decision and deliberately does not use this function.
     """
+    block = get_saved_llm_profile(config)
+    if not block:
+        return {}
+    from llm_request_budget import get_inherited_profile_limits
+    return get_inherited_profile_limits(block, config.get("generation") or {})
+
+
+def get_saved_llm_profile(config):
+    """The active profile exactly as saved, without inherited global limits.
+
+    Settings round-trips (the Setup migration, secret restoration) must use
+    this, or an inherited fallback would be written back as a profile override.
+    """
     if not isinstance(config, dict):
         return {}
     mode = config.get("llm_mode") or "local"
@@ -223,7 +240,8 @@ def get_failover_llm_config(config):
     block = config.get(f"llm_{other}")
     if not isinstance(block, dict) or not block.get("base_url") or not block.get("model_name"):
         return {}
-    return block
+    from llm_request_budget import get_inherited_profile_limits
+    return get_inherited_profile_limits(block, config.get("generation") or {})
 
 
 def find_lms_binary():
@@ -503,6 +521,8 @@ def get_remote_lmstudio_status(ssh_alias, model_name, timeout=20, port=None):
 
 _remote_status_cache = {}  # native/runtime identity tuples -> (timestamp, status_dict)
 _local_status_cache_epoch = 0
+_remote_status_cache_epoch = 0
+_remote_status_alias_epochs = WeakValueDictionary()
 _REMOTE_STATUS_CACHE_TTL = 10  # seconds - shorter than the UI's 30s poll interval
 _remote_status_cache_lock = threading.Lock()  # protects _remote_status_cache itself (fast dict ops only)
 _remote_status_key_locks = WeakValueDictionary()  # waiting/fetching callers own strong references
@@ -521,6 +541,22 @@ def is_local_status_cache_key(key):
     return len(key) == 5 and key[-1] == "local-ui"
 
 
+class _RemoteStatusAliasEpoch:
+    pass
+
+
+def _status_cache_epoch_locked(key):
+    """Capture an alias token retained only while its probes are in flight."""
+    if is_local_status_cache_key(key):
+        return _local_status_cache_epoch
+    alias = key[0]
+    token = _remote_status_alias_epochs.get(alias)
+    if token is None:
+        token = _RemoteStatusAliasEpoch()
+        _remote_status_alias_epochs[alias] = token
+    return _remote_status_cache_epoch, token
+
+
 def _prune_expired_remote_status_cache_locked(now):
     """Remove expired observations; callers hold the cache mutex."""
     local_now = time.monotonic()
@@ -537,9 +573,9 @@ def ensure_remote_status_cache_entry(key):
         return deepcopy(_remote_status_cache.get(key))
 
 
-def save_remote_status_cache(key, status):
+def save_remote_status_cache(key, status, cache_epoch=None):
     """Store a copied observation without retaining expired other keys."""
-    save_runtime_status_cache(key, status, None)
+    save_runtime_status_cache(key, status, cache_epoch)
 
 
 def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
@@ -568,8 +604,10 @@ def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
         cached = ensure_remote_status_cache_entry(key)
         if cached:
             return cached[1]
+        with _remote_status_cache_lock:
+            epoch = _status_cache_epoch_locked(key)
         status = get_remote_lmstudio_status(ssh_alias, model_name, timeout=timeout)
-        save_remote_status_cache(key, status)
+        save_remote_status_cache(key, status, epoch)
         return deepcopy(status)
 
 
@@ -579,10 +617,11 @@ def get_remote_runtime_status_cached(base_url, ssh_alias, model_name, api_key=No
 
 
 def save_runtime_status_cache(key, status, local_epoch):
-    """Reject a local observation that overlapped a settings invalidation."""
+    """Reject an observation that overlapped a settings invalidation."""
     snapshot = deepcopy(status)
     with _remote_status_cache_lock:
-        if local_epoch is not None and local_epoch != _local_status_cache_epoch:
+        epoch = _status_cache_epoch_locked(key)
+        if local_epoch is not None and local_epoch != epoch:
             return
         now = time.time()
         _prune_expired_remote_status_cache_locked(now)
@@ -616,9 +655,9 @@ def get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key
         if cached:
             return cached[1]
         with _remote_status_cache_lock:
-            epoch = _local_status_cache_epoch
+            epoch = _status_cache_epoch_locked(key)
         status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
-        save_runtime_status_cache(key, status, None if remote else epoch)
+        save_runtime_status_cache(key, status, epoch)
         return deepcopy(status)
 
 
@@ -631,12 +670,15 @@ def invalidate_remote_status_cache(ssh_alias=None):
     ssh_alias=None clears every cached entry; pass a specific alias to
     clear just that one.
     """
-    global _local_status_cache_epoch
+    global _local_status_cache_epoch, _remote_status_cache_epoch
     with _remote_status_cache_lock:
         if ssh_alias is None:
+            _remote_status_cache_epoch += 1
+            _remote_status_alias_epochs.clear()
             _local_status_cache_epoch += 1
             _remote_status_cache.clear()
         else:
+            _remote_status_alias_epochs.pop(ssh_alias, None)
             for key in [k for k in _remote_status_cache if k[0] == ssh_alias]:
                 del _remote_status_cache[key]
 
@@ -983,25 +1025,57 @@ def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, a
     target without reloading a model. Runtime callers must still call
     ``ensure_ideal_settings`` before dispatching work and size against its
     fresh post-heal status.
+
+    ``context_known`` is False only when the context is the conservative
+    fallback for a runtime that neither reported one nor can be healed to one.
     """
     status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
     if status.get("runtime") == "llama.cpp" or not status.get("management_verified"):
+        reported = status.get("ideal_context_length") or status.get("context_length")
         return {
-            "context_length": (status.get("ideal_context_length") or status.get("context_length")
-                               or IDEAL_SETTINGS["context_length"]),
+            "context_length": reported or IDEAL_SETTINGS["context_length"],
+            "context_known": bool(reported),
             "parallel": status.get("ideal_parallel") or status.get("parallel") or 1,
             "settings_reason": status.get("settings_reason") or "current settings or conservative fallback",
         }
     if is_remote_llm(llm_mode, base_url):
         return {"context_length": REMOTE_IDEAL_SETTINGS["context_length"],
+                "context_known": True,
                 "parallel": REMOTE_IDEAL_SETTINGS["parallel"],
                 "settings_reason": "remote ideal profile"}
     return {
         "context_length": (status.get("ideal_context_length")
                            or IDEAL_SETTINGS["context_length"]),
+        "context_known": True,
         "parallel": status.get("ideal_parallel") or IDEAL_SETTINGS["parallel"],
         "settings_reason": status.get("settings_reason") or "conservative fallback",
     }
+
+
+def get_planned_request_context(config):
+    """-> {context, known, parallel}: the one pre-run answer to "what context
+    will this run size against?" for admission and preflight alike (Rule 15).
+
+    Planned (post-heal) runtime, narrowed by the active profile's declared
+    context. A fallback guess never narrows a declaration; when neither is
+    known, `known` is False and `context` is that conservative guess, usable
+    for sizing but not as evidence that a larger request fits.
+    """
+    from llm_request_budget import get_request_limits
+    llm = get_active_llm_config(config)
+    if llm.get("transport") == "manual":
+        # Manual transport has no runtime to read; only a declaration is known.
+        planned = {"context_length": IDEAL_SETTINGS["context_length"],
+                   "context_known": False, "parallel": 1}
+    else:
+        planned = get_planned_ideal_settings(
+            config.get("llm_mode", "local"), llm.get("base_url", ""),
+            llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+    detected = planned["context_length"] if planned.get("context_known") else None
+    context = get_request_limits(llm, detected)["context_length"]
+    return {"context": int(context or planned.get("context_length") or 0),
+            "known": bool(context),
+            "parallel": max(1, int(planned.get("parallel") or 1))}
 
 
 def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None):

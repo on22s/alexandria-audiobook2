@@ -790,13 +790,15 @@ class EndToEndTests(unittest.TestCase):
                           return_value=segmented), \
              patch.object(tp, "attribute_batch_voted", side_effect=attribute), \
              patch.object(tp, "instruct_batch", side_effect=instruct):
-            tp.run_three_pass(
+            entries = tp.run_three_pass(
                 object(), "m", source,
                 LLMGenParams(max_tokens=500, temperature=0.1),
                 chunk_size=6000, on_exhaustion="fallback",
                 first_person_narrator="alexis")
 
+        # Plain count batches are not resized by the fit check (main behavior).
         self.assertEqual(2, len(observed_rosters))
+        self.assertEqual([entry["text"] for entry in segmented], [entry["text"] for entry in entries])
         self.assertTrue(all(roster[0] == "ALEXIS"
                             for roster in observed_rosters))
 
@@ -1524,7 +1526,7 @@ class AttributionContextKnobTests(unittest.TestCase):
         self.assertIsNone(small["suggested_chunk_size"])
 
     def test_preflight_counts_the_surround_in_the_attribute_estimate(self):
-        text = 'Narration. "Spoken words." More narration.'
+        text = 'Before ' * 400 + '"Spoken words."' + ' After' * 400
         settings = {"chunk_size": 6000, "max_tokens": 4096,
                     "segment_output_ratio": 3.0, "segmentation": "auto"}
         plain = tp.build_three_pass_request_preflight(text, settings, 32768, 1)

@@ -167,6 +167,10 @@ def get_generation_fingerprint(source_text, chunks, model_name, base_url, params
     # before that key existed was a JSON run, so including it unconditionally
     # would discard resumable work that is still valid (Rule 9). Structured
     # output is included above because it changes the request contract.
+    if getattr(params, "max_input_tokens", None) is not None:
+        settings["max_input_tokens"] = params.max_input_tokens
+    from llm_request_budget import get_task_output_fingerprint
+    settings.update(get_task_output_fingerprint(params))
     output_format = getattr(params, "output_format", "json") or "json"
     if output_format != "json":
         settings["output_format"] = output_format
@@ -284,11 +288,10 @@ def clean_json_string(text):
 
     span = extract_balanced(text, '[', ']')
     if span is None:
-        # No closing bracket found, try to salvage
-        last_complete = text.rfind('},')
-        if last_complete > start:
-            return text[start:last_complete+1] + ']'
-        return None
+        # No closing bracket. Hand the whole remainder to the parser, which
+        # keeps it only if every object in it is complete (#1111); cutting
+        # back to the last "}," here silently dropped the final entry.
+        return text[start:]
 
     spans = [span]
     cursor = start + len(span)
@@ -342,7 +345,13 @@ def clean_json_string(text):
 
 
 def _extract_valid_json_objects(json_text):
-    """Extract complete JSON objects without assuming a pass-specific schema."""
+    """Extract complete JSON objects without assuming a pass-specific schema.
+
+    All or nothing: if any object is unbalanced or unparseable, return [].
+    Skipping it (#1111) dropped source text from that object - and, after a
+    misplaced quote, from its neighbours - while the survivors still passed
+    the approximate 90% quality gate. Refusing sends the chunk to the
+    bounded retry path instead."""
     entries = []
     cursor = 0
     while True:
@@ -351,13 +360,11 @@ def _extract_valid_json_objects(json_text):
             break
         span = extract_balanced(json_text, "{", "}", start)
         if span is None:
-            cursor = start + 1
-            continue
+            return []
         try:
             value = json.loads(span)
         except json.JSONDecodeError:
-            cursor = start + 1
-            continue
+            return []
         if isinstance(value, dict):
             entries.append(value)
         cursor = start + len(span)
@@ -410,20 +417,8 @@ def repair_json_array(json_text):
     if entries:
         return entries
 
-    # Fix 4: Last resort - find last complete entry and truncate
-    last_complete = json_text.rfind('},')
-    if last_complete > 0:
-        try:
-            truncated = json_text[:last_complete+1] + ']'
-            # Ensure it starts with [
-            if not truncated.strip().startswith('['):
-                truncated = '[' + truncated
-            result = json.loads(truncated)
-            if isinstance(result, list):
-                return _filter_entries(result)
-        except json.JSONDecodeError:
-            pass
-
+    # No truncate-to-last-"}," fallback: whatever follows it is malformed,
+    # so keeping the prefix always loses source text (#1111).
     return None
 
 def salvage_json_entries(json_text):
@@ -628,7 +623,13 @@ class LLMGenParams:
     # pass-1 mode (three_pass_generate.SEGMENTATION_MODES); the single-pass
     # path never pre-segments, so "llm" here
     segmentation: str = "llm"
+    # #744 pass-1 output format (three_pass_generate.PASS1_FORMATS)
+    pass1_format: str = "ordinary"
     reasoning_allowance: int = 0
+    # Completed model calls observed in this three-pass run. Until one has been
+    # seen, a reasoning model's allowance is unknown, so Pass 2/3 requests stay
+    # at the full max_tokens (three_pass_generate.resolve_index_output_ceiling).
+    observed_calls: int = 0
     reasoning_effort: str = None
     # LM Studio honours seed: same seed twice is identical, a different seed
     # differs, no seed varies. That is what lets sampled voting stay
@@ -673,6 +674,13 @@ class LLMGenParams:
     quoted_must_be_spoken: bool = True
     unquoted_must_be_narrator: bool = True
     request_admission: object = field(default=None, repr=False, compare=False)
+    # Appended to preserve positional constructors from older releases.
+    max_input_tokens: int = None
+    # Preserve task policy independently of a serving profile override.
+    task_max_tokens: int = None
+    task_hard_max_tokens: int = None
+    # A request-specific safety ceiling survives serving-profile switches.
+    request_output_ceiling: int = None
 
 
 
@@ -784,9 +792,24 @@ def build_extra_body(params):
     return merge_provider_extra_body(params.provider_extra_body, request_extra_body)
 
 
+def is_overlong_index_response(quality):
+    """Whether an indexed (Pass 2/3) response returned MORE rows than asked for.
+
+    That is a runaway, not truncation: a 1-entry window answered with 960 rows
+    and finish_reason=length (Qwen3-14B, 2026-10-12). A larger budget only buys
+    a longer runaway."""
+    return any(finding.get("code") == "alignment_violated"
+               and isinstance(finding.get("returned_entries"), int)
+               and isinstance(finding.get("expected_entries"), int)
+               and finding["returned_entries"] > finding["expected_entries"]
+               for finding in quality.get("findings", []))
+
+
 def get_quality_retry_policy(finish_reason, completion_tokens, effective_max,
                              quality):
     """Return one consistent retry action for a deterministic quality failure."""
+    if is_overlong_index_response(quality):
+        return "retry_same_budget"
     codes = {finding["code"] for finding in quality.get("findings", [])}
     incomplete = bool({"low_source_token_recall", "low_ordered_trigram_recall",
                        "output_source_ratio"} & codes
@@ -944,7 +967,16 @@ def ensure_run_request_params(client, params):
         "provider_extra_body", "structured_output", "api_retry_limit",
         "retry_initial_delay_seconds", "retry_multiplier", "retry_max_delay_seconds",
         "retry_jitter", "on_api_exhaustion")}
-    changes["context_length"] = profile["context_length"]
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(config, profile["context_length"])
+    changes["context_length"] = limits["context_length"]
+    changes["max_input_tokens"] = limits["max_input_tokens"]
+    # A blank secondary limit keeps the run's own task ceiling (review 32768,
+    # three-pass 16384+); the dataclass default would lower it on failover.
+    changes["hard_max_tokens"] = limits["max_output_tokens"] or params.task_hard_max_tokens or params.hard_max_tokens
+    if params.request_output_ceiling is not None:
+        changes["hard_max_tokens"] = min(changes["hard_max_tokens"], params.request_output_ceiling)
+    changes["max_tokens"] = min(params.task_max_tokens or params.max_tokens, changes["hard_max_tokens"])
     return replace(params, **changes)
 
 
@@ -1024,6 +1056,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         attempt_number = attempt_offset + request_attempt
         t0 = time.time()
         truncation_retry_available = False
+        # The budget this attempt was sent with, before any truncation bump.
+        attempt_requested_max = requested_max
         attempt_record = None
         effective_max = None
         try:
@@ -1041,7 +1075,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             ]
             effective_max = get_effective_max_tokens(
                 requested_max, params.context_length, messages,
-                params.hard_max_tokens, scale_to_context=False)
+                params.hard_max_tokens, scale_to_context=False,
+                max_input_tokens=params.max_input_tokens)
             # Only when the sampler is deterministic. Above 0 a repeated prompt
             # is a legitimate second sample and must still be sent. The key is
             # the prompt AND the completion budget: a truncated response raises
@@ -1173,7 +1208,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         requested_max, "token_truncated", params.hard_max_tokens)
                     next_effective = get_effective_max_tokens(
                         next_max, params.context_length, base_messages,
-                        params.hard_max_tokens, scale_to_context=False)
+                        params.hard_max_tokens, scale_to_context=False,
+                        max_input_tokens=params.max_input_tokens)
                     if next_effective > effective_max:
                         print(f"  Token budget: requested={requested_max}, effective={effective_max}, "
                               f"next_requested={next_max}, next_effective={next_effective}")
@@ -1344,6 +1380,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                   f"{requested_max} -> {next_max}")
                             requested_max = next_max
                     elif attempt < max_retries:
+                        if is_overlong_index_response(quality):
+                            # The length finish above already raised the budget;
+                            # an overlong answer was not cut short, so undo it.
+                            requested_max = attempt_requested_max
                         print(f"  Retry policy: {retry_policy}; token budget remains {requested_max}")
                     print(f"Warning: {label} failed quality validation "
                           f"(attempt {attempt_number}): {retry_feedback}; metrics={metrics}")
@@ -2051,9 +2091,11 @@ def main():
     total_chunks = len(chunks)
 
     print(f"Split into {total_chunks} chunks at paragraph/sentence boundaries")
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(llm_config, lm_status.get("context_length"))
     request_preflight = build_book_request_preflight(
         chunks, system_prompt, user_prompt_template, max_tokens,
-        lm_status.get("context_length"), lm_status.get("parallel"))
+        limits["context_length"], lm_status.get("parallel"))
     print(f"Request preflight: worst={request_preflight['worst_predicted_tokens']} tokens, "
           f"p95={request_preflight['p95_predicted_tokens']}, "
           f"per-slot={request_preflight['per_slot_context']}, "
@@ -2078,6 +2120,9 @@ def main():
         print("Output format: lines (SPEAKER|INSTRUCT|TEXT)")
 
     gen_params = LLMGenParams(
+        task_max_tokens=max_tokens, task_hard_max_tokens=LLMGenParams.hard_max_tokens,
+        max_input_tokens=limits["max_input_tokens"],
+        hard_max_tokens=limits["max_output_tokens"] or LLMGenParams.hard_max_tokens,
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
         max_tokens=max_tokens,
@@ -2087,7 +2132,7 @@ def main():
         min_p=min_p,
         presence_penalty=presence_penalty,
         banned_tokens=banned_tokens,
-        context_length=lm_status.get("context_length"),
+        context_length=limits["context_length"],
         output_format=args.output_format,
         provider_extra_body=llm_config.get("provider_extra_body"),
         structured_output=llm_config.get("structured_output", "auto"),

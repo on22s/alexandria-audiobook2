@@ -6,7 +6,6 @@ import subprocess
 import tempfile
 import threading
 import unittest
-import weakref
 import zipfile
 from unittest.mock import patch
 
@@ -38,6 +37,15 @@ class ExportStagingTests(unittest.TestCase):
                         if boundary == 'zip' and str(name).endswith('.wav'):
                             cancelled.set()
                         return result
+                    def open(self, name, mode='r', *args, **kwargs):
+                        member = super().open(name, mode, *args, **kwargs)
+                        if boundary == 'zip' and mode == 'w' and name.filename.endswith('.wav'):
+                            close = member.close
+                            def cancel_after_close():
+                                close()
+                                cancelled.set()
+                            member.close = cancel_after_close
+                        return member
                     def __exit__(self, *args):
                         result = super().__exit__(*args)
                         if boundary == 'closed':
@@ -154,27 +162,27 @@ class ExportStagingTests(unittest.TestCase):
                     for i in range(20)]
             manager._load_chunks_with_audio = lambda **kwargs: (rows, 0)
             manager._load_pause_defaults = lambda: (0, 0)
-            original_timeline, original_export = project.compute_timeline, AudioSegment.export
+            original_timeline = project.compute_timeline
             iterations, tracks = [], []
+            original_write = project.write_track_wav
 
             class CountedTimeline(list):
                 def __iter__(self):
                     iterations.append(True)
                     return super().__iter__()
 
-            def export(track, *args, **kwargs):
-                self.assertTrue(all(ref() is None for ref in tracks),
-                                'previous full-book tracks remain retained')
-                tracks.append(weakref.ref(track))
-                return original_export(track, *args, **kwargs)
+            def write(stream, entries, total, plan, cancel=None):
+                tracks.append(len(entries))
+                return original_write(stream, entries, total, plan, cancel)
 
             with patch('project.compute_timeline', side_effect=lambda *args, **kwargs: CountedTimeline(original_timeline(*args, **kwargs))), \
-                 patch.object(AudioSegment, 'export', export):
+                 patch('project.write_track_wav', write), \
+                 patch.object(AudioSegment, 'export', side_effect=AssertionError('materialized track')), \
+                 patch('project.AudioSegmentBuilder', side_effect=AssertionError('materialized builder')):
                 ok, path = manager.export_audacity()
             self.assertTrue(ok)
             self.assertLessEqual(len(iterations), 3)
-            self.assertEqual(20, len(tracks))
-            self.assertTrue(all(ref() is None for ref in tracks))
+            self.assertEqual([1] * 20, tracks)
             with zipfile.ZipFile(path) as archive:
                 self.assertEqual(22, len(archive.namelist()))
                 self.assertEqual(20, len(archive.read('labels.txt').splitlines()))
@@ -195,7 +203,8 @@ class ExportStagingTests(unittest.TestCase):
             oldzip, oldm4b = Path(root, 'audacity_export.zip'), Path(root, 'audiobook.m4b')
             oldzip.write_bytes(b'previous zip'); oldm4b.write_bytes(b'previous m4b')
             unrelated = Path(root, 'temp_m4b_combined.wav'); unrelated.write_bytes(b'foreign scratch')
-            with patch.object(AudioSegment, 'export', side_effect=RuntimeError('encode failed')):
+            with patch('project.write_track_wav', side_effect=RuntimeError('encode failed')), \
+                 patch('project.write_combined_wav', side_effect=RuntimeError('encode failed')):
                 with self.assertRaisesRegex(RuntimeError, 'encode failed'):
                     manager.export_audacity()
                 with self.assertRaisesRegex(RuntimeError, 'encode failed'):

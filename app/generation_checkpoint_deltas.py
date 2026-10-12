@@ -38,13 +38,13 @@ def _get_changes(previous, current):
     return {"fields": changes, "removed": sorted(previous.keys() - current.keys())}
 
 
-def _apply_changes(previous, changes):
+def _apply_changes(previous, changes, *, copy_previous=True):
     if (not isinstance(changes, dict) or set(changes) != {"fields", "removed"}
             or not isinstance(changes["fields"], dict)
             or not isinstance(changes["removed"], list)
             or any(not isinstance(key, str) for key in changes["removed"])):
         raise ValueError("Invalid checkpoint delta fields")
-    result = copy.deepcopy(previous)
+    result = copy.deepcopy(previous) if copy_previous else dict(previous)
     for key in changes["removed"]:
         if key not in result or key in changes["fields"]:
             raise ValueError("Invalid checkpoint delta removal")
@@ -96,7 +96,10 @@ def _load_checkpoint(path):
                 or record["sha256"] != _get_digest({
                     "changes": record["changes"], "previous": digest})):
             raise ValueError("Checkpoint delta digest mismatch")
-        current = _apply_changes(current, record["changes"])
+        # Replay owns the parsed base and all intermediate documents; nothing
+        # escapes until the verified final result. Retain the default detached
+        # copy for other callers, but do not clone unchanged state per record.
+        current = _apply_changes(current, record["changes"], copy_previous=False)
         digest = record["sha256"]
     if versions != _get_shard_versions(directory):
         raise ValueError("Checkpoint deltas changed while reading")

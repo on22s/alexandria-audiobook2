@@ -1,0 +1,10 @@
+{
+  "name": "aa2-reports-typecheck",
+  "private": true,
+  "dependencies": {
+    "typescript": "7.0.2"
+  },
+  "scripts": {
+    "check": "node node_modules/typescript/bin/tsc -p tsconfig.reports.json --pretty false"
+  }
+}

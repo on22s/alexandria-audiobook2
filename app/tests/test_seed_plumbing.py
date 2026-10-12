@@ -29,6 +29,8 @@ import ast
 import os
 import sys
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -39,8 +41,8 @@ TTS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 # normal until someone listens to a whole chapter.
 #
 # NOTE the layering, which the first draft of this file got wrong. Public
-# `generate_clone_voice` and `generate_custom_voice` are three-line dispatchers
-# that pick local or external and delegate; they hold no seed logic and must
+# `generate_clone_voice` and `generate_custom_voice` prepare raw input and
+# delegate through prepared dispatchers; they hold no seed logic and must
 # not be asserted to. The generation lives one level down, in the `_local_*`
 # implementations. Asserting against the wrapper produced four confident
 # failures against correct code.
@@ -116,20 +118,93 @@ class TestSeedIsRead(unittest.TestCase):
                         f"{name} seeds from a literal")
 
     def test_dispatchers_delegate_and_do_not_generate(self):
-        """The public clone/custom entry points route to local or external and
-        nothing else. This is the layering the first draft of this test got
-        wrong; encoding it keeps the next reader from making the same call."""
+        """Raw wrappers and prepared dispatchers preserve actual seeded calls."""
+        import numpy as np
+        import tts
+
         for name in DISPATCHERS:
             with self.subTest(method=name):
                 node = method_node(name)
                 self.assertIsNotNone(node, f"{name} not found")
-                src = ast.unparse(node)
-                self.assertNotIn("manual_seed", src,
-                                 f"{name} now generates; move it into "
-                                 f"SEEDED_METHODS")
-                self.assertTrue(
-                    "_local_generate" in src,
-                    f"{name} no longer delegates to a _local_generate_* path")
+                category = "clone" if name == "generate_clone_voice" else "custom"
+                prepared_name = f"_generate_{category}_voice_prepared"
+                prepared_node = method_node(prepared_name)
+                self.assertIsNotNone(prepared_node, f"{prepared_name} not found")
+                for dispatcher in (node, prepared_node):
+                    self.assertNotIn("manual_seed", ast.unparse(dispatcher),
+                                     f"{dispatcher.name} now generates; update SEEDED_METHODS")
+                    calls = [n.func for n in ast.walk(dispatcher)
+                             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)]
+                    self.assertFalse(any(call.attr == "manual_seed" or
+                                         (isinstance(call.value, ast.Name) and call.value.id == "model")
+                                         for call in calls),
+                                     f"{dispatcher.name} now generates; update SEEDED_METHODS")
+                wrapper_calls = [n.func.attr for n in ast.walk(node)
+                                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                                 and isinstance(n.func.value, ast.Name) and n.func.value.id == "self"]
+                self.assertEqual(wrapper_calls.count(prepared_name), 1)
+                renderer_calls = {n.func.attr for n in ast.walk(prepared_node)
+                                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                                  and isinstance(n.func.value, ast.Name) and n.func.value.id == "self"}
+                self.assertTrue({f"_local_generate_{category}", f"_external_generate_{category}",
+                                 "_external_single"}.issubset(renderer_calls))
+
+                for dispatch in (False, True):
+                    for seed in ("17", 0, -1):
+                        with self.subTest(dispatch=dispatch, seed=seed):
+                            events = []
+                            waveform = np.array([0.1, -0.1], dtype=np.float32)
+                            model = Mock()
+                            model_method = (model.generate_voice_clone if category == "clone"
+                                            else model.generate_custom_voice)
+                            def generate(**kwargs):
+                                events.append("model")
+                                return [waveform], 24000
+                            model_method.side_effect = generate
+                            torch = SimpleNamespace(manual_seed=Mock(
+                                side_effect=lambda value: events.append(("seed", value))))
+                            engine = tts.TTSEngine({"tts": {
+                                "mode": "local", "language": "French", "max_new_tokens": 37}})
+                            config = {"Speaker": {"type": category, "voice": "Serena", "seed": seed},
+                                      "Other": {"type": category, "voice": "Ryan", "seed": 999}}
+                            prompt = object()
+                            engine._init_local_custom = Mock(return_value=model)
+                            engine._init_local_clone = Mock(return_value=model)
+                            engine._get_clone_prompt = Mock(return_value=prompt)
+                            engine._save_wav = Mock()
+                            prepared = {"text": "Synthetic prepared speech.", "instruct": "calm"}
+                            with patch.dict(sys.modules, {"torch": torch}), \
+                                    patch.object(tts, "get_speech_preparation", return_value=prepared), \
+                                    patch.object(tts, "normalize_for_speech", return_value=prepared["text"]):
+                                if dispatch:
+                                    result = engine.generate_voice(
+                                        "Raw speech", "Raw style", "Speaker", config, "synthetic-output.wav")
+                                elif category == "clone":
+                                    result = engine.generate_clone_voice(
+                                        "Raw speech", "Speaker", config, "synthetic-output.wav")
+                                else:
+                                    result = engine.generate_custom_voice(
+                                        "Raw speech", "Raw style", "Speaker", config, "synthetic-output.wav")
+                            self.assertTrue(result)
+                            expected_events = [("seed", int(seed)), "model"] if int(seed) >= 0 else ["model"]
+                            self.assertEqual(events, expected_events)
+                            if int(seed) >= 0:
+                                torch.manual_seed.assert_called_once_with(int(seed))
+                            else:
+                                torch.manual_seed.assert_not_called()
+                            expected = {"text": prepared["text"], "language": "French",
+                                        "non_streaming_mode": True, "max_new_tokens": 37}
+                            if category == "clone":
+                                expected["voice_clone_prompt"] = prompt
+                                engine._get_clone_prompt.assert_called_once_with("Speaker", config)
+                                self.assertIs(engine._get_clone_prompt.call_args.args[1], config)
+                            else:
+                                expected.update(speaker="Serena", instruct="calm")
+                            model_method.assert_called_once_with(**expected)
+                            engine._save_wav.assert_called_once()
+                            saved = engine._save_wav.call_args.args
+                            self.assertIs(saved[0], waveform)
+                            self.assertEqual(saved[1:], (24000, "synthetic-output.wav"))
 
     def test_negative_seed_does_not_seed(self):
         """-1 means "draw randomly" and is the shipping default on 70 of 71

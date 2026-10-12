@@ -19,12 +19,14 @@ from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfi
 
 from default_prompts import load_default_prompts, load_instruct_prompts, load_segment_prompts
 from llm_provider import is_api_key_reference
+from device_utils import normalize_device
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                get_failover_llm_config,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
-                               get_active_llm_config, get_current_status)
+                               get_active_llm_config, get_current_status,
+                               get_saved_llm_profile)
 
 from core import (
     API_LOG_DIR,
@@ -175,7 +177,7 @@ def _resolve_redacted_api_key(api_key, base_url, existing=None):
 
 def get_config_local_profile(config: dict):
     """Read the local profile, including the legacy single-profile shape."""
-    return get_active_llm_config({**config, "llm_mode": "local"})
+    return get_saved_llm_profile({**config, "llm_mode": "local"})
 
 
 def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
@@ -262,44 +264,63 @@ def _gpu_stats_via_rocm_smi():
 
 def get_gpu_stats():
     """Get current GPU memory and utilization stats with caching."""
+    global _gpu_stats_cache
     now = time.time()
-
-    # Return cached stats if still fresh
-    if (now - _gpu_stats_cache["timestamp"]) < _GPU_STATS_CACHE_TTL:
-        return _gpu_stats_cache["data"]
+    try:
+        configured = normalize_device((load_app_config(CONFIG_PATH).get("tts") or {}).get("device", "auto"))
+    except (TypeError, ValueError) as error:
+        logger.warning("GPU statistics unavailable for configured device: %s", error)
+        return None
+    if configured in ("cpu", "mps"):
+        return None
 
     torch = _get_torch()
-    if torch is None or not torch.cuda.is_available():
+    cuda_available = torch is not None and torch.cuda.is_available()
+    device = None
+    if cuda_available:
+        try:
+            device = int(configured.split(":", 1)[1]) if configured.startswith("cuda:") else torch.cuda.current_device()
+        except Exception as error:
+            logger.debug("Could not resolve GPU statistics device: %s", error)
+            return None
+    cache_device = (configured, device)
+
+    # Return cached stats if still fresh
+    cached = _gpu_stats_cache
+    if (cached.get("device") == cache_device and
+            (now - cached["timestamp"]) < _GPU_STATS_CACHE_TTL):
+        return cached["data"]
+
+    if not cuda_available:
         # torch can't see the GPU (e.g. a CUDA-only build on an AMD box) —
         # fall back to rocm-smi so AMD GPUs are still detected.
-        stats = _gpu_stats_via_rocm_smi()
+        stats = _gpu_stats_via_rocm_smi() if configured in ("auto", "cuda") else None
         if stats is None:
             logger.debug("GPU stats: No GPU available (torch + rocm-smi both failed)")
-        _gpu_stats_cache["data"] = stats
-        _gpu_stats_cache["timestamp"] = now
+        _gpu_stats_cache = {"data": stats, "timestamp": now, "device": cache_device}
         return stats
 
     stats = {}
     try:
         # Memory stats (works for both NVIDIA and AMD ROCm)
-        allocated = torch.cuda.memory_allocated() / 1e9  # GB
-        reserved = torch.cuda.memory_reserved() / 1e9    # GB
-        total = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
+        allocated = torch.cuda.memory_allocated(device) / 1e9  # GB
+        reserved = torch.cuda.memory_reserved(device) / 1e9    # GB
+        total = torch.cuda.get_device_properties(device).total_memory / 1e9  # GB
 
         if total <= 0:
             logger.warning("GPU stats: Total memory reported as 0, skipping utilization check")
-            _gpu_stats_cache["data"] = None
-            _gpu_stats_cache["timestamp"] = now
+            _gpu_stats_cache = {"data": None, "timestamp": now, "device": cache_device}
             return None
 
         stats['allocated_gb'] = allocated
         stats['reserved_gb'] = reserved
         stats['total_gb'] = total
         stats['allocated_percent'] = allocated / total * 100
+        stats['device_index'] = device
+        stats['name'] = torch.cuda.get_device_name(device)
     except Exception as e:
         logger.debug(f"Could not get GPU memory stats: {e}")
-        _gpu_stats_cache["data"] = None
-        _gpu_stats_cache["timestamp"] = now
+        _gpu_stats_cache = {"data": None, "timestamp": now, "device": cache_device}
         return None
 
     # Utilization via rocm-smi is a separate, independent try - same reason
@@ -309,7 +330,7 @@ def get_gpu_stats():
     stats['utilization_percent'] = None
     try:
         data = run_rocm_smi_json(["--showuse"], rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)
-        if data is not None:
+        if data is not None and len(data) == 1:
             for card_data in data.values():
                 if not isinstance(card_data, dict):
                     continue
@@ -321,8 +342,7 @@ def get_gpu_stats():
         logger.debug(f"Could not get GPU utilization via rocm-smi: {e}")
 
     # Cache the result
-    _gpu_stats_cache["data"] = stats
-    _gpu_stats_cache["timestamp"] = now
+    _gpu_stats_cache = {"data": stats, "timestamp": now, "device": cache_device}
     return stats
 
 
@@ -344,16 +364,15 @@ def get_system_stats():
     except (OSError, ValueError):
         pass
 
-    gpu_name = None
+    gpu_name = gpu.get("name") if gpu else None
     torch_cuda_ok = False
     try:
         torch = _get_torch()
         if torch is not None and torch.cuda.is_available():
-            gpu_name = torch.cuda.get_device_name(0)
             torch_cuda_ok = True
     except (RuntimeError, OSError, AttributeError):
         pass
-    if gpu_name is None:
+    if gpu_name is None and gpu is not None:
         # torch can't see the GPU — ask rocm-smi for the product name (AMD).
         name_data = run_rocm_smi_json(["--showproductname"],
                                       rocm_smi_path="/opt/rocm/bin/rocm-smi", timeout=2)

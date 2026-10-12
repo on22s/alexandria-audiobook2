@@ -51,9 +51,18 @@ def _warn_corrupted_json(kind: str, path: str, action: str, e: Exception) -> Non
     logger.warning(f"Corrupted {kind} at {path}, {action}: {e}")
 
 
-def _load_manifest(path):
-    """Load a JSON manifest file, returning [] on missing or corrupt file."""
-    entries = safe_load_json(path, default=[])
+def _load_manifest(path, *, for_update=False):
+    """Allow read-only fallback, but never replace an unreadable roster."""
+    if for_update:
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                entries = json.load(handle)
+        except FileNotFoundError:
+            entries = []
+        if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
+            raise ValueError(f"Cannot update malformed voice manifest: {path}")
+    else:
+        entries = safe_load_json(path, default=[])
     valid = [entry for entry in entries if isinstance(entry, dict)]
     if len(valid) != len(entries):
         logger.warning("Ignoring malformed entries in manifest %s", path)
@@ -541,7 +550,7 @@ process_state = {
     "drift_check": {"running": False, "logs": []},
     "speaker_review": {"running": False, "logs": [], "cancel": False, "status": "idle"},
     "report_explanation": {"running": False, "logs": [], "cancel": False, "status": "idle"},
-    "review": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
+    "review": {"running": False, "status": "idle", "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "batch_review": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None, "bidirectional": False,
                      "totals_fwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
                      "totals_bwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
@@ -1055,6 +1064,13 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
             report_path = None
             if task_name == "review":
                 stats = _extract_review_stats(state["logs"])
+                if stats is None or stats.get("batches_failed") or stats.get("batches_skipped_vram"):
+                    if "status" in state: state["status"] = "incomplete"
+                if stats is None:
+                    completion_note = (
+                        f"Task {task_name} ended without a review summary. "
+                        "Review completion could not be verified; re-run the review."
+                    )
                 if stats:
                     if stats.get("batches_failed"):
                         completion_note = (
@@ -1817,8 +1833,8 @@ _REPORT_SUMMARY_SYSTEM_PROMPT = (
 
 
 def _load_llm_config() -> dict:
-    """Return the `llm` section of config.json, or {} if missing/unreadable."""
-    return load_app_config(CONFIG_PATH).get("llm", {})
+    """Return the active profile with inherited global request limits."""
+    return get_active_llm_config(load_app_config(CONFIG_PATH))
 
 
 class LLMConfigError(ValueError):
