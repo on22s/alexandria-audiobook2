@@ -1,7 +1,7 @@
 """Conservative speech preparation and non-prose risk classification."""
+import functools
 import re
 import logging
-from collections import Counter
 
 
 from speech_policy import (SPEECH_BREAKS, SPEECH_WORDS, VERBALIZED_SYMBOLS,
@@ -60,6 +60,20 @@ def get_speech_risks(text):
     return risks
 
 
+@functools.lru_cache(maxsize=65536)
+def _get_symbol_rendering(ch):
+    """-> (kind, replacement) for one character: kind is "spoken", "dropped"
+    or None (left as is). Pure in the character - the symbol tables and
+    Unicode categories are fixed for the process - so each distinct
+    character is classified once, not once per chunk."""
+    word = get_spoken_symbol(ch)
+    if word:
+        return "spoken", f" {word} "
+    if is_unspeakable_character(ch):
+        return "dropped", " "
+    return None, ch
+
+
 def verbalize_symbols(text):
     """-> (text, transformations). Named symbols spoken, unknown ones dropped.
 
@@ -67,38 +81,31 @@ def verbalize_symbols(text):
     already handle keeps its existing behaviour - `■` stays a sentence break
     rather than becoming a silent drop.
     """
-    # Preserve iteration/error behavior for unusual iterable and str-subclass
-    # inputs; the normal speech pipeline supplies plain strings.
-    counts = Counter(text) if type(text) is str else None
-    spoken, dropped, out, replacements = [], [], [], {}
-    for ch in counts if counts is not None else text:
-        word = get_spoken_symbol(ch)
-        if word:
-            replacement = f" {word} "
+    if type(text) is not str:
+        text = "".join(text)
+    spoken, dropped, table = [], [], {}
+    for ch in dict.fromkeys(text):
+        kind, replacement = _get_symbol_rendering(ch)
+        if kind == "spoken":
             spoken.append(ch)
-        elif is_unspeakable_character(ch):
-            replacement = " "
+        elif kind == "dropped":
             dropped.append(ch)
         else:
-            replacement = ch
-        if counts is None:
-            out.append(replacement)
-        elif replacement != ch:
-            replacements[ord(ch)] = replacement
+            continue
+        table[ord(ch)] = replacement
     transformations = []
     if spoken:
         transformations.append({"type": "verbalized_symbol",
-                                "symbols": sorted(set(spoken))})
+                                "symbols": sorted(spoken)})
     if dropped:
         # Recorded, not silent: a character removed without a trace is
         # indistinguishable from one that was never in the source, and this
-        # list is the evidence for goal 5.1's count.
+        # list is the evidence for goal 5.1's count - every occurrence, not
+        # every distinct glyph.
         transformations.append({"type": "dropped_unspeakable",
-                                "symbols": sorted(set(dropped)),
-                                "count": (len(dropped) if counts is None
-                                          else sum(counts[ch] for ch in dropped))})
-    normalized = "".join(out) if counts is None else text.translate(replacements)
-    return normalized, transformations
+                                "symbols": sorted(dropped),
+                                "count": sum(text.count(ch) for ch in dropped)})
+    return (text.translate(table) if table else text), transformations
 
 
 def get_speech_normalization(text):

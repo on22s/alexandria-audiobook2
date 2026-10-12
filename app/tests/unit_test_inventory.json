@@ -7534,6 +7534,13 @@
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_scene_rules_match_chunk_pauses_and_direct_normalized_boundaries",
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_unknown_glyph_review_and_final_drop_share_the_same_classification"
   ],
+  "test_speech_symbol_rendering": [
+    "tests.test_speech_symbol_rendering.ClassificationCacheTest.test_each_distinct_character_is_classified_once",
+    "tests.test_speech_symbol_rendering.DropCountTest.test_count_is_every_occurrence",
+    "tests.test_speech_symbol_rendering.DropCountTest.test_spoken_symbols_are_listed_once_however_often_they_repeat",
+    "tests.test_speech_symbol_rendering.KnownAnswerTest.test_matches_the_per_character_reference",
+    "tests.test_speech_symbol_rendering.KnownAnswerTest.test_non_str_input_returns_plain_text"
+  ],
   "test_speech_verbalization": [
     "tests.test_speech_verbalization.VerbalizationTest.test_box_drawing_still_becomes_a_sentence_break",
     "tests.test_speech_verbalization.VerbalizationTest.test_cjk_and_accented_letters_are_left_alone",
