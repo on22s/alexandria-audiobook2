@@ -5416,6 +5416,19 @@
     "tests.test_persona_text_controls.PersonaTextControlTests.test_near_duplicate_detector_uses_shared_normalization_for_both_entries",
     "tests.test_persona_text_controls.PersonaTextControlTests.test_shared_object_request_rejects_control_payload_with_validation_evidence"
   ],
+  "test_pidfd_compatibility": [
+    "tests.test_pidfd_compatibility.NativePidfdCompatibilityTests.test_real_probe_uses_available_pidfd_implementation",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_departed_process_is_not_recorded_as_signalled",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_kernel_open_failure_preserves_errno_without_sending",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_legacy_probe_preserves_errno_and_closes_on_signal_failure",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_legacy_python_uses_libc_handles_with_same_probe",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_missing_python_operation_refuses_admission",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_permission_failure_propagates_and_closes_handle",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_probe_checks_signal_zero_and_closes_descriptor",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_recycled_pid_is_not_signalled",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_signal_probe_failure_preserves_errno_and_closes_descriptor",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_signal_uses_handle_and_records_verified_identity"
+  ],
   "test_pipeline_repeat_scoring": [
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_duplicate_gold_ids_fail_loudly_and_empty_population_is_explicit",
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_missing_duplicate_unnamed_merged_and_wrong_lines_are_in_denominator",
