@@ -36,6 +36,10 @@ jobs:
           - runner: macos-15-intel
             architecture: x86_64
     env:
+      # Preserve committed bytes on Windows before sdist provenance checks.
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
       CARGO_BUILD_JOBS: '1'
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
       MACOSX_DEPLOYMENT_TARGET: '11.0'
