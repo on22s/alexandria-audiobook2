@@ -626,6 +626,10 @@ class LLMGenParams:
     # #744 pass-1 output format (three_pass_generate.PASS1_FORMATS)
     pass1_format: str = "ordinary"
     reasoning_allowance: int = 0
+    # Completed model calls observed in this three-pass run. Until one has been
+    # seen, a reasoning model's allowance is unknown, so Pass 2/3 requests stay
+    # at the full max_tokens (three_pass_generate.resolve_index_output_ceiling).
+    observed_calls: int = 0
     reasoning_effort: str = None
     # LM Studio honours seed: same seed twice is identical, a different seed
     # differs, no seed varies. That is what lets sampled voting stay
@@ -788,9 +792,24 @@ def build_extra_body(params):
     return merge_provider_extra_body(params.provider_extra_body, request_extra_body)
 
 
+def is_overlong_index_response(quality):
+    """Whether an indexed (Pass 2/3) response returned MORE rows than asked for.
+
+    That is a runaway, not truncation: a 1-entry window answered with 960 rows
+    and finish_reason=length (Qwen3-14B, 2026-10-12). A larger budget only buys
+    a longer runaway."""
+    return any(finding.get("code") == "alignment_violated"
+               and isinstance(finding.get("returned_entries"), int)
+               and isinstance(finding.get("expected_entries"), int)
+               and finding["returned_entries"] > finding["expected_entries"]
+               for finding in quality.get("findings", []))
+
+
 def get_quality_retry_policy(finish_reason, completion_tokens, effective_max,
                              quality):
     """Return one consistent retry action for a deterministic quality failure."""
+    if is_overlong_index_response(quality):
+        return "retry_same_budget"
     codes = {finding["code"] for finding in quality.get("findings", [])}
     incomplete = bool({"low_source_token_recall", "low_ordered_trigram_recall",
                        "output_source_ratio"} & codes
@@ -1037,6 +1056,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         attempt_number = attempt_offset + request_attempt
         t0 = time.time()
         truncation_retry_available = False
+        # The budget this attempt was sent with, before any truncation bump.
+        attempt_requested_max = requested_max
         attempt_record = None
         effective_max = None
         try:
@@ -1359,6 +1380,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                   f"{requested_max} -> {next_max}")
                             requested_max = next_max
                     elif attempt < max_retries:
+                        if is_overlong_index_response(quality):
+                            # The length finish above already raised the budget;
+                            # an overlong answer was not cut short, so undo it.
+                            requested_max = attempt_requested_max
                         print(f"  Retry policy: {retry_policy}; token budget remains {requested_max}")
                     print(f"Warning: {label} failed quality validation "
                           f"(attempt {attempt_number}): {retry_feedback}; metrics={metrics}")

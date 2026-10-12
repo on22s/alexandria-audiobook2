@@ -709,6 +709,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                                                if params.attribute_temperature is not None
                                                else params.temperature),
                           response_schema=get_attribution_response_schema(speaker_traits))
+    call_params = bound_index_request_params(call_params, len(frozen_batch),
+                                             ATTRIBUTE_TOKENS_PER_ENTRY)
     # entries_provider REPLACES ONLY THE LLM CALL. Everything that makes this
     # function safe - validate_attribution's text freeze, the index_head_check
     # binding, the exhaustion path - is shared by any provider, so an
@@ -811,6 +813,8 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
     call_params = replace(params, temperature=(params.instruct_temperature
                                                if params.instruct_temperature is not None
                                                else params.temperature))
+    call_params = bound_index_request_params(call_params, len(prior_batch),
+                                             INSTRUCT_TOKENS_PER_ENTRY)
     attempts = []
 
     def observe(attempt):
@@ -2253,6 +2257,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             attempt.get("reasoning_tokens"),
             truncated=attempt.get("finish_reason") == "length")
         params.reasoning_allowance = reasoning_allowance.current()
+        if attempt.get("finish_reason") is not None:
+            params.observed_calls += 1
 
     def last_attempt_for(_index):
         return last_attempts.get("latest")
@@ -2935,6 +2941,37 @@ class ReasoningAllowance:
         ordered = sorted(self._observations)
         index = min(len(ordered) - 1, int(len(ordered) * 0.95))
         return max(REASONING_ALLOWANCE_FLOOR, ordered[index])
+
+
+# Visible output per entry for indexed passes, ~4x the observed need: accepted
+# ATTRIBUTE rows are p99 46 characters (~15 tokens) over 8,677 logged responses;
+# an instruct row carries a 10-20 word direction.
+ATTRIBUTE_TOKENS_PER_ENTRY = 64
+INSTRUCT_TOKENS_PER_ENTRY = 160
+INDEX_OUTPUT_FLOOR = 1024
+
+
+def resolve_index_output_ceiling(entry_count, per_entry_tokens, params):
+    """Bound a Pass 2/3 request to what its window can need, or None.
+
+    Without a bound a 1-entry window kept the full 10,000-token budget, and a
+    runaway spent it all listing 960 rows (Qwen3-14B, 2026-10-12: 213 s per
+    attempt). None until this run has observed a completed call: before that a
+    reasoning model's allowance reads 0 and a tight first cap would end in
+    reasoning_overflow. Only the first request is bounded; hard_max_tokens is
+    left alone so real truncation still escalates."""
+    if not getattr(params, "observed_calls", 0):
+        return None
+    visible = max(INDEX_OUTPUT_FLOOR, max(1, entry_count) * per_entry_tokens)
+    return visible + max(0, int(params.reasoning_allowance or 0))
+
+
+def bound_index_request_params(call_params, entry_count, per_entry_tokens):
+    """Return call_params with max_tokens capped by resolve_index_output_ceiling."""
+    ceiling = resolve_index_output_ceiling(entry_count, per_entry_tokens, call_params)
+    if ceiling is None or call_params.max_tokens <= ceiling:
+        return call_params
+    return replace(call_params, max_tokens=ceiling)
 
 
 def resolve_completion_ceiling(source_words, params, reasoning_allowance=0):
