@@ -35,6 +35,10 @@ jobs:
             architecture: arm64
           - runner: macos-15-intel
             architecture: x86_64
+          # Negative lane only; shares this matrix's max-two concurrency.
+          - runner: ubuntu-24.04
+            python: '3.13t'
+            architecture: x86_64
     env:
       # Preserve committed bytes on Windows before sdist provenance checks.
       GIT_CONFIG_COUNT: '1'
@@ -58,6 +62,12 @@ jobs:
           rustup override set 1.96.0
           cargo fetch --locked --manifest-path tools/optional_ascii/Cargo.toml
       - name: Qualify source archive, wheel and clean runtime
+        if: matrix.python != '3.13t'
         shell: bash
         run: |
           python tools/optional_ascii/qualify.py --architecture '${{ matrix.architecture }}' --work "${{ runner.temp }}/ascii-package-${{ matrix.python }}"
+      - name: Verify actual free-threaded build rejection and pre-import fallback
+        if: matrix.python == '3.13t'
+        shell: bash
+        run: |
+          python tools/optional_ascii/check_free_threaded.py --work "${{ runner.temp }}/ascii-free-threaded-rejection"
