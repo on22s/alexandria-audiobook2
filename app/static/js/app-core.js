@@ -1740,6 +1740,7 @@
             'tp-attribute-context-chars': 'three_pass_attribute_context_chars',
             'tp-attribute-target-chars': 'three_pass_attribute_target_chars',
             'tp-instruct-target-chars': 'three_pass_instruct_target_chars',
+            'tp-instruct-context-chars': 'three_pass_instruct_context_chars',
             'tp-segment-output-ratio': 'three_pass_segment_output_ratio',
             'tp-segment-temperature': 'three_pass_segment_temperature',
             'tp-attribute-temperature': 'three_pass_attribute_temperature',
@@ -1749,6 +1750,7 @@
         };
         function applyGenerationSettings(g) {
             document.getElementById('max-input-tokens').value = g.max_input_tokens ?? '';
+            document.getElementById('tp-instruct-context-chars').value = g.three_pass_instruct_context_chars ?? 0;
             if (g.chunk_size != null) { legacyChunkSize = g.chunk_size; }
             for (const [id, key] of Object.entries(generationControlFields)) {
                 if (g[key] != null) { document.getElementById(id).value = g[key]; }
@@ -2092,6 +2094,7 @@
                     three_pass_attribute_batch_size: getNumFieldValue('tp-attribute-batch-size', 25, true),
                     three_pass_attribute_target_chars: getNumFieldValue('tp-attribute-target-chars', 0, true),
                     three_pass_instruct_target_chars: getNumFieldValue('tp-instruct-target-chars', 0, true),
+                    three_pass_instruct_context_chars: getNumFieldValue('tp-instruct-context-chars', 0, true),
                     three_pass_attribute_context_chars: getNumFieldValue('tp-attribute-context-chars', 0, true),
                     three_pass_attribute_prompt_variant: (selectedPromptPreset() || {}).variant || 'michel2_full',
                     three_pass_segment_output_ratio: getNumFieldValue('tp-segment-output-ratio', 3.0),

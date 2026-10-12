@@ -2279,7 +2279,8 @@ def get_batch_script_sizing_identity(text, settings, context_windows, context_le
                           load_instruct_prompts()]}
     if is_three_pass_context_required(
             settings.get("chunk_size", 0), settings.get("attribute_context_chars", 0),
-            settings.get("attribute_target_chars", 0), settings.get("instruct_target_chars", 0)):
+            settings.get("attribute_target_chars", 0), settings.get("instruct_target_chars", 0),
+            settings.get("instruct_context_chars", 0)):
         inputs["context_length"] = context_length
     return hashlib.sha256(json.dumps(inputs, sort_keys=True, ensure_ascii=False,
                                     allow_nan=False).encode("utf-8")).hexdigest()
@@ -2357,7 +2358,8 @@ def three_pass_refusal(jobs):
     context_windows = (config.get("generation") or {}).get("context_rescue_windows")
     needs_context = is_three_pass_context_required(
         settings["chunk_size"], settings["attribute_context_chars"],
-        settings["attribute_target_chars"], settings["instruct_target_chars"])
+        settings["attribute_target_chars"], settings["instruct_target_chars"],
+        settings["instruct_context_chars"])
     context = 0
     if needs_context:
         # Planned, not current: a JIT/unloaded model the run's heal will load
@@ -2535,15 +2537,18 @@ def get_prepared_batch_script_jobs(request):
         config = load_app_config(CONFIG_PATH)
         settings = resolve_three_pass_generation_settings(config)
         context_windows = (config.get("generation") or {}).get("context_rescue_windows")
+        context = 0
+        if settings.get("instruct_context_chars", 0) > 20000:
+            context = get_planned_request_context(config)["context"]
         prepared = []
         for job in jobs:
             identity = get_batch_script_source_identity(job["input_path"])
             text, normalizations = _read_and_validate_batch_script_source(job)
             if get_batch_script_source_identity(job["input_path"]) != identity:
                 raise ValueError(f"Source changed while preparing: {job['filename']}")
-            sizing_identity = get_batch_script_sizing_identity(text, settings, context_windows)
+            sizing_identity = get_batch_script_sizing_identity(text, settings, context_windows, context)
             report = build_three_pass_request_preflight(
-                text, settings, 0, 1, context_windows=context_windows)
+                text, settings, context, 1, context_windows=context_windows)
             prepared.append({**job, "prepared_source": {
                 "identity": identity, "text": text, "normalizations": normalizations,
                 "preflight": {
@@ -2877,10 +2882,12 @@ def start_delivery_retry(background_tasks, request):
                 model, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
             state["logs"].append(message)
             check_cancel()
-            params = get_three_pass_run_params(config, status, llm.get("reasoning_effort"))
+            generation_settings = resolve_three_pass_generation_settings(config)
+            params = get_three_pass_run_params(config, status, llm.get("reasoning_effort"), generation_settings)
             client = make_run_client(config, llm, llm_timeout_seconds())
             after = retry_delivery_instructions(client, model, snapshot["entries"], params,
-                                               cancel_check=check_cancel)
+                                               cancel_check=check_cancel,
+                                               instruct_context_chars=generation_settings["instruct_context_chars"])
             prompt_digest = hashlib.sha256(json.dumps([
                 params.instruct_system_prompt, params.instruct_user_prompt_template],
                 ensure_ascii=False).encode("utf-8")).hexdigest()
@@ -2889,7 +2896,8 @@ def start_delivery_retry(background_tasks, request):
                               "created_at": time.time(), "prompt_sha256": prompt_digest,
                               "configured_params": {"max_tokens": params.max_tokens,
                                   "context_length": params.context_length,
-                                  "instruct_temperature": params.instruct_temperature}})
+                                  "instruct_temperature": params.instruct_temperature,
+                                  "instruct_context_chars": generation_settings["instruct_context_chars"]}})
             state["logs"].append(f"Delivery retry saved; {info['count']} entries still need review.")
         except RuntimeError:
             if not state.get("cancel"):

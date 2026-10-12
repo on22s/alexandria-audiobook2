@@ -1256,7 +1256,7 @@
                             </div>
                             <details class="mb-3" open>
                                 <summary class="text-muted small">Script generation: how much of the book the AI reads at once</summary>
-                                <div class="form-text mb-2">Turning a book into a script happens in three steps, for one book or a batch alike: <strong>1</strong> split the text into narration and spoken lines, <strong>2</strong> decide who says each line, <strong>3</strong> write a delivery note for each line. The settings below control how much text the AI sees in steps 1 and 2. The defaults are what this project's published accuracy numbers were measured with; change them to trade speed for context.</div>
+                                <div class="form-text mb-2">Turning a book into a script happens in three steps, for one book or a batch alike: <strong>1</strong> split the text into narration and spoken lines, <strong>2</strong> decide who says each line, <strong>3</strong> write a delivery note for each line. The settings below control how much text the AI sees in all three steps. The defaults are what this project's published accuracy numbers were measured with; change them to trade speed for context.</div>
                                 <div class="row g-2 mt-1">
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-chunk-size">Step 1: text per request (characters)</label>
@@ -1272,6 +1272,11 @@
                                         <label class="form-label small mb-1" for="tp-attribute-context-chars">Step 2: extra text around each request (characters, each side)</label>
                                         <input type="number" class="form-control form-control-sm" id="tp-attribute-context-chars" min="0" max="1000000" step="500" value="2000">
                                         <div class="form-text">Also show the AI this much of the book before and after the lines it is deciding on, for context only (it is told not to assign speakers to it). 0 = off. Every 1,000 characters adds roughly 300 tokens to each request, so it costs time (and money on paid APIs). Whether it improves accuracy is being measured; see RECIPES.md.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-instruct-context-chars">Step 3: extra text around each request (characters, each side)</label>
+                                        <input type="number" class="form-control form-control-sm" id="tp-instruct-context-chars" min="0" max="1000000" step="500" value="0">
+                                        <div class="form-text">Show nearby book text as read-only context for delivery notes. Zero adds no extra text. Larger values must fit the active model's input and context limits; their effect on delivery quality has not been measured.</div>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-attribute-target-chars">Step 2: text per request (characters)</label>

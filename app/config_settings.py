@@ -151,6 +151,7 @@ class GenerationConfig(BaseModel):
     # Zero retains the saved line-based behavior; positive values opt in.
     three_pass_attribute_target_chars: int = Field(default=0, ge=0, le=1000000)
     three_pass_instruct_target_chars: int = Field(default=0, ge=0, le=1000000)
+    three_pass_instruct_context_chars: int = Field(default=0, ge=0, le=1000000)
     # Which way the attribution question is asked (attribution_prompt_variants;
     # measured results per variant in RECIPES.md). michel2_full since
     # 2026-09-19, when Muse's cell (90.5 vs michel2 86.6) made it the winner

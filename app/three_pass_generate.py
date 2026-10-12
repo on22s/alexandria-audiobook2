@@ -169,15 +169,25 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
         "attribute_context_chars": int(gen.get("three_pass_attribute_context_chars", 2000)),
         "attribute_target_chars": int(gen.get("three_pass_attribute_target_chars", 0)),
         "instruct_target_chars": int(gen.get("three_pass_instruct_target_chars", 0)),
+        "instruct_context_chars": int(gen.get("three_pass_instruct_context_chars", 0)),
         "attribute_prompt_variant": gen.get("three_pass_attribute_prompt_variant") or "michel2_full",
     }
 
 
 def is_three_pass_context_required(chunk_size, attribute_context_chars,
-                                   attribute_target_chars=0, instruct_target_chars=0):
+                                   attribute_target_chars=0, instruct_target_chars=0,
+                                   instruct_context_chars=0):
     """One policy for admission, sizing identity and native execution."""
     return bool(chunk_size > 30000 or attribute_context_chars > 20000
-                or attribute_target_chars or instruct_target_chars)
+                or attribute_target_chars or instruct_target_chars or instruct_context_chars > 20000)
+
+
+def validate_instruct_context_chars(chars, params=None):
+    """Validate the pass-3 surround control and larger-context admission."""
+    if isinstance(chars, bool) or not isinstance(chars, int) or not 0 <= chars <= 1000000:
+        raise ValueError("Instruction context must be an integer from 0 to 1000000 characters per side")
+    if chars > 20000 and params is not None and not params.context_length:
+        raise TokenBudgetError("Larger instruction context requires a known model context length")
 
 
 def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generation_settings=None):
@@ -299,6 +309,8 @@ def build_window_surround(segmented, window_indices, chars):
         out, total = [], 0
         for i in indices:
             entry = segmented[i]
+            if entry is None:
+                continue
             text = entry.get("text") or ""
             if entry.get("type") == "SPOKEN":
                 text = f"\u201c{text}\u201d"
@@ -355,18 +367,28 @@ def get_missing_attribute_contexts(entries, indices, batch_size, window_bounds=N
     """Read-only adjacent evidence omitted from the current source-window batch."""
     if not indices:
         return []
-    included = set(indices)
     if window_bounds is None:
         start = indices[0] // batch_size * batch_size
         end = min(start + batch_size, len(entries))
     else:
         start, end = window_bounds[indices[0]]
+    return get_missing_entry_contexts(entries, indices, (start, end))
+
+
+def get_missing_entry_contexts(entries, indices, bounds=None, neighbor_contexts=None):
+    """Read-only neighbors outside a batch, retaining inherited edge evidence.
+
+    Pass 2 supplies source-window bounds; pass 3 retains book-wide continuity.
+    On runtime subdivision, inherited contexts supply the parent batch's edges.
+    """
+    included = set(indices)
+    start, end = bounds if bounds is not None else (0, len(entries))
     contexts = []
     for index in indices:
-        context = {}
+        context = dict(neighbor_contexts[index]) if neighbor_contexts else {}
         for key, neighbor in (("previous_context", index - 1),
                               ("next_context", index + 1)):
-            if start <= neighbor < end and neighbor not in included:
+            if start <= neighbor < end and neighbor not in included and key not in context:
                 context[key] = entries[neighbor]
         contexts.append(context)
     return contexts
@@ -530,13 +552,22 @@ def build_attribute_request(frozen_batch, params, roster,
         for i, e in enumerate(frozen_batch)], ensure_ascii=False)
     user_prompt = usr_template.format(
         roster=", ".join(roster) or "(none yet)", batch=batch_json)
+    return sys_prompt, wrap_window_surround(user_prompt, surround)
+
+
+def wrap_window_surround(user_prompt, surround, instruct=False):
+    """Wrap formatted user templates in read-only evidence for either pass."""
+    before_header, after_header = SURROUND_BEFORE_HEADER, SURROUND_AFTER_HEADER
+    if instruct:
+        before_header = "TEXT BEFORE THIS WINDOW (context only; do not write instructions for or return it):"
+        after_header = "TEXT AFTER THIS WINDOW (context only; do not write instructions for or return it):"
     before = (surround or {}).get("before") or ""
     after = (surround or {}).get("after") or ""
     if before:
-        user_prompt = f"{SURROUND_BEFORE_HEADER}\n{before}\n\n{user_prompt}"
+        user_prompt = f"{before_header}\n{before}\n\n{user_prompt}"
     if after:
-        user_prompt = f"{user_prompt}\n\n{SURROUND_AFTER_HEADER}\n{after}"
-    return sys_prompt, user_prompt
+        user_prompt = f"{user_prompt}\n\n{after_header}\n{after}"
+    return user_prompt
 
 
 # What the attribution pass asks the server to constrain replies to, when
@@ -775,7 +806,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     return stabilize_speaker_identities(seeded, established_speakers=roster)["entries"]
 
 
-def build_instruct_request(prior_batch, params, neighbor_contexts=None):
+def build_instruct_request(prior_batch, params, neighbor_contexts=None, surround=None):
     """Build the canonical pass-3 system and user prompts."""
     sys_prompt, usr_template = load_instruct_prompts()
     if params.instruct_system_prompt:
@@ -790,18 +821,23 @@ def build_instruct_request(prior_batch, params, neighbor_contexts=None):
     batch_json = json.dumps([
         {"n": i, "speaker": e["speaker"], "text": e["text"], **neighbor_contexts[i]}
         for i, e in enumerate(prior_batch)], ensure_ascii=False)
-    return sys_prompt, usr_template.format(batch=batch_json)
+    return sys_prompt, wrap_window_surround(usr_template.format(batch=batch_json), surround, instruct=True)
 
 
 def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
                    neighbor_contexts=None, exhaustion_sink=None,
-                   attempt_observer=None):
+                   attempt_observer=None, source_entries=None, source_indices=None,
+                   instruct_context_chars=0):
     """Add instruct to one batch of {speaker,text} entries. Enforces the freeze
     on text+speaker. On exhaustion, attaches a default instruct per entry so
     pass 3 never fails the book."""
     params = ensure_run_request_params(client, params)
+    validate_instruct_context_chars(instruct_context_chars, params)
+    if instruct_context_chars and (source_entries is None or source_indices is None):
+        raise ValueError("Instruction surround requires source entries and indices")
+    surround = build_window_surround(source_entries, source_indices, instruct_context_chars)
     sys_prompt, user_prompt = build_instruct_request(
-        prior_batch, params, neighbor_contexts)
+        prior_batch, params, neighbor_contexts, surround)
     validated = {}
 
     def validate(entries):
@@ -842,8 +878,12 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
             combined.extend(instruct_batch(
                 client, model_name, prior_batch[start:end], params,
                 max_retries=max_retries,
-                neighbor_contexts=(neighbor_contexts[start:end] if neighbor_contexts else None),
-                exhaustion_sink=exhaustion_sink, attempt_observer=attempt_observer))
+                neighbor_contexts=get_missing_entry_contexts(
+                    prior_batch, list(range(start, end)), neighbor_contexts=neighbor_contexts),
+                exhaustion_sink=exhaustion_sink, attempt_observer=attempt_observer,
+                source_entries=source_entries,
+                source_indices=(source_indices[start:end] if source_indices is not None else None),
+                instruct_context_chars=instruct_context_chars))
         return combined
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
@@ -859,12 +899,13 @@ def get_delivery_review_info(entries):
 
 
 def retry_delivery_instructions(client, model_name, entries, params,
-                                cancel_check=None, attempt_observer=None):
+                                cancel_check=None, attempt_observer=None, instruct_context_chars=0):
     """Retry only marked delivery entries, retaining frozen text and context.
 
     Returns new rows; publication and its book/snapshot guard belong to the
     caller. The original generation passes and checkpoint are not invoked.
     """
+    validate_instruct_context_chars(instruct_context_chars, params)
     result = [dict(entry) for entry in entries]
     pending = [entry if entry.get("instruct_unchecked") is True else None
                for entry in result]
@@ -875,16 +916,20 @@ def retry_delivery_instructions(client, model_name, entries, params,
                 cancel_check()
             current = work.pop(0)
             batch = [entry for _, entry in current]
-            contexts = [{"previous_context": entries[index - 1] if index else None,
-                         "next_context": entries[index + 1]
-                         if index + 1 < len(entries) else None}
-                        for index, _ in current]
+            contexts = get_missing_entry_contexts(
+                entries, [index for index, _ in current])
             request_params = ensure_run_request_params(client, params)
+            validate_instruct_context_chars(instruct_context_chars, request_params)
+            indices = [index for index, _ in current]
+            surround = build_window_surround(entries, indices, instruct_context_chars)
             if (len(current) > 1 and not does_instruct_batch_fit_context(
-                    batch, request_params, contexts)):
+                    batch, request_params, contexts, surround)):
                 midpoint = len(current) // 2
                 work[0:0] = [current[:midpoint], current[midpoint:]]
                 continue
+            if instruct_context_chars and not does_instruct_batch_fit_context(
+                    batch, request_params, contexts, surround):
+                raise TokenBudgetError("One instruction entry plus context/output does not fit; use a capable endpoint.")
             attempts = []
 
             def observe(attempt):
@@ -896,7 +941,9 @@ def retry_delivery_instructions(client, model_name, entries, params,
             updated = instruct_batch(
                 client, model_name, batch, request_params,
                 neighbor_contexts=contexts, exhaustion_sink=exhausted,
-                attempt_observer=observe)
+                attempt_observer=observe,
+                **({"source_entries": entries, "source_indices": indices,
+                    "instruct_context_chars": instruct_context_chars} if instruct_context_chars else {}))
             if cancel_check:
                 cancel_check()
             if (exhausted and attempts and all(
@@ -922,9 +969,9 @@ def does_request_fit_context(system_prompt, user_prompt, params, output_tokens,
     return available >= output_tokens + max(0, params.reasoning_allowance or 0)
 
 
-def does_instruct_batch_fit_context(prior_batch, params, neighbor_contexts=None):
+def does_instruct_batch_fit_context(prior_batch, params, neighbor_contexts=None, surround=None):
     """Return whether an instruction request has room for a plausible response."""
-    system_prompt, user_prompt = build_instruct_request(prior_batch, params, neighbor_contexts)
+    system_prompt, user_prompt = build_instruct_request(prior_batch, params, neighbor_contexts, surround)
     return does_request_fit_context(system_prompt, user_prompt, params,
                                     max(256, 48 * len(prior_batch)))
 
@@ -1486,7 +1533,8 @@ def get_three_pass_planned_calls(source_text, settings, params):
     validate_attribution_vote_settings(settings.get("attribution_votes", 1),
                                        settings.get("vote_temperature", 0.3))
     if (settings.get("attribute_target_chars") or settings.get("instruct_target_chars")
-            or settings["chunk_size"] > 30000 or settings.get("attribute_context_chars", 0) > 20000):
+            or settings["chunk_size"] > 30000 or settings.get("attribute_context_chars", 0) > 20000
+            or settings.get("instruct_context_chars", 0)):
         return planned_calls_from_preflight(build_three_pass_request_preflight(
             source_text, settings, params.context_length or 0, 1, params=params))
     _, predicted, unresolved, _ = get_three_pass_planning_entries(source_text, settings, params)
@@ -1526,6 +1574,8 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
         segment_user_prompt_template=settings.get("segment_user_prompt_template"),
         instruct_system_prompt=settings.get("instruct_system_prompt"),
         instruct_user_prompt_template=settings.get("instruct_user_prompt_template"))
+    instruct_context_chars = settings.get("instruct_context_chars", 0)
+    validate_instruct_context_chars(instruct_context_chars, params)
     chunks, predicted_entries, unresolved_chunks, chunks_without_quote_marks = (
         get_three_pass_planning_entries(source_text, settings, params))
 
@@ -1623,10 +1673,11 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
                       "text": entry["text"]}
                      for entry in predicted_entries]
     def build_planned_instruct(current):
-        contexts = [{"previous_context": named_entries[index - 1] if index else None,
-                     "next_context": named_entries[index + 1] if index + 1 < len(named_entries) else None}
-                    for index, _ in current]
-        return build_instruct_request([entry for _, entry in current], params, contexts)
+        contexts = get_missing_entry_contexts(
+            named_entries, [index for index, _ in current])
+        return build_instruct_request(
+            [entry for _, entry in current], params, contexts,
+            build_window_surround(named_entries, [index for index, _ in current], instruct_context_chars))
 
     for indexed_batch in iter_unique_entry_batches(named_entries, target_chars=settings.get("instruct_target_chars", 0)):
         add_indexed_requests("instruct", indexed_batch, build_planned_instruct, 48,
@@ -1930,7 +1981,7 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
                            attribute_prompt_texts=None, cast_sha256=None,
                            attribution_votes=1, vote_temperature=0.3,
                            first_person_narrator=None, speaker_traits=False,
-                           attribute_target_chars=0, instruct_target_chars=0):
+                           attribute_target_chars=0, instruct_target_chars=0, instruct_context_chars=0):
     digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
     settings = {
         "model_name": model_name, "chunk_size": chunk_size,
@@ -1954,6 +2005,7 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
            if attribute_batch_size != BATCH_SIZE else {}),
         **({"attribute_target_chars": attribute_target_chars} if attribute_target_chars else {}),
         **({"instruct_target_chars": instruct_target_chars} if instruct_target_chars else {}),
+        **({"instruct_context_chars": instruct_context_chars} if instruct_context_chars else {}),
         **({"attribute_context_chars": attribute_context_chars}
            if attribute_context_chars else {}),
         **({"attribute_prompt_variant": attribute_prompt_variant}
@@ -2130,7 +2182,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    attribute_batch_size=BATCH_SIZE, attribute_context_chars=0,
                    attribute_prompt_variant="default", attribute_prompt_texts=None,
                    planned_calls=None, cast=None, keep_scope="line", speaker_traits=False,
-                   attribute_target_chars=0, instruct_target_chars=0):
+                   attribute_target_chars=0, instruct_target_chars=0, instruct_context_chars=0):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -2146,10 +2198,11 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     text is sent through the variant provider for every variant, default
     included, so what Setup shows is what the model gets."""
     require_nonempty_source(source_text)
+    validate_instruct_context_chars(instruct_context_chars, params)
     for target in (attribute_target_chars, instruct_target_chars):
         list(iter_entry_windows([], attribute_batch_size, target))
     if is_three_pass_context_required(chunk_size, attribute_context_chars,
-                                      attribute_target_chars, instruct_target_chars):
+                                      attribute_target_chars, instruct_target_chars, instruct_context_chars):
         if not params.context_length or params.context_length <= 0:
             raise TokenBudgetError("Character batching and larger targets require a known model context length. Set Total context budget (tokens) in Setup for this LLM profile, or use a server exposing its loaded context.")
     # Preserve None in checkpoint identity while validating explicit controls.
@@ -2187,7 +2240,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         cast_sha256=(cast or {}).get("sha256"),
         attribution_votes=attribution_votes, vote_temperature=vote_temperature,
         first_person_narrator=narrator, speaker_traits=speaker_traits,
-        attribute_target_chars=attribute_target_chars, instruct_target_chars=instruct_target_chars)
+        attribute_target_chars=attribute_target_chars, instruct_target_chars=instruct_target_chars,
+        instruct_context_chars=instruct_context_chars)
     initial_binding = get_run_model_binding(client, model_name)
     if initial_binding["failover_model"] is not None:
         fingerprint["model_binding"] = initial_binding
@@ -2665,19 +2719,20 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         while work:
             current = work.pop(0)
             batch = [entry for _, entry in current]
-            contexts = [{"previous_context": named[index - 1] if index else None,
-                         "next_context": named[index + 1]
-                         if index + 1 < len(named) else None}
-                        for index, _ in current]
+            contexts = get_missing_entry_contexts(
+                named, [index for index, _ in current])
             request_params = ensure_run_request_params(client, params)
+            validate_instruct_context_chars(instruct_context_chars, request_params)
+            indices = [index for index, _ in current]
+            surround = build_window_surround(named, indices, instruct_context_chars)
             if (len(current) > 1
-                    and not does_instruct_batch_fit_context(batch, request_params, contexts)):
+                    and not does_instruct_batch_fit_context(batch, request_params, contexts, surround)):
                 midpoint = len(current) // 2
                 print(f"  Instruction batch exceeds context budget; subdividing "
                       f"{len(current)} -> {midpoint} + {len(current) - midpoint}")
                 work[0:0] = [current[:midpoint], current[midpoint:]]
                 continue
-            if instruct_target_chars and not does_instruct_batch_fit_context(batch, request_params, contexts):
+            if (instruct_target_chars or instruct_context_chars) and not does_instruct_batch_fit_context(batch, request_params, contexts, surround):
                 raise TokenBudgetError("One instruction entry plus context/output does not fit; use a capable endpoint.")
             exhausted = []
             attempt_start = len(attempts)
@@ -2688,7 +2743,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 client, model_name, batch, request_params, neighbor_contexts=contexts,
                 exhaustion_sink=exhausted,
                 attempt_observer=lambda attempt: record_attempt(
-                    "instruct", attempt))
+                    "instruct", attempt),
+                **({"source_entries": named, "source_indices": indices,
+                    "instruct_context_chars": instruct_context_chars} if instruct_context_chars else {}))
             batch_attempts = attempts[attempt_start:]
             if (exhausted and batch_attempts
                     and all(attempt.get("outcome") == "api_error"
@@ -3087,6 +3144,8 @@ def main():
                         help="Pass-2 source character target; 0 retains line batching")
     parser.add_argument("--instruct-target-chars", type=int, default=None,
                         help="Pass-3 source character target; 0 retains line batching")
+    parser.add_argument("--instruct-context-chars", type=int, default=None,
+                        help="Extra text around each Step 3 request (0-1000000 characters per side)")
     parser.add_argument("--attribute-context-chars", type=int, default=None,
                         help="Override generation.three_pass_attribute_context_chars "
                              "(characters of the book shown either side of each pass-2 window)")
@@ -3200,6 +3259,8 @@ def main():
                                else generation_settings["attribute_context_chars"])
     attribute_target_chars = (generation_settings["attribute_target_chars"] if args.attribute_target_chars is None else args.attribute_target_chars)
     instruct_target_chars = (generation_settings["instruct_target_chars"] if args.instruct_target_chars is None else args.instruct_target_chars)
+    instruct_context_chars = (generation_settings["instruct_context_chars"] if args.instruct_context_chars is None else args.instruct_context_chars)
+    validate_instruct_context_chars(instruct_context_chars)
     for target in (attribute_target_chars, instruct_target_chars):
         list(iter_entry_windows([], attribute_batch_size, target))
     if attribute_batch_size < 1 or not 0 <= attribute_context_chars <= 1000000:
@@ -3262,6 +3323,7 @@ def main():
     print(f"Three-pass generation: {len(book)} chars, chunk_size={chunk_size}, "
           f"attribute_batch_size={attribute_batch_size}, "
           f"attribute_context_chars={attribute_context_chars}, "
+          f"instruct_context_chars={instruct_context_chars}, "
           f"attribute_prompt_variant={attribute_prompt_variant}, "
           f"model={model_name}, pass2_on_exhaustion={args.pass2_on_exhaustion}, "
           f"pass2_keep_scope={keep_scope}")
@@ -3283,6 +3345,7 @@ def main():
         "attribute_context_chars": attribute_context_chars,
         "attribute_target_chars": attribute_target_chars,
         "instruct_target_chars": instruct_target_chars,
+        "instruct_context_chars": instruct_context_chars,
         "attribute_prompt_variant": attribute_prompt_variant,
         "attribute_prompt_texts": attribute_prompt_texts,
         "cast": cast,

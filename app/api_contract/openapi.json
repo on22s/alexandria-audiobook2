@@ -1357,6 +1357,13 @@
             "title": "Three Pass Group Rule",
             "type": "boolean"
           },
+          "three_pass_instruct_context_chars": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Three Pass Instruct Context Chars",
+            "type": "integer"
+          },
           "three_pass_instruct_target_chars": {
             "default": 0,
             "maximum": 1000000.0,
