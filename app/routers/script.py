@@ -51,6 +51,8 @@ from three_pass_generate import (build_attribute_request,
                                  get_three_pass_preflight_capacity,
                                  get_context_rescue_windows,
                                  is_three_pass_context_required,
+                                 LARGE_CONTEXT_CHARS,
+                                 validate_instruct_context_chars,
                                  apply_segment_gate_controls,
                                  default_instruct,
                                  read_source_text,
@@ -1445,6 +1447,14 @@ def build_recovery_detail(checkpoint):
             label = lambda e: e.get("type")
         else:
             sys_prompt, user_prompt = build_instruct_request(entries, LLMGenParams())
+            # API-error attempts retain the actual dispatched request, including
+            # custom templates, surround and retry feedback. Do not reconstruct
+            # that request using today's settings or default prompts.
+            request = last.get("request") or {}
+            if (isinstance(request, dict)
+                    and isinstance(request.get("system_prompt"), str)
+                    and isinstance(request.get("user_prompt"), str)):
+                sys_prompt, user_prompt = request["system_prompt"], request["user_prompt"]
             label = lambda e: e.get("speaker")
         unit = {"failed_chunk": None, "chunks_total": None,
                 "batch_indices": failed.get("indices") or [],
@@ -2348,32 +2358,40 @@ def build_batch_script_preflight(jobs):
 UNQUOTED_BOOK_THRESHOLD = 0.5
 
 
-def three_pass_refusal(jobs):
+def get_three_pass_admission_context(config, settings):
+    """One guarded capacity probe for a preparation/admission snapshot."""
+    if not is_three_pass_context_required(
+            settings["chunk_size"], settings["attribute_context_chars"],
+            settings["attribute_target_chars"], settings["instruct_target_chars"],
+            settings["instruct_context_chars"]):
+        return 0, None
+    try:
+        planned = get_planned_request_context(config)
+    except Exception as error:
+        if settings["instruct_context_chars"] > LARGE_CONTEXT_CHARS:
+            return 0, ("Could not determine model context for Step 3 extra text. "
+                       "Check the endpoint or declare its context budget before retrying.")
+        # Preserve legacy admission deferral for the preexisting controls.
+        print(f"Context admission skipped; the run will check it: {type(error).__name__}: {error}")
+        return 0, None
+    if not planned["known"]:
+        return 0, ("Larger requests require a known model context. Set Total context budget "
+                   "(tokens) in Setup for the active LLM profile, or use a server exposing its loaded context.")
+    return planned["context"], None
+
+
+def three_pass_refusal(jobs, *, config=None, settings=None, admission=None):
     """-> the 400 message that stops a single or batch run before it starts,
     or None. One helper for both routes so they cannot drift (Rule 15):
     read runtime context for larger requests, then check output ceilings
     and quote coverage against the configured settings and source text."""
-    config = load_app_config(CONFIG_PATH)
-    settings = resolve_three_pass_generation_settings(config)
+    config = load_app_config(CONFIG_PATH) if config is None else config
+    settings = resolve_three_pass_generation_settings(config) if settings is None else settings
     context_windows = (config.get("generation") or {}).get("context_rescue_windows")
-    needs_context = is_three_pass_context_required(
-        settings["chunk_size"], settings["attribute_context_chars"],
-        settings["attribute_target_chars"], settings["instruct_target_chars"],
-        settings["instruct_context_chars"])
-    context = 0
-    if needs_context:
-        # Planned, not current: a JIT/unloaded model the run's heal will load
-        # is admitted. A probe failure defers to run_three_pass's own check
-        # rather than refusing a run that may well succeed.
-        try:
-            planned = get_planned_request_context(config)
-        except Exception as error:
-            print(f"Context admission skipped; the run will check it: {type(error).__name__}: {error}")
-            planned = None
-        if planned and not planned["known"]:
-            return ("Larger requests require a known model context. Set Total context budget "
-                    "(tokens) in Setup for the active LLM profile, or use a server exposing its loaded context.")
-        context = planned["context"] if planned else 0
+    context, refusal = (get_three_pass_admission_context(config, settings)
+                        if admission is None else admission)
+    if refusal:
+        return refusal
     reports = []
     for job in jobs:
         text, _ = get_validated_batch_script_source(job)
@@ -2537,9 +2555,10 @@ def get_prepared_batch_script_jobs(request):
         config = load_app_config(CONFIG_PATH)
         settings = resolve_three_pass_generation_settings(config)
         context_windows = (config.get("generation") or {}).get("context_rescue_windows")
-        context = 0
-        if settings.get("instruct_context_chars", 0) > 20000:
-            context = get_planned_request_context(config)["context"]
+        admission = get_three_pass_admission_context(config, settings)
+        context, refusal = admission
+        if refusal:
+            raise ValueError(refusal)
         prepared = []
         for job in jobs:
             identity = get_batch_script_source_identity(job["input_path"])
@@ -2554,7 +2573,7 @@ def get_prepared_batch_script_jobs(request):
                 "preflight": {
                     "identity": sizing_identity,
                     "report": {key: value for key, value in report.items() if key != "requests"}}}})
-        refusal = three_pass_refusal(prepared)
+        refusal = three_pass_refusal(prepared, config=config, settings=settings, admission=admission)
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if refusal:
@@ -2847,6 +2866,19 @@ async def get_delivery_review():
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+def get_delivery_retry_instruct_context(snapshot):
+    """Use generation provenance, never today's optional prose setting."""
+    name = Path(three_pass_manifest_path("annotated_script.json")).as_posix()
+    raw = snapshot["artifacts"].get(name)
+    manifest = json.loads(raw) if raw is not None else {}
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("telemetry", {}), dict):
+        raise ValueError("Invalid generation context provenance; delivery retry was not started.")
+    # Legacy generations predate this optional control and have no surround.
+    chars = manifest.get("telemetry", {}).get("instruct_context_chars", 0)
+    validate_instruct_context_chars(chars)
+    return chars
+
+
 def start_delivery_retry(background_tasks, request):
     from delivery_review import (ensure_delivery_review_snapshot, get_delivery_retry_chunks,
                                  apply_delivery_retry)
@@ -2861,6 +2893,7 @@ def start_delivery_retry(background_tasks, request):
     if not count:
         raise HTTPException(status_code=409, detail="No fallback delivery instructions need retrying.")
     get_delivery_retry_chunks(snapshot["entries"], snapshot["entries"], snapshot["chunks"])
+    instruct_context_chars = get_delivery_retry_instruct_context(snapshot)
     config = copy.deepcopy(load_app_config(CONFIG_PATH))
 
     def run():
@@ -2883,6 +2916,7 @@ def start_delivery_retry(background_tasks, request):
             state["logs"].append(message)
             check_cancel()
             generation_settings = resolve_three_pass_generation_settings(config)
+            generation_settings["instruct_context_chars"] = instruct_context_chars
             params = get_three_pass_run_params(config, status, llm.get("reasoning_effort"), generation_settings)
             client = make_run_client(config, llm, llm_timeout_seconds())
             after = retry_delivery_instructions(client, model, snapshot["entries"], params,

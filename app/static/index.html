@@ -1276,7 +1276,7 @@
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-instruct-context-chars">Step 3: extra text around each request (characters, each side)</label>
                                         <input type="number" class="form-control form-control-sm" id="tp-instruct-context-chars" min="0" max="1000000" step="500" value="0">
-                                        <div class="form-text">Show nearby book text as read-only context for delivery notes. Zero adds no extra text. Larger values must fit the active model's input and context limits; their effect on delivery quality has not been measured.</div>
+                                        <div class="form-text">Zero adds no extra prose. Adds contiguous text outside the request's first and last target, beyond boundary entries already supplied as context. Text is clipped at the character limit. Sparse targets retain their immediate neighbours in the request. The full prompt must fit the model's input and context limits; delivery quality has not been measured.</div>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small mb-1" for="tp-attribute-target-chars">Step 2: text per request (characters)</label>
