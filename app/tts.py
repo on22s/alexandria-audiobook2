@@ -964,6 +964,13 @@ class TTSEngine:
     def _compile_codec(self, model):
         """Apply torch.compile to the audio codec for faster decoding.
 
+        CURRENTLY NO EFFECT (#1113, measured 2026-10-12): qwen_tts decodes via
+        `speech_tokenizer.model.decode(...)`, but torch.compile on the module
+        only compiles forward(), so renders are unchanged and no inductor cache
+        is written. Compiling `.decode` instead made compilation run, but on
+        ROCm it then stalled CPU-bound in symbolic-shape compilation (0 chunks
+        in 23 min). The speed figures below predate that library change.
+
         The codec decoder has 136 attention modules and many small ops that
         benefit enormously from compilation.  Profiling shows the codec is
         47% of single-gen time and 85% of batch time uncompiled.  With
