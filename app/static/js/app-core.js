@@ -1742,6 +1742,7 @@
             'tp-attribute-temperature': 'three_pass_attribute_temperature',
             'tp-instruct-temperature': 'three_pass_instruct_temperature',
             'tp-segmentation': 'three_pass_segmentation', 'context-rescue-retries': 'context_rescue_retries',
+            'tp-pass1-format': 'three_pass_pass1_format',
         };
         function applyGenerationSettings(g) {
             document.getElementById('max-input-tokens').value = g.max_input_tokens ?? '';
@@ -2095,6 +2096,7 @@
                     three_pass_attribute_temperature: getNumFieldValue('tp-attribute-temperature', 0.1),
                     three_pass_instruct_temperature: getNumFieldValue('tp-instruct-temperature', 0.1),
                     three_pass_segmentation: document.getElementById('tp-segmentation').value || 'auto',
+                    three_pass_pass1_format: document.getElementById('tp-pass1-format').value || 'ordinary',
                     three_pass_quoted_must_be_spoken: document.getElementById('tp-quoted-must-be-spoken').checked,
                     three_pass_unquoted_must_be_narrator: document.getElementById('tp-unquoted-must-be-narrator').checked,
                     three_pass_keep_whole_batch: document.getElementById('tp-keep-whole-batch').checked,

@@ -34,6 +34,7 @@ from speaker_identity import stabilize_speaker_identities
 from speaker_traits import get_established_traits
 from repair_source_encoding import preflight_source
 from script_repair import build_deterministic_repair
+from compact_pass1 import segment_chunk_compact
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from narrator_prompt import (add_narrator_prior, get_valid_narrator_name,
@@ -133,7 +134,8 @@ def resolve_hard_max_tokens(configured_max_tokens):
 
 
 def resolve_three_pass_generation_settings(config, chunk_size_override=None,
-                                           segmentation_override=None):
+                                           segmentation_override=None,
+                                           pass1_format_override=None):
     """Resolve model-profile-sensitive settings shared by runtime and preflight."""
     llm = get_active_llm_config(config)
     gen = config.get("generation") or {}
@@ -154,6 +156,10 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
             "segment_output_ratio", gen.get("three_pass_segment_output_ratio", 3.0)),
         "segmentation": segmentation_override or model_profile.get(
             "segmentation", gen.get("three_pass_segmentation") or "auto"),
+        # #744: "compact" = numbered units in, labels out, per-chunk fallback
+        # to the ordinary full-text path. Default "ordinary" is unchanged.
+        "pass1_format": pass1_format_override or model_profile.get(
+            "pass1_format", gen.get("three_pass_pass1_format") or "ordinary"),
         "quoted_must_be_spoken": gen.get(
             "three_pass_quoted_must_be_spoken", True) is not False,
         "unquoted_must_be_narrator": gen.get(
@@ -212,6 +218,7 @@ def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generati
             "instruct_temperature", gen.get("three_pass_instruct_temperature", 0.1)),
         segment_output_ratio=generation_settings["segment_output_ratio"],
         segmentation=generation_settings["segmentation"],
+        pass1_format=generation_settings["pass1_format"],
         quoted_must_be_spoken=generation_settings["quoted_must_be_spoken"],
         unquoted_must_be_narrator=generation_settings["unquoted_must_be_narrator"],
         reasoning_effort=reasoning_effort,
@@ -1136,6 +1143,7 @@ def _resolved_near_miss(near_miss, resolution_sink):
 #   llm     -> "Model only"
 # Do not rename a stored value: config.json, model profiles and old results contain them.
 SEGMENTATION_MODES = ("auto", "quotes", "lexical", "llm")
+PASS1_FORMATS = ("ordinary", "compact")
 LEXICAL_QUOTE_CLASSIFIER_VERSION = 2
 
 
@@ -1966,6 +1974,10 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
             "segment_system_prompt", "segment_user_prompt_template",
             "instruct_system_prompt", "instruct_user_prompt_template",
             "response_schema")})
+        # Only present when moved off the default, so existing checkpoints
+        # keep their identity; switching format restarts instead of mixing.
+        if getattr(params, "pass1_format", "ordinary") != "ordinary":
+            settings["pass1_format"] = params.pass1_format
         if getattr(params, "max_input_tokens", None) is not None:
             settings["max_input_tokens"] = params.max_input_tokens
         from llm_request_budget import get_task_output_fingerprint
@@ -2330,11 +2342,24 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             announce_step(1, "chunk", i + 1, len(chunks))
             if progress:
                 progress.note_call_started()
-        seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
-                                       resolution_sink=sink, failure_sink=failures,
-                                       attempt_sink=attempts,
-                                       quote_analysis=quote_analyses[i],
-                                       quote_decision=quote_decisions[i])
+        seg = []
+        if params.pass1_format == "compact" and not by_marks:
+            # #744: one compact attempt on a chunk the quote marks did not
+            # settle; anything it can't do falls back to the full ordinary path
+            # below. Top level only, as evaluated (split halves run ordinary).
+            seg = segment_chunk_compact(client, model_name, chunks[i], params,
+                                        attempt_sink=attempts)
+            if seg:
+                _record_resolution(sink, "compact")
+            else:
+                print(f"  chunk {i + 1}/{len(chunks)}: compact labels not accepted; "
+                      "using full-text Pass 1")
+        if not seg:
+            seg = segment_chunk_adaptively(client, model_name, chunks[i], params,
+                                           resolution_sink=sink, failure_sink=failures,
+                                           attempt_sink=attempts,
+                                           quote_analysis=quote_analyses[i],
+                                           quote_decision=quote_decisions[i])
         finish_step(1, "chunk", i + 1, len(chunks),
                     "from quote marks" if by_marks else "from the model")
         if progress and not by_marks:
@@ -3031,6 +3056,10 @@ def main():
     parser.add_argument("--prompt-variant", default=None,
                         help="Override generation.three_pass_attribute_prompt_variant "
                              "(one of attribution_prompt_variants.VARIANTS)")
+    parser.add_argument("--pass1-format", choices=PASS1_FORMATS, default=None,
+                        help="Override generation.three_pass_pass1_format: ordinary "
+                             "(full text, the default) or compact (numbered units in, "
+                             "labels out; falls back to ordinary per chunk, #744)")
     parser.add_argument("--segmentation", choices=SEGMENTATION_MODES, default=None,
                         help="Override generation.three_pass_segmentation: auto "
                              "(shown to users as 'Quote marks first, model for the rest'; "
@@ -3121,7 +3150,8 @@ def main():
               f"(sha256 {cast['sha256'][:12]})")
     try:
         generation_settings = resolve_three_pass_generation_settings(
-            config, args.chunk_size, segmentation_override=args.segmentation)
+            config, args.chunk_size, segmentation_override=args.segmentation,
+            pass1_format_override=args.pass1_format)
     except ValueError as exc:
         print(f"Error: {exc}")
         sys.exit(1)

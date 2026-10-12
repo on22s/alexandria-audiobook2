@@ -1383,6 +1383,15 @@
             "title": "Three Pass Model Profiles",
             "type": "object"
           },
+          "three_pass_pass1_format": {
+            "default": "ordinary",
+            "enum": [
+              "ordinary",
+              "compact"
+            ],
+            "title": "Three Pass Pass1 Format",
+            "type": "string"
+          },
           "three_pass_quoted_must_be_spoken": {
             "default": true,
             "title": "Three Pass Quoted Must Be Spoken",
@@ -3212,6 +3221,21 @@
               }
             ],
             "title": "Instruct Temperature"
+          },
+          "pass1_format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ordinary",
+                  "compact"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass1 Format"
           },
           "segment_output_ratio": {
             "anyOf": [
