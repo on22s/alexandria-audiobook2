@@ -1587,6 +1587,14 @@
     "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_native_process_death_retains_committed_transition",
     "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_torn_record_recovers_committed_prefix_with_warning_and_backup"
   ],
+  "test_chunk_text_normalisation": [
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_everything_but_the_text_is_unchanged",
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_leading_separators_are_dropped_from_tts_text",
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_merged_entry_starting_with_punctuation_joins_without_a_space",
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_separator_only_text_is_left_alone",
+    "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_a_real_editor_text_change_is_still_refused",
+    "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_chunks_saved_before_the_change_still_match"
+  ],
   "test_ci_import_policy": [
     "tests.test_ci_import_policy.CIImportPolicyTests.test_changed_policy_replaces_old_roots_and_preserves_foreign_finders",
     "tests.test_ci_import_policy.CIImportPolicyTests.test_generator_policy_purges_submodules_and_disables_cleanly",
@@ -4193,6 +4201,15 @@
     "tests.test_line_format.WhitespaceNormalisation.test_label_whitespace_is_normalised",
     "tests.test_line_format.WhitespaceNormalisation.test_text_is_byte_exact_including_edge_whitespace"
   ],
+  "test_literal_delivery_integration": [
+    "tests.test_literal_delivery_integration.IntegrationChecks.test_changed_words_remain_refused",
+    "tests.test_literal_delivery_integration.IntegrationChecks.test_missing_corrupt_and_foreign_provenance_are_refused",
+    "tests.test_literal_delivery_integration.IntegrationChecks.test_normalize_before_binding_without_changing_source",
+    "tests.test_literal_delivery_integration.IntegrationChecks.test_real_voice_overrides_are_still_refused",
+    "tests.test_literal_delivery_integration.IntegrationChecks.test_regrouped_protected_rows_receive_valid_markers",
+    "tests.test_literal_delivery_integration.IntegrationChecks.test_retry_accepts_old_punctuation_and_preserves_unaffected_audio",
+    "tests.test_literal_delivery_integration.IntegrationChecks.test_speech_expansion_remains_allowed"
+  ],
   "test_literal_pipeline_policy": [
     "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_binding_is_portable_immutable_and_checks_literal_source",
     "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_chunk_source_policy_is_bound_and_not_reconstructed",
@@ -5436,6 +5453,24 @@
     "tests.test_persona_text_controls.PersonaTextControlTests.test_multiline_unicode_combining_and_joined_emoji_remain_unchanged",
     "tests.test_persona_text_controls.PersonaTextControlTests.test_near_duplicate_detector_uses_shared_normalization_for_both_entries",
     "tests.test_persona_text_controls.PersonaTextControlTests.test_shared_object_request_rejects_control_payload_with_validation_evidence"
+  ],
+  "test_pidfd_compatibility": [
+    "tests.test_pidfd_compatibility.LibcFallbackTests.test_departed_descendant_is_skipped_not_raised",
+    "tests.test_pidfd_compatibility.LibcFallbackTests.test_exited_process_maps_to_process_lookup_error",
+    "tests.test_pidfd_compatibility.LibcFallbackTests.test_signals_a_real_child",
+    "tests.test_pidfd_compatibility.NativePidfdCompatibilityTests.test_real_probe_picks_the_available_implementation_and_signals_a_child",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_departed_process_is_not_recorded_as_signalled",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_kernel_open_failure_preserves_errno_without_sending",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_legacy_probe_preserves_errno_and_closes_on_signal_failure",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_legacy_python_uses_libc_handles_with_same_probe",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_missing_python_operation_refuses_admission",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_permission_failure_propagates_and_closes_handle",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_probe_checks_signal_zero_and_closes_descriptor",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_probe_error_names_the_failing_step",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_recycled_pid_is_not_signalled",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_selection_and_probe_run_once_per_process",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_signal_probe_failure_preserves_errno_and_closes_descriptor",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_signal_uses_handle_and_records_verified_identity"
   ],
   "test_pipeline_repeat_scoring": [
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_duplicate_gold_ids_fail_loudly_and_empty_population_is_explicit",
@@ -8184,6 +8219,19 @@
     "tests.test_three_pass_missing_context.ThreePassMissingContextTests.test_actual_run_prompts_omitted_neighbors_and_writes_exact_source_order",
     "tests.test_three_pass_missing_context.ThreePassMissingContextTests.test_oversized_adjacent_entries_do_not_hide_shorter_surrounding_evidence",
     "tests.test_three_pass_missing_context.ThreePassMissingContextTests.test_passage_variants_keep_spoken_evidence_unmarked_and_do_not_repeat_included_entries"
+  ],
+  "test_three_pass_output_ceiling": [
+    "tests.test_three_pass_output_ceiling.AttributeBatchTest.test_first_call_of_a_run_keeps_the_full_budget",
+    "tests.test_three_pass_output_ceiling.AttributeBatchTest.test_observed_run_caps_a_one_entry_window",
+    "tests.test_three_pass_output_ceiling.AttributeBatchTest.test_runaway_retry_is_not_given_more_tokens",
+    "tests.test_three_pass_output_ceiling.CeilingTest.test_never_raises_a_smaller_configured_budget",
+    "tests.test_three_pass_output_ceiling.CeilingTest.test_unbounded_until_a_call_has_been_observed",
+    "tests.test_three_pass_output_ceiling.CeilingTest.test_window_size_floor_and_reasoning_allowance",
+    "tests.test_three_pass_output_ceiling.InstructBatchTest.test_first_call_of_a_run_keeps_the_full_budget",
+    "tests.test_three_pass_output_ceiling.InstructBatchTest.test_observed_run_caps_a_one_entry_window",
+    "tests.test_three_pass_output_ceiling.RetryPolicyTest.test_findings_from_both_validators_carry_the_counts",
+    "tests.test_three_pass_output_ceiling.RetryPolicyTest.test_overlong_length_finish_keeps_the_budget",
+    "tests.test_three_pass_output_ceiling.RetryPolicyTest.test_short_length_finish_still_escalates"
   ],
   "test_three_pass_planning_work": [
     "tests.test_three_pass_planning_work.ThreePassPlanningWorkTests.test_actual_cli_uses_counts_without_full_preflight_report",

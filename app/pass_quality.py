@@ -472,6 +472,14 @@ def _leading_tokens(text):
     return normalize_text(str(text or "")).split()
 
 
+def get_alignment_counts(frozen_entries, response_entries):
+    """Expected and returned row counts, recorded on an alignment finding so the
+    retry policy can tell an overlong response from a truncated one."""
+    return {"expected_entries": len(frozen_entries),
+            "returned_entries": (len(response_entries)
+                                 if isinstance(response_entries, list) else None)}
+
+
 def index_head_check(frozen_entries, response_entries):
     """Return (ok, reason, ordered) for the immutable-index contract.
 
@@ -732,7 +740,8 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
     ok, reason, ordered = index_head_check(frozen_entries, response_entries)
     if not ok:
         return {"passed": False,
-                "findings": [{"code": "alignment_violated", "message": reason}]}
+                "findings": [{"code": "alignment_violated", "message": reason,
+                              **get_alignment_counts(frozen_entries, response_entries)}]}
     established_names = set(established_names or ()) | set(known_names)
     if tag_evidence is None:
         tag_evidence = get_attribution_tag_evidence(
@@ -816,7 +825,8 @@ def validate_instruct(prior_entries, response_entries):
     ok, reason, ordered = index_head_check(prior_entries, response_entries)
     if not ok:
         return {"passed": False,
-                "findings": [{"code": "alignment_violated", "message": reason}]}
+                "findings": [{"code": "alignment_violated", "message": reason,
+                              **get_alignment_counts(prior_entries, response_entries)}]}
     findings = []
     for i, (prior, item) in enumerate(zip(prior_entries, ordered), 1):
         raw_instruct = item.get("instruct")

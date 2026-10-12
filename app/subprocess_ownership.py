@@ -1,5 +1,7 @@
 """Shared descendant ownership and signal dispatch for supervised tasks."""
 import ctypes
+import errno
+import functools
 import json
 import logging
 import os
@@ -10,6 +12,7 @@ import socket
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 
 SUBPROCESS_TERMINATE_GRACE_SECONDS = 10.0
@@ -301,29 +304,64 @@ def get_owned_descendants():
     return found
 
 
+@functools.cache
 def ensure_pidfd_support():
-    """Verify the kernel handle operations before admitting any worker."""
-    libc = ctypes.CDLL(None, use_errno=True)
-    libc.pidfd_open.argtypes = (ctypes.c_int, ctypes.c_uint)
-    libc.pidfd_open.restype = ctypes.c_int
-    libc.pidfd_send_signal.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint)
-    libc.pidfd_send_signal.restype = ctypes.c_int
-    descriptor = libc.pidfd_open(os.getpid(), 0)
-    if descriptor < 0:
-        raise OSError(ctypes.get_errno(), "Linux subprocess ownership requires pidfd support")
-    os.close(descriptor)
-    return libc
+    """Select and verify stable kernel handles before admitting any worker.
+
+    Resolved once per process: the implementation and the kernel's answer do
+    not change while it runs. A failed probe raises and is not cached.
+
+    The probe opens a pidfd for this process AND sends it signal 0, so a host
+    whose seccomp profile allows pidfd_open but filters pidfd_send_signal is
+    refused at admission instead of failing mid-cleanup. The error names the
+    step that failed.
+    """
+    if (callable(getattr(os, "pidfd_open", None))
+            and callable(getattr(signal, "pidfd_send_signal", None))):
+        pidfds = SimpleNamespace(implementation="python", pidfd_open=os.pidfd_open,
+                                 pidfd_send_signal=signal.pidfd_send_signal)
+    else:
+        # Some Python builds omit these APIs even when libc provides them.
+        libc = ctypes.CDLL(None, use_errno=True)
+        try:
+            libc.pidfd_open.argtypes = (ctypes.c_int, ctypes.c_uint)
+            libc.pidfd_open.restype = ctypes.c_int
+            libc.pidfd_send_signal.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint)
+            libc.pidfd_send_signal.restype = ctypes.c_int
+        except AttributeError as error:
+            raise OSError(errno.ENOSYS, "Linux subprocess ownership requires pidfd APIs") from error
+
+        def open_pidfd(pid, flags):
+            descriptor = libc.pidfd_open(pid, flags)
+            if descriptor < 0:
+                code = ctypes.get_errno()
+                raise OSError(code, f"pidfd_open failed: {os.strerror(code)}")
+            return descriptor
+
+        def send_pidfd_signal(descriptor, sig, info, flags):
+            if libc.pidfd_send_signal(descriptor, sig, info, flags) < 0:
+                code = ctypes.get_errno()
+                raise OSError(code, f"pidfd_send_signal failed: {os.strerror(code)}")
+
+        pidfds = SimpleNamespace(implementation="libc", pidfd_open=open_pidfd,
+                                 pidfd_send_signal=send_pidfd_signal)
+    descriptor = None
+    step = "pidfd_open"
+    try:
+        descriptor = pidfds.pidfd_open(os.getpid(), 0)
+        step = "pidfd_send_signal"
+        pidfds.pidfd_send_signal(descriptor, 0, None, 0)
+    except OSError as error:
+        raise OSError(error.errno, f"Linux subprocess ownership requires working pidfd support: "
+                                   f"{step} probe failed ({os.strerror(error.errno) if error.errno else error})"
+                      ) from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+    return pidfds
 
 
-def open_owned_process(libc, pid):
-    """Open a stable kernel handle before signalling an observed descendant."""
-    descriptor = libc.pidfd_open(pid, 0)
-    if descriptor < 0:
-        raise OSError(ctypes.get_errno(), "Could not open owned process")
-    return descriptor
-
-
-def apply_descendant_signal(libc, sig, delivered):
+def apply_descendant_signal(pidfds, sig, delivered):
     """Signal owned identities through pidfds, never recycled numeric PIDs."""
     for pid, identity in get_owned_descendants().items():
         key = (pid, identity, sig)
@@ -331,11 +369,10 @@ def apply_descendant_signal(libc, sig, delivered):
             continue
         descriptor = None
         try:
-            descriptor = open_owned_process(libc, pid)
+            descriptor = pidfds.pidfd_open(pid, 0)
             if get_process_identity(pid) != identity:
                 continue
-            if libc.pidfd_send_signal(descriptor, sig, None, 0) < 0:
-                raise OSError(ctypes.get_errno(), "Could not signal owned process")
+            pidfds.pidfd_send_signal(descriptor, sig, None, 0)
             delivered.add(key)
         except (ProcessLookupError, FileNotFoundError):
             continue
@@ -344,14 +381,14 @@ def apply_descendant_signal(libc, sig, delivered):
                 os.close(descriptor)
 
 
-def ensure_owned_descendants_stopped(libc):
+def ensure_owned_descendants_stopped(pidfds):
     """Retain ownership while exceptional shutdown reaps all remaining work."""
     delivered = set()
     reported = False
     while True:
         try:
-            apply_descendant_signal(libc, signal.SIGCONT, delivered)
-            apply_descendant_signal(libc, signal.SIGKILL, delivered)
+            apply_descendant_signal(pidfds, signal.SIGCONT, delivered)
+            apply_descendant_signal(pidfds, signal.SIGKILL, delivered)
         except OSError as error:
             if not reported:
                 print(f"ERROR: Could not stop owned subprocess: {error}; retaining ownership", file=sys.stderr, flush=True)
@@ -373,7 +410,7 @@ def run_owned_command(control, command, *, disconnect_signal=None, stop_timeout=
     libc = ctypes.CDLL(None, use_errno=True)
     if libc.prctl(36, 1, 0, 0, 0) != 0:
         raise OSError(ctypes.get_errno(), "Could not establish subprocess ownership")
-    libc = ensure_pidfd_support()
+    pidfds = ensure_pidfd_support()
     ensure_procfs_descendant_support()
     received = []
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
@@ -418,7 +455,7 @@ def run_owned_command(control, command, *, disconnect_signal=None, stop_timeout=
                 elif sig == signal.SIGCONT:
                     paused = False
                     delivered.clear()
-                    apply_descendant_signal(libc, sig, delivered)
+                    apply_descendant_signal(pidfds, sig, delivered)
                 elif sig == signal.SIGKILL or stopping != signal.SIGKILL:
                     stopping = sig
                     delivered.clear()
@@ -430,13 +467,13 @@ def run_owned_command(control, command, *, disconnect_signal=None, stop_timeout=
                         and time.monotonic() - stopping_started >= stop_timeout):
                     stopping = signal.SIGKILL
                     delivered.clear()
-                apply_descendant_signal(libc, signal.SIGCONT, delivered)
-                apply_descendant_signal(libc, stopping, delivered)
+                apply_descendant_signal(pidfds, signal.SIGCONT, delivered)
+                apply_descendant_signal(pidfds, stopping, delivered)
             elif paused:
-                apply_descendant_signal(libc, signal.SIGSTOP, delivered)
+                apply_descendant_signal(pidfds, signal.SIGSTOP, delivered)
 
     except BaseException:
-        ensure_owned_descendants_stopped(libc)
+        ensure_owned_descendants_stopped(pidfds)
         raise
 
 
