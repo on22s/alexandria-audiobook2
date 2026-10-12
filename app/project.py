@@ -250,6 +250,30 @@ def get_speakable_entries(script_entries, review_sink=None):
     return speakable
 
 
+# A chunk that opens on a separator (", holding her hand…" after a closing
+# quote) is read as a fresh sentence that begins mid-clause. On 2026-10-12 one
+# such Alice chunk garbled at 2 of 5 seeds and opened with an invented "Heh" /
+# "Ugh" at the other 3; without the comma, 5 of 5 rendered clean (#1121, #1122).
+LEADING_SEPARATORS = re.compile(r"^[\s,;:]+")
+JOINS_WITHOUT_SPACE = re.compile(r"^[,;:.!?]")
+
+
+def get_tts_chunk_text(text):
+    """Return chunk text as sent to TTS: no leading separator punctuation.
+
+    Text made only of separators is returned unchanged; nonverbal entries are
+    already handled by get_speakable_entries."""
+    stripped = LEADING_SEPARATORS.sub("", text)
+    return stripped if stripped.strip() else text
+
+
+def get_chunk_text_key(text):
+    """Compare chunk text across the separator change: leading separators and
+    the space the old joiner put before punctuation are ignored, so a
+    chunks.json saved before #1121 still matches its regrouped script."""
+    return re.sub(r"\s+(?=[,;:.!?])", "", get_tts_chunk_text(text or ""))
+
+
 def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
                       review_sink=None, include_source_indices=False):
     """Group consecutive entries by same speaker into chunks up to max_chars"""
@@ -285,7 +309,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
                 and current_pause_after is None
                 and not _is_structural_text(current_text)
                 and not _is_structural_text(text)):
-            combined = current_text + " " + text
+            combined = current_text + ("" if JOINS_WITHOUT_SPACE.match(text) else " ") + text
             if len(combined) <= max_chars:
                 current_text = combined
                 if include_source_indices:
@@ -322,7 +346,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
             bounded.append(piece)
             remaining = remaining[cut:]
         bounded.append({**chunk, "text": remaining})
-    return bounded
+    return [{**chunk, "text": get_tts_chunk_text(chunk["text"])} for chunk in bounded]
 
 logger = logging.getLogger(__name__)
 

@@ -1587,6 +1587,14 @@
     "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_native_process_death_retains_committed_transition",
     "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_torn_record_recovers_committed_prefix_with_warning_and_backup"
   ],
+  "test_chunk_text_normalisation": [
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_everything_but_the_text_is_unchanged",
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_leading_separators_are_dropped_from_tts_text",
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_merged_entry_starting_with_punctuation_joins_without_a_space",
+    "tests.test_chunk_text_normalisation.ChunkTextTest.test_separator_only_text_is_left_alone",
+    "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_a_real_editor_text_change_is_still_refused",
+    "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_chunks_saved_before_the_change_still_match"
+  ],
   "test_ci_import_policy": [
     "tests.test_ci_import_policy.CIImportPolicyTests.test_changed_policy_replaces_old_roots_and_preserves_foreign_finders",
     "tests.test_ci_import_policy.CIImportPolicyTests.test_generator_policy_purges_submodules_and_disables_cleanly",
