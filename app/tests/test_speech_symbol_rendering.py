@@ -44,6 +44,13 @@ class DropCountTest(unittest.TestCase):
         self.assertEqual(["\x01", "⍟"], drop["symbols"])
         self.assertEqual(5, drop["count"])
 
+    def test_many_distinct_dropped_glyphs_are_all_counted(self):
+        glyphs = "".join(chr(0xE000 + i) for i in range(2000))  # private use: dropped
+        text, changes = verbalize_symbols("a" + glyphs + glyphs + "b")
+        drop = next(c for c in changes if c["type"] == "dropped_unspeakable")
+        self.assertEqual((2000, 4000), (len(drop["symbols"]), drop["count"]))
+        self.assertEqual(reference("a" + glyphs + glyphs + "b"), (text, changes))
+
     def test_spoken_symbols_are_listed_once_however_often_they_repeat(self):
         text, changes = verbalize_symbols("© me © you ©")
         self.assertEqual([{"type": "verbalized_symbol", "symbols": ["©"]}], changes)

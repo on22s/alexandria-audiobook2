@@ -7537,6 +7537,7 @@
   "test_speech_symbol_rendering": [
     "tests.test_speech_symbol_rendering.ClassificationCacheTest.test_each_distinct_character_is_classified_once",
     "tests.test_speech_symbol_rendering.DropCountTest.test_count_is_every_occurrence",
+    "tests.test_speech_symbol_rendering.DropCountTest.test_many_distinct_dropped_glyphs_are_all_counted",
     "tests.test_speech_symbol_rendering.DropCountTest.test_spoken_symbols_are_listed_once_however_often_they_repeat",
     "tests.test_speech_symbol_rendering.KnownAnswerTest.test_matches_the_per_character_reference",
     "tests.test_speech_symbol_rendering.KnownAnswerTest.test_non_str_input_returns_plain_text"

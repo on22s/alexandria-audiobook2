@@ -104,7 +104,10 @@ def verbalize_symbols(text):
         # every distinct glyph.
         transformations.append({"type": "dropped_unspeakable",
                                 "symbols": sorted(dropped),
-                                "count": sum(text.count(ch) for ch in dropped)})
+                                # One pass however many distinct glyphs were
+                                # dropped: delete them all and compare lengths.
+                                "count": len(text) - len(text.translate(
+                                    dict.fromkeys(map(ord, dropped))))})
     return (text.translate(table) if table else text), transformations
 
 
