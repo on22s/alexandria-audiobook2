@@ -235,7 +235,7 @@ def get_source_block_occurrences(source_normalized, block, *, count_phrase=None)
     return contiguous
 
 
-def find_contained_source_duplicates(entries, source_text):
+def find_contained_source_duplicates(entries, source_text, *, source_normalized=None):
     """Reject proven excess quotation copies; never delete or trust greedy mapping.
 
     Compare distinct whole-token source occurrences with quoted occurrences in
@@ -255,7 +255,6 @@ def find_contained_source_duplicates(entries, source_text):
         return [_finding("manual_review", "contained_duplicate_budget_exhausted",
                          "Quotation provenance input exceeded its size budget; review without deleting text.",
                          [], character_budget=4000000)]
-    source = canonical(source_text)
     texts = [canonical(e.get("text")) if isinstance(e, dict) else "" for e in entries]
     character_rows = {i for i, e in enumerate(entries) if isinstance(e, dict)
                       and str(e.get("speaker") or e.get("type") or "").casefold()
@@ -268,6 +267,10 @@ def find_contained_source_duplicates(entries, source_text):
     needles = list(dict.fromkeys(texts[i] for i in sorted(character_rows) if texts[i]))
     if not needles:
         return []
+    # Reuse the audit word view unless apostrophe joining needs a different view.
+    source = (source_normalized if source_normalized is not None
+              and not re.search(r"(?<=\w)['’](?=\w)", source_text)
+              else canonical(source_text))
     transitions, failure, terminal, suffix = [{}], [0], [None], [0]
     lengths = []
     for ident, needle in enumerate(needles):
@@ -628,7 +631,8 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
     exact_findings = find_adjacent_duplicate_blocks(
         texts, source_text, source_normalized=source_normalized, count_phrase=count_phrase)
     findings.extend(exact_findings)
-    findings.extend(find_contained_source_duplicates(entries, source_text))
+    findings.extend(find_contained_source_duplicates(
+        entries, source_text, source_normalized=source_normalized))
     findings.extend(find_adjacent_near_duplicate_entries(
         texts, source_text, exact_findings=exact_findings,
         source_normalized=source_normalized, count_phrase=count_phrase))
