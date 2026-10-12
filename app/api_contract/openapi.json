@@ -316,6 +316,11 @@
             "title": "Collision Policy",
             "type": "string"
           },
+          "literal_source_preserving": {
+            "default": false,
+            "title": "Literal Source Preserving",
+            "type": "boolean"
+          },
           "strip_front_matter": {
             "default": true,
             "title": "Strip Front Matter",
@@ -1212,6 +1217,11 @@
               }
             ],
             "title": "First Person Narrator"
+          },
+          "literal_source_preserving": {
+            "default": false,
+            "title": "Literal Source Preserving",
+            "type": "boolean"
           },
           "start_over": {
             "default": false,

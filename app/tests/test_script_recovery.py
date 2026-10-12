@@ -311,7 +311,7 @@ class GenerateScriptStateTests(unittest.TestCase):
             book.write_text('Selected source text.', encoding='utf-8')
             payload = json.dumps({'input_file_path': str(book), 'custom': {'keep': True}}).encode()
             state.write_bytes(payload)
-            options = {'strip_front_matter': False, 'first_person_narrator': 'Watson', 'start_over': True}
+            options = {'strip_front_matter': False, 'literal_source_preserving': False, 'first_person_narrator': 'Watson', 'start_over': True}
             response = client.post('/api/generate_script', json=options)
             self.assertEqual(200, response.status_code, response.text)
             dispatch.assert_called_once()

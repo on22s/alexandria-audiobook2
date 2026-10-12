@@ -15,6 +15,7 @@ const ctx={window:null,currentBookFilename:'book.txt',currentIsRemote:false,fail
  loadVoices:async()=>({refreshedResources:['/api/voice_design/list','/api/clone_voices/list'],failedResources:[]}),refreshVoiceMetadata:async()=>{},renderVoiceSuggestions:()=>{},loadChapterExports:()=>{},setTimeout:()=>1};ctx.window=ctx;
 vm.createContext(ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);const run=code=>vm.runInContext(code,ctx);
 function load(start,end){const a=core.indexOf(start),b=core.indexOf(end,a);assert(a>=0&&b>a);run(core.slice(a,b));}
+load('function _isLiteralSourcePreservingChecked(', 'function _isStripFrontMatterChecked(');
 load('function escapeHtml(', '// Parse a numeric input');load('async function confirmIfRemote(', '// navigator.clipboard');
 if(core.includes('const taskStartButtons =')){load('const taskStartButtons =','// --- API Helpers ---');}
 load('function getTaskLogUpdate(', '// --- Setup Tab ---');

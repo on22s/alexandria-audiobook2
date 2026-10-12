@@ -17,7 +17,7 @@ function client(phase){
  showToast:(message,tone)=>toasts.push({message,tone}),showConfirm:async message=>{confirmation.push(message);return phase==='confirm'?await gate.promise:true;},_pollScriptBatchLogs:()=>polls++,API:{
  upload:async file=>{uploads.push(file.name);if(phase==='upload'){await gate.promise;}return {stored_filename:file.name};},
  post:async(url,data)=>{requests.push({url,data:JSON.parse(JSON.stringify(data))});if(url.endsWith('/preflight')){if(phase==='preflight'){await gate.promise;}return preflight;}if(url.endsWith('/start')&&phase==='start'){await gate.promise;}return{};}
- }};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),ctx);
+ }};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function _isLiteralSourcePreservingChecked('),source.indexOf('function _isStripFrontMatterChecked(')),ctx);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),ctx);
  const admissionStart=source.indexOf('async function ensureScriptStartConfirmed(');if(admissionStart>=0){vm.runInContext(source.slice(admissionStart,source.indexOf('// navigator.clipboard',admissionStart)),ctx);}
  vm.runInContext('let scriptBatchQueue=[{file:{name:"one.txt"}}];'+source.slice(source.indexOf('async function cancelTask('),source.indexOf('// Same "unknown error" fallback'))+
  source.slice(source.includes('let scriptBatchStartOperation =')?source.indexOf('let scriptBatchStartOperation ='):source.indexOf('window.cancelBatchScript ='),source.indexOf('        loadExistingScriptUploads();',source.indexOf('async function _startBatchScript()'))),ctx);

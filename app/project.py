@@ -22,6 +22,8 @@ from utils import (atomic_json_write, safe_load_json, is_oom_failure, is_path_in
                    get_app_config_path, is_nonverbal_text, secure_filename, file_lock)
 from chunk_status_journal import ChunkStatusJournal, get_chunk_status_journal_path
 from config_settings import load_app_config
+from literal_policy import (ensure_literal_narration, bind_literal_chunks,
+                            ensure_literal_chunk, CHUNK_POLICY_KEY)
 from audio_validation import publish_audio_output, remove_stale_audio, validate_generated_audio
 from tts import (
     TTSEngine,
@@ -45,7 +47,7 @@ NARRATOR_GENERATION_FIELDS = (
     "narrator_gender", "focus_gender", "narrator_age_group", "focus_age_group")
 CHUNK_GENERATION_FIELDS = (
     "text", "speaker", "instruct", *NARRATOR_GENERATION_FIELDS,
-    "character_style", "default_style", "style_timeline", "voice_revision")
+    "character_style", "default_style", "style_timeline", "voice_revision", CHUNK_POLICY_KEY)
 GENERATION_INPUTS_CHANGED = "Chunk removed or generation inputs changed during generation"
 
 
@@ -255,6 +257,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
     """Group consecutive entries by same speaker into chunks up to max_chars"""
     if not isinstance(max_chars, int) or isinstance(max_chars, bool) or max_chars < 1:
         raise ValueError("max_chars must be a positive integer")
+    literal_policy = ensure_literal_narration(script_entries)
     if include_source_indices:
         script_entries = [{**entry, "_source_entry_indices": [index]}
                           for index, entry in enumerate(script_entries)]
@@ -322,7 +325,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
             bounded.append(piece)
             remaining = remaining[cut:]
         bounded.append({**chunk, "text": remaining})
-    return bounded
+    return bind_literal_chunks(bounded, literal_policy)
 
 logger = logging.getLogger(__name__)
 
@@ -463,6 +466,9 @@ class ProjectManager:
         self._config_cache = None
         self._config_mtime = None
         self._config_lock = threading.Lock()
+        self._literal_policy_lock = threading.Lock()
+        self._literal_script_version = None
+        self._literal_script_policy = None
 
     def invalidate_config_cache(self):
         """Force the next config read to reload config.json from disk."""
@@ -951,11 +957,36 @@ class ProjectManager:
         chunks = self.load_chunks()
         if not (0 <= index < len(chunks)):
             return False, "Invalid chunk index"
+        self.ensure_literal_render_inputs(chunks, [index])
         return self._generate_captured_chunk_audio(index, copy.deepcopy(chunks[index]))
+
+    def ensure_literal_render_inputs(self, chunks, indices):
+        def version():
+            try:
+                stat = os.stat(self.script_path)
+                return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+            except FileNotFoundError:
+                return None
+        with self._literal_policy_lock:
+            current = version()
+            if current != self._literal_script_version:
+                script = safe_load_json(self.script_path)
+                policy = ensure_literal_narration(script) if isinstance(script, list) else None
+                if current != version():
+                    raise ValueError("Narration script changed during literal admission")
+                self._literal_script_policy = policy
+                self._literal_script_version = current
+            policy = self._literal_script_policy
+        for index in indices:
+            if 0 <= index < len(chunks):
+                if policy is None and CHUNK_POLICY_KEY in chunks[index]:
+                    raise ValueError("Literal chunks have no matching source-policy script")
+                ensure_literal_chunk(chunks[index], policy)
 
     def _generate_captured_chunk_audio(self, index, chunk):
         if not chunk:
             return False, "Invalid chunk index"
+        ensure_literal_chunk(chunk)
         updated = self._update_chunk_fields_by_uid(
             chunk.get("uid"), expected_chunk=chunk, status="generating", error=None)
         if updated is None:
@@ -1785,6 +1816,7 @@ class ProjectManager:
         if chunks:
             indices = [i for i in indices if 0 <= i < len(chunks) and chunks[i].get("text", "").strip()]
 
+        self.ensure_literal_render_inputs(chunks, indices)
         captured = get_chunk_generation_requests(chunks, indices)
         total = len(indices)
 
@@ -2050,6 +2082,7 @@ class ProjectManager:
         if chunks:
             indices = [i for i in indices if 0 <= i < len(chunks) and chunks[i].get("text", "").strip()]
 
+        self.ensure_literal_render_inputs(chunks, indices)
         captured = get_chunk_generation_requests(chunks, indices)
         total = len(indices)
 

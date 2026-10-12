@@ -524,6 +524,9 @@ def build_attribute_request(frozen_batch, params, roster,
         sys_prompt = params.system_prompt
     if params.user_prompt_template:
         usr_template = params.user_prompt_template
+    if getattr(params, "literal_source_preserving", False):
+        from literal_prompts import get_literal_system_prompt
+        sys_prompt = get_literal_system_prompt(sys_prompt)
     neighbor_contexts = neighbor_contexts or [{} for _ in frozen_batch]
     batch_json = json.dumps([
         {"n": i, "type": e["type"], "text": e["text"], **neighbor_contexts[i]}
@@ -784,6 +787,9 @@ def build_instruct_request(prior_batch, params, neighbor_contexts=None):
         usr_template = params.instruct_user_prompt_template
     elif params.user_prompt_template:
         usr_template = params.user_prompt_template
+    if getattr(params, "literal_source_preserving", False):
+        from literal_prompts import get_literal_system_prompt
+        sys_prompt = get_literal_system_prompt(sys_prompt)
     neighbor_contexts = neighbor_contexts or [{} for _ in prior_batch]
     batch_json = json.dumps([
         {"n": i, "speaker": e["speaker"], "text": e["text"], **neighbor_contexts[i]}
@@ -992,10 +998,20 @@ def apply_segment_gate_controls(system_prompt, params):
 
 def validate_segment_for_params(source_text, entries, params, quote_analysis=None):
     """Run pass 1's fidelity gate with the current quote controls."""
-    return validate_segment_quality(
+    quality = validate_segment_quality(
         source_text, entries, quote_analysis=quote_analysis,
         quoted_must_be_spoken=params.quoted_must_be_spoken,
         unquoted_must_be_narrator=params.unquoted_must_be_narrator)
+    if getattr(params, "literal_source_preserving", False):
+        from literal_fidelity import audit_literal_words
+        literal = audit_literal_words(source_text, entries)
+        quality["literal_source_fidelity"] = literal
+        if not literal["passed"]:
+            quality["findings"].append({"code": "literal_source_word_mismatch",
+                                        "message": "Segmentation changed ordered source words.",
+                                        "details": literal})
+            quality["passed"] = False
+    return quality
 
 
 def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
@@ -1094,6 +1110,9 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4,
     elif params.user_prompt_template:
         usr_template = params.user_prompt_template
     sys_prompt = apply_segment_gate_controls(sys_prompt, params)
+    if getattr(params, "literal_source_preserving", False):
+        from literal_prompts import get_literal_system_prompt
+        sys_prompt = get_literal_system_prompt(sys_prompt)
     user_prompt = usr_template.format(chunk=chunk)
     quote_analysis = (classify_lexical_quote_regions(
         chunk, analyze_outer_quote_regions(chunk))
@@ -1511,6 +1530,7 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
                                  "max_output_tokens": settings.get("profile_output_ceiling")}, context_length)
     context_length = limits["context_length"]
     params = params or LLMGenParams(
+        literal_source_preserving=settings.get("literal_source_preserving", False),
         max_tokens=settings["max_tokens"], context_length=context_length,
         max_input_tokens=limits["max_input_tokens"],
         hard_max_tokens=limits["max_output_tokens"] or resolve_hard_max_tokens(settings["max_tokens"]),
@@ -1557,6 +1577,9 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     if params.segment_system_prompt:
         segment_system = params.segment_system_prompt
     segment_system = apply_segment_gate_controls(segment_system, params)
+    if getattr(params, "literal_source_preserving", False):
+        from literal_prompts import get_literal_system_prompt
+        segment_system = get_literal_system_prompt(segment_system)
     if params.segment_user_prompt_template:
         segment_template = params.segment_user_prompt_template
     # Pass 1 re-emits the chunk verbatim, so its output grows with the chunk.
@@ -1710,6 +1733,9 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
     elif params.system_prompt:
         sys_prompt = params.system_prompt
     sys_prompt = apply_segment_gate_controls(sys_prompt, params)
+    if getattr(params, "literal_source_preserving", False):
+        from literal_prompts import get_literal_system_prompt
+        sys_prompt = get_literal_system_prompt(sys_prompt)
     user_prompt = _CONTEXT_SEGMENT_USER.format(before=before or "(start of book)",
                                                after=after or "(end of book)",
                                                chunk=chunk)
@@ -1804,6 +1830,9 @@ def rescue_chunk_with_context(client, model_name, chunks, index, params,
     elif params.system_prompt:
         sys_prompt = params.system_prompt
     sys_prompt = apply_segment_gate_controls(sys_prompt, params)
+    if getattr(params, "literal_source_preserving", False):
+        from literal_prompts import get_literal_system_prompt
+        sys_prompt = get_literal_system_prompt(sys_prompt)
     overhead_chars = len(sys_prompt) + len(_CONTEXT_SEGMENT_USER)
     best_near_miss = []  # holds the single best [(entries, quality)] seen so far
     for window in windows:
@@ -1963,6 +1992,9 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
                  list(load_instruct_prompts())), [])).encode("utf-8")).hexdigest(),
     }
     if params is not None:
+        if getattr(params, "literal_source_preserving", False):
+            settings["literal_source_preserving"] = "literal_words_v1"
+            settings["literal_prompt_policy"] = "literal_prompts_v1"
         settings.update({name: getattr(params, name, None) for name in (
             "system_prompt", "attribute_system_prompt", "user_prompt_template",
             "max_tokens", "temperature", "seed", "reasoning_effort",
@@ -2159,6 +2191,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         if params.attribute_system_prompt and not texts.get("system"):
             # the narrator prior was folded into params by main(); keep it
             texts["system"] = params.attribute_system_prompt
+        if getattr(params, "literal_source_preserving", False):
+            from literal_prompts import get_literal_system_prompt
+            texts["system"] = get_literal_system_prompt(texts.get("system") or params.attribute_system_prompt or load_attribute_prompts()[0])
         entries_provider = make_provider(attribute_prompt_variant or "default",
                                          alias_groups=(cast or {}).get("alias_groups"),
                                          texts=texts or None)
@@ -2761,6 +2796,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         diagnostic_failures.append({
             "pass": "dialogue_map", "reason": type(exc).__name__,
             "error": str(exc)[:500]})
+    if getattr(params, "literal_source_preserving", False) and not diagnostic_failures:
+        from literal_policy import bind_literal_policy
+        annotated = bind_literal_policy(source_text, annotated)
     save("done")
     emit_manifest("incomplete" if diagnostic_failures or unavailable_passes
                   else "complete")
@@ -3104,6 +3142,8 @@ def main():
     parser.add_argument("--collect-all-failures", action="store_true",
                         help="Diagnostic mode: record exhausted work, continue, "
                              "write only a .partial.json result, and exit nonzero.")
+    parser.add_argument("--literal-source-preserving", action="store_true",
+                        help="Preserve ordered source words; keep speech expansion in speech preparation.")
     args = parser.parse_args()
     if args.preflight and args.collect_all_failures:
         parser.error("--collect-all-failures cannot be combined with --preflight")
@@ -3117,6 +3157,10 @@ def main():
     except ValueError as exc:
         parser.error(str(exc))
 
+    input_source_sha256 = None
+    if args.literal_source_preserving:
+        from generation_completion import get_file_sha256
+        input_source_sha256 = get_file_sha256(args.input_file)
     try:
         book, unicode_report = get_prepared_source(
             args.input_file, args.strip_front_matter, report=print)
@@ -3184,6 +3228,7 @@ def main():
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
     print(heal_msg)
     params = get_three_pass_run_params(config, lm_status, args.reasoning_effort, generation_settings)
+    params.literal_source_preserving = args.literal_source_preserving
     generation_settings.update({
         "segment_system_prompt": params.segment_system_prompt,
         "segment_user_prompt_template": params.segment_user_prompt_template,
@@ -3295,6 +3340,14 @@ def main():
         print(f"Diagnostic run found {len(manifest.get('diagnostic_failures', []))} "
               f"failure(s); wrote {len(entries)} successful entries to {partial_path}")
         sys.exit(1)
+    if args.literal_source_preserving:
+        from literal_policy import bind_literal_policy
+        from generation_completion import get_file_sha256
+        if get_file_sha256(args.input_file) != input_source_sha256:
+            raise ValueError("Source input changed during literal annotation; refusing publication")
+        entries = bind_literal_policy(book, entries,
+            input_sha256=input_source_sha256,
+            strip_front_matter=args.strip_front_matter)
     # Dialogue mapping already ran inside run_three_pass before the final
     # checkpoint and manifest were written.
     atomic_json_write(entries, output_path)

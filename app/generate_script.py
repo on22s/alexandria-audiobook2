@@ -171,6 +171,8 @@ def get_generation_fingerprint(source_text, chunks, model_name, base_url, params
         settings["max_input_tokens"] = params.max_input_tokens
     from llm_request_budget import get_task_output_fingerprint
     settings.update(get_task_output_fingerprint(params))
+    if getattr(params, "literal_source_preserving", False):
+        settings["literal_source_preserving"] = "literal_words_v1"
     output_format = getattr(params, "output_format", "json") or "json"
     if output_format != "json":
         settings["output_format"] = output_format
@@ -677,6 +679,8 @@ class LLMGenParams:
     task_hard_max_tokens: int = None
     # A request-specific safety ceiling survives serving-profile switches.
     request_output_ceiling: int = None
+    # Explicit literal annotation policy; default speech transformations unchanged.
+    literal_source_preserving: bool = False
 
 
 
@@ -1612,7 +1616,7 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
             log_name="llm_responses.log",
             label=f"CHUNK {chunk_num}/{total_chunks} stage2",
             max_retries=retries,
-            validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
+            validate_entries=lambda entries: validate_chunk_quality(chunk, entries, literal_source_preserving=params.literal_source_preserving),
             transform_entries=prepare_entries,
             attempt_observer=observe,
             codec=codec)
@@ -1625,7 +1629,7 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
             log_name="llm_responses.log",
             label=f"CHUNK {chunk_num}/{total_chunks}",
             max_retries=retries,
-            validate_entries=lambda entries: validate_chunk_quality(chunk, entries),
+            validate_entries=lambda entries: validate_chunk_quality(chunk, entries, literal_source_preserving=params.literal_source_preserving),
             transform_entries=prepare_entries,
             attempt_observer=observe,
             codec=codec,
@@ -1765,7 +1769,7 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
                 salvaged = []
                 break
         if salvaged and used_near_miss:
-            salvaged_quality = validate_chunk_quality(chunk, salvaged)
+            salvaged_quality = validate_chunk_quality(chunk, salvaged, literal_source_preserving=params.literal_source_preserving)
             # PASSING IS THE BEST CASE, not a disqualification. An earlier
             # version asked only is_trigram_only_near_miss, which requires
             # `not passed` - so a rebuild that cleared 0.90 outright was thrown
@@ -1780,7 +1784,7 @@ def process_chunk_adaptively(client, model_name, chunk, chunk_num, total_chunks,
                 return salvaged, True
         _report_near_miss(near_miss, near_miss_out)
         return _accept_near_miss(near_miss, chunk_num, total_chunks), True
-    combined_quality = validate_chunk_quality(chunk, combined)
+    combined_quality = validate_chunk_quality(chunk, combined, literal_source_preserving=params.literal_source_preserving)
     if not combined_quality["passed"]:
         # The recombined halves clear the 0.90 gate for most split recoveries.
         # When they instead land as a whole-chunk trigram-only near-miss - the
@@ -1834,6 +1838,8 @@ def _accept_near_miss(near_miss, chunk_num, total_chunks):
 def main():
     parser = argparse.ArgumentParser(description="Generate annotated script from a book file.")
     parser.add_argument("input_file", help="Path to the input text/epub file")
+    parser.add_argument("--literal-source-preserving", action="store_true",
+                        help="Require ordered literal source words; defer speech expansions to speech preparation.")
     parser.add_argument("--output", default=None, help="Output JSON path (default: ../annotated_script.json)")
     parser.add_argument("--model", default=None, help="Generation model for this run; config.json is unchanged.")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction, default=True,
@@ -1985,6 +1991,9 @@ def main():
     prompts_config = config.get("prompts") or {}
     system_prompt = prompts_config.get("system_prompt") or DEFAULT_SYSTEM_PROMPT
     user_prompt_template = prompts_config.get("user_prompt") or DEFAULT_USER_PROMPT
+    if args.literal_source_preserving:
+        from literal_prompts import ANNOTATION_SYSTEM, ANNOTATION_USER
+        system_prompt, user_prompt_template = ANNOTATION_SYSTEM, ANNOTATION_USER
 
     # WHO IS NARRATING. On two weak first-person PDNC books this took
     # attribution from 61.7% to 79.4% over 720 gold rows, and generation has
@@ -2095,6 +2104,7 @@ def main():
         print("Output format: lines (SPEAKER|INSTRUCT|TEXT)")
 
     gen_params = LLMGenParams(
+        literal_source_preserving=args.literal_source_preserving,
         task_max_tokens=max_tokens, task_hard_max_tokens=LLMGenParams.hard_max_tokens,
         max_input_tokens=limits["max_input_tokens"],
         hard_max_tokens=limits["max_output_tokens"] or LLMGenParams.hard_max_tokens,
@@ -2176,7 +2186,7 @@ def main():
                   "preserving existing output and validated checkpoint")
             sys.exit(1)
 
-        quality = validate_chunk_quality(chunk, entries)
+        quality = validate_chunk_quality(chunk, entries, literal_source_preserving=gen_params.literal_source_preserving)
         # process_chunk_adaptively only ever returns entries that either pass the
         # 0.90 gate or are an exhaustion-time trigram-only near-miss. Re-check the
         # same condition here (Rule 15) before committing: a hard failure still
@@ -2245,7 +2255,7 @@ def main():
             print("Dialogue map: no convention detected; entries left unmarked")
     except Exception as exc:                              # noqa: BLE001
         print(f"WARNING: dialogue map failed, entries left unmarked: {str(exc)[:160]}")
-    whole_quality = validate_chunk_quality(book_content, all_entries)
+    whole_quality = validate_chunk_quality(book_content, all_entries, literal_source_preserving=gen_params.literal_source_preserving)
     preflight = audit_script(all_entries, book_content, is_generic_speaker)
     identity_review = stabilize_speaker_identities(all_entries)["review"]
     final_manifest = build_generation_quality_manifest(
@@ -2270,6 +2280,11 @@ def main():
         print("Error: final whole-book quality gate failed; preserving existing output and checkpoint")
         sys.exit(1)
 
+    if gen_params.literal_source_preserving:
+        from literal_policy import bind_literal_policy
+        all_entries = bind_literal_policy(book_content, all_entries,
+            input_sha256=input_sha256, strip_front_matter=args.strip_front_matter)
+        final_manifest["literal_source_policy"] = all_entries[0]["_literal_source_policy"]
     publish_completed_generation(output_path, all_entries, final_manifest,
                                  input_file_path, input_sha256)
     clear_generation_checkpoint(output_path)

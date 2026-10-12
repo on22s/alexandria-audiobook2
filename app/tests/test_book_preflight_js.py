@@ -24,7 +24,7 @@ const elements={}; for(const id of ['book-preflight-result','btn-book-preflight'
 elements['upload-status']={innerHTML:'text-success'};
 const posts=[],toasts=[]; let poll;
 const ctx={currentBookFilename:'book.txt',document:{getElementById:id=>elements[id]},escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),confirmIfRemote:async()=>true,_isStripFrontMatterChecked:()=>false,showToast:s=>toasts.push(s),API:{post:async(url,data)=>{posts.push({url,data});return{...receipt,status:'running'};},get:async()=>receipt},_startPolling:(key,fetch,options)=>{assert.strictEqual(key,'book_preflight');poll={fetch,options};}};
-ctx.window=ctx;vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
+ctx.window=ctx;vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);run(source.slice(source.indexOf('function _isLiteralSourcePreservingChecked('),source.indexOf('function _isStripFrontMatterChecked(')));
 run(source.slice(source.indexOf('let bookPreflightJob ='),source.indexOf('// End book-preflight controls.')));
 '''
         result = subprocess.run(['node', '-e', harness + extra, str(source), json.dumps(receipt)],capture_output=True,text=True,timeout=15)

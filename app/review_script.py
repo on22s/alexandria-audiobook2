@@ -20,6 +20,9 @@ from completed_review_receipt import (get_review_entries_fingerprint,
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
+from literal_policy import (get_literal_policy, ensure_literal_narration,
+                            retain_literal_policy, SCRIPT_POLICY_KEY)
+from literal_fidelity import audit_literal_words
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_current_status, get_effective_max_tokens)
 from lmstudio_settings import get_failover_llm_config
@@ -178,7 +181,8 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         profiles[-1]['resolved_api_key'] = resolve_api_key(profile.get('api_key'))
     identity = {'algorithm': 1, 'profiles': profiles,
         'model_binding': get_run_model_binding(client, model_name),
-        'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare},
+        'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare
+                   and (field.name != 'literal_source_preserving' or params.literal_source_preserving)},
         'context_window': args.context_window, 'dedupe_speakers': args.dedupe_speakers,
         'merge_narrators': (config.get('generation') or {}).get('merge_narrators', False),
         'batch_size': (config.get('generation') or {}).get('review_batch_size', 25),
@@ -216,6 +220,9 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
     if not isinstance(data, dict):
         print("Invalid review checkpoint shape - starting fresh.")
         return None
+    if data.get("literal_source_policy") != get_literal_policy(entries):
+        print("Review checkpoint literal-source policy changed - starting fresh.")
+        return None
     if (data.get("batch_size") != batch_size or
             data.get("context_window") != context_window):
         print("Found a review checkpoint but parameters changed - starting fresh.")
@@ -239,6 +246,15 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
             or offsets != sorted(offsets)):
         print("Invalid review checkpoint source offsets - starting fresh.")
         return None
+    if get_literal_policy(entries) is not None and (
+            data["completed_batches"] or data["all_corrected"]):
+        end = ((offsets[-1] if offsets else data["completed_batches"] * batch_size)
+               if _entries_fingerprint(entries) == data.get("source_sha256")
+               else len(data["all_corrected"]))
+        prefix = " ".join(entry.get("text", "") for entry in entries[:end])
+        if not audit_literal_words(prefix, data["all_corrected"])["passed"]:
+            print("Literal review checkpoint changed narration - starting fresh.")
+            return None
     if data.get("total_batches") != total_batches:
         print("Note: entry count changed since the checkpoint was saved "
               "(earlier batches added/removed entries) - resuming from the "
@@ -280,7 +296,8 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
 def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
                      context_window, all_corrected, total_stats, previous_tail,
                      batch_lengths, failed_batches, source_sha256,
-                     output_sha256=None, writer=None, source_offsets=None):
+                     output_sha256=None, writer=None, source_offsets=None,
+                     literal_policy=None):
     path = _checkpoint_path(output_path)
     data = {
         "completed_batches": completed_batches,
@@ -297,6 +314,8 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
         "source_offsets": list(source_offsets) if source_offsets is not None else
                           [(index + 1) * batch_size for index in range(completed_batches)],
     }
+    if literal_policy is not None:
+        data["literal_source_policy"] = literal_policy
     # Use atomic_json_write for consistent cross-platform behavior with Windows retry logic
     try:
         if writer is not None:
@@ -689,6 +708,10 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     request_params = replace(params, request_admission=ensure_secondary_admission)
     sys_prompt = params.system_prompt or REVIEW_SYSTEM_PROMPT
     usr_template = params.user_prompt_template or REVIEW_USER_PROMPT
+    literal = params.literal_source_preserving or get_literal_policy(batch_entries) is not None
+    if literal:
+        from literal_prompts import REVIEW_SYSTEM, REVIEW_USER
+        sys_prompt, usr_template = REVIEW_SYSTEM, REVIEW_USER
 
     # Build context
     context_parts = []
@@ -704,7 +727,8 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
         context_parts.append(f"\nADDITIONAL REVIEW CONTEXT:\n{source_context}")
 
     context = "\n".join(context_parts)
-    batch_json = json.dumps(batch_entries, indent=2, ensure_ascii=False)
+    batch_json = json.dumps([{k: v for k, v in e.items() if k != SCRIPT_POLICY_KEY}
+                             for e in batch_entries], indent=2, ensure_ascii=False)
     user_prompt = usr_template.format(context=context, batch=batch_json)
 
     def validate_review_entries(entries):
@@ -732,7 +756,13 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
             " ".join(str(entry.get("text", "")).split())
             for entry in entries if isinstance(entry, dict)
         ).strip()
-        if reviewed_text != original_text:
+        if literal:
+            audit = audit_literal_words(original_text, entries)
+            if not audit["passed"]:
+                findings.append({"code": "literal_source_word_mismatch",
+                                 "message": "Review changed ordered narration words.",
+                                 "details": audit})
+        elif reviewed_text != original_text:
             findings.append({
                 "code": "review_text_mismatch",
                 "message": (
@@ -992,6 +1022,7 @@ def main():
             sys.exit(1)
 
     print(f"Loaded {len(entries)} script entries for review")
+    literal_policy = ensure_literal_narration(entries)
 
     # Load config
     config_path = get_app_config_path(data_dir, root, app_dir)
@@ -1009,6 +1040,10 @@ def main():
     review_sys = prompts_config.get("review_system_prompt") or REVIEW_SYSTEM_PROMPT
     review_usr = prompts_config.get("review_user_prompt") or REVIEW_USER_PROMPT
 
+    if literal_policy is not None:
+        from literal_prompts import REVIEW_SYSTEM, REVIEW_USER
+        review_sys, review_usr = REVIEW_SYSTEM, REVIEW_USER
+
     generation_config = config.get("generation") or {}
     batch_size = generation_config.get("review_batch_size", 25)
     if not isinstance(batch_size, int) or isinstance(batch_size, bool) or batch_size < 1:
@@ -1023,6 +1058,7 @@ def main():
 
     # Constant across every batch in both review modes - build once.
     gen_params = LLMGenParams(
+        literal_source_preserving=literal_policy is not None,
         system_prompt=review_sys,
         user_prompt_template=review_usr,
         max_tokens=max_tokens,
@@ -1183,7 +1219,7 @@ def main():
                     batch_index, start, len(batch), "review_failed"))
                 save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy)
                 continue
 
             passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.05)
@@ -1200,7 +1236,7 @@ def main():
                     batch_index, start, len(batch), "text_length_mismatch", ratio))
                 save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy)
                 continue
 
             stats = diff_entries(batch, corrected, highlight_pool, entry_offset=start)
@@ -1228,7 +1264,7 @@ def main():
             batch_lengths.append(len(corrected))
             save_checkpoint(output_path, batch_index, total_batches, batch_size,
                             args.context_window, all_corrected, total_stats, previous_tail,
-                            batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
+                            batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy)
     else:
         total_batches_estimate = (len(entries) + batch_size - 1) // batch_size if entries else 0
         print(f"Split into {total_batches_estimate} batches of ~{batch_size} entries")
@@ -1305,7 +1341,7 @@ def main():
                     previous_tail = batch[-2:] if len(batch) >= 2 else batch
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy)
                     continue
 
                 if corrected is None:
@@ -1320,7 +1356,7 @@ def main():
                         i, entry_start - 1, len(batch), "review_failed"))
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy)
                     continue
 
                 # Text-loss safety check (same bounds as contextual mode for consistency)
@@ -1339,7 +1375,7 @@ def main():
                         i, entry_start - 1, len(batch), "text_length_mismatch", ratio))
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy)
                     continue
 
                 # Diff stats
@@ -1369,7 +1405,7 @@ def main():
                 batch_lengths.append(len(corrected))
                 save_checkpoint(output_path, i, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets)
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy)
 
             if vram_abort.is_set():
                 # Some batches in this wave may have already succeeded before
@@ -1388,6 +1424,8 @@ def main():
         if not wait_for_vram_headroom():
             vram_aborted = True
 
+    if literal_policy is not None:
+        ensure_literal_narration(all_corrected + unreviewed_remainder, literal_policy)
     # Keep incomplete output in the exact layout described by its checkpoint.
     # Post-processing runs only after all batches have completed successfully.
     review_complete = not vram_aborted and not failed_batches
@@ -1425,12 +1463,13 @@ def main():
             print("No duplicate character names found.")
 
     output_entries = all_corrected + unreviewed_remainder
+    output_entries = retain_literal_policy(output_entries, literal_policy)
 
     if not review_complete:
         save_checkpoint(output_path, len(batch_lengths), total_batches, batch_size,
                         args.context_window, all_corrected, total_stats, previous_tail,
                         batch_lengths, failed_batches, source_sha256,
-                        _entries_fingerprint(output_entries), writer=checkpoint_writer, source_offsets=source_offsets)
+                        _entries_fingerprint(output_entries), writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy)
 
     # Write corrected script atomically so a crash mid-write doesn't corrupt the output
     atomic_json_write(output_entries, output_path)

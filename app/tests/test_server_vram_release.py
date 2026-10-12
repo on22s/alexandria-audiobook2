@@ -55,7 +55,7 @@ class ServerVramReleaseTests(unittest.TestCase):
             'if policy!="unknown":print("GPU[0] : VRAM Total Used Memory (B): "+str(1073741824 if policy=="release" and n>=3 else 2147483648 if policy=="release" and n==2 else 6442450944))\n')
         executable(bin_dir/'rocm-smi','#!/bin/bash\nexec '+sys.executable+' "'+str(telemetry)+'"\n')
         env={**os.environ,'PATH':str(bin_dir)+os.pathsep+os.environ['PATH'],'FIXTURE_ROOT':str(root),
-             'HOME':str(root),'GPU_LOCK':str(root/'gpu.lock'),'MANAGED_SERVER_STOP_GRACE':'1','MANAGED_SERVER_PYTHON':sys.executable,'FIXTURE_PORT':str(port),
+             'HOME':str(root),'GPU_LOCK':str(root/'gpu.lock'),'MANAGED_SERVER_STOP_GRACE':'1','MANAGED_SERVER_PYTHON':sys.executable,'FIXTURE_PORT':str(port),'LLAMA_PORT':str(port),
              'VRAM_POLICY':policy,'IGNORE_TERM':'1' if ignored else '0','WORKER_RC':str(worker_rc),
              'ALEXANDRIA_QWEN3_MODEL':str(model),'LLAMA_BIN':str(root/'fake-server'),'STAGE_VRAM_WAIT':'9' if policy=='release' else '6'}
         return script,env

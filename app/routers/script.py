@@ -31,7 +31,7 @@ from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
 from speaker_identity import get_validated_alias_graph
 from llm_provider import manual_llm_dir
@@ -920,6 +920,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
 
 class GenerateScriptRequest(BaseModel):
     strip_front_matter: bool = True
+    literal_source_preserving: StrictBool = False
     first_person_narrator: Optional[str] = None
     # Discard the saved progress for this book and begin at chunk 1. Without
     # it a run on the same text with the same settings resumes where it
@@ -1128,7 +1129,8 @@ def build_generate_script_command(input_file: str, output_path: Optional[str] = 
                                   strip_front_matter: bool = True,
                                   first_person_narrator: Optional[str] = None,
                                   reasoning_effort: Optional[str] = None,
-                                  cast_file: Optional[str] = None) -> List[str]:
+                                  cast_file: Optional[str] = None,
+                                  literal_source_preserving: bool = False) -> List[str]:
     """Build the one production command used by single and batch generation.
 
     `reasoning_effort` is passed explicitly so three_pass_generate records it
@@ -1147,6 +1149,10 @@ def build_generate_script_command(input_file: str, output_path: Optional[str] = 
         command.extend(["--first-person-narrator", narrator])
     if cast_file:
         command.extend(["--cast-file", cast_file])
+    if type(literal_source_preserving) is not bool:
+        raise ValueError("literal_source_preserving must be a boolean")
+    if literal_source_preserving:
+        command.append("--literal-source-preserving")
     return command
 
 
@@ -1290,6 +1296,8 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                 "first_person_narrator": options["first_person_narrator"]})
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if request is not None and getattr(request, "literal_source_preserving", False):
+        options["literal_source_preserving"] = True
     if not require_recovery:
         try:
             refusal = three_pass_refusal([{
@@ -1302,6 +1310,8 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
     if require_recovery:
         stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
         stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
+        if stored.get("literal_source_preserving") is True:
+            options["literal_source_preserving"] = True
         options["cast_sha256"] = stored.get("cast_sha256")
         if options["cast_sha256"] and get_file_sha256(get_run_cast_path()) != options["cast_sha256"]:
             raise HTTPException(status_code=409, detail=(
@@ -1318,6 +1328,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             first_person_narrator=options["first_person_narrator"],
             reasoning_effort=get_active_reasoning_effort(),
             cast_file=get_run_cast_path() if uses_cast else None,
+            **({"literal_source_preserving": True} if options.get("literal_source_preserving") else {}),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -2184,6 +2195,7 @@ class BatchScriptRequest(BaseModel):
     tasks: List[BatchScriptTask] = Field(max_length=MAX_SCRIPT_BATCH_ITEMS)
     collision_policy: Literal["cancel", "version", "replace"] = "cancel"
     strip_front_matter: bool = True
+    literal_source_preserving: StrictBool = False
     # Build a whole-book cast list for each book that has none before
     # generating it (#653). Off by default: one extra request per book.
     build_cast_lists: bool = False
@@ -2287,6 +2299,8 @@ def get_batch_script_sizing_identity(text, settings, context_windows, context_le
 
 def get_batch_script_source_preflight(job, text, settings, context, context_windows):
     """Reuse this request's sizing summary only while its inputs still match."""
+    if job.get("literal_source_preserving"):
+        settings = {**settings, "literal_source_preserving": True}
     receipt = (job.get("prepared_source") or {}).get("preflight")
     if receipt and receipt["identity"] == get_batch_script_sizing_identity(
             text, settings, context_windows, context):
@@ -2507,6 +2521,7 @@ def _run_claimed_batch_script_job(job, state, log_path, total):
         first_person_narrator=job.get("first_person_narrator"),
         reasoning_effort=get_active_reasoning_effort(),
         cast_file=get_existing_cast_list(job["input_path"]),
+        **({"literal_source_preserving": True} if job.get("literal_source_preserving") else {}),
     )
     rc, _ = _stream_subprocess_to_logs(
         command, BASE_DIR, state, log_prefix=f"[{index + 1}] ",
@@ -2532,8 +2547,12 @@ def get_prepared_batch_script_jobs(request):
                  "input_path": _resolve_batch_script_input(task.filename),
                  "first_person_narrator": narrator}
                 for task, narrator in zip(request.tasks, narrators)]
+        if getattr(request, "literal_source_preserving", False):
+            jobs = [{**job, "literal_source_preserving": True} for job in jobs]
         config = load_app_config(CONFIG_PATH)
         settings = resolve_three_pass_generation_settings(config)
+        if getattr(request, "literal_source_preserving", False):
+            settings["literal_source_preserving"] = True
         context_windows = (config.get("generation") or {}).get("context_rescue_windows")
         prepared = []
         for job in jobs:
@@ -2617,6 +2636,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                          "output_path": output_path, "safe_stem": safe_stem,
                          "strip_front_matter": request.strip_front_matter,
                          "build_cast_list": request.build_cast_lists,
+                         **({"literal_source_preserving": True} if getattr(request, "literal_source_preserving", False) else {}),
                          "first_person_narrator": prepared_jobs[i]["first_person_narrator"],
                          "prepared_source": prepared_jobs[i]["prepared_source"],
                          "collision_policy": "version" if was_reserved else request.collision_policy})

@@ -34,9 +34,19 @@ def get_unsupported_cyrillic_characters(source_text, output_text):
                   if char.casefold() not in source_folded)
 
 
-def validate_chunk_quality(source_text, entries):
+def validate_chunk_quality(source_text, entries, *, literal_source_preserving=False):
     """Return deterministic metrics and findings without mutating inputs."""
+    if type(literal_source_preserving) is not bool:
+        raise ValueError("literal_source_preserving must be a boolean")
     findings = []
+    literal = None
+    if literal_source_preserving:
+        from literal_fidelity import audit_literal_words
+        literal = audit_literal_words(source_text, entries)
+        if not literal["passed"]:
+            findings.append({"code": "literal_source_word_mismatch",
+                             "message": "Literal annotation changed ordered source words; retry or review, never reconstruct.",
+                             "details": literal})
     if not isinstance(entries, list) or not entries:
         return _report(0, 0, 0.0, 0.0, 0.0, [{
             "code": "missing_entries", "message": "Response contains no entries."
@@ -123,8 +133,11 @@ def validate_chunk_quality(source_text, entries):
     missing_spans = (_missing_source_spans(source_tokens, output_tokens)
                      if any(finding.get("code") in recall_codes for finding in findings)
                      else [])
-    return _report(source_count, output_count, recall, trigram_recall, ratio, findings,
-                   source_cyrillic=source_cyrillic, missing_spans=missing_spans)
+    report = _report(source_count, output_count, recall, trigram_recall, ratio, findings,
+                     source_cyrillic=source_cyrillic, missing_spans=missing_spans)
+    if literal is not None:
+        report["literal_source_fidelity"] = literal
+    return report
 
 
 def is_trigram_only_near_miss(quality):

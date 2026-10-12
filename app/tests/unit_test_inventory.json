@@ -4193,6 +4193,27 @@
     "tests.test_line_format.WhitespaceNormalisation.test_label_whitespace_is_normalised",
     "tests.test_line_format.WhitespaceNormalisation.test_text_is_byte_exact_including_edge_whitespace"
   ],
+  "test_literal_pipeline_policy": [
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_binding_is_portable_immutable_and_checks_literal_source",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_chunk_source_policy_is_bound_and_not_reconstructed",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_compact_and_literal_flags_gate_reconstructed_entries",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_compact_literal_checkpoint_and_policy_identities_are_distinct",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_compact_literal_fallback_split_halves_reject_four_missing_words",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_compact_literal_flow_preserves_policy_on_success_and_fallback",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_default_off_preserves_rows_and_command_and_api_type_is_strict",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_literal_checkpoint_refuses_a_corrupted_completed_prefix",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_literal_chunks_allow_speech_expansion_but_reject_narration_edit",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_orphan_literal_chunks_refuse_when_script_policy_is_removed",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_policy_cannot_be_conflicting_or_malformed",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_real_three_pass_flow_publishes_policy_on_frozen_narration",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_review_checkpoint_isolates_policy_and_cannot_reuse_legacy",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_review_cli_inherits_policy_and_retains_it_in_published_output",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_review_final_guard_rejects_changes_even_after_postprocessing",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_review_retries_changed_words_with_dedicated_prompt",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_three_pass_prompt_and_checkpoint_identity_select_literal_only",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_three_pass_segmentation_rejects_word_rewrite_without_near_miss",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_tts_admission_fails_before_engine_creation_and_catches_unmarked_cache"
+  ],
   "test_llama_cpp_status": [
     "tests.test_llama_cpp_status.DispatchTests.test_a_remote_endpoint_is_untouched_by_this_change",
     "tests.test_llama_cpp_status.DispatchTests.test_llama_cpp_is_preferred_over_asking_lms",
