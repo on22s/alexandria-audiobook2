@@ -103,13 +103,68 @@ class LiteralPipelinePolicyTests(unittest.TestCase):
         params = generation.LLMGenParams()
         frozen = [{"speaker": "NARRATOR", "text": "Chapter IV."}]
         legacy = three_pass.three_pass_fingerprint("Chapter IV.", "fixture", 100, params)
-        system, _ = three_pass.build_instruct_request(frozen, params)
-        self.assertNotIn(LITERAL_RULE, system)
+        ordinary_system, _ = three_pass.build_instruct_request(frozen, params)
+        self.assertNotIn(LITERAL_RULE, ordinary_system)
         params.literal_source_preserving = True
         system, _ = three_pass.build_instruct_request(frozen, params)
-        self.assertIn(LITERAL_RULE, system)
+        self.assertEqual(ordinary_system, system)
         self.assertNotEqual(legacy, three_pass.three_pass_fingerprint("Chapter IV.", "fixture", 100, params))
         self.assertIn("Do not omit attribution", ANNOTATION_SYSTEM)
+
+    def test_literal_indexed_prompts_keep_schema_and_reference_context(self):
+        from dataclasses import replace
+        frozen = [{"type": "SPOKEN", "text": "Wait for me!"}]
+        prior = [{"speaker": "MARA", "text": "Wait for me!"}]
+        contexts = [{"previous_context": {"speaker": "NARRATOR", "text": "Mara turned."}}]
+        for custom in (False, True):
+            with self.subTest(custom=custom):
+                params = generation.LLMGenParams(
+                    attribute_system_prompt="Custom indexed attribution." if custom else None,
+                    instruct_system_prompt="Custom indexed delivery." if custom else None)
+                literal = replace(params, literal_source_preserving=True)
+                ordinary_attribute = three_pass.build_attribute_request(
+                    frozen, params, ["MARA"], contexts, {"before": "Read-only source context."})
+                self.assertEqual(ordinary_attribute, three_pass.build_attribute_request(
+                    frozen, literal, ["MARA"], contexts, {"before": "Read-only source context."}))
+                ordinary_instruct = three_pass.build_instruct_request(prior, params, contexts)
+                self.assertEqual(ordinary_instruct, three_pass.build_instruct_request(prior, literal, contexts))
+                self.assertNotIn(LITERAL_RULE, ordinary_attribute[0])
+                self.assertNotIn(LITERAL_RULE, ordinary_instruct[0])
+
+    def test_literal_attribution_presets_keep_their_own_system(self):
+        import attribution_prompt_variants
+        class CapturedRequest(Exception):
+            pass
+        cases = [("default", {"system": "Preset indexed attribution.", "user": "{batch}"}),
+                 ("aliases", None)]
+        for variant, texts in cases:
+            with self.subTest(variant=variant):
+                captured = []
+                def provider(*args, **kwargs):
+                    captured.append(kwargs["texts"])
+                    raise CapturedRequest()
+                params = generation.LLMGenParams(literal_source_preserving=True)
+                with patch.object(attribution_prompt_variants, "make_provider", side_effect=provider), \
+                        self.assertRaises(CapturedRequest):
+                    three_pass.run_three_pass(None, "fixture", "Synthetic narration.", params, 1000,
+                        attribute_prompt_variant=variant, attribute_prompt_texts=texts)
+                self.assertEqual(texts, captured[0])
+
+    def test_literal_pass1_keeps_word_policy_after_indexed_scope_change(self):
+        text = "She walked away slowly."
+        captured = []
+        def create(**kwargs):
+            captured.append(kwargs["messages"][0]["content"])
+            response = json.dumps([{"type": "NARRATOR", "text": text}])
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=response), finish_reason="stop")], usage=None)
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        params = generation.LLMGenParams(literal_source_preserving=True, segmentation="llm")
+        with contextlib.redirect_stdout(io.StringIO()):
+            entries = three_pass.segment_chunk(client, "fixture", text, params, max_retries=0)
+        self.assertEqual(text, entries[0]["text"])
+        self.assertIn(LITERAL_RULE, captured[0])
+        self.assertIn(LITERAL_RULE, REVIEW_SYSTEM)
 
     def test_three_pass_segmentation_rejects_word_rewrite_without_near_miss(self):
         text = "How she longed to leave. " + " ".join("word" + str(i) for i in range(100))

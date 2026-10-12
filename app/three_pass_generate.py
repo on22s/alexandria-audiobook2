@@ -524,9 +524,6 @@ def build_attribute_request(frozen_batch, params, roster,
         sys_prompt = params.system_prompt
     if params.user_prompt_template:
         usr_template = params.user_prompt_template
-    if getattr(params, "literal_source_preserving", False):
-        from literal_prompts import get_literal_system_prompt
-        sys_prompt = get_literal_system_prompt(sys_prompt)
     neighbor_contexts = neighbor_contexts or [{} for _ in frozen_batch]
     batch_json = json.dumps([
         {"n": i, "type": e["type"], "text": e["text"], **neighbor_contexts[i]}
@@ -789,9 +786,6 @@ def build_instruct_request(prior_batch, params, neighbor_contexts=None):
         usr_template = params.instruct_user_prompt_template
     elif params.user_prompt_template:
         usr_template = params.user_prompt_template
-    if getattr(params, "literal_source_preserving", False):
-        from literal_prompts import get_literal_system_prompt
-        sys_prompt = get_literal_system_prompt(sys_prompt)
     neighbor_contexts = neighbor_contexts or [{} for _ in prior_batch]
     batch_json = json.dumps([
         {"n": i, "speaker": e["speaker"], "text": e["text"], **neighbor_contexts[i]}
@@ -2195,9 +2189,6 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         if params.attribute_system_prompt and not texts.get("system"):
             # the narrator prior was folded into params by main(); keep it
             texts["system"] = params.attribute_system_prompt
-        if getattr(params, "literal_source_preserving", False):
-            from literal_prompts import get_literal_system_prompt
-            texts["system"] = get_literal_system_prompt(texts.get("system") or params.attribute_system_prompt or load_attribute_prompts()[0])
         entries_provider = make_provider(attribute_prompt_variant or "default",
                                          alias_groups=(cast or {}).get("alias_groups"),
                                          texts=texts or None)
