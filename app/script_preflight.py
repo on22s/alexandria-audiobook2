@@ -235,6 +235,165 @@ def get_source_block_occurrences(source_normalized, block, *, count_phrase=None)
     return contiguous
 
 
+def find_contained_source_duplicates(entries, source_text):
+    """Reject proven excess quotation copies; never delete or trust greedy mapping.
+
+    Compare distinct whole-token source occurrences with quoted occurrences in
+    larger entries plus separate character entries. Plain narrative rendering
+    can introduce words, so other containment is review-only. Known expansions
+    add conservative capacity; unknown number/sound rendering cannot prove loss.
+    Span coordinates below are word-normalized, not raw source offsets.
+    """
+    from dialogue_spans import spoken_spans
+
+    def canonical(text):
+        return _normalize_words(re.sub(r"(?<=\w)['’](?=\w)", "", str(text or "")))
+
+    source_text = str(source_text or "")
+    if len(source_text) + sum(len(e.get("text", "")) for e in entries
+                              if isinstance(e, dict) and isinstance(e.get("text"), str)) > 4000000:
+        return [_finding("manual_review", "contained_duplicate_budget_exhausted",
+                         "Quotation provenance input exceeded its size budget; review without deleting text.",
+                         [], character_budget=4000000)]
+    source = canonical(source_text)
+    texts = [canonical(e.get("text")) if isinstance(e, dict) else "" for e in entries]
+    character_rows = {i for i, e in enumerate(entries) if isinstance(e, dict)
+                      and str(e.get("speaker") or e.get("type") or "").casefold()
+                      not in {"", "narrator", "narration"}}
+    quoted = [[canonical(e["text"][a:b]) for a, b in spoken_spans(e["text"], "paired_quotes")]
+              if isinstance(e, dict) and isinstance(e.get("text"), str) else [] for e in entries]
+    # Token Aho-Corasick: scan each source/output region once, not once per
+    # character phrase. Suffix matches have a fixed budget; exhaustion abstains.
+    from collections import deque
+    needles = list(dict.fromkeys(texts[i] for i in sorted(character_rows) if texts[i]))
+    if not needles:
+        return []
+    transitions, failure, terminal, suffix = [{}], [0], [None], [0]
+    lengths = []
+    for ident, needle in enumerate(needles):
+        words = needle.split()
+        lengths.append(len(words))
+        state = 0
+        for word in words:
+            if word not in transitions[state]:
+                if len(transitions) >= 50000:
+                    return [_finding("manual_review", "contained_duplicate_budget_exhausted",
+                                     "Quotation provenance index exceeded its node budget; review without deleting text.",
+                                     [], node_budget=50000)]
+                transitions[state][word] = len(transitions)
+                transitions.append({}); failure.append(0); terminal.append(None); suffix.append(0)
+            state = transitions[state][word]
+        terminal[state] = ident
+    queue = deque(transitions[0].values())
+    while queue:
+        state = queue.popleft()
+        for word, child in transitions[state].items():
+            queue.append(child)
+            fallback = failure[state]
+            while fallback and word not in transitions[fallback]:
+                fallback = failure[fallback]
+            failure[child] = transitions[fallback].get(word, 0)
+            parent = failure[child]
+            suffix[child] = parent if terminal[parent] is not None else suffix[parent]
+    source_counts = [0] * len(needles)
+    output_counts = [0] * len(needles)
+    quote_counts = [0] * len(needles)
+    source_spans = [[] for _ in needles]
+    carriers = [set() for _ in needles]
+    separate = [[] for _ in needles]
+    needle_ids = {needle: i for i, needle in enumerate(needles)}
+    for row in sorted(character_rows):
+        if texts[row]:
+            separate[needle_ids[texts[row]]].append(row)
+    remaining = 200000
+    longest = max(lengths)
+    offsets = [0] * longest
+
+    def scan(text, counts, row=None, quotation=False):
+        nonlocal remaining
+        state = 0
+        last_end = {}
+        # Shared offset ring bounds memory by longest phrase, not book size.
+        for position, word_match in enumerate(re.finditer(r"\S+", text)):
+            word = word_match.group()
+            offsets[position % longest] = word_match.start()
+            while state and word not in transitions[state]:
+                state = failure[state]
+            state = transitions[state].get(word, 0)
+            hit = state
+            while hit:
+                ident = terminal[hit]
+                if ident is not None:
+                    remaining -= 1
+                    if remaining < 0:
+                        return False
+                    start = position - lengths[ident] + 1
+                    if start >= last_end.get(ident, 0):
+                        last_end[ident] = position + 1
+                        # Only strictly larger entries can carry a nested copy.
+                        if row is None or len(texts[row]) > len(needles[ident]):
+                            counts[ident] += 1
+                            if row is None and len(source_spans[ident]) < 8:
+                                source_spans[ident].append([offsets[start % longest], word_match.end()])
+                            elif row is not None and not quotation:
+                                carriers[ident].add(row)
+                        elif not quotation:
+                            counts[ident] += 1
+                hit = suffix[hit]
+        return True
+
+    complete = scan(source, source_counts)
+    for row, text in enumerate(texts):
+        if not complete:
+            break
+        complete = scan(text, output_counts, row)
+        for part in quoted[row]:
+            if not complete:
+                break
+            complete = scan(part, quote_counts, row, True)
+    if not complete:
+        return [_finding("manual_review", "contained_duplicate_budget_exhausted",
+                         "Quotation provenance scan exceeded its match budget; review without deleting text.",
+                         [], match_budget=200000)]
+    expansions = (
+        (r"\bchapter\s+i\b", "one"), (r"\bdr\.", "doctor"),
+        (r"\bmr\.", "mister"), (r"&", "and"), (r"\b3rd\b", "third"),
+    )
+    expansion_sites = [(word, len(re.findall(pattern, source_text, re.I)))
+                       for pattern, word in expansions]
+    unknown_rendering = bool(re.search(r"\d+", re.sub(r"\b3rd\b", "", source_text, flags=re.I))
+                             or re.search(r"\bchapter\s+(?!i\b)[ivxlcdm]+\b", source_text, re.I)
+                             or re.search(r"[\[<]", source_text))
+    findings = []
+    for ident, needle in enumerate(needles):
+        if not needle:
+            continue
+        capacity = source_counts[ident]
+        if not capacity:
+            continue
+        added_capacity = sum(count for word, count in expansion_sites if word in needle.split())
+        all_emitted = output_counts[ident]
+        if all_emitted <= capacity + added_capacity:
+            continue
+        if not carriers[ident]:
+            continue
+        proven_emitted = quote_counts[ident] + len(separate[ident])
+        ambiguous = unknown_rendering or proven_emitted <= capacity + added_capacity
+        findings.append(_finding(
+            "manual_review" if ambiguous else "blocking", "contained_source_duplicate",
+            "Contained phrase repetition needs review of its rendering/source provenance."
+            if ambiguous else "A quotation is also inside a larger entry and exceeds distinct "
+            "source support. Regenerate losslessly; do not delete legitimate source repeats.",
+            sorted(i + 1 for i in carriers[ident].union(separate[ident])), phrase=needle,
+            source_occurrences=capacity, possible_expansion_occurrences=added_capacity,
+            output_quotation_occurrences=proven_emitted, all_text_occurrences=all_emitted,
+            rendering_capacity_unknown=ambiguous,
+            source_word_normalized_spans=source_spans[ident],
+            source_spans_truncated=capacity > len(source_spans[ident]),
+        ))
+    return findings
+
+
 def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None, count_phrase=None):
     findings = []
     occupied = set()
@@ -469,6 +628,7 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
     exact_findings = find_adjacent_duplicate_blocks(
         texts, source_text, source_normalized=source_normalized, count_phrase=count_phrase)
     findings.extend(exact_findings)
+    findings.extend(find_contained_source_duplicates(entries, source_text))
     findings.extend(find_adjacent_near_duplicate_entries(
         texts, source_text, exact_findings=exact_findings,
         source_normalized=source_normalized, count_phrase=count_phrase))
