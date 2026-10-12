@@ -5417,7 +5417,10 @@
     "tests.test_persona_text_controls.PersonaTextControlTests.test_shared_object_request_rejects_control_payload_with_validation_evidence"
   ],
   "test_pidfd_compatibility": [
-    "tests.test_pidfd_compatibility.NativePidfdCompatibilityTests.test_real_probe_uses_available_pidfd_implementation",
+    "tests.test_pidfd_compatibility.LibcFallbackTests.test_departed_descendant_is_skipped_not_raised",
+    "tests.test_pidfd_compatibility.LibcFallbackTests.test_exited_process_maps_to_process_lookup_error",
+    "tests.test_pidfd_compatibility.LibcFallbackTests.test_signals_a_real_child",
+    "tests.test_pidfd_compatibility.NativePidfdCompatibilityTests.test_real_probe_picks_the_available_implementation_and_signals_a_child",
     "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_departed_process_is_not_recorded_as_signalled",
     "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_kernel_open_failure_preserves_errno_without_sending",
     "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_legacy_probe_preserves_errno_and_closes_on_signal_failure",
@@ -5425,7 +5428,9 @@
     "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_missing_python_operation_refuses_admission",
     "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_permission_failure_propagates_and_closes_handle",
     "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_probe_checks_signal_zero_and_closes_descriptor",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_probe_error_names_the_failing_step",
     "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_recycled_pid_is_not_signalled",
+    "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_selection_and_probe_run_once_per_process",
     "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_signal_probe_failure_preserves_errno_and_closes_descriptor",
     "tests.test_pidfd_compatibility.PidfdCompatibilityTests.test_signal_uses_handle_and_records_verified_identity"
   ],

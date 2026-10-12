@@ -82,20 +82,23 @@ out.write_text(json.dumps(doc))
 '''
         for name in ('pdnc_eval.py', 'lora_serving_eval.py'):
             (self.root / 'app/experiments' / name).write_text(evaluator)
-        (self.root / 'app/llama_server_process.py').write_text('''import os,pathlib,select,signal,subprocess
+        (self.root / 'app/llama_server_process.py').write_text('''import os,pathlib,select,signal,subprocess,sys
+sys.path.append(%r)
+from subprocess_ownership import ensure_pidfd_support
 r=pathlib.Path(os.environ['FIXTURE_ROOT'])
 subprocess.run(['bash',os.environ['FIXTURE_WRAPPER'],'--check-lock-owner',os.environ['ALEXANDRIA_GPU_LOCK_PID'],os.environ['ALEXANDRIA_GPU_LOCK_FD']],check=True)
 p=r/'server.pid'
 if p.exists():
- try: fd=os.pidfd_open(int(p.read_text()))
+ pidfds=ensure_pidfd_support()
+ try: fd=pidfds.pidfd_open(int(p.read_text()),0)
  except ProcessLookupError: raise SystemExit(0)
  try:
-  signal.pidfd_send_signal(fd,signal.SIGTERM)
+  pidfds.pidfd_send_signal(fd,signal.SIGTERM,None,0)
   assert select.select([fd],[],[],5)[0], 'captured CPU server did not stop'
  finally: os.close(fd)
 with (r/'stops').open('a') as f: f.write('stopped\\n')
 raise SystemExit(4 if os.environ.get('FIXTURE_CLEANUP_FAIL') == '1' else 0)
-''')
+''' % str(Path(REPO) / 'app'))
         self.env.update(ALLOW_DIRTY_TREE='1', REQUIRE_LLM='1',
                         LLM_PREFLIGHT_PYTHON=sys.executable)
         # These campaigns commit their measured artifacts between GPU stages.

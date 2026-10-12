@@ -1,6 +1,7 @@
 """Shared descendant ownership and signal dispatch for supervised tasks."""
 import ctypes
 import errno
+import functools
 import json
 import logging
 import os
@@ -303,11 +304,21 @@ def get_owned_descendants():
     return found
 
 
+@functools.cache
 def ensure_pidfd_support():
-    """Select and verify stable kernel handles before admitting any worker."""
+    """Select and verify stable kernel handles before admitting any worker.
+
+    Resolved once per process: the implementation and the kernel's answer do
+    not change while it runs. A failed probe raises and is not cached.
+
+    The probe opens a pidfd for this process AND sends it signal 0, so a host
+    whose seccomp profile allows pidfd_open but filters pidfd_send_signal is
+    refused at admission instead of failing mid-cleanup. The error names the
+    step that failed.
+    """
     if (callable(getattr(os, "pidfd_open", None))
             and callable(getattr(signal, "pidfd_send_signal", None))):
-        pidfds = SimpleNamespace(pidfd_open=os.pidfd_open,
+        pidfds = SimpleNamespace(implementation="python", pidfd_open=os.pidfd_open,
                                  pidfd_send_signal=signal.pidfd_send_signal)
     else:
         # Some Python builds omit these APIs even when libc provides them.
@@ -323,30 +334,31 @@ def ensure_pidfd_support():
         def open_pidfd(pid, flags):
             descriptor = libc.pidfd_open(pid, flags)
             if descriptor < 0:
-                raise OSError(ctypes.get_errno(), "Could not open owned process")
+                code = ctypes.get_errno()
+                raise OSError(code, f"pidfd_open failed: {os.strerror(code)}")
             return descriptor
 
         def send_pidfd_signal(descriptor, sig, info, flags):
             if libc.pidfd_send_signal(descriptor, sig, info, flags) < 0:
-                raise OSError(ctypes.get_errno(), "Could not signal owned process")
+                code = ctypes.get_errno()
+                raise OSError(code, f"pidfd_send_signal failed: {os.strerror(code)}")
 
-        pidfds = SimpleNamespace(pidfd_open=open_pidfd,
+        pidfds = SimpleNamespace(implementation="libc", pidfd_open=open_pidfd,
                                  pidfd_send_signal=send_pidfd_signal)
     descriptor = None
+    step = "pidfd_open"
     try:
         descriptor = pidfds.pidfd_open(os.getpid(), 0)
+        step = "pidfd_send_signal"
         pidfds.pidfd_send_signal(descriptor, 0, None, 0)
     except OSError as error:
-        raise OSError(error.errno, "Linux subprocess ownership requires working pidfd support") from error
+        raise OSError(error.errno, f"Linux subprocess ownership requires working pidfd support: "
+                                   f"{step} probe failed ({os.strerror(error.errno) if error.errno else error})"
+                      ) from error
     finally:
         if descriptor is not None:
             os.close(descriptor)
     return pidfds
-
-
-def open_owned_process(pidfds, pid):
-    """Open a stable kernel handle before signalling an observed descendant."""
-    return pidfds.pidfd_open(pid, 0)
 
 
 def apply_descendant_signal(pidfds, sig, delivered):
@@ -357,7 +369,7 @@ def apply_descendant_signal(pidfds, sig, delivered):
             continue
         descriptor = None
         try:
-            descriptor = open_owned_process(pidfds, pid)
+            descriptor = pidfds.pidfd_open(pid, 0)
             if get_process_identity(pid) != identity:
                 continue
             pidfds.pidfd_send_signal(descriptor, sig, None, 0)
