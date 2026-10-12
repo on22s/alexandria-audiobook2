@@ -550,7 +550,7 @@ process_state = {
     "drift_check": {"running": False, "logs": []},
     "speaker_review": {"running": False, "logs": [], "cancel": False, "status": "idle"},
     "report_explanation": {"running": False, "logs": [], "cancel": False, "status": "idle"},
-    "review": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
+    "review": {"running": False, "status": "idle", "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "batch_review": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None, "bidirectional": False,
                      "totals_fwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
                      "totals_bwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
@@ -1064,6 +1064,13 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
             report_path = None
             if task_name == "review":
                 stats = _extract_review_stats(state["logs"])
+                if stats is None or stats.get("batches_failed") or stats.get("batches_skipped_vram"):
+                    if "status" in state: state["status"] = "incomplete"
+                if stats is None:
+                    completion_note = (
+                        f"Task {task_name} ended without a review summary. "
+                        "Review completion could not be verified; re-run the review."
+                    )
                 if stats:
                     if stats.get("batches_failed"):
                         completion_note = (
