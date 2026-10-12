@@ -288,11 +288,10 @@ def clean_json_string(text):
 
     span = extract_balanced(text, '[', ']')
     if span is None:
-        # No closing bracket found, try to salvage
-        last_complete = text.rfind('},')
-        if last_complete > start:
-            return text[start:last_complete+1] + ']'
-        return None
+        # No closing bracket. Hand the whole remainder to the parser, which
+        # keeps it only if every object in it is complete (#1111); cutting
+        # back to the last "}," here silently dropped the final entry.
+        return text[start:]
 
     spans = [span]
     cursor = start + len(span)
@@ -346,7 +345,13 @@ def clean_json_string(text):
 
 
 def _extract_valid_json_objects(json_text):
-    """Extract complete JSON objects without assuming a pass-specific schema."""
+    """Extract complete JSON objects without assuming a pass-specific schema.
+
+    All or nothing: if any object is unbalanced or unparseable, return [].
+    Skipping it (#1111) dropped source text from that object - and, after a
+    misplaced quote, from its neighbours - while the survivors still passed
+    the approximate 90% quality gate. Refusing sends the chunk to the
+    bounded retry path instead."""
     entries = []
     cursor = 0
     while True:
@@ -355,13 +360,11 @@ def _extract_valid_json_objects(json_text):
             break
         span = extract_balanced(json_text, "{", "}", start)
         if span is None:
-            cursor = start + 1
-            continue
+            return []
         try:
             value = json.loads(span)
         except json.JSONDecodeError:
-            cursor = start + 1
-            continue
+            return []
         if isinstance(value, dict):
             entries.append(value)
         cursor = start + len(span)
@@ -414,20 +417,8 @@ def repair_json_array(json_text):
     if entries:
         return entries
 
-    # Fix 4: Last resort - find last complete entry and truncate
-    last_complete = json_text.rfind('},')
-    if last_complete > 0:
-        try:
-            truncated = json_text[:last_complete+1] + ']'
-            # Ensure it starts with [
-            if not truncated.strip().startswith('['):
-                truncated = '[' + truncated
-            result = json.loads(truncated)
-            if isinstance(result, list):
-                return _filter_entries(result)
-        except json.JSONDecodeError:
-            pass
-
+    # No truncate-to-last-"}," fallback: whatever follows it is malformed,
+    # so keeping the prefix always loses source text (#1111).
     return None
 
 def salvage_json_entries(json_text):

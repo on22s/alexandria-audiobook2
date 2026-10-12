@@ -349,9 +349,11 @@ class LlmReviewTests(unittest.TestCase):
             generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1),
             max_retries=0, attempt_observer=attempts.append)
 
+        # The malformed object now refuses salvage outright (#1111), so the
+        # partial array never reaches the quality gate at all.
         self.assertEqual([], result)
-        self.assertEqual("quality_rejected", attempts[0]["outcome"])
-        self.assertIn("low_source_token_recall", attempts[0]["failure_codes"])
+        self.assertEqual("response_rejected", attempts[0]["outcome"])
+        self.assertEqual(["malformed_json"], attempts[0]["failure_codes"])
 
     def test_bracketed_trailing_prose_does_not_discard_valid_array(self):
         entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
@@ -1403,6 +1405,75 @@ class PassSpecificSalvageTests(unittest.TestCase):
 
         self.assertIsNone(review_script.review_batch(
             client, "m", original, 1, 1, params, max_retries=0))
+
+
+class LossyJsonSalvageTests(unittest.TestCase):
+    """#1111: one malformed delimiter must not become an accepted subset."""
+    PHRASE = "Amber boats drift quietly while seven bright lanterns illuminate distant hills."
+    MIDDLE = " ".join(f"word{i}" for i in range(200))
+    CLOSING = "Closing sentence."
+    SOURCE = PHRASE + " " + MIDDLE + " " + CLOSING
+
+    @staticmethod
+    def _entry(text):
+        return {"speaker": "NARRATOR", "text": text, "instruct": "Neutral."}
+
+    def _valid(self):
+        return json.dumps([self._entry(self.PHRASE), self._entry(self.MIDDLE),
+                           self._entry(self.CLOSING)], ensure_ascii=False)
+
+    def _malformed(self, text):
+        # Replace exactly one closing JSON quote with U+201D.
+        valid = self._valid()
+        index = valid.index(text + '"') + len(text)
+        return valid[:index] + "”" + valid[index + 1:]
+
+    def _parse(self, raw):
+        cleaned = generate_script.clean_json_string(raw)
+        return generate_script.repair_json_array(cleaned) if cleaned else None
+
+    def test_fixture_subset_would_pass_the_approximate_quality_gate(self):
+        # Keeps the fixture discriminating: the gate alone accepts this loss,
+        # so the parser is the only thing that can refuse it.
+        from chunk_quality import validate_chunk_quality
+        self.assertTrue(validate_chunk_quality(
+            self.SOURCE, [self._entry(self.MIDDLE)])["passed"])
+
+    def test_malformed_object_in_any_position_is_not_partially_accepted(self):
+        for text in (self.PHRASE, self.MIDDLE, self.CLOSING):
+            with self.subTest(position=text[:12]):
+                raw = self._malformed(text)
+                self.assertFalse(self._parse(raw))
+                self.assertFalse(generate_script.repair_json_array(raw))
+                self.assertIsNone(generate_script.salvage_json_entries(raw))
+
+    def test_process_chunk_rejects_malformed_and_accepts_complete_retry(self):
+        client = LlmReviewTests._client_with_responses([self._malformed(self.PHRASE)])
+        params = generate_script.LLMGenParams("system", "{chunk}", 4000, 0.1, 1)
+        attempts = []
+        self.assertEqual([], generate_script.process_chunk(
+            client, "model", self.SOURCE, 1, 1, params, max_retries=0,
+            attempt_observer=attempts.append))
+        self.assertEqual(["malformed_json"], attempts[0]["failure_codes"])
+
+        client = LlmReviewTests._client_with_responses(
+            [self._malformed(self.PHRASE), self._valid()])
+        result = generate_script.process_chunk(
+            client, "model", self.SOURCE, 1, 1, params, max_retries=1)
+        self.assertEqual(self.SOURCE, " ".join(entry["text"] for entry in result))
+
+    def test_valid_internal_curly_quotes_still_parse(self):
+        entries = [self._entry("He said “Hello”."), self._entry("Keep the words.")]
+        self.assertEqual(entries, self._parse(json.dumps(entries, ensure_ascii=False)))
+
+    def test_missing_closing_bracket_recovers_every_complete_object(self):
+        raw = self._valid()[:-1]
+        self.assertEqual(json.loads(self._valid()), self._parse(raw))
+
+    def test_unclosed_final_object_is_not_truncated_to_a_prefix(self):
+        raw = self._valid()[:-30]
+        self.assertFalse(self._parse(raw))
+        self.assertIsNone(generate_script.salvage_json_entries(raw))
 
 
 class ReviewAliasPublicationSafetyTests(unittest.TestCase):
