@@ -2,6 +2,7 @@
 name = "aa2_ascii_native"
 version = "0.1.0"
 edition = "2021"
+readme = "README.md"
 
 [lib]
 name = "aa2_ascii_native"

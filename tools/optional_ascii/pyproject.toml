@@ -1,0 +1,39 @@
+[build-system]
+requires = ["maturin==1.15.0"]
+build-backend = "maturin"
+
+[project]
+name = "aa2-ascii-native"
+dynamic = ["version"]
+description = "Experimental optional ASCII speech backend; Python remains default"
+readme = "README.md"
+requires-python = ">=3.10,<3.13,!=3.11.*"
+dependencies = []
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Rust",
+]
+
+[tool.maturin]
+bindings = "pyo3"
+module-name = "aa2_ascii_native"
+manifest-path = "Cargo.toml"
+profile = "release"
+frozen = true
+compatibility = "manylinux_2_34"
+auditwheel = "check"
+include = [
+  { path = "Cargo.lock", format = "sdist" },
+  { path = "build.rs", format = "sdist" },
+  { path = "PACKAGING.md", format = "sdist" },
+]
+exclude = ["target/**", "dist/**", "*.so", "*.pyd", "*.dll", "*.dylib"]
+
+[tool.maturin.target.x86_64-apple-darwin]
+macos-deployment-target = "11.0"
+
+[tool.maturin.target.aarch64-apple-darwin]
+macos-deployment-target = "11.0"
