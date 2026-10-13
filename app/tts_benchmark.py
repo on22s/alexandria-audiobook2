@@ -1,6 +1,7 @@
 """Production TTS benchmark execution and deterministic WAV measurements."""
 
-from benchmark_worker_protocol import get_decoded_worker_payload, emit_benchmark_worker_result
+from benchmark_worker_protocol import (add_benchmark_worker_payload_arguments,
+                                       load_benchmark_worker_payload, emit_benchmark_worker_result)
 import argparse
 import hashlib
 import json
@@ -237,12 +238,12 @@ def execute_payload(payload, output_dir, asset_root=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--payload", required=True)
+    add_benchmark_worker_payload_arguments(parser)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--asset-root", help="Invocation root for privately staged benchmark assets")
     args = parser.parse_args()
     emit_benchmark_worker_result('TTS_BENCHMARK_RESULT=',
-                                 lambda: execute_payload(get_decoded_worker_payload(args.payload), args.output_dir, asset_root=args.asset_root))
+                                 lambda: execute_payload(load_benchmark_worker_payload(args), args.output_dir, asset_root=args.asset_root))
 
 
 if __name__ == "__main__":

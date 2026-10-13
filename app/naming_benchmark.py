@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Disposable production-backed worker for Voice Lab naming benchmarks."""
 
-from benchmark_worker_protocol import get_decoded_worker_payload, emit_benchmark_worker_result
+from benchmark_worker_protocol import (add_benchmark_worker_payload_arguments,
+                                       load_benchmark_worker_payload, emit_benchmark_worker_result)
 import argparse
 import hashlib
 import json
@@ -51,10 +52,10 @@ def execute_payload(payload):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--payload", required=True)
+    add_benchmark_worker_payload_arguments(parser)
     args = parser.parse_args()
     emit_benchmark_worker_result('NAMING_BENCHMARK_RESULT=',
-                                 lambda: execute_payload(get_decoded_worker_payload(args.payload)))
+                                 lambda: execute_payload(load_benchmark_worker_payload(args)))
 
 
 if __name__ == "__main__":

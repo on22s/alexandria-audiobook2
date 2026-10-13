@@ -1,3 +1,4 @@
+import json
 import ntpath
 import shlex
 import unittest
@@ -5,7 +6,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import benchmark_runner as runner
-from benchmark_worker_protocol import get_decoded_worker_payload
 
 
 class RemotePathPlatformTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class RemotePathPlatformTests(unittest.TestCase):
                                             "/tmp/alexandria-lora-training.ABCDEF1234\n"))
 
                 def worker(command, *args, **kwargs):
-                    workers.append(shlex.split(command[2]))
+                    workers.append((shlex.split(command[2]), json.loads(kwargs["input"])))
                     return {"status": "passed"}
 
                 with patch.object(runner, "os", SimpleNamespace(path=ntpath)), \
@@ -51,8 +51,8 @@ class RemotePathPlatformTests(unittest.TestCase):
                                     for command in transfers))
                 self.assertEqual("/remote checkout/app/" +
                                  {"training": "lora_training", "dedup": "dedup",
-                                  "export": "export"}[stage] + "_benchmark.py", workers[0][1])
-                payload = get_decoded_worker_payload(workers[0][-1])
+                                  "export": "export"}[stage] + "_benchmark.py", workers[0][0][1])
+                payload = workers[0][1]
                 if stage == "training":
                     self.assertEqual("/remote checkout/app/train_lora.py", payload["train_script"])
                     self.assertEqual("alexandria-lora-training.ABCDEF1234",

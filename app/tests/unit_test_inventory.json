@@ -964,6 +964,10 @@
     "tests.test_benchmark_output_names.BenchmarkOutputNameTests.test_shared_policy_refuses_path_components_and_preserves_literal_names",
     "tests.test_benchmark_output_names.BenchmarkOutputNameTests.test_tts_refuses_inside_outside_and_dangling_output_links_before_generation"
   ],
+  "test_benchmark_payload_transport": [
+    "tests.test_benchmark_payload_transport.BenchmarkPayloadTransportTests.test_all_local_dispatchers_decode_large_payload_in_native_workers",
+    "tests.test_benchmark_payload_transport.BenchmarkPayloadTransportTests.test_remote_tts_and_builder_use_owned_stdin_without_payload_in_ssh_argv"
+  ],
   "test_benchmark_remote_commands": [
     "tests.test_benchmark_remote_commands.BenchmarkRemoteCommandTests.test_profiling_hashes_literal_model_path_with_shell_characters",
     "tests.test_benchmark_remote_commands.BenchmarkRemoteCommandTests.test_training_mkdir_receives_exact_literal_dataset_directory"
@@ -1064,7 +1068,8 @@
     "tests.test_benchmark_worker_protocol.WorkerProtocolTests.test_llm_stdin_main_keeps_cancellation_marker_and_reports_decode_failures",
     "tests.test_benchmark_worker_protocol.WorkerProtocolTests.test_native_structured_failure_obeys_caller_error_bound",
     "tests.test_benchmark_worker_protocol.WorkerProtocolTests.test_native_worker_decode_failures_emit_one_machine_readable_result",
-    "tests.test_benchmark_worker_protocol.WorkerProtocolTests.test_payload_roundtrip_and_last_marker_parser_preserve_diagnostics"
+    "tests.test_benchmark_worker_protocol.WorkerProtocolTests.test_payload_roundtrip_and_last_marker_parser_preserve_diagnostics",
+    "tests.test_benchmark_worker_protocol.WorkerProtocolTests.test_stdin_worker_mains_preserve_shapes_cancellation_and_decode_failures"
   ],
   "test_blinded_listening": [
     "tests.test_blinded_listening.BlindedListeningTests.test_analyzes_only_complete_explicit_listener_count",

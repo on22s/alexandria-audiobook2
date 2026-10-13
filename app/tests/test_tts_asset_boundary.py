@@ -1,4 +1,3 @@
-import base64
 import contextlib
 import copy
 import hashlib
@@ -88,10 +87,10 @@ class TtsAssetBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / 'reference.wav').write_bytes(b'reference')
             payload = {'fixtures': [self.clone_fixture('reference.wav')], 'repetitions': 1, '_asset_root': '/untrusted'}
-            before = copy.deepcopy(payload); commands = []
+            before = copy.deepcopy(payload); commands = []; inputs = []
             created = '/tmp/alexandria-tts-benchmark-assets.abcdefghij'
             def transport(command, **kwargs):
-                commands.append(command)
+                commands.append(command); inputs.append(kwargs.get("input"))
                 stdout = created + '\n' if len(commands) == 1 else 'TTS_BENCHMARK_RESULT=[]\n'
                 return SimpleNamespace(returncode=0, stdout=stdout, stderr='')
             with patch.object(runner, 'run_benchmark_subprocess', side_effect=transport), \
@@ -99,7 +98,8 @@ class TtsAssetBoundaryTests(unittest.TestCase):
                 self.assertEqual([], runner._run_tts_worker(payload, 'remote',
                     {'remote_root': '/remote checkout', 'remote_python': '/remote python'}, tmp, '/output', 'fixture-host'))
             args = shlex.split(commands[-1][2]); self.assertEqual(created, args[args.index('--asset-root') + 1])
-            decoded = json.loads(base64.b64decode(args[args.index('--payload') + 1]))
+            self.assertIn('--payload-stdin', args)
+            decoded = json.loads(inputs[-1])
             self.assertNotIn('_asset_root', decoded)
             self.assertTrue(decoded['fixtures'][0]['ref_audio'].startswith(created + '/'))
             self.assertEqual(before, payload)

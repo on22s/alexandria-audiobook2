@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 from llm_provider import make_llm_client, resolve_api_key
 
-from benchmark_worker_protocol import get_encoded_worker_payload, get_benchmark_worker_result
+from benchmark_worker_protocol import get_benchmark_worker_result
 from benchmark_core import load_resumable_benchmark_report, save_benchmark_report
 from benchmark_fixtures import _hash_entries, get_normalized_source_chunks
 from benchmark_validation import (validate_persona_speakers, get_benchmark_file_path,
@@ -185,22 +185,21 @@ def _run_tts_worker(payload, target, settings, root_dir, output_dir, ssh_alias):
     asset_root = worker_payload.pop("_asset_root", None) if target != "local" else None
     try:
         worker_payload = copy.deepcopy(worker_payload)
-        encoded = get_encoded_worker_payload(worker_payload)
         if target == "local":
             command = get_benchmark_worker_command(
                 [sys.executable, os.path.join(root_dir, "app", "tts_benchmark.py"),
-                 "--payload", encoded, "--output-dir", output_dir], target, ssh_alias)
+                 "--payload-stdin", "--output-dir", output_dir], target, ssh_alias)
         else:
             remote_root = settings.get("remote_root")
             remote_python = settings.get("remote_python")
             if not remote_root or not remote_python or not ssh_alias:
                 raise ValueError("Thunder TTS requires remote_root, remote_python, and SSH alias")
             arguments = [remote_python, posixpath.join(remote_root, "app", "tts_benchmark.py"),
-                         "--payload", encoded, "--output-dir", output_dir]
+                         "--payload-stdin", "--output-dir", output_dir]
             if asset_root is not None:
                 arguments.extend(["--asset-root", asset_root])
             command = get_benchmark_worker_command(arguments, target, ssh_alias)
-        return run_benchmark_worker(command, 'TTS_BENCHMARK_RESULT=', 'TTS worker failed', timeout=3600, error_limit=2000, raise_failed=True)
+        return run_benchmark_worker(command, 'TTS_BENCHMARK_RESULT=', 'TTS worker failed', timeout=3600, error_limit=2000, raise_failed=True, input=json.dumps(worker_payload))
 
     finally:
         if asset_root is not None:
@@ -390,10 +389,9 @@ def _run_lora_training_worker(fixture, target, settings, root_dir, ssh_alias):
             train_script = posixpath.join(remote_root, "app", "train_lora.py")
         payload = {"fixture": worker_fixture, "python": python_executable,
                    "train_script": train_script, "output_root": output_root}
-        encoded = get_encoded_worker_payload(payload)
-        worker_command = [python_executable, worker_script, "--payload", encoded]
+        worker_command = [python_executable, worker_script, "--payload-stdin"]
         command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-        return run_benchmark_worker(command, 'LORA_TRAINING_BENCHMARK_RESULT=', 'training worker failed', timeout=7200)
+        return run_benchmark_worker(command, 'LORA_TRAINING_BENCHMARK_RESULT=', 'training worker failed', timeout=7200, input=json.dumps(payload))
     finally:
         if remote_source is not None:
             apply_remote_benchmark_asset_cleanup(ssh_alias, remote_source, "training")
@@ -556,10 +554,9 @@ def _run_preparer_worker(fixture, target, settings, root_dir, ssh_alias):
         worker_script = posixpath.join(remote_root, "app", "preparer_benchmark.py")
     payload = {"fixture": worker_fixture, "python": python_executable,
                "preparer_script": preparer_script}
-    encoded = get_encoded_worker_payload(payload)
-    worker_command = [python_executable, worker_script, "--payload", encoded]
+    worker_command = [python_executable, worker_script, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'PREPARER_BENCHMARK_RESULT=', 'preparer worker failed', timeout=3600)
+    return run_benchmark_worker(command, 'PREPARER_BENCHMARK_RESULT=', 'preparer worker failed', timeout=3600, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -611,10 +608,9 @@ def _run_dedup_worker(fixture, target, settings, root_dir, ssh_alias):
             worker_script = posixpath.join(remote_root, "app", "dedup_benchmark.py")
         payload = {"fixture": worker_fixture, "python": python_executable,
                    "analysis_script": analysis_script}
-        encoded = get_encoded_worker_payload(payload)
-        worker_command = [python_executable, worker_script, "--payload", encoded]
+        worker_command = [python_executable, worker_script, "--payload-stdin"]
         command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-        return run_benchmark_worker(command, 'DEDUP_BENCHMARK_RESULT=', 'dedup worker failed', timeout=3600)
+        return run_benchmark_worker(command, 'DEDUP_BENCHMARK_RESULT=', 'dedup worker failed', timeout=3600, input=json.dumps(payload))
     finally:
         if remote_source is not None:
             apply_remote_benchmark_asset_cleanup(ssh_alias, remote_source, "dedup")
@@ -664,10 +660,9 @@ def _run_profiling_worker(fixture, target, settings, root_dir, ssh_alias):
         raise ValueError("profiling benchmark requires a Python executable")
     payload = {"fixture": fixture, "root_dir": worker_root,
                "zip_path": worker_zip, "model_path": model_path}
-    encoded = get_encoded_worker_payload(payload)
-    worker_command = [python_executable, worker_script, "--payload", encoded]
+    worker_command = [python_executable, worker_script, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'PROFILING_BENCHMARK_RESULT=', 'profiling worker failed', timeout=3600)
+    return run_benchmark_worker(command, 'PROFILING_BENCHMARK_RESULT=', 'profiling worker failed', timeout=3600, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -698,10 +693,9 @@ def _run_naming_worker(fixture, target, settings, root_dir, ssh_alias):
         script = get_voice_lab_script_path(remote_root, "name_voices.py", remote=True)
         worker = posixpath.join(remote_root, "app", "naming_benchmark.py")
     payload = {"fixture": fixture, "python": python_executable, "script": script}
-    encoded = get_encoded_worker_payload(payload)
-    worker_command = [python_executable, worker, "--payload", encoded]
+    worker_command = [python_executable, worker, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'NAMING_BENCHMARK_RESULT=', 'naming worker failed', timeout=120)
+    return run_benchmark_worker(command, 'NAMING_BENCHMARK_RESULT=', 'naming worker failed', timeout=120, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -901,10 +895,9 @@ def _run_export_worker(stage, fixture, target, settings, root_dir, ssh_alias):
                            text=True, timeout=300, check=True)
         worker = posixpath.join(remote_root, "app", "export_benchmark.py")
     payload = {"stage": stage, "fixture": fixture, "source_root": source_root}
-    encoded = get_encoded_worker_payload(payload)
-    worker_command = [python_executable, worker, "--payload", encoded]
+    worker_command = [python_executable, worker, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'EXPORT_BENCHMARK_RESULT=', 'export worker failed', timeout=900)
+    return run_benchmark_worker(command, 'EXPORT_BENCHMARK_RESULT=', 'export worker failed', timeout=900, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -934,10 +927,9 @@ def _run_dataset_builder_worker(fixture, target, settings, root_dir, ssh_alias,
             raise ValueError("Thunder Dataset Builder requires remote_root, remote_python, and SSH alias")
         worker = posixpath.join(remote_root, "app", "dataset_builder_benchmark.py")
     payload = {"fixture": fixture, "tts": tts_config}
-    encoded = get_encoded_worker_payload(payload)
-    worker_command = [python_executable, worker, "--payload", encoded]
+    worker_command = [python_executable, worker, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'DATASET_BUILDER_BENCHMARK_RESULT=', 'Dataset Builder worker failed', timeout=3600)
+    return run_benchmark_worker(command, 'DATASET_BUILDER_BENCHMARK_RESULT=', 'Dataset Builder worker failed', timeout=3600, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation

@@ -31,14 +31,15 @@ class WorkerProtocolTests(unittest.TestCase):
                 'worker failed', timeout=5, error_limit=32, raise_failed=True)
         self.assertEqual(str(failure.exception), 'x' * 28 + 'tail')
 
-    def invoke(self, name, result=None, error=None, encoded=None):
+    def invoke(self, name, result=None, error=None, encoded=None, stdin=None):
         module = importlib.import_module(name)
         marker = name.removesuffix('_benchmark').upper() + '_BENCHMARK_RESULT='
         argv = [name,'--payload',encoded if encoded is not None else protocol.get_encoded_worker_payload(PAYLOAD)]
+        if stdin is not None:argv = [name, '--payload-stdin']
         if name == 'tts_benchmark':argv += ['--output-dir','unused']
         target = 'execute_fixture' if name in METRICS else 'execute_payload'
         output = io.StringIO()
-        with patch.object(sys,'argv',argv),patch.object(module,target,return_value=result,side_effect=error),contextlib.redirect_stdout(output):
+        with patch.object(sys,'argv',argv),patch.object(sys,'stdin',io.StringIO(stdin or '')),patch.object(module,target,return_value=result,side_effect=error),contextlib.redirect_stdout(output):
             module.main()
         lines = [line for line in output.getvalue().splitlines() if line.startswith(marker)]
         self.assertEqual(1,len(lines),output.getvalue())
@@ -54,6 +55,16 @@ class WorkerProtocolTests(unittest.TestCase):
                 self.assertEqual('failed',self.invoke(name,encoded='!!!!')['status'])
                 self.assertEqual('failed',self.invoke(name,result={'not_json':{1,2}})['status'])
                 with self.assertRaises(BenchmarkCancelled):self.invoke(name,error=BenchmarkCancelled())
+
+    def test_stdin_worker_mains_preserve_shapes_cancellation_and_decode_failures(self):
+        for name in WORKERS:
+            with self.subTest(worker=name):
+                result = {'text': '日本語 café'}
+                expected = {'status': 'passed', 'metrics': result, 'error': None} if name in METRICS else result
+                self.assertEqual(expected, self.invoke(name, result=result, stdin=json.dumps(PAYLOAD)))
+                self.assertEqual('failed', self.invoke(name, stdin='{invalid')['status'])
+                with self.assertRaises(BenchmarkCancelled):
+                    self.invoke(name, error=BenchmarkCancelled(), stdin=json.dumps(PAYLOAD))
 
     def test_payload_roundtrip_and_last_marker_parser_preserve_diagnostics(self):
         payload={'text':'日本語 café','nested':{'value':[1,None,True]}}

@@ -1,6 +1,7 @@
 """Shared wire format for benchmark workers; stage execution stays with callers."""
 import base64
 import json
+import sys
 from benchmark_execution import BenchmarkCancelled
 
 
@@ -10,6 +11,17 @@ def get_encoded_worker_payload(payload):
 
 def get_decoded_worker_payload(encoded):
     return json.loads(base64.b64decode(encoded).decode("utf-8"))
+
+
+def add_benchmark_worker_payload_arguments(parser):
+    """Accept JSON stdin while retaining the legacy base64 command interface."""
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--payload")
+    source.add_argument("--payload-stdin", action="store_true")
+
+
+def load_benchmark_worker_payload(args):
+    return json.load(sys.stdin) if args.payload_stdin else get_decoded_worker_payload(args.payload)
 
 
 def emit_benchmark_worker_result(marker, execute, *, metrics_only=False):

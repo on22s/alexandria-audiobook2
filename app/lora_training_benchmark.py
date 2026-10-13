@@ -1,6 +1,7 @@
 """Run a hash-verified calibration through production train_lora.py."""
 
-from benchmark_worker_protocol import get_decoded_worker_payload, emit_benchmark_worker_result
+from benchmark_worker_protocol import (add_benchmark_worker_payload_arguments,
+                                       load_benchmark_worker_payload, emit_benchmark_worker_result)
 import argparse
 import json
 import os
@@ -87,10 +88,10 @@ def execute_fixture(fixture, python_executable, train_script, output_root):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--payload", required=True)
+    add_benchmark_worker_payload_arguments(parser)
     args = parser.parse_args()
     def execute():
-        payload = get_decoded_worker_payload(args.payload)
+        payload = load_benchmark_worker_payload(args)
         return execute_fixture(payload["fixture"], payload["python"], payload["train_script"], payload["output_root"])
     emit_benchmark_worker_result('LORA_TRAINING_BENCHMARK_RESULT=',
                                  execute, metrics_only=True)
