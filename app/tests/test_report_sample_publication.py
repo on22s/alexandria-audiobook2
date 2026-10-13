@@ -132,7 +132,7 @@ class SamplePublicationTests(unittest.TestCase):
                     self.assertEqual({},core._task_claims)
                     check.assert_called_once_with('dataset_builder')
                     self.assertFalse(state['dataset_builder']['running'])
-                    self.assertEqual(after,source.read_bytes())
+                    self.assertFalse(source.exists())
                     self.assertEqual(b'other invocation',sentinel.read_bytes())
                     self.assertEqual({'state.json','sample_000.wav',sentinel.name}, {p.name for p in work.iterdir()})
                     row = dataset_builder._load_builder_state('voice')['samples'][0]

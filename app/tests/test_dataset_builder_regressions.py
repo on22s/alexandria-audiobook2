@@ -193,6 +193,7 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
         from audio_validation import validate_generated_audio
         wav = self.root / "generated.wav"
         sf.write(wav, np.zeros(1200), 24000)
+        expected_audio = wav.read_bytes()
         engine = SimpleNamespace(generate_voice_design=Mock(return_value=(str(wav), None)))
         manager = SimpleNamespace(get_engine=lambda: engine)
         request = dataset_builder.DatasetSampleGenRequest(
@@ -209,7 +210,8 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
         self.assertEqual("calm", updated[0]["emotion"])
         output = str(self.root / "voice/sample_000.wav")
         self.assertEqual(output, validate_generated_audio(output))
-        self.assertEqual(wav.read_bytes(), Path(output).read_bytes())
+        self.assertEqual(expected_audio, Path(output).read_bytes())
+        self.assertFalse(wav.exists())
         self.assertFalse(dataset_builder.process_state["dataset_builder"]["running"])
 
     def test_generation_failure_preserves_row_and_prior_audio(self):
@@ -329,6 +331,7 @@ class GeneratedSampleSeedTests(unittest.TestCase):
                 with self.subTest(seed=seed):
                     request = {"dataset_name": "voice", "sample_index": 0, "description": "warm, calm", "text": " A new line. ", "seed": seed}
                     before = copy.deepcopy(request)
+                    source.write_bytes(original)
                     response = client.post("/api/dataset_builder/generate_sample", json=request)
                     self.assertEqual(200, response.status_code, response.text)
                     row = dataset_builder._load_builder_state("voice")["samples"][0]
@@ -338,7 +341,7 @@ class GeneratedSampleSeedTests(unittest.TestCase):
                     self.assertEqual("done", row["status"])
                     self.assertEqual("A new line.", row["text"])
                     self.assertEqual(original, (self.root / "voice/sample_000.wav").read_bytes())
-                    self.assertEqual(original, source.read_bytes())
+                    self.assertFalse(source.exists())
                     self.assertFalse(dataset_builder.process_state["dataset_builder"]["running"])
                     self.assertEqual(before, request)
 
@@ -350,6 +353,7 @@ class GeneratedSampleSeedTests(unittest.TestCase):
         with wave.open(str(source), "wb") as audio:
             audio.setnchannels(1); audio.setsampwidth(2); audio.setframerate(24000)
             audio.writeframes(bytes((0, 16)) * 1200)
+        original_audio = source.read_bytes()
         self.state['global_seed'] = '42'
         self.state['samples'] = [{**self.original, 'seed': ''},
                                  {**self.original, 'seed': 42}]
@@ -361,6 +365,7 @@ class GeneratedSampleSeedTests(unittest.TestCase):
              patch.object(dataset_builder, 'claim_gpu_task'), \
              patch.object(dataset_builder.project_manager, 'get_engine', return_value=engine):
             for index, inherited in enumerate((True, False)):
+                source.write_bytes(original_audio)
                 response = client.post('/api/dataset_builder/generate_sample', json={
                     'dataset_name': 'voice', 'sample_index': index, 'description': 'warm',
                     'text': 'A sample line.', 'seed': 42, 'inherit_seed': inherited})
@@ -424,6 +429,7 @@ class DatasetBenchmarkThreadTests(unittest.TestCase):
                     raise AssertionError("benchmark loop did not close")
                 self.assertTrue(state["dataset_builder"]["running"])
                 calls.append(kwargs)
+                wav.write_bytes(original)
                 return str(wav), kwargs["sample_text"]
             engine = SimpleNamespace(generate_voice_design=render)
             original_dir = dataset_builder.DATASET_BUILDER_DIR
@@ -456,7 +462,7 @@ class DatasetBenchmarkThreadTests(unittest.TestCase):
                 self.assertEqual("done", output["state"]["status"])
                 self.assertEqual(expected["sha256"], output["metrics"]["sha256"])
                 self.assertEqual(0.1, output["metrics"]["duration_seconds"])
-            self.assertEqual(original, wav.read_bytes())
+            self.assertFalse(wav.exists())
             self.assertEqual(original_dir, dataset_builder.DATASET_BUILDER_DIR)
             self.assertEqual(original_engine, dataset_builder.project_manager.get_engine)
             self.assertEqual(before, payload)

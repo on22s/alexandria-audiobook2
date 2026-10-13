@@ -27,7 +27,11 @@ class BuilderBenchmarkLifetimeTests(unittest.TestCase):
             wav=Path(tmp)/'source.wav'
             with wave.open(str(wav),'wb') as audio:
                 audio.setnchannels(1);audio.setsampwidth(2);audio.setframerate(24000);audio.writeframes(array.array('h',[4096]*2400).tobytes())
-            engine=SimpleNamespace(generate_voice_design=render or (lambda **kwargs:(str(wav),kwargs['sample_text'])))
+            audio_bytes=wav.read_bytes()
+            def fresh_preview(**kwargs):
+                wav.write_bytes(audio_bytes)
+                return str(wav),kwargs['sample_text']
+            engine=SimpleNamespace(generate_voice_design=render or fresh_preview)
             def start(*args,**kwargs):
                 worker=real_start(*args,**kwargs);threads.append(worker);return worker
             with patch.object(routes,'DATASET_BUILDER_DIR',str(Path(tmp)/'production')),patch.object(routes.project_manager,'get_engine',return_value=SimpleNamespace(label='production fixture')),patch.object(core,'process_state',states),patch.object(core,'_gpu_leases',{}),patch.object(core,'_task_claims',{}),patch.object(core,'acquire_gpu_lock',return_value=None),patch.object(routes,'process_state',states),patch.object(benchmark,'TTSEngine',return_value=engine),patch.object(routes,'start_claimed_task_thread',side_effect=start):

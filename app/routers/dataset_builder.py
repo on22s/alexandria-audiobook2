@@ -51,6 +51,22 @@ def publish_sample_audio(source, destination):
             pass
 
 
+def generate_sample_audio(engine, destination, *, description, sample_text, seed):
+    """Publish a generated sample, then retire only this call's preview."""
+    preview, _ = engine.generate_voice_design(
+        description=description, sample_text=sample_text, seed=seed)
+    try:
+        publish_sample_audio(preview, destination)
+    finally:
+        if os.path.abspath(preview) != os.path.abspath(destination):
+            try:
+                os.unlink(preview)
+            except FileNotFoundError:
+                pass
+            except OSError as error:
+                logger.warning("Dataset sample preview cleanup failed at %s: %s", preview, error)
+
+
 def _get_builder_project_key(name):
     """One canonical path identity for project locks and task ownership."""
     return os.path.realpath(os.path.join(DATASET_BUILDER_DIR, name))
@@ -340,15 +356,10 @@ def _generate_dataset_sample_sync(request: DatasetSampleGenRequest):
         if not engine:
             raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
-        wav_path, _ = engine.generate_voice_design(
-            description=request.description,
-            sample_text=request.text,
-            seed=request.seed,
-        )
-
         dest_filename = f"sample_{request.sample_index:03d}.wav"
         dest_path = os.path.join(work_dir, dest_filename)
-        publish_sample_audio(wav_path, dest_path)
+        generate_sample_audio(engine, dest_path, description=request.description,
+                              sample_text=request.text, seed=request.seed)
 
         # Update state (cache-bust URL so browser loads fresh audio on regen)
         cache_bust = time.time_ns()
@@ -487,14 +498,10 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                         per_seeds[idx] if per_seeds and idx < len(per_seeds) else -1,
                         global_seed)
 
-                    wav_path, _ = engine.generate_voice_design(
-                        description=description,
-                        sample_text=text,
-                        seed=seed,
-                    )
                     dest_filename = f"sample_{idx:03d}.wav"
                     dest_path = os.path.join(work_dir, dest_filename)
-                    publish_sample_audio(wav_path, dest_path)
+                    generate_sample_audio(engine, dest_path, description=description,
+                                          sample_text=text, seed=seed)
 
                     samples_state[idx] = {
                         **samples_state[idx],

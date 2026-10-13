@@ -53,7 +53,7 @@ class DatasetBuilderAdmissionTests(unittest.TestCase):
     def test_actual_asgi_can_ping_while_single_sample_worker_is_held_and_publishes_exact_pcm(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);work=root/'voice';work.mkdir();(work/'state.json').write_text(json.dumps({'samples':[{'text':'Old','emotion':'calm','status':'pending'}]}))
-            source=root/'source.wav';sf.write(source,np.full(240,.125),24000)
+            source=root/'source.wav';sf.write(source,np.full(240,.125),24000);expected_audio=source.read_bytes()
             entered=threading.Event();release=threading.Event();states={'dataset_builder':{'running':False,'logs':[]}};threads=[]
             def claim(task):states[task]['running']=True;threads.append(('claim',threading.get_ident()));return 'fixture'
             def finish(task,claim_id):states[task]['running']=False;threads.append(('release',threading.get_ident()))
@@ -78,13 +78,13 @@ class DatasetBuilderAdmissionTests(unittest.TestCase):
             self.assertEqual(200,response.status_code,response.text);self.assertEqual('done',response.json()['status'])
             self.assertFalse(states['dataset_builder']['running']);self.assertEqual(['claim','render','release'],[name for name,_ in threads])
             self.assertEqual(1,len({ident for _,ident in threads}));self.assertNotEqual(threading.get_ident(),threads[0][1])
-            self.assertEqual(source.read_bytes(),(work/'sample_000.wav').read_bytes())
+            self.assertEqual(expected_audio,(work/'sample_000.wav').read_bytes());self.assertFalse(source.exists())
             row=json.loads((work/'state.json').read_text())['samples'][0];self.assertEqual(('done','Known',0),(row['status'],row['text'],row['seed']))
 
     def test_cancelled_request_does_not_release_the_still_running_worker_claim(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);work=root/'voice';work.mkdir();(work/'state.json').write_text(json.dumps({'samples':[{'text':'Old','status':'pending'}]}))
-            source=root/'source.wav';sf.write(source,np.full(240,.25),24000)
+            source=root/'source.wav';sf.write(source,np.full(240,.25),24000);expected_audio=source.read_bytes()
             entered=threading.Event();release=threading.Event();finished=threading.Event();states={'dataset_builder':{'running':False}}
             def claim(task):states[task]['running']=True;return 'owned-fixture'
             def finish(task,claim_id):
@@ -101,4 +101,4 @@ class DatasetBuilderAdmissionTests(unittest.TestCase):
                     self.assertTrue(await asyncio.to_thread(finished.wait,2))
             with patch.object(routes,'DATASET_BUILDER_DIR',str(root)),patch.object(routes,'process_state',states),patch.object(routes,'check_global_gpu_lock'),patch.object(routes,'claim_gpu_task',side_effect=claim),patch.object(routes,'release_gpu_task_claim',side_effect=finish),patch.object(routes.project_manager,'get_engine',return_value=SimpleNamespace(generate_voice_design=render)):
                 asyncio.run(exercise())
-            self.assertFalse(states['dataset_builder']['running']);self.assertEqual(source.read_bytes(),(work/'sample_000.wav').read_bytes())
+            self.assertFalse(states['dataset_builder']['running']);self.assertEqual(expected_audio,(work/'sample_000.wav').read_bytes());self.assertFalse(source.exists())

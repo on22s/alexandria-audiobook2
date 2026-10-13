@@ -2142,6 +2142,13 @@
     "tests.test_dataset_metadata.DatasetMetadataUploadTests.test_malformed_mixed_rows_return_400_and_remove_reserved_and_temp_artifacts",
     "tests.test_dataset_metadata.DatasetMetadataUploadTests.test_valid_legacy_rows_and_missing_file_counts_preserve_original_artifacts"
   ],
+  "test_dataset_preview_cleanup": [
+    "tests.test_dataset_preview_cleanup.DatasetPreviewCleanupTests.test_copy_failure_keeps_prior_sample_and_retires_only_returned_preview",
+    "tests.test_dataset_preview_cleanup.DatasetPreviewCleanupTests.test_engine_returning_destination_never_retires_the_good_sample",
+    "tests.test_dataset_preview_cleanup.DatasetPreviewCleanupTests.test_retirement_failure_warns_without_deleting_good_sample",
+    "tests.test_dataset_preview_cleanup.DatasetPreviewCleanupTests.test_single_and_batch_regeneration_retire_previews_and_delete_keeps_other_owners",
+    "tests.test_dataset_preview_cleanup.DatasetPreviewCleanupTests.test_state_write_failure_still_retires_preview_after_successful_audio_publication"
+  ],
   "test_dataset_publication": [
     "tests.test_dataset_publication.DatasetPublicationTests.test_builder_is_invisible_until_all_audio_reference_and_metadata_are_ready",
     "tests.test_dataset_publication.DatasetPublicationTests.test_cancelled_upload_leaves_archive_owned_until_worker_finishes_publication",
