@@ -86,7 +86,7 @@
             'lmstudio-optimize-toggle': {what: 'Reloads LM Studio with tuned settings: locally context 8192 and parallel 1 (kept low for VRAM safety); remotely context 98304 and parallel 2 over SSH. Off restores LM Studio’s defaults.'},
 
             // Setup: prompts
-            'prompt-preset-select': {what: 'How Step 2 asks the model who speaks each line. michel2_full is the default. michel2_spoken (experimental) labels only the quotes and fills narration in code.', recommend: 'michel2_spoken is worth trying: in our tests it was about 5× faster in Step 2 and as accurate or better (a PDNC pilot, and a local gold set). It is not the default yet.', source: '#1176 / #1178 A/Bs'},
+            'prompt-preset-select': {what: 'How Step 2 asks the model who speaks each line. michel2_full is the default. michel2_spoken labels only the quotes and fills narration in code. If you serve an attribution adapter, keep the prompt it was trained on (usually michel2_full).', recommend: 'michel2_spoken on Qwen3-14B without an adapter: +6.5 points on a local gold set (p = 0.001) with about 3× less Step 2 time. Not yet measured on other models.', source: '#1171 / #1176 A/Bs'},
             'pass1-prompt-preset-select': {what: 'Prompt preset for Step 1 (splitting text into lines). Default uses the checked-in prompt.'},
             'pass1-system-prompt': {what: 'Step 1 system prompt. Edit only to customise; the text must still come back word for word.'},
             'pass1-user-prompt': {what: 'Step 1 user prompt template. It must keep {chunk}.'},
