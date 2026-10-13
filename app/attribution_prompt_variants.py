@@ -497,7 +497,7 @@ def make_provider(variant, alias_groups=None, texts=None):
     def provider(client, model_name, sys_prompt, user_prompt, params, log_name, label,
                  max_retries, validate_entries, attempt_observer, frozen_batch,
                  roster=None, neighbor_contexts=None, surround=None, roster_traits=None,
-                 **_ignored):
+                 retry_decider=None, **_ignored):
         michel2_family = variant.startswith("michel2")
         sys_prompt, body = build_request(
             frozen_batch, params, roster, neighbor_contexts, surround, roster_traits)
@@ -517,7 +517,7 @@ def make_provider(variant, alias_groups=None, texts=None):
         named = call_llm_for_entries(
             client, model_name, sys_prompt, body, params, log_name=log_name, label=label,
             max_retries=max_retries, validate_entries=validator,
-            attempt_observer=attempt_observer)
+            attempt_observer=attempt_observer, retry_decider=retry_decider)
         from pass_quality import index_head_check
         aligned, _reason, ordered = index_head_check(frozen_batch, named)
         if named and aligned:

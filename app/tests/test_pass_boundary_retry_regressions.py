@@ -91,6 +91,39 @@ class AttributionCountRetryTests(unittest.TestCase):
     frozen = [{'type': 'SPOKEN', 'text': 'Alice says hello.'}, {'type': 'SPOKEN', 'text': 'Alice says goodbye.'}]
     valid = [{'n': 0, 'speaker': 'ALICE'}, {'n': 1, 'speaker': 'ALICE'}]
 
+    def test_default_provider_wrong_count_stops_after_one_call(self):
+        from attribution_prompt_variants import make_provider
+        client, calls = client_for([(self.valid[:1], 'stop')] * 4)
+        with self.assertRaises(tp.PassExhausted):
+            tp.attribute_batch(client, 'm', self.frozen, LLMGenParams(max_tokens=500),
+                               ['ALICE'], max_retries=3,
+                               entries_provider=make_provider('michel2_full'),
+                               surround={'entries': self.frozen, 'before': '', 'after': ''})
+        self.assertEqual(1, len(calls))
+
+    def test_default_provider_truncation_still_increases_budget(self):
+        from attribution_prompt_variants import make_provider
+        client, calls = client_for([(self.valid[:1], 'length'), (self.valid, 'stop')])
+        out = tp.attribute_batch(client, 'm', self.frozen,
+                                 LLMGenParams(max_tokens=100, hard_max_tokens=1000),
+                                 ['ALICE'], max_retries=3,
+                                 entries_provider=make_provider('michel2_full'),
+                               surround={'entries': self.frozen, 'before': '', 'after': ''})
+        self.assertEqual(2, len(calls))
+        self.assertGreater(calls[1]['max_tokens'], calls[0]['max_tokens'])
+        self.assertEqual([e['text'] for e in self.frozen], [e['text'] for e in out])
+
+    def test_default_provider_name_gate_still_retries(self):
+        from attribution_prompt_variants import make_provider
+        invalid = [{'n': 0, 'speaker': 'BOB'}, {'n': 1, 'speaker': 'BOB'}]
+        client, calls = client_for([(invalid, 'stop')] * 2)
+        with self.assertRaises(tp.PassExhausted):
+            tp.attribute_batch(client, 'm', self.frozen, LLMGenParams(max_tokens=500),
+                               ['ALICE'], max_retries=1, source_text='Alice says hello.',
+                               entries_provider=make_provider('michel2_full'),
+                               surround={'entries': self.frozen, 'before': '', 'after': ''})
+        self.assertEqual(2, len(calls))
+
     def test_wrong_count_stops_same_window_after_one_call(self):
         client, calls = client_for([(self.valid[:1], 'stop')] * 5)
         with self.assertRaises(tp.PassExhausted):

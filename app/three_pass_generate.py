@@ -835,7 +835,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             client, model_name, sys_prompt, user_prompt, call_params,
             log_name="llm_responses.log", label="ATTRIBUTE",
             max_retries=max_retries, validate_entries=validate,
-            attempt_observer=observe, frozen_batch=frozen_batch,
+            attempt_observer=observe, retry_decider=decide_retry,
+            frozen_batch=frozen_batch,
             # what a provider that rebuilds the prompt its own way needs: the
             # roster and contexts the canonical prompt was built from, and the
             # surrounding text when the user asked for it
