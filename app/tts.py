@@ -1042,6 +1042,47 @@ class TTSEngine:
             decoder.chunked_decode = get_memory_bounded_codec_decode(decoder.chunked_decode)
         return model
 
+    def _release_inactive_local_models(self, family, device, dtype):
+        """Keep cached families only when another load has ample headroom.
+
+        Called under local serialization and _model_lock, before loading. The
+        current 1.7B families need ~4.2 GB bf16 weights including the codec;
+        budget 5 GB plus at least an equal amount for inference/fragmentation.
+        Scale for fp32 and the configured finite generation window. Unknown
+        GPU capacity and CPU/MPS use a single resident family conservatively.
+        Existing inference headroom checks still govern each render.
+        """
+        families = ("custom", "clone", "design", "lora")
+        inactive = [name for name in families if name != family
+                    and getattr(self, f"_local_{name}_model", None) is not None]
+        if not inactive:
+            return
+        import torch
+        if str(device).startswith("cuda"):
+            try:
+                free, _ = torch.cuda.mem_get_info(device)
+                dtype_bytes = torch.finfo(dtype).bits // 8
+                load_budget = 5e9 * (dtype_bytes / 2)
+                required = load_budget * max(2.0, self._max_new_tokens / 1024)
+                # Driver free is conservative: allocator reservations are not
+                # counted as available for retaining another full family.
+                if free * 0.8 >= required:
+                    return
+            except Exception as exc:
+                print(f"Cannot size local model capacity: {exc}; releasing inactive families.")
+        for name in inactive:
+            print(f"Releasing inactive local {name} model before loading {family}...")
+            setattr(self, f"_local_{name}_model", None)
+            if name == "custom":
+                self._custom_warmup_needed = True
+            elif name == "clone":
+                self._clone_prompt_cache.clear()
+            elif name == "lora":
+                self._lora_adapter_path = None
+                self._lora_generation_sha256 = None
+                self._lora_prompt_cache.clear()
+        self._clear_gpu_cache()
+
     @ensure_local_tts_serialized
     def _init_local_custom(self):
         """Load Qwen3-TTS CustomVoice model on demand."""
@@ -1059,6 +1100,8 @@ class TTSEngine:
 
             device = self._resolve_device()
             dtype = device_utils.compute_dtype(device)
+
+            self._release_inactive_local_models("custom", device, dtype)
 
             print(f"Loading Qwen3-TTS CustomVoice model on {device} ({dtype})...")
             vram_before = self._vram_snapshot("pre-load")
@@ -1093,6 +1136,8 @@ class TTSEngine:
             device = self._resolve_device()
             dtype = device_utils.compute_dtype(device)
 
+            self._release_inactive_local_models("clone", device, dtype)
+
             print(f"Loading Qwen3-TTS Base model (voice cloning) on {device} ({dtype})...")
             load_kwargs = {"dtype": dtype}
             if device != "cpu":
@@ -1122,6 +1167,8 @@ class TTSEngine:
 
             device = self._resolve_device()
             dtype = device_utils.compute_dtype(device)
+
+            self._release_inactive_local_models("design", device, dtype)
 
             print(f"Loading Qwen3-TTS VoiceDesign model on {device} ({dtype})...")
             load_kwargs = {"dtype": dtype}
@@ -1173,6 +1220,8 @@ class TTSEngine:
 
             device = self._resolve_device()
             dtype = device_utils.compute_dtype(device)
+
+            self._release_inactive_local_models("lora", device, dtype)
 
             print(f"Loading Qwen3-TTS Base model + LoRA adapter on {device} ({dtype})...")
             load_kwargs = {"dtype": dtype}

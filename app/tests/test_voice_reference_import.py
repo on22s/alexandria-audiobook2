@@ -139,6 +139,54 @@ if __name__ == "__main__":
 
 class ReferenceImportFailureAndBoundaryTests(unittest.TestCase):
     _upload = UploadRouteTests._upload
+    def test_long_compressed_and_pcm_uploads_decode_only_a_bounded_prefix(self):
+        import subprocess
+        from fastapi import HTTPException
+        for extension in ('flac', 'wav'):
+            with self.subTest(extension=extension), tempfile.TemporaryDirectory() as tmp:
+                src = Path(tmp, 'input.' + extension)
+                _write(str(src), np.zeros(120 * vri.TARGET_RATE, np.float32))
+                before = src.read_bytes()
+                sizes = []
+                real_run = subprocess.run
+                def capture(*args, **kwargs):
+                    result = real_run(*args, **kwargs)
+                    sizes.append(len(result.stdout))
+                    return result
+                with patch.object(vri.subprocess, 'run', side_effect=capture):
+                    measures, problems = vri.import_reference_audio(str(src), str(Path(tmp, 'out.wav')))
+                    with self.assertRaises(HTTPException) as ctx:
+                        self._upload(tmp, before)
+                self.assertEqual({}, measures)
+                self.assertIn('too long: 120.0s', problems[0])
+                self.assertIn('too long', ctx.exception.detail)
+                self.assertEqual([31 * 24000 * 2] * 2, sizes)
+                self.assertEqual([src.name], os.listdir(tmp))
+                self.assertEqual(before, src.read_bytes())
+
+    def test_measurement_streams_blocks_and_preserves_all_quality_checks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            samples = np.concatenate([np.ones(2 * 24000), np.zeros(3 * 24000)])
+            src = _write(str(Path(tmp, 'quality.wav')), samples)
+            with patch.object(sf, 'read', side_effect=AssertionError('whole-file read')):
+                measures = vri.measure_reference_audio(src)
+            self.assertEqual(5, measures['duration_s'])
+            self.assertEqual(0.6, measures['silence_ratio'])
+            self.assertEqual(0.4, measures['clipping_ratio'])
+            self.assertTrue(any('clipped' in p for p in vri.check_reference_audio(measures)))
+            self.assertTrue(any('mostly silence' in p for p in vri.check_reference_audio(measures)))
+
+    def test_duration_refusal_does_not_trust_container_metadata(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as tmp:
+            src = _write(str(Path(tmp, 'long.flac')), np.zeros(120 * 24000))
+            dst = str(Path(tmp, 'out.wav'))
+            with patch.object(sf, 'info', return_value=SimpleNamespace(duration=1.0)):
+                measures, problems = vri.import_reference_audio(src, dst)
+            self.assertEqual({}, measures)
+            self.assertIn('too long: at least 31.0s', problems[0])
+            self.assertFalse(os.path.exists(dst))
+
     def test_partial_export_failure_is_reported_and_removed(self):
         from pydub import AudioSegment
         for failure in (OSError('disk full'), RuntimeError('export backend failed')):

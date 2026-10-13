@@ -19,7 +19,9 @@ Thresholds, with the reason each exists:
 - MIN_PEAK 0.05: below -26 dBFS peak the clip is effectively empty.
 """
 import hashlib
+import io
 import os
+import subprocess
 
 import numpy as np
 import soundfile as sf
@@ -38,10 +40,30 @@ def normalize_reference_audio(src, dst):
     Raises ValueError when decoding, normalising, or exporting fails."""
     from pydub import AudioSegment
     try:
-        with open(src, "rb") as source:
-            audio = AudioSegment.from_file(source)
+        # Bound the decoder output itself, including WAV inputs (pydub's WAV
+        # fast path ignores duration). Normalize before buffering so channels
+        # and input sample rate cannot multiply the PCM allocation.
+        decoded = subprocess.run([
+            AudioSegment.converter, "-nostdin", "-v", "error", "-i", os.path.abspath(src),
+            "-map", "0:a:0", "-vn", "-t", str(MAX_SECONDS + 1),
+            "-ac", "1", "-ar", str(TARGET_RATE), "-f", "s16le", "pipe:1",
+        ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+        audio = AudioSegment.from_raw(io.BytesIO(decoded.stdout),
+                                      sample_width=2, frame_rate=TARGET_RATE, channels=1)
     except Exception as exc:                                # noqa: BLE001
         raise ValueError(f"could not decode audio: {exc}") from exc
+    duration = len(decoded.stdout) / (2 * TARGET_RATE)
+    if duration > MAX_SECONDS:
+        # The bounded prefix proves refusal; metadata is only for the message.
+        # Missing or inaccurate metadata can never admit an oversized input.
+        duration_label = f"at least {duration:.1f}s"
+        try:
+            reported_duration = sf.info(src).duration
+            if reported_duration >= duration:
+                duration_label = f"{reported_duration:.1f}s"
+        except Exception:
+            pass
+        raise ValueError(f"too long: {duration_label} (at most {MAX_SECONDS:.0f}s; trim to one sentence)")
     try:
         audio = audio.set_channels(1).set_frame_rate(TARGET_RATE).set_sample_width(2)
         with open(dst, "wb+") as target:
@@ -54,9 +76,17 @@ def normalize_reference_audio(src, dst):
 def measure_reference_audio(path):
     """-> {duration_s, sample_rate, peak, silence_ratio, clipping_ratio, sha256}
     for a normalised WAV. Measurements only; judging them is check_reference_audio."""
-    samples, rate = sf.read(path, dtype="float32", always_2d=True)
-    mono = samples.mean(axis=1) if samples.shape[1] > 1 else samples[:, 0]
-    n = int(mono.size)
+    n = silent = clipped = 0
+    peak = 0.0
+    with sf.SoundFile(path) as audio:
+        rate = audio.samplerate
+        for samples in audio.blocks(blocksize=24000, dtype="float32", always_2d=True):
+            mono = samples.mean(axis=1) if samples.shape[1] > 1 else samples[:, 0]
+            amplitude = np.abs(mono)
+            n += int(mono.size)
+            peak = max(peak, float(np.max(amplitude)))
+            silent += int(np.count_nonzero(amplitude < 0.001))
+            clipped += int(np.count_nonzero(amplitude >= 0.999))
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
@@ -64,9 +94,9 @@ def measure_reference_audio(path):
     return {
         "duration_s": n / rate if rate else 0.0,
         "sample_rate": int(rate),
-        "peak": float(np.max(np.abs(mono))) if n else 0.0,
-        "silence_ratio": float(np.mean(np.abs(mono) < 0.001)) if n else 1.0,
-        "clipping_ratio": float(np.mean(np.abs(mono) >= 0.999)) if n else 0.0,
+        "peak": peak,
+        "silence_ratio": silent / n if n else 1.0,
+        "clipping_ratio": clipped / n if n else 0.0,
         "sha256": digest.hexdigest(),
     }
 
