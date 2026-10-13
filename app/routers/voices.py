@@ -1,4 +1,5 @@
-from book_state_transaction import ensure_book_state, get_book_snapshot, get_book_snapshot_token
+from book_state_transaction import (ensure_book_state, get_book_snapshot, get_book_snapshot_token,
+                                    get_book_operation_token)
 import copy
 import asyncio
 import gc
@@ -1086,6 +1087,7 @@ def _ensure_voice_snapshot():
         config = snapshot["voices"]
         return {"revision": get_voice_config_revision(config),
                 "book_token": get_book_snapshot_token(snapshot), "book_id": snapshot["book_id"], "config": config,
+                "book_identity_token": get_book_operation_token(os.path.dirname(VOICE_CONFIG_PATH)),
                 "voices": get_voice_rows(script, config),
                 "seed_changes": get_unseeded_voice_seed_changes(config)}
 

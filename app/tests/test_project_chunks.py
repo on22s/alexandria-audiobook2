@@ -549,8 +549,9 @@ class BatchWorkerConfigTests(unittest.TestCase):
                              patch.object(editor, 'project_manager', manager), \
                              patch.object(editor, 'process_state', state), \
                              patch.object(editor, 'check_global_gpu_lock'), \
-                             patch.object(editor, 'schedule_claimed_background_task',
-                                          side_effect=lambda background, name, callback: background.add_task(callback)) as schedule:
+                             patch.object(editor, 'reserve_background_task', return_value='fixture-claim'), \
+                             patch.object(editor, 'register_claimed_background_task',
+                                          side_effect=lambda background, name, claim, callback: background.add_task(callback)) as schedule:
                             response = client.post(endpoint, json={'indices': [0]})
                         schedule.assert_called_once()
                         self.assertEqual(200, response.status_code, response.text)

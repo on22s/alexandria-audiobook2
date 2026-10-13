@@ -9,7 +9,8 @@ import shutil
 import uuid
 import contextlib
 from pathlib import Path
-from book_state_transaction import ensure_book_state, apply_book_state_locked
+from book_state_transaction import (ensure_book_state, apply_book_state_locked,
+                                    get_book_operation_token)
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -129,6 +130,7 @@ async def list_saved_scripts():
 
 class ScriptSaveRequest(BaseModel):
     name: str
+    expected_book_token: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 def validate_book_json_bytes(raw, expected_type, status_code, label):
     """Refuse corrupt stored JSON before a book transaction publishes anything."""
@@ -151,6 +153,9 @@ def _save_script_sync(request):
         if not os.path.isfile(SCRIPT_PATH):
             raise HTTPException(status_code=404, detail="No annotated script to save. Generate a script first.")
         script_bytes = Path(SCRIPT_PATH).read_bytes()
+        if request.expected_book_token is not None:
+            if get_book_operation_token(DATA_DIR) != request.expected_book_token:
+                raise HTTPException(status_code=409, detail="Active book changed; reopen Save Current before saving")
         validate_book_json_bytes(script_bytes, list, 422, "Active script")
         replacements = {os.path.basename(dest): script_bytes,
             f"{safe_name}.meta.json": json.dumps({"book_id": get_active_book_id() or safe_name}).encode("utf-8")}

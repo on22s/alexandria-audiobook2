@@ -74,8 +74,14 @@
                 return;
             }
             try {
+                const book = currentBookFilename;
+                const bookToken = _voiceSaveSnapshot?.book_identity_token;
+                if (!bookToken) { throw new Error('Wait for the current book to finish loading before saving.'); }
                 await flushVoiceSaves();
-                await API.post('/api/scripts/save', { name });
+                if (book !== currentBookFilename || bookToken !== _voiceSaveSnapshot?.book_identity_token) {
+                    throw new Error('Active book changed; restart Save Current for the current book.');
+                }
+                await API.post('/api/scripts/save', { name, expected_book_token: bookToken });
                 nameInput.value = '';
                 loadSavedScripts();
             } catch (e) {

@@ -12,7 +12,7 @@ const turn=()=>new Promise(setImmediate);
 function client(){
  const fields={},calls=[],toasts=[],effects=[];let response=new Response('{}'),flush=Promise.resolve(),choice=true;
  const el=id=>fields[id]||(fields[id]={value:id==='save-script-name'?'Book #? 日本':'',style:{}});
- const ctx={document:{getElementById:el},console:{error(){}},fetch:async(url,options)=>{calls.push({url,...options});return response;},showConfirm:async()=>choice,ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:()=>flush,showToast:(...args)=>toasts.push(args),
+ const ctx={currentBookFilename:'book-a.json',_voiceSaveSnapshot:{book_identity_token:'a'.repeat(64)},document:{getElementById:el},console:{error(){}},fetch:async(url,options)=>{calls.push({url,...options});return response;},showConfirm:async()=>choice,ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:()=>flush,showToast:(...args)=>toasts.push(args),
  applyCurrentBookFilename:name=>effects.push(['book',name]),clearCharacterAliases:()=>effects.push(['aliases']),resetDesignerForm:()=>effects.push(['designer']),clearVoiceSuggestions:()=>effects.push(['suggestions']),loadCharacterAliases:async()=>effects.push(['alias-load']),loadChunks:async()=>effects.push(['chunks']),refreshVoiceMetadata:async()=>{},loadVoices:async()=>effects.push(['voices']),loadDesignedVoices:()=>effects.push(['designs'])};
  ctx.window=ctx;vm.createContext(ctx);vm.runInContext(core.slice(core.indexOf('function enqueueBookSelection('),core.indexOf('function getCurrentBookName(')),ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(core.slice(core.indexOf('const API ='),core.indexOf('function getTaskLogUpdate(')),ctx);
  vm.runInContext(source.slice(source.indexOf('async function saveScript()'),source.indexOf('// --- Voice Designer ---')),ctx);ctx.loadSavedScripts=()=>effects.push(['saved-list']);
@@ -49,8 +49,21 @@ for(const index of [1,2]){const c=client();c.setChoice(false);await operations(c
 for(const index of [0,1]){
  const c=client();let resolve;c.setFlush(new Promise(r=>resolve=r));c.setResponse(new Response(JSON.stringify({status:index===0?'saved':'loaded',name:'Canonical Book'})));
  const pending=operations(c)[index]();await turn();assert.strictEqual(c.calls.length,0);resolve();await pending;
- assert.strictEqual(c.calls[0].method,'POST');assert.strictEqual(c.calls[0].headers['Content-Type'],'application/json');assert.deepStrictEqual(JSON.parse(c.calls[0].body),{name:'Book #? 日本'});
+ assert.strictEqual(c.calls[0].method,'POST');assert.strictEqual(c.calls[0].headers['Content-Type'],'application/json');assert.deepStrictEqual(JSON.parse(c.calls[0].body),index===0?{name:'Book #? 日本',expected_book_token:'a'.repeat(64)}:{name:'Book #? 日本'});
  if(index===0){assert.strictEqual(c.el('save-script-name').value,'');assert.deepStrictEqual(c.effects,[['saved-list']]);}else{assert.deepStrictEqual(c.effects,[['book','Canonical Book.json'],['aliases'],['designer'],['suggestions'],['alias-load'],['chunks'],['voices'],['saved-list'],['designs']]);}
 }
 const c=client();c.setResponse(new Response(JSON.stringify({status:'deleted'})));await operations(c)[2]();assert.strictEqual(c.calls[0].method,'DELETE');assert.strictEqual(c.calls[0].url,'/api/scripts/'+encodeURIComponent('Book #? 日本'));assert.deepStrictEqual(c.effects,[['saved-list']]);
+''')
+
+    def test_save_refuses_book_or_generation_change_while_voice_flush_is_pending(self):
+        self.run_js(r'''
+for(const change of ['filename','generation']){
+ const c=client();let resolve;c.setFlush(new Promise(r=>resolve=r));
+ const pending=c.ctx.saveScript();await turn();assert.strictEqual(c.calls.length,0);
+ if(change==='filename'){c.ctx.currentBookFilename='book-b.json';}else{c.ctx._voiceSaveSnapshot={book_identity_token:'b'.repeat(64)};}
+ resolve();await pending;
+ assert.strictEqual(c.calls.length,0);assert.deepStrictEqual(c.effects,[]);
+ assert.strictEqual(c.el('save-script-name').value,'Book #? 日本');assert.strictEqual(c.toasts[0][1],'error');assert.match(c.toasts[0][0],/book changed/i);
+}
+const c=client();c.ctx._voiceSaveSnapshot=null;await c.ctx.saveScript();assert.strictEqual(c.calls.length,0);assert.strictEqual(c.toasts[0][1],'error');
 ''')

@@ -1121,6 +1121,14 @@
     "tests.test_book_preflight_ownership.BookPreflightOwnershipTests.test_failed_registration_or_receipt_publish_releases_pending_claim",
     "tests.test_book_preflight_ownership.BookPreflightOwnershipTests.test_real_child_cancel_keeps_claim_until_child_reaped"
   ],
+  "test_book_render_admission": [
+    "tests.test_book_render_admission.BookRenderAdmissionTests.test_admitted_uid_and_inputs_are_checked_before_every_engine_mode",
+    "tests.test_book_render_admission.BookRenderAdmissionTests.test_all_modes_refuse_stale_book_generation_and_row_without_mutation",
+    "tests.test_book_render_admission.BookRenderAdmissionTests.test_capture_ignores_status_progress_but_deep_copies_admitted_inputs",
+    "tests.test_book_render_admission.BookRenderAdmissionTests.test_invalid_selection_registration_failure_and_cancellation_release_own_claim",
+    "tests.test_book_render_admission.BookRenderAdmissionTests.test_pending_admission_excludes_switch_and_owns_lease_until_worker_finishes",
+    "tests.test_book_render_admission.BookSaveIdentityTests.test_save_refuses_switched_book_family_but_allows_same_book_edits"
+  ],
   "test_book_state_transaction": [
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_actual_persona_main_rejects_changed_book_and_keeps_original_artifact_identity",
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_application_startup_recovers_before_chunk_reset",
@@ -2685,6 +2693,7 @@
     "tests.test_editor_poll_delta.EditorPollDeltaTests.test_unchanged_poll_and_one_changed_row_do_not_transfer_book_text"
   ],
   "test_editor_render_barrier": [
+    "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_batch_and_single_render_refuse_book_change_during_pending_edits_or_refresh",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_both_render_buttons_serialize_rows_and_include_focused_uncommitted_controls",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_edits_during_snapshot_and_confirmation_are_flushed_and_resnapshotted",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_failed_row_save_aborts_render_and_successful_retry_uses_latest_artifact",
@@ -7122,6 +7131,7 @@
   ],
   "test_saved_script_api_js": [
     "tests.test_saved_script_api_js.SavedScriptApiJsTests.test_html_http_errors_keep_status_message_and_do_not_apply_success_effects",
+    "tests.test_saved_script_api_js.SavedScriptApiJsTests.test_save_refuses_book_or_generation_change_while_voice_flush_is_pending",
     "tests.test_saved_script_api_js.SavedScriptApiJsTests.test_structured_server_error_message_and_declined_confirmation_are_preserved",
     "tests.test_saved_script_api_js.SavedScriptApiJsTests.test_success_uses_acknowledged_book_name_and_existing_flush_and_json_contract"
   ],

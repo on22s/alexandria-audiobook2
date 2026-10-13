@@ -29,7 +29,7 @@ Object.defineProperty(ctx.API,'get',{set:value=>{getFixture=value;},get:()=>asyn
  const full=!url.includes('?revision=')||old.length!==data.length||data.some((row,i)=>old[i].id!==row.id);
  return {book_token:'fixture-token',revision:'fixture-'+JSON.stringify(data),full,total:data.length,running_count:data.filter(row=>row.status==='generating').length,changed_ids:data.map(row=>row.id),chunks:data};
 }});
-const chunk=(id,status='pending')=>({id,status,text:'line '+id,speaker:'Narrator'});
+const chunk=(id,status='pending')=>({id,uid:'row-'+id,status,text:'line '+id,speaker:'Narrator'});
 const ids=()=>body.children.map(row=>row.dataset.id);
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
@@ -62,7 +62,7 @@ const batchStart=source.indexOf('async function _runBatchRender(');run(source.sl
 const toasts=[],drifts=[];let poll;ctx.showToast=(text,tone)=>toasts.push({text,tone});ctx.runDriftCheck=rows=>drifts.push(Array.from(rows));ctx.showActionError=error=>{throw Error(error);};ctx.API.post=async()=>({});
 ctx._startPolling=(key,fetch,options)=>{assert.equal(key,'render_batch');poll={fetch,...options};};
 for(const change of ['book','uid','none']){
-toasts.length=drifts.length=0;ctx.applyCurrentBookFilename('book-A.json');ctx.ensureEditorRenderSnapshot=async()=>[1,2,3,4,5,6].map(id=>({...chunk(id),uid:'A-'+id}));
+toasts.length=drifts.length=0;ctx.applyCurrentBookFilename('book-A.json');run("chunkSnapshotBook=currentBookFilename;chunkSnapshotBookToken='fixture-token';");ctx.ensureEditorRenderSnapshot=async()=>[1,2,3,4,5,6].map(id=>({...chunk(id),uid:'A-'+id}));
 await ctx._runBatchRender('/fixture',false,{label:'fixture',describeStart:()=>''});assert(poll);
 if(change==='book'){ctx.applyCurrentBookFilename('book-B.json');}
 const finished=[1,2,3,4,5,6].map(id=>({...chunk(id,'done'),uid:(change==='none'?'A-':'B-')+id}));
@@ -169,6 +169,7 @@ ctx.API.get=async()=>[chunk(2)];await ctx.loadChunks(true);assert.strictEqual(el
 
     def test_actual_batch_poll_fetches_and_renders_once_without_second_timer(self):
         self.run_js(r'''
+run("chunkSnapshotBook=currentBookFilename;chunkSnapshotBookToken='fixture-token';");
 let poll,reads=0,statusReads=0,drift=0;ctx.ensureEditorRenderSnapshot=async()=>[chunk(1)];ctx.showToast=()=>{};ctx.showConfirm=async()=>true;
 ctx.cancelRender=()=>run('isRenderingAll=false');ctx.runDriftCheck=()=>drift++;ctx._startPolling=(key,fetch,options)=>{assert.strictEqual(key,'render_batch');poll={fetch,options};};ctx.API.post=async()=>({});
 ctx.API.get=async url=>{if(url==='/api/status/audio'){statusReads++;return {running:reads===0};}assert.ok(url.startsWith('/api/chunks/status'));reads++;return [chunk(1,reads===1?'generating':'done')];};

@@ -2,6 +2,7 @@
 import contextlib
 import hashlib
 import json
+from editor_poll_snapshot import get_snapshot_digest
 import os
 import shutil
 import stat
@@ -162,6 +163,21 @@ def apply_book_state_locked(data_dir, replacements, removals):
             shutil.rmtree(workspace)
         raise
 
+
+
+def get_book_operation_identity(data_dir):
+    """Read the selected book generation independently of edits within the book."""
+    root = Path(data_dir)
+    state_path = root / "state.json"
+    state = json.loads(state_path.read_bytes()) if state_path.exists() else {}
+    if not isinstance(state, dict):
+        raise ValueError("Invalid book identity")
+    return [os.path.abspath(data_dir), state.get("active_book_id"), state.get("book_generation")]
+
+
+def get_book_operation_token(data_dir):
+    """Identify the current selection using the editor's existing identity digest."""
+    return get_snapshot_digest(get_book_operation_identity(data_dir))
 
 
 def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True):

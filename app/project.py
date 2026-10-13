@@ -86,8 +86,16 @@ def get_chunk_generation_inputs(chunk):
     return {field: chunk[field] for field in CHUNK_GENERATION_FIELDS if field in chunk}
 
 
-def get_chunk_generation_requests(chunks, indices):
+def get_chunk_generation_requests(chunks, indices, admitted_requests=None):
     """Freeze each requested row once, retaining source indices for engine results."""
+    if admitted_requests is not None:
+        for index in indices:
+            admitted = admitted_requests.get(index)
+            if (not admitted or not 0 <= index < len(chunks)
+                    or chunks[index].get("uid") != admitted.get("uid")
+                    or get_chunk_generation_inputs(chunks[index]) != get_chunk_generation_inputs(admitted)):
+                raise ValueError(GENERATION_INPUTS_CHANGED)
+        return {index: copy.deepcopy(admitted_requests[index]) for index in indices}
     return {idx: copy.deepcopy(chunks[idx]) for idx in indices if 0 <= idx < len(chunks)}
 
 
@@ -955,12 +963,14 @@ class ProjectManager:
                 count += 1
         return count, failed
 
-    def generate_chunk_audio(self, index):
+    def generate_chunk_audio(self, index, admitted_chunk=None):
         chunks = self.load_chunks()
         if not (0 <= index < len(chunks)):
             return False, "Invalid chunk index"
         self.ensure_literal_render_inputs(chunks, [index])
-        return self._generate_captured_chunk_audio(index, copy.deepcopy(chunks[index]))
+        requests = get_chunk_generation_requests(
+            chunks, [index], {index: admitted_chunk} if admitted_chunk is not None else None)
+        return self._generate_captured_chunk_audio(index, requests[index])
 
     def ensure_literal_render_inputs(self, chunks, indices):
         def version():
@@ -1779,7 +1789,7 @@ class ProjectManager:
                                            wanted, changed_only, out_dir) is None]
 
     def generate_chunks_parallel(self, indices, max_workers=2, progress_callback=None,
-                                  cancel_check=None):
+                                  cancel_check=None, admitted_requests=None):
         """Accumulate durable UID transitions, compact after every worker stops."""
         with self._chunks_lock, file_lock(self.chunks_path):
             if self._active_journal_identity is not None:
@@ -1789,7 +1799,7 @@ class ProjectManager:
             self._active_journal_identity = copy.deepcopy(journal.book_identity)
         try:
             return self._generate_chunks_parallel_with_status_journal(
-                indices, max_workers, progress_callback, cancel_check)
+                indices, max_workers, progress_callback, cancel_check, admitted_requests)
         finally:
             with self._chunks_lock, file_lock(self.chunks_path):
                 try:
@@ -1800,7 +1810,8 @@ class ProjectManager:
                     self._status_journal = None
 
     def _generate_chunks_parallel_with_status_journal(self, indices, max_workers=2,
-                                                     progress_callback=None, cancel_check=None):
+                                                     progress_callback=None, cancel_check=None,
+                                                     admitted_requests=None):
         """Generate multiple chunks in parallel using ThreadPoolExecutor.
 
         Uses individual TTS API calls with per-speaker voice settings.
@@ -1822,11 +1833,12 @@ class ProjectManager:
 
         # Filter out empty-text chunks
         chunks = self.load_chunks()
+        captured = get_chunk_generation_requests(chunks, indices, admitted_requests)
         if chunks:
             indices = [i for i in indices if 0 <= i < len(chunks) and chunks[i].get("text", "").strip()]
 
         self.ensure_literal_render_inputs(chunks, indices)
-        captured = get_chunk_generation_requests(chunks, indices)
+        captured = {index: captured[index] for index in indices if index in captured}
         total = len(indices)
 
         if total == 0:
@@ -2066,7 +2078,7 @@ class ProjectManager:
         return oom_failed, hard_failures
 
     def generate_chunks_batch(self, indices, batch_seed=-1, batch_size=4, progress_callback=None,
-                               batch_group_by_type=False, cancel_check=None):
+                               batch_group_by_type=False, cancel_check=None, admitted_requests=None):
         """Generate multiple chunks using batch TTS API with a single seed.
 
         Args:
@@ -2086,13 +2098,14 @@ class ProjectManager:
 
         # Load chunks and voice config
         chunks = self.load_chunks()
+        captured = get_chunk_generation_requests(chunks, indices, admitted_requests)
 
         # Filter out empty-text chunks
         if chunks:
             indices = [i for i in indices if 0 <= i < len(chunks) and chunks[i].get("text", "").strip()]
 
         self.ensure_literal_render_inputs(chunks, indices)
-        captured = get_chunk_generation_requests(chunks, indices)
+        captured = {index: captured[index] for index in indices if index in captured}
         total = len(indices)
 
         if total == 0:

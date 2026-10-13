@@ -170,6 +170,34 @@
       },
       "BatchGenerateRequest": {
         "properties": {
+          "expected_book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Book Token"
+          },
+          "expected_uids": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Uids"
+          },
           "indices": {
             "items": {
               "type": "integer"
@@ -2809,6 +2837,18 @@
       },
       "ScriptSaveRequest": {
         "properties": {
+          "expected_book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Book Token"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -5132,6 +5172,42 @@
             "schema": {
               "title": "Index",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Book Token"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_uid",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Uid"
             }
           }
         ],

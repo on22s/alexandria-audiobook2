@@ -441,7 +441,8 @@ class SingleChunkTaskReportingTests(unittest.TestCase):
             self.assertEqual('failed',result['status'])
             self.assertEqual('chunk store unavailable',result['error'])
             self.assertEqual('Generation failed: chunk store unavailable',result['logs'][-1])
-            manager.generate_chunk_audio.assert_called_once_with(0)
+            manager.generate_chunk_audio.assert_called_once_with(
+                0, admitted_chunk={"text": "Generate this."})
 
 
 class NonGpuTaskReservationTests(unittest.TestCase):

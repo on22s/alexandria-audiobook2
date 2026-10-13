@@ -1,7 +1,7 @@
 from merge_integrity import get_source_integrity
 from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
-from book_state_transaction import ensure_book_state
+from book_state_transaction import ensure_book_state, get_book_operation_identity
 from task_ownership import ensure_startup_recovery
 import asyncio
 import copy
@@ -13,6 +13,7 @@ import time
 import uuid
 import warnings
 import zipfile
+from contextlib import contextmanager
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Query
@@ -35,6 +36,7 @@ from core import (
     _gpu_lock,
     check_global_gpu_lock,
     claim_gpu_task, schedule_claimed_background_task,
+    reserve_background_task, register_claimed_background_task, release_gpu_task_claim,
     process_state,
     project_manager,
 )
@@ -43,7 +45,8 @@ from generation_checkpoint_shards import get_generation_checkpoint_artifacts
 from editor_poll_snapshot import EditorPollSnapshots, get_snapshot_digest
 from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
-                     DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection)
+                     DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection,
+                     get_chunk_generation_requests)
 from routers.voices import get_script_speaker
 from tts import voice_config_for_chunk, resolve_narrator_voice_config, voice_category
 import voice_drift
@@ -83,6 +86,8 @@ class ChunkUpdate(BaseModel):
 
 class BatchGenerateRequest(BaseModel):
     indices: List[StrictInt] = Field(min_length=1)
+    expected_book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    expected_uids: Optional[List[Annotated[str, Field(min_length=1, max_length=128)]]] = None
 
 
 class DriftCheckRequest(BaseModel):
@@ -140,14 +145,7 @@ def _ensure_chunk_status_snapshot(revision):
 
 def get_editor_book_identity(root):
     """Caller holds the book transaction lock across reading and using identity."""
-    try:
-        with open(os.path.join(root, 'state.json'), encoding='utf-8') as stream:
-            state = json.load(stream)
-    except FileNotFoundError:
-        state = {}
-    if not isinstance(state, dict):
-        raise ValueError('Invalid book identity for editor')
-    return [os.path.abspath(root), state.get('active_book_id'), state.get('book_generation')]
+    return get_book_operation_identity(root)
 
 
 _deleted_chunk_receipts = {}
@@ -163,6 +161,36 @@ def check_chunk_identity(index, expected_book_token=None, expected_uid=None):
         chunks = project_manager.load_chunks()
         if not (0 <= index < len(chunks)) or chunks[index].get("uid") != expected_uid:
             raise HTTPException(status_code=409, detail="Editor row changed; reload before saving")
+
+
+@contextmanager
+def ensure_audio_generation_claim():
+    """Exclude book switching before any admission await, rolling back failures."""
+    claim_id = reserve_background_task("audio")
+    try:
+        yield claim_id
+    except BaseException:
+        release_gpu_task_claim("audio", claim_id, pending_only=True)
+        raise
+
+
+def ensure_audio_generation_requests(indices, expected_book_token=None, expected_uids=None):
+    """Read and bind selection once while its caller owns the audio reservation."""
+    root = os.path.dirname(SCRIPT_PATH)
+    with ensure_book_state(root):
+        identity = get_snapshot_digest(get_editor_book_identity(root))
+        if (expected_book_token is not None and expected_book_token != identity):
+            raise HTTPException(status_code=409, detail="Active book changed; reload before rendering")
+        chunks = project_manager.load_chunks()
+        if get_snapshot_digest(get_editor_book_identity(root)) != identity:
+            raise HTTPException(status_code=409, detail="Active book changed; reload before rendering")
+        selected = get_index_selection(indices, len(chunks))
+        if expected_uids is not None:
+            if len(expected_uids) != len(indices):
+                raise HTTPException(status_code=422, detail="Provide one UID per selected index")
+            if any(chunks[index].get("uid") != uid for index, uid in zip(indices, expected_uids)):
+                raise HTTPException(status_code=409, detail="Editor row changed; reload before rendering")
+        return selected, get_chunk_generation_requests(chunks, selected)
 
 
 def apply_chunk_update(index, updates, expected_book_token, expected_uid):
@@ -315,36 +343,42 @@ async def delete_chunk(index: int,
     return {"status": "ok", "deleted": deleted, "undo_token": token, "total": len(chunks)}
 
 @router.post("/api/chunks/{index}/generate")
-async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks):
-    chunks = await asyncio.to_thread(project_manager.load_chunks)
-    if not (0 <= index < len(chunks)):
-        raise HTTPException(status_code=404, detail="Invalid chunk index")
-    if not chunks[index].get("text", "").strip():
-        raise HTTPException(status_code=400, detail="Cannot generate audio for an empty line")
-
-    def task():
-        state = process_state["audio"]
-        state["start_time"] = time.time()
-        state["logs"] = [f"Generating chunk {index}..."]
-        state["status"] = "running"
-        state["error"] = None
+async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks,
+                                  expected_book_token: Annotated[Optional[str], Query(min_length=64, max_length=64)] = None,
+                                  expected_uid: Annotated[Optional[str], Query(min_length=1, max_length=128)] = None):
+    with ensure_audio_generation_claim() as claim_id:
         try:
-            success, message = project_manager.generate_chunk_audio(index)
-            state["status"] = "done" if success else "failed"
-            state["error"] = None if success else message
-            state["logs"].append(
-                f"Generation {'complete' if success else 'failed'}: {message}")
-        except Exception as exc:
-            logger.exception("Single-chunk generation error")
-            state["status"] = "failed"
-            state["error"] = str(exc)
-            state["logs"].append(f"Generation failed: {exc}")
-        finally:
-            state["running"] = False
+            _indices, requested = await asyncio.to_thread(
+                ensure_audio_generation_requests, [index], expected_book_token,
+                [expected_uid] if expected_uid is not None else None)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Invalid chunk index") from exc
+        if not requested[index].get("text", "").strip():
+            raise HTTPException(status_code=400, detail="Cannot generate audio for an empty line")
 
-    # Same GPU resource as /api/generate_batch - must not race it. See F-032.
-    schedule_claimed_background_task(background_tasks, "audio", task)
-    return {"status": "started"}
+        def task():
+            state = process_state["audio"]
+            state["start_time"] = time.time()
+            state["logs"] = [f"Generating chunk {index}..."]
+            state["status"] = "running"
+            state["error"] = None
+            try:
+                success, message = project_manager.generate_chunk_audio(index, admitted_chunk=requested[index])
+                state["status"] = "done" if success else "failed"
+                state["error"] = None if success else message
+                state["logs"].append(
+                    f"Generation {'complete' if success else 'failed'}: {message}")
+            except Exception as exc:
+                logger.exception("Single-chunk generation error")
+                state["status"] = "failed"
+                state["error"] = str(exc)
+                state["logs"].append(f"Generation failed: {exc}")
+            finally:
+                state["running"] = False
+
+        # Same GPU resource as /api/generate_batch - must not race it. See F-032.
+        register_claimed_background_task(background_tasks, "audio", claim_id, task)
+        return {"status": "started"}
 
 class MergeRequest(BaseModel):
     integrity_confirmation: Optional[str] = Field(None, min_length=64, max_length=64,
@@ -792,57 +826,60 @@ async def delete_m4b_cover():
 async def generate_batch_endpoint(request: BatchGenerateRequest, background_tasks: BackgroundTasks):
     """Generate multiple chunks in parallel using configured worker count."""
     check_global_gpu_lock("audio")
+    with ensure_audio_generation_claim() as claim_id:
 
-    # Load worker count from config
-    workers = 2
-    cfg = await asyncio.to_thread(load_app_config, CONFIG_PATH)
-    workers = max(1, cfg.get("tts", {}).get("parallel_workers", 2))
+        # Load worker count from config
+        workers = 2
+        cfg = await asyncio.to_thread(load_app_config, CONFIG_PATH)
+        workers = max(1, cfg.get("tts", {}).get("parallel_workers", 2))
 
-    try:
-        chunks = await asyncio.to_thread(project_manager.load_chunks)
-        indices = get_index_selection(request.indices, len(chunks))
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    total = len(indices)
-
-    def progress_callback(completed, failed, total):
-        """Update logs with progress."""
-        process_state["audio"]["logs"].append(
-            f"Progress: {completed + failed}/{total} ({completed} done, {failed} failed)"
-        )
-
-    def cancel_check():
-        return process_state["audio"]["cancel"]
-
-    def task():
-        process_state["audio"]["running"] = True
-        process_state["audio"]["start_time"] = time.time()
-        process_state["audio"]["logs"] = [
-            f"Starting parallel generation of {total} chunks with {workers} workers..."
-        ]
         try:
-            results = project_manager.generate_chunks_parallel(
-                indices, workers, progress_callback, cancel_check=cancel_check
-            )
-            completed = len(results["completed"])
-            failed = len(results["failed"])
-            cancelled = results.get("cancelled", 0)
-            msg = f"Batch generation complete: {completed} succeeded, {failed} failed"
-            if cancelled:
-                msg += f", {cancelled} cancelled"
-            process_state["audio"]["logs"].append(msg)
-            if results["failed"]:
-                for idx, err in results["failed"]:
-                    process_state["audio"]["logs"].append(f"  Chunk {idx} failed: {err}")
-        except Exception as e:
-            logger.exception("Batch generation error")
-            process_state["audio"]["logs"].append(f"Batch generation error: {e}")
-        finally:
-            process_state["audio"]["running"] = False
-            process_state["audio"]["cancel"] = False
+            indices, requested = await asyncio.to_thread(
+                ensure_audio_generation_requests, request.indices,
+                request.expected_book_token, request.expected_uids)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        total = len(indices)
 
-    schedule_claimed_background_task(background_tasks, "audio", task)
-    return {"status": "started", "workers": workers, "total_chunks": total}
+        def progress_callback(completed, failed, total):
+            """Update logs with progress."""
+            process_state["audio"]["logs"].append(
+                f"Progress: {completed + failed}/{total} ({completed} done, {failed} failed)"
+            )
+
+        def cancel_check():
+            return process_state["audio"]["cancel"]
+
+        def task():
+            process_state["audio"]["running"] = True
+            process_state["audio"]["start_time"] = time.time()
+            process_state["audio"]["logs"] = [
+                f"Starting parallel generation of {total} chunks with {workers} workers..."
+            ]
+            try:
+                results = project_manager.generate_chunks_parallel(
+                    indices, workers, progress_callback, cancel_check=cancel_check,
+                    admitted_requests=requested
+                )
+                completed = len(results["completed"])
+                failed = len(results["failed"])
+                cancelled = results.get("cancelled", 0)
+                msg = f"Batch generation complete: {completed} succeeded, {failed} failed"
+                if cancelled:
+                    msg += f", {cancelled} cancelled"
+                process_state["audio"]["logs"].append(msg)
+                if results["failed"]:
+                    for idx, err in results["failed"]:
+                        process_state["audio"]["logs"].append(f"  Chunk {idx} failed: {err}")
+            except Exception as e:
+                logger.exception("Batch generation error")
+                process_state["audio"]["logs"].append(f"Batch generation error: {e}")
+            finally:
+                process_state["audio"]["running"] = False
+                process_state["audio"]["cancel"] = False
+
+        register_claimed_background_task(background_tasks, "audio", claim_id, task)
+        return {"status": "started", "workers": workers, "total_chunks": total}
 
 
 @router.post("/api/generate_batch_fast")
@@ -850,68 +887,70 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
     """Generate multiple chunks using batch TTS API with single seed. Faster but less flexible.
     Requires custom Qwen3-TTS with /generate_batch endpoint."""
     check_global_gpu_lock("audio")
+    with ensure_audio_generation_claim() as claim_id:
 
-    # Load batch_seed and batch_size from config
-    batch_seed = -1
-    batch_size = 4
-    batch_group_by_type = False
-    cfg = await asyncio.to_thread(load_app_config, CONFIG_PATH)
-    try:
-        tts_cfg = cfg.get("tts", {})
-        seed_val = tts_cfg.get("batch_seed")
-        if seed_val is not None and seed_val != "":
-            batch_seed = int(seed_val)
-        batch_size = max(1, tts_cfg.get("parallel_workers", 4))
-        batch_group_by_type = tts_cfg.get("batch_group_by_type", False)
-    except (TypeError, ValueError) as e:
-        _warn_corrupted_json("config", CONFIG_PATH, "using default batch settings", e)
-
-    try:
-        chunks = await asyncio.to_thread(project_manager.load_chunks)
-        indices = get_index_selection(request.indices, len(chunks))
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    total = len(indices)
-
-    def progress_callback(completed, failed, total):
-        process_state["audio"]["logs"].append(
-            f"Progress: {completed + failed}/{total} ({completed} done, {failed} failed)"
-        )
-
-    def cancel_check():
-        return process_state["audio"]["cancel"]
-
-    def task():
-        process_state["audio"]["running"] = True
-        process_state["audio"]["start_time"] = time.time()
-        process_state["audio"]["logs"] = [
-            f"Starting batch generation of {total} chunks (batch_size={batch_size}, seed={batch_seed})..."
-        ]
+        # Load batch_seed and batch_size from config
+        batch_seed = -1
+        batch_size = 4
+        batch_group_by_type = False
+        cfg = await asyncio.to_thread(load_app_config, CONFIG_PATH)
         try:
-            results = project_manager.generate_chunks_batch(
-                indices, batch_seed, batch_size, progress_callback,
-                batch_group_by_type=batch_group_by_type,
-                cancel_check=cancel_check,
-            )
-            completed = len(results["completed"])
-            failed = len(results["failed"])
-            cancelled = results.get("cancelled", 0)
-            msg = f"Batch generation complete: {completed} succeeded, {failed} failed"
-            if cancelled:
-                msg += f", {cancelled} cancelled"
-            process_state["audio"]["logs"].append(msg)
-            if results["failed"]:
-                for idx, err in results["failed"]:
-                    process_state["audio"]["logs"].append(f"  Chunk {idx} failed: {err}")
-        except Exception as e:
-            logger.exception("Batch generation error")
-            process_state["audio"]["logs"].append(f"Batch generation error: {e}")
-        finally:
-            process_state["audio"]["running"] = False
-            process_state["audio"]["cancel"] = False
+            tts_cfg = cfg.get("tts", {})
+            seed_val = tts_cfg.get("batch_seed")
+            if seed_val is not None and seed_val != "":
+                batch_seed = int(seed_val)
+            batch_size = max(1, tts_cfg.get("parallel_workers", 4))
+            batch_group_by_type = tts_cfg.get("batch_group_by_type", False)
+        except (TypeError, ValueError) as e:
+            _warn_corrupted_json("config", CONFIG_PATH, "using default batch settings", e)
 
-    schedule_claimed_background_task(background_tasks, "audio", task)
-    return {"status": "started", "batch_seed": batch_seed, "batch_size": batch_size, "total_chunks": total}
+        try:
+            indices, requested = await asyncio.to_thread(
+                ensure_audio_generation_requests, request.indices,
+                request.expected_book_token, request.expected_uids)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        total = len(indices)
+
+        def progress_callback(completed, failed, total):
+            process_state["audio"]["logs"].append(
+                f"Progress: {completed + failed}/{total} ({completed} done, {failed} failed)"
+            )
+
+        def cancel_check():
+            return process_state["audio"]["cancel"]
+
+        def task():
+            process_state["audio"]["running"] = True
+            process_state["audio"]["start_time"] = time.time()
+            process_state["audio"]["logs"] = [
+                f"Starting batch generation of {total} chunks (batch_size={batch_size}, seed={batch_seed})..."
+            ]
+            try:
+                results = project_manager.generate_chunks_batch(
+                    indices, batch_seed, batch_size, progress_callback,
+                    batch_group_by_type=batch_group_by_type,
+                    cancel_check=cancel_check, admitted_requests=requested,
+                )
+                completed = len(results["completed"])
+                failed = len(results["failed"])
+                cancelled = results.get("cancelled", 0)
+                msg = f"Batch generation complete: {completed} succeeded, {failed} failed"
+                if cancelled:
+                    msg += f", {cancelled} cancelled"
+                process_state["audio"]["logs"].append(msg)
+                if results["failed"]:
+                    for idx, err in results["failed"]:
+                        process_state["audio"]["logs"].append(f"  Chunk {idx} failed: {err}")
+            except Exception as e:
+                logger.exception("Batch generation error")
+                process_state["audio"]["logs"].append(f"Batch generation error: {e}")
+            finally:
+                process_state["audio"]["running"] = False
+                process_state["audio"]["cancel"] = False
+
+        register_claimed_background_task(background_tasks, "audio", claim_id, task)
+        return {"status": "started", "batch_seed": batch_seed, "batch_size": batch_size, "total_chunks": total}
 
 @router.post("/api/cancel_audio")
 async def cancel_audio():

@@ -33,7 +33,7 @@ for (const states of [[],[state]]) {
 
     def test_failed_batch_start_refreshes_optimistic_rows_but_not_unsaved_edits(self):
         self.run_scenario(r"""
-run('let isRenderingAll=false;');
+run('let isRenderingAll=false;let chunkSnapshotBookToken="fixture-token";let chunkSnapshotBook=currentBookFilename;');
 load('window.cancelRender =', "document.getElementById('btn-merge').addEventListener");
 let refreshed=0,painted=false,polled=0;
 const badge={className:'badge bg-secondary',innerText:'pending'};

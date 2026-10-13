@@ -8,6 +8,7 @@ from tests.test_chunk_refresh_js import SETUP
 
 SOURCE = Path(os.environ.get('BATCH_COMPLETION_SOURCE', Path(__file__).resolve().parent.parent / 'static/js/app-core.js'))
 RENDER_SETUP = r'''
+run("chunkSnapshotBook=currentBookFilename;chunkSnapshotBookToken='fixture-token';");
 let poll,snapshot=[],audio={running:true};const toasts=[],drifts=[],requests=[];
 ctx.ensureEditorRenderSnapshot=async()=>[1,2,3,4,5,6].map(id=>chunk(id));
 ctx.showToast=(message,tone)=>toasts.push({message,tone});ctx.showConfirm=async()=>true;
