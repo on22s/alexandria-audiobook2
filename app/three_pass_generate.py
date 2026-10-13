@@ -30,7 +30,7 @@ from dialogue_spans import apply_dialogue_map
 from script_preflight import (audit_unicode_text,
                               replacement_load_is_acceptable,
                               replacement_repair_hint)
-from speaker_identity import stabilize_speaker_identities
+from speaker_identity import stabilize_speaker_identities, is_speaker_merge_allowed
 from speaker_traits import get_established_traits
 from repair_source_encoding import preflight_source
 from script_repair import build_deterministic_repair
@@ -528,7 +528,14 @@ def get_cast_from_data(data):
         names.append(name)
         groups.append([name] + aliases)
         for alias in aliases:
-            alias_to_name.setdefault(alias, name)
+            if not is_speaker_merge_allowed(alias, name) or alias == "UNKNOWN":
+                raise ValueError(f"protected cast alias: {alias} -> {name}")
+            if alias in alias_to_name and alias_to_name[alias] != name:
+                raise ValueError(f"duplicate cast alias ownership: {alias}")
+            alias_to_name[alias] = name
+    for alias, name in alias_to_name.items():
+        if alias in names:
+            raise ValueError(f"cast alias collides with canonical name: {alias} -> {name}")
     return {"names": names, "alias_groups": groups, "alias_to_name": alias_to_name,
             "known_names": frozenset(names) | frozenset(alias_to_name)}
 
@@ -538,7 +545,7 @@ def default_instruct(entry):
     return NARRATOR_DEFAULT_INSTRUCT if speaker == "NARRATOR" else CHARACTER_DEFAULT_INSTRUCT
 
 
-def get_deterministic_named_entry(entry):
+def get_deterministic_named_entry(entry, cast=None):
     """Resolve entries whose speaker is explicit without invoking the LLM."""
     if entry.get("type") == "NARRATOR":
         return {"speaker": "NARRATOR", "text": entry["text"]}
@@ -546,7 +553,7 @@ def get_deterministic_named_entry(entry):
         return {"speaker": "NARRATOR", "text": entry["text"]}
     if entry.get("source_label"):
         label = str(entry["source_label"]).strip().rstrip(":")
-        return {"speaker": (label.upper() if label.strip("?") else "UNKNOWN"),
+        return {"speaker": get_cast_speaker(label.upper() if label.strip("?") else "UNKNOWN", cast),
                 "text": entry["text"]}
     return None
 
@@ -679,16 +686,21 @@ def is_keepable_exhaustion(frozen_batch, last_entries, last_report):
     return index_head_check(frozen_batch, last_entries)[0]
 
 
+def get_cast_speaker(speaker, cast=None):
+    """Fold an accepted speaker label through the supplied cast."""
+    if isinstance(speaker, str):
+        return ((cast or {}).get("alias_to_name") or {}).get(speaker.strip().upper(), speaker)
+    return speaker
+
+
 def get_named_from_answer(frozen_batch, ordered, cast=None, speaker_traits=False):
     """The accepted answer as named entries - the one conversion for a passed
     batch and a kept one: frozen text, the model's speaker, a cast alias folded
     to its name ("GRIFFIN" -> THE STRANGER, one voice per character)."""
-    alias_to_name = (cast or {}).get("alias_to_name") or {}
     out = []
     for f, item in zip(frozen_batch, ordered):
         speaker = strip_roster_alias_echo(item.get("speaker"))
-        if isinstance(speaker, str):
-            speaker = alias_to_name.get(speaker.strip().upper(), speaker)
+        speaker = get_cast_speaker(speaker, cast)
         named = {**{k: v for k, v in f.items() if k != "type"}, "speaker": speaker}
         # Traits describe a character: a spoken line the model gave to the
         # narrator (kept unchecked) carries none, so NARRATOR gets no tag.
@@ -2642,7 +2654,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     named.extend([None] * (len(segmented) - len(named)))
     deterministic = {}
     for index, entry in enumerate(segmented):
-        resolved = get_deterministic_named_entry(entry)
+        resolved = get_deterministic_named_entry(entry, cast)
         # Narration needs no LLM to resolve, but it is where the dialogue tags
         # live ("Lilia spoke up quietly"), and pass 2 used to drop it from the
         # batch entirely - the model saw a wall of bare quotes. Measured on the

@@ -6070,8 +6070,11 @@
     "tests.test_publisher_matter.StripPublisherMatterTest.test_back_matter_is_removed",
     "tests.test_publisher_matter.StripPublisherMatterTest.test_both_ends_at_once",
     "tests.test_publisher_matter.StripPublisherMatterTest.test_front_matter_is_removed",
+    "tests.test_publisher_matter.StripPublisherMatterTest.test_full_width_sentence_boundaries_preserve_both_source_ends",
+    "tests.test_publisher_matter.StripPublisherMatterTest.test_metadata_after_story_boundary_cannot_remove_the_opening",
     "tests.test_publisher_matter.StripPublisherMatterTest.test_story_is_untouched_when_there_is_no_colophon",
-    "tests.test_publisher_matter.StripPublisherMatterTest.test_story_mentioning_copyright_mid_book_is_kept"
+    "tests.test_publisher_matter.StripPublisherMatterTest.test_story_mentioning_copyright_mid_book_is_kept",
+    "tests.test_publisher_matter.StripPublisherMatterTest.test_story_mentions_at_both_ends_preserve_exact_preprocessed_source"
   ],
   "test_queue_chain_lib": [
     "tests.test_queue_chain_lib.ChainTest.test_every_chain_finds_the_interpreter_from_a_worktree",
@@ -6277,6 +6280,9 @@
   ],
   "test_regate_gpu_lock": [
     "tests.test_regate_gpu_lock.RegateGpuLockTests.test_identity_gate_runs_through_gpu_job"
+  ],
+  "test_rejected_persona_aliases": [
+    "tests.test_rejected_persona_aliases.RejectedPersonaAliasTests.test_actual_basic_and_advanced_main_save_previews_for_rejected_aliases"
   ],
   "test_release_verifier": [
     "tests.test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
@@ -7079,6 +7085,7 @@
     "tests.test_script_cast_routes.BatchCastTest.test_not_asked_builds_nothing",
     "tests.test_script_cast_routes.CastRoutesTest.test_a_book_with_a_list_generates_from_a_frozen_copy",
     "tests.test_script_cast_routes.CastRoutesTest.test_a_book_without_a_list_generates_without_one",
+    "tests.test_script_cast_routes.CastRoutesTest.test_alias_collisions_refuse_edits_without_changing_saved_bytes",
     "tests.test_script_cast_routes.CastRoutesTest.test_cast_list_is_an_llm_task_under_the_lock",
     "tests.test_script_cast_routes.CastRoutesTest.test_command_carries_cast_file_only_when_given",
     "tests.test_script_cast_routes.CastRoutesTest.test_retry_keeps_the_list_the_run_started_with",
@@ -8049,9 +8056,12 @@
   "test_three_pass_cast": [
     "tests.test_three_pass_cast.CastTests.test_alias_answer_comes_out_as_the_cast_name",
     "tests.test_three_pass_cast.CastTests.test_cast_names_pass_the_name_check_and_invented_ones_still_do_not",
+    "tests.test_three_pass_cast.CastTests.test_explicit_and_model_labels_use_same_cast_voice_in_full_run",
     "tests.test_three_pass_cast.CastTests.test_fingerprint_moves_only_when_a_cast_is_given",
     "tests.test_three_pass_cast.CastTests.test_load_cast_uppercases_maps_aliases_and_accepts_the_tool_shape",
+    "tests.test_three_pass_cast.CastTests.test_loader_rejects_protected_and_ambiguous_aliases",
     "tests.test_three_pass_cast.CastTests.test_malformed_cast_file_raises",
+    "tests.test_three_pass_cast.CastTests.test_native_attribution_preserves_narrator",
     "tests.test_three_pass_cast.CastTests.test_once_named_cast_member_is_accepted_without_exhausting",
     "tests.test_three_pass_cast.CastTests.test_roster_leads_with_the_cast_and_shows_its_aliases",
     "tests.test_three_pass_cast.CastTests.test_tool_reply_parsing",

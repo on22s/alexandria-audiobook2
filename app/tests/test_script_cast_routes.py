@@ -122,6 +122,20 @@ class CastRoutesTest(unittest.TestCase):
         got = asyncio.run(script_module.get_cast_list())
         self.assertEqual((CAST, 2, True), (got["cast"], got["count"], got["edited"]))
 
+    def test_alias_collisions_refuse_edits_without_changing_saved_bytes(self):
+        self.write_list()
+        with open(self.list_path, "rb") as handle:
+            before = handle.read()
+        for bad in ([{"name": "ALICE", "aliases": ["NARRATOR"]}],
+                    [{"name": "ALICE", "aliases": ["CROWD"]}],
+                    [{"name": "ALICE", "aliases": ["BOB"]}, {"name": "BOB"}],
+                    [{"name": "ALICE", "aliases": ["ALLY"]}, {"name": "BOB", "aliases": ["ALLY"]}]):
+            with self.subTest(cast=bad), self.assertRaises(HTTPException) as caught:
+                asyncio.run(script_module.save_cast_list_endpoint(script_module.CastListUpdate(cast=bad)))
+            self.assertEqual(400, caught.exception.status_code)
+            with open(self.list_path, "rb") as handle:
+                self.assertEqual(before, handle.read())
+
     def test_cast_list_is_an_llm_task_under_the_lock(self):
         self.assertIn("cast_list", core.LLM_TASKS)
         self.assertIn("cast_list", core.GPU_TASKS)

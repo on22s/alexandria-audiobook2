@@ -315,26 +315,26 @@ def neutralize_lossy_residue(text, substitute=None):
     return repaired, text.count(_REPLACEMENT) - repaired.count(_REPLACEMENT)
 
 
-# Signatures of a publisher colophon. Each is strong on its own: none of these
-# appear in narrative prose, so one hit marks a paragraph as non-story.
+# Match metadata-shaped lines, not publisher keywords mentioned in prose.
 _PUBLISHER_SIGNATURES = re.compile(
-    r"©|\(c\)\s*\d{4}|all rights reserved|first published in|"
+    r"^\s*(?:©|\(c\)\s*\d{4}|copyright(?:\s*$|\s+(?:©|\d{4}))|"
+    r"all rights reserved|first published in|"
     r"english translation (?:rights|©|copyright)|"
     r"this book is a work of fiction|"
     r"scanning,? uploading,? and distribution|"
-    r"\bISBN\b|ebook edition|printed in the united states|"
-    r"yenpress\.com|j-novel\.club|yen (?:on|press)|j-novel club|"
-    r"kadokawa|hayakawa|seven seas|vertical, inc|"
-    r"library of congress|cataloging-in-publication|"
-    r"^\s*copyright\b|translation by |cover art by |illustration by |"
-    # Library-of-Congress cataloging block, printed verbatim by several
-    # publishers: these field labels never occur in narrative prose.
-    r"^\s*(?:subjects|identifiers|classification|description|names|title)\s*:|"
-    r"\bLCCN\b|\bLCGFT\b|\bCYAC\b|\bLCC\s+P|"
-    # Navigation scaffolding an epub extractor leaves at the head.
-    r"^\s*(?:table of )?contents\b|^\s*cover page\b|^\s*landmarks\b|"
-    r"^\s*color illustrations\b|^\s*(?:front|back)\s*matter\b",
-    re.IGNORECASE | re.MULTILINE)
+    r"ISBN(?:-1[03])?\s*:?[ \t]+[0-9][0-9 -]{8,}"
+    r"(?:\s*\((?:ebook|e-book|paperback|hardcover)\))?[. ]*$|ebook edition|"
+    r"printed in the united states|"
+    r"(?:yenpress\.com|j-novel\.club)\s*$|"
+    r"(?:yen (?:on|press)|j-novel club|kadokawa|hayakawa|seven seas|vertical, inc)"
+    r"(?:\s+(?:LLC|Corporation|Publishing|Entertainment))?[., ]*$|"
+    r"library of congress(?: cataloging-in-publication(?: data)?)?[. ]*$|cataloging-in-publication|"
+    r"translation by |cover art by |illustration by |"
+    r"(?:subjects|identifiers|classification|description|names|title)\s*:|"
+    r"(?:LCCN|LCGFT|CYAC|LCC\s+P)\b|"
+    r"(?:table of )?contents\s*$|cover page\s*$|landmarks\s*$|"
+    r"color illustrations\s*$|(?:front|back)\s*matter\s*$)",
+    re.IGNORECASE)
 
 # A colophon paragraph is short. Long prose that happens to mention a publisher
 # is story, not front matter.
@@ -364,6 +364,8 @@ def _is_colophon_paragraph(paragraph):
     text = paragraph.strip()
     if not text:
         return False
+    if any(mark in text for mark in ('"', "“", "”", "「", "」")):
+        return False
     if _is_navigation_paragraph(text):
         return True
     if len(text) > _MAX_COLOPHON_PARAGRAPH_CHARS:
@@ -392,7 +394,9 @@ def _colophon_run(paragraphs, limit, reverse=False):
             last_signature = step
             run = step + 1
         elif (len(paragraphs[index].strip()) > _MAX_COLOPHON_PARAGRAPH_CHARS
-              and not _is_navigation_paragraph(paragraphs[index])):
+              or any(mark in paragraphs[index] for mark in ('"', "“", "”", "「", "」"))
+              or paragraphs[index].strip().rstrip(
+                  '"\'”’»」』)）]】').endswith((".", "!", "?", "。", "！", "？"))):
             break                      # real prose: stop here
         elif step - last_signature > 4:
             break                      # drifted too far from the last signature
