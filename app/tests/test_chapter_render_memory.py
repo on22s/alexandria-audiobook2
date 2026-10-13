@@ -22,7 +22,7 @@ class ChapterRenderMemoryTests(unittest.TestCase):
             with path.open('wb') as target:
                 audio.export(target, format='wav')
             rows.append({'id': index, 'uid': f'row{index}',
-                         'speaker': 'A' if index % 2 == 0 else 'B',
+                         'speaker': 'NARRATOR' if index % 3 == 0 else ('A' if index % 2 == 0 else 'B'),
                          'text': f'Chapter {index // 3 + 1}' if index % 3 == 0 else
                                  'This is a long narrative sentence. ' * 4,
                          'audio_path': path.name, 'pause_after': 100 if index % 2 == 0 else None})

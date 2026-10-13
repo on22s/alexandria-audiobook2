@@ -1625,7 +1625,7 @@ def main():
         voice_config[speaker] = voice_entry
 
     # Step 3: Generate personas for remaining truly unique speakers
-    unique_speakers = [s for s in remaining_speakers
+    unique_speakers = [s for s in selected_speakers
                        if s not in resolved_aliases
                        and resolve_speaker_label(s, original_aliases) is None]
     print(f"Generating personas for {len(unique_speakers)} unique speakers...")

@@ -61,6 +61,45 @@ class CastTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 tp.load_cast(_cast_file(self._tmp.name, bad))
 
+    def test_loader_rejects_protected_and_ambiguous_aliases(self):
+        cases = [[{"name": "ALICE", "aliases": [label]}]
+                 for label in ("NARRATOR", "NARRATION", "NARRATIVE", "UNKNOWN", "CROWD", "ALICE AND BOB")]
+        cases += [[{"name": "ALICE", "aliases": ["BOB"]}, {"name": "BOB"}],
+                  [{"name": "BOB"}, {"name": "ALICE", "aliases": ["BOB"]}],
+                  [{"name": "ALICE", "aliases": ["ALLY"]}, {"name": "BOB", "aliases": ["ally"]}],
+                  [{"name": "CROWD", "aliases": ["ALICE"]}]]
+        for cast in cases:
+            with self.subTest(cast=cast), self.assertRaises(ValueError):
+                tp.load_cast(_cast_file(self._tmp.name, cast))
+
+    def test_native_attribution_preserves_narrator(self):
+        client, calls = _client_always([{"n": 0, "speaker": "NARRATOR"}])
+        with contextlib.redirect_stdout(io.StringIO()):
+            out = tp.attribute_batch(client, "m", [{"type": "NARRATOR", "text": "A fire,"}],
+                                     _params(), roster=[], max_retries=1,
+                                     source_text=STRANGER_SOURCE, cast=self.cast)
+        self.assertEqual("NARRATOR", out[0]["speaker"])
+        self.assertEqual(1, calls["attribute"])
+
+    def test_explicit_and_model_labels_use_same_cast_voice_in_full_run(self):
+        for source, expected_calls in (('Griffin: "Hello there."\n\nThe door opened.', 0),
+                                       ('"Hello there."\n\nThe door opened.', 1)):
+            calls = []
+            def create(**kwargs):
+                schema = ((kwargs.get("response_format") or {}).get("json_schema") or {}).get("name")
+                calls.append(schema)
+                payload = ([{"n": 0, "speaker": "GRIFFIN"}, {"n": 1, "speaker": "NARRATOR"}]
+                           if schema == "speaker_attribution" else
+                           [{"n": i, "instruct": "Plain."} for i in range(2)])
+                return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+                    content=json.dumps(payload)), finish_reason="stop")], usage=None)
+            client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+            with contextlib.redirect_stdout(io.StringIO()):
+                out = tp.run_three_pass(client, "m", source, LLMGenParams(
+                    max_tokens=500, temperature=0.0, segmentation="auto"), 6000, cast=self.cast)
+            self.assertEqual(["THE STRANGER", "NARRATOR"], [e["speaker"] for e in out])
+            self.assertEqual(expected_calls, calls.count("speaker_attribution"))
+
     def test_cast_names_pass_the_name_check_and_invented_ones_still_do_not(self):
         frozen = [{"type": "SPOKEN", "text": "A fire,"}]
         answer = lambda name: [{"n": 0, "speaker": name}]

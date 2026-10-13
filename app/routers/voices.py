@@ -52,7 +52,7 @@ from core import (
 from lmstudio_settings import get_active_llm_config, get_current_status, get_effective_max_tokens
 from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows
 from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, get_version_fields, resolve_narrator_voice_config, voice_category, voice_is_set
-from speaker_traits import (get_age_distance, get_chunk_index_for_entry, get_library_age_group,
+from speaker_traits import (get_age_distance, get_library_age_group,
                             get_entry_speaker, get_normalized_age_group, get_normalized_gender,
                             get_speaker_trait_summary, get_state_timeline, get_persona_state_targets, get_persona_state_chunk_indices, get_persona_state_entries,
                             find_state_target, get_state_version_identity, is_state_version_current, is_possible_gender_reveal)
@@ -646,7 +646,7 @@ async def add_style_point(speaker: str, request: StylePointRequest):
             points.append({"from_index": request.from_index,
                            "character_style": request.character_style.strip()})
         current["style_timeline"] = sorted(points, key=lambda p: int(p["from_index"]))
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, add)
+    entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, add)
     return {"status": "saved", "speaker": speaker, "style_timeline": entry.get("style_timeline", [])}
 
 
@@ -804,20 +804,14 @@ async def get_voice_state_timeline(speaker: str):
         targets_by_entry = {target["from_entry"]: target for target in targets}
         candidates = get_state_voice_candidates()
         users = get_adapter_users(voice_config, candidates)
-        # Map the character's lines in order, so a line said twice ("Yes.")
-        # maps to the chunk at ITS place in the book, not the first one.
-        line_chunks, start = {}, 0
-        for index, line in enumerate(script[:states[-1]["from_entry"] + 1]) if chunks else ():
-            if get_script_speaker(line) == speaker.strip():
-                chunk_index = get_chunk_index_for_entry(chunks, speaker, line.get("text"), start)
-                if chunk_index is not None:
-                    line_chunks[index], start = chunk_index, chunk_index
+        # Positional mapping applies to every source, including manual/library
+        # versions; repeated text cannot identify a state boundary safely.
         out = []
         for state in states:
             line = script[state["from_entry"]]
             target = targets_by_entry.get(state["from_entry"])
             has_generated = target and target["version_id"] in (entry.get("versions") or {})
-            chunk_index = strict_mapping.get(state["from_entry"]) if has_generated else line_chunks.get(state["from_entry"])
+            chunk_index = strict_mapping.get(state["from_entry"])
             sources = get_state_voice_sources(state, speaker, entry, candidates, users)
             sources["versions"] = [version for version in sources["versions"]
                 if "persona_state" not in entry["versions"][version["version_id"]]
@@ -868,7 +862,7 @@ async def remove_style_point(speaker: str, from_index: int):
     def remove(current):
         current["style_timeline"] = [p for p in (current.get("style_timeline") or [])
                                      if isinstance(p, dict) and int(p.get("from_index", -1)) != from_index]
-    entry = await asyncio.to_thread(_mutate_voice_entry, speaker, remove)
+    entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, remove)
     return {"status": "saved", "speaker": speaker, "style_timeline": entry.get("style_timeline", [])}
 
 

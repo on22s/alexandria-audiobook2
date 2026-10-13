@@ -66,6 +66,41 @@ class StripPublisherMatterTest(unittest.TestCase):
             self.STORY + "\n\nHe read the copyright page aloud, bored.\n\n" + self.STORY)
         self.assertIn("read the copyright page aloud", text)
 
+    def test_story_mentions_at_both_ends_preserve_exact_preprocessed_source(self):
+        from generate_script import get_preprocessed_source
+        middle = "\n\n".join(f"Alice opened door {i} and continued walking." for i in range(10))
+        for mention in ('“Check the ISBN before you buy it,” Alice said.',
+                        '"Seven Seas printed the book," Bob said.',
+                        'Alice discussed Kadokawa and the copyright notice.',
+                        'Library of Congress was her destination.',
+                        'ISBN 978-1-2345-6789-0 was written inside.',
+                        'Alice opened the book.\nISBN 978-1-2345-6789-0 was written inside.',
+                        '“All rights reserved,” Alice read aloud.'):
+            for source in (mention + "\n\n" + middle, middle + "\n\n" + mention,
+                           "Alice walked into the library.\n\n" + mention + "\n\n" + middle,
+                           middle + "\n\n" + mention + "\n\nAlice walked home."):
+                with self.subTest(mention=mention, source=source):
+                    processed, report = get_preprocessed_source(source)
+                    self.assertEqual(source, processed)
+                    self.assertEqual({"front_paragraphs": 0, "back_paragraphs": 0}, report["publisher_matter"])
+
+    def test_metadata_after_story_boundary_cannot_remove_the_opening(self):
+        for opening in ("Alice walked into the library.", "She walked."):
+            source = opening + "\n\nISBN 978-1-2345-6789-0\n\n" + self.STORY
+            self.assertEqual(source, strip_publisher_matter(source)[0])
+
+    def test_full_width_sentence_boundaries_preserve_both_source_ends(self):
+        from generate_script import get_preprocessed_source
+        story = "\n\n".join("Then Alice continued the synthetic story." for _ in range(10))
+        isbn = "ISBN 978-1-234-56789-0"
+        for mark in ("。", "！", "？", "。’", "！）", "？】"):
+            sentence = "Alice opened the door" + mark
+            for source in (sentence + "\n\n" + isbn + "\n\n" + story,
+                           story + "\n\n" + isbn + "\n\n" + sentence):
+                with self.subTest(mark=mark, source=source):
+                    self.assertEqual(source, strip_publisher_matter(source)[0])
+                    self.assertEqual(source, get_preprocessed_source(source)[0])
+
     def test_a_book_that_is_all_colophon_is_left_alone(self):
         # Refuse to strip everything: that is a broken source, not front matter.
         text, report = strip_publisher_matter(self.FRONT)

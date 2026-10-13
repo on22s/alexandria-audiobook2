@@ -95,7 +95,8 @@ class DatasetSampleGenRequest(BaseModel):
     text: str
     dataset_name: str     # working directory name
     sample_index: int = Field(ge=0, le=4999)  # row number
-    seed: int = Field(default=-1, ge=-1)  # -1 = random, >= 0 = manual seed
+    seed: int = Field(default=-1, ge=-1)  # effective generation seed
+    inherit_seed: bool = False  # retain the row's global-seed inheritance
 
 class DatasetBatchGenRequest(BaseModel):
     name: str
@@ -173,6 +174,8 @@ def get_merged_dataset_sample(row, existing=None):
             and existing.get("seed", "") == sample["seed"]):
         sample["status"] = existing.get("status", "pending")
         sample["audio_url"] = existing.get("audio_url")
+        if "generated_seed" in existing:
+            sample["generated_seed"] = existing["generated_seed"]
     return sample
 
 
@@ -359,7 +362,8 @@ def _generate_dataset_sample_sync(request: DatasetSampleGenRequest):
             samples[request.sample_index] = {
                 **existing_sample, "status": "done", "audio_url": audio_url,
                 "text": request.text.strip(), "description": request.description,
-                "seed": request.seed,
+                "seed": "" if request.inherit_seed else request.seed,
+                "generated_seed": request.seed,
             }
             state["samples"] = samples
             _save_builder_state(safe_name, state)

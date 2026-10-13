@@ -36,7 +36,7 @@ from tts import (
     voice_category,
     DEFAULT_PAUSE_MS,
     SAME_SPEAKER_PAUSE_MS,
-                 voice_config_for_chunk, resolve_narrator_voice_config)
+                 voice_config_for_chunk, resolve_narrator_voice_config, get_resolved_speaker)
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
 from audio_streaming import get_track_wav_plan, write_track_wav, write_combined_wav
@@ -114,14 +114,14 @@ def get_speaker(entry):
     return entry.get("speaker") or entry.get("type") or ""
 
 
-def _is_structural_text(text):
+def _is_structural_text(text, max_length=80):
     """Check if text is a title, chapter heading, dedication, or other structural fragment."""
     stripped = text.strip()
     if not stripped:
         return True
     sentence = stripped.rstrip('\"\'”’»」』)）]】')
     # Very short and not a full sentence (no sentence-ending punctuation)
-    if len(stripped) < 80 and (not sentence or sentence[-1] not in '.!?。！？'):
+    if (max_length is None or len(stripped) < max_length) and (not sentence or sentence[-1] not in '.!?。！？'):
         return True
     return False
 
@@ -656,33 +656,8 @@ class ProjectManager:
         return self._status_journal
 
     def _resolve_alias(self, speaker, voice_config):
-        """Resolve speaker aliases by following `alias_of` chain in voice_config.
-
-        Prevent infinite loops by limiting chain length.
-        Returns the canonical speaker name (string).
-        """
-        if not speaker:
-            return speaker
-        name = speaker
-        seen = set()
-        for _ in range(16):  # Increased from 8 to handle longer alias chains
-            if name in seen:
-                logger.warning(f"Alias cycle detected for speaker '{speaker}': chain visited {seen}")
-                break
-            seen.add(name)
-            entry = voice_config.get(name, {})
-            alias = entry.get('alias_of') or entry.get('alias')
-            if not alias:
-                break
-            # If alias is empty or same, stop
-            if not isinstance(alias, str) or alias.strip() == '' or alias == name:
-                break
-            # Continue resolution
-            name = alias
-        else:
-            # Loop completed without break - chain exceeded limit
-            logger.warning(f"Alias chain for '{speaker}' exceeded 16 iterations; using last resolved name '{name}'")
-        return name
+        """Use the same alias dispatch as single and ensemble generation."""
+        return get_resolved_speaker(speaker, voice_config)
 
     def get_chunk_voice_inputs(self, voices, chunk, index):
         """Read the effective TTS inputs, including aliases and ensemble members."""
@@ -694,7 +669,7 @@ class ProjectManager:
                   "adapter_generation_sha256", "members")
         inputs, pending = {}, [speaker]
         while pending:
-            name = pending.pop()
+            name = get_resolved_speaker(pending.pop(), effective)
             if name in inputs:
                 continue
             config = effective.get(name) or {}
@@ -1457,6 +1432,8 @@ class ProjectManager:
         re.IGNORECASE
     )
 
+    _HEADING_LABEL_RE = re.compile(r'\s+(?:[0-9]+|[ivxlcdm]+)[.!?。！？]?$', re.IGNORECASE)
+
     def _chapter_groups(self, chunks, per_chunk_chapters):
         """Chapter boundaries from headings and narrator fragments: list of
         (title, first_index, last_index) over `chunks`. The one place chapter
@@ -1471,12 +1448,13 @@ class ProjectManager:
         heading_indices = []
         for i, chunk in enumerate(chunks):
             text = chunk.get("text", "").strip()
+            heading = self._HEADING_RE.match(text)
+            numbered_heading = heading and self._HEADING_LABEL_RE.fullmatch(text[heading.end():])
             # Preserve explicit headings and unquoted narrator titles, while
             # keeping short dialogue and complete sentences in their chapter.
-            if self._HEADING_RE.match(text):
-                heading_indices.append(i)
-            elif (get_speaker(chunk).upper() == "NARRATOR" and text
-                  and '"' not in text and _is_structural_text(text)):
+            if (get_speaker(chunk).upper() == "NARRATOR" and text
+                    and '"' not in text
+                    and (numbered_heading or _is_structural_text(text, max_length=None if heading else 80))):
                 heading_indices.append(i)
 
         # If no headings detected, fall back to per-chunk

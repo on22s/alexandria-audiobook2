@@ -90,6 +90,50 @@ def get_manifest_fingerprint(manifest):
     return _stable_hash(validate_benchmark_manifest(manifest))
 
 
+def get_benchmark_llm_config(config, target):
+    """Resolve the named benchmark target independently of the Setup toggle."""
+    if target not in {"local", "thunder"}:
+        raise ValueError(f"unsupported LLM benchmark target: {target}")
+    from lmstudio_settings import get_active_llm_config
+    selected = {**config, "llm_mode": "remote" if target == "thunder" else "local"}
+    if target == "thunder":
+        # Remote benchmarks have always required their explicit profile.
+        selected["llm"] = {}
+    return get_active_llm_config(selected)
+
+
+def get_benchmark_execution_environment(manifest, environment, config):
+    """Bind stage config to resume identity; publish only its digest."""
+    stage = manifest["stage"]
+    target = environment["target"]
+    identity = {"version": 1, "stage": stage}
+    if target == "thunder":
+        identity["ssh_alias"] = config.get("llm_remote_ssh")
+    if stage in {"script_generation", "script_review", "persona_generation", "nickname_detection"}:
+        profile = get_benchmark_llm_config(config, target)
+        identity["profile"] = {key: value for key, value in profile.items()
+                               if key not in {"concurrency", "concurrency_for", "concurrency_environment"}}
+        from llm_provider import resolve_api_key
+        identity["resolved_api_key"] = resolve_api_key(profile.get("api_key"))
+        # These two runners consume Setup sampling and prompt settings. The
+        # persona/nickname runners use their production defaults instead.
+        if stage in {"script_generation", "script_review"}:
+            generation = config.get("generation") or {}
+            identity["generation"] = {key: generation.get(key) for key in (
+                "max_tokens", "temperature", "top_p", "top_k", "min_p",
+                "presence_penalty", "banned_tokens")}
+            prompt_keys = ("system_prompt", "user_prompt") if stage == "script_generation" else (
+                "review_system_prompt", "review_user_prompt")
+            prompts = config.get("prompts") or {}
+            identity["prompts"] = {key: prompts.get(key) for key in prompt_keys}
+    if stage in {"tts_generation", "dataset_builder"}:
+        identity["tts"] = config.get("tts") or {}
+    result = copy.deepcopy(environment)
+    result.setdefault("details", {})["execution_sha256"] = _stable_hash(identity)
+    result["sha256"] = _stable_hash({"target": target, "details": result["details"]})
+    return result
+
+
 def get_benchmark_preflight_id(manifest, environments):
     normalized = validate_benchmark_manifest(manifest)
     if not isinstance(environments, dict):

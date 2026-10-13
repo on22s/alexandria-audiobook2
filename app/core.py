@@ -354,12 +354,13 @@ def get_trait_assignment_metadata(source):
 
 def get_portable_voice_config(config):
     """-> a copy of a character's voice config without what belongs to one
-    book: its alias, its voice timeline (chunk indices), and character-state
+    book: its alias, its voice/style timelines (chunk indices), and character-state
     versions (bound to that book's script). Manual versions travel with the
     cast. The one definition for saving and applying casts (#1040 review C9)."""
     cfg = dict(config or {})
     cfg.pop("alias_of", None)
     cfg.pop("version_timeline", None)
+    cfg.pop("style_timeline", None)
     versions = {key: value for key, value in (cfg.get("versions") or {}).items()
                 if not (isinstance(value, dict) and "persona_state" in value)}
     if "versions" in cfg:

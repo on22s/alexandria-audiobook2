@@ -495,11 +495,12 @@
             const description = emotion ? `${rootDesc}, ${emotion}` : rootDesc;
 
             // Resolve seed: per-line > global > random
-            let seed;
+            let seed, inheritSeed;
             try {
                 const globalSeed = getDatasetSeed(document.getElementById('dsb-global-seed').value);
                 const lineSeed = getDatasetSeed(row.seed);
-                seed = lineSeed >= 0 ? lineSeed : globalSeed;
+                inheritSeed = lineSeed < 0;
+                seed = inheritSeed ? globalSeed : lineSeed;
             } catch (e) { showToast(e.message, 'error'); return; }
 
             // Optimistic UI
@@ -514,6 +515,7 @@
                     dataset_name: name,
                     sample_index: index,
                     seed,
+                    inherit_seed: inheritSeed,
                 });
                 if (!isCurrent()) { return; }
                 dsbRows[index].status = 'done';
