@@ -6810,6 +6810,24 @@
     "tests.test_review_labels_only.ReviewLabelsTests.test_narrator_character_shift_retries_before_binding",
     "tests.test_review_labels_only.ReviewLabelsTests.test_rejects_invented_text_incomplete_or_duplicate_indexes"
   ],
+  "test_review_source_binding": [
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_adaptive_split_recombination_restores_original_pause_boundary",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_ambiguous_repeated_word_sequences_reject_punctuation_recovery",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_changed_boundaries_with_equal_count_do_not_borrow_metadata",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_exact_repeated_phrases_keep_positional_metadata_without_false_rejection",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_exhausted_unsafe_reply_returns_none_without_partial_label_application",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_lexical_edits_reorders_duplicate_rows_and_missing_rows_retry",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_literal_punctuation_recovery_keeps_policy_and_does_not_accept_unverifiable_words",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_lossless_merge_preserves_shared_metadata_and_final_pause",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_lossless_merge_rejects_metadata_conflicts_or_an_interior_pause",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_lossless_single_source_split_copies_metadata_and_pauses_only_at_source_end",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_model_metadata_cannot_overwrite_source_or_invent_new_fields",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_punctuation_drift_recovers_labels_but_preserves_exact_source_text",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_punctuation_recovery_reuses_narrator_guard_and_labels_validation",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_real_cli_publication_keeps_pause_and_traits_in_the_saved_artifact",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_symbol_changes_case_changes_and_contraction_changes_are_not_punctuation_recovery",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_three_field_reply_preserves_all_metadata_and_original_whitespace"
+  ],
   "test_review_surfacing": [
     "tests.test_review_surfacing.ReviewCharactersReachTheCallerTest.test_a_mapped_glyph_is_not_flagged",
     "tests.test_review_surfacing.ReviewCharactersReachTheCallerTest.test_an_unmapped_symbol_is_collected",

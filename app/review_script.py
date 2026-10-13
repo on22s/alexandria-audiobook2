@@ -10,6 +10,7 @@ import copy
 import subprocess
 import argparse
 import threading
+import unicodedata
 from dataclasses import fields, replace
 from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config
@@ -22,7 +23,7 @@ from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
 from literal_policy import (get_literal_policy, ensure_literal_narration,
-                            retain_literal_policy, SCRIPT_POLICY_KEY)
+                            retain_literal_policy, get_word_identity, SCRIPT_POLICY_KEY)
 from literal_fidelity import audit_literal_words
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_current_status, get_effective_max_tokens)
@@ -180,7 +181,7 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         profiles.append({key: value for key, value in profile.items()
                          if key not in ('concurrency', 'concurrency_for', 'concurrency_environment')})
         profiles[-1]['resolved_api_key'] = resolve_api_key(profile.get('api_key'))
-    identity = {'algorithm': 1, 'profiles': profiles,
+    identity = {'algorithm': 2, 'profiles': profiles,
         'model_binding': get_run_model_binding(client, model_name),
         'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare
                    and (field.name != 'literal_source_preserving' or params.literal_source_preserving)
@@ -740,6 +741,112 @@ def get_review_label_binding(batch_entries, entries):
     return ordered, {"passed": not findings, "findings": findings}
 
 
+def get_review_source_binding(batch_entries, entries, literal_source_preserving=False):
+    """Bind classic labels and immutable metadata to ordered source spans.
+
+    Lossless boundary changes inherit only metadata shared by every overlapping
+    source entry. A pause stays on its source end; merging over it is refused.
+    Punctuation drift can recover labels only for unique, unchanged per-entry
+    word sequences, using the same label contract as index-only review.
+    """
+    findings = []
+    for number, entry in enumerate(entries, 1):
+        if not isinstance(entry, dict):
+            findings.append({"code": "invalid_entry", "entry_number": number,
+                             "message": "Review entries must be JSON objects."})
+            continue
+        missing = [key for key in ("speaker", "text", "instruct") if key not in entry]
+        if missing:
+            findings.append({"code": "missing_fields", "entry_number": number,
+                             "fields": missing,
+                             "message": "Review entry is missing required fields."})
+        for key in ('speaker', 'text', 'instruct'):
+            if key in entry and (not isinstance(entry[key], str)
+                                 or (key != 'instruct' and not entry[key].strip())):
+                findings.append({'code': 'invalid_field', 'entry_number': number,
+                                 'field': key, 'message': 'Review labels and text must be strings; speaker and text must be nonempty.'})
+    if findings:
+        return None, {"passed": False, "findings": findings}
+
+    original_texts = [" ".join(entry.get("text", "").split()) for entry in batch_entries]
+    reviewed_texts = [" ".join(entry["text"].split()) for entry in entries]
+    original_text = " ".join(original_texts)
+    reviewed_text = " ".join(reviewed_texts)
+    if literal_source_preserving and reviewed_text == original_text:
+        audit = audit_literal_words(original_text, entries)
+        if not audit['passed']:
+            return None, {"passed": False, "findings": [{
+                "code": "literal_source_word_mismatch",
+                "message": "Review narration words could not be verified.", "details": audit}]}
+    if reviewed_text != original_text:
+        def get_text_identity(text):
+            # Words guard case, contractions and Unicode lexical marks; the
+            # second identity also keeps symbols such as +, $, and emoji.
+            symbols = ''.join(char for char in unicodedata.normalize('NFC', text)
+                              if not char.isspace() and not unicodedata.category(char).startswith('P'))
+            return get_word_identity([text])['sha256'], symbols
+
+        try:
+            source_ids = [get_text_identity(entry['text']) for entry in batch_entries]
+            reply_ids = [get_text_identity(entry['text']) for entry in entries]
+        except ValueError:
+            source_ids, reply_ids = None, None
+        if (source_ids is not None and source_ids == reply_ids
+                and len(set(source_ids)) == len(source_ids)):
+            labels = [{"n": i, "speaker": entry["speaker"], "instruct": entry["instruct"]}
+                      for i, entry in enumerate(entries)]
+            ordered, quality = get_review_label_binding(batch_entries, labels)
+            if quality['passed']:
+                bound = [{**copy.deepcopy(original), "speaker": row["speaker"],
+                          "instruct": row["instruct"]}
+                         for original, row in zip(batch_entries, ordered)]
+                return bound, {**quality, "source_bound_label_recovery": True}
+            return None, quality
+        if literal_source_preserving:
+            audit = audit_literal_words(original_text, entries)
+            if not audit["passed"]:
+                findings.append({"code": "literal_source_word_mismatch",
+                                 "message": "Review changed ordered narration words.",
+                                 "details": audit})
+        if not findings:
+            findings.append({"code": "review_text_mismatch", "message": (
+                "Reviewed entries must preserve the complete text in its original order; "
+                "punctuation-only label recovery requires unique, unchanged entry correspondence.")})
+        return None, {"passed": False, "findings": findings}
+
+    source_spans = []
+    position = 0
+    for original, text in zip(batch_entries, original_texts):
+        source_spans.append((position, position + len(text), original))
+        position += len(text) + 1
+    bound = []
+    position = 0
+    for number, (entry, text) in enumerate(zip(entries, reviewed_texts), 1):
+        end = position + len(text)
+        sources = [(start, stop, original) for start, stop, original in source_spans
+                   if start < end and stop > position]
+        metadata = [{key: value for key, value in original.items()
+                     if key not in ('speaker', 'text', 'instruct', 'pause_after')}
+                    for _, _, original in sources]
+        if not sources or any(value != metadata[0] for value in metadata[1:]):
+            findings.append({"code": "review_metadata_conflict", "entry_number": number,
+                             "message": "A review boundary crosses conflicting source metadata."})
+        elif any('pause_after' in original and stop < end for _, stop, original in sources):
+            findings.append({"code": "review_pause_boundary", "entry_number": number,
+                             "message": "A review boundary would move an explicit source pause."})
+        else:
+            row = {**copy.deepcopy(metadata[0]), "speaker": entry["speaker"],
+                   "text": entry["text"], "instruct": entry["instruct"]}
+            start, stop, original = sources[-1]
+            if stop == end and 'pause_after' in original:
+                row['pause_after'] = copy.deepcopy(original['pause_after'])
+            if len(sources) == 1 and start == position and stop == end:
+                row['text'] = original['text']
+            bound.append(row)
+        position = end + 1
+    return (None if findings else bound), {"passed": not findings, "findings": findings}
+
+
 def review_batch(client, model_name, batch_entries, batch_num, total_batches, params,
                  previous_tail=None, source_context=None, max_retries=2,
                  attempt_observer=None):
@@ -791,45 +898,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     def validate_review_entries(entries):
         if params.review_labels_only:
             return get_review_label_binding(batch_entries, entries)[1]
-        findings = []
-        for number, entry in enumerate(entries, 1):
-            if not isinstance(entry, dict):
-                findings.append({"code": "invalid_entry", "entry_number": number,
-                                 "message": "Review entries must be JSON objects."})
-                continue
-            missing = [key for key in ("speaker", "text", "instruct") if key not in entry]
-            if missing:
-                findings.append({"code": "missing_fields", "entry_number": number,
-                                 "fields": missing,
-                                 "message": "Review entry is missing required fields."})
-            for key in ('speaker', 'text', 'instruct'):
-                if key in entry and (not isinstance(entry[key], str)
-                                     or (key != 'instruct' and not entry[key].strip())):
-                    findings.append({'code': 'invalid_field', 'entry_number': number,
-                                     'field': key, 'message': 'Review labels and text must be strings; speaker and text must be nonempty.'})
-        original_text = " ".join(
-            " ".join(str(entry.get("text", "")).split())
-            for entry in batch_entries
-        ).strip()
-        reviewed_text = " ".join(
-            " ".join(str(entry.get("text", "")).split())
-            for entry in entries if isinstance(entry, dict)
-        ).strip()
-        if literal:
-            audit = audit_literal_words(original_text, entries)
-            if not audit["passed"]:
-                findings.append({"code": "literal_source_word_mismatch",
-                                 "message": "Review changed ordered narration words.",
-                                 "details": audit})
-        elif reviewed_text != original_text:
-            findings.append({
-                "code": "review_text_mismatch",
-                "message": (
-                    "Reviewed entries must preserve the complete text in its "
-                    "original order; only entry boundaries and labels may change."
-                ),
-            })
-        return {"passed": not findings, "findings": findings}
+        return get_review_source_binding(batch_entries, entries, literal)[1]
 
     attempts = []
 
@@ -851,7 +920,10 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
             return [{**copy.deepcopy(original), "speaker": row["speaker"],
                      "instruct": row["instruct"]}
                     for original, row in zip(batch_entries, ordered)]
-        return entries
+        bound, quality = get_review_source_binding(batch_entries, entries, literal)
+        if quality.get('source_bound_label_recovery'):
+            print("  Recovered source-bound review labels after punctuation drift; original text retained.")
+        return bound
     # Keep the caller's checkpoint batch intact: adapt only the requests,
     # then validate the complete recombination against that original batch.
     if (not getattr(client, "switched", False)
@@ -881,9 +953,12 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
             failed = True
         else:
             combined.extend(reviewed)
-    if failed or (not params.review_labels_only and not validate_review_entries(combined)["passed"]):
+    if failed:
         return None
-    return combined
+    if params.review_labels_only:
+        return combined
+    bound, quality = get_review_source_binding(batch_entries, combined, literal)
+    return bound if quality['passed'] else None
 
 
 def normalize_text(text):
