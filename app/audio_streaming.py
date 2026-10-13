@@ -7,6 +7,9 @@ import wave
 from pydub import AudioSegment
 from pydub.audio_segment import audioop
 
+from audio_pcm_producer import (PCMProducer, is_bounded_pcm_supported,
+                                iter_raw_pcm, iter_default_silence_pcm)
+
 from tts import (ensure_audio_export_active, get_pause_duration_ms,
                  trim_edge_silence)
 
@@ -114,6 +117,7 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
     """Return rounded duration, or None without writing for a legacy fallback."""
     ensure_audio_export_active(cancel_check)
     layout = get_streamable_layout(segments)
+    bounded_supported = is_bounded_pcm_supported(segments)
     if len(speakers) != len(segments):
         return None
     segments = [trim_edge_silence(segment, cancel_check=cancel_check)
@@ -137,6 +141,10 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
     ensure_audio_export_active(cancel_check)
     ensure_pcm_shape_fits_riff((layout, frames) if layout is not None else shape)
     if layout is None:
+        if bounded_supported and is_bounded_pcm_supported(segments) and shape is not None:
+            return write_spooled_combined_wav(segments, speakers, path, pause_ms,
+                                             same_speaker_pause_ms, pause_overrides,
+                                             cancel_check)
         return None
     destination = Path(path)
     channels, frame_rate, sample_width = layout
@@ -207,6 +215,8 @@ def get_track_wav_plan(entries, total_duration_ms, cancel_check=None):
             shape = get_joined_pcm_shape(shape, piece)
         ensure_audio_export_active(cancel_check)
         ensure_pcm_shape_fits_riff(shape)
+        if shape is not None and is_bounded_pcm_supported([segment for segment, _ in entries]):
+            return shape
         return None
     data_bytes = 0
     for kind, value in iter_track_pieces(entries, total_duration_ms, cancel_check):
@@ -219,8 +229,22 @@ def get_track_wav_plan(entries, total_duration_ms, cancel_check=None):
     return layout, data_bytes // (layout[0] * layout[2])
 
 
-def write_track_wav(stream, entries, total_duration_ms, plan, cancel_check=None):
+def write_track_wav(stream, entries, total_duration_ms, plan, cancel_check=None,
+                    spool_directory=None):
     """WAV-to-ZIP requires exact nframes because the member is unseekable."""
+    if get_streamable_layout([segment for segment, _ in entries]) is None:
+        if spool_directory is None:
+            raise ValueError('A destination directory is required for PCM spooling')
+        # Spool beside the destination, never in a system-temp fallback directory.
+        with PCMProducer(spool_directory, lambda: ensure_audio_export_active(cancel_check)) as producer:
+            producer.append([], (1, 1, 1))
+            for kind, value in iter_track_pieces(entries, total_duration_ms, cancel_check):
+                if kind == 'audio':
+                    producer.append(iter_raw_pcm(value), (value.channels, value.frame_rate, value.sample_width))
+                else:
+                    producer.append(iter_default_silence_pcm(value), (1, 11025, 2))
+            write_producer_wav(stream, producer, plan, cancel_check)
+        return
     layout, frames = plan
     channels, frame_rate, sample_width = layout
     wav = wave.open(stream, 'wb')
@@ -246,3 +270,57 @@ def write_track_wav(stream, entries, total_duration_ms, plan, cancel_check=None)
     else:
         wav.close()
     ensure_audio_export_active(cancel_check)
+
+
+def write_producer_wav(stream, producer, plan, cancel_check=None):
+    """Write an exact-size WAV, including Pydub's signed-to-unsigned 8-bit bias."""
+    layout, frames = plan
+    if producer.layout != layout or producer.get_frame_count() != frames:
+        raise ValueError('PCM producer disagrees with the WAV size preflight')
+    ensure_pcm_shape_fits_riff(plan)
+    wav = wave.open(stream, 'wb')
+    try:
+        wav.setnchannels(layout[0])
+        wav.setframerate(layout[1])
+        wav.setsampwidth(layout[2])
+        wav.setnframes(frames)
+        for data in producer.read():
+            ensure_audio_export_active(cancel_check)
+            wav.writeframesraw(audioop.bias(data, 1, 128) if layout[2] == 1 else data)
+    except BaseException:
+        try:
+            wav.close()
+        except BaseException:
+            pass
+        raise
+    else:
+        wav.close()
+    ensure_audio_export_active(cancel_check)
+
+
+def write_spooled_combined_wav(segments, speakers, path, pause_ms,
+                              same_speaker_pause_ms, pause_overrides, cancel_check):
+    destination = Path(path)
+    check = lambda: ensure_audio_export_active(cancel_check)
+    with tempfile.TemporaryDirectory(prefix='.stream-wave-', dir=destination.parent) as directory:
+        staged = Path(directory) / 'output.wav'
+        with PCMProducer(directory, check) as producer:
+            first = segments[0]
+            producer.append(iter_raw_pcm(first), (first.channels, first.frame_rate, first.sample_width))
+            for index, segment in enumerate(segments[1:], 1):
+                override = pause_overrides[index - 1] if pause_overrides else None
+                duration = get_pause_duration_ms(
+                    {'speaker': speakers[index - 1], 'pause_after': override},
+                    {'speaker': speakers[index]}, pause_ms, same_speaker_pause_ms)
+                # Preserve (gap + segment) before promoting the accumulated prefix.
+                with PCMProducer(directory, check) as piece:
+                    piece.append(iter_default_silence_pcm(duration), (1, 11025, 2))
+                    piece.append(iter_raw_pcm(segment), (segment.channels, segment.frame_rate, segment.sample_width))
+                    producer.append(piece.read(), piece.layout)
+            frames = producer.get_frame_count()
+            layout = producer.layout
+            write_producer_wav(str(staged), producer, (layout, frames), cancel_check)
+        # All spool/WAV handles must close successfully before publication.
+        check()
+        os.replace(staged, destination)
+    return round(1000 * (frames / layout[1]))

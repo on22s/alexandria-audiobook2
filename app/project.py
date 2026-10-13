@@ -39,7 +39,8 @@ from tts import (
                  voice_config_for_chunk, resolve_narrator_voice_config, get_resolved_speaker)
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
-from audio_streaming import get_track_wav_plan, write_track_wav, write_combined_wav
+from audio_streaming import (get_track_wav_plan, write_track_wav, write_combined_wav,
+                             get_streamable_layout)
 
 MAX_CHUNK_CHARS = 500
 NARRATOR_GENERATION_FIELDS = (
@@ -1254,7 +1255,11 @@ class ProjectManager:
                         member._compresslevel = zf.compresslevel
                         member.file_size = 44 + frames * layout[0] * layout[2]
                         with zf.open(member, "w") as stream:
-                            write_track_wav(stream, entries, total_duration_ms, plan, cancel_check)
+                            if get_streamable_layout([segment for segment, _ in entries]) is None:
+                                write_track_wav(stream, entries, total_duration_ms, plan, cancel_check,
+                                                spool_directory=self.root_dir)
+                            else:
+                                write_track_wav(stream, entries, total_duration_ms, plan, cancel_check)
                         continue
                     track_cursor = 0
                     track_builder = AudioSegmentBuilder(AudioSegment.empty())
