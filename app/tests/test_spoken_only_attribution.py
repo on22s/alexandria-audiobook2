@@ -60,3 +60,20 @@ class SpokenOnlyTests(unittest.TestCase):
         expanded, error = get_expanded_spoken_answer(self.batch, rows)
         self.assertIsNone(error)
         self.assertEqual('female', expanded[1]['gender'])
+
+    def test_exact_schema_allows_only_sparse_spoken_indexes(self):
+        _, calls = self.run_batch([(self.answer, 'stop')])
+        schema = calls[0]['response_format']['json_schema']['schema']
+        self.assertEqual(2, schema['minItems'])
+        self.assertEqual(2, schema['maxItems'])
+        self.assertEqual([1, 3], schema['items']['properties']['n']['enum'])
+
+    def test_harmless_narration_rows_are_dropped_without_mutating_answer(self):
+        rows = [{'n': 0, 'speaker': 'NARRATOR'}, *self.answer,
+                {'n': 2, 'speaker': 'NARRATOR'}]
+        out, calls = self.run_batch([(rows, 'stop')])
+        self.assertEqual(1, len(calls))
+        self.assertEqual(['NARRATOR', 'ALICE', 'NARRATOR', 'ALICE'], [e['speaker'] for e in out])
+        self.assertEqual(4, len(rows))
+        for bad in (rows + [rows[0]], [{**rows[0], 'speaker': 'ALICE'}, *self.answer]):
+            self.assertFalse(get_expanded_spoken_answer(self.batch, bad)[1]['passed'])

@@ -7684,6 +7684,8 @@
   "test_spoken_only_attribution": [
     "tests.test_spoken_only_attribution.SpokenOnlyTests.test_all_narration_requires_no_model",
     "tests.test_spoken_only_attribution.SpokenOnlyTests.test_duplicate_missing_outside_and_narration_indexes_are_rejected",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_exact_schema_allows_only_sparse_spoken_indexes",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_harmless_narration_rows_are_dropped_without_mutating_answer",
     "tests.test_spoken_only_attribution.SpokenOnlyTests.test_sparse_labels_restore_narration_and_preserve_text",
     "tests.test_spoken_only_attribution.SpokenOnlyTests.test_speaker_trait_fields_survive_binding",
     "tests.test_spoken_only_attribution.SpokenOnlyTests.test_wrong_count_still_subdivides_without_repeating_window"

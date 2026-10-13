@@ -505,10 +505,17 @@ def get_expanded_spoken_answer(frozen_batch, entries):
     """Bind sparse spoken indexes, then fill immutable narration labels."""
     expected = {i for i, row in enumerate(frozen_batch) if row["type"] == "SPOKEN"}
     indexed = {}
+    seen = set()
     valid = isinstance(entries, list)
     for item in entries if valid else []:
         n = item.get("n") if isinstance(item, dict) else None
-        if type(n) is not int or n not in expected or n in indexed:
+        if type(n) is not int or n < 0 or n >= len(frozen_batch) or n in seen:
+            valid = False
+            break
+        seen.add(n)
+        if n not in expected:
+            if item.get("speaker") == "NARRATOR":
+                continue
             valid = False
             break
         indexed[n] = item
@@ -516,7 +523,7 @@ def get_expanded_spoken_answer(frozen_batch, entries):
         return None, {"passed": False, "findings": [{
             "code": "alignment_violated", "expected_entries": len(expected),
             "returned_entries": len(entries) if isinstance(entries, list) else 0,
-            "message": "Return every spoken index exactly once and no narration indexes."}]}
+            "message": "Return every spoken index exactly once; narration must remain NARRATOR."}]}
     return [indexed[i] if i in expected else {"n": i, "speaker": "NARRATOR"}
             for i in range(len(frozen_batch))], None
 
@@ -559,6 +566,12 @@ def make_provider(variant, alias_groups=None, texts=None):
                         "findings": list(report.get("findings", [])) + reasons["findings"]}
 
         if is_spoken_only_variant(variant):
+            from dataclasses import replace
+            from three_pass_generate import get_exact_index_schema
+            spoken_indexes = [i for i, row in enumerate(frozen_batch) if row["type"] == "SPOKEN"]
+            if spoken_indexes:
+                params = replace(params, response_schema=get_exact_index_schema(
+                    params.response_schema, spoken_indexes))
             base_validator = validator
 
             def validator(entries):
