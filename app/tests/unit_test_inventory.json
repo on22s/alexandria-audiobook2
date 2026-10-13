@@ -5425,6 +5425,27 @@
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_targeted_selector_accepts_a_named_upgrade_and_long_alternation",
     "tests.test_pdnc_context_evidence.PdncContextEvidenceTests.test_targeted_selector_defaults_to_baseline"
   ],
+  "test_pdnc_eval_variants": [
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_default_glob_evaluates_and_retains_both_context_variants",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_disagreeing_arm_provenance_is_refused_by_consumers",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_explicit_null_or_partial_identity_cannot_be_treated_as_legacy",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_generalisation_refuses_unprovenanced_variant_key",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_generalisation_uses_recorded_book_for_every_variant_row",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_identical_admitted_inputs_do_not_pay_twice_and_keep_source_provenance",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_input_digest_collision_is_refused_before_model_or_scale_work",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_later_invalid_fixture_refuses_before_any_work_or_output_replacement",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_legacy_book_key_and_campaign_reader_stay_compatible",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_same_basename_in_two_directories_does_not_collide",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_same_book_variants_keep_both_paired_rows_and_all_pooled_work",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_stamped_results_are_bound_to_context_roster_and_alias_inputs",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_telemetry_can_resolve_another_retained_duplicate_source",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_telemetry_legacy_unique_input_remains_compatible",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_telemetry_refuses_ambiguous_legacy_context_before_replacing_report",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_telemetry_refuses_missing_changed_or_misbound_provenanced_sources",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_telemetry_resolves_exact_context_for_each_evaluated_group",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_variant_content_keys_are_stable_across_order_and_file_formatting",
+    "tests.test_pdnc_eval_variants.PdncVariantTests.test_variant_key_cannot_overwrite_a_literal_legacy_book_before_calls"
+  ],
   "test_pdnc_failure_telemetry": [
     "tests.test_pdnc_failure_telemetry.PdncFailureTelemetryTests.test_failure_class_precedence",
     "tests.test_pdnc_failure_telemetry.PdncFailureTelemetryTests.test_load_novel_accepts_native_pdnc_layout",

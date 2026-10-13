@@ -1,7 +1,13 @@
 """Validate persisted PDNC paired rows before resuming or reporting a campaign."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
+import re
+
+
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+_VARIANT_SEPARATOR = "::"
 
 
 def get_expected_entries(fixture, limit):
@@ -26,6 +32,55 @@ def get_expected_entries(fixture, limit):
     return expected
 
 
+def get_pdnc_fixture_input(fixture, limit):
+    """Return the selected model/scoring input and its canonical content hash."""
+    get_expected_entries(fixture, limit)
+    entries = fixture["entries"][:limit]
+    if any(not isinstance(entry.get(key), str) for entry in entries
+           for key in ("line", "prev_context", "next_context")):
+        raise ValueError("fixture input requires quote and context text")
+    roster, aliases = fixture.get("roster"), fixture.get("aliases")
+    if not isinstance(roster, list) or any(not isinstance(name, str) for name in roster):
+        raise ValueError("fixture input requires a text roster")
+    if (not isinstance(aliases, list) or any(not isinstance(group, list)
+            or any(not isinstance(name, str) for name in group) for group in aliases)):
+        raise ValueError("fixture input requires alias groups")
+    selected = {"book": fixture["book"], "entries": entries,
+                "roster": roster, "aliases": aliases}
+    encoded = json.dumps(selected, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":")).encode("utf-8")
+    return selected, hashlib.sha256(encoded).hexdigest()
+
+
+def get_pdnc_fixture_result_key(book, input_sha256):
+    """Return the namespace for multiple distinct inputs of one book."""
+    return book + _VARIANT_SEPARATOR + input_sha256
+
+
+def get_pdnc_result_book(key, arms):
+    """Read the true book identity; never treat an unstamped variant as unseen."""
+    if not isinstance(key, str) or not key or not isinstance(arms, dict):
+        raise ValueError("result group must name its book")
+    identities = [(arms.get(arm) or {}).get("fixture")
+                  if isinstance(arms.get(arm), dict) else None for arm in ("base", "lora")]
+    if any(isinstance(arms.get(arm), dict) and "fixture" in arms[arm]
+           for arm in ("base", "lora")):
+        if (any(not isinstance(identity, dict) for identity in identities)
+                or identities[0] != identities[1]):
+            raise ValueError("paired fixture input identities disagree")
+        identity = identities[0]
+        book, digest = identity.get("book"), identity.get("input_sha256")
+        if (not isinstance(book, str) or not book or not isinstance(digest, str)
+                or not _SHA256_RE.fullmatch(digest)):
+            raise ValueError("fixture input identity is invalid")
+        if key not in (book, get_pdnc_fixture_result_key(book, digest)):
+            raise ValueError("result key differs from fixture input identity")
+        return book
+    if _VARIANT_SEPARATOR in key:
+        raise ValueError("variant result key requires fixture input identity")
+    return key  # legacy unique-book results remain valid
+
+
 def get_pdnc_result(document, fixture, limit):
     """Return row-derived counts only for the complete requested paired sample."""
     expected = get_expected_entries(fixture, limit)
@@ -35,6 +90,13 @@ def get_pdnc_result(document, fixture, limit):
     arms = document[book]
     if not isinstance(arms, dict) or set(arms) != {"base", "lora"}:
         raise ValueError("result must contain base and lora arms")
+    if get_pdnc_result_book(book, arms) != book:
+        raise ValueError("result fixture input belongs to another book")
+    identity = (arms["base"] or {}).get("fixture") if isinstance(arms["base"], dict) else None
+    if identity is not None:
+        _, digest = get_pdnc_fixture_input(fixture, limit)
+        if identity["input_sha256"] != digest:
+            raise ValueError("result fixture input differs from requested sample")
     counts = {}
     for arm in ("base", "lora"):
         bucket = arms[arm]
@@ -66,6 +128,53 @@ def get_pdnc_result(document, fixture, limit):
             raise ValueError(f"{arm}: declared correct differs from rows")
         counts[arm] = correct
     return {"book": book, "n": len(expected), **counts}
+
+
+def get_pdnc_result_fixture(key, arms, repo, legacy_fixtures):
+    """Resolve one validated input; never guess between different contexts."""
+    book = get_pdnc_result_book(key, arms)
+    if set(arms) != {"base", "lora"} or any(not isinstance(arms[arm], dict)
+                                          for arm in ("base", "lora")):
+        raise ValueError(f"{key}: result must contain base and lora arm objects")
+    limit = arms.get("base", {}).get("n")
+    identity = arms.get("base", {}).get("fixture")
+    candidates = []
+    failures = []
+    if identity is not None:
+        sources = identity.get("sources")
+        if not isinstance(sources, list) or not sources:
+            raise ValueError(f"{key}: fixture identity requires source provenance")
+        for source in sources:
+            if (not isinstance(source, dict) or not isinstance(source.get("path"), str)
+                    or not source["path"] or not isinstance(source.get("sha256"), str)
+                    or not _SHA256_RE.fullmatch(source["sha256"])):
+                raise ValueError(f"{key}: fixture source provenance is invalid")
+            try:
+                raw = (Path(repo) / source["path"]).read_bytes()
+                if hashlib.sha256(raw).hexdigest() != source["sha256"]:
+                    raise ValueError("fixture source bytes differ from recorded hash")
+                candidates.append(json.loads(raw))
+            except (OSError, ValueError) as error:
+                failures.append(str(error))
+    else:
+        candidates = [fixture for fixture in legacy_fixtures if fixture.get("book") == book]
+    matches = {}
+    for fixture in candidates:
+        try:
+            get_pdnc_result({book: arms}, fixture, limit)
+            selected, digest = get_pdnc_fixture_input(fixture, limit)
+        except ValueError as error:
+            failures.append(str(error))
+            continue
+        if digest in matches and selected != matches[digest]:
+            raise ValueError("PDNC fixture input hash collision")
+        matches[digest] = selected
+    if not matches:
+        detail = failures[-1] if failures else "no matching source fixture"
+        raise ValueError(f"{key}: cannot resolve fixture input: {detail}")
+    if len(matches) != 1:
+        raise ValueError(f"{key}: ambiguous legacy fixture inputs require provenance")
+    return next(iter(matches.values()))
 
 
 def get_goal13_results(repo, runtime, heldout, development, limit, result_prefix="goal13"):

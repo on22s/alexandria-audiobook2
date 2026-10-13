@@ -35,7 +35,7 @@ READINGS, fixed before running:
                             and shipping it as a default would be wrong for any
                             book outside that register.
 """
-import argparse, collections, glob, json, os, re, sys, time
+import argparse, collections, glob, hashlib, json, os, re, sys, time
 import urllib.request
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -45,10 +45,46 @@ sys.path.insert(0, APP)
 from openai import OpenAI
 from experiments.scoring import alias_groups, same_speaker
 from experiments.stats import clopper_pearson, paired
+from experiments.pdnc_results import get_pdnc_fixture_input, get_pdnc_fixture_result_key
 from generate_script import LLMGenParams
 from three_pass_generate import attribute_batch
 
 BATCH = 25
+
+
+def get_fixture_inputs(paths, limit):
+    """Read and validate input snapshots/namespaces before model/scale work."""
+    inputs, seen = [], {}
+    for path in paths:
+        with open(path, "rb") as handle:
+            raw = handle.read()
+        fixture = json.loads(raw)
+        selected, digest = get_pdnc_fixture_input(fixture, limit)
+        width = fixture.get("context_chars")
+        source = {"path": os.path.relpath(path, REPO),
+                  "sha256": hashlib.sha256(raw).hexdigest(),
+                  "context_chars": width if type(width) is int else None}
+        previous = seen.get(digest)
+        if previous is not None:
+            if selected != previous["input"]:
+                raise ValueError("PDNC fixture input hash collision")
+            if source not in previous["sources"]:
+                previous["sources"].append(source)
+            continue
+        item = {"input": selected, "input_sha256": digest, "sources": [source]}
+        seen[digest] = item
+        inputs.append(item)
+    book_counts = collections.Counter(item["input"]["book"] for item in inputs)
+    keys = set()
+    for item in inputs:
+        book = item["input"]["book"]
+        key = (book if book_counts[book] == 1
+               else get_pdnc_fixture_result_key(book, item["input_sha256"]))
+        if key in keys:
+            raise ValueError(f"PDNC fixture result key collision: {key}")
+        keys.add(key)
+        item["key"] = key
+    return inputs
 
 
 def set_scale(base_url, scale):
@@ -80,18 +116,21 @@ def main():
     ap.add_argument("--out", default=REPO + "/ab_test_runtime/experiments/pdnc_eval.json")
     args = ap.parse_args()
 
+    inputs = get_fixture_inputs(args.fixtures, args.limit)
+    if len(inputs) < len(args.fixtures):
+        print(f"Deduplicated {len(args.fixtures) - len(inputs)} identical PDNC inputs", flush=True)
     client = OpenAI(base_url=args.base_url, api_key="local")
     params = LLMGenParams(max_tokens=2000, context_length=32768, temperature=0.0,
                           attribute_temperature=0.0, top_p=0.8,
                           reasoning_effort="none")
     results = {}
-    for path in args.fixtures:
-        fx = json.load(open(path))
+    for item in inputs:
+        fx = item["input"]
         book = fx["book"]
-        entries = fx["entries"][:args.limit]
+        entries = fx["entries"]
         groups = alias_groups({"aliases": fx["aliases"]})
         roster = fx["roster"]
-        print(f"\n{book}: {len(entries)} quotations, {len(roster)} characters",
+        print(f"\n{book} [{item['key']}]: {len(entries)} quotations, {len(roster)} characters",
               flush=True)
         per_arm = {}
         for arm, scale in (("base", 0.0), ("lora", 1.0)):
@@ -143,7 +182,10 @@ def main():
         # correct, which made per-row agreement with any other method - a
         # BookNLP ensemble, a second model - impossible to compute without
         # paying for the whole run again.
-        results[book] = {a: {"n": len(r), "correct": sum(1 for x in r if x["ok"]),
+        identity = {"book": book, "input_sha256": item["input_sha256"],
+                    "sources": item["sources"]}
+        results[item["key"]] = {a: {"n": len(r), "correct": sum(1 for x in r if x["ok"]),
+                             "fixture": identity,
                              "rows": [{"id": x["e"].get("id"),
                                        "expected": x["e"].get("expected_speaker"),
                                        "predicted": x.get("pred"),

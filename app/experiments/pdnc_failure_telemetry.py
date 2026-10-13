@@ -15,6 +15,7 @@ sys.path.insert(0, APP)
 
 from experiments.scoring import alias_groups, normalize, same_speaker  # noqa: E402
 from experiments.pdnc_fixture import build as build_fixture  # noqa: E402
+from experiments.pdnc_results import get_pdnc_result_book, get_pdnc_result_fixture  # noqa: E402
 from utils import atomic_json_write  # noqa: E402
 
 DEFAULT_BOOKS = ("MansfieldPark", "TheGambler", "Persuasion",
@@ -61,23 +62,32 @@ def main():
     args = parser.parse_args()
 
     predictions = json.load(open(args.artifact, encoding="utf-8"))
-    fixtures = {}
-    for path in glob.glob(os.path.join(
-            APP, "fixtures", "attribution_gold_pdnc_*.json")):
-        fixture = json.load(open(path, encoding="utf-8"))
-        fixtures[fixture["book"]] = fixture
+    selected = []
+    for key, arms in predictions.items():
+        book = get_pdnc_result_book(key, arms)
+        if book in args.books:
+            selected.append((key, arms, book))
+    if set(args.books) - {book for _, _, book in selected}:
+        raise ValueError("requested books are missing from the prediction artifact")
+    fixtures = []
+    if any("fixture" not in arms["base"] for _, arms, _ in selected):
+        for path in glob.glob(os.path.join(
+                APP, "fixtures", "attribution_gold_pdnc_*.json")):
+            fixtures.append(json.load(open(path, encoding="utf-8")))
     pdnc_data = os.path.join(REPO, "ab_test_runtime", "pdnc", "data")
 
     report = {"arm": args.arm, "route": "LLM attribution on gold spans",
               "source_artifact": os.path.relpath(args.artifact, REPO),
               "books": {}, "failure_classes": {}}
     totals = collections.Counter()
-    for book in args.books:
-        fixture = fixtures.get(book) or build_fixture(pdnc_data, book)
+    for key, arms, book in selected:
+        if "fixture" not in arms["base"] and not any(fx["book"] == book for fx in fixtures):
+            fixtures.append(build_fixture(pdnc_data, book))
+        fixture = get_pdnc_result_fixture(key, arms, REPO, fixtures)
         roster = fixture["roster"]
         groups = alias_groups(fixture)
         gold = {entry["id"]: entry for entry in fixture["entries"]}
-        rows = predictions[book][args.arm]["rows"]
+        rows = arms[args.arm]["rows"]
         errors = []
         classes = collections.Counter()
         for row in rows:
@@ -112,16 +122,20 @@ def main():
                 "next_context": following,
                 "failure_class": failure_class,
             })
-        report["books"][book] = {
+        report["books"][key] = {
+            "book": book, "fixture": arms[args.arm].get("fixture"),
             "candidate_roster": roster, "candidate_count": len(roster),
             "n": len(rows), "errors": len(errors),
             "failure_classes": dict(classes), "error_rows": errors,
         }
     report["failure_classes"] = dict(totals)
+    report["n"] = sum(result["n"] for result in report["books"].values())
+    report["errors"] = sum(totals.values())
     atomic_json_write(report, args.out)
 
     print(f"=== PDNC failure telemetry: {args.arm} ===")
-    print(f"  {sum(totals.values())} errors across {len(report['books'])} books")
+    print(f"  {report['errors']} errors across {len(report['books'])} input groups "
+          f"from {len({book for _, _, book in selected})} books")
     for name, count in totals.most_common():
         print(f"  {name:38} {count:4}")
     for book, result in report["books"].items():

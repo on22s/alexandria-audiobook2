@@ -44,6 +44,8 @@ if not os.path.isdir(os.path.join(REPO, "ab_test_runtime")):
 
 sys.path.insert(0, os.path.join(REPO, "app"))
 
+from experiments.pdnc_results import get_pdnc_result_book
+
 FULL = os.path.join(REPO, "ab_test_runtime", "experiments",
                     "pdnc_eval_full.json")
 
@@ -54,7 +56,16 @@ DEVELOPMENT_BOOKS = ("PrideAndPrejudice", "TheAwakening", "TheSignOfTheFour")
 
 
 def book_rows(payload, book, arm):
-    return (payload.get(book, {}).get(arm, {}) or {}).get("rows", []) or []
+    return get_rows_by_book(payload, arm).get(book, [])
+
+
+def get_rows_by_book(payload, arm):
+    """Keep every variant's evaluated rows under its recorded book identity."""
+    rows = collections.defaultdict(list)
+    for key, arms in payload.items():
+        book = get_pdnc_result_book(key, arms)
+        rows[book].extend((arms.get(arm, {}) or {}).get("rows", []) or [])
+    return dict(rows)
 
 
 def accuracy(rows):
@@ -82,10 +93,11 @@ def main():
     with open(FULL, encoding="utf-8") as handle:
         payload = json.load(handle)
 
-    books = sorted(payload)
+    rows_by_book = get_rows_by_book(payload, args.arm)
+    books = sorted(rows_by_book)
     per_book = {}
     for book in books:
-        rows = book_rows(payload, book, args.arm)
+        rows = rows_by_book[book]
         acc = accuracy(rows)
         if acc is None:
             continue
@@ -98,7 +110,7 @@ def main():
                    if b in DEVELOPMENT_BOOKS}
 
     def pooled(group):
-        rows = [r for b in group for r in book_rows(payload, b, args.arm)]
+        rows = [r for b in group for r in rows_by_book[b]]
         return {"books": len(group), "n": len(rows),
                 "accuracy": round(accuracy(rows), 1) if rows else None}
 
