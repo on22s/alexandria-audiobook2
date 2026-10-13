@@ -24,9 +24,12 @@ _KEEP = re.compile(r"[0-9a-z]+")
 def build_index(source):
     """-> (normalised text, offset map back into `source`)."""
     chars, offsets = [], []
-    for match in _KEEP.finditer(source.lower()):
-        for position in range(match.start(), match.end()):
-            chars.append(source[position].lower())
+    # Lowercasing can expand a source character (İ -> i + combining dot).
+    # Normalize at each ORIGINAL position, never index the source using
+    # positions from the expanded lowercase string.
+    for position, char in enumerate(source):
+        for retained in normalize(char):
+            chars.append(retained)
             offsets.append(position)
     return "".join(chars), offsets
 

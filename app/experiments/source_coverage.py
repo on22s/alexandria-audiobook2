@@ -33,21 +33,36 @@ import json
 import os
 import re
 import sys
+import unicodedata
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
 from experiments.provenance import provenance  # noqa: E402
 
-# Keep CJK and kana alongside latin/digits: a Japanese or Chinese book must be
-# measurable by the same function, and stripping them would score those books
-# as total loss rather than reporting a number.
-_WORD_SPLIT = re.compile(
-    r"[^0-9A-Za-z぀-ヿ㐀-䶿一-鿿豈-﫿]+")
+# Preserve the old splitter's complete CJK/kana ranges, including middle dot
+# and spacing dakuten. Splitting those changes this metric's word units.
+_CJK_KANA_RE = re.compile(r"[぀-ヿ㐀-䶿一-鿿豈-﫿]")
 
 
 def words(text):
-    """-> lowercased word list, punctuation collapsed to separators."""
-    return [w for w in _WORD_SPLIT.sub(" ", (text or "").lower()).split() if w]
+    """-> NFC lowercased words, with punctuation as separators.
+
+    Keep contiguous CJK/kana words and attached combining marks. The quality
+    gate's recall_core.tokens uses casefolding and per-character CJK tokens,
+    which would change this word-multiset measure's existing units.
+    """
+    normalized = unicodedata.normalize("NFC", (text or "").lower())
+    out, word = [], []
+    for char in normalized:
+        if (char.isalnum() or _CJK_KANA_RE.fullmatch(char)
+                or (word and unicodedata.category(char).startswith("M"))):
+            word.append(char)
+        elif word:
+            out.append("".join(word))
+            word = []
+    if word:
+        out.append("".join(word))
+    return out
 
 
 def script_words(entries):

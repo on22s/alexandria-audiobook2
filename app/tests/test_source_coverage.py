@@ -11,11 +11,13 @@ read exactly the fraction lost, computed by hand rather than by running the
 code and blessing whatever came out.
 """
 import collections
+import json
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
-from experiments.source_coverage import (coverage, pair_sources_to_scripts,
+from experiments.source_coverage import (coverage, main, pair_sources_to_scripts,
                                          script_words, words)
 
 
@@ -39,6 +41,22 @@ class WordSplitTests(unittest.TestCase):
     def test_empty_and_none_are_empty(self):
         self.assertEqual(words(""), [])
         self.assertEqual(words(None), [])
+
+    def test_unicode_lexemes_stay_intact(self):
+        self.assertEqual(words("CAFÉ résumé ПРИВЕТ"), ["café", "résumé", "привет"])
+        self.assertEqual(words("cafe\u0301 re\u0301sume\u0301 q\u0301 İ"),
+                         ["café", "résumé", "q\u0301", "i\u0307"])
+        self.assertEqual(words("「か\u3099く」；世界。"), ["がく", "世界"])
+
+    def test_case_punctuation_and_cjk_rules_stay_the_same(self):
+        self.assertEqual(words("Straße STRASSE _café_ can't—世界かな！"),
+                         ["straße", "strasse", "café", "can", "t", "世界かな"])
+
+    def test_kana_middle_dot_and_spacing_dakuten_stay_inside_word(self):
+        self.assertEqual(["アリス・ボブ"], words("アリス・ボブ"))
+        self.assertEqual(["カ゛キ゜"], words("カ゛キ゜"))
+        self.assertEqual(["アリス", "ボブ"], words("アリス ボブ"))
+        self.assertEqual(["カ", "゛キ゜"], words("カ ゛キ゜"))
 
 
 class CoverageTests(unittest.TestCase):
@@ -89,6 +107,71 @@ class CoverageTests(unittest.TestCase):
     def test_script_words_reads_the_text_field(self):
         self.assertEqual(script_words(entries("a b", "c")), ["a", "b", "c"])
         self.assertEqual(script_words([{"speaker": "X"}]), [])
+
+    def test_lost_accents_and_missegmented_words_are_missing(self):
+        for source, output, expected_missing, expected_extra, lengths in (
+                ("café", "caf", {"café": 1}, {"caf": 1}, (1, 1)),
+                ("résumé", "r sum", {"résumé": 1}, {"r": 1, "sum": 1}, (1, 2)),
+                ("cafe\u0301", "cafe", {"café": 1}, {"cafe": 1}, (1, 1)),
+                ("q\u0301", "q", {"q\u0301": 1}, {"q": 1}, (1, 1)),
+                ("İ", "I", {"i\u0307": 1}, {"i": 1}, (1, 1)),
+                ("Привет", "Приве", {"привет": 1}, {"приве": 1}, (1, 1))):
+            with self.subTest(source=source, output=output):
+                ratio, missing, extra, n, m = coverage(source, entries(output))
+                self.assertEqual(0.0, ratio)
+                self.assertEqual(expected_missing, dict(missing))
+                self.assertEqual(expected_extra, dict(extra))
+                self.assertEqual(lengths, (n, m))
+
+    def test_faithful_unicode_case_and_combining_forms_match(self):
+        for source, output, count in (("café résumé", "CAFE\u0301 RE\u0301SUME\u0301", 2),
+                                      ("q\u0301", "Q\u0301", 1),
+                                      ("İ", "i\u0307", 1),
+                                      ("Привет мир", "ПРИВЕТ МИР", 2)):
+            with self.subTest(source=source, output=output):
+                ratio, missing, extra, n, m = coverage(source, entries(output))
+                self.assertEqual(1.0, ratio)
+                self.assertEqual({}, dict(missing))
+                self.assertEqual({}, dict(extra))
+                self.assertEqual((count, count), (n, m))
+
+    def test_unicode_multiset_loss_is_hand_computed(self):
+        ratio, missing, extra, n, m = coverage(
+            "café café résumé", entries("résumé CAFÉ"))
+        self.assertEqual(2 / 3, ratio)
+        self.assertEqual({"café": 1}, dict(missing))
+        self.assertEqual({}, dict(extra))
+        self.assertEqual((3, 2), (n, m))
+
+    def test_splitting_retained_kana_symbols_is_not_complete_coverage(self):
+        for source, output, expected_extra in (
+                ("アリス・ボブ", "アリス ボブ", {"アリス": 1, "ボブ": 1}),
+                ("カ゛キ゜", "カ ゛キ゜", {"カ": 1, "゛キ゜": 1})):
+            with self.subTest(source=source):
+                self.assertEqual((1.0, {}, {}, 1, 1), coverage(source, entries(source)))
+                ratio, missing, extra, n, m = coverage(source, entries(output))
+                self.assertEqual(0.0, ratio)
+                self.assertEqual({source: 1}, dict(missing))
+                self.assertEqual(expected_extra, dict(extra))
+                self.assertEqual((1, 2), (n, m))
+
+    def test_cli_artifact_reports_unicode_corruption(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sources, scripts = root / "sources", root / "scripts"
+            sources.mkdir()
+            scripts.mkdir()
+            (sources / "synthetic.txt").write_text("café résumé Привет", encoding="utf-8")
+            (scripts / "synthetic__single.json").write_text(
+                json.dumps(entries("caf r sum Привет")), encoding="utf-8")
+            out = root / "coverage.json"
+            self.assertEqual(0, main(["--sources", str(sources), "--scripts", str(scripts),
+                                      "--out", str(out)]))
+            result = json.loads(out.read_text(encoding="utf-8"))["per_book"]["synthetic"]
+        self.assertEqual(0.3333, result["coverage"])
+        self.assertEqual((3, 4), (result["source_words"], result["script_words"]))
+        self.assertEqual({"café": 1, "résumé": 1}, result["missing_tokens"])
+        self.assertEqual({"caf": 1, "r": 1, "sum": 1}, result["extra_tokens"])
 
 
 class PairingTests(unittest.TestCase):
