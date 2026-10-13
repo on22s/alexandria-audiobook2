@@ -5515,6 +5515,13 @@
     "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_fixed_prompt_over_budget_fails_without_a_request",
     "tests.test_persona_reference_budget.PersonaReferenceBudgetTests.test_large_reference_is_valid_and_retains_tail"
   ],
+  "test_persona_reference_identity": [
+    "tests.test_persona_reference_identity.PersonaReferenceIdentityTests.test_advanced_long_book_and_speaker_refs_fit_existing_audit_guard",
+    "tests.test_persona_reference_identity.PersonaReferenceIdentityTests.test_compile_rejects_dialogue_borrowed_from_colliding_label",
+    "tests.test_persona_reference_identity.PersonaReferenceIdentityTests.test_exact_labels_have_distinct_deterministic_bounded_safe_paths",
+    "tests.test_persona_reference_identity.PersonaReferenceIdentityTests.test_recovery_preserves_saved_identity_and_legacy_reference_contract",
+    "tests.test_persona_reference_identity.PersonaReferenceIdentityTests.test_same_batch_and_later_append_keep_each_reference_and_compiled_sample"
+  ],
   "test_persona_refresh_reuse_js": [
     "tests.test_persona_refresh_reuse_js.PersonaRefreshReuseTests.test_completed_reads_and_failure_retries",
     "tests.test_persona_refresh_reuse_js.PersonaRefreshReuseTests.test_refresh_retry_preserves_cache_and_ownership"

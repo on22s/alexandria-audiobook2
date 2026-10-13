@@ -613,9 +613,17 @@ def _batch_entries(script, batch_size):
         yield start, script[start:start + batch_size]
 
 
+def get_persona_reference_basename(label, readable_bytes=16):
+    label = label or "unknown"
+    # Sanitization loses identity (ALICE/BOB and ALICE&BOB both become alice_bob).
+    # Hash the exact canonical label; alias policy is decided before this point.
+    safe = sanitize_filename(label).encode("utf-8")[:readable_bytes].decode("utf-8", errors="ignore")
+    identity = hashlib.sha256(label.encode("utf-8")).hexdigest()
+    return f"{safe}_{identity}"
+
+
 def _character_ref_path(ref_dir, speaker):
-    safe = sanitize_filename(speaker or "unknown")
-    return os.path.join(ref_dir, f"{safe}.json")
+    return os.path.join(ref_dir, f"{get_persona_reference_basename(speaker)}.json")
 
 
 def _load_character_ref(ref_dir, speaker):
@@ -1173,7 +1181,9 @@ def _run_advanced_speaker_generation(script, selected_speakers, samples, voice_c
     if book_id is None:
         state = safe_load_json(os.path.join(root, "state.json"), default={})
         book_id = state.get("active_book_id") or "active_book"
-    book_refs_dir = os.path.join(root, "persona_refs", sanitize_filename(book_id))
+    # Bound the whole generated reference below the existing 200-character
+    # persona audit limit, including its generation directory and JSON suffix.
+    book_refs_dir = os.path.join(root, "persona_refs", get_persona_reference_basename(book_id, readable_bytes=8))
     os.makedirs(book_refs_dir, exist_ok=True)
     # A fresh run owns fresh references. Saved books and concurrent generations
     # may still point at previous files, so never delete or reuse their directory.

@@ -368,7 +368,8 @@ class PersonaWindowsReferenceTests(unittest.TestCase):
                 personas._compile_persona(object(), 'mock', engine, config, tmp, str(ref_dir), 'ANNA',
                                           {'ANNA': ['Hello there, my friend.']}, '', '')
             with self.subTest(stage='compiled'):
-                self.assertEqual('refs/anna.json', config['ANNA']['persona_ref'])
+                expected = 'refs/' + Path(personas._character_ref_path(str(ref_dir), 'ANNA')).name
+                self.assertEqual(expected, config['ANNA']['persona_ref'])
             self.assertTrue((Path(tmp) / config['ANNA']['persona_ref'].replace('\\', '/')).is_file())
             self.assertNotIn('\\', config['ANNA']['ref_audio'])
 

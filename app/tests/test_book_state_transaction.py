@@ -227,7 +227,8 @@ class BookPersonaBindingTests(unittest.TestCase):
                 metas=list((root/'designed_voices/persona').rglob('meta.json'));self.assertEqual(1,len(metas))
                 self.assertEqual('original book',json.loads(metas[0].read_text())['book_id'])
                 if advanced:
-                    refs=list((root/'persona_refs').rglob('alice.json'));self.assertEqual(1,len(refs));self.assertEqual(['Original book source.'],json.loads(refs[0].read_text())['sample_lines'])
+                    basename=Path(personas._character_ref_path('', 'ALICE')).name
+                    refs=list((root/'persona_refs').rglob(basename));self.assertEqual(1,len(refs));self.assertEqual(['Original book source.'],json.loads(refs[0].read_text())['sample_lines'])
 
     def test_same_book_reload_nonce_rejects_and_newer_human_fields_are_preserved(self):
         import copy
