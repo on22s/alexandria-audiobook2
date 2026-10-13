@@ -4886,6 +4886,12 @@
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_invalid_and_truncated_uploads_preserve_prior_cover_and_remove_owned_stage",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_validation_does_not_block_same_event_loop_http"
   ],
+  "test_m4b_cover_trailing_payload": [
+    "tests.test_m4b_cover_trailing_payload.M4bCoverTrailingPayloadTests.test_jpeg_orientation_is_applied_to_pixels_before_actual_m4b_export",
+    "tests.test_m4b_cover_trailing_payload.M4bCoverTrailingPayloadTests.test_normalization_failure_keeps_prior_cover_and_cleans_owned_staging",
+    "tests.test_m4b_cover_trailing_payload.M4bCoverTrailingPayloadTests.test_png_pixels_and_alpha_survive_normalization",
+    "tests.test_m4b_cover_trailing_payload.M4bCoverTrailingPayloadTests.test_trailing_video_is_retired_before_actual_m4b_export"
+  ],
   "test_macos_owner_protocol": [
     "tests.test_macos_owner_protocol.MacOwnerAdmissionTests.test_nonexclusive_and_unknown_scope_are_rejected",
     "tests.test_macos_owner_protocol.MacOwnerAdmissionTests.test_shared_scope_and_changed_identity_are_rejected",

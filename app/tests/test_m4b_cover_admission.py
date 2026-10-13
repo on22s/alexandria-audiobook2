@@ -50,7 +50,7 @@ class M4bCoverAdmissionTests(unittest.TestCase):
                         response = client.post('/api/m4b_cover', files={'file': ('cover.' + fmt.lower(), payload, 'image/' + fmt.lower())})
                         self.assertEqual(200, response.status_code, response.text)
                         cover = root / 'm4b_cover.jpg'
-                        if fmt in ('JPEG', 'PNG'): self.assertEqual(payload, cover.read_bytes())
+                        if fmt == 'PNG': self.assertEqual(payload, cover.read_bytes())
                         with Image.open(cover) as image:
                             image.load(); self.assertEqual((32, 24), image.size)
                             self.assertEqual('PNG' if fmt == 'PNG' else 'JPEG', image.format)

@@ -737,7 +737,7 @@ async def get_audiobook_m4b():
 
 def _apply_m4b_cover(cover_tmp, cover_path):
     """Validate uploaded image data before publishing an MP4-compatible cover."""
-    from PIL import Image, UnidentifiedImageError
+    from PIL import Image, ImageOps, UnidentifiedImageError
     normalized = cover_tmp + ".jpg"
     try:
         try:
@@ -747,18 +747,22 @@ def _apply_m4b_cover(cover_tmp, cover_path):
                     image.verify()
                 with Image.open(cover_tmp) as image:
                     image.load()
-                    converted = image.convert("RGB") if image.format not in {"JPEG", "PNG"} else None
+                    cover_format = "PNG" if image.format == "PNG" else "JPEG"
+                    converted = ImageOps.exif_transpose(image)
+                    if cover_format == "JPEG" and converted.mode != "RGB":
+                        try:
+                            rgb = converted.convert("RGB")
+                        finally:
+                            converted.close()
+                        converted = rgb
         except (UnidentifiedImageError, OSError, ValueError,
                 Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
             raise HTTPException(status_code=400, detail="Cover must contain a complete, decodable image") from exc
-        source = cover_tmp
-        if converted is not None:
-            try:
-                converted.save(normalized, format="JPEG")
-            finally:
-                converted.close()
-            source = normalized
-        os.replace(source, cover_path)
+        try:
+            converted.save(normalized, format=cover_format)
+        finally:
+            converted.close()
+        os.replace(normalized, cover_path)
     finally:
         for path in (cover_tmp, normalized):
             if os.path.exists(path):
