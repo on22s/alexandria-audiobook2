@@ -463,9 +463,9 @@ class ChunkUpdateNullTests(unittest.TestCase):
                 root = Path(tmp)
                 manager, path, _chunk = self._setup(root)
                 before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
-                with patch.object(editor, 'project_manager', manager), \
+                with patch.object(editor, 'SCRIPT_PATH', str(root/'annotated_script.json')), patch.object(editor, 'project_manager', manager), \
                      patch.object(editor, 'check_global_gpu_lock') as guard:
-                    response = client.post('/api/chunks/0', json={field: None, 'pause_after': 999})
+                    response = client.post('/api/chunks/0', params={'expected_uid':json.loads(path.read_text())[0]['uid'], 'expected_book_token':editor.get_snapshot_digest(editor.get_editor_book_identity(str(root)))}, json={field: None, 'pause_after': 999})
                 self.assertEqual(422, response.status_code, response.text)
                 self.assertEqual(field, response.json()['detail'][0]['loc'][-1])
                 guard.assert_not_called()
@@ -480,12 +480,12 @@ class ChunkUpdateNullTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
             root = Path(tmp)
             manager, path, original = self._setup(root)
-            with patch.object(editor, 'project_manager', manager), \
+            with patch.object(editor, 'SCRIPT_PATH', str(root/'annotated_script.json')), patch.object(editor, 'project_manager', manager), \
                  patch.object(editor, 'check_global_gpu_lock'):
-                unchanged = client.post('/api/chunks/0', json={})
+                unchanged = client.post('/api/chunks/0', params={'expected_uid':json.loads(path.read_text())[0]['uid'], 'expected_book_token':editor.get_snapshot_digest(editor.get_editor_book_identity(str(root)))}, json={})
                 self.assertEqual(200, unchanged.status_code)
                 self.assertEqual(original, unchanged.json())
-                response = client.post('/api/chunks/0', json={'pause_after': None})
+                response = client.post('/api/chunks/0', params={'expected_uid':json.loads(path.read_text())[0]['uid'], 'expected_book_token':editor.get_snapshot_digest(editor.get_editor_book_identity(str(root)))}, json={'pause_after': None})
             self.assertEqual(200, response.status_code)
             expected = {k: v for k, v in original.items() if k != 'pause_after'}
             self.assertEqual(expected, response.json())
@@ -503,9 +503,9 @@ class ChunkUpdateNullTests(unittest.TestCase):
             with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
                 root = Path(tmp)
                 manager, path, original = self._setup(root)
-                with patch.object(editor, 'project_manager', manager), \
+                with patch.object(editor, 'SCRIPT_PATH', str(root/'annotated_script.json')), patch.object(editor, 'project_manager', manager), \
                      patch.object(editor, 'check_global_gpu_lock'):
-                    response = client.post('/api/chunks/0', json={field: value})
+                    response = client.post('/api/chunks/0', params={'expected_uid':json.loads(path.read_text())[0]['uid'], 'expected_book_token':editor.get_snapshot_digest(editor.get_editor_book_identity(str(root)))}, json={field: value})
                 self.assertEqual(200, response.status_code, response.text)
                 expected = {**original, field: value, 'status': 'pending', 'audio_path': None}
                 self.assertEqual(expected, response.json())

@@ -24,7 +24,7 @@ class EditorValidationFindingTests(unittest.TestCase):
             async def probe():
                 async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://fixture') as client:
                     for requested,expected in [(-5,0),(0,0),(12,12),(None,None)]:
-                        response=await client.post('/api/chunks/0',json={'pause_after':requested})
+                        response=await client.post('/api/chunks/0',json={'pause_after':requested}, params=identity)
                         self.assertEqual(200,response.status_code,response.text)
                         stored=json.loads(Path(manager.chunks_path).read_text())[0]
                         self.assertEqual(expected,stored.get('pause_after'))
@@ -32,11 +32,13 @@ class EditorValidationFindingTests(unittest.TestCase):
                         for field in ('uid','text','speaker','status','audio_path'):
                             self.assertEqual(before[field],stored[field])
                         results.append({'requested':requested,'status':response.status_code,'stored_pause':stored.get('pause_after')})
-            with patch.object(editor,'project_manager',manager):
+            with patch.object(editor,'project_manager',manager), patch.object(editor,'SCRIPT_PATH',str(Path(tmp)/'annotated_script.json')):
+                identity={'expected_uid':manager.load_chunks()[0]['uid'],
+                          'expected_book_token':editor.get_snapshot_digest(editor.get_editor_book_identity(tmp))}
                 asyncio.run(probe())
             self.pause_results=results
 
-    def test_empty_persisted_row_gets_uid_and_success_missing_index_alone_is_404(self):
+    def test_empty_persisted_row_gets_uid_and_missing_identity_target_is_409(self):
         with tempfile.TemporaryDirectory() as tmp:
             manager=ProjectManager(tmp)
             manager.save_chunks([{}])
@@ -44,7 +46,7 @@ class EditorValidationFindingTests(unittest.TestCase):
             results=[]
             async def probe():
                 async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://fixture') as client:
-                    response=await client.post('/api/chunks/0',json={})
+                    response=await client.post('/api/chunks/0',json={}, params=identity)
                     self.assertEqual(200,response.status_code,response.text)
                     stored=json.loads(Path(manager.chunks_path).read_text())[0]
                     self.assertEqual(stored,response.json())
@@ -53,10 +55,12 @@ class EditorValidationFindingTests(unittest.TestCase):
                     before=Path(manager.chunks_path).read_bytes()
                     results.append({'index':0,'status':response.status_code,'stored_keys':sorted(stored)})
                     for index in (-1,1):
-                        missing=await client.post(f'/api/chunks/{index}',json={})
-                        self.assertEqual(404,missing.status_code)
+                        missing=await client.post(f'/api/chunks/{index}',json={}, params=identity)
+                        self.assertEqual(409,missing.status_code)
                         self.assertEqual(before,Path(manager.chunks_path).read_bytes())
                         results.append({'index':index,'status':missing.status_code})
-            with patch.object(editor,'project_manager',manager):
+            with patch.object(editor,'project_manager',manager), patch.object(editor,'SCRIPT_PATH',str(Path(tmp)/'annotated_script.json')):
+                identity={'expected_uid':manager.load_chunks()[0]['uid'],
+                          'expected_book_token':editor.get_snapshot_digest(editor.get_editor_book_identity(tmp))}
                 asyncio.run(probe())
             self.empty_row_results=results

@@ -475,7 +475,7 @@ const posts = [];
 const toasts = [];
 let bannersRemoved = 0;
 const context = {
-    currentBookFilename: 'fixture-book',
+    URLSearchParams, currentBookFilename: 'fixture-book',
     invalidateEditorIntegrity() {}, refreshEditorIntegrity: async () => {},
     performance: {now: () => 0},
     currentIsRemote:false, failoverIsRemote:false,
@@ -686,13 +686,14 @@ assert.strictEqual(posts[2].data.at_index, 4);
 
     def test_row_save_includes_speaker_select_and_waits_for_post(self):
         self.run_scenario(r'''
+run('let chunkSnapshotBookToken="book-token";');
 load('const pendingChunkEdits =', 'window.generateChunk =');
 function control(field, value) {
     return {value, getAttribute: () => `updateChunk(7, '${field}', this.value)`};
 }
 const inputs = [control('text','line'),control('pause_after','')];
 const speaker = control('speaker','NEW SPEAKER');
-context.document.querySelector = () => ({querySelectorAll(selector) {
+context.document.querySelector = () => ({dataset:{uid:'row-7',bookToken:'book-token'},querySelectorAll(selector) {
     return selector.split(',').map(s => s.trim()).includes('select') ? [...inputs,speaker] : inputs;
 }});
 let release;
@@ -703,7 +704,7 @@ context.API.post = (url,data) => {
 let completed = false;
 const pending = context.saveRowEdits(7).then(() => { completed = true; });
 await Promise.resolve();
-assert.deepStrictEqual(plain(posts), [{url:'/api/chunks/7',data:{text:'line',pause_after:null,speaker:'NEW SPEAKER'}}]);
+assert.deepStrictEqual(plain(posts), [{url:'/api/chunks/7?expected_book_token=book-token&expected_uid=row-7',data:{text:'line',pause_after:null,speaker:'NEW SPEAKER'}}]);
 assert.strictEqual(completed, false);
 release();
 await pending;

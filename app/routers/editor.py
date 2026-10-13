@@ -40,7 +40,7 @@ from core import (
 )
 from generation_checkpoint_deltas import load_generation_checkpoint_document
 from generation_checkpoint_shards import get_generation_checkpoint_artifacts
-from editor_poll_snapshot import EditorPollSnapshots
+from editor_poll_snapshot import EditorPollSnapshots, get_snapshot_digest
 from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection)
@@ -165,6 +165,12 @@ def check_chunk_identity(index, expected_book_token=None, expected_uid=None):
             raise HTTPException(status_code=409, detail="Editor row changed; reload before saving")
 
 
+def apply_chunk_update(index, updates, expected_book_token, expected_uid):
+    with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
+        check_chunk_identity(index, expected_book_token, expected_uid)
+        return project_manager.update_chunk(index, updates)
+
+
 def apply_chunk_insertion(index, expected_book_token=None, expected_uid=None):
     with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
         check_chunk_identity(index, expected_book_token, expected_uid)
@@ -273,10 +279,13 @@ async def drift_check_endpoint(request: DriftCheckRequest, background_tasks: Bac
     return {"status": "started", "threshold": threshold, "measured": python_bin is not None}
 
 @router.post("/api/chunks/{index}")
-async def update_chunk(index: int, update: ChunkUpdate):
+async def update_chunk(index: int, update: ChunkUpdate,
+                       expected_book_token: Annotated[str, Query(min_length=64, max_length=64)],
+                       expected_uid: Annotated[str, Query(min_length=1, max_length=128)]):
     updates = update.model_dump(exclude_unset=True)
     logger.info(f"Updating chunk {index} with data: {updates}")
-    chunk = await asyncio.to_thread(_apply_chunk_edit, project_manager.update_chunk, index, updates)
+    chunk = await asyncio.to_thread(_apply_chunk_edit, apply_chunk_update, index, updates,
+                                    expected_book_token, expected_uid)
     if not chunk:
         raise HTTPException(status_code=404, detail="Chunk not found")
     logger.info(f"Chunk {index} updated, instruct is now: '{chunk.get('instruct', '')}'")

@@ -5520,6 +5520,7 @@
             } catch (e) { if (!isCastApplyContextCurrent(context)) { return; } setCastStatus(escapeHtml(getActionErrorMessage("Matching cast voices failed", e, "Check the selected cast and current book, then reopen Apply cast.")), true); renderCastMembers(); return; }
 
             if (!isCastApplyContextCurrent(context)) { return; }
+            context.matchBookToken = res.book_token;
             const pool = _getCastMatchPool();
             const anyMatch = res.proposals.some(p => p.match);
             const rows = _renderCastMatchRows(res.proposals, pool);
@@ -5575,7 +5576,7 @@
             const mapping = _collectCastApplyMapping();
             if (!Object.keys(mapping).length) { setCastStatus('Nothing selected to apply.', true); return; }
             try {
-                const res = await API.post('/api/voice_library/apply', { cast: context.cast, mapping });
+                const res = await API.post('/api/voice_library/apply', { cast: context.cast, mapping, book_token: context.matchBookToken });
                 if (!isCastApplyContextCurrent(context)) { return; }
                 setCastStatus(`<i class="fas fa-check text-success me-1"></i>Applied ${res.count} voice${res.count !== 1 ? 's' : ''}${getCastApplyWarningsHtml(res.warnings)}`);
                 await loadVoices();  // re-render cards with the applied configs
@@ -6442,6 +6443,7 @@
         // --- Editor Tab ---
         let isPlayingSequence = false;
         let isRenderingAll = false;
+        let chunkSnapshotBookToken = null;
         let cachedChunks = []; // Cache to track changes
         let chunkSnapshotRevision = null;
         let chunkSnapshotBook = null;
@@ -6730,6 +6732,7 @@
                 chunkSnapshotRevision = null;
                 throw new Error('Editor snapshot is unavailable.');
             }
+            chunkSnapshotBookToken = snapshot.book_token;
             let chunks;
             if (snapshot.full) {
                 chunks = snapshot.chunks;
@@ -6846,7 +6849,7 @@
                         `<button class="btn btn-sm btn-primary" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> Gen</button>`;
 
                     return `
-                        <tr data-id="${chunk.id}" class="chunk-row">
+                        <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" class="chunk-row">
                             <td class="text-center align-middle" style="white-space:nowrap;">
                                 <button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="Voice changes here: from this line on, this character sounds different (time skip, older)"><i class="fas fa-user-clock"></i></button>
                             </td>
@@ -7170,6 +7173,11 @@
         let chunkEditsRevision = 0;
 
         function applyChunkEdits(id, data) {
+            const row = document.querySelector(`#chunks-table-body tr[data-id="${id}"]`);
+            const uid = row?.dataset.uid;
+            const bookToken = row?.dataset.bookToken;
+            if (!uid || !bookToken) { throw new Error('Reload the Editor before saving this row.'); }
+            const query = new URLSearchParams({expected_book_token: bookToken, expected_uid: uid}).toString();
             const previous = pendingChunkEdits.get(id);
             const captured = JSON.parse(JSON.stringify(data));
             chunkEditsRevision++;
@@ -7177,7 +7185,8 @@
             const request = (async () => {
                 if (previous) { await previous.catch(() => {}); }
                 try {
-                    await API.post(`/api/chunks/${id}`, captured);
+                    await API.post(`/api/chunks/${id}?${query}`, captured);
+                    if (bookToken !== chunkSnapshotBookToken || cachedChunks.find(chunk => chunk.id === id)?.uid !== uid) { return; }
                     cachedChunks = cachedChunks.map(chunk => chunk.id === id ? { ...chunk, ...captured } : chunk);
                     // The server can normalize an edit without changing its revision.
                     chunkSnapshotRevision = null;

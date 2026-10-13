@@ -157,6 +157,14 @@ def post(path, **kwargs):
                          headers=get_api_test_headers(kwargs.pop("headers", None)), **kwargs)
 
 
+def post_chunk_update(index, **kwargs):
+    snapshot = get('/api/chunks/status').json()
+    target = next((row for row in snapshot['chunks'] if row['id'] == index), None)
+    return post(f'/api/chunks/{index}', params={
+        'expected_book_token':snapshot['book_token'],
+        'expected_uid':target['uid'] if target else 'missing'}, **kwargs)
+
+
 def delete(path, **kwargs):
     return requests.delete(f"{BASE_URL}{path}", timeout=kwargs.pop("timeout", 30),
                            headers=get_api_test_headers(kwargs.pop("headers", None)), **kwargs)
@@ -593,7 +601,7 @@ def test_update_chunk():
     if not shared.get("has_chunks"):
         raise TestFailure("SKIP: no chunks available")
 
-    r = post("/api/chunks/0", json={
+    r = post_chunk_update(0, json={
         "text": f"{TEST_PREFIX}updated_text",
         "instruct": f"{TEST_PREFIX}instruct"
     })
@@ -604,7 +612,7 @@ def test_update_chunk():
 
     # Restore original
     orig = shared.get("chunk0_original", {})
-    post("/api/chunks/0", json=orig)
+    post_chunk_update(0, json=orig)
 
 
 def test_update_chunk_pause_after():
@@ -618,7 +626,7 @@ def test_update_chunk_pause_after():
     original_status = r.json()[0].get("status")
 
     # Set pause_after
-    r = post("/api/chunks/0", json={"pause_after": 3000})
+    r = post_chunk_update(0, json={"pause_after": 3000})
     assert_status(r, 200)
     data = r.json()
     if data.get("pause_after") != 3000:
@@ -639,7 +647,7 @@ def test_update_chunk_pause_after():
         raise TestFailure(f"pause_after not persisted on read-back: {chunk0.get('pause_after')}")
 
     # Clear pause_after by sending null
-    r = post("/api/chunks/0", json={"pause_after": None})
+    r = post_chunk_update(0, json={"pause_after": None})
     assert_status(r, 200)
     data = r.json()
     if data.get("pause_after") is not None:
@@ -658,14 +666,14 @@ def test_update_chunk_pause_after_zero():
     if not shared.get("has_chunks"):
         raise TestFailure("SKIP: no chunks available")
 
-    r = post("/api/chunks/0", json={"pause_after": 0})
+    r = post_chunk_update(0, json={"pause_after": 0})
     assert_status(r, 200)
     data = r.json()
     if data.get("pause_after") != 0:
         raise TestFailure(f"pause_after=0 not set correctly: {data.get('pause_after')}")
 
     # Clean up
-    post("/api/chunks/0", json={"pause_after": None})
+    post_chunk_update(0, json={"pause_after": None})
 
 
 def test_update_chunk_pause_after_negative():
@@ -673,19 +681,19 @@ def test_update_chunk_pause_after_negative():
     if not shared.get("has_chunks"):
         raise TestFailure("SKIP: no chunks available")
 
-    r = post("/api/chunks/0", json={"pause_after": -500})
+    r = post_chunk_update(0, json={"pause_after": -500})
     assert_status(r, 200)
     data = r.json()
     if data.get("pause_after") != 0:
         raise TestFailure(f"Negative pause_after should clamp to 0, got: {data.get('pause_after')}")
 
     # Clean up
-    post("/api/chunks/0", json={"pause_after": None})
+    post_chunk_update(0, json={"pause_after": None})
 
 
-def test_update_chunk_404():
-    r = post("/api/chunks/99999", json={"text": "nope"})
-    assert_status(r, 404)
+def test_update_chunk_stale_index():
+    r = post_chunk_update(99999, json={"text": "nope"})
+    assert_status(r, 409)
 
 
 def test_insert_chunk():
@@ -1471,7 +1479,7 @@ def run_all_tests():
     run_test("update_chunk_pause_after", test_update_chunk_pause_after)
     run_test("update_chunk_pause_after_zero", test_update_chunk_pause_after_zero)
     run_test("update_chunk_pause_after_negative", test_update_chunk_pause_after_negative)
-    run_test("update_chunk_404", test_update_chunk_404)
+    run_test("update_chunk_stale_index", test_update_chunk_stale_index)
     run_test("insert_chunk", test_insert_chunk)
     run_test("insert_chunk_404", test_insert_chunk_404)
     run_test("delete_chunk", test_delete_chunk)

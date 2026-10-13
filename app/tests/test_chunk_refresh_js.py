@@ -10,8 +10,8 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readF
 const fields={},timers=new Map(),errors=[],updates=[];let timerId=0,draws=0,playing=false;
 const element=id=>fields[id]||(fields[id]={value:'',style:{},children:[]});
 const body=element('chunks-table-body');let html='';
-Object.defineProperty(body,'innerHTML',{get:()=>html,set:value=>{html=value;draws++;body.children=[...value.matchAll(/<tr data-id="(\d+)"/g)].map(match=>({dataset:{id:match[1]},children:[{},{},{},{},{},{}]}));if(!body.children.length){body.children=[{children:[{}]}];}}});
-const ctx={window:null,currentBookFilename:'A',console:{log:()=>{},error:(...args)=>errors.push(args)},document:{getElementById:element,querySelector:()=>null,querySelectorAll:()=>[]},API:{},Date,
+Object.defineProperty(body,'innerHTML',{get:()=>html,set:value=>{html=value;draws++;body.children=[...value.matchAll(/<tr data-id="(\d+)"/g)].map(match=>({dataset:{id:match[1],uid:(value.slice(match.index).match(/data-uid="([^"]*)"/)||[])[1],bookToken:(value.slice(match.index).match(/data-book-token="([^"]*)"/)||[])[1]},children:[{},{},{},{},{},{}]}));if(!body.children.length){body.children=[{children:[{}]}];}}});
+const ctx={URLSearchParams,window:null,currentBookFilename:'A',console:{log:()=>{},error:(...args)=>errors.push(args)},document:{getElementById:element,querySelector:()=>null,querySelectorAll:()=>[]},API:{},Date,
  setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,delay});return id;},clearTimeout:id=>timers.delete(id),
  refreshEditorIntegrity:async()=>{},invalidateEditorIntegrity:()=>{},isAudioPlaying:()=>playing,buildSpeakerSelect:chunk=>chunk.speaker||'',_driftBadge:()=>'',_driftKey:drift=>JSON.stringify(drift),updateChunkRow:chunk=>updates.push(chunk.id)};ctx.window=ctx;
 vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
@@ -24,10 +24,10 @@ ctx.refreshDeliveryReview=async()=>null;
 let getFixture;
 Object.defineProperty(ctx.API,'get',{set:value=>{getFixture=value;},get:()=>async url=>{
  const data=await getFixture(url);
- if(!Array.isArray(data)){return data;}
+ if(!Array.isArray(data)){return {book_token:'fixture-token',...data};}
  const old=run('cachedChunks');
  const full=!url.includes('?revision=')||old.length!==data.length||data.some((row,i)=>old[i].id!==row.id);
- return {revision:'fixture-'+JSON.stringify(data),full,total:data.length,running_count:data.filter(row=>row.status==='generating').length,changed_ids:data.map(row=>row.id),chunks:data};
+ return {book_token:'fixture-token',revision:'fixture-'+JSON.stringify(data),full,total:data.length,running_count:data.filter(row=>row.status==='generating').length,changed_ids:data.map(row=>row.id),chunks:data};
 }});
 const chunk=(id,status='pending')=>({id,status,text:'line '+id,speaker:'Narrator'});
 const ids=()=>body.children.map(row=>row.dataset.id);
@@ -115,7 +115,7 @@ for(const change of ['uid','path','missing','book']){replaced=plays=0;run("cache
     def test_saved_local_edit_refetches_server_normalization_when_revision_is_unchanged(self):
         self.run_js(r'''run(source.slice(source.indexOf('const pendingChunkEdits ='),source.indexOf('async function ensureEditorRenderSnapshot()')));
 const urls=[];const saved={...chunk(1),uid:'one',pause_after:0};ctx.API.get=async url=>{urls.push(url);return {revision:'v1',full:!url.includes('?revision='),total:1,changed_ids:url.includes('?revision=')?[]:[1],chunks:url.includes('?revision=')?[]:[saved]};};
-await ctx.loadChunks();ctx.API.post=async()=>saved;await ctx.applyChunkEdits(1,{pause_after:-10});await ctx.loadChunks();
+await ctx.loadChunks();ctx.document.querySelector=selector=>body.children.find(row=>selector.includes('data-id="'+row.dataset.id+'"'))||null;ctx.API.post=async(url)=>{const q=new URL(url,'http://fixture').searchParams;assert.strictEqual(q.get('expected_uid'),'one');assert.strictEqual(q.get('expected_book_token'),'fixture-token');return saved;};await ctx.applyChunkEdits(1,{pause_after:-10});await ctx.loadChunks();
 assert.strictEqual(urls.at(-1),'/api/chunks/status');assert.strictEqual(run('cachedChunks[0].pause_after'),0);''')
 
     def test_duplicate_delta_ids_refuse_before_replacing_cached_rows_and_recover_full(self):
@@ -197,7 +197,7 @@ assert.strictEqual(run('chunkSnapshotRevision'),null);assert.strictEqual(run('ca
     def test_full_snapshot_preserves_uid_owned_drafts_focus_and_expansion(self):
         code = r"""
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
-const document={body:{},activeElement:null,getElementById:id=>id==='chunks-table-body'?tbody:null,querySelectorAll:()=>[],createElement:()=>({})};document.activeElement=document.body;
+const document={body:{},activeElement:null,getElementById:id=>id==='chunks-table-body'?tbody:null,querySelector:selector=>tbody.querySelector(selector),querySelectorAll:()=>[],createElement:()=>({})};document.activeElement=document.body;
 function classes(){const values=new Set();return{contains:k=>values.has(k),add:k=>values.add(k),remove:k=>values.delete(k),toggle(k){if(values.has(k)){values.delete(k);return false;}values.add(k);return true;}};}
 function control(value){return{value:String(value),options:[{value:'Narrator'}],appendChild(option){this.options.push(option);},style:{},scrollHeight:100,selectionStart:1,selectionEnd:4,selectionDirection:'forward',focus(){document.activeElement=this;},setSelectionRange(a,b,d){this.selectionStart=a;this.selectionEnd=b;this.selectionDirection=d;}};}
 let rows=[],markup='',data;
@@ -206,14 +206,14 @@ Object.defineProperty(tbody,'innerHTML',{get:()=>markup,set(value){markup=value;
 for(const m of value.matchAll(/<tr data-id="(\d+)"[\s\S]*?<\/tr>/g)){
  const html=m[0],fields={'.chunk-text':control(html.match(/chunk-text[^>]*>([\s\S]*?)<\/textarea>/)[1]),'.chunk-instruct':control(html.match(/chunk-instruct[^>]*>([\s\S]*?)<\/textarea>/)[1]),'.chunk-pause-after':control(html.match(/chunk-pause-after[^>]*value="([^"]*)"/)[1]),'select':control('Narrator')};
  const pause={classList:classes()},btn={innerHTML:'',closest:()=>row};
- const row={dataset:{id:m[1]},classList:classes(),fields,querySelector:selector=>selector==='.chunk-toggle-btn'?btn:fields[selector],querySelectorAll:selector=>selector==='.chunk-text, .chunk-instruct'?[fields['.chunk-text'],fields['.chunk-instruct']]:selector==='.chunk-pause-row'?[pause]:[],pause,btn};rows.push(row);
+ const row={dataset:{id:m[1],uid:html.match(/data-uid="([^"]*)"/)[1],bookToken:html.match(/data-book-token="([^"]*)"/)[1]},classList:classes(),fields,querySelector:selector=>selector==='.chunk-toggle-btn'?btn:fields[selector],querySelectorAll:selector=>selector==='.chunk-text, .chunk-instruct'?[fields['.chunk-text'],fields['.chunk-instruct']]:selector==='.chunk-pause-row'?[pause]:[],pause,btn};rows.push(row);
 }}});
-const c={window:null,document,currentBookFilename:'book-A',API:{get:async()=>data,post:async()=>({})},invalidateEditorIntegrity(){},refreshEditorIntegrity:async()=>{},Date,escapeHtml:String,buildSpeakerSelect:()=>'<select></select>',_driftBadge:()=>'',_driftKey:()=>'',isAudioPlaying:()=>false,updateChunkRow(){},setTimeout:()=>1,clearTimeout(){},applyDriftFilter(){},generateChunk(){}};c.window=c;vm.createContext(c);
+const c={URLSearchParams,window:null,document,currentBookFilename:'book-A',API:{get:async()=>data,post:async url=>{const q=new URL(url,'http://fixture').searchParams;assert.strictEqual(q.get('expected_uid'),'first');assert.strictEqual(q.get('expected_book_token'),'book-token');return{};}},invalidateEditorIntegrity(){},refreshEditorIntegrity:async()=>{},Date,escapeHtml:String,buildSpeakerSelect:()=>'<select></select>',_driftBadge:()=>'',_driftKey:()=>'',isAudioPlaying:()=>false,updateChunkRow(){},setTimeout:()=>1,clearTimeout(){},applyDriftFilter(){},generateChunk(){}};c.window=c;vm.createContext(c);
 function run(code){return vm.runInContext(code,c);}let a=source.indexOf('let isPlayingSequence =');run(source.slice(a,source.indexOf('function buildSpeakerSelect(',a)));
 a=source.indexOf('async function refreshChunkSnapshot(');run(source.slice(a,source.indexOf('window.insertChunkAfter =',a)));
 a=source.indexOf('const pendingChunkEdits =');run(source.slice(a,source.indexOf('async function flushChunkEdits()',a)));
 const original=[{id:1,uid:'first',text:'First saved line',instruct:'',speaker:'Narrator',status:'pending'},{id:2,uid:'second',text:'Second saved line',instruct:'old style',pause_after:50,speaker:'Narrator',status:'generating'}];
-function reply(chunks){data={revision:'r'+Math.random(),full:true,total:chunks.length,changed_ids:chunks.map(row=>row.id),chunks};}
+function reply(chunks){data={book_token:'book-token',revision:'r'+Math.random(),full:true,total:chunks.length,changed_ids:chunks.map(row=>row.id),chunks};}
 (async()=>{
 for(const change of ['none','uid','book']){
  c.currentBookFilename='book-A';reply(original);await c.refreshChunkSnapshot(true);
