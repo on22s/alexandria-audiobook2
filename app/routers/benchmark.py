@@ -9,6 +9,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from benchmark_core import (get_benchmark_preflight_id,
+                            get_benchmark_llm_config,
+                            get_benchmark_execution_environment,
                             validate_benchmark_manifest)
 from benchmark_environment import (collect_local_environment,
                                    collect_local_tts_environment,
@@ -50,8 +52,7 @@ class BenchmarkStartRequest(BenchmarkPreflightRequest):
 
 
 def _get_model_name(config, target):
-    profile = config.get("llm_remote" if target == "thunder" else "llm_local") or {}
-    model_name = profile.get("model_name") or (config.get("llm") or {}).get("model_name")
+    model_name = get_benchmark_llm_config(config, target).get("model_name")
     if not model_name:
         raise ValueError(f"{target} model is not configured")
     return model_name
@@ -78,14 +79,15 @@ def _build_benchmark_preflight(request, config=None):
                 ROOT_DIR, target, (config.get("llm_remote_ssh") or "").strip()
                 if target == "thunder" else None,
                 remote_root=settings.get("remote_root"),
-                remote_python=settings.get("remote_python") or "python3")
+                remote_python=settings.get("remote_python") or "python3",
+                local_python=settings.get("local_python"))
             continue
         if is_tts_family:
             settings = manifest.get("settings") or {}
             if target == "local":
                 environments[target] = collect_local_tts_environment(
                     ROOT_DIR, settings.get("local_python")
-                    if manifest["stage"] in {"voicelab_preparer", "voicelab_dedup", "voicelab_profiling"} else None)
+                    if manifest["stage"] in {"dataset_builder", "voicelab_preparer", "voicelab_dedup", "voicelab_profiling"} else None)
             else:
                 environments[target] = collect_thunder_tts_environment(
                     ROOT_DIR, (config.get("llm_remote_ssh") or "").strip(),
@@ -115,6 +117,8 @@ def _build_benchmark_preflight(request, config=None):
                     stale_baseline = True
     elif "local" in environments and "thunder" in environments:
         verify_comparable_environments(environments["local"], environments["thunder"])
+    environments = {target: get_benchmark_execution_environment(manifest, environment, config)
+                    for target, environment in environments.items()}
     result = {"manifest": manifest, "environments": environments,
               "preflight_id": get_benchmark_preflight_id(manifest, environments),
               "benchmark_state": "ready"}

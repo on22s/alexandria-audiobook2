@@ -229,7 +229,7 @@ class ReviewResumeCoordinateTests(unittest.TestCase):
                 root = Path(tmp); source = root / 'source.json'; output = root / 'reviewed.json'
                 original = self.rows(); source.write_text(json.dumps(original))
                 corrected = [{**original[0], 'text': 'First.'}, {**original[0], 'text': 'Second.'}, original[1]]
-                review.save_checkpoint(str(output), 1, 2, 2, context, corrected, self.stats(), corrected[-2:], [3], [], review._entries_fingerprint(original))
+                review.save_checkpoint(str(output), 1, 2, 2, context, corrected, self.stats(), corrected[-2:], [3], [], review._entries_fingerprint(original), execution_sha256='fixture')
                 recorded = []; native_save = review.save_checkpoint
                 def save_and_read(*args, **kwargs):
                     native_save(*args, **kwargs)

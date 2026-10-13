@@ -202,7 +202,7 @@ class BenchmarkSelectedRuntimeTests(unittest.TestCase):
                     result = benchmark._build_benchmark_preflight(request)
                 if stage in ('voicelab_naming','audacity_export','m4b_export'):
                     cpu.assert_called_once_with(benchmark.ROOT_DIR,'thunder','fixture-ssh',
-                        remote_root='/worker checkout',remote_python='/selected python')
+                        remote_root='/worker checkout',remote_python='/selected python',local_python=None)
                     llm.assert_not_called()
                 else:
                     llm.assert_called_once_with(benchmark.ROOT_DIR,'fixture-ssh','worker-model',

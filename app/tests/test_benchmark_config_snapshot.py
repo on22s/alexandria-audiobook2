@@ -61,7 +61,8 @@ class BenchmarkConfigSnapshotTests(unittest.TestCase):
             changed = live.read_bytes()
             def runner(_manifest, environment, _report, _state, config_path, _directory):
                 paths.append(Path(config_path)); observed.append(load_app_config(config_path))
-                self.assertEqual({'target': 'local', 'sha256': 'old-env'}, environment)
+                self.assertEqual(preflight['environments']['local'], environment)
+                self.assertIn('execution_sha256', environment['details'])
                 if os.name == 'posix':
                     self.assertEqual(0o600, Path(config_path).stat().st_mode & 0o777)
                     self.assertEqual(0o700, Path(config_path).parent.stat().st_mode & 0o777)

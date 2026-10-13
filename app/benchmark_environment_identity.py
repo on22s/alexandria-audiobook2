@@ -7,17 +7,20 @@ import subprocess
 from pathlib import Path
 from runtime_info import get_runtime_info
 
+# Include stage workers and their root helpers, including legacy worker locations.
+BENCHMARK_SOURCE_PATHS = ("app", ":(top,glob)*.py", "tools/voice_lab")
+
 def _get_local_worktree_identity(root_dir):
-    """Fingerprint tracked edits and untracked app source used by a run."""
+    """Fingerprint tracked edits and untracked benchmark source used by a run."""
     with ThreadPoolExecutor(max_workers=3) as probes:
         status_probe = probes.submit(subprocess.run,
-            ["git", "-C", str(root_dir), "status", "--porcelain=v1", "--", "app"],
+            ["git", "-C", str(root_dir), "status", "--porcelain=v1", "--", *BENCHMARK_SOURCE_PATHS],
             capture_output=True, text=True, timeout=20, check=False)
         diff_probe = probes.submit(subprocess.run,
-            ["git", "-C", str(root_dir), "diff", "--binary", "HEAD", "--", "app"],
+            ["git", "-C", str(root_dir), "diff", "--binary", "HEAD", "--", *BENCHMARK_SOURCE_PATHS],
             capture_output=True, timeout=20, check=False)
         untracked_probe = probes.submit(subprocess.run,
-            ["git", "-C", str(root_dir), "ls-files", "--others", "--exclude-standard", "--", "app"],
+            ["git", "-C", str(root_dir), "ls-files", "--others", "--exclude-standard", "--", *BENCHMARK_SOURCE_PATHS],
             capture_output=True, text=True, timeout=20, check=False)
         status = status_probe.result()
         diff = diff_probe.result()

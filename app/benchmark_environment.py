@@ -319,13 +319,25 @@ def is_baseline_stale(baseline_entry, now=None):
 
 
 def collect_cpu_environment(root_dir, target, ssh_alias=None, remote_root=None,
-                            remote_python="python3"):
+                            remote_python="python3", local_python=None):
     """Fingerprint a standard-library-only local or remote benchmark runtime."""
     runtime = get_runtime_info(root_dir)
     if target == "local":
-        hostname = platform.node()
-        python_version = platform.python_version()
-        platform_details = runtime["platform"]
+        local_python = local_python or sys.executable
+        probe_code = (f"import json,sys; sys.path.insert(0,{os.path.join(root_dir, 'app')!r}); "
+                      "from benchmark_environment_identity import get_benchmark_runtime_observations; "
+                      f"print(json.dumps(get_benchmark_runtime_observations({str(root_dir)!r})))")
+        probe = subprocess.run([local_python, "-c", probe_code],
+                               capture_output=True, text=True, timeout=20, check=False)
+        if probe.returncode:
+            raise ValueError(probe.stderr.strip() or "local CPU runtime probe failed")
+        try:
+            local = json.loads(probe.stdout.splitlines()[-1])
+            hostname = local["hostname"]
+            python_version = local["python_version"]
+            platform_details = local["platform"]
+        except (ValueError, IndexError, KeyError, TypeError) as exc:
+            raise ValueError("local CPU runtime probe returned invalid JSON") from exc
     elif target == "thunder":
         if not ssh_alias:
             raise ValueError("Thunder SSH alias is required")
@@ -342,6 +354,9 @@ def collect_cpu_environment(root_dir, target, ssh_alias=None, remote_root=None,
     observations = {"hostname": hostname, "gpu_name": "none", "backend": "cpu",
         "python_version": python_version, "git_commit": runtime["revision"],
         "worktree": _get_local_worktree_identity(root_dir), "platform": platform_details}
+    if target == "local":
+        observations.update(git_commit=local["git_commit"], worktree=local["worktree"],
+                            packages=local["packages"], python_executable=local_python)
     if target == "thunder":
         observations.update(git_commit=remote["git_commit"], worktree=remote["worktree"],
             packages=remote["packages"], python_executable=remote_python, remote_root=remote_root,

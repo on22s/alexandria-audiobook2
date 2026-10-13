@@ -6621,6 +6621,17 @@
     "tests.test_resume_arm_arguments.ResumeArmArgumentTests.test_allowed_separators_and_nonnegative_limits_reach_existing_admission",
     "tests.test_resume_arm_arguments.ResumeArmArgumentTests.test_invalid_separator_and_limit_refuse_before_any_runtime_work"
   ],
+  "test_resume_provenance": [
+    "tests.test_resume_provenance.ExecutionConfigTests.test_generation_report_reuse_then_new_prompt_dispatches_new_run",
+    "tests.test_resume_provenance.ExecutionConfigTests.test_inherited_input_limit_is_bound_for_persona_and_nickname_stages",
+    "tests.test_resume_provenance.ExecutionConfigTests.test_named_target_profile_is_shared_with_runner_and_ignores_setup_toggle",
+    "tests.test_resume_provenance.ExecutionConfigTests.test_stage_config_invalidates_preflight_and_completed_or_partial_report",
+    "tests.test_resume_provenance.ExecutionConfigTests.test_unconsumed_prompt_and_cache_do_not_change_identity",
+    "tests.test_resume_provenance.PartialReviewSettingsTests.test_native_partial_review_restarts_changed_settings_and_legacy_checkpoint",
+    "tests.test_resume_provenance.SelectedPythonTests.test_cpu_probe_observes_selected_python_and_package_changes",
+    "tests.test_resume_provenance.SelectedPythonTests.test_preflight_and_dispatch_select_same_python",
+    "tests.test_resume_provenance.SourceResumeTests.test_workers_helpers_and_untracked_source_invalidate_resume"
+  ],
   "test_retained_task_lease": [
     "tests.test_retained_task_lease.RetainedTaskLeaseTests.test_killed_server_cpu_lease_survives_until_all_workers_are_reaped",
     "tests.test_retained_task_lease.RetainedTaskLeaseTests.test_killed_server_lease_survives_in_paused_owner_until_all_workers_are_reaped"

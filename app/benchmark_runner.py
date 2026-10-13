@@ -20,7 +20,8 @@ from urllib.parse import urlparse
 from llm_provider import make_llm_client, resolve_api_key
 
 from benchmark_worker_protocol import get_encoded_worker_payload, get_benchmark_worker_result
-from benchmark_core import load_resumable_benchmark_report, save_benchmark_report
+from benchmark_core import (get_benchmark_llm_config, load_resumable_benchmark_report,
+                            save_benchmark_report)
 from benchmark_fixtures import _hash_entries, get_normalized_source_chunks
 from benchmark_validation import (validate_persona_speakers, get_benchmark_file_path,
                                   get_benchmark_directory_path, get_adapter_artifact_path,
@@ -1092,11 +1093,10 @@ def _run_llm_worker(stage, payload, settings, ssh_alias):
 
 
 def _get_llm_benchmark_target(config, target):
+    llm = get_benchmark_llm_config(config, target)
     if target == "local":
-        llm = config.get("llm_local") or config.get("llm") or {}
         status = get_lmstudio_status(llm.get("model_name"))
     elif target == "thunder":
-        llm = config.get("llm_remote") or {}
         remote_port = urlparse(llm.get("base_url") or "").port or 1234
         status = get_remote_lmstudio_status(
             (config.get("llm_remote_ssh") or "").strip(), llm.get("model_name"),
@@ -1111,8 +1111,7 @@ def _get_llm_benchmark_target(config, target):
         raise ValueError(
             f"{target} LM Studio model is loaded but its server isn't reachable "
             "on the forwarded port (likely bound to 127.0.0.1 instead of 0.0.0.0)")
-    from llm_request_budget import get_inherited_profile_limits
-    return get_inherited_profile_limits(llm, config.get("generation") or {}), status
+    return llm, status
 
 
 def _run_script_generation_case(fixture, text, repetition, client, model_name,
