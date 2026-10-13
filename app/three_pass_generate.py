@@ -648,13 +648,34 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
 }
 
 
-def get_attribution_response_schema(speaker_traits=False):
+def get_attribution_response_schema(speaker_traits=False, indexes=None):
     """The pass-2 response schema; with per-line traits on, the three optional
-    fields are allowed (speaker_traits.get_traits_response_schema)."""
-    if not speaker_traits:
-        return ATTRIBUTION_RESPONSE_SCHEMA
-    from speaker_traits import get_traits_response_schema
-    return get_traits_response_schema(ATTRIBUTION_RESPONSE_SCHEMA)
+    fields are allowed (speaker_traits.get_traits_response_schema). With
+    `indexes`, the schema also fixes the row count and the allowed `n` values
+    for that window (get_exact_index_schema)."""
+    schema = ATTRIBUTION_RESPONSE_SCHEMA
+    if speaker_traits:
+        from speaker_traits import get_traits_response_schema
+        schema = get_traits_response_schema(schema)
+    return schema if indexes is None else get_exact_index_schema(schema, indexes)
+
+
+def get_exact_index_schema(schema, indexes):
+    """`schema` narrowed to one row per index, each `n` drawn from `indexes`.
+
+    A grammar-constrained server (llama.cpp) then cannot return a wrong row
+    count or an out-of-window index. Measured 2026-10-13 on full Alice with
+    Qwen3-14B: 39 of 186 Pass 2 replies ran to the output cap, a 1-entry
+    window answered with n=0..149 until truncated, ~46 s each (#1167). Uses
+    items + enum + minItems/maxItems rather than prefixItems, which more
+    strict-schema providers accept; a server that rejects it falls back for
+    the run like any schema rejection. Labels are still the model's."""
+    indexes = list(indexes)
+    items = dict(schema["schema"]["items"])
+    items["properties"] = {**items["properties"],
+                           "n": {"type": "integer", "enum": indexes}}
+    return {**schema, "schema": {**schema["schema"], "items": items,
+                                 "minItems": len(indexes), "maxItems": len(indexes)}}
 
 
 # Checks whose refusal of a single line is not evidence the answer is wrong.
@@ -813,7 +834,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     call_params = replace(params, temperature=(params.attribute_temperature
                                                if params.attribute_temperature is not None
                                                else params.temperature),
-                          response_schema=get_attribution_response_schema(speaker_traits))
+                          response_schema=get_attribution_response_schema(
+                              speaker_traits, range(len(frozen_batch))))
     call_params = bound_index_request_params(call_params, len(frozen_batch),
                                              ATTRIBUTE_TOKENS_PER_ENTRY)
     # entries_provider REPLACES ONLY THE LLM CALL. Everything that makes this
