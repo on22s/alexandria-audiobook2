@@ -102,7 +102,7 @@ Qwen3-TTS の重みは必要になった時点でダウンロードされます�
 
 - Script の Generate ボタン下の活動表示：処理段階、試行回数、待機理由、推定残り時間。
 - `logs/api/<task>-latest.log`：各バックグラウンド処理のログ。
-- `logs/review_responses.log`：台本生成・レビュー時の LLM リクエストと応答、終了理由、トークン数、所要時間。
+- `logs/llm_responses.log`・`logs/review_responses.log`：台本生成・レビュー時の LLM の応答、終了理由、トークン数、所要時間。隣の `*.requests.log` には各応答を生んだリクエストが `request=` ID で対応付けて記録され、問題の応答を再現できます。
 - 実行中の処理：`GET /api/status/eta`、`GET /api/status/<task>`。
 - **Reports**：実行履歴、成果物、レビューのチェックポイント。
 
@@ -119,7 +119,7 @@ Qwen3-TTS の重みは必要になった時点でダウンロードされます�
 1. **LLM Location**（Local / Remote）を選び、**Base URL**、**API Key**、**Model Name** を入力します。更新ボタンでサーバーのモデル一覧を取得できます。
 2. 推論モデルは **Reasoning effort** を *low* にし、**Test Connection** を実行します。
 3. TTS は `local` / `auto` のまま始めます。**Auto-Configure** で GPU に合うバッチ設定を入れます。
-4. **Prompt Settings** の話者判定は既定の `michel2_full` から始め、**Save Configuration** をクリックします。
+4. **Prompt Settings** の話者判定は既定の `michel2_full` から始め、**Save Configuration** をクリックします。Qwen3-14B（アダプターなし）では、会話行だけを尋ねる `michel2_spoken` の方が精度が高く、第 2 段階も約 3 倍速くなりました（[詳細・英語](docs/features/spoken-only-attribution.md)）。各設定の横の ⓘ にカーソルを合わせると、設定の意味と、測定がある場合は推奨値が表示されます。
 
 ### Step 2：Script
 
@@ -163,8 +163,8 @@ Qwen3-TTS の重みは必要になった時点でダウンロードされます�
 
 - ローカル・リモートの LLM プロファイル、タイムアウト、再試行とバックオフ、カスタムヘッダー・リクエスト本文、別プロファイルへのフェイルオーバー。
 - 3 段階の処理：地の文と会話の**分割**、登場人物一覧と前後の文脈を使う**話者判定**、行ごとの**演技指示**。各段階に温度とリクエストサイズを設定できます。
-- Setup で話者判定プロンプト（`default`、`michel`、`michel2`、`michel2_full`、`michel2_shot`）を選択・編集し、プリセットとして保存。
-- レビューで会話に混ざった「彼女は言った」などを地の文に戻し、話者・分割・指示を修正。前後 ±N 行を使うレビュー、シリーズの一括レビュー、別名の検出。
+- Setup で話者判定プロンプト（`default`、`michel`、`michel2`、`michel2_full`、`michel2_shot`、`michel2_spoken`）を選択・編集し、プリセットとして保存。
+- レビューで会話に混ざった「彼女は言った」などを地の文に戻し、話者・分割・指示を修正。前後 ±N 行を使うレビュー、シリーズの一括レビュー、別名の検出。任意のラベル専用レビューは本文を書き直さず話者と指示だけを返すため、句読点の変化で話者の修正が失われません（行の分割・結合はできません）。
 - 各段階のチェックポイント、失敗した実行の再開、完成部分のスナップショット、設定を残したやり直し。
 - **manual** 転送：API の代わりに、アプリが書き出したリクエストに利用者が応答を貼り付ける方式。
 

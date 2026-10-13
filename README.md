@@ -187,8 +187,10 @@ a second machine). Then annotation and rendering can run together.
 - The **activity line** under the Script tab's Generate button: what the run is waiting
   on, which attempt it is on, and how much time is left.
 - `logs/api/<task>-latest.log` — the full log of every background task.
-- `logs/review_responses.log` — every LLM request and reply during script generation and
-  review, with the finish reason, token counts and time taken.
+- `logs/llm_responses.log` and `logs/review_responses.log` — every LLM reply during script
+  generation and review, with the finish reason, token counts and time taken. The
+  `*.requests.log` beside each holds the exact request behind every reply (matched by its
+  `request=` id), so a bad reply can be replayed.
 - `GET /api/status/eta` and `GET /api/status/<task>` for anything that is running.
 - The **Reports** tab: run history with artifacts, and review checkpoints.
 
@@ -295,7 +297,9 @@ then see [Troubleshooting](#troubleshooting).
 
 The interface is a **five-step pipeline** (the numbered tabs) plus tools: Designer,
 Preparer, Dataset, Training, Voice Lab and Reports. The header shows the commit of the
-running build, GPU memory in use, and a light/dark toggle.
+running build, GPU memory in use, and a light/dark toggle. Every setting on the numbered tabs
+has an ⓘ beside its label: hover or tab to it to see what the setting does and, where there is
+a measurement, what we recommend and why.
 
 ### 1 · Setup
 
@@ -491,7 +495,11 @@ See [lora.md](docs/guides/lora.md) and [BATCH_PROCESSOR_GUIDE.md](docs/guides/BA
 
   Each pass has its own temperature and request size.
 - **Measured prompt variants** — choose the attribution prompt in Setup. The dropdown uses
-  the same names as RECIPES, and the text is editable.
+  the same names as RECIPES, and the text is editable. `michel2_full` is the default. The
+  newer `michel2_spoken` asks the model about the spoken lines only; on Qwen3-14B without an
+  adapter it scored 6.5 points higher with about 3× less step-2 time
+  ([details](docs/features/spoken-only-attribution.md)). Other models are not measured yet,
+  and an attribution adapter should keep the prompt it was trained on.
 - **Review pass** — a second LLM pass that:
   - removes attribution tags ("she said") from dialogue;
   - splits narration that was wrongly given to a character;
@@ -499,7 +507,10 @@ See [lora.md](docs/guides/lora.md) and [BATCH_PROCESSOR_GUIDE.md](docs/guides/BA
   - checks the delivery instructions.
 
   It can look at ±N neighbouring lines, and can run across a whole series with nickname
-  discovery and a two-pass (forward, then backward) option.
+  discovery and a two-pass (forward, then backward) option. An opt-in **labels-only** mode
+  returns only speakers and delivery notes and never retypes the text, so a changed comma
+  cannot throw away a batch's speaker fixes; it cannot split or merge lines
+  ([details](docs/features/labels-only-review.md)).
 - **Consistent characters** — merges duplicate character names, remembers every alias a
   character has been called, handles first-person narrators, strips translators' front
   matter, and repairs garbled text encodings.

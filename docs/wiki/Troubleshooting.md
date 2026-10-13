@@ -6,8 +6,10 @@ Start with the logs. They almost always name the problem:
   attempt, and the time left;
 - `logs/api/<task>-latest.log` — the full log of each background task (for example
   `logs/api/audio-latest.log`);
-- `logs/review_responses.log` — every language-model request and reply, with the finish
-  reason, token counts and time taken;
+- `logs/llm_responses.log` and `logs/review_responses.log` — every language-model reply during
+  script generation and review, with the finish reason, token counts and time taken. The
+  `*.requests.log` file beside each holds the exact request behind every reply, matched by its
+  `request=` id, so a bad reply can be replayed;
 - `logs/api/start.js/latest` — the launcher's log; `logs/sessions/` groups related install,
   start and helper runs.
 
@@ -22,7 +24,9 @@ not reaching "Open Web UI"). This page covers the rest.
   **Test Connection** in Setup.
 - Check that the **Model Name** matches the model the server has loaded (the refresh button
   lists them).
-- Read the model's actual reply in `logs/review_responses.log`.
+- Read the model's actual reply in `logs/llm_responses.log` (generation) or
+  `logs/review_responses.log` (review), and the request behind it in the matching
+  `.requests.log`.
 - Use a model from [Which model for your card](Which-Model-For-Your-Card.md), keep the JSON
   schema on, and set reasoning to *low*.
 

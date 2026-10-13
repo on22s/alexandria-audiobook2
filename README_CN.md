@@ -103,7 +103,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 
 - Script 页 Generate 按钮下方的**活动行**：运行在等什么、第几次尝试、剩余时间估计。
 - `logs/api/<task>-latest.log`——每个后台任务的完整日志。
-- `logs/review_responses.log`——脚本生成和审阅的每一次 LLM 请求与回复，含结束原因、token 数和耗时。
+- `logs/llm_responses.log` 和 `logs/review_responses.log`——脚本生成和审阅的每一次 LLM 回复，含结束原因、token 数和耗时。旁边的 `*.requests.log` 记录了产生每条回复的完整请求，用 `request=` 编号对应，可以原样重放出错的回复。
 - 运行中的任务：`GET /api/status/eta` 和 `GET /api/status/<task>`。
 - **Reports** 页：带产物的运行历史、审阅存档点。
 
@@ -123,7 +123,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 1. 选择 **LLM Location**（Local 或 Remote），填写 **Base URL**、**API Key**、**Model Name**；刷新按钮可列出模型。
 2. 思考型模型将 **Reasoning effort** 设为 *low*，点击 **Test Connection**。
 3. TTS 保持 `local` / `auto`；**Auto-Configure** 可填写适合显卡的批处理设置。
-4. **Prompt Settings** 保持默认 `michel2_full`；模型间的例外见研究结果。点击 **Save Configuration**。
+4. **Prompt Settings** 保持默认 `michel2_full`；模型间的例外见研究结果。点击 **Save Configuration**。在 Qwen3-14B（不加适配器）上，只询问对话行的 `michel2_spoken` 准确率更高，第 2 步也快约 3 倍（[详情（英文）](docs/features/spoken-only-attribution.md)）。把鼠标停在每个设置旁的 ⓘ 上，可以看到它的作用，以及有测量依据时的推荐值。
 
 ### 第 2 步——Script
 
@@ -215,7 +215,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 按你会遇到的顺序：
 
 - **三遍脚本生成**——切分、归属、指令——每一遍的请求文本量、每请求行数、周围上下文都在 Setup 页可调，按遍存档点，可续跑、可暂停。
-- **可选择的归属提示词变体**（`default`、`michel`、`michel2`、`michel2_full`、`michel2_shot`），每一个都在同一金标上测过；你看到、编辑、保存为预设的就是实际发送的提示词文本。
+- **可选择的归属提示词变体**（`default`、`michel`、`michel2`、`michel2_full`、`michel2_shot`、`michel2_spoken`），每一个都在同一金标上测过；你看到、编辑、保存为预设的就是实际发送的提示词文本。
 - **推理模型是一等公民**：推理强度设置到达每一次 LLM 调用，请求带 JSON schema，服务器不报告推理 token 时从 trace 里估算，重试上限跟随配置的 token 预算。不再需要把 `<think>` 加进禁用 token。
 - **LLM 配置档**：本地和远程两套，各有 URL、密钥（或 `env:NAME`）、模型、超时、重试/退避策略、自定义请求头和请求体；一套放弃时切换到另一套；“LLM 是否在本机 GPU 上”的开关，让托管模型标注时本机可以同时渲染音频；**手动传输**模式——你就是模型：应用把每个请求写进文件，等你粘贴回复。
 - **第一遍对话检测**：自动 / 仅引号 / 仅模型。

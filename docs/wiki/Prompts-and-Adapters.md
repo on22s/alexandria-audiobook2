@@ -46,6 +46,7 @@ Every published adapter's name ends with the prompt it was trained on (`attrv1`,
 | `michel2` | the cast list and a marked passage | |
 | **`michel2_full`** | **a marked passage plus 2,000 characters of surrounding text** | **the product prompt** |
 | `michel2_shot` | `michel2` plus a worked example | |
+| `michel2_spoken` | only the spoken lines are marked; narration is context, filled in as NARRATOR by code | newest; +6.5 points over `michel2_full` on Qwen3-14B without an adapter, ~3× less step-2 time (#1171) |
 
 `michel2_full` is the only variant that marks narration lines `[n]`. That matters: rewording
 `MICHEL2_SYSTEM` in #616 moved `michel2_full` by **+5.2** (Qwen3-8B, p<0.001) and **+3.0**

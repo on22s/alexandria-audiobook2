@@ -147,6 +147,12 @@ After generation, **Review Script** runs a second model pass that fixes:
 default), so the model sees the surrounding lines. It is more accurate for speaker and tone
 consistency.
 
+**Labels-only review** (opt-in: `prompts.review_labels_only: true`, or
+`review_script.py --labels-only`) asks only for each line's speaker and delivery note and
+never rewrites the text, so a changed comma or a moved speech tag can no longer cost a batch
+its speaker fixes. It cannot split or merge lines; the normal review still can
+([details](../features/labels-only-review.md)).
+
 **Batch review** can review a whole series of saved scripts at once, optionally finding
 nicknames first and running two passes (forward, then backward).
 
@@ -166,8 +172,12 @@ Each file holds a system message, a `---SEPARATOR---` line, then a user message 
 
 To change them:
 
-- **In Setup** — choose the attribution prompt variant (`michel2_full` is the default and the
-  measured best), edit the text, and **Save as preset**. Presets survive restarts.
+- **In Setup** — choose the attribution prompt variant, edit the text, and **Save as preset**.
+  Presets survive restarts. `michel2_full` is the default. `michel2_spoken`, which asks only
+  about the spoken lines, scored 70.1% against 63.6% on Qwen3-14B without an adapter (a local
+  three-book gold set) with about 3× less step-2 time ([details](../features/spoken-only-attribution.md)).
+  Other models are not measured yet; keep the prompt an attribution adapter was trained on.
+  Hover the ⓘ beside any setting for what it does and, where measured, a recommendation.
 - **What the model will see** shows the exact messages step 2 would send.
 - **Reset to Defaults** reloads the files without a restart.
 

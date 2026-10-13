@@ -2,13 +2,13 @@
 
 [日本語ホーム](Home-JA.md) · [English](Troubleshooting.md)
 
-まず Script の Generate 下の活動表示、`logs/api/<task>-latest.log`、`logs/review_responses.log` を確認します。活動表示は待機理由、試行、残り時間を示します。ランチャーのログは `logs/api/start.js/latest`、関連セッションは `logs/sessions/` です。Pinokio の起動問題は [README](../../README_JA.md#pinokio-が-open-web-ui-まで進まない)を参照してください。
+まず Script の Generate 下の活動表示、`logs/api/<task>-latest.log`、`logs/llm_responses.log`・`logs/review_responses.log` を確認します。各応答を生んだリクエストは隣の `*.requests.log` に `request=` ID で記録されています。活動表示は待機理由、試行、残り時間を示します。ランチャーのログは `logs/api/start.js/latest`、関連セッションは `logs/sessions/` です。Pinokio の起動問題は [README](../../README_JA.md#pinokio-が-open-web-ui-まで進まない)を参照してください。
 
 ## 台本生成
 
 ### 失敗する・応答が不正
 
-**Base URL** でサーバーに到達できるか、**Model Name** がロード中のモデルと一致するか確認し、**Test Connection** を実行します。更新ボタンでモデル一覧を確認できます。実際の応答は `logs/review_responses.log` にあります。JSON schema を有効にし、推論モデルは *low* とサーバー側の予算を使います。`<think>` を禁止しないでください。
+**Base URL** でサーバーに到達できるか、**Model Name** がロード中のモデルと一致するか確認し、**Test Connection** を実行します。更新ボタンでモデル一覧を確認できます。実際の応答は `logs/llm_responses.log`（生成）または `logs/review_responses.log`（レビュー）にあり、そのリクエストは対応する `.requests.log` にあります。JSON schema を有効にし、推論モデルは *low* とサーバー側の予算を使います。`<think>` を禁止しないでください。
 
 ### コンテキストが足りない
 
