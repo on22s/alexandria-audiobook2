@@ -562,6 +562,16 @@
     "tests.test_attribution_source_tags.SourceTagTests.test_uncertain_sources_abstain",
     "tests.test_attribution_source_tags.SourceTagTests.test_unresolved_proposed_name_and_unknown_abstain"
   ],
+  "test_attribution_tag_forms": [
+    "tests.test_attribution_tag_forms.TagFormsTests.test_aliases_of_one_identity_do_not_create_ambiguity",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_ambiguous_title_and_surname_abstain_even_if_attested",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_new_source_attested_name_with_empty_or_partial_roster",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_pronouns_and_title_alone_do_not_become_names",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_repeated_quote_remains_uncheckable",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_tag_contradiction_rejects_known_wrong_speaker",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_titled_first_and_surname_forms",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_unattested_long_source_abstains"
+  ],
   "test_attribution_voting": [
     "tests.test_attribution_voting.MajorityVoteTest.test_empty_votes_are_handled",
     "tests.test_attribution_voting.MajorityVoteTest.test_majority_wins_over_minority",

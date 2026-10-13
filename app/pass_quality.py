@@ -674,7 +674,7 @@ def get_attribution_tag_evidence(entries, source_text, established_names=(),
     Repeated text and incomplete quotation spans are deliberately uncheckable.
     Source matching is one shared traversal per batch, outside the retry loop.
     """
-    if not source_text or not established_names:
+    if not source_text:
         return {}
     from dialogue_spans import get_source_match_positions, spoken_spans
     from speaker_identity import get_speaker_label_index
@@ -685,7 +685,14 @@ def get_attribution_tag_evidence(entries, source_text, established_names=(),
         words = label.split()
         while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
             words = words[1:]
-        forms = [label] + ([words[0]] if words else [])
+        forms = [label]
+        if words:
+            forms.extend([words[0], words[-1]])
+            # Keep the title with the first personal component (Lord Henry),
+            # but never treat a title alone as a character identity.
+            title_count = len(label.split()) - len(words)
+            if title_count:
+                forms.append(" ".join(label.split()[:title_count + 1]))
         for key in get_speaker_label_index(forms):
             identities.setdefault(key, set()).add(canonical)
     needles = [entry.get("text", "").strip() for entry in entries
@@ -717,6 +724,7 @@ def get_attribution_tag_evidence(entries, source_text, established_names=(),
             continue
         name = tag.group("before") or tag.group("after")
         if (name.casefold() in _NON_PERSON_NAME_WORDS or
+                name.casefold().rstrip(".") in NAME_TITLE_PREFIXES or
                 any(word.casefold().endswith(("'s", "’s", "'", "’"))
                     for word in name.split()) or
                 not all(word[:1].isupper() for word in name.split())):
@@ -725,6 +733,10 @@ def get_attribution_tag_evidence(entries, source_text, established_names=(),
         candidates = identities.get(key, set())
         if len(candidates) == 1:
             evidence[index] = next(iter(candidates))
+        elif not candidates and is_attested_name(name, source_text):
+            # A source-attested character need not have spoken in an earlier
+            # batch. Ambiguous existing identities must still abstain.
+            evidence[index] = name.upper()
     return evidence
 
 
