@@ -801,6 +801,15 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             validated["ordered"] = index_head_check(frozen_batch, entries)[2]
         return report
 
+    def decide_retry(quality, repeat_evidence):
+        if (len(frozen_batch) > 1 and attempts
+                and attempts[-1].get("finish_reason") != "length"
+                and any(finding.get("code") == "alignment_violated"
+                        and finding.get("expected_entries") != finding.get("returned_entries")
+                        for finding in quality.get("findings", []))):
+            return "split"
+        return "retry"
+
     call_params = replace(params, temperature=(params.attribute_temperature
                                                if params.attribute_temperature is not None
                                                else params.temperature),
@@ -817,7 +826,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             client, model_name, sys_prompt, user_prompt, call_params,
             log_name="llm_responses.log", label="ATTRIBUTE",
             max_retries=max_retries, validate_entries=validate,
-            attempt_observer=observe)
+            attempt_observer=observe, retry_decider=decide_retry)
     else:
         # A provider also receives frozen_batch, because a strategy that
         # serialises WITHOUT a second model has to build {n, head, speaker}
@@ -1177,13 +1186,14 @@ def validate_segment_for_params(source_text, entries, params, quote_analysis=Non
 
 def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
                   label, max_retries, near_miss_sink, validate=None,
-                  attempt_observer=None, retry_decider=None):
+                  attempt_observer=None, retry_decider=None, quote_analysis=None):
     """Shared body for every pass-1 segment call (plain and context-rescue):
     the segment repair transform, the segment fidelity gate (optionally wrapped),
     and trigram-only near-miss capture. Callers build sys_prompt/user_prompt so
     the two paths can't diverge in how they invoke the gate (findings #10, #11)."""
     if validate is None:
-        validate = lambda entries: validate_segment_for_params(chunk, entries, params)
+        validate = lambda entries: validate_segment_for_params(
+            chunk, entries, params, quote_analysis=quote_analysis)
     # Segmentation only adds small JSON/type overhead around source text. Bound
     # both the first request and retry ceiling so a weak model cannot spend
     # 10k-16k tokens expanding a ~1k-token source chunk.
@@ -1236,6 +1246,15 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
                 entry = {**entry, "text": text[1:-1]}
                 repaired.setdefault("changes", []).append({
                     "entry_number": number, "code": "stripped_dialogue_delimiters"})
+            if entry.get("type") == "SPOKEN" and quote_analysis:
+                # A source boundary can supply the missing half of a quote.
+                # Remove only the visible outer delimiter; the state-aware
+                # fidelity gate still rejects wrong typing or missing words.
+                text = str(entry.get("text") or "").strip()
+                if quote_analysis.get("initial_depth") and text.endswith(('”', '"', '」', '』')):
+                    entry = {**entry, "text": text[:-1]}
+                elif quote_analysis.get("final_depth") and text.startswith(('“', '"', '「', '『')):
+                    entry = {**entry, "text": text[1:]}
             quote_split.append(entry)
         repaired["entries"] = quote_split
         return repaired
@@ -1256,7 +1275,8 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
 
 
 def segment_chunk(client, model_name, chunk, params, max_retries=4,
-                  near_miss_sink=None, failure_sink=None, attempt_sink=None):
+                  near_miss_sink=None, failure_sink=None, attempt_sink=None,
+                  quote_analysis=None):
     """Pass 1 single attempt-budget over one chunk -> [{type,text}], via the
     segment fidelity gate. Captures a trigram-only near-miss into near_miss_sink
     (same mechanism call_llm_for_entries uses for single-pass). Returns [] on
@@ -1275,9 +1295,9 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4,
         from literal_prompts import get_literal_system_prompt
         sys_prompt = get_literal_system_prompt(sys_prompt)
     user_prompt = usr_template.format(chunk=chunk)
-    quote_analysis = (classify_lexical_quote_regions(
-        chunk, analyze_outer_quote_regions(chunk))
-        if params.segmentation == "lexical" else None)
+    quote_analysis = quote_analysis or analyze_outer_quote_regions(chunk)
+    if params.segmentation == "lexical":
+        quote_analysis = classify_lexical_quote_regions(chunk, quote_analysis)
     attempts = []
     def observe(attempt):
         attempts.append(attempt)
@@ -1292,7 +1312,7 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4,
     entries = _call_segment(
         client, model_name, chunk, sys_prompt, user_prompt, params, "SEGMENT",
         max_retries, near_miss_sink, attempt_observer=observe,
-        retry_decider=decide,
+        retry_decider=decide, quote_analysis=quote_analysis,
         validate=lambda candidate: validate_segment_for_params(
             chunk, candidate, params, quote_analysis=quote_analysis))
     if not entries and failure_sink is not None and attempts:
@@ -1332,8 +1352,8 @@ def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
     """-> (entries, resolution) when the chunk's quote marks settle pass 1
     without the model, else (None, None).
 
-    "auto": only when the marks split the chunk into more than one region AND
-    the segment gate passes on them - the rule every three-pass result was
+    "auto": when marks split the chunk into more than one region OR carry an
+    open quote across a source boundary, AND the segment gate passes on them - the rule every three-pass result was
     measured with; otherwise the model decides. If either quote gate control is
     disabled, auto also asks the model so that the control is not bypassed by
     deterministic pre-segmentation. "quotes" (issue #588): the
@@ -1348,7 +1368,7 @@ def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
     if mode == "lexical":
         analysis = classify_lexical_quote_regions(chunk, analysis)
     regions = analysis["regions"]
-    if len(regions) > 1:
+    if len(regions) > 1 or analysis.get("initial_depth") or analysis.get("final_depth"):
         quality = validate_segment_quality(
             chunk, regions, quote_analysis=analysis,
             quoted_must_be_spoken=quoted_must_be_spoken,
@@ -1486,14 +1506,24 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
         if regions is not None:
             _record_resolution(resolution_sink, resolution)
             return regions
+    quote_analysis = quote_analysis or analyze_outer_quote_regions(chunk)
     near_miss = []
     local_failures = []
     entries = segment_chunk(client, model_name, chunk, params,
                             near_miss_sink=near_miss, failure_sink=local_failures,
-                            attempt_sink=attempt_sink)
+                            attempt_sink=attempt_sink, quote_analysis=quote_analysis)
     if entries:
         _record_resolution(resolution_sink, "clean")
         return entries
+    if (quote_analysis.get("initial_depth") or quote_analysis.get("final_depth")):
+        recovery_analysis = (classify_lexical_quote_regions(chunk, quote_analysis)
+                             if params.segmentation == "lexical" else quote_analysis)
+        regions = recovery_analysis.get("regions") or []
+        if (regions and params.quoted_must_be_spoken and params.unquoted_must_be_narrator
+                and validate_segment_for_params(chunk, regions, params,
+                                                quote_analysis=recovery_analysis)["passed"]):
+            _record_resolution(resolution_sink, "quote_continuation_fallback")
+            return regions
     parts = split_failed_chunk(chunk)
     if not parts:
         if failure_sink is not None:
@@ -1501,9 +1531,15 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
         return _resolved_near_miss(near_miss, resolution_sink)
     print(f"  Adaptive split (segment): -> {len(parts[0])} + {len(parts[1])} chars")
     combined, any_failed = [], False
-    for part in parts:
+    depth = quote_analysis.get("initial_depth", 0)
+    for index, part in enumerate(parts):
+        part_analysis = analyze_outer_quote_regions(
+            part, initial_depth=depth,
+            allow_open_end=index < len(parts) - 1 or bool(quote_analysis.get("final_depth")))
+        depth = part_analysis["final_depth"]
         part_entries = segment_chunk_adaptively(
-            client, model_name, part, params, attempt_sink=attempt_sink)
+            client, model_name, part, params, attempt_sink=attempt_sink,
+            quote_analysis=part_analysis)
         if not part_entries:
             any_failed = True
             continue
@@ -1512,9 +1548,8 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
         if failure_sink is not None:
             failure_sink[:] = local_failures
         return _resolved_near_miss(near_miss, resolution_sink)
-    combined_analysis = (classify_lexical_quote_regions(
-        chunk, quote_analysis or analyze_outer_quote_regions(chunk))
-        if params.segmentation == "lexical" else None)
+    combined_analysis = (classify_lexical_quote_regions(chunk, quote_analysis)
+                         if params.segmentation == "lexical" else quote_analysis)
     combined_quality = validate_segment_for_params(
         chunk, combined, params, quote_analysis=combined_analysis)
     if not combined_quality["passed"]:
@@ -1920,7 +1955,7 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
         lexical_analysis = (classify_lexical_quote_regions(
             chunk, quote_analysis if quote_analysis is not None
             else analyze_outer_quote_regions(chunk))
-            if params.segmentation == "lexical" else None)
+            if params.segmentation == "lexical" else quote_analysis)
         report = validate_segment_for_params(
             chunk, entries, params, quote_analysis=lexical_analysis)
         if _output_has_context_bleed(entries, chunk, before, after):
@@ -1933,7 +1968,8 @@ def segment_chunk_with_context(client, model_name, chunk, before, after, params,
 
     return _call_segment(client, model_name, chunk, sys_prompt, user_prompt,
                          params, "SEGMENT+CTX", max_retries, near_miss_sink,
-                         validate=validate, attempt_observer=attempt_observer)
+                         validate=validate, attempt_observer=attempt_observer,
+                         quote_analysis=quote_analysis)
 
 
 def _tail_join(parts, limit):
@@ -2084,7 +2120,7 @@ def _resolution_counts(resolutions):
                                 for r in resolutions),
         "quote_repairs": sum(r == "quote_presegmented_repaired"
                              for r in resolutions),
-        "quote_continuations": sum(r == "quote_presegmented_continuation"
+        "quote_continuations": sum(r in ("quote_presegmented_continuation", "quote_continuation_fallback")
                                    for r in resolutions),
         "quote_forced": sum(r == "quote_forced" for r in resolutions),
     }

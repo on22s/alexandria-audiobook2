@@ -5252,6 +5252,17 @@
     "tests.test_pass2_keep_scope_ab.GateTest.test_unnamed_may_not_drop",
     "tests.test_pass2_keep_scope_ab.LogCountTest.test_counts_responses_cost_and_subdivisions"
   ],
+  "test_pass_boundary_retry_regressions": [
+    "tests.test_pass_boundary_retry_regressions.AttributionCountRetryTests.test_name_and_narrator_gates_still_reject_and_retry",
+    "tests.test_pass_boundary_retry_regressions.AttributionCountRetryTests.test_orchestrator_subdivides_count_failure_and_binds_all_source_rows",
+    "tests.test_pass_boundary_retry_regressions.AttributionCountRetryTests.test_truncated_count_keeps_budget_retry_and_source_binding",
+    "tests.test_pass_boundary_retry_regressions.AttributionCountRetryTests.test_wrong_count_stops_same_window_after_one_call",
+    "tests.test_pass_boundary_retry_regressions.QuoteBoundaryTests.test_adaptive_halves_keep_depth_and_recombined_fidelity",
+    "tests.test_pass_boundary_retry_regressions.QuoteBoundaryTests.test_continuation_is_typed_without_a_model_and_preserves_words",
+    "tests.test_pass_boundary_retry_regressions.QuoteBoundaryTests.test_exhausted_model_recovers_only_validated_continuation_and_records_resolution",
+    "tests.test_pass_boundary_retry_regressions.QuoteBoundaryTests.test_llm_segment_and_context_rescue_validate_carried_quote_state",
+    "tests.test_pass_boundary_retry_regressions.QuoteBoundaryTests.test_whole_book_continues_across_long_monologue"
+  ],
   "test_pass_prompt_payload_js": [
     "tests.test_pass_prompt_payload_js.PassPromptPayloadTests.test_actual_config_http_save_persists_prompt_text_used_after_disk_reload",
     "tests.test_pass_prompt_payload_js.PassPromptPayloadTests.test_default_edits_become_presets_custom_edits_preserve_metadata_and_reload"
