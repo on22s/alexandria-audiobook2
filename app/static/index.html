@@ -839,6 +839,11 @@
             border-color: var(--accent);
         }
         html[data-theme="leek"] .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+        /* Field help (app-help.js): a small ⓘ after a control's label. */
+        .help-tip { border: 0; background: none; padding: 0 0 0 .3rem; font-size: .85em; line-height: 1;
+                    color: var(--bs-secondary-color); cursor: help; vertical-align: baseline; }
+        .help-tip:hover, .help-tip:focus-visible { color: var(--bs-info); }
+        .tooltip-inner { max-width: 340px; text-align: left; }
     </style>
     <script>
         /* Anti-flash: apply saved theme before first paint */
@@ -3134,5 +3139,6 @@
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-reports.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-help.js?v=__APP_BUILD__"></script>
 </body>
 </html>

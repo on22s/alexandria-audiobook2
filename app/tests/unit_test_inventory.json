@@ -3183,6 +3183,13 @@
     "tests.test_fidelity_seed_completion.FidelitySeedCompletionTests.test_partial_json_and_wrong_root_are_not_complete",
     "tests.test_fidelity_seed_completion.FidelitySeedCompletionTests.test_wrong_seed_line_count_partial_or_duplicate_adapters_are_rejected"
   ],
+  "test_field_help": [
+    "tests.test_field_help.FieldHelpContentTests.test_every_core_tab_control_has_help",
+    "tests.test_field_help.FieldHelpContentTests.test_every_recommendation_names_its_source",
+    "tests.test_field_help.FieldHelpContentTests.test_no_help_entry_for_a_missing_control",
+    "tests.test_field_help.FieldHelpContentTests.test_text_is_plain_and_short",
+    "tests.test_field_help.FieldHelpRenderTests.test_render_places_icons_once_and_initialises_one_delegated_tooltip"
+  ],
   "test_file_lock_ownership": [
     "tests.test_file_lock_ownership.FileLockOwnershipTests.test_aged_live_holder_cannot_be_reaped_and_timeout_does_not_remove_lock",
     "tests.test_file_lock_ownership.FileLockOwnershipTests.test_exceptions_release_and_old_empty_markers_need_no_age_based_delete",

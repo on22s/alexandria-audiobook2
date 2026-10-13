@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 _STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 _FRONTEND_JS_FILES = (
     "app-core.js", "app-scripts.js", "app-training.js",
-    "app-workbench.js", "app-voicelab.js", "app-reports.js",
+    "app-workbench.js", "app-voicelab.js", "app-reports.js", "app-help.js",
 )
 
 
