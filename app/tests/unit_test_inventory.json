@@ -9226,6 +9226,12 @@
   "test_voice_timeline_book_ownership": [
     "tests.test_voice_timeline_book_ownership.VoiceTimelineBookOwnershipTests.test_stale_version_save_timeline_save_and_clear_preserve_replacement_book"
   ],
+  "test_voice_timeline_regressions": [
+    "tests.test_voice_timeline_regressions.PortableStyleTimelineTests.test_save_and_apply_new_or_legacy_cast_preserve_destination_timeline",
+    "tests.test_voice_timeline_regressions.RepeatedStatePositionTests.test_manual_voice_suggestions_use_positions_for_identical_dialogue_and_merged_chunks",
+    "tests.test_voice_timeline_regressions.StyleAudioInvalidationTests.test_add_and_remove_during_render_reject_stale_audio_publication",
+    "tests.test_voice_timeline_regressions.StyleAudioInvalidationTests.test_add_noop_replace_and_remove_invalidate_only_affected_audio_and_exports"
+  ],
   "test_voice_version_inheritance_js": [
     "tests.test_voice_version_inheritance_js.VoiceVersionInheritanceTests.test_flush_failure_or_changed_book_refuses_creation_and_no_ryan_override_is_sent"
   ],

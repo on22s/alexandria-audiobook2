@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import copy
 import difflib
 import json
 import logging
@@ -230,12 +231,14 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
         cfg = get_portable_voice_config(cfg)   # entries saved before this rule may still carry them
         cfg.pop("ready", None)
         # Preserve the current character's book-specific parts: its alias,
-        # ready flag, character-state versions and voice timeline.
+        # ready flag, character-state versions and voice/style timelines.
         current = result_config.get(char) if isinstance(result_config.get(char), dict) else {}
         if current.get("alias_of"):
             cfg["alias_of"] = current["alias_of"]
         if current.get("ready"):
             cfg["ready"] = True
+        if "style_timeline" in current:
+            cfg["style_timeline"] = copy.deepcopy(current["style_timeline"])
         own_states = {key: value for key, value in (current.get("versions") or {}).items()
                       if isinstance(value, dict) and "persona_state" in value}
         if own_states:
