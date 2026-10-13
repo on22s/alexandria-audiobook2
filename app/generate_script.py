@@ -26,6 +26,7 @@ from narrator_prompt import (add_first_person_awareness, add_narrator_prior,
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_effective_max_tokens, get_next_retry_max_tokens, TokenBudgetError)
 from repair_source_encoding import preflight_source
+from attribution_adapter import AdapterError
 from script_repair import build_deterministic_repair
 from apostrophe_repair import restore_stripped_apostrophes
 from source_normalization import (normalize_extreme_phrase_repetitions,
@@ -2049,6 +2050,8 @@ def main():
         print(f"LLM adapter: {describe(config)}")
         if not ok:
             print(f"WARNING: {detail}", flush=True)
+    except AdapterError:
+        raise
     except Exception as exc:                            # noqa: BLE001
         print(f"WARNING: adapter check failed: {str(exc)[:160]}", flush=True)
 

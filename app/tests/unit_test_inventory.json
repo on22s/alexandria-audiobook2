@@ -3491,6 +3491,12 @@
     "tests.test_generation_path_agreement.SourceRepairStructuralAcceptanceTests.test_cli_rejected_repairs_are_not_published_by_shared_preflight",
     "tests.test_generation_path_agreement.SourceRepairStructuralAcceptanceTests.test_sound_repairs_and_healthy_sources_keep_existing_behavior"
   ],
+  "test_generation_required_adapter": [
+    "tests.test_generation_required_adapter.RequiredGenerationAdapterTests.test_optional_refusals_still_warn_and_proceed",
+    "tests.test_generation_required_adapter.RequiredGenerationAdapterTests.test_required_missing_disabled_wrong_unverifiable_or_invalid_scale_stops_before_client",
+    "tests.test_generation_required_adapter.RequiredGenerationAdapterTests.test_required_serving_adapter_proceeds_to_existing_client_boundary",
+    "tests.test_generation_required_adapter.RequiredGenerationAdapterTests.test_unconfigured_adapter_and_optional_probe_exception_keep_existing_behavior"
+  ],
   "test_goal66_negative_controls": [
     "tests.test_goal66_negative_controls.EmptyScopeRejectionTests.test_candidate_membership_audit_rejects_a_missing_artifact",
     "tests.test_goal66_negative_controls.EmptyScopeRejectionTests.test_pdnc_context_audit_rejects_an_empty_corpus",
