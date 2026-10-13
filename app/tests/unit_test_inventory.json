@@ -562,6 +562,16 @@
     "tests.test_attribution_source_tags.SourceTagTests.test_uncertain_sources_abstain",
     "tests.test_attribution_source_tags.SourceTagTests.test_unresolved_proposed_name_and_unknown_abstain"
   ],
+  "test_attribution_tag_forms": [
+    "tests.test_attribution_tag_forms.TagFormsTests.test_aliases_of_one_identity_do_not_create_ambiguity",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_ambiguous_title_and_surname_abstain_even_if_attested",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_new_source_attested_name_with_empty_or_partial_roster",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_pronouns_and_title_alone_do_not_become_names",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_repeated_quote_remains_uncheckable",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_tag_contradiction_rejects_known_wrong_speaker",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_titled_first_and_surname_forms",
+    "tests.test_attribution_tag_forms.TagFormsTests.test_unattested_long_source_abstains"
+  ],
   "test_attribution_voting": [
     "tests.test_attribution_voting.MajorityVoteTest.test_empty_votes_are_handled",
     "tests.test_attribution_voting.MajorityVoteTest.test_majority_wins_over_minority",
@@ -2912,6 +2922,12 @@
     "tests.test_everything_reclamation.EverythingReclamationTests.test_actual_cleanup_calls_wait_then_record_independent_results",
     "tests.test_everything_reclamation.EverythingReclamationTests.test_chain_calls_two_named_reclamations_before_its_final_summary",
     "tests.test_everything_reclamation.EverythingReclamationTests.test_failed_reclamation_is_counted_without_skipping_the_later_attempt"
+  ],
+  "test_exact_index_schema": [
+    "tests.test_exact_index_schema.ExactIndexSchemaTests.test_one_entry_window_allows_exactly_one_row",
+    "tests.test_exact_index_schema.ExactIndexSchemaTests.test_shared_schema_is_not_mutated",
+    "tests.test_exact_index_schema.ExactIndexSchemaTests.test_three_entry_window_fixes_count_and_indexes",
+    "tests.test_exact_index_schema.ExactIndexSchemaTests.test_traits_schema_is_narrowed_too"
   ],
   "test_exhausted_window_scoring": [
     "tests.test_exhausted_window_scoring.BindLastAttemptTests.test_answered_lines_are_kept_and_the_rejected_one_stays_unanswered",
@@ -7691,6 +7707,15 @@
     "tests.test_split_quote_repair.PromptVariantTest.test_this_arm_is_offered",
     "tests.test_split_quote_repair.SpanTest.test_a_single_part_quotation_is_its_own_envelope",
     "tests.test_split_quote_repair.SpanTest.test_the_envelope_spans_first_start_to_last_end"
+  ],
+  "test_spoken_only_attribution": [
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_all_narration_requires_no_model",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_duplicate_missing_outside_and_narration_indexes_are_rejected",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_exact_schema_allows_only_sparse_spoken_indexes",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_harmless_narration_rows_are_dropped_without_mutating_answer",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_sparse_labels_restore_narration_and_preserve_text",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_speaker_trait_fields_survive_binding",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_wrong_count_still_subdivides_without_repeating_window"
   ],
   "test_stage1_parses_what_the_model_emits": [
     "tests.test_stage1_parses_what_the_model_emits.ParsesBothShapes.test_entry_lines_win_when_both_are_present",

@@ -117,7 +117,7 @@ class AttributionPresetSaveTests(unittest.TestCase):
 
     def test_builtins_and_preview(self):
         builtins = system_module._builtin_prompt_presets()
-        self.assertEqual(9, len(builtins))
+        self.assertEqual(10, len(builtins))
         self.assertTrue(all(b["builtin"] and b["system_prompt"] for b in builtins))
         preview = asyncio.run(system_module.attribution_preview(
             system_module.AttributionPreviewRequest(variant="michel2_full", context_chars=1500)))
@@ -125,6 +125,12 @@ class AttributionPresetSaveTests(unittest.TestCase):
         self.assertIn("BEFORE THE PASSAGE", preview["user_message"])
         self.assertIn('|1|"We sail at dawn, Lena."|1|', preview["user_message"])
         self.assertIn("PIET (also: OLD PIET)", preview["user_message"])
+        spoken_preview = asyncio.run(system_module.attribution_preview(
+            system_module.AttributionPreviewRequest(variant="michel2_spoken", context_chars=1500)))
+        self.assertIn('Label only the spoken quotations', spoken_preview["system_prompt"])
+        self.assertNotIn('[0]', spoken_preview["user_message"])
+        self.assertIn('|1|', spoken_preview["user_message"])
+
         edited = asyncio.run(system_module.attribution_preview(
             system_module.AttributionPreviewRequest(variant="michel2", user_prompt="MY INSTRUCTION")))
         self.assertTrue(edited["user_message"].endswith("MY INSTRUCTION"))

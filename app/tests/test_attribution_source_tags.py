@@ -41,7 +41,6 @@ class SourceTagTests(unittest.TestCase):
             f'“{self.TEXT}” Mara said the final words of the spell.',
             f'“{self.TEXT}” said Mara the enchantment.',
             f'“{self.TEXT}” Mara dijo.',
-            f'“{self.TEXT}” UnknownPerson said.',
             f'{self.TEXT} Mara said.',
             f'“Elena recalled \"{self.TEXT}\" Mara said.”',
             f'\"Elena recalled “{self.TEXT}” Mara said.\"',

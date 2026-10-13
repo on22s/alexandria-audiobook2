@@ -60,7 +60,7 @@ from generate_script import call_llm_for_entries
 from default_prompts import load_attribute_prompts
 from three_pass_generate import build_attribute_request, ATTRIBUTION_RESPONSE_SCHEMA
 
-VARIANTS = ("default", "aliases", "passage", "incremental", "michel", "continuity", "judge", "michel2", "michel2_full", "michel2_shot")
+VARIANTS = ("default", "aliases", "passage", "incremental", "michel", "continuity", "judge", "michel2", "michel2_full", "michel2_shot", "michel2_spoken")
 
 PASSAGE_INSTRUCTION = (
     "The passage below is continuous text from the book. Spoken lines are marked "
@@ -106,6 +106,21 @@ MICHEL2_SYSTEM = (
     "RULES: exactly one object per marked entry - narration entries included - every "
     "index once, nothing added or dropped; do not repeat any text.")
 
+MICHEL2_SPOKEN_SYSTEM = (
+    'Label only the spoken quotations marked |n|"..."|n|. Unmarked narration '
+    'and speech tags are evidence about those quotations, never output targets. '
+    'Return ONLY a JSON array of {"n", "speaker"}, one object for each marked '
+    'quotation. Echo its index unchanged; indexes can have gaps. Never return '
+    'a narration row or repeat source text.\n\n'
+    + "HOW TO DECIDE A SPOKEN LINE"
+    + MICHEL2_SYSTEM.split("HOW TO DECIDE A SPOKEN LINE", 1)[1].split("RULES:", 1)[0]
+    + 'Return every marked quotation exactly once, no other indexes.')
+MICHEL2_SPOKEN_INSTRUCTION = (
+    'Return one {"n", "speaker"} object for each |n| quotation only. '
+    'Use the nearby unmarked speech tag to identify that quotation’s speaker. '
+    'Do not label the speech tag itself. Indexes can have gaps.')
+
+
 MICHEL2_EXAMPLE = (
     "EXAMPLE (a different book):\n"
     "ROSTER: MARA (also: MISS ELLIS), TOM, THE INNKEEPER\n"
@@ -128,14 +143,14 @@ def get_escaped_passage_text(text):
             .replace("|", r"\u007c").replace("[", r"\u005b").replace("]", r"\u005d"))
 
 
-def surround_passage(surround, frozen_batch=None, neighbor_contexts=None):
+def surround_passage(surround, frozen_batch=None, neighbor_contexts=None, spoken_only=False):
     """The whole window as running text: sent entries marked with their
     frozen index, unsent narration entries as unmarked text, and the text
     before/after the window as evidence-only blocks. Without an "entries"
     list (the product path, whose window already carries its narration) the
     body is passage_text of the batch itself."""
     if not surround.get("entries"):
-        return _wrap_passage(passage_text(frozen_batch or [], neighbor_contexts), surround)
+        return _wrap_passage(passage_text(frozen_batch or [], neighbor_contexts, spoken_only), surround)
     parts = []
     for e in surround.get("entries") or []:
         if e.get("n") is None:
@@ -143,7 +158,7 @@ def surround_passage(surround, frozen_batch=None, neighbor_contexts=None):
         elif e["type"] == "SPOKEN":
             parts.append(f'|{e["n"]}|"{get_escaped_passage_text(e["text"])}"|{e["n"]}|')
         else:
-            parts.append(f"[{e['n']}] {get_escaped_passage_text(e['text'])}")
+            parts.append(("" if spoken_only else f"[{e['n']}] ") + get_escaped_passage_text(e["text"]))
     return _wrap_passage("\n\n".join(parts), surround)
 
 
@@ -281,7 +296,7 @@ def roster_line(roster, alias_groups=None, roster_traits=None):
     return ", ".join(parts) or "(none yet)"
 
 
-def passage_text(frozen_batch, neighbor_contexts=None):
+def passage_text(frozen_batch, neighbor_contexts=None, spoken_only=False):
     """The marked batch as prose, with omitted neighbors as unmarked evidence."""
     neighbor_contexts = neighbor_contexts or [{} for _ in frozen_batch]
     out = []
@@ -301,7 +316,7 @@ def passage_text(frozen_batch, neighbor_contexts=None):
         if e["type"] == "SPOKEN":
             out.append(f'|{i}|"{get_escaped_passage_text(e["text"])}"|{i}|')
         else:
-            out.append(f"[{i}] {get_escaped_passage_text(e['text'])}")
+            out.append(("" if spoken_only else f"[{i}] ") + get_escaped_passage_text(e["text"]))
         context(ctx.get("next_context"))
     return "\n\n".join(out)
 
@@ -331,6 +346,11 @@ def get_group_rule_system(system_text):
     return system_text.replace(UNKNOWN_RULE_7, GROUP_RULE_7), True   # judge is gold labelling, harness only
 
 
+def is_spoken_only_variant(variant):
+    """Whether this preset requests only spoken targets."""
+    return variant == "michel2_spoken"
+
+
 def builtin_texts(variant):
     """The texts a variant sends, as a user-editable preset would carry them:
     {"system", "user", "example"}. For `default` the user text is the
@@ -339,6 +359,8 @@ def builtin_texts(variant):
     around; the canonical-request variants (aliases/incremental/continuity)
     use the default template. `example` is only non-empty for michel2_shot."""
     system, template = load_attribute_prompts()
+    if is_spoken_only_variant(variant):
+        return {"system": MICHEL2_SPOKEN_SYSTEM, "user": MICHEL2_SPOKEN_INSTRUCTION, "example": ""}
     if variant.startswith("michel2"):
         return {"system": MICHEL2_SYSTEM, "user": MICHEL2_INSTRUCTION,
                 "example": MICHEL2_EXAMPLE if variant == "michel2_shot" else ""}
@@ -348,6 +370,7 @@ def builtin_texts(variant):
 
 
 VARIANT_DESCRIPTIONS = {
+    "michel2_spoken": "Experimental: label spoken quotations only; narration is filled in code",
     "default": "the standard prompt (use this with any trained adapter)",
     "michel": "lines shown as running text with nicknames listed and the previous request's answers (Michel et al. 2025)",
     "michel2": "michel plus this project's own rules (e.g. don't default to the main characters)",
@@ -438,10 +461,11 @@ def build_variant_request(variant, frozen_batch, params, roster, alias_groups=No
     sys_prompt = t["system"]
     if michel2_family:
         tail = "\n".join(f'{spk}: "{get_escaped_passage_text(text)}"' for spk, text in memory["tail"])
-        if variant == "michel2_full":
+        if variant in ("michel2_full", "michel2_spoken"):
             if not surround:
                 raise ValueError("michel2_full needs the caller to pass surround=")
-            passage = surround_passage(surround, frozen_batch, neighbor_contexts)
+            passage = surround_passage(surround, frozen_batch, neighbor_contexts,
+                                       spoken_only=is_spoken_only_variant(variant))
         else:
             # the surrounding-text knob applies to every variant; in the
             # product, michel2 with it on is michel2_full
@@ -475,6 +499,33 @@ def build_variant_request(variant, frozen_batch, params, roster, alias_groups=No
                 f"LAST LINES OF THE PREVIOUS PASSAGE, with their speakers:\n{tail or '(none)'}"
                 "\n\n") + body
     return sys_prompt, body
+
+
+def get_expanded_spoken_answer(frozen_batch, entries):
+    """Bind sparse spoken indexes, then fill immutable narration labels."""
+    expected = {i for i, row in enumerate(frozen_batch) if row["type"] == "SPOKEN"}
+    indexed = {}
+    seen = set()
+    valid = isinstance(entries, list)
+    for item in entries if valid else []:
+        n = item.get("n") if isinstance(item, dict) else None
+        if type(n) is not int or n < 0 or n >= len(frozen_batch) or n in seen:
+            valid = False
+            break
+        seen.add(n)
+        if n not in expected:
+            if item.get("speaker") == "NARRATOR":
+                continue
+            valid = False
+            break
+        indexed[n] = item
+    if not valid or set(indexed) != expected:
+        return None, {"passed": False, "findings": [{
+            "code": "alignment_violated", "expected_entries": len(expected),
+            "returned_entries": len(entries) if isinstance(entries, list) else 0,
+            "message": "Return every spoken index exactly once; narration must remain NARRATOR."}]}
+    return [indexed[i] if i in expected else {"n": i, "speaker": "NARRATOR"}
+            for i in range(len(frozen_batch))], None
 
 
 def make_provider(variant, alias_groups=None, texts=None):
@@ -514,10 +565,29 @@ def make_provider(variant, alias_groups=None, texts=None):
                 return {**report, "passed": reasons["passed"],
                         "findings": list(report.get("findings", [])) + reasons["findings"]}
 
+        if is_spoken_only_variant(variant):
+            from dataclasses import replace
+            from three_pass_generate import get_exact_index_schema
+            spoken_indexes = [i for i, row in enumerate(frozen_batch) if row["type"] == "SPOKEN"]
+            if spoken_indexes:
+                params = replace(params, response_schema=get_exact_index_schema(
+                    params.response_schema, spoken_indexes))
+            base_validator = validator
+
+            def validator(entries):
+                expanded, error = get_expanded_spoken_answer(frozen_batch, entries)
+                return error or base_validator(expanded)
+
+            if not any(row["type"] == "SPOKEN" for row in frozen_batch):
+                expanded, _ = get_expanded_spoken_answer(frozen_batch, [])
+                return expanded if base_validator(expanded)["passed"] else []
+
         named = call_llm_for_entries(
             client, model_name, sys_prompt, body, params, log_name=log_name, label=label,
             max_retries=max_retries, validate_entries=validator,
             attempt_observer=attempt_observer, retry_decider=retry_decider)
+        if is_spoken_only_variant(variant) and named:
+            named, _ = get_expanded_spoken_answer(frozen_batch, named)
         from pass_quality import index_head_check
         aligned, _reason, ordered = index_head_check(frozen_batch, named)
         if named and aligned:

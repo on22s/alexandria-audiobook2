@@ -8,4 +8,4 @@ Missing, duplicate or out-of-range indexes, extra fields and invalid labels caus
 
 Repeated paired live PDNC evaluation must establish accuracy and retry tradeoffs before this becomes the default. The pilot uses controlled speaker mistakes on gold quotation spans; that is narrower than review of arbitrary segmented books.
 
-The request schema fixes each batch’s count and allowed indexes using the shared helper from #1178; duplicate-index validation remains required. Explicit `NARRATOR` types, and untyped entries already labelled `NARRATOR`, cannot receive character labels. An explicit `SPOKEN` type permits correcting an erroneous narrator label. This implementation requires #1178 on main before merging.
+The request schema fixes each batch’s count and allowed indexes using the shared helper from #1178; duplicate-index validation remains required. Explicit `NARRATOR` types, and untyped entries already labelled `NARRATOR`, cannot receive character labels. An explicit `SPOKEN` type permits correcting an erroneous narrator label. The shared schema helper from #1178 is included on the current main base.
