@@ -400,6 +400,11 @@ def load_app_config(path: str, *, for_update=False) -> dict:
     return _to_plain(result.data)
 
 
+def get_review_labels_only(config):
+    """Return the configured review mode shared by production and benchmarks."""
+    return (config.get("prompts") or {}).get("review_labels_only") is True
+
+
 def backup_damaged_app_config(path: str) -> str:
     """Create an atomic, metadata-preserving backup beside a damaged config."""
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")

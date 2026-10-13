@@ -27,7 +27,7 @@ from benchmark_validation import (validate_persona_speakers, get_benchmark_file_
                                   get_benchmark_directory_path, get_adapter_artifact_path,
                                   get_benchmark_verified_file_path, get_benchmark_training_audio_path)
 from chunk_quality import validate_chunk_quality
-from config_settings import load_app_config
+from config_settings import load_app_config, get_review_labels_only
 from generate_script import LLMGenParams, process_chunk
 from lmstudio_settings import get_lmstudio_status, get_remote_lmstudio_status
 from lora_evidence import get_file_sha256
@@ -1251,7 +1251,8 @@ def run_script_review_benchmark(manifest, environment, report_path, state,
         min_p=generation.get("min_p"),
         presence_penalty=generation.get("presence_penalty", 0.0),
         banned_tokens=generation.get("banned_tokens", []),
-        context_length=status.get("context_length"))
+        context_length=status.get("context_length"),
+        review_labels_only=get_review_labels_only(config))
     client = get_cancellable_benchmark_client(
         make_llm_client(llm, timeout=llm_timeout_seconds()))
     report = load_resumable_benchmark_report(report_path, manifest, environment)

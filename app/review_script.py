@@ -13,7 +13,7 @@ import threading
 import unicodedata
 from dataclasses import fields, replace
 from concurrent.futures import ThreadPoolExecutor
-from config_settings import load_app_config
+from config_settings import load_app_config, get_review_labels_only
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
                           get_run_fingerprint_identity, resolve_api_key)
 from completed_review_receipt import (get_review_entries_fingerprint,
@@ -1199,7 +1199,7 @@ def main():
 
     # Constant across every batch in both review modes - build once.
     gen_params = LLMGenParams(
-        review_labels_only=args.labels_only or prompts_config.get("review_labels_only") is True,
+        review_labels_only=args.labels_only or get_review_labels_only(config),
         literal_source_preserving=literal_policy is not None,
         system_prompt=review_sys,
         user_prompt_template=review_usr,

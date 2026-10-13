@@ -1003,6 +1003,19 @@
     "tests.test_benchmark_remote_transport_cancel.BenchmarkRemoteTransportTests.test_lost_ack_wrong_nonce_and_probe_error_keep_process_registered_until_proof",
     "tests.test_benchmark_remote_transport_cancel.BenchmarkRemoteTransportTests.test_normal_unicode_packet_is_private_and_exact_with_large_input"
   ],
+  "test_benchmark_review_mode": [
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_actual_start_route_refuses_mode_changed_since_preflight_before_claim",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_basic_benchmark_contracts_still_import_without_site_packages",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_classic_identity_is_stable_for_absent_false_and_nonreview_stages",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_default_and_explicit_false_still_request_classic_review",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_local_selected_mode_reaches_real_sdk_schema_and_source_binding",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_mode_changes_local_and_remote_execution_and_preflight_identity",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_production_cli_keeps_configured_mode_and_explicit_cli_override",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_remote_stdin_replay_keeps_selected_mode_and_actual_worker_schema",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_report_resume_refuses_completed_cases_from_the_other_mode_without_writing",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_selected_mode_keeps_missing_duplicate_and_narrator_label_guards",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_shared_mode_read_does_not_mutate_or_treat_raw_truthy_values_as_true"
+  ],
   "test_benchmark_runner": [
     "tests.test_benchmark_runner.BenchmarkRunnerTests.test_dedup_fixture_drift_is_rejected",
     "tests.test_benchmark_runner.BenchmarkRunnerTests.test_fixture_hash_change_fails_before_model_work",
