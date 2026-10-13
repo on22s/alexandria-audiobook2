@@ -98,7 +98,7 @@ class TTSConfig(BaseModel):
 
 PromptVariant = Literal[
     "default", "aliases", "passage", "incremental", "michel", "continuity",
-    "michel2", "michel2_full", "michel2_shot"]
+    "michel2", "michel2_full", "michel2_shot", "michel2_spoken"]
 
 # How pass 1 decides what is speech. "auto": quote marks where the chunk makes
 # them unambiguous, the model for the rest (the behaviour every three-pass

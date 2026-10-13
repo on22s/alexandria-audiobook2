@@ -33,6 +33,8 @@ class _Client:
         self.prompts.append(kw["messages"][-1]["content"])
         self.systems.append(kw["messages"][0]["content"])
         good = [{"n": 0, "speaker": "NARRATOR"}, {"n": 1, "speaker": "HARUHIRO"}, {"n": 2, "speaker": "RANTA"}]
+        if kw["messages"][0]["content"].startswith("Label only the spoken quotations"):
+            good = [row for row in good if row["speaker"] != "NARRATOR"]
         if 'Add a field "why"' in self.prompts[-1]:
             good[1]["why"] = "Haruhiro answers the question."
             good[2]["why"] = "Ranta protests in reply."
@@ -205,7 +207,7 @@ class PresetTextsTests(unittest.TestCase):
     def test_builtin_texts_are_what_every_variant_sends(self):
         params = _params()
         for variant in apv.USER_VARIANTS:
-            surround = {"before": "B", "after": "A"} if variant == "michel2_full" else None
+            surround = {"before": "B", "after": "A"} if variant in ("michel2_full", "michel2_spoken") else None
             client = _Client()
             tp.attribute_batch(client, "m", FROZEN, params, ROSTER,
                                entries_provider=make_provider(variant, [["HARUHIRO", "HARU"]]),

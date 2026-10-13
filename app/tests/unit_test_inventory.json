@@ -7681,6 +7681,13 @@
     "tests.test_split_quote_repair.SpanTest.test_a_single_part_quotation_is_its_own_envelope",
     "tests.test_split_quote_repair.SpanTest.test_the_envelope_spans_first_start_to_last_end"
   ],
+  "test_spoken_only_attribution": [
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_all_narration_requires_no_model",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_duplicate_missing_outside_and_narration_indexes_are_rejected",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_sparse_labels_restore_narration_and_preserve_text",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_speaker_trait_fields_survive_binding",
+    "tests.test_spoken_only_attribution.SpokenOnlyTests.test_wrong_count_still_subdivides_without_repeating_window"
+  ],
   "test_stage1_parses_what_the_model_emits": [
     "tests.test_stage1_parses_what_the_model_emits.ParsesBothShapes.test_entry_lines_win_when_both_are_present",
     "tests.test_stage1_parses_what_the_model_emits.ParsesBothShapes.test_json_wrapped_in_prose_is_still_found",

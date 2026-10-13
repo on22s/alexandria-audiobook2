@@ -158,7 +158,8 @@
               "continuity",
               "michel2",
               "michel2_full",
-              "michel2_shot"
+              "michel2_shot",
+              "michel2_spoken"
             ],
             "title": "Variant",
             "type": "string"
@@ -1341,7 +1342,8 @@
               "continuity",
               "michel2",
               "michel2_full",
-              "michel2_shot"
+              "michel2_shot",
+              "michel2_spoken"
             ],
             "title": "Three Pass Attribute Prompt Variant",
             "type": "string"
@@ -2671,7 +2673,8 @@
               "continuity",
               "michel2",
               "michel2_full",
-              "michel2_shot"
+              "michel2_shot",
+              "michel2_spoken"
             ],
             "title": "Variant",
             "type": "string"
