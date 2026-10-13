@@ -7,3 +7,5 @@ Run `review_script.py --labels-only`, or set `prompts.review_labels_only` to tru
 Missing, duplicate or out-of-range indexes, extra fields and invalid labels cause normal validation retries. Exhausted batches keep the existing caller fallback/resume behavior. Review receipts include the enabled mode so a completed full-text review cannot satisfy a labels-only run.
 
 Repeated paired live PDNC evaluation must establish accuracy and retry tradeoffs before this becomes the default. The pilot uses controlled speaker mistakes on gold quotation spans; that is narrower than review of arbitrary segmented books.
+
+The request schema fixes each batch’s count and allowed indexes using the shared helper from #1178; duplicate-index validation remains required. Explicit `NARRATOR` types, and untyped entries already labelled `NARRATOR`, cannot receive character labels. An explicit `SPOKEN` type permits correcting an erroneous narrator label. This implementation requires #1178 on main before merging.

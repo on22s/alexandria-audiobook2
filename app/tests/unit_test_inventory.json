@@ -6778,9 +6778,12 @@
   "test_review_labels_only": [
     "tests.test_review_labels_only.ReviewLabelsTests.test_bad_labels_retry_and_bind_corrected_response",
     "tests.test_review_labels_only.ReviewLabelsTests.test_corrects_speaker_without_reemitting_text_or_losing_metadata",
+    "tests.test_review_labels_only.ReviewLabelsTests.test_exact_schema_limits_review_count_and_indexes",
     "tests.test_review_labels_only.ReviewLabelsTests.test_exhaustion_returns_none_without_mutating_original",
+    "tests.test_review_labels_only.ReviewLabelsTests.test_explicit_spoken_type_can_correct_a_wrong_narrator_label",
     "tests.test_review_labels_only.ReviewLabelsTests.test_full_text_review_remains_available_for_lossless_boundary_changes",
     "tests.test_review_labels_only.ReviewLabelsTests.test_labels_mode_does_not_format_custom_full_text_template",
+    "tests.test_review_labels_only.ReviewLabelsTests.test_narrator_character_shift_retries_before_binding",
     "tests.test_review_labels_only.ReviewLabelsTests.test_rejects_invented_text_incomplete_or_duplicate_indexes"
   ],
   "test_review_surfacing": [

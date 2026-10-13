@@ -710,7 +710,7 @@ REVIEW_LABEL_SYSTEM = (
     'Use speech tags and surrounding context to correct the speaker of each entry. '
     'Return ONLY a JSON array of {"n", "speaker", "instruct"}, one object per '
     'input index, including unchanged entries. Speaker names are UPPERCASE; '
-    'narration uses NARRATOR. Never return text, change entry boundaries, or '
+    'narration uses NARRATOR and must remain NARRATOR. Never return text, change entry boundaries, or '
     'label the surrounding context. Source text is immutable; only labels are editable.')
 
 
@@ -723,6 +723,12 @@ def get_review_label_binding(batch_entries, entries):
         findings.append({"code": "review_label_alignment", "message": reason})
     else:
         for i, row in enumerate(ordered):
+            original = batch_entries[i]
+            is_narration = (original.get("type") == "NARRATOR" or
+                            (original.get("type") != "SPOKEN" and original.get("speaker") == "NARRATOR"))
+            if is_narration and row.get("speaker") != "NARRATOR":
+                findings.append({"code": "narrator_renamed", "entry_number": i + 1,
+                                 "message": "A narrator line must keep the speaker NARRATOR."})
             if set(row) != {"n", "speaker", "instruct"}:
                 findings.append({"code": "review_label_fields", "entry_number": i + 1,
                                  "message": "Return only n, speaker and instruct."})
@@ -776,7 +782,9 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
         indexed = [{**{k: v for k, v in entry.items() if k != SCRIPT_POLICY_KEY}, "n": i}
                    for i, entry in enumerate(batch_entries)]
         user_prompt = context + "\n\nENTRIES TO REVIEW:\n" + json.dumps(indexed, ensure_ascii=False)
-        request_params = replace(request_params, response_schema=REVIEW_LABEL_SCHEMA)
+        from three_pass_generate import get_exact_index_schema
+        request_params = replace(request_params, response_schema=get_exact_index_schema(
+            REVIEW_LABEL_SCHEMA, range(len(batch_entries))))
     else:
         user_prompt = usr_template.format(context=context, batch=batch_json)
 

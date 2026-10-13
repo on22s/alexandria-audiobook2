@@ -63,3 +63,31 @@ class ReviewLabelsTests(unittest.TestCase):
                   {'speaker': 'NARRATOR', 'text': 'said Alice.', 'instruct': ''}]
         client, _ = client_for([(answer, 'stop')])
         self.assertEqual(answer, review_batch(client, 'm', original, 1, 1, LLMGenParams()))
+
+    def test_exact_schema_limits_review_count_and_indexes(self):
+        from review_script import REVIEW_LABEL_SCHEMA
+        original = copy.deepcopy(REVIEW_LABEL_SCHEMA)
+        client, calls = client_for([(self.labels, 'stop')])
+        review_batch(client, 'm', self.batch, 1, 1, LLMGenParams(review_labels_only=True))
+        schema = calls[0]['response_format']['json_schema']['schema']
+        self.assertEqual(2, schema['minItems'])
+        self.assertEqual(2, schema['maxItems'])
+        self.assertEqual([0, 1], schema['items']['properties']['n']['enum'])
+        self.assertEqual(original, REVIEW_LABEL_SCHEMA)
+
+    def test_narrator_character_shift_retries_before_binding(self):
+        bad = [self.labels[0], {**self.labels[1], 'speaker': 'ALICE'}]
+        report = get_review_label_binding(self.batch, bad)[1]
+        self.assertEqual('narrator_renamed', report['findings'][0]['code'])
+        client, calls = client_for([(bad, 'stop'), (self.labels, 'stop')])
+        with patch('generate_script.time.sleep'):
+            out = review_batch(client, 'm', self.batch, 1, 1,
+                               LLMGenParams(review_labels_only=True), max_retries=1)
+        self.assertEqual(2, len(calls))
+        self.assertEqual('NARRATOR', out[1]['speaker'])
+
+    def test_explicit_spoken_type_can_correct_a_wrong_narrator_label(self):
+        batch = [{**self.batch[0], 'type': 'SPOKEN', 'speaker': 'NARRATOR'}, self.batch[1]]
+        self.assertTrue(get_review_label_binding(batch, self.labels)[1]['passed'])
+        batch[0]['type'] = 'NARRATOR'
+        self.assertFalse(get_review_label_binding(batch, self.labels)[1]['passed'])
