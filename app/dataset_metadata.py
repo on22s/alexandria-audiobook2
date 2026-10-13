@@ -34,11 +34,18 @@ def get_dataset_metadata(path):
 
 
 def get_training_metadata(data_dir):
-    """Read the training split when present; otherwise read root metadata."""
+    """Read training rows, refusing incomplete splits; retain legacy root data."""
     split_path = os.path.join(data_dir, "train", "metadata.jsonl")
     used_split = os.path.exists(split_path)
-    path = split_path if used_split else os.path.join(data_dir, "metadata.jsonl")
-    return get_dataset_metadata(path), used_split
+    if used_split:
+        return get_dataset_metadata(split_path), True
+    if os.path.exists(os.path.join(data_dir, "val", "metadata.jsonl")):
+        raise ValueError("Split dataset has no training metadata.jsonl")
+    entries = get_dataset_metadata(os.path.join(data_dir, "metadata.jsonl"))
+    if any((entry.get("audio_filepath") or entry.get("audio", "")).replace("\\", "/").startswith("val/")
+           for entry in entries):
+        raise ValueError("Split dataset has no training metadata.jsonl")
+    return entries, False
 
 
 def require_dataset_wav(path):

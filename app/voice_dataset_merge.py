@@ -12,7 +12,7 @@ import numpy as np
 import soundfile as sf
 
 
-MERGE_VERSION = 5
+MERGE_VERSION = 6
 
 
 def get_file_fingerprint(path: Path) -> dict:
@@ -33,7 +33,7 @@ def get_pcm_hash(wav_bytes: bytes) -> str:
     # Hash the same interleaved little-endian samples without two PCM-sized
     # byte copies. Ensure C order for decoded buffers with unusual strides.
     pcm = np.ascontiguousarray(audio, dtype="<f4")
-    digest = hashlib.sha256(f"{sample_rate}:".encode("ascii"))
+    digest = hashlib.sha256(f"{sample_rate}:{pcm.shape[0]}:{pcm.shape[1]}:".encode("ascii"))
     digest.update(memoryview(pcm))
     return digest.hexdigest()
 

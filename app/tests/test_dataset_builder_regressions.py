@@ -342,6 +342,45 @@ class GeneratedSampleSeedTests(unittest.TestCase):
                     self.assertFalse(dataset_builder.process_state["dataset_builder"]["running"])
                     self.assertEqual(before, request)
 
+    def test_inherited_seed_remains_inherited_and_global_edits_invalidate_only_it(self):
+        import wave
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        source = self.root / "render.wav"
+        with wave.open(str(source), "wb") as audio:
+            audio.setnchannels(1); audio.setsampwidth(2); audio.setframerate(24000)
+            audio.writeframes(bytes((0, 16)) * 1200)
+        self.state['global_seed'] = '42'
+        self.state['samples'] = [{**self.original, 'seed': ''},
+                                 {**self.original, 'seed': 42}]
+        dataset_builder._save_builder_state('voice', self.state)
+        engine = SimpleNamespace(generate_voice_design=Mock(return_value=(str(source), None)))
+        app = FastAPI(); app.include_router(dataset_builder.router)
+        with TestClient(app) as client, \
+             patch.object(dataset_builder, 'check_global_gpu_lock'), \
+             patch.object(dataset_builder, 'claim_gpu_task'), \
+             patch.object(dataset_builder.project_manager, 'get_engine', return_value=engine):
+            for index, inherited in enumerate((True, False)):
+                response = client.post('/api/dataset_builder/generate_sample', json={
+                    'dataset_name': 'voice', 'sample_index': index, 'description': 'warm',
+                    'text': 'A sample line.', 'seed': 42, 'inherit_seed': inherited})
+                self.assertEqual(200, response.status_code, response.text)
+            rows = dataset_builder._load_builder_state('voice')['samples']
+            self.assertEqual(['', 42], [row['seed'] for row in rows])
+            self.assertEqual([42, 42], [row['generated_seed'] for row in rows])
+            response = client.post('/api/dataset_builder/update_rows', json={
+                'name': 'voice', 'rows': rows})
+            self.assertEqual(200, response.status_code, response.text)
+            rows = dataset_builder._load_builder_state('voice')['samples']
+            self.assertEqual([42, 42], [row['generated_seed'] for row in rows])
+            response = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': 'warm', 'global_seed': '99'})
+            self.assertEqual(200, response.status_code, response.text)
+            rows = dataset_builder._load_builder_state('voice')['samples']
+            self.assertEqual(['pending', 'done'], [row['status'] for row in rows])
+            self.assertIsNone(rows[0]['audio_url'])
+            self.assertIsNotNone(rows[1]['audio_url'])
+
 
 class DatasetBenchmarkThreadTests(unittest.TestCase):
     def test_actual_route_thread_finishes_after_benchmark_event_loop_is_closed(self):

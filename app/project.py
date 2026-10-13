@@ -114,14 +114,14 @@ def get_speaker(entry):
     return entry.get("speaker") or entry.get("type") or ""
 
 
-def _is_structural_text(text):
+def _is_structural_text(text, max_length=80):
     """Check if text is a title, chapter heading, dedication, or other structural fragment."""
     stripped = text.strip()
     if not stripped:
         return True
     sentence = stripped.rstrip('\"\'”’»」』)）]】')
     # Very short and not a full sentence (no sentence-ending punctuation)
-    if len(stripped) < 80 and (not sentence or sentence[-1] not in '.!?。！？'):
+    if (max_length is None or len(stripped) < max_length) and (not sentence or sentence[-1] not in '.!?。！？'):
         return True
     return False
 
@@ -1457,6 +1457,8 @@ class ProjectManager:
         re.IGNORECASE
     )
 
+    _HEADING_LABEL_RE = re.compile(r'\s+(?:[0-9]+|[ivxlcdm]+)[.!?。！？]?$', re.IGNORECASE)
+
     def _chapter_groups(self, chunks, per_chunk_chapters):
         """Chapter boundaries from headings and narrator fragments: list of
         (title, first_index, last_index) over `chunks`. The one place chapter
@@ -1471,12 +1473,13 @@ class ProjectManager:
         heading_indices = []
         for i, chunk in enumerate(chunks):
             text = chunk.get("text", "").strip()
+            heading = self._HEADING_RE.match(text)
+            numbered_heading = heading and self._HEADING_LABEL_RE.fullmatch(text[heading.end():])
             # Preserve explicit headings and unquoted narrator titles, while
             # keeping short dialogue and complete sentences in their chapter.
-            if self._HEADING_RE.match(text):
-                heading_indices.append(i)
-            elif (get_speaker(chunk).upper() == "NARRATOR" and text
-                  and '"' not in text and _is_structural_text(text)):
+            if (get_speaker(chunk).upper() == "NARRATOR" and text
+                    and '"' not in text
+                    and (numbered_heading or _is_structural_text(text, max_length=None if heading else 80))):
                 heading_indices.append(i)
 
         # If no headings detected, fall back to per-chunk

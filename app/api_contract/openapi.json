@@ -974,6 +974,11 @@
             "title": "Description",
             "type": "string"
           },
+          "inherit_seed": {
+            "default": false,
+            "title": "Inherit Seed",
+            "type": "boolean"
+          },
           "sample_index": {
             "maximum": 4999.0,
             "minimum": 0.0,

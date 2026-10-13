@@ -107,6 +107,68 @@ class TrainSplitTest(unittest.TestCase):
             self.assertEqual(expected, entries)
             self.assertTrue(all(row["text"].startswith("train ") for row in entries))
 
+    def test_missing_train_metadata_never_falls_back_to_partitioned_root(self):
+        import wave
+        from dataset_metadata import get_training_metadata, get_training_dataset_preflight
+        with tempfile.TemporaryDirectory() as tmp:
+            build_dataset(tmp, 2, 1)
+            os.remove(os.path.join(tmp, 'train', 'metadata.jsonl'))
+            for remove_val_metadata in (False, True):
+                if remove_val_metadata:
+                    os.remove(os.path.join(tmp, 'val', 'metadata.jsonl'))
+                with self.assertRaisesRegex(ValueError, 'no training metadata'):
+                    get_training_metadata(tmp)
+        for audio_key, audio_path in (('audio_filepath', 'sample.wav'),
+                                      ('audio_filepath', 'train/clip.wav'), ('audio', 'train/clip.wav')):
+            with self.subTest(legacy_audio_path=audio_path, key=audio_key), tempfile.TemporaryDirectory() as tmp:
+                with open(os.path.join(tmp, 'metadata.jsonl'), 'w') as stream:
+                    stream.write(json.dumps({audio_key: audio_path, 'text': 'Legacy'}) + '\n')
+                wav_path = os.path.join(tmp, audio_path)
+                os.makedirs(os.path.dirname(wav_path), exist_ok=True)
+                with wave.open(wav_path, 'wb') as audio:
+                    audio.setnchannels(1); audio.setsampwidth(2); audio.setframerate(24000)
+                    audio.writeframes(bytes((0, 16)) * 2400)
+                rows, split = get_training_metadata(tmp)
+                self.assertFalse(split)
+                report = get_training_dataset_preflight(tmp)
+                self.assertFalse(report['used_split'])
+                self.assertEqual(1, report['sample_count'])
+                self.assertEqual(audio_path, rows[0][audio_key])
+                self.assertEqual('Legacy', rows[0]['text'])
+
+    def test_native_validation_only_zip_is_refused_by_training_and_batch_preflight(self):
+        import zipfile
+        import wave
+        from unittest.mock import patch
+        from pathlib import Path
+        from dataset_metadata import get_training_metadata, get_training_dataset_preflight
+        from tests.test_preparer_run_state import preparer
+        from tests.test_voicelab_pipeline_scripts import batch_train
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / 'dataset_temp'; work.mkdir()
+            with wave.open(str(work / 'sample_0000.wav'), 'wb') as audio:
+                audio.setnchannels(1); audio.setsampwidth(2); audio.setframerate(24000)
+                audio.writeframes(bytes((0, 16)) * 2400)
+            rows = [{'audio_filepath': 'sample_0000.wav', 'text': 'Synthetic sample.',
+                     'speaker': 'ALICE', 'speaker_labels': ['ALICE'], 'duration': 0.1}]
+            output = root / 'dataset.zip'
+            with patch.object(preparer, 'get_sample_path',
+                              side_effect=lambda directory, name: work / name):
+                preparer._create_zip_dataset(rows, str(output), val_split=1.0)
+            extracted = root / 'extracted'
+            with zipfile.ZipFile(output) as archive:
+                self.assertIn('val/metadata.jsonl', archive.namelist())
+                self.assertNotIn('train/metadata.jsonl', archive.namelist())
+                archive.extractall(extracted)
+            for reader in (get_training_metadata, get_training_dataset_preflight):
+                with self.assertRaisesRegex(ValueError, 'no training metadata'):
+                    reader(str(extracted))
+            report = batch_train.get_batch_archive_preflight([str(output)])
+            self.assertEqual([], report['datasets'])
+            self.assertEqual(1, len(report['errors']))
+            self.assertIn('no training metadata', report['errors'][0]['error'])
+
 
 class LibraryContaminationTest(unittest.TestCase):
     """The evidence that motivated the fix.

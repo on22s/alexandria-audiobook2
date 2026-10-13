@@ -94,6 +94,31 @@ class VoiceDatasetMergeTests(unittest.TestCase):
                 self.assertEqual(2, len(archive.read("metadata.jsonl").splitlines()))
             self.assertEqual("reused", merge_voice_datasets([source], output)["status"])
 
+    def test_channel_shape_retains_distinct_timelines_and_rebuilds_v5_cache(self):
+        clips = []
+        samples = np.arange(2400, dtype=np.float32) / 4096
+        for shape in ((2400, 1), (1200, 2)):
+            output = io.BytesIO()
+            sf.write(output, samples.reshape(shape), 24000, format="WAV", subtype="FLOAT")
+            clips.append(output.getvalue())
+        self.assertNotEqual(get_pcm_hash(clips[0]), get_pcm_hash(clips[1]))
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp, "source.zip"), Path(tmp, "merged.zip")
+            self.make_zip(source, [*clips, clips[0]])
+            with zipfile.ZipFile(output, "w") as archive:
+                archive.writestr("merge_manifest.json", json.dumps({
+                    "version": 5, "sources": get_source_records([source])}))
+            result = merge_voice_datasets([source], output)
+            self.assertEqual("merged", result["status"])
+            with zipfile.ZipFile(output) as archive:
+                rows = [json.loads(line) for line in archive.read("metadata.jsonl").splitlines()]
+                shapes = [sf.read(io.BytesIO(archive.read(row["audio_filepath"])),
+                                  always_2d=True)[0].shape for row in rows]
+                manifest = json.loads(archive.read("merge_manifest.json"))
+            self.assertEqual([(2400, 1), (1200, 2)], shapes)
+            self.assertEqual(1, manifest["duplicate_clip_count"])
+            self.assertEqual("reused", merge_voice_datasets([source], output)["status"])
+
     def make_wav(self, frequency):
         output = io.BytesIO()
         times = np.arange(8000, dtype=np.float32) / 16000

@@ -22,6 +22,22 @@ for (const seed of [0, 12, null, undefined, '0', '']) {
 }
 ''')
 
+    def test_single_generation_sends_inheritance_separately_from_effective_seed(self):
+        from tests.test_dataset_ui_ownership_js import DatasetUiOwnershipJsTests
+        DatasetUiOwnershipJsTests().run_scenario(r'''
+context.document.getElementById('dsb-description').value='voice';
+context.document.getElementById('dsb-global-seed').value='42';
+let packet;
+context.API.post=async(url, body)=>{packet=body;return {audio_url:'/new.wav'};};
+for (const [rowSeed, effective, inherited] of [['',42,true],['0',0,false],['42',42,false]]) {
+    run("dsbCurrentProject='voice';dsbLoadedProject='voice';dsbRows=[{text:'line',emotion:'calm',seed:"+JSON.stringify(rowSeed)+",status:'pending'}];");
+    await context.dsbGenSample(0);
+    assert.strictEqual(packet.seed,effective);
+    assert.strictEqual(packet.inherit_seed,inherited);
+    assert.strictEqual(run('dsbRows[0].seed'),rowSeed);
+}
+''')
+
     def test_cancel_handler_scopes_the_encoded_current_project_and_ignores_no_selection(self):
         script = r'''
 const assert = require('assert');
