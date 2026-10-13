@@ -805,6 +805,7 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
                                                 f"names {expected_speaker}, not {speaker}."})
             if not speaker or speaker.upper() == "NARRATOR":
                 findings.append({"code": "spoken_not_named", "entry_number": i,
+                                 "returned": speaker,
                                  "source_line": source_line,
                                  "expected": _VALIDATION_EXPECTED["spoken_not_named"],
                                  "message": "A spoken line was not assigned a character name."})

@@ -4429,6 +4429,13 @@
     "tests.test_llm_request_budget.RequestBudgetTests.test_timeout_variants_preserve_limits_and_block_before_dispatch",
     "tests.test_llm_request_budget.RequestBudgetTests.test_unknown_context_large_targets_rejected_before_pipeline_work"
   ],
+  "test_llm_request_log": [
+    "tests.test_llm_request_log.RequestLogTests.test_rejected_answer_reaches_the_log_line_but_not_the_prompt",
+    "tests.test_llm_request_log.RequestLogTests.test_request_is_logged_with_the_id_its_response_carries",
+    "tests.test_llm_request_log.RequestLogTests.test_retry_logs_the_feedback_turn_actually_sent",
+    "tests.test_llm_request_log.RequestLogTests.test_run_scoped_request_log_sits_beside_the_run_response_log",
+    "tests.test_llm_request_log.RequestLogTests.test_spoken_not_named_records_the_returned_speaker"
+  ],
   "test_llm_review_regressions": [
     "tests.test_llm_review_regressions.DedupeSpeakersResolverTests.test_cycles_and_aliases_entering_them_are_rejected_without_swapping",
     "tests.test_llm_review_regressions.DedupeSpeakersResolverTests.test_dedupe_api_exhaustion_retains_known_aliases_with_bounded_attempts",

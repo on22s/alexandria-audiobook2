@@ -38,7 +38,8 @@ class ResponseLogAtomicityTests(unittest.TestCase):
             def opening(*args,**kwargs):probe();return native_open(*args,**kwargs)
             with patch.dict(os.environ,{'ALEXANDRIA_RUN_ID':''}),patch.object(gs,'open',opening,create=True),patch.object(gs,'_rotate_log_if_large',rotating):
                 self.assertEqual('native payload',log_response(path,'ONE','native payload')[0]['text'])
-            self.assertEqual(['held','held'],observed)
+            # response and request logs: every open and rotation is under the one lock
+            self.assertEqual(['held']*4,observed)
             self.assertEqual('prior response',Path(str(path)+'.bak').read_text())
             self.assertIn('ONE | attempt 1',path.read_text())
 

@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import uuid
 from chunk_status_journal import remove_chunk_snapshot
 from generation_checkpoint_shards import (GenerationCheckpointShards,
     load_generation_shard_checkpoint, remove_generation_shard_checkpoint)
@@ -66,6 +67,26 @@ def get_response_log_path(log_name):
     if not is_path_inside(log_path, response_base):
         raise ValueError("Response log escapes the run-response directory")
     return log_path
+
+
+# Requests are ~5x the size of replies; one book's Pass 2 is ~1,000 calls.
+REQUEST_LOG_MAX_BYTES = 50 * 1024 * 1024
+
+
+def get_request_log_path(response_log_path):
+    """The request log beside a response log: llm_responses.log ->
+    llm_responses.requests.log, matched block-for-block by request id."""
+    stem, extension = os.path.splitext(response_log_path)
+    return f"{stem}.requests{extension or '.log'}"
+
+
+def get_returned_values_note(quality):
+    """Log-only note of what the model answered for each finding that records
+    it; kept out of the retry feedback so logging never changes the prompt."""
+    returned = [f"entry {finding.get('entry_number')}: "
+                f"{json.dumps(finding['returned'], ensure_ascii=False)}"
+                for finding in quality.get("findings", []) if "returned" in finding]
+    return f"; returned=[{', '.join(returned)}]" if returned else ""
 
 
 def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
@@ -1157,15 +1178,27 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
 
             # A local log failure must not consume the provider retry/failover budget.
             response_log_error = None
+            request_id = uuid.uuid4().hex[:12]
             try:
                 log_path = get_response_log_path(log_name)
                 os.makedirs(os.path.dirname(log_path), exist_ok=True)
                 with file_lock(log_path):
                     if not os.environ.get("ALEXANDRIA_RUN_ID"):
                         _rotate_log_if_large(log_path)
+                    request_log_path = get_request_log_path(log_path)
+                    if not os.environ.get("ALEXANDRIA_RUN_ID"):
+                        _rotate_log_if_large(request_log_path, max_bytes=REQUEST_LOG_MAX_BYTES)
+                    with open(request_log_path, "a", encoding="utf-8") as rf:
+                        rf.write(f"\n{'='*80}\n")
+                        rf.write(f"{label} | attempt {attempt_number} | request={request_id} | "
+                                 f"model={model_name} | temperature={params.temperature} | "
+                                 f"max_tokens={effective_max}\n")
+                        for message in messages:
+                            rf.write(f"{'─'*80}\n[{message['role']}]\n{message['content']}\n")
+                        rf.write(f"{'='*80}\n")
                     with open(log_path, "a", encoding="utf-8") as lf:
                         lf.write(f"\n{'='*80}\n")
-                        lf.write(f"{label} | attempt {attempt_number} | finish_reason={finish_reason}\n")
+                        lf.write(f"{label} | attempt {attempt_number} | finish_reason={finish_reason} | request={request_id}\n")
                         if usage:
                             lf.write(f"tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}\n")
                         lf.write(f"{'─'*80}\n")
@@ -1394,7 +1427,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                             requested_max = attempt_requested_max
                         print(f"  Retry policy: {retry_policy}; token budget remains {requested_max}")
                     print(f"Warning: {label} failed quality validation "
-                          f"(attempt {attempt_number}): {retry_feedback}; metrics={metrics}")
+                          f"(attempt {attempt_number}): {retry_feedback}; metrics={metrics}"
+                          f"{get_returned_values_note(quality)}")
                     retry_evidence = max(consecutive_severe, repeat_count)
                     if (retry_decider
                             and retry_decider(quality, retry_evidence) == "split"):
