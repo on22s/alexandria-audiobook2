@@ -6,6 +6,7 @@ import json
 import re
 import time
 import difflib
+import copy
 import subprocess
 import argparse
 import threading
@@ -182,7 +183,8 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
     identity = {'algorithm': 1, 'profiles': profiles,
         'model_binding': get_run_model_binding(client, model_name),
         'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare
-                   and (field.name != 'literal_source_preserving' or params.literal_source_preserving)},
+                   and (field.name != 'literal_source_preserving' or params.literal_source_preserving)
+                   and (field.name != 'review_labels_only' or params.review_labels_only)},
         'context_window': args.context_window, 'dedupe_speakers': args.dedupe_speakers,
         'merge_narrators': (config.get('generation') or {}).get('merge_narrators', False),
         'batch_size': (config.get('generation') or {}).get('review_batch_size', 25),
@@ -698,6 +700,40 @@ def merge_consecutive_narrators(entries, max_merged_length=800):
     return merged, merges
 
 
+REVIEW_LABEL_SCHEMA = {"name": "review_labels", "schema": {
+    "type": "array", "items": {"type": "object", "properties": {
+        "n": {"type": "integer"}, "speaker": {"type": "string"},
+        "instruct": {"type": "string"}},
+        "required": ["n", "speaker", "instruct"], "additionalProperties": False}}}
+REVIEW_LABEL_SYSTEM = (
+    'Review speaker identities and TTS delivery instructions for an audiobook. '
+    'Use speech tags and surrounding context to correct the speaker of each entry. '
+    'Return ONLY a JSON array of {"n", "speaker", "instruct"}, one object per '
+    'input index, including unchanged entries. Speaker names are UPPERCASE; '
+    'narration uses NARRATOR. Never return text, change entry boundaries, or '
+    'label the surrounding context. Source text is immutable; only labels are editable.')
+
+
+def get_review_label_binding(batch_entries, entries):
+    """Validate complete indexes and label fields, without trusting model text."""
+    from pass_quality import index_head_check
+    ok, reason, ordered = index_head_check(batch_entries, entries)
+    findings = []
+    if not ok:
+        findings.append({"code": "review_label_alignment", "message": reason})
+    else:
+        for i, row in enumerate(ordered):
+            if set(row) != {"n", "speaker", "instruct"}:
+                findings.append({"code": "review_label_fields", "entry_number": i + 1,
+                                 "message": "Return only n, speaker and instruct."})
+            for key in ("speaker", "instruct"):
+                if (not isinstance(row.get(key), str)
+                        or (key == "speaker" and not row[key].strip())):
+                    findings.append({"code": "review_label_value", "entry_number": i + 1,
+                                     "message": "Labels must be strings; speaker must be nonempty."})
+    return ordered, {"passed": not findings, "findings": findings}
+
+
 def review_batch(client, model_name, batch_entries, batch_num, total_batches, params,
                  previous_tail=None, source_context=None, max_retries=2,
                  attempt_observer=None):
@@ -735,9 +771,18 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     context = "\n".join(context_parts)
     batch_json = json.dumps([{k: v for k, v in e.items() if k != SCRIPT_POLICY_KEY}
                              for e in batch_entries], indent=2, ensure_ascii=False)
-    user_prompt = usr_template.format(context=context, batch=batch_json)
+    if params.review_labels_only:
+        sys_prompt = REVIEW_LABEL_SYSTEM
+        indexed = [{**{k: v for k, v in entry.items() if k != SCRIPT_POLICY_KEY}, "n": i}
+                   for i, entry in enumerate(batch_entries)]
+        user_prompt = context + "\n\nENTRIES TO REVIEW:\n" + json.dumps(indexed, ensure_ascii=False)
+        request_params = replace(request_params, response_schema=REVIEW_LABEL_SCHEMA)
+    else:
+        user_prompt = usr_template.format(context=context, batch=batch_json)
 
     def validate_review_entries(entries):
+        if params.review_labels_only:
+            return get_review_label_binding(batch_entries, entries)[1]
         findings = []
         for number, entry in enumerate(entries, 1):
             if not isinstance(entry, dict):
@@ -793,6 +838,11 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
         attempt_observer=observe, validate_entries=validate_review_entries,
     )
     if entries:
+        if params.review_labels_only:
+            ordered, _ = get_review_label_binding(batch_entries, entries)
+            return [{**copy.deepcopy(original), "speaker": row["speaker"],
+                     "instruct": row["instruct"]}
+                    for original, row in zip(batch_entries, ordered)]
         return entries
     # Keep the caller's checkpoint batch intact: adapt only the requests,
     # then validate the complete recombination against that original batch.
@@ -803,7 +853,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     if len(batch_entries) > 1:
         middle = len(batch_entries) // 2
         parts = [batch_entries[:middle], batch_entries[middle:]]
-    elif batch_entries:
+    elif batch_entries and not params.review_labels_only:
         from generate_script import split_failed_chunk
         texts = split_failed_chunk(batch_entries[0].get("text", ""))
         if not texts:
@@ -823,7 +873,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
             failed = True
         else:
             combined.extend(reviewed)
-    if failed or not validate_review_entries(combined)["passed"]:
+    if failed or (not params.review_labels_only and not validate_review_entries(combined)["passed"]):
         return None
     return combined
 
@@ -990,6 +1040,8 @@ def main():
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
     parser.add_argument("--context-window", type=int, default=0,
                         help="If > 0, review each entry with +/- N neighboring entries for better segmentation and speaker fixes")
+    parser.add_argument("--labels-only", action="store_true",
+                        help="Experimental index-keyed review; preserve source text and boundaries")
     parser.add_argument("--force-review", action="store_true", help="Rerun an unchanged completed review")
     parser.add_argument("--input", help="Path to the script JSON to review (default: ../annotated_script.json)")
     parser.add_argument("--output", help="Where to write the reviewed script (default: same as --input)")
@@ -1064,6 +1116,7 @@ def main():
 
     # Constant across every batch in both review modes - build once.
     gen_params = LLMGenParams(
+        review_labels_only=args.labels_only or prompts_config.get("review_labels_only") is True,
         literal_source_preserving=literal_policy is not None,
         system_prompt=review_sys,
         user_prompt_template=review_usr,

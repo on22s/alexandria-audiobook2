@@ -164,7 +164,7 @@ class CompletedReviewReceiptTests(unittest.TestCase):
                 return review.get_completed_review_fingerprint(cfg, llm, par, options, object(), model)
             with patch.dict('os.environ', RECEIPT_TEST_KEY='first-secret'):
                 baseline = key()
-                for field, value in [('system_prompt','new system'), ('user_prompt_template','new {batch}'), ('temperature',.7), ('max_tokens',300), ('context_length',8192), ('structured_output','off')]:
+                for field, value in [('system_prompt','new system'), ('user_prompt_template','new {batch}'), ('temperature',.7), ('max_tokens',300), ('context_length',8192), ('structured_output','off'), ('review_labels_only',True)]:
                     with self.subTest(field=field): self.assertNotEqual(baseline, key(par=replace(params, **{field:value})))
                 for field, value in [('base_url','http://other/v1'), ('model_name','other'), ('provider_extra_body',{'reasoning_effort':'low'})]:
                     with self.subTest(field=field): self.assertNotEqual(baseline, key(llm={**profile,field:value}))

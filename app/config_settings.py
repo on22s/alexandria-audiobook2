@@ -200,6 +200,7 @@ class PromptConfig(BaseModel):
     attribution_preset: str = Field(default="michel2_full", min_length=1, max_length=80)
     review_system_prompt: Optional[str] = None
     review_user_prompt: Optional[str] = None
+    review_labels_only: bool = False
     persona_system_prompt: Optional[str] = None
     persona_user_prompt: Optional[str] = None
     persona_advanced_prompt: Optional[str] = None

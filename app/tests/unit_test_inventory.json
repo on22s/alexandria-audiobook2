@@ -6775,6 +6775,14 @@
   "test_review_force_js": [
     "tests.test_review_force_js.ReviewForceJsTests.test_all_review_handlers_forward_checkbox"
   ],
+  "test_review_labels_only": [
+    "tests.test_review_labels_only.ReviewLabelsTests.test_bad_labels_retry_and_bind_corrected_response",
+    "tests.test_review_labels_only.ReviewLabelsTests.test_corrects_speaker_without_reemitting_text_or_losing_metadata",
+    "tests.test_review_labels_only.ReviewLabelsTests.test_exhaustion_returns_none_without_mutating_original",
+    "tests.test_review_labels_only.ReviewLabelsTests.test_full_text_review_remains_available_for_lossless_boundary_changes",
+    "tests.test_review_labels_only.ReviewLabelsTests.test_labels_mode_does_not_format_custom_full_text_template",
+    "tests.test_review_labels_only.ReviewLabelsTests.test_rejects_invented_text_incomplete_or_duplicate_indexes"
+  ],
   "test_review_surfacing": [
     "tests.test_review_surfacing.ReviewCharactersReachTheCallerTest.test_a_mapped_glyph_is_not_flagged",
     "tests.test_review_surfacing.ReviewCharactersReachTheCallerTest.test_an_unmapped_symbol_is_collected",

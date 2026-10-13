@@ -2574,6 +2574,11 @@
             ],
             "title": "Persona User Prompt"
           },
+          "review_labels_only": {
+            "default": false,
+            "title": "Review Labels Only",
+            "type": "boolean"
+          },
           "review_system_prompt": {
             "anyOf": [
               {

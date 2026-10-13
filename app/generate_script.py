@@ -708,6 +708,8 @@ class LLMGenParams:
     literal_source_preserving: bool = False
     # Initial window allowance; truncation retries retain the task hard ceiling.
     request_initial_max_tokens: int = None
+    # Experimental review transport; full-text boundary editing remains default.
+    review_labels_only: bool = False
 
 
 
