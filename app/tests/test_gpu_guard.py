@@ -171,14 +171,20 @@ class LockPathAgreementTest(unittest.TestCase):
         from experiments.gpu_guard import default_lock
         repo = os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))))
-        spoken = subprocess.run(
-            ["bash", os.path.join(repo, "gpu_job.sh"), "--print-lock"],
-            capture_output=True, text=True, timeout=60)
-        self.assertEqual(0, spoken.returncode, spoken.stderr)
-        self.assertEqual(spoken.stdout.strip(), default_lock())
-        self.assertTrue(default_lock().startswith("/"), default_lock())
-        self.assertTrue(default_lock().endswith(
-            "ab_test_runtime/logs/alexandria_gpu.lock"), default_lock())
+        with patch.dict(os.environ):
+            os.environ.pop("GPU_LOCK", None)
+            default_lock.cache_clear()
+            try:
+                spoken = subprocess.run(
+                    ["bash", os.path.join(repo, "gpu_job.sh"), "--print-lock"],
+                    capture_output=True, text=True, timeout=60)
+                self.assertEqual(0, spoken.returncode, spoken.stderr)
+                self.assertEqual(spoken.stdout.strip(), default_lock())
+                self.assertTrue(default_lock().startswith("/"), default_lock())
+                self.assertTrue(default_lock().endswith(
+                    "ab_test_runtime/logs/alexandria_gpu.lock"), default_lock())
+            finally:
+                default_lock.cache_clear()
 
     def test_windows_default_task_admission_needs_no_bash_and_still_holds_a_lock(self):
         from experiments import gpu_guard

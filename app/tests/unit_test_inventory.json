@@ -4400,6 +4400,7 @@
   "test_llm_request_budget": [
     "tests.test_llm_request_budget.ProfileBudgetAdmissionTests.test_declared_context_allows_unknown_manual_large_target_and_preserves_cache_capacity",
     "tests.test_llm_request_budget.ProfileBudgetAdmissionTests.test_unknown_context_refuses_before_claiming_a_job",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_body_aliases_only_lower_checked_allowance_and_keep_finite_limits",
     "tests.test_llm_request_budget.RequestBudgetTests.test_existing_config_gets_no_output_cap_or_input_ceiling",
     "tests.test_llm_request_budget.RequestBudgetTests.test_explicit_profile_overrides_and_blank_inheritance",
     "tests.test_llm_request_budget.RequestBudgetTests.test_extra_body_cannot_bypass_input_or_output_ceiling",
@@ -6494,6 +6495,12 @@
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_actual_process_chunk_uses_the_same_complete_prompt",
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_future_context_cannot_be_reported_as_fitting_from_fixed_allowance",
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_known_large_roster_and_tail_are_fully_included_without_input_mutation"
+  ],
+  "test_request_limit_dispatch_regressions": [
+    "tests.test_request_limit_dispatch_regressions.DispatchLimitsTests.test_blank_profile_limits_cannot_override_runtime_task_budget",
+    "tests.test_request_limit_dispatch_regressions.DispatchLimitsTests.test_body_messages_cannot_replace_runtime_checked_input",
+    "tests.test_request_limit_dispatch_regressions.DispatchLimitsTests.test_native_small_windows_keep_initial_budget_after_failover_and_retry",
+    "tests.test_request_limit_dispatch_regressions.DispatchLimitsTests.test_provider_defaults_lose_to_request_and_reasoning_body_alias_survives"
   ],
   "test_request_origin": [
     "tests.test_request_origin.AppGateTests.test_a_cors_preflight_is_still_answered",

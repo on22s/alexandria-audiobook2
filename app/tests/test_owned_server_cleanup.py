@@ -98,7 +98,7 @@ class OwnedServerLauncherTests(unittest.TestCase):
         with socket.socket() as probe:
             probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
         env={**os.environ,'PATH':str(bin_dir)+os.pathsep+os.environ['PATH'],'FIXTURE_ROOT':str(root),
-            'SERVER_MODE':mode,'FIXTURE_SCRIPT':script_name,'LLAMA_BIN':str(server_bin),'LLAMA_MODEL':str(model),'LLAMA_LOG':str(root/'server.log')}
+            'LLAMA_PORT':str(port),'SERVER_MODE':mode,'FIXTURE_SCRIPT':script_name,'LLAMA_BIN':str(server_bin),'LLAMA_MODEL':str(model),'LLAMA_LOG':str(root/'server.log')}
         return script,env,model
 
     def run_case(self, script_name, mode):

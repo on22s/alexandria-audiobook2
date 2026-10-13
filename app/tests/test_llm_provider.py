@@ -260,7 +260,7 @@ class ReasoningModelRequestShapeTests(unittest.TestCase):
         self.assertEqual(1024, original["max_completion_tokens"])
         local = self._create({"base_url": "http://localhost:8090/v1"},
                              **dict(original, model="qwen3-14b"))
-        self.assertEqual(4096, local["max_tokens"])
+        self.assertNotIn("max_tokens", local)
         self.assertEqual(1024, local["max_completion_tokens"])
 
     def test_omitted_effort_drops_sampling_for_reasoning_defaults(self):

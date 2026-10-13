@@ -203,13 +203,14 @@ class _ConfiguredCompletions:
         self._pacer.wait()
         provider_extra_body = {
             key: value for key, value in self._provider_extra_body.items()
-            if key not in kwargs
+            if key not in kwargs and not (
+                key in ("max_tokens", "max_completion_tokens")
+                and any(name in kwargs for name in ("max_tokens", "max_completion_tokens")))
         }
         kwargs["extra_body"] = merge_provider_extra_body(
             provider_extra_body, kwargs.get("extra_body"))
-        if self._limits:
-            from llm_request_budget import get_budgeted_request
-            kwargs = get_budgeted_request(kwargs, self._limits)
+        from llm_request_budget import get_budgeted_request
+        kwargs = get_budgeted_request(kwargs, self._limits or {})
         return self._completions.create(*args, **adapt_request_for_reasoning_model(kwargs))
 
     def __getattr__(self, name):

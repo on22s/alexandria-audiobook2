@@ -52,13 +52,27 @@ class RequestBudgetTests(unittest.TestCase):
         kwargs={'max_tokens':256,'messages':[{'content':'small'}],'extra_body':{'max_tokens':99999,'temperature':0.1}}
         original=copy.deepcopy(kwargs)
         result=get_budgeted_request(kwargs,limits)
-        self.assertEqual(512,result['max_tokens'])
+        self.assertEqual(256,result['max_tokens'])
         self.assertEqual({'temperature':0.1},result['extra_body'])
         self.assertEqual(original,kwargs)
         kwargs['extra_body']['messages']=[{'content':'x'*3001}]
+        self.assertEqual(kwargs['messages'],get_budgeted_request(kwargs,limits)['messages'])
+        del kwargs['messages']
         with self.assertRaises(TokenBudgetError):get_budgeted_request(kwargs,limits)
         for value in [-1,0,True]:
             with self.assertRaises(ValueError):get_budgeted_request({'max_tokens':value},limits)
+
+    def test_body_aliases_only_lower_checked_allowance_and_keep_finite_limits(self):
+        for key in ('max_tokens', 'max_completion_tokens'):
+            for body_budget, expected in ((20000, 128), (64, 64)):
+                request = {'max_tokens': 128, 'messages': [{'content': 'short'}],
+                           'extra_body': {key: body_budget}}
+                self.assertEqual(expected, get_budgeted_request(request, {})['max_tokens'])
+                self.assertEqual(32, get_budgeted_request(request, {'max_output_tokens': 32})['max_tokens'])
+                self.assertEqual(8, get_budgeted_request(request, {'context_length': 522})['max_tokens'])
+            for invalid in (0, -1, True, None):
+                with self.assertRaises(ValueError):
+                    get_budgeted_request({'max_tokens': 128, 'extra_body': {key: invalid}}, {})
 
     def test_timeout_variants_preserve_limits_and_block_before_dispatch(self):
         raw=Mock();raw.with_options.return_value=raw
