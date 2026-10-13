@@ -8516,6 +8516,14 @@
     "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_mixed_external_batch_preserves_supported_rows_and_reports_unsupported_rows",
     "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_preview_http_returns_actionable_client_error_and_releases_its_claim"
   ],
+  "test_tts_batch_contracts": [
+    "tests.test_tts_batch_contracts.BatchContractsTests.test_alias_members_dispatch_to_canonical_custom_clone_and_lora",
+    "tests.test_tts_batch_contracts.BatchContractsTests.test_batch_seed_reaches_design_and_ensemble_after_version_selection",
+    "tests.test_tts_batch_contracts.BatchContractsTests.test_external_predict_receives_batch_seed_for_custom_clone_and_ensemble",
+    "tests.test_tts_batch_contracts.BatchContractsTests.test_lora_batch_releases_previous_group_model_before_bounded_next_load",
+    "tests.test_tts_batch_contracts.BatchContractsTests.test_public_ensemble_versions_resolve_new_members_and_invalidate_audio",
+    "tests.test_tts_batch_contracts.BatchContractsTests.test_public_lora_pin_refuses_promoted_generation_before_loading_and_groups_separate_pins"
+  ],
   "test_tts_batch_quality_metrics": [
     "tests.test_tts_batch_quality_metrics.TtsBatchQualityMetricsTests.test_earlier_allocation_peak_survives_later_generation_reset"
   ],

@@ -92,7 +92,7 @@ class TTSBackendCapabilityTests(unittest.TestCase):
     def test_mixed_external_batch_preserves_supported_rows_and_reports_unsupported_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
             engine=tts.TTSEngine({'tts':{'mode':'external'}});engine._clear_gpu_cache=Mock();seen=[]
-            def render(chunks,config,output,kind):
+            def render(chunks,config,output,kind,batch_seed=-1):
                 seen.append((kind,[c['index'] for c in chunks]));return {'completed':[c['index'] for c in chunks],'failed':[]}
             config={'A':{'type':'custom','voice':'Ryan'},'B':{'type':'clone','ref_audio':'ref.wav','ref_text':'reference'},'C':{'type':'lora','adapter_path':'lora_models/a'},'D':{'type':'design','description':'quiet'}}
             chunks=[{'index':i,'speaker':speaker,'text':'Known line'} for i,speaker in enumerate(config)]

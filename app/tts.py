@@ -190,17 +190,32 @@ def active_version_id(voice_data, chunk_index):
     return current
 
 
+def get_resolved_speaker(speaker, voice_config):
+    """Follow speaker aliases, refusing cycles or an excessive chain."""
+    name, seen = speaker, set()
+    for _ in range(16):
+        if name in seen:
+            raise ValueError(f"Alias cycle detected for speaker '{speaker}'")
+        seen.add(name)
+        entry = voice_config.get(name) or {}
+        alias = entry.get("alias_of") or entry.get("alias")
+        if not isinstance(alias, str) or not alias.strip():
+            return name
+        name = alias
+    raise ValueError(f"Alias chain for '{speaker}' exceeded 16 iterations")
+
+
 def voice_config_for_chunk(voice_config, speaker, chunk_index):
-    """Copy only entries whose timeline anchors apply at this source index.
-    Ensemble members use the same index as their containing line."""
-    entry = (voice_config or {}).get(speaker)
-    if not isinstance(entry, dict):
+    """Apply selected versions before walking their members and aliases.
+    Every reachable voice uses the containing line's source index."""
+    if not isinstance((voice_config or {}).get(speaker), dict):
         return voice_config
-    speakers = [speaker]
-    if voice_category(entry) == "ensemble" and isinstance(entry.get("members"), list):
-        speakers.extend(member for member in entry["members"] if isinstance(member, str))
-    updates = {}
-    for name in speakers:
+    pending, seen, updates = [speaker], set(), {}
+    while pending:
+        name = pending.pop()
+        if name in seen:
+            continue
+        seen.add(name)
         data = voice_config.get(name)
         if not isinstance(data, dict):
             continue
@@ -210,8 +225,23 @@ def voice_config_for_chunk(voice_config, speaker, chunk_index):
             data = {**data, **fields}
             updates[name] = data
         if data.get("style_timeline"):
-            updates[name] = {**data, "character_style": active_character_style(data, chunk_index)}
+            data = {**data, "character_style": active_character_style(data, chunk_index)}
+            updates[name] = data
+        alias = data.get("alias_of") or data.get("alias")
+        if isinstance(alias, str) and alias.strip():
+            pending.append(alias)
+        if voice_category(data) == "ensemble" and isinstance(data.get("members"), list):
+            pending.extend(member for member in data["members"] if isinstance(member, str))
     return {**voice_config, **updates} if updates else voice_config
+
+
+def get_batch_voice_config(voice_config, speaker, chunk_index, batch_seed):
+    """Override seeds after timeline selection without mutating stored voices."""
+    resolved = voice_config_for_chunk(voice_config, speaker, chunk_index)
+    if batch_seed < 0:
+        return resolved
+    return {name: {**data, "seed": batch_seed} if isinstance(data, dict) else data
+            for name, data in resolved.items()}
 
 
 def anchored_instruct(voice_data, instruct_text):
@@ -1395,6 +1425,7 @@ class TTSEngine:
         """Generate audio using the appropriate method based on voice type config."""
         prepared = get_speech_preparation(text, instruct_text)
         text, instruct_text = prepared["text"], prepared["instruct"]
+        speaker = get_resolved_speaker(speaker, voice_config)
         voice_config = resolve_narrator_voice_config(speaker, voice_config)
         voice_data = voice_config.get(speaker)
         if not is_voice_config_present(speaker, voice_config):
@@ -1447,7 +1478,8 @@ class TTSEngine:
         if not members:
             raise ValueError("Ensemble voice has no members configured.")
 
-        for member in members:
+        resolved_members = [get_resolved_speaker(member, voice_config) for member in members]
+        for member in resolved_members:
             member_data = voice_config.get(member)
             if not member_data:
                 raise ValueError(
@@ -1462,7 +1494,7 @@ class TTSEngine:
         temp_dir = tempfile.mkdtemp(prefix="unison_")
         try:
             member_paths = []
-            for i, member in enumerate(members):
+            for i, member in enumerate(resolved_members):
                 member_path = os.path.join(temp_dir, f"member_{i}.wav")
                 if not self.generate_voice(text, instruct_text, member,
                                            voice_config, member_path):
@@ -1799,10 +1831,7 @@ class TTSEngine:
                     continue
                 idx = chunk["index"]
                 output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
-                resolved = voice_config_for_chunk(resolved, chunk.get("speaker"), idx)
-                if batch_seed >= 0:
-                    speaker = chunk.get("speaker")
-                    resolved = {**resolved, speaker: {**resolved[speaker], "seed": batch_seed}}
+                resolved = get_batch_voice_config(resolved, chunk.get("speaker"), idx, batch_seed)
                 try:
                     if self.generate_voice(chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path):
                         results["completed"].append(idx)
@@ -1845,7 +1874,7 @@ class TTSEngine:
         # Ensemble chunks need several different voices each, so they can't join
         # a same-voice batch — render them one at a time.
         if ensemble_chunks:
-            batch_results = self._sequential_ensemble(ensemble_chunks, voice_config, output_dir)
+            batch_results = self._sequential_ensemble(ensemble_chunks, voice_config, output_dir, batch_seed)
             results["completed"].extend(batch_results["completed"])
             results["failed"].extend(batch_results["failed"])
             self._clear_gpu_cache()
@@ -1855,7 +1884,7 @@ class TTSEngine:
             if self.get_voice_backend("custom") == "local":
                 batch_results = self._local_batch_custom(custom_chunks, voice_config, output_dir, batch_seed)
             else:
-                batch_results = self._external_batch(custom_chunks, voice_config, output_dir, "custom")
+                batch_results = self._external_batch(custom_chunks, voice_config, output_dir, "custom", batch_seed)
             results["completed"].extend(batch_results["completed"])
             results["failed"].extend(batch_results["failed"])
             self._clear_gpu_cache()
@@ -1865,7 +1894,7 @@ class TTSEngine:
             if self.get_voice_backend("clone") == "local":
                 batch_results = self._local_batch_clone(clone_chunks, voice_config, output_dir, batch_seed)
             else:
-                batch_results = self._external_batch(clone_chunks, voice_config, output_dir, "clone")
+                batch_results = self._external_batch(clone_chunks, voice_config, output_dir, "clone", batch_seed)
             results["completed"].extend(batch_results["completed"])
             results["failed"].extend(batch_results["failed"])
             self._clear_gpu_cache()
@@ -1883,7 +1912,7 @@ class TTSEngine:
                 idx = chunk["index"]
                 output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
                 speaker = chunk.get("speaker")
-                voice_data = voice_config_for_chunk(voice_config, speaker, chunk["index"]).get(speaker, {})
+                voice_data = get_batch_voice_config(voice_config, speaker, idx, batch_seed).get(speaker, {})
                 try:
                     success = self.generate_design_voice(
                         text=chunk["text"],
@@ -2330,7 +2359,7 @@ class TTSEngine:
         # voice reused for two characters) while having different
         # character_style/default_style - so each chunk keeps its own
         # voice_data instead of the group inheriting just the first chunk's.
-        adapter_groups = {}  # adapter_path -> [(chunk, voice_data), ...]
+        adapter_groups = {}  # (adapter_path, generation pin) -> [(chunk, voice_data), ...]
         for chunk in chunks:
             speaker = chunk.get("speaker", "")
             voice_data = voice_config_for_chunk(voice_config, speaker, chunk["index"]).get(speaker, {})
@@ -2344,14 +2373,14 @@ class TTSEngine:
                 adapter_path = _resolve_asset_path(adapter_path)
             adapter_path = get_resolved_adapter_path(adapter_path)
 
-            adapter_groups.setdefault(adapter_path, []).append((chunk, voice_data))
+            adapter_groups.setdefault((adapter_path, voice_data.get("adapter_generation_sha256")), []).append((chunk, voice_data))
 
         self._clear_gpu_cache()
 
         t_total_start = time.time()
         total_audio_duration = 0.0
 
-        for adapter_path, group_entries in adapter_groups.items():
+        for (adapter_path, expected_generation), group_entries in adapter_groups.items():
             group = [c for c, _ in group_entries]
             if (not os.path.isdir(adapter_path)
                     and os.path.basename(adapter_path).startswith("builtin_")):
@@ -2378,9 +2407,11 @@ class TTSEngine:
                         results["failed"].append((chunk["index"], f"Adapter not found: {adapter_path}"))
                     continue
 
-            # Load adapter and build/get clone prompt
+            # Release the prior group's local references before the loader
+            # evicts its cached generation and admits the next model.
+            model = prompt = None
             try:
-                model, prompt = self._ensure_local_lora_generation(adapter_path)
+                model, prompt = self._ensure_local_lora_generation(adapter_path, expected_generation)
             except Exception as e:
                 print(f"  Error loading LoRA adapter {os.path.basename(adapter_path)}: {e}")
                 for chunk in group:
@@ -2632,7 +2663,7 @@ class TTSEngine:
             apply_tts_failure(e)
             return False
 
-    def _sequential_ensemble(self, chunks, voice_config, output_dir):
+    def _sequential_ensemble(self, chunks, voice_config, output_dir, batch_seed=-1):
         """Render ensemble chunks one at a time (each needs several voices)."""
         results = {"completed": [], "failed": []}
 
@@ -2644,7 +2675,7 @@ class TTSEngine:
                     chunk.get("text", ""),
                     chunk.get("instruct", ""),
                     chunk.get("speaker"),
-                    voice_config_for_chunk(voice_config, chunk.get("speaker"), idx),
+                    get_batch_voice_config(voice_config, chunk.get("speaker"), idx, batch_seed),
                     output_path,
                 )
                 if success:
@@ -2656,7 +2687,7 @@ class TTSEngine:
 
         return results
 
-    def _external_batch(self, chunks, voice_config, output_dir, kind):
+    def _external_batch(self, chunks, voice_config, output_dir, kind, batch_seed=-1):
         """External-mode batch submits up to `parallel_workers` lines per
         pool endpoint. Each worker serializes requests through its client
         lock, with deadlines measured from submission. Same result shape as local batches.
@@ -2671,10 +2702,10 @@ class TTSEngine:
             return results
         generate = {
             "custom": lambda c, out, ep, cancelled: self._external_generate_custom(
-                c.get("text", ""), c.get("instruct", ""), c.get("speaker", ""), voice_config_for_chunk(voice_config, c.get("speaker", ""), c["index"]), out,
+                c.get("text", ""), c.get("instruct", ""), c.get("speaker", ""), get_batch_voice_config(voice_config, c.get("speaker", ""), c["index"], batch_seed), out,
                 endpoint=ep, cancelled=cancelled),
             "clone": lambda c, out, ep, cancelled: self._external_generate_clone(
-                c.get("text", ""), c.get("speaker", ""), voice_config_for_chunk(voice_config, c.get("speaker", ""), c["index"]), out,
+                c.get("text", ""), c.get("speaker", ""), get_batch_voice_config(voice_config, c.get("speaker", ""), c["index"], batch_seed), out,
                 endpoint=ep, cancelled=cancelled),
         }[kind]
         workers = self._external_parallel_workers * len(self._external_urls)

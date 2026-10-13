@@ -36,7 +36,7 @@ from tts import (
     voice_category,
     DEFAULT_PAUSE_MS,
     SAME_SPEAKER_PAUSE_MS,
-                 voice_config_for_chunk, resolve_narrator_voice_config)
+                 voice_config_for_chunk, resolve_narrator_voice_config, get_resolved_speaker)
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
 from audio_streaming import get_track_wav_plan, write_track_wav, write_combined_wav
@@ -656,33 +656,8 @@ class ProjectManager:
         return self._status_journal
 
     def _resolve_alias(self, speaker, voice_config):
-        """Resolve speaker aliases by following `alias_of` chain in voice_config.
-
-        Prevent infinite loops by limiting chain length.
-        Returns the canonical speaker name (string).
-        """
-        if not speaker:
-            return speaker
-        name = speaker
-        seen = set()
-        for _ in range(16):  # Increased from 8 to handle longer alias chains
-            if name in seen:
-                logger.warning(f"Alias cycle detected for speaker '{speaker}': chain visited {seen}")
-                break
-            seen.add(name)
-            entry = voice_config.get(name, {})
-            alias = entry.get('alias_of') or entry.get('alias')
-            if not alias:
-                break
-            # If alias is empty or same, stop
-            if not isinstance(alias, str) or alias.strip() == '' or alias == name:
-                break
-            # Continue resolution
-            name = alias
-        else:
-            # Loop completed without break - chain exceeded limit
-            logger.warning(f"Alias chain for '{speaker}' exceeded 16 iterations; using last resolved name '{name}'")
-        return name
+        """Use the same alias dispatch as single and ensemble generation."""
+        return get_resolved_speaker(speaker, voice_config)
 
     def get_chunk_voice_inputs(self, voices, chunk, index):
         """Read the effective TTS inputs, including aliases and ensemble members."""
@@ -694,7 +669,7 @@ class ProjectManager:
                   "adapter_generation_sha256", "members")
         inputs, pending = {}, [speaker]
         while pending:
-            name = pending.pop()
+            name = get_resolved_speaker(pending.pop(), effective)
             if name in inputs:
                 continue
             config = effective.get(name) or {}
