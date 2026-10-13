@@ -61,6 +61,12 @@ class ExactIndexSchemaTests(unittest.TestCase):
         self.assert_exact(schema, 3)
         self.assertIn("gender", schema["items"]["properties"])
 
+    def test_speaker_length_is_capped(self):
+        # a local run looped one name inside a single speaker value to the cap
+        schema = run_window(THREE)
+        self.assertEqual(tp.SPEAKER_MAX_CHARS, schema["items"]["properties"]["speaker"]["maxLength"])
+        self.assertGreaterEqual(tp.SPEAKER_MAX_CHARS, 52)   # longest gold label
+
     def test_shared_schema_is_not_mutated(self):
         original = copy.deepcopy(tp.ATTRIBUTION_RESPONSE_SCHEMA)
         run_window(THREE)

@@ -2926,6 +2926,7 @@
   "test_exact_index_schema": [
     "tests.test_exact_index_schema.ExactIndexSchemaTests.test_one_entry_window_allows_exactly_one_row",
     "tests.test_exact_index_schema.ExactIndexSchemaTests.test_shared_schema_is_not_mutated",
+    "tests.test_exact_index_schema.ExactIndexSchemaTests.test_speaker_length_is_capped",
     "tests.test_exact_index_schema.ExactIndexSchemaTests.test_three_entry_window_fixes_count_and_indexes",
     "tests.test_exact_index_schema.ExactIndexSchemaTests.test_traits_schema_is_narrowed_too"
   ],

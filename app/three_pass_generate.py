@@ -660,6 +660,9 @@ def get_attribution_response_schema(speaker_traits=False, indexes=None):
     return schema if indexes is None else get_exact_index_schema(schema, indexes)
 
 
+SPEAKER_MAX_CHARS = 80
+
+
 def get_exact_index_schema(schema, indexes):
     """`schema` narrowed to one row per index, each `n` drawn from `indexes`.
 
@@ -669,11 +672,19 @@ def get_exact_index_schema(schema, indexes):
     window answered with n=0..149 until truncated, ~46 s each (#1167). Uses
     items + enum + minItems/maxItems rather than prefixItems, which more
     strict-schema providers accept; a server that rejects it falls back for
-    the run like any schema rejection. Labels are still the model's."""
+    the run like any schema rejection. Labels are still the model's.
+
+    `speaker` is also capped at SPEAKER_MAX_CHARS: with only the row count
+    fixed, a Pass 2 window on a local run (Qwen3-14B, 2026-10-13) answered
+    with one name repeated inside a single speaker value until the cap, four
+    times, each retry with a larger budget. The longest gold speaker label in any fixture is 52
+    characters."""
     indexes = list(indexes)
     items = dict(schema["schema"]["items"])
-    items["properties"] = {**items["properties"],
-                           "n": {"type": "integer", "enum": indexes}}
+    properties = {**items["properties"], "n": {"type": "integer", "enum": indexes}}
+    if "speaker" in properties:
+        properties["speaker"] = {**properties["speaker"], "maxLength": SPEAKER_MAX_CHARS}
+    items["properties"] = properties
     return {**schema, "schema": {**schema["schema"], "items": items,
                                  "minItems": len(indexes), "maxItems": len(indexes)}}
 
