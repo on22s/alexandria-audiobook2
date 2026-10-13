@@ -169,12 +169,12 @@ class LockPathAgreementTest(unittest.TestCase):
     def test_the_guard_and_gpu_job_agree_on_the_default_lock(self):
         """Not by parsing - by running the shell and taking its answer."""
         from experiments.gpu_guard import default_lock
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
         with patch.dict(os.environ):
             os.environ.pop("GPU_LOCK", None)
             default_lock.cache_clear()
             try:
-                repo = os.path.dirname(os.path.dirname(os.path.dirname(
-                    os.path.abspath(__file__))))
                 spoken = subprocess.run(
                     ["bash", os.path.join(repo, "gpu_job.sh"), "--print-lock"],
                     capture_output=True, text=True, timeout=60)

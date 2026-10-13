@@ -76,7 +76,11 @@ class EditorWorkerIoTests(unittest.TestCase):
                         async def run():
                             loop_id = threading.get_ident()
                             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://fixture') as client:
-                                pending = asyncio.create_task(client.request(method, url, json=data))
+                                params = None
+                                if label == 'edit':
+                                    params = {'expected_uid':pm.load_chunks()[0]['uid'],
+                                              'expected_book_token':editor.get_snapshot_digest(editor.get_editor_book_identity(str(root)))}
+                                pending = asyncio.create_task(client.request(method, url, json=data, params=params))
                                 watchdog = threading.Timer(0.5, release.set); watchdog.start()
                                 try:
                                     self.assertTrue(await asyncio.to_thread(arrived.wait, 2))

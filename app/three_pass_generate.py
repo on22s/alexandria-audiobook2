@@ -3185,9 +3185,10 @@ def resolve_index_output_ceiling(entry_count, per_entry_tokens, params):
 def bound_index_request_params(call_params, entry_count, per_entry_tokens):
     """Return call_params with max_tokens capped by resolve_index_output_ceiling."""
     ceiling = resolve_index_output_ceiling(entry_count, per_entry_tokens, call_params)
-    if ceiling is None or call_params.max_tokens <= ceiling:
+    if ceiling is None:
         return call_params
-    return replace(call_params, max_tokens=ceiling)
+    initial = min(call_params.max_tokens, ceiling)
+    return replace(call_params, max_tokens=initial, request_initial_max_tokens=initial)
 
 
 def resolve_completion_ceiling(source_words, params, reasoning_allowance=0):

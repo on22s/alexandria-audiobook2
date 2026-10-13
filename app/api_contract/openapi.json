@@ -1784,6 +1784,11 @@
       },
       "LibraryApplyRequest": {
         "properties": {
+          "book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Book Token",
+            "type": "string"
+          },
           "cast": {
             "title": "Cast",
             "type": "string"
@@ -1797,6 +1802,7 @@
           }
         },
         "required": [
+          "book_token",
           "cast",
           "mapping"
         ],
@@ -5044,6 +5050,28 @@
             "schema": {
               "title": "Index",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_uid",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Expected Uid",
+              "type": "string"
             }
           }
         ],

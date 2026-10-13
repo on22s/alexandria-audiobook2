@@ -37,6 +37,6 @@ class EditorPollSnapshots:
             self._history.move_to_end(revision)
             while len(self._history) > 8:
                 self._history.popitem(last=False)
-        return {'revision': revision, 'full': full, 'changed_ids': [row['id'] for row in changed],
+        return {'book_token': book, 'revision': revision, 'full': full, 'changed_ids': [row['id'] for row in changed],
             'running_count': sum(row.get('status') == 'generating' for row in chunks),
             'total': len(chunks), 'chunks': changed}

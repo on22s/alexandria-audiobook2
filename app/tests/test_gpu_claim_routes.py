@@ -93,9 +93,10 @@ class GpuClaimRouteTests(unittest.TestCase):
              patch.object(core, "llm_is_on_this_gpu", return_value=True), \
              patch.object(editor, "process_state", state), \
              patch.object(editor, "project_manager", project), \
+             patch.object(editor, "apply_chunk_update", side_effect=lambda index, updates, *_: project.update_chunk(index, updates)), \
              patch.object(editor, "apply_chunk_restore", side_effect=lambda request: project.restore_chunk(request.at_index, request.chunk)):
 
-            operations = [lambda: editor.update_chunk(0, editor.ChunkUpdate(text="new")),
+            operations = [lambda: editor.update_chunk(0, editor.ChunkUpdate(text="new"), "b" * 64, "row"),
                           lambda: editor.insert_chunk(0),
                           lambda: editor.restore_chunk(editor.ChunkRestoreRequest(chunk={}, at_index=0)),
                           lambda: editor.delete_chunk(0)]

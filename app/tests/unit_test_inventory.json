@@ -1187,7 +1187,8 @@
     "tests.test_cast_apply_context_js.CastApplyContextJsTests.test_stale_matches_and_old_panel_submission_are_refused"
   ],
   "test_cast_bulk_outcome_js": [
-    "tests.test_cast_bulk_outcome_js.CastBulkOutcomeJsTests.test_all_failed_partial_success_and_empty_results_have_honest_headings"
+    "tests.test_cast_bulk_outcome_js.CastBulkOutcomeJsTests.test_all_failed_partial_success_and_empty_results_have_honest_headings",
+    "tests.test_cast_bulk_outcome_js.CastBulkOutcomeJsTests.test_bulk_match_reviews_saved_books_without_current_book_context"
   ],
   "test_cast_label_warnings": [
     "tests.test_cast_label_warnings.CastLabelWarningTests.test_actual_ui_handlers_show_escaped_warnings_and_success_counts",
@@ -2651,6 +2652,10 @@
     "tests.test_ecapa_portable_cache.EcapaPortableCacheTests.test_reference_cache_tracks_the_actual_worker_model_assets",
     "tests.test_ecapa_portable_cache.EcapaPortableCacheTests.test_worker_copies_yaml_without_using_checkout_placeholder_or_symlinks"
   ],
+  "test_editor_book_identity": [
+    "tests.test_editor_book_identity.EditorBookIdentityTests.test_cast_match_book_generation_and_source_fence_current_apply",
+    "tests.test_editor_book_identity.EditorBookIdentityTests.test_stale_draft_after_delete_or_book_switch_preserves_all_chunks"
+  ],
   "test_editor_index_selection": [
     "tests.test_editor_index_selection.EditorIndexSelectionTests.test_chapter_route_forwards_normalized_selection_to_real_export",
     "tests.test_editor_index_selection.EditorIndexSelectionTests.test_chapter_routes_validate_against_real_audio_groups_before_schedule",
@@ -2668,6 +2673,7 @@
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_both_render_buttons_serialize_rows_and_include_focused_uncommitted_controls",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_edits_during_snapshot_and_confirmation_are_flushed_and_resnapshotted",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_failed_row_save_aborts_render_and_successful_retry_uses_latest_artifact",
+    "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_queued_edits_keep_captured_row_and_book_identity",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_unchanged_controls_do_not_overwrite_other_client_and_pending_revert_is_saved"
   ],
   "test_editor_report_cover_boundary": [
@@ -2703,7 +2709,7 @@
     "tests.test_editor_safety_js.EditorSafetyJsTests.test_voice_change_refreshes_actual_card_timeline_and_handles_missing_cached_config"
   ],
   "test_editor_validation_findings": [
-    "tests.test_editor_validation_findings.EditorValidationFindingTests.test_empty_persisted_row_gets_uid_and_success_missing_index_alone_is_404",
+    "tests.test_editor_validation_findings.EditorValidationFindingTests.test_empty_persisted_row_gets_uid_and_missing_identity_target_is_409",
     "tests.test_editor_validation_findings.EditorValidationFindingTests.test_negative_pause_request_cannot_persist_negative_duration"
   ],
   "test_editor_worker_io": [
@@ -4405,6 +4411,7 @@
   "test_llm_request_budget": [
     "tests.test_llm_request_budget.ProfileBudgetAdmissionTests.test_declared_context_allows_unknown_manual_large_target_and_preserves_cache_capacity",
     "tests.test_llm_request_budget.ProfileBudgetAdmissionTests.test_unknown_context_refuses_before_claiming_a_job",
+    "tests.test_llm_request_budget.RequestBudgetTests.test_body_aliases_only_lower_checked_allowance_and_keep_finite_limits",
     "tests.test_llm_request_budget.RequestBudgetTests.test_existing_config_gets_no_output_cap_or_input_ceiling",
     "tests.test_llm_request_budget.RequestBudgetTests.test_explicit_profile_overrides_and_blank_inheritance",
     "tests.test_llm_request_budget.RequestBudgetTests.test_extra_body_cannot_bypass_input_or_output_ceiling",
@@ -6499,6 +6506,12 @@
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_actual_process_chunk_uses_the_same_complete_prompt",
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_future_context_cannot_be_reported_as_fitting_from_fixed_allowance",
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_known_large_roster_and_tail_are_fully_included_without_input_mutation"
+  ],
+  "test_request_limit_dispatch_regressions": [
+    "tests.test_request_limit_dispatch_regressions.DispatchLimitsTests.test_blank_profile_limits_cannot_override_runtime_task_budget",
+    "tests.test_request_limit_dispatch_regressions.DispatchLimitsTests.test_body_messages_cannot_replace_runtime_checked_input",
+    "tests.test_request_limit_dispatch_regressions.DispatchLimitsTests.test_native_small_windows_keep_initial_budget_after_failover_and_retry",
+    "tests.test_request_limit_dispatch_regressions.DispatchLimitsTests.test_provider_defaults_lose_to_request_and_reasoning_body_alias_survives"
   ],
   "test_request_origin": [
     "tests.test_request_origin.AppGateTests.test_a_cors_preflight_is_still_answered",

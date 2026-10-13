@@ -48,15 +48,26 @@ def get_budgeted_request(kwargs, limits):
     from lmstudio_settings import get_effective_max_tokens
     result = dict(kwargs)
     body = dict(result.get("extra_body") or {})
-    for name in ("messages", "max_tokens", "max_completion_tokens"):
-        if name in body:
-            result[name] = body.pop(name)
+    if "messages" in body:
+        messages = body.pop("messages")
+        # Caller messages have already passed task/runtime input admission.
+        if "messages" not in result:
+            result["messages"] = messages
+    output_key = ("max_completion_tokens" if "max_completion_tokens" in result
+                  or ("max_tokens" not in result and "max_completion_tokens" in body)
+                  else "max_tokens")
+    budgets = [result[name] for name in ("max_tokens", "max_completion_tokens")
+               if result.get(name) is not None]
+    budgets.extend(body.pop(name) for name in ("max_tokens", "max_completion_tokens")
+                   if name in body)
+    for value in budgets:
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError("Request output budget must be a positive integer")
     if "extra_body" in result:
         result["extra_body"] = body
-    output_key = "max_completion_tokens" if "max_completion_tokens" in result else "max_tokens"
-    requested = result.get(output_key)
-    if requested is not None and (isinstance(requested, bool) or not isinstance(requested, int) or requested <= 0):
-        raise ValueError("Request output budget must be a positive integer")
+    # Typed output has already passed the caller's task/runtime checker.
+    # SDK body overrides may lower it, but must never enlarge that allowance.
+    requested = min(budgets) if budgets else None
     if requested is None:
         requested = limits.get("max_output_tokens")
     if requested is None:

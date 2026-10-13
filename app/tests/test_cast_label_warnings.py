@@ -14,7 +14,8 @@ class CastLabelWarningTests(unittest.TestCase):
         with transaction_tests.VoiceLibraryTransactionTests().fixture() as (root, api), TestClient(api) as client:
             with patch.object(routes, '_remember_applied_labels', side_effect=TimeoutError('busy')):
                 response = client.post('/api/voice_library/apply', json={
-                    'cast': 'series', 'mapping': {'Hero': 'hero'}})
+                    'cast': 'series', 'mapping': {'Hero': 'hero'},
+                    'book_token': client.post('/api/voice_library/match', json={'name':'series'}).json()['book_token']})
             self.assertEqual(200, response.status_code)
             body = response.json()
             self.assertEqual('applied', body['status'])
@@ -48,6 +49,8 @@ class CastLabelWarningTests(unittest.TestCase):
         with transaction_tests.VoiceLibraryTransactionTests().fixture() as (_root, api), TestClient(api) as client:
             for bulk in (False, True):
                 payload = {'cast': 'series', 'mapping': {'Hero': 'hero'}}
+                if not bulk:
+                    payload['book_token'] = client.post('/api/voice_library/match', json={'name':'series'}).json()['book_token']
                 if bulk:
                     payload['script_names'] = ['one', 'two']
                 response = client.post('/api/voice_library/apply_bulk' if bulk else '/api/voice_library/apply', json=payload)

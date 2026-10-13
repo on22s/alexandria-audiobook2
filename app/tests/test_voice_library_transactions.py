@@ -24,7 +24,7 @@ class VoiceLibraryTransactionTests(unittest.TestCase):
     def fixture(self):
         with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as patches:
             root=Path(tmp);scripts=root/'scripts';scripts.mkdir()
-            library=root/'library.json';config=root/'voices.json';script=root/'active.json'
+            library=root/'library.json';config=root/'voices.json';script=root/'annotated_script.json'
             atomic_json_write({'shared':{},'favorites':[], 'casts':{'series':{'members':{
                 'hero':{'name':'Hero','config':{'type':'custom','voice':'old'}}}}}},str(library))
             atomic_json_write({'Hero':{'type':'custom','voice':'active'}},str(config))

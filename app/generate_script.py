@@ -685,6 +685,8 @@ class LLMGenParams:
     request_output_ceiling: int = None
     # Explicit literal annotation policy; default speech transformations unchanged.
     literal_source_preserving: bool = False
+    # Initial window allowance; truncation retries retain the task hard ceiling.
+    request_initial_max_tokens: int = None
 
 
 
@@ -980,7 +982,9 @@ def ensure_run_request_params(client, params):
     changes["hard_max_tokens"] = limits["max_output_tokens"] or params.task_hard_max_tokens or params.hard_max_tokens
     if params.request_output_ceiling is not None:
         changes["hard_max_tokens"] = min(changes["hard_max_tokens"], params.request_output_ceiling)
-    changes["max_tokens"] = min(params.task_max_tokens or params.max_tokens, changes["hard_max_tokens"])
+    changes["max_tokens"] = min(
+        params.request_initial_max_tokens or params.task_max_tokens or params.max_tokens,
+        changes["hard_max_tokens"])
     return replace(params, **changes)
 
 
