@@ -23,12 +23,13 @@ class TrainingDatasetResidencyTests(unittest.TestCase):
             codes=torch.arange(32,dtype=torch.long).reshape(2,16)
             texts=torch.arange(10,dtype=torch.long).unsqueeze(0)
             speaker=torch.arange(4,dtype=torch.float32).unsqueeze(0)
-            def read_audio(path,sr,mono):
-                data,rate=sf.read(path,dtype='float32');return data,rate
+            def read_audio(path,sr,mono,duration):
+                info=sf.info(path)
+                data,rate=sf.read(path,frames=int(duration*info.samplerate),dtype='float32');return data,rate
             hf=SimpleNamespace(speaker_encoder=lambda tensor:speaker,
                 speech_tokenizer=SimpleNamespace(encode=lambda audio,sr:SimpleNamespace(audio_codes=[codes])))
             processor=lambda **kwargs:{'input_ids':texts}
-            with patch.dict(sys.modules,{'librosa':SimpleNamespace(load=read_audio),
+            with patch.dict(sys.modules,{'librosa':SimpleNamespace(load=read_audio,get_duration=lambda path:sf.info(path).duration),
                     'qwen_tts.core.models.modeling_qwen3_tts':SimpleNamespace(mel_spectrogram=lambda *args,**kwargs:torch.ones(1,128,4))}):
                 samples,reference=train_lora.load_dataset(tmp,hf,processor,'meta',torch.float32,30)
             self.assertEqual(64,len(samples));self.assertEqual(str(root/'sample.wav'),reference)

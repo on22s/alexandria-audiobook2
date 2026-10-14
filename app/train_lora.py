@@ -187,7 +187,37 @@ def save_training_checkpoint(model, output_dir, ref_audio_path, ref_sample_text,
         else:
             production_hash = get_checkpoint_sha256(staging)
         ref_dest = os.path.join(staging, 'ref_sample.wav')
-        shutil.copy2(ref_audio_path, ref_dest)
+        import soundfile as sf
+        ref_info = sf.info(ref_audio_path)
+        if ref_info.channels == 1:
+            shutil.copy2(ref_audio_path, ref_dest)
+        else:
+            from audio_validation import validate_generated_audio, validate_finite_audio_values
+            def get_audio_shape(audio):
+                return audio.frames, audio.samplerate, audio.channels
+            admitted_shape = get_audio_shape(ref_info)
+            # Validate before rewriting so a damaged source cannot become a
+            # seemingly complete reference. Preserve its full paired transcript.
+            validate_generated_audio(ref_audio_path, 'training reference')
+            with sf.SoundFile(ref_audio_path) as source, sf.SoundFile(
+                    ref_dest, 'w', samplerate=source.samplerate, channels=1,
+                    format='WAV', subtype='FLOAT') as destination:
+                if get_audio_shape(source) != admitted_shape:
+                    raise ValueError('Training reference changed before conversion')
+                decoded_frames = 0
+                for block in source.blocks(blocksize=65536, dtype='float32', always_2d=True):
+                    validate_finite_audio_values(block, 'training reference')
+                    mono = block.mean(axis=1)
+                    validate_finite_audio_values(mono, 'training reference')
+                    destination.write(mono)
+                    decoded_frames += len(block)
+                if decoded_frames != ref_info.frames or destination.tell() != ref_info.frames:
+                    raise ValueError('Training reference changed during conversion')
+            # Rewriting must not erase corruption introduced while reading.
+            validate_generated_audio(ref_audio_path, 'training reference')
+            if (get_audio_shape(sf.info(ref_audio_path)) != admitted_shape
+                    or sf.info(ref_dest).frames != ref_info.frames):
+                raise ValueError('Training reference changed during conversion')
         meta = {**metadata, 'ref_sample_text':ref_sample_text,
                 'checkpoint_sha256':production_hash,
                 'reference_audio_sha256':get_file_sha256(ref_dest),
@@ -246,6 +276,15 @@ def parse_args():
 
 # ── Data preparation ────────────────────────────────────────────────────
 
+def get_training_audio_duration(path):
+    """Inspect duration without allocating PCM, retaining decoder fallbacks."""
+    import librosa
+    duration = librosa.get_duration(path=path)
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError('Training audio duration must be a finite positive number')
+    return duration
+
+
 def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds):
     """Load metadata.jsonl and prepare training samples.
 
@@ -271,6 +310,8 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
     # root and only the choice of metadata file changes. Datasets without a
     # train/ subdirectory fall back to the old behaviour untouched.
     entries, used_split = get_training_metadata(data_dir)
+    if not math.isfinite(max_audio_seconds) or max_audio_seconds <= 0:
+        raise ValueError('Maximum audio duration must be a finite positive number')
 
     import librosa
     import numpy as np
@@ -308,7 +349,17 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
 
     print(f"[DATA] Using reference audio: {os.path.basename(ref_audio_path)}", flush=True)
 
-    ref_audio, _ = librosa.load(ref_audio_path, sr=24000, mono=True)
+    ref_duration = get_training_audio_duration(ref_audio_path)
+    if ref_duration > max_audio_seconds:
+        raise ValueError(f'Reference audio duration {ref_duration:.1f}s exceeds {max_audio_seconds}s')
+    # A bounded detection tail catches inaccurate compressed-file duration
+    # metadata without truncating audio and retaining its whole transcript.
+    decode_seconds = max_audio_seconds + 1.0
+    ref_audio, ref_rate = librosa.load(ref_audio_path, sr=None, mono=True, duration=decode_seconds)
+    if len(ref_audio) / ref_rate > max_audio_seconds:
+        raise ValueError(f'Reference audio duration exceeds {max_audio_seconds}s')
+    if ref_rate != 24000:
+        ref_audio = librosa.resample(ref_audio, orig_sr=ref_rate, target_sr=24000)
     ref_audio = ref_audio.astype(np.float32)
 
     with torch.no_grad():
@@ -341,8 +392,14 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
 
         print(f"[DATA] Tokenizing {i+1}/{len(entries)}: {os.path.basename(audio_path)}", flush=True)
 
-        # Load audio
-        audio, sr = librosa.load(audio_path, sr=None, mono=True)
+        duration = get_training_audio_duration(audio_path)
+        if duration > max_audio_seconds:
+            print(f"[DATA] SKIP {i+1}/{len(entries)}: {audio_rel} ({duration:.1f}s > {max_audio_seconds}s)", flush=True)
+            skipped_too_long += 1
+            continue
+
+        # Bound actual decoding as well as admission by native metadata.
+        audio, sr = librosa.load(audio_path, sr=None, mono=True, duration=decode_seconds)
         duration = len(audio) / sr
         if duration > max_audio_seconds:
             print(f"[DATA] SKIP {i+1}/{len(entries)}: {audio_rel} ({duration:.1f}s > {max_audio_seconds}s)", flush=True)
