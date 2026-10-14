@@ -7188,6 +7188,22 @@
     "tests.test_score_anchor.AnchorValidationTest.test_the_chinese_case_is_flagged",
     "tests.test_score_anchor.AnchorValidationTest.test_the_english_and_japanese_cases_are_not"
   ],
+  "test_score_anchor_material": [
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_actual_target_duration_and_unrounded_anchor_drive_recorded_ratios",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_all_target_id_aliases_are_excluded_even_at_different_paths",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_cache_destination_cannot_replace_or_alias_any_input_source",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_main_excludes_copied_source_and_id_aliases_before_metric_calls",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_main_preserves_generated_inputs_when_cache_aliases_an_admitted_arm",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_main_refuses_cache_alias_before_submitting_a_self_pair",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_repeated_non_target_material_cannot_fabricate_the_minimum",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_short_missing_and_mixed_rate_inputs_do_not_bypass_floor_or_resample",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_single_long_disjoint_clip_returns_original_without_writing",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_sufficient_material_scores_exact_disjoint_pcm_and_measured_ratios",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_target_source_aliases_are_excluded_even_with_different_ids",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_two_short_selected_clips_cannot_supply_a_disjoint_ceiling",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_unavailable_material_does_not_reuse_a_stale_cached_anchor",
+    "tests.test_score_anchor_material.AnchorMaterialTests.test_wraparound_excludes_target_and_keeps_other_component_order"
+  ],
   "test_scoring_sheet_context_origin": [
     "tests.test_scoring_sheet_context_origin.ScoringSheetContextTests.test_actual_cli_writes_authoritative_context_from_native_entries_file",
     "tests.test_scoring_sheet_context_origin.ScoringSheetContextTests.test_ambiguous_or_missing_source_match_refuses_instead_of_guessing",

@@ -158,8 +158,9 @@ have been a scored line instead.
 """
 
 
-def build_anchor_side(rows, start, resolve, min_seconds, out_dir):
-    """Join consecutive clips from `start` until min_seconds is reached.
+def build_anchor_side(rows, start, resolve, min_seconds, out_dir, *, exclude,
+                      input_paths):
+    """Join disjoint clips from `start` until min_seconds is reached.
 
     Returns a path - the single clip itself when it is already long enough, so
     the common case writes nothing. Returns None if the material runs out,
@@ -167,12 +168,26 @@ def build_anchor_side(rows, start, resolve, min_seconds, out_dir):
     audio is the failure this exists to prevent.
     """
     import soundfile as sf
+    from experiments.provenance import file_sha256
+
+    excluded_path = resolve(exclude["human_wav"])
+    excluded_hash = file_sha256(excluded_path)
+    seen_ids, seen_hashes = {exclude["id"]}, {excluded_hash}
     picked, total = [], 0.0
     for k in range(len(rows)):
         row = rows[(start + k) % len(rows)]
+        if row["id"] in seen_ids:
+            continue
         path = resolve(row["human_wav"])
         if not os.path.exists(path):
             continue
+        if os.path.samefile(path, excluded_path):
+            continue
+        source_hash = file_sha256(path)
+        if source_hash in seen_hashes:
+            continue
+        seen_ids.add(row["id"])
+        seen_hashes.add(source_hash)
         picked.append(path)
         total += duration(path)
         if total >= min_seconds:
@@ -194,6 +209,12 @@ def build_anchor_side(rows, start, resolve, min_seconds, out_dir):
         chunks.append(y)
     os.makedirs(out_dir, exist_ok=True)
     dest = os.path.join(out_dir, f"anchor_{start:05d}.wav")
+    # A cache path must never replace or alias any admitted input waveform.
+    for source in input_paths:
+        if (os.path.realpath(dest) == os.path.realpath(source)
+                or (os.path.exists(dest) and os.path.exists(source)
+                    and os.path.samefile(dest, source))):
+            return None
     sf.write(dest, np.concatenate(chunks), rate)
     return dest
 
@@ -236,20 +257,23 @@ def main():
     print(f"{len(rows)} lines, arms {arms} + anchors\n")
 
     ap_ = lambda p: os.path.join(REPO, p)
+    input_paths = [ap_(row[key]) for row in rows
+                   for key in ["human_wav", *[f"{arm}_wav" for arm in arms]]]
     anchor_dir = os.path.join(REPO, "ab_test_runtime", "anchor_cache",
                               os.path.basename(args.out).replace(".json", ""))
     scored, pairs, index = [], [], []
 
     for i, r in enumerate(rows):
         human = ap_(r["human_wav"])
+        human_seconds = duration(human)
         rec = {"id": r["id"], "book": r["book"],
-               "human_seconds": r["human_seconds"]}
+               "human_seconds": human_seconds}
         for arm in arms:
             gen = ap_(r[f"{arm}_wav"])
             rec[arm] = {
                 "f0_corr": f0_contour_correlation(human, gen),
                 "mcd": mel_cepstral_distortion(human, gen),
-                "dur_ratio": duration(gen) / max(r["human_seconds"], 1e-6),
+                "dur_ratio": duration(gen) / max(human_seconds, 1e-6),
             }
             pairs.append((human, gen)); index.append((i, arm))
         # CEILING: the same narrator on different held-out material. Costs no
@@ -271,19 +295,28 @@ def main():
         # So each side is built by joining consecutive clips until it reaches
         # ANCHOR_MIN_SECONDS. Continuity does not matter to a speaker
         # embedding, only quantity of voiced material.
-        o = build_anchor_side(rows, i + 1, ap_, ANCHOR_MIN_SECONDS, anchor_dir)
-        other = rows[(i + 1) % len(rows)]
-        if o and other["id"] != r["id"]:
+        o = build_anchor_side(rows, i + 1, ap_, ANCHOR_MIN_SECONDS, anchor_dir,
+                              exclude=r, input_paths=input_paths)
+        if o:
+            anchor_seconds = duration(o)
             rec["human_vs_human"] = {
                 "f0_corr": f0_contour_correlation(human, o),
                 "mcd": mel_cepstral_distortion(human, o),
-                "dur_ratio": other["human_seconds"] / max(r["human_seconds"], 1e-6),
-                "anchor_seconds": round(duration(o), 2),
+                "dur_ratio": anchor_seconds / max(human_seconds, 1e-6),
+                "anchor_seconds": round(anchor_seconds, 2),
             }
             pairs.append((human, o)); index.append((i, "human_vs_human"))
+        else:
+            rec["human_vs_human_error"] = ("no valid disjoint anchor of at least "
+                                            f"{ANCHOR_MIN_SECONDS:g}s at one sample rate")
         scored.append(rec)
         if (i + 1) % 20 == 0:
             print(f"  {i + 1}/{len(rows)} acoustic")
+
+    unavailable = sum("human_vs_human_error" in row for row in scored)
+    if unavailable:
+        print(f"\n  CEILING unavailable for {unavailable}/{len(scored)} lines: "
+              "no valid disjoint anchor; reasons recorded per row.")
 
     print("\n  ECAPA in the sibling interpreter...")
     cos, err = ecapa_scores(pairs)
