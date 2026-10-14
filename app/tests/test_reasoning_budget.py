@@ -131,8 +131,10 @@ class SegmentAllowanceWiringTest(unittest.TestCase):
         source = inspect.getsource(tp.run_three_pass)
         segment_loop = source[source.index("seg_base = elapsed_s.get"):]
         segment_loop = segment_loop[:segment_loop.index("elapsed_s[\"attribute\"]")]
-        self.assertIn("reasoning_allowance.observe", segment_loop,
+        self.assertIn("reasoning_allowance.observe", source,
                       "pass 1 must feed the allowance it consumes")
+        self.assertTrue("attempt_observer=observe_reasoning" in segment_loop,
+                        "pass 1 must feed it live, not after the chunk (#1249)")
 
     def test_ceiling_grows_once_reasoning_is_observed(self):
         from generate_script import LLMGenParams
@@ -144,6 +146,57 @@ class SegmentAllowanceWiringTest(unittest.TestCase):
         warm = resolve_completion_ceiling(540, params, allowance.current())
         self.assertEqual(cold, 2700)
         self.assertGreater(warm, 9000)
+
+
+class SegmentAllowanceLiveTest(unittest.TestCase):
+    """#1249: the allowance was observed only after a chunk returned, so the
+    first chunk that needed the model - and every adaptive split piece inside
+    it - ran with an allowance of 0. A reasoning model that filled the ceiling
+    with thinking failed the whole book there. Drives run_three_pass's real
+    Pass 1 loop with _call_segment faked: the first call truncates mid-thought,
+    the split pieces succeed. Synthetic text only."""
+
+    CHUNK = "\n\n".join(
+        f"Paragraph {n} walks along the quiet river and counts the grey stones one by one."
+        for n in range(1, 17))  # > 800 chars, so split_failed_chunk can halve it
+
+    def run_pass1(self, reasoning_tokens):
+        import three_pass_generate as tp
+        from unittest.mock import patch
+        seen = []
+
+        def fake_call(client, model_name, chunk, sys_prompt, user_prompt, params,
+                      label, max_retries, near_miss_sink, validate=None,
+                      attempt_observer=None, retry_decider=None, quote_analysis=None):
+            seen.append(params.reasoning_allowance)
+            first = len(seen) == 1
+            if attempt_observer:
+                attempt_observer({"finish_reason": "length" if first else "stop",
+                                  "reasoning_tokens": reasoning_tokens,
+                                  "failure_codes": ["malformed_json"] if first else []})
+            return [] if first else [{"type": "NARRATOR", "text": chunk}]
+
+        params = LLMGenParams(max_tokens=500, temperature=0, segmentation="llm")
+        with patch.object(tp, "_call_segment", side_effect=fake_call), \
+             patch.object(tp, "attribute_batch", return_value=[]), \
+             patch.object(tp, "instruct_batch", return_value=[]):
+            try:
+                tp.run_three_pass(None, "m", self.CHUNK, params, chunk_size=6000)
+            except Exception:
+                pass  # later passes are irrelevant; only Pass 1's budgets are under test
+        return seen
+
+    def test_split_piece_after_truncated_thinking_gets_the_room(self):
+        seen = self.run_pass1(900)
+        self.assertGreaterEqual(len(seen), 3, "the chunk must fail and split")
+        self.assertEqual(0, seen[0], "cold start: nothing observed yet")
+        # 900 truncated -> observed as at least 1800, lifted to the floor if lower.
+        self.assertTrue(all(a >= 1800 for a in seen[1:]), seen)
+
+    def test_non_reasoning_model_keeps_zero(self):
+        seen = self.run_pass1(None)
+        self.assertGreaterEqual(len(seen), 3)
+        self.assertEqual([0] * len(seen), seen)
 
 
 class ReasoningEffortPlumbingTest(unittest.TestCase):

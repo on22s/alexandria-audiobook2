@@ -1310,7 +1310,7 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
 
 def segment_chunk(client, model_name, chunk, params, max_retries=4,
                   near_miss_sink=None, failure_sink=None, attempt_sink=None,
-                  quote_analysis=None):
+                  quote_analysis=None, attempt_observer=None):
     """Pass 1 single attempt-budget over one chunk -> [{type,text}], via the
     segment fidelity gate. Captures a trigram-only near-miss into near_miss_sink
     (same mechanism call_llm_for_entries uses for single-pass). Returns [] on
@@ -1337,6 +1337,8 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4,
         attempts.append(attempt)
         if attempt_sink is not None:
             attempt_sink.append(attempt)
+        if attempt_observer:
+            attempt_observer(attempt)
     def decide(quality, repeat_evidence):
         codes = {finding.get("code") for finding in quality.get("findings", [])}
         splittable = {"low_source_token_recall", "low_ordered_trigram_recall",
@@ -1522,7 +1524,7 @@ class RunProgress:
 def segment_chunk_adaptively(client, model_name, chunk, params,
                              resolution_sink=None, failure_sink=None,
                              attempt_sink=None, quote_analysis=None,
-                             quote_decision=None):
+                             quote_decision=None, attempt_observer=None):
     """Pass 1 with the full safety net: full-chunk attempt, then a
     natural-boundary split whose halves each recurse, and exhaustion-only
     trigram-only near-miss acceptance. Mirrors process_chunk_adaptively but for
@@ -1545,7 +1547,8 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
     local_failures = []
     entries = segment_chunk(client, model_name, chunk, params,
                             near_miss_sink=near_miss, failure_sink=local_failures,
-                            attempt_sink=attempt_sink, quote_analysis=quote_analysis)
+                            attempt_sink=attempt_sink, quote_analysis=quote_analysis,
+                            attempt_observer=attempt_observer)
     if entries:
         _record_resolution(resolution_sink, "clean")
         return entries
@@ -1573,7 +1576,7 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
         depth = part_analysis["final_depth"]
         part_entries = segment_chunk_adaptively(
             client, model_name, part, params, attempt_sink=attempt_sink,
-            quote_analysis=part_analysis)
+            quote_analysis=part_analysis, attempt_observer=attempt_observer)
         if not part_entries:
             any_failed = True
             continue
@@ -2535,12 +2538,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
 
     reasoning_allowance = ReasoningAllowance()
 
-    def record_attempt(pass_name, attempt):
-        # The shared helper completes this record after notifying observers.
-        # Keep its reference so final outcomes reach diagnostics and manifests.
-        attempts.append(attempt)
-        attempt_passes[id(attempt)] = pass_name
-        last_attempts["latest"] = attempt
+    def observe_reasoning(attempt):
         # Size the next call from what this model has actually shown. Stays at
         # zero for a model that never reports reasoning_tokens, so a
         # non-reasoning model keeps exactly today's ceiling.
@@ -2548,6 +2546,14 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             attempt.get("reasoning_tokens"),
             truncated=attempt.get("finish_reason") == "length")
         params.reasoning_allowance = reasoning_allowance.current()
+
+    def record_attempt(pass_name, attempt):
+        # The shared helper completes this record after notifying observers.
+        # Keep its reference so final outcomes reach diagnostics and manifests.
+        attempts.append(attempt)
+        attempt_passes[id(attempt)] = pass_name
+        last_attempts["latest"] = attempt
+        observe_reasoning(attempt)
         if attempt.get("finish_reason") is not None:
             params.observed_calls += 1
 
@@ -2647,6 +2653,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             # below. Top level only, as evaluated (split halves run ordinary).
             seg = segment_chunk_compact(client, model_name, chunks[i], params,
                                         attempt_sink=attempts)
+            for attempt in attempts[attempts_before:]:
+                observe_reasoning(attempt)
             if seg:
                 _record_resolution(sink, "compact")
             else:
@@ -2657,7 +2665,11 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                                            resolution_sink=sink, failure_sink=failures,
                                            attempt_sink=attempts,
                                            quote_analysis=quote_analyses[i],
-                                           quote_decision=quote_decisions[i])
+                                           quote_decision=quote_decisions[i],
+                                           # #1249: live, so each split piece of the
+                                           # first model chunk gets the thinking room
+                                           # the attempt before it showed.
+                                           attempt_observer=observe_reasoning)
         finish_step(1, "chunk", i + 1, len(chunks),
                     "from quote marks" if by_marks else "from the model")
         if progress and not by_marks:
@@ -2665,11 +2677,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             print(progress.eta_line(1), flush=True)
         for attempt in attempts[observed_attempts:]:
             attempt.setdefault("pass", "segment")
-            reasoning_allowance.observe(
-                attempt.get("reasoning_tokens"),
-                truncated=attempt.get("finish_reason") == "length")
         observed_attempts = len(attempts)
-        params.reasoning_allowance = reasoning_allowance.current()
         if not seg and should_rescue_with_context(failures[0] if failures else set()):
             # Last resort: retry with escalating surrounding-source context.
             print(f"  chunk {i + 1}/{len(chunks)} failed normal segmentation; "

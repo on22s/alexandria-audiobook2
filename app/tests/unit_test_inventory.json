@@ -6353,6 +6353,8 @@
     "tests.test_reasoning_budget.ResolveCompletionCeilingTest.test_floor_still_applies",
     "tests.test_reasoning_budget.ResolveCompletionCeilingTest.test_non_reasoning_model_keeps_todays_ceiling",
     "tests.test_reasoning_budget.ResolveCompletionCeilingTest.test_reasoning_allowance_is_added_on_top",
+    "tests.test_reasoning_budget.SegmentAllowanceLiveTest.test_non_reasoning_model_keeps_zero",
+    "tests.test_reasoning_budget.SegmentAllowanceLiveTest.test_split_piece_after_truncated_thinking_gets_the_room",
     "tests.test_reasoning_budget.SegmentAllowanceWiringTest.test_ceiling_grows_once_reasoning_is_observed",
     "tests.test_reasoning_budget.SegmentAllowanceWiringTest.test_segment_attempts_feed_the_allowance",
     "tests.test_reasoning_budget.TruncatedObservationTest.test_complete_observation_is_taken_at_face_value",
