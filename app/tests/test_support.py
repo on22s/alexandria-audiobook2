@@ -1,3 +1,23 @@
+from contextlib import contextmanager
+import sys
+
+
+@contextmanager
+def apply_test_module_providers(providers):
+    """Restore only replaced provider keys, retaining unrelated lazy imports."""
+    missing = object()
+    previous = {name: sys.modules.get(name, missing) for name in providers}
+    sys.modules.update(providers)
+    try:
+        yield
+    finally:
+        for name, module in previous.items():
+            if module is missing:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = module
+
+
 class _Upload:
     def __init__(self, chunks):
         self._chunks = iter(chunks)

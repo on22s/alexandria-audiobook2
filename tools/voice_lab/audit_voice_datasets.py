@@ -19,10 +19,10 @@ if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 from utils import atomic_json_write
 from audio_validation import validate_finite_audio_values
-from voice_dataset_merge import get_file_fingerprint
+from voice_dataset_merge import get_decoded_pcm_hash, get_file_fingerprint
 
 
-REPORT_VERSION = 1
+REPORT_VERSION = 2
 THRESHOLDS = {
     "duration_min_seconds": 1.0,
     "duration_max_seconds": 30.0,
@@ -40,6 +40,7 @@ def get_clip_metrics(wav_bytes: bytes) -> tuple[dict, str]:
     if not len(audio):
         raise ValueError("empty audio")
     validate_finite_audio_values(audio, "decoded dataset PCM")
+    pcm_hash = get_decoded_pcm_hash(audio, sample_rate)
     mono = audio.mean(axis=1)
     absolute = np.abs(mono)
     frame_length = max(1, int(sample_rate * 0.02))
@@ -49,7 +50,6 @@ def get_clip_metrics(wav_bytes: bytes) -> tuple[dict, str]:
     noise_floor = float(np.percentile(frame_rms, 10))
     signal_level = float(np.percentile(frame_rms, 90))
     snr_estimate = 20 * np.log10((signal_level + 1e-8) / (noise_floor + 1e-8))
-    pcm_hash = hashlib.sha256(np.asarray(mono, dtype="<f4").tobytes()).hexdigest()
     metrics = {
         "duration_seconds": len(mono) / sample_rate,
         "sample_rate": int(sample_rate),

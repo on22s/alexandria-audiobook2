@@ -1,7 +1,11 @@
 import importlib
 import json
+import os
 from pathlib import Path
 import subprocess
+import sys
+import tempfile
+import time
 import unittest
 
 
@@ -9,7 +13,12 @@ INVENTORY_PATH = Path(__file__).with_name("unit_test_inventory.json")
 EXCLUDED_TEST_MODULES = {"test_api"}  # Script-style live API suite, not unittest.
 
 
-def _tracked_test_modules():
+def get_test_directory(test_directory=None):
+    """Return the discovery root, allowing private fixture trees."""
+    return Path(test_directory) if test_directory is not None else Path(__file__).parent
+
+
+def _tracked_test_modules(test_directory=None):
     """Module stems for test files git tracks, or None if git cannot answer.
 
     This working tree is shared between concurrent sessions on different
@@ -22,7 +31,7 @@ def _tracked_test_modules():
     try:
         result = subprocess.run(
             ["git", "ls-files", "-z", "--", "test*.py"],
-            cwd=Path(__file__).parent, capture_output=True, timeout=10)
+            cwd=get_test_directory(test_directory), capture_output=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
         return None
     if result.returncode != 0:
@@ -39,11 +48,12 @@ def _iter_tests(suite):
             yield test
 
 
-def get_unit_test_inventory():
+def get_unit_test_inventory(test_directory=None):
     """Return every discoverable unittest module and its stable test IDs."""
-    tracked = _tracked_test_modules()
+    directory = get_test_directory(test_directory)
+    tracked = _tracked_test_modules(directory)
     modules = sorted(
-        path.stem for path in Path(__file__).parent.glob("test*.py")
+        path.stem for path in directory.glob("test*.py")
         if path.stem not in EXCLUDED_TEST_MODULES
         # Fall back to the filesystem when git cannot answer (a source export,
         # a container without git) rather than reporting an empty inventory.
@@ -98,7 +108,53 @@ class TestInventoryTests(unittest.TestCase):
                 self.assertEqual(first, path.read_bytes())
 
 
-class TrackedOnlyDiscoveryTest(unittest.TestCase):
+class InventoryFixtureTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.directory = self.root / "tests"
+        self.directory.mkdir()
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        (self.directory / "test_fixture.py").write_text(
+            "import unittest\nclass Fixture(unittest.TestCase):\n"
+            "    def test_tracked(self):\n        pass\n", encoding="utf-8")
+        (self.directory / "test_api.py").write_text("raise RuntimeError('excluded')\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.root), "add", "tests/test_fixture.py", "tests/test_api.py"], check=True)
+
+    def start_fixture_reader(self, directory=None, *, wait_file=None):
+        directory = self.directory if directory is None else directory
+        code = (
+            "import json,os,sys,time\nfrom pathlib import Path\n"
+            "import tests.test_inventory as inventory\nimport update_test_inventory as updater\n"
+            "import tests\ntests.__path__=[sys.argv[1]]\nroot=Path(sys.argv[1])\n"
+        )
+        if wait_file is not None:
+            code += "(root/'ready').touch()\nwhile not Path(sys.argv[2]).exists():time.sleep(0.01)\n"
+        code += "print(json.dumps({'inventory':inventory.get_unit_test_inventory(root),'untracked':updater.find_untracked_test_modules(root)}))\n"
+        environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        environment["PYTHONPATH"] = str(Path(__file__).parent.parent)
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
+        return subprocess.Popen([sys.executable, "-c", code, str(directory), str(wait_file)],
+                                cwd=self.root, env=environment, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
+
+    def read_fixture(self, directory=None):
+        child = self.start_fixture_reader(directory)
+        return self.read_child(child)
+
+    def read_child(self, child):
+        try:
+            stdout, stderr = child.communicate(timeout=10)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.communicate()
+        self.assertEqual(0, child.returncode, stderr)
+        return json.loads(stdout)
+
+
+class TrackedOnlyDiscoveryTest(InventoryFixtureTests):
     """The inventory is checked in, so it can only contain tracked files.
 
     This tree is shared between concurrent sessions on different branches. An
@@ -107,33 +163,31 @@ class TrackedOnlyDiscoveryTest(unittest.TestCase):
     """
 
     def test_an_untracked_test_file_is_not_inventoried(self):
-        untracked = Path(__file__).with_name("test_zz_untracked_probe.py")
+        untracked = self.directory / "test_zz_untracked_probe.py"
         untracked.write_text(
             "import unittest\n\n\n"
             "class Probe(unittest.TestCase):\n"
             "    def test_probe(self):\n        pass\n",
             encoding="utf-8")
-        try:
-            self.assertNotIn("test_zz_untracked_probe", get_unit_test_inventory())
-        finally:
-            untracked.unlink()
+        self.assertNotIn("test_zz_untracked_probe", self.read_fixture()["inventory"])
 
     def test_tracked_files_are_still_discovered(self):
-        self.assertIn("test_inventory", get_unit_test_inventory())
+        self.assertEqual({"test_fixture": ["tests.test_fixture.Fixture.test_tracked"]},
+                         self.read_fixture()["inventory"])
 
     def test_discovery_falls_back_when_git_is_unavailable(self):
         # A source export without git must still produce an inventory rather
         # than an empty one.
-        from tests import test_inventory
-        original = test_inventory._tracked_test_modules
-        test_inventory._tracked_test_modules = lambda: None
-        try:
-            self.assertIn("test_inventory", get_unit_test_inventory())
-        finally:
-            test_inventory._tracked_test_modules = original
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            for name in ("test_fixture.py", "test_api.py"):
+                (directory / name).write_bytes((self.directory / name).read_bytes())
+            self.assertEqual({"test_fixture": ["tests.test_fixture.Fixture.test_tracked"]},
+                             self.read_fixture(directory)["inventory"])
+            self.assertEqual([], self.read_fixture(directory)["untracked"])
 
 
-class UntrackedTestWarningTest(unittest.TestCase):
+class UntrackedTestWarningTest(InventoryFixtureTests):
     """Excluding untracked files from the inventory created an ordering trap.
 
     Write a new test file, regenerate the inventory, then git add and commit:
@@ -143,20 +197,83 @@ class UntrackedTestWarningTest(unittest.TestCase):
     """
 
     def test_a_new_untracked_test_file_is_reported(self):
-        from update_test_inventory import find_untracked_test_modules
-        probe = Path(__file__).with_name("test_zz_untracked_warning_probe.py")
+        probe = self.directory / "test_zz_untracked_warning_probe.py"
         probe.write_text("import unittest\n", encoding="utf-8")
-        try:
-            self.assertIn(probe.name, find_untracked_test_modules())
-        finally:
-            probe.unlink()
+        self.assertEqual([probe.name], self.read_fixture()["untracked"])
 
     def test_a_tracked_file_is_not_reported(self):
-        from update_test_inventory import find_untracked_test_modules
         # Asserting the whole tree is clean would fail during normal work -
         # a new test file is untracked exactly when you are writing it, which
         # is when you run the suite most. Assert the behaviour instead.
-        self.assertNotIn("test_inventory.py", find_untracked_test_modules())
+        self.assertEqual([], self.read_fixture()["untracked"])
+
+
+class InventoryFixtureIsolationTests(InventoryFixtureTests):
+    def get_checkout_snapshot(self):
+        directory = Path(__file__).parent
+        index = subprocess.run(["git", "rev-parse", "--git-path", "index"],
+                               cwd=directory, capture_output=True, text=True, check=True).stdout.strip()
+        index = Path(index)
+        if not index.is_absolute():
+            index = directory / index
+        return ({path.name: path.read_bytes() for path in directory.glob("test*.py")},
+                index.read_bytes())
+
+    def test_hard_exit_after_each_actual_probe_write_leaves_only_private_residue(self):
+        before = self.get_checkout_snapshot()
+        for class_name, method_name, probe_name in (
+            ("TrackedOnlyDiscoveryTest", "test_an_untracked_test_file_is_not_inventoried", "test_zz_untracked_probe.py"),
+            ("UntrackedTestWarningTest", "test_a_new_untracked_test_file_is_reported", "test_zz_untracked_warning_probe.py")):
+            with self.subTest(class_name=class_name):
+                state = self.root / "child-root"
+                code = ("import os\nfrom pathlib import Path\nimport tests.test_inventory as module\n"
+                        f"case=module.{class_name}({method_name!r})\ncase.setUp()\n"
+                        f"Path({str(state)!r}).write_text(str(case.directory))\n"
+                        "case.read_fixture=lambda:os._exit(23)\n"
+                        f"case.{method_name}()\n")
+                environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+                environment.update(PYTHONPATH=str(Path(__file__).parent.parent),
+                                   PYTHONDONTWRITEBYTECODE="1", TMPDIR=str(self.root))
+                result = subprocess.run([sys.executable, "-c", code], cwd=self.root, env=environment,
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(23, result.returncode, result.stderr)
+                directory = Path(state.read_text())
+                self.assertTrue(directory.is_relative_to(self.root))
+                self.assertTrue((directory / probe_name).is_file())
+                self.assertEqual(before, self.get_checkout_snapshot())
+
+    def test_overlapping_private_readers_keep_fixed_probe_names_and_indexes_independent(self):
+        before = self.get_checkout_snapshot()
+        other = InventoryFixtureTests()
+        other.setUp()
+        self.addCleanup(other.doCleanups)
+        probe_name = "test_zz_untracked_probe.py"
+        (self.directory / probe_name).write_text("first private probe\n")
+        (other.directory / probe_name).write_text("second private probe\n")
+        indexes = [(case.root / ".git/index").read_bytes() for case in (self, other)]
+        release = self.root / "release"
+        children = [case.start_fixture_reader(wait_file=release) for case in (self, other)]
+        try:
+            deadline = time.monotonic() + 5
+            while not all((case.directory / "ready").exists() for case in (self, other)):
+                self.assertLess(time.monotonic(), deadline, "private readers did not reach barrier")
+                time.sleep(0.01)
+            release.touch()
+            for child in children:
+                result = self.read_child(child)
+                self.assertEqual({"test_fixture": ["tests.test_fixture.Fixture.test_tracked"]}, result["inventory"])
+                self.assertEqual([probe_name], result["untracked"])
+            self.assertEqual("first private probe\n", (self.directory / probe_name).read_text())
+            self.assertEqual(indexes[1], (other.root / ".git/index").read_bytes())
+            other.doCleanups()
+            self.assertTrue((self.directory / probe_name).exists())
+            self.assertEqual(indexes[0], (self.root / ".git/index").read_bytes())
+            self.assertEqual(before, self.get_checkout_snapshot())
+        finally:
+            for child in children:
+                if child.poll() is None:
+                    child.kill()
+                child.communicate()
 
 
 if __name__ == "__main__":

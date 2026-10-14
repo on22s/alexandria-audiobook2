@@ -7,6 +7,7 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock,patch
+from tests.test_support import apply_test_module_providers
 
 from fastapi import FastAPI
 import httpx
@@ -114,11 +115,11 @@ class DatasetMetadataTrainingTests(unittest.TestCase):
             (root/'metadata.jsonl').write_text(json.dumps({'audio':'val/sample.wav','text':'Held out.'}))
             (root/'val/metadata.jsonl').write_text(json.dumps({'audio':'val/sample.wav','text':'Held out.'}))
             seen=[]
-            def read_audio(path,sr,mono):
+            def read_audio(path,sr,mono,duration):
                 seen.append(Path(path));data,rate=sf.read(path,dtype='float32');return data,rate
             hf=SimpleNamespace(speaker_encoder=lambda tensor:torch.ones(1,4),speech_tokenizer=SimpleNamespace(encode=lambda audio,sr:SimpleNamespace(audio_codes=[torch.zeros(2,16,dtype=torch.long)])))
             processor=lambda **kwargs:{'input_ids':torch.tensor([[1,2,3]])}
-            with patch.dict(sys.modules,{'librosa':SimpleNamespace(load=read_audio),
+            with apply_test_module_providers({'librosa':SimpleNamespace(load=read_audio,get_duration=lambda path:sf.info(path).duration),
                     'qwen_tts.core.models.modeling_qwen3_tts':SimpleNamespace(mel_spectrogram=lambda *args,**kwargs:torch.ones(1,128,4))}):
                 samples,reference=train_lora.load_dataset(tmp,hf,processor,'cpu',torch.float32,30)
             self.assertEqual(['Train only.'],[sample['text'] for sample in samples])

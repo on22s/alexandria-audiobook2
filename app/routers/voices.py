@@ -255,9 +255,10 @@ def _mutate_voice_entry(speaker, mutator):
         return entry
 
 
-def _apply_book_voice_update(transform, expected_revision=None):
+def _apply_book_voice_update(transform, expected_revision=None, config_path=None):
     """Publish voice changes while fencing affected renders under chunk locks."""
-    root = os.path.dirname(VOICE_CONFIG_PATH)
+    config_path = VOICE_CONFIG_PATH if config_path is None else config_path
+    root = os.path.dirname(config_path)
     chunks_path = CHUNKS_PATH if os.path.dirname(CHUNKS_PATH) == root else os.path.join(root, "chunks.json")
     manager = project_manager if project_manager.chunks_path == chunks_path else ProjectManager(root)
     if manager is not project_manager:
@@ -267,7 +268,7 @@ def _apply_book_voice_update(transform, expected_revision=None):
             updated = transform(current)
             manager._apply_voice_timeline_audio_invalidation_locked(current, updated)
             return updated
-        return apply_voice_config_update(VOICE_CONFIG_PATH, update, expected_revision=expected_revision)
+        return apply_voice_config_update(config_path, update, expected_revision=expected_revision)
 
 
 def _mutate_book_voice_entry(speaker, mutator, book_token=None):

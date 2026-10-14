@@ -11,7 +11,7 @@ from unittest.mock import patch
 import llama_server_process as policy
 
 SERVER = r"""
-import ctypes,json,os,signal,socket,sys,time
+import ctypes,errno,json,os,signal,socket,sys,time
 from http.server import BaseHTTPRequestHandler,HTTPServer
 ctypes.CDLL(None).prctl(15,b'llama-server',0,0,0)
 if sys.argv[1]=='ignore':signal.signal(signal.SIGTERM,signal.SIG_IGN)
@@ -21,7 +21,16 @@ if sys.argv[1] in ('v6-loopback','v6-wildcard'):
   def server_bind(self):
    self.socket.setsockopt(socket.IPPROTO_IPV6,socket.IPV6_V6ONLY,1)
    super().server_bind()
- server=IPv6Server(('::1' if sys.argv[1]=='v6-loopback' else '::',0),BaseHTTPRequestHandler)
+ for attempt in range(8):
+  ipv4_guard=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+  try:
+   ipv4_guard.bind(('127.0.0.1',0))
+   server=IPv6Server(('::1' if sys.argv[1]=='v6-loopback' else '::',ipv4_guard.getsockname()[1]),BaseHTTPRequestHandler)
+  except OSError as error:
+   ipv4_guard.close()
+   if error.errno!=errno.EADDRINUSE:raise
+  else:break
+ else:raise RuntimeError('Could not reserve a joint IPv4/IPv6 fixture port')
 else:server=HTTPServer(('127.0.0.1',0),BaseHTTPRequestHandler)
 child=None
 if sys.argv[1]=='shared':
@@ -110,3 +119,15 @@ class LlamaServerProcessTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'unverified IPv4 ownership'):
             policy.stop_llama_server_listener(port,sys.executable)
         self.assertIsNone(sentinel.poll())
+
+    def test_ipv6_fixtures_reserve_ipv4_port_without_a_listener(self):
+        import errno
+        import socket
+        for mode in ('v6-loopback', 'v6-wildcard'):
+            with self.subTest(mode=mode):
+                sentinel,port = self.start(mode)
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as competing:
+                    with self.assertRaises(OSError) as caught:
+                        competing.bind(('127.0.0.1', port))
+                    self.assertEqual(errno.EADDRINUSE, caught.exception.errno)
+                self.assertIsNone(sentinel.poll())

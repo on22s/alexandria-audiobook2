@@ -76,6 +76,7 @@ while IFS= read -r generated_path; do
 done <<< "${metadata#*$'\n'}"
 
 if [ "$goals_only_pointer" = 1 ]; then
+    generated_paths+=("GOALS.md")
     echo "resolving GOALS.md's line pointer (recomputed below)"
     "$python" - "$REPO/GOALS.md" <<'PYEOF' || exit 1
 import re, sys

@@ -4,7 +4,8 @@ import json
 import uuid
 from collections import defaultdict, deque
 
-from project import CHUNK_GENERATION_FIELDS, get_chunk_text_key, group_into_chunks
+from project import (CHUNK_GENERATION_FIELDS, NARRATOR_GENERATION_FIELDS,
+                     get_chunk_text_key, get_narrator_generation_context, group_into_chunks)
 from literal_policy import CHUNK_POLICY_KEY, ensure_literal_chunk, get_literal_policy
 
 
@@ -44,7 +45,9 @@ def get_delivery_retry_chunks(before, after, chunks):
     for chunk in chunks:
         ensure_literal_chunk(chunk, policy)
     if any(any(field in chunk for field in CHUNK_GENERATION_FIELDS
-               if field not in (*BASIC_FIELDS, CHUNK_POLICY_KEY)) for chunk in chunks):
+               if field not in (*BASIC_FIELDS, CHUNK_POLICY_KEY, *NARRATOR_GENERATION_FIELDS))
+           or get_narrator_generation_context(chunk) != get_narrator_generation_context(group)
+           for group, chunk in zip(old_groups, chunks)):
         raise ValueError("Editor voice/style overrides need manual delivery review; retry would replace them.")
 
     def key(group):

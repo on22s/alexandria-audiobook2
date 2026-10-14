@@ -35,6 +35,7 @@ from core import (
     get_trait_assignment_metadata,
 )
 from voice_manifest import get_resolved_adapter_id_mapping
+from routers.voices import _apply_book_voice_update
 from book_state_transaction import ensure_book_state, get_book_snapshot, get_book_snapshot_token
 from utils import atomic_json_write, file_lock, is_generic_speaker, safe_load_json, secure_filename
 
@@ -314,8 +315,18 @@ def _apply_cast_to_current_book(cast_name, mapping, book_token):
         if get_book_snapshot_token(snapshot) != book_token:
             raise HTTPException(status_code=409, detail="Active book changed; reopen Apply cast before saving")
         lib = _get_cast_library(cast_name)
-        return _apply_cast_to_config_file(
-            VOICE_CONFIG_PATH, lib, cast_name, mapping, book_id=snapshot["book_id"])
+        # Member availability does not depend on existing voice assignments.
+        # Keep an unmapped cast from rewriting or creating the active config.
+        _, applied = _apply_cast_mapping(lib, cast_name, mapping, {}, book_id=snapshot["book_id"])
+        if not applied:
+            return []
+        def transform(current):
+            nonlocal applied
+            updated, applied = _apply_cast_mapping(
+                lib, cast_name, mapping, current, book_id=snapshot["book_id"])
+            return updated
+        _apply_book_voice_update(transform, config_path=VOICE_CONFIG_PATH)
+        return applied
 
 
 @router.get("/api/voice_library")

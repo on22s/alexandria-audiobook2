@@ -3,7 +3,7 @@
 voice_profiler.py — Analyze narrator ref.wav clips and generate voice descriptions.
 
 For each adapter in manifest.json:
-  1. Extracts ref.wav from the source zip
+  1. Reads the served adapter reference (or ref.wav for ZIP-only legacy rows)
   2. Runs librosa acoustic analysis (pitch, energy, rate, timbre)
   3. Sends feature summary + narrator name to local Qwen LLM
   4. Writes voice_profile back to manifest + exports voice_profiles.csv
@@ -43,7 +43,9 @@ if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
 
 from voicelab_settings import get_profiler_paths
-from voice_manifest import get_voice_manifest
+from voice_manifest import get_voice_manifest, get_resolved_adapter_path, validate_adapter_name
+from adapter_checkpoint_transaction import (ensure_adapter_checkpoint, get_adapter_generation_sha256,
+                                            get_adapter_serving_metadata, GENERATION_FILES)
 from device_utils import normalize_device
 from utils import atomic_json_write
 from archive_utils import read_zip_member_bounded
@@ -516,6 +518,45 @@ def get_ref_text(zip_path: str) -> str:
     return ""
 
 
+def get_profile_reference(entry, manifest_path):
+    """Capture one admitted serving pair, retaining unidentified ZIP-only rows."""
+    adapter_path = entry.get('adapter_path')
+    if 'adapter_path' in entry:
+        if not isinstance(adapter_path, str) or not adapter_path.strip():
+            raise ValueError('adapter_path must identify a trained adapter directory')
+    elif entry.get('id'):
+        validate_adapter_name(entry['id'])
+        candidate = os.path.join(os.path.dirname(os.path.abspath(manifest_path)), entry['id'])
+        resolved = get_resolved_adapter_path(candidate)
+        if os.path.lexists(resolved) or resolved != candidate:
+            adapter_path = candidate
+    if adapter_path is None:
+        return get_ref_wav(entry['zip_source']), get_ref_text(entry['zip_source'])
+
+    with ensure_adapter_checkpoint(adapter_path) as adapter:
+        for name in GENERATION_FILES:
+            path = adapter / name
+            if path.is_symlink() or not path.is_file():
+                raise ValueError('Adapter serving artifact must be a regular file: ' + name)
+        if (adapter / 'ref_sample.wav').stat().st_size > MAX_REF_WAV_BYTES:
+            raise ValueError('Adapter reference audio exceeds the byte limit')
+        generation = get_adapter_generation_sha256(adapter)
+        with (adapter / 'ref_sample.wav').open('rb') as handle:
+            if os.fstat(handle.fileno()).st_size > MAX_REF_WAV_BYTES:
+                raise ValueError('Adapter reference audio exceeds the byte limit')
+            # Bound JSON overhead too; the paired transcript retains its own 1-MiB cap.
+            meta = get_adapter_serving_metadata(adapter, MAX_REF_WAV_BYTES + MAX_REF_TEXT_BYTES)
+            text = meta['ref_sample_text']
+            if len(text.encode('utf-8')) > MAX_REF_TEXT_BYTES:
+                raise ValueError('Adapter reference text exceeds the byte limit')
+            wav_bytes = handle.read(MAX_REF_WAV_BYTES + 1)
+        if len(wav_bytes) > MAX_REF_WAV_BYTES:
+            raise ValueError('Adapter reference audio exceeds the byte limit')
+        if get_adapter_generation_sha256(adapter) != generation:
+            raise ValueError('Adapter generation changed during reference capture')
+    return wav_bytes, text
+
+
 def parse_book_title(dataset_id: str) -> str:
     """Extract book title from dataset_id after stripping narrator name and suffixes."""
     _, title, _ = get_dataset_identity(dataset_id)
@@ -689,12 +730,16 @@ def main() -> int:
 
     for i, entry in enumerate(todo, 1):
         dataset_id = entry.get('dataset_id', entry.get('name', ''))
-        zip_path   = entry['zip_source']
         best_loss  = entry.get('best_loss', entry.get('final_loss', 0))
 
         print(f"[{i:3d}/{len(todo)}] {dataset_id[:72]}", flush=True)
 
-        wav_bytes = get_ref_wav(zip_path)
+        try:
+            wav_bytes, ref_text = get_profile_reference(entry, args.manifest)
+        except Exception as e:
+            print(f"  ERROR reading serving reference: {e}", flush=True)
+            errors += 1
+            continue
         if wav_bytes is None:
             print(f"  SKIP — no ref.wav", flush=True)
             errors += 1
@@ -712,7 +757,6 @@ def main() -> int:
 
         narrator     = parse_narrator_name(dataset_id)
         book_title   = parse_book_title(dataset_id)
-        ref_text     = get_ref_text(zip_path)
         description  = summary  # fallback for dry_run
 
         _, title, asin = get_dataset_identity(dataset_id)

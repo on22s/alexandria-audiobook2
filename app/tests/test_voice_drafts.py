@@ -30,7 +30,7 @@ function client(storage,API,value={ALICE:{type:'design',description:'pending',se
  const status={innerHTML:'',textContent:''},panel={innerHTML:'',textContent:''},events={},errors=[],confirmations=[];
  const context={currentBookFilename:'',ensureVoiceRosterCache:()=>{},window:{localStorage:storage,addEventListener:(name,fn)=>events[name]=fn},
  document:{getElementById:id=>id==='voice-save-status'?status:id==='voice-save-drafts'?panel:null,querySelectorAll:()=>[{}]},
- setTimeout:()=>1,clearTimeout(){},console:{error(){}},Date,Math,API,fetch:(url,options)=>fetch(new URL(url,process.argv[3]),options),
+ setTimeout:()=>1,clearTimeout(){},AbortController,console:{error(){}},Date,Math,API,fetch:(url,options)=>fetch(new URL(url,process.argv[3]),options),
  collectVoiceConfig:()=>value,escapeHtml:text=>String(text).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),
  showToast:message=>errors.push(message),showConfirm:async text=>{confirmations.push(text);return true;}};
  vm.createContext(context);vm.runInContext(helper+(API?'':api)+saves+refresh+'function isDirty(){return voiceSaveQueue.isDirty();}',context);

@@ -1,4 +1,5 @@
 import os
+import copy
 import ntpath
 import hashlib
 import io
@@ -19,7 +20,8 @@ import numpy as np
 import soundfile as sf
 
 import device_utils
-from adapter_checkpoint_transaction import ensure_adapter_generation_snapshot, get_adapter_generation_sha256
+from adapter_checkpoint_transaction import (ensure_adapter_generation_snapshot, get_adapter_generation_sha256,
+                                            get_adapter_serving_metadata)
 from lora_evidence import get_file_sha256, get_tts_model_settings
 from audio_validation import GeneratedAudioError, publish_audio_output
 from speech_text import normalize_for_speech, get_speech_preparation
@@ -233,6 +235,27 @@ def voice_config_for_chunk(voice_config, speaker, chunk_index):
         if voice_category(data) == "ensemble" and isinstance(data.get("members"), list):
             pending.extend(member for member in data["members"] if isinstance(member, str))
     return {**voice_config, **updates} if updates else voice_config
+
+
+def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
+    """Read effective inputs with the selected root first, then member voices."""
+    resolve_alias = resolve_alias or get_resolved_speaker
+    speaker = resolve_alias(chunk.get("speaker"), voices)
+    effective = voice_config_for_chunk(
+        resolve_narrator_voice_config(speaker, voices, chunk), speaker, index)
+    fields = ("type", "voice", "character_style", "default_style", "seed",
+              "ref_audio", "ref_text", "description", "adapter_id", "adapter_path",
+              "adapter_generation_sha256", "members")
+    inputs, pending = {}, [speaker]
+    while pending:
+        name = resolve_alias(pending.pop(), effective)
+        if name in inputs:
+            continue
+        config = effective.get(name) or {}
+        inputs[name] = {field: copy.deepcopy(config.get(field)) for field in fields}
+        if voice_category(config) == "ensemble":
+            pending.extend(member for member in config.get("members") or [] if isinstance(member, str))
+    return inputs
 
 
 def get_batch_voice_config(voice_config, speaker, chunk_index, batch_seed):
@@ -1790,14 +1813,7 @@ class TTSEngine:
         with ensure_adapter_generation_snapshot(adapter_path) as (snapshot, generation):
             if expected_generation is not None and generation != expected_generation:
                 raise ValueError('Adapter generation changed since benchmark fixture admission')
-            with open(os.path.join(snapshot, 'training_meta.json'), encoding='utf-8') as handle:
-                meta = json.load(handle)
-            if not isinstance(meta, dict) or not isinstance(meta.get('ref_sample_text'), str) or not meta['ref_sample_text'].strip():
-                raise ValueError('ref_sample_text missing from training_meta.json')
-            if 'checkpoint_sha256' in meta and meta['checkpoint_sha256'] != get_file_sha256(os.path.join(snapshot, 'adapter_model.safetensors')):
-                raise ValueError('Adapter metadata does not match its weights')
-            if 'reference_audio_sha256' in meta and meta['reference_audio_sha256'] != get_file_sha256(os.path.join(snapshot, 'ref_sample.wav')):
-                raise ValueError('Adapter metadata does not match its reference audio')
+            meta = get_adapter_serving_metadata(snapshot)
             model = self._init_local_lora(snapshot, generation_sha256=generation, source_adapter_path=adapter_path)
             prompt = self._ensure_lora_prompt(snapshot, model, meta['ref_sample_text'], generation_sha256=generation, source_adapter_path=adapter_path)
             # A provider must not mutate the captured serving evidence while loading.

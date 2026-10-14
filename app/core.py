@@ -658,7 +658,43 @@ def check_global_gpu_lock(new_task_name: str, *, cpu_only=False):
 _gpu_lock = threading.Lock()
 _gpu_leases = {}
 _task_claims = {}
+_saved_book_publications = {}
 _request_task_claims = contextvars.ContextVar("alexandria_request_task_claims", default=None)
+
+
+def get_saved_book_destination_path(path):
+    """Identify a saved name through directory aliases and platform casing."""
+    path = os.path.abspath(path)
+    return os.path.normcase(os.path.join(os.path.realpath(os.path.dirname(path)),
+                                        os.path.basename(path)))
+
+
+@contextmanager
+def ensure_saved_book_destination_available(path):
+    """Reserve a snapshot destination without holding the task mutex on I/O."""
+    destination = get_saved_book_destination_path(path)
+    with _gpu_lock:
+        owner = _task_claims.get("batch_review")
+        state = process_state.get("batch_review", {})
+        if owner or state.get("running"):
+            destinations = owner.get("saved_destinations") if owner else None
+            if owner is None and state.get("tasks"):
+                destinations = tuple(get_saved_book_destination_path(os.path.join(
+                    os.path.dirname(path), f"{secure_filename(task['name'])}.json"))
+                    for task in state["tasks"] if task.get("name")) or None
+            if destinations is None or destination in destinations:
+                raise HTTPException(status_code=409, detail=(
+                    "This saved book is owned by batch review. Wait for it to finish or cancel it."))
+        _saved_book_publications[destination] = _saved_book_publications.get(destination, 0) + 1
+    try:
+        yield
+    finally:
+        with _gpu_lock:
+            remaining = _saved_book_publications[destination] - 1
+            if remaining:
+                _saved_book_publications[destination] = remaining
+            else:
+                del _saved_book_publications[destination]
 
 
 @contextmanager
@@ -774,15 +810,22 @@ class _RequestTaskClaims(list):
     closed = False
 
 
-def reserve_background_task(task_name, *, cpu_only=False):
+def reserve_background_task(task_name, *, cpu_only=False, saved_destinations=None):
     """Reserve unstarted work and bind its token to the current request."""
+    destinations = (tuple(get_saved_book_destination_path(path) for path in saved_destinations)
+                    if saved_destinations is not None else None)
     claim_id = claim_gpu_task(task_name, cpu_only=True) if cpu_only else claim_gpu_task(task_name)
     try:
         with _gpu_lock:
             claims = _request_task_claims.get()
             if claims is not None and getattr(claims, "closed", False):
                 raise HTTPException(status_code=409, detail="The initiating request is no longer active")
+            if destinations is not None and any(path in _saved_book_publications for path in destinations):
+                raise HTTPException(status_code=409, detail=(
+                    "A selected saved book is being saved. Wait for it to finish before starting batch review."))
             _task_claims[task_name]["phase"] = "pending"
+            if destinations is not None:
+                _task_claims[task_name]["saved_destinations"] = destinations
             if claims is not None:
                 claims.append((task_name, claim_id))
     except BaseException:
@@ -806,9 +849,14 @@ def register_claimed_background_task(background_tasks, task_name, claim_id, call
     return claim_id
 
 
-def schedule_claimed_background_task(background_tasks, task_name, callback, *args, cpu_only=False, **kwargs):
+def schedule_claimed_background_task(background_tasks, task_name, callback, *args,
+                                    cpu_only=False, saved_destinations=None, **kwargs):
     """Reserve and register one owned worker; failed registration rolls back."""
-    claim_id = reserve_background_task(task_name, cpu_only=True) if cpu_only else reserve_background_task(task_name)
+    if saved_destinations is not None:
+        claim_id = reserve_background_task(task_name, cpu_only=cpu_only,
+                                           saved_destinations=saved_destinations)
+    else:
+        claim_id = reserve_background_task(task_name, cpu_only=True) if cpu_only else reserve_background_task(task_name)
     return register_claimed_background_task(background_tasks, task_name, claim_id, callback, *args, **kwargs)
 
 

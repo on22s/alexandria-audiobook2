@@ -69,13 +69,19 @@ def require_dataset_wav(path):
         raise ValueError("training WAV is not decodable") from error
 
 
+def get_training_reference_relative_path(entries, has_root_reference):
+    """Choose the explicit, root or first-training-sample reference."""
+    relative = entries[0].get("ref_audio")
+    if not relative:
+        relative = "ref.wav" if has_root_reference else (
+            entries[0].get("audio_filepath") or entries[0].get("audio", ""))
+    return relative
+
+
 def get_training_reference_path(data_dir, entries):
     """Resolve the existing reference precedence without leaving the dataset."""
     from utils import is_path_inside
-    relative = entries[0].get("ref_audio")
-    if not relative:
-        relative = "ref.wav" if os.path.exists(os.path.join(data_dir, "ref.wav")) else (
-            entries[0].get("audio_filepath") or entries[0].get("audio", ""))
+    relative = get_training_reference_relative_path(entries, os.path.exists(os.path.join(data_dir, "ref.wav")))
     path = os.path.realpath(os.path.join(data_dir, relative))
     if not is_path_inside(path, data_dir):
         raise ValueError(f"Reference audio escapes the dataset directory: {relative}")
