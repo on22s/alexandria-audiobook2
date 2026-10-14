@@ -6031,6 +6031,15 @@
     "tests.test_project_export_staging.ExportStagingTests.test_overlapping_audacity_exports_have_independent_archives",
     "tests.test_project_export_staging.ExportStagingTests.test_overlapping_m4b_exports_keep_each_calls_wav_and_metadata"
   ],
+  "test_project_narrator_context": [
+    "tests.test_project_narrator_context.ProjectNarratorContextTests.test_fresh_rebuild_focus_rows_render_their_own_voices_in_all_modes",
+    "tests.test_project_narrator_context.ProjectNarratorContextTests.test_identical_context_merges_and_length_splits_keep_metadata_and_final_pause",
+    "tests.test_project_narrator_context.ProjectNarratorContextTests.test_native_delivery_retry_keeps_source_context_and_refuses_editor_overrides",
+    "tests.test_project_narrator_context.ProjectNarratorContextTests.test_rebuild_retains_all_supported_fields_and_separates_different_selections",
+    "tests.test_project_narrator_context.ProjectNarratorContextTests.test_scene_and_delivery_parts_keep_their_source_context",
+    "tests.test_project_narrator_context.ProjectNarratorContextTests.test_selected_timelines_and_fallbacks_match_invalidation_and_all_render_modes",
+    "tests.test_project_narrator_context.ProjectNarratorContextTests.test_single_parallel_and_fast_batch_use_every_supported_selector_and_narrator_alias"
+  ],
   "test_project_status_journal": [
     "tests.test_project_status_journal.ProjectStatusJournalTests.test_cancelled_queued_generation_is_counted_without_changing_prior_state",
     "tests.test_project_status_journal.ProjectStatusJournalTests.test_changed_book_refuses_publication_and_preserves_old_journal",

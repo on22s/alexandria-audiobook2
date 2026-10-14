@@ -87,6 +87,12 @@ def get_chunk_generation_inputs(chunk):
     return {field: chunk[field] for field in CHUNK_GENERATION_FIELDS if field in chunk}
 
 
+def get_narrator_generation_context(entry):
+    """Copy the supported narrator-selection fields for chunk rebuilding."""
+    return {field: copy.deepcopy(entry[field]) for field in NARRATOR_GENERATION_FIELDS
+            if field in entry}
+
+
 def get_chunk_generation_requests(chunks, indices, admitted_requests=None):
     """Freeze each requested row once, retaining source indices for engine results."""
     if admitted_requests is not None:
@@ -136,13 +142,15 @@ def _is_structural_text(text, max_length=80):
     return False
 
 
-def _make_chunk(speaker, text, instruct, pause_after=None, source_indices=None):
+def _make_chunk(speaker, text, instruct, pause_after=None, source_indices=None,
+                narrator_context=None):
     """Build a chunk dict, omitting pause_after when None for clean JSON."""
     chunk = {"speaker": speaker, "text": text, "instruct": instruct}
     if pause_after is not None:
         chunk["pause_after"] = pause_after
     if source_indices is not None:
         chunk["source_entry_indices"] = list(source_indices)
+    chunk.update(copy.deepcopy(narrator_context or {}))
     return chunk
 
 
@@ -310,11 +318,13 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
     current_instruct = script_entries[0].get("instruct", "")
     current_pause_after = script_entries[0].get("pause_after")
     current_indices = script_entries[0].get("_source_entry_indices") if include_source_indices else None
+    current_context = get_narrator_generation_context(script_entries[0])
 
     for entry in script_entries[1:]:
         speaker = get_speaker(entry)
         text = entry.get("text", "")
         instruct = entry.get("instruct", "")
+        narrator_context = get_narrator_generation_context(entry)
 
         # Don't merge structural text (titles, chapter headings, dedications),
         # and never merge past a pending pause: pause_after belongs to the
@@ -323,6 +333,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
         # paragraph then played its pause after both sentences instead of
         # between them, which is not audible as a break at all.
         if (speaker == current_speaker and instruct == current_instruct
+                and narrator_context == current_context
                 and current_pause_after is None
                 and not _is_structural_text(current_text)
                 and not _is_structural_text(text)):
@@ -334,21 +345,23 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
                 # Last merged entry's pause_after wins
                 current_pause_after = entry.get("pause_after", current_pause_after)
             else:
-                chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices))
+                chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices, current_context))
                 current_text = text
                 current_indices = entry["_source_entry_indices"] if include_source_indices else None
                 current_instruct = instruct
                 current_pause_after = entry.get("pause_after")
+                current_context = narrator_context
         else:
-            chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices))
+            chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices, current_context))
             current_speaker = speaker
             current_indices = entry["_source_entry_indices"] if include_source_indices else None
             current_text = text
             current_instruct = instruct
             current_pause_after = entry.get("pause_after")
+            current_context = narrator_context
 
     # Don't forget the last chunk
-    chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices))
+    chunks.append(_make_chunk(current_speaker, current_text, current_instruct, current_pause_after, current_indices, current_context))
 
     bounded = []
     for chunk in chunks:
@@ -1043,7 +1056,8 @@ class ProjectManager:
             # the identity anchor in force at this line (a character can change
             # from a point in the book - tts.active_character_style)
             generation_args = (text, instruct, speaker_to_use,
-                voice_config_for_chunk(voice_config, speaker_to_use, index), temp_path)
+                voice_config_for_chunk(resolve_narrator_voice_config(
+                    speaker_to_use, voice_config, chunk), speaker_to_use, index), temp_path)
             failure = None
             if callable(getattr(engine, "generate_voice_result", None)):
                 result = engine.generate_voice_result(*generation_args)
@@ -2194,9 +2208,7 @@ class ProjectManager:
                     # Preserve narrator-selection metadata through the
                     # project boundary; the TTS engine uses these fields to
                     # resolve focus/chapter/gender strategies per chunk.
-                    for field in NARRATOR_GENERATION_FIELDS:
-                        if field in chunk:
-                            batch_chunk[field] = chunk[field]
+                    batch_chunk.update(get_narrator_generation_context(chunk))
                     batch_chunks.append(batch_chunk)
 
             # Call batch TTS with single seed. If stale-output cleanup rejected
