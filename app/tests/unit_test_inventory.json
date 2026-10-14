@@ -1217,6 +1217,13 @@
   "test_cast_apply_context_js": [
     "tests.test_cast_apply_context_js.CastApplyContextJsTests.test_stale_matches_and_old_panel_submission_are_refused"
   ],
+  "test_cast_audio_invalidation": [
+    "tests.test_cast_audio_invalidation.CastAudioInvalidationTests.test_changed_active_cast_invalidates_aliases_and_export_but_preserves_other_audio",
+    "tests.test_cast_audio_invalidation.CastAudioInvalidationTests.test_identical_effective_cast_and_unmapped_members_do_not_invalidate_audio",
+    "tests.test_cast_audio_invalidation.CastAudioInvalidationTests.test_inflight_old_voice_cannot_publish_after_cast_application",
+    "tests.test_cast_audio_invalidation.CastAudioInvalidationTests.test_saved_cast_bulk_keeps_active_voice_and_audio_exact",
+    "tests.test_cast_audio_invalidation.CastAudioInvalidationTests.test_wrong_book_token_preserves_config_chunks_and_library_bytes"
+  ],
   "test_cast_bulk_outcome_js": [
     "tests.test_cast_bulk_outcome_js.CastBulkOutcomeJsTests.test_all_failed_partial_success_and_empty_results_have_honest_headings",
     "tests.test_cast_bulk_outcome_js.CastBulkOutcomeJsTests.test_bulk_match_reviews_saved_books_without_current_book_context"
