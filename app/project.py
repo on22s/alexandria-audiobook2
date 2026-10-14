@@ -37,7 +37,8 @@ from tts import (
     voice_category,
     DEFAULT_PAUSE_MS,
     SAME_SPEAKER_PAUSE_MS,
-                 voice_config_for_chunk, resolve_narrator_voice_config, get_resolved_speaker)
+                 voice_config_for_chunk, resolve_narrator_voice_config, get_resolved_speaker,
+                 get_chunk_voice_inputs)
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
 from audio_streaming import (get_track_wav_plan, write_track_wav, write_combined_wav,
@@ -688,22 +689,7 @@ class ProjectManager:
 
     def get_chunk_voice_inputs(self, voices, chunk, index):
         """Read the effective TTS inputs, including aliases and ensemble members."""
-        speaker = self._resolve_alias(chunk.get("speaker"), voices)
-        effective = voice_config_for_chunk(
-            resolve_narrator_voice_config(speaker, voices, chunk), speaker, index)
-        fields = ("type", "voice", "character_style", "default_style", "seed",
-                  "ref_audio", "ref_text", "description", "adapter_id", "adapter_path",
-                  "adapter_generation_sha256", "members")
-        inputs, pending = {}, [speaker]
-        while pending:
-            name = get_resolved_speaker(pending.pop(), effective)
-            if name in inputs:
-                continue
-            config = effective.get(name) or {}
-            inputs[name] = {field: copy.deepcopy(config.get(field)) for field in fields}
-            if voice_category(config) == "ensemble":
-                pending.extend(member for member in config.get("members") or [] if isinstance(member, str))
-        return inputs
+        return get_chunk_voice_inputs(voices, chunk, index, resolve_alias=self._resolve_alias)
 
     def _apply_voice_timeline_audio_invalidation_locked(self, before, after):
         """Caller holds chunk locks through the subsequent voice-config write.

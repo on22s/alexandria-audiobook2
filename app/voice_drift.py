@@ -13,12 +13,15 @@ this repo: it never substitutes a weaker metric when ECAPA is unavailable
 never treats "no opinion" as "pass".
 """
 import math
+import hashlib
+import json
 import os
 import tempfile
 import time
 
 from experiments.library_voice_fidelity import ecapa_pairs
 from utils import is_path_inside
+from tts import get_chunk_voice_inputs, get_resolved_speaker
 
 # Same rationale as verify_adapter_identity.py: working adapters score
 # 0.65-0.74 against their human reference, failures 0.027-0.404, and the
@@ -48,15 +51,20 @@ def get_speaker_model_python(voicelab_config=None):
 
 
 def get_reference_for_speaker(speaker, voice_config, chunks, resolve_alias,
-                              resolve_asset_path):
+                              resolve_asset_path, effective_inputs=None):
     """(absolute reference path or None, label) for a speaker.
 
     clone -> its ref_audio; lora -> the adapter's ref_sample.wav; anything
     without reference audio (design, custom, ensemble) -> the speaker's
     earliest `done` chunk, so drift means "not like the rest of this voice".
     The label says which, so an artifact never hides what it compared to."""
-    canonical = resolve_alias(speaker, voice_config) if resolve_alias else speaker
-    cfg = voice_config.get(canonical) or {}
+    canonical = (resolve_alias(speaker, voice_config) if resolve_alias else
+                 get_resolved_speaker(speaker, voice_config) if effective_inputs is not None else speaker)
+    if effective_inputs is not None:
+        # Shared generation inputs place the selected root before its members.
+        # A timeline can change alias_of, so raw configuration is not its identity.
+        canonical = next(iter(effective_inputs), canonical)
+    cfg = (effective_inputs if effective_inputs is not None else voice_config).get(canonical) or {}
     kind = cfg.get("type")
     if kind == "clone" and cfg.get("ref_audio"):
         return resolve_asset_path(cfg["ref_audio"]), f"clone:{canonical}"
@@ -65,10 +73,28 @@ def get_reference_for_speaker(speaker, voice_config, chunks, resolve_alias,
         path = os.path.join(adapter_path, "ref_sample.wav") if adapter_path else None
         return path, f"lora:{canonical}"
     for chunk in chunks:
-        if (chunk.get("speaker") == speaker and chunk.get("status") == "done"
+        if ((effective_inputs is not None or chunk.get("speaker") == speaker)
+                and chunk.get("status") == "done"
                 and chunk.get("audio_path")):
             return None, f"chunk:{chunk.get('uid')}"
     return None, "none"
+
+
+def get_drift_voice_groups(chunks, voice_config, resolve_alias=None):
+    """Index compatible rendered states without retaining decoded audio."""
+    groups, keys = {}, {}
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), allow_nan=False)
+    for index, chunk in enumerate(chunks):
+        if chunk.get("status") != "done" or not chunk.get("audio_path"):
+            continue
+        inputs = get_chunk_voice_inputs(voice_config, chunk, index, resolve_alias)
+        digest = hashlib.sha256()
+        for part in encoder.iterencode(inputs):
+            digest.update(part.encode("utf-8"))
+        key = digest.hexdigest()
+        keys[index] = key
+        groups.setdefault(key, []).append(chunk)
+    return groups, keys
 
 
 def _decode_to_wav(src, dest_dir, stem):
@@ -122,13 +148,15 @@ def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
                if chunk.get("status") == "done" and chunk.get("audio_path")
                and (wanted is None or i in wanted)]
     chunks_by_uid = get_chunk_uid_index(chunks)
+    voice_groups, voice_keys = get_drift_voice_groups(chunks, voice_config, resolve_alias)
     results = []
     for offset in range(0, len(targets), DRIFT_BATCH_SIZE):
         report = _check_voice_drift_batch(
             chunks, voice_config, root_dir, python_bin, threshold,
             indices=targets[offset:offset + DRIFT_BATCH_SIZE],
             resolve_alias=resolve_alias, resolve_asset_path=resolve_asset_path,
-            score_pairs=score_pairs, chunks_by_uid=chunks_by_uid)
+            score_pairs=score_pairs, chunks_by_uid=chunks_by_uid,
+            voice_groups=voice_groups, voice_keys=voice_keys)
         if report["error"]:
             return {"results": [], "error": report["error"]}
         results.extend(report["results"])
@@ -137,7 +165,8 @@ def check_voice_drift(chunks, voice_config, root_dir, python_bin, threshold,
 
 def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, threshold,
                       indices=None, resolve_alias=None, resolve_asset_path=None,
-                      score_pairs=ecapa_pairs, chunks_by_uid=None):
+                      score_pairs=ecapa_pairs, chunks_by_uid=None,
+                      voice_groups=None, voice_keys=None):
     """Score chunks against their speaker's reference.
 
     Returns {"results": [{index, uid, score, flagged, reference}, ...],
@@ -157,12 +186,16 @@ def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, thresho
     if not targets:
         return {"results": [], "error": None}
 
+    if voice_groups is None or voice_keys is None:
+        voice_groups, voice_keys = get_drift_voice_groups(chunks, voice_config, resolve_alias)
     references = {}
-    for _, chunk in targets:
+    for index, chunk in targets:
         speaker = chunk.get("speaker")
-        if speaker not in references:
-            references[speaker] = get_reference_for_speaker(
-                speaker, voice_config, chunks, resolve_alias, resolve_asset_path)
+        key = voice_keys[index]
+        if key not in references:
+            references[key] = get_reference_for_speaker(
+                speaker, voice_config, voice_groups[key], resolve_alias, resolve_asset_path,
+                get_chunk_voice_inputs(voice_config, chunk, index, resolve_alias))
 
     if chunks_by_uid is None:
         chunks_by_uid = get_chunk_uid_index(chunks)
@@ -176,7 +209,7 @@ def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, thresho
             return decoded[path]
 
         for index, chunk in targets:
-            ref_path, label = references[chunk.get("speaker")]
+            ref_path, label = references[voice_keys[index]]
             if label.startswith("chunk:"):
                 ref_uid = label.split(":", 1)[1]
                 if chunk.get("uid") == ref_uid:

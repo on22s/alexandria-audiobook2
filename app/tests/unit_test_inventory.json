@@ -2641,6 +2641,15 @@
     "tests.test_dracor_prose.Frames.test_target_line_and_label_never_change"
   ],
   "test_dracor_trainset": [],
+  "test_drift_voice_states": [
+    "tests.test_drift_voice_states.DriftVoiceStateTests.test_alias_and_dynamic_narrator_use_same_effective_inputs_as_generation",
+    "tests.test_drift_voice_states.DriftVoiceStateTests.test_clone_and_lora_timeline_states_choose_their_own_configured_reference",
+    "tests.test_drift_voice_states.DriftVoiceStateTests.test_custom_design_and_ensemble_fallbacks_only_use_compatible_states",
+    "tests.test_drift_voice_states.DriftVoiceStateTests.test_late_compatible_reference_change_still_refuses_publication",
+    "tests.test_drift_voice_states.DriftVoiceStateTests.test_single_state_self_reference_is_explicitly_unmeasured",
+    "tests.test_drift_voice_states.DriftVoiceStateTests.test_timeline_alias_uses_selected_root_reference_before_ensemble_members",
+    "tests.test_drift_voice_states.DriftVoiceStateTests.test_unselected_compatible_reference_survives_batch_boundaries"
+  ],
   "test_duplicate_classification": [
     "tests.test_duplicate_classification.DuplicateRepairTest.test_a_block_the_source_repeats_is_kept",
     "tests.test_duplicate_classification.DuplicateRepairTest.test_a_duplicated_pair_is_removed_not_refused",

@@ -1,4 +1,5 @@
 import os
+import copy
 import ntpath
 import hashlib
 import io
@@ -233,6 +234,27 @@ def voice_config_for_chunk(voice_config, speaker, chunk_index):
         if voice_category(data) == "ensemble" and isinstance(data.get("members"), list):
             pending.extend(member for member in data["members"] if isinstance(member, str))
     return {**voice_config, **updates} if updates else voice_config
+
+
+def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
+    """Read effective inputs with the selected root first, then member voices."""
+    resolve_alias = resolve_alias or get_resolved_speaker
+    speaker = resolve_alias(chunk.get("speaker"), voices)
+    effective = voice_config_for_chunk(
+        resolve_narrator_voice_config(speaker, voices, chunk), speaker, index)
+    fields = ("type", "voice", "character_style", "default_style", "seed",
+              "ref_audio", "ref_text", "description", "adapter_id", "adapter_path",
+              "adapter_generation_sha256", "members")
+    inputs, pending = {}, [speaker]
+    while pending:
+        name = resolve_alias(pending.pop(), effective)
+        if name in inputs:
+            continue
+        config = effective.get(name) or {}
+        inputs[name] = {field: copy.deepcopy(config.get(field)) for field in fields}
+        if voice_category(config) == "ensemble":
+            pending.extend(member for member in config.get("members") or [] if isinstance(member, str))
+    return inputs
 
 
 def get_batch_voice_config(voice_config, speaker, chunk_index, batch_seed):
