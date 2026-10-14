@@ -9502,6 +9502,10 @@
     "tests.test_voice_timeline_regressions.StyleAudioInvalidationTests.test_add_and_remove_during_render_reject_stale_audio_publication",
     "tests.test_voice_timeline_regressions.StyleAudioInvalidationTests.test_add_noop_replace_and_remove_invalidate_only_affected_audio_and_exports"
   ],
+  "test_voice_transport_deadline": [
+    "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_fetch_and_both_response_body_stalls_retain_drafts_and_block_load",
+    "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_success_http_and_json_failures_clear_deadlines_without_changing_transport"
+  ],
   "test_voice_version_inheritance_js": [
     "tests.test_voice_version_inheritance_js.VoiceVersionInheritanceTests.test_flush_failure_or_changed_book_refuses_creation_and_no_ryan_override_is_sent"
   ],

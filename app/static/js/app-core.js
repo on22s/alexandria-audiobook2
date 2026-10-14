@@ -865,14 +865,34 @@
                 await API._handleError(res);
                 return res.json();
             },
-            post: async (url, data) => {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+            post: async (url, data, {timeoutMs = null} = {}) => {
+                if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+                    throw new Error('The request deadline must be a positive finite duration.');
+                }
+                const controller = timeoutMs === null ? null : new AbortController();
+                let timer;
+                const request = async () => {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data),
+                        ...(controller ? {signal: controller.signal} : {}),
+                    });
+                    await API._handleError(res);
+                    return await res.json();
+                };
+                if (!controller) { return request(); }
+                const deadline = new Promise((resolve, reject) => {
+                    timer = setTimeout(() => {
+                        reject(new Error('The voice save timed out. Your edits are retained; the server save could not be confirmed.'));
+                        controller.abort();
+                    }, timeoutMs);
                 });
-                await API._handleError(res);
-                return res.json();
+                try {
+                    return await Promise.race([request(), deadline]);
+                } finally {
+                    clearTimeout(timer);
+                }
             },
             del: async (url) => {
                 const res = await fetch(url, { method: 'DELETE' });
@@ -6221,7 +6241,7 @@
                     revision: _voiceSaveSnapshot.revision,
                     book_token: draft.book_token,
                     voices: draft.voices,
-                });
+                }, {timeoutMs: 60000});
                 if (result.book_token !== draft.book_token || !/^[0-9a-f]{64}$/.test(result.revision)) {
                     throw new Error('The voice save could not be confirmed. Your edits were retained.');
                 }
