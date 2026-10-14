@@ -55,6 +55,8 @@ from utils import file_lock, is_path_inside
 from voice_manifest import get_voice_manifest, validate_adapter_registration_id_locked, validate_adapter_training_output, get_resolved_adapter_manifest_rows_locked
 from adapter_naming_transaction import lock_adapter_naming
 from adapter_publication import get_adapter_publication_recovery_command
+from alexandria_zip_publication import (ensure_zip_archive_readable,
+                                       get_zip_directory_snapshot, ZipPublicationError)
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
@@ -161,7 +163,7 @@ def adapter_exists(models_dir: str, dataset_id: str, manifest: list) -> str | No
         return None
 
 
-def extract_zip(zip_path: str, dest_dir: str):
+def extract_zip(zip_path: str, dest_dir: str, expected=None):
     """Prepare a clean archive tree, then replace the previous extracted dataset."""
     destination = os.path.abspath(dest_dir)
     parent = os.path.dirname(destination)
@@ -178,7 +180,7 @@ def extract_zip(zip_path: str, dest_dir: str):
         staging = tempfile.mkdtemp(prefix=".batch-dataset-stage-", dir=parent)
         backup = None
         try:
-            with zipfile.ZipFile(zip_path, "r") as zf:
+            with ensure_zip_archive_readable(zip_path, expected), zipfile.ZipFile(zip_path, "r") as zf:
                 validate_zip_members(zf, staging)
                 zf.extractall(staging)
             # Preserve the existing single-directory archive layout support.
@@ -233,8 +235,10 @@ def get_batch_output_preflight(args, zip_paths):
     sizes = []
     for path in zip_paths:
         try:
-            with zipfile.ZipFile(path) as archive:
+            with ensure_zip_archive_readable(path), zipfile.ZipFile(path) as archive:
                 sizes.append(sum(item.file_size for item in archive.infolist()))
+        except ZipPublicationError as error:
+            errors.append({'archive': os.path.basename(path), 'error': str(error)})
         except (OSError, zipfile.BadZipFile):
             continue  # Archive preflight supplies the named validation error.
     scratch_need = max(sizes, default=0)
@@ -312,7 +316,7 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
     print(f"  Extracting...", flush=True)
     os.makedirs(dataset_dir, exist_ok=True)
     try:
-        extract_zip(zip_path, dataset_dir)
+        extract_zip(zip_path, dataset_dir, expected=getattr(args, '_zip_input_snapshots', {}).get(zip_path))
         dataset_prepared = True
     except Exception as e:
         fail(f"extracting: {e}")
@@ -494,11 +498,12 @@ def main() -> int:
         print(f"ERROR: --zips_dir not found: {args.zips_dir}")
         return 1
 
-    zips = sorted(
-        os.path.join(args.zips_dir, f)
-        for f in os.listdir(args.zips_dir)
-        if not f.startswith("_") and f.lower().endswith(".zip")
-    )
+    try:
+        args._zip_input_snapshots = get_zip_directory_snapshot(args.zips_dir, skip_underscore=True)
+    except (OSError, ZipPublicationError) as error:
+        print(f"ERROR: ZIP input collection is busy or unsafe: {error}")
+        return 1
+    zips = list(args._zip_input_snapshots)
 
     if not zips:
         print(f"No .zip files found in {args.zips_dir}")
@@ -519,6 +524,12 @@ def main() -> int:
 
     preflight = get_selected_interpreter_preflight(args.python, zips, args.device)
     preflight["errors"].extend(get_batch_output_preflight(args, zips))
+    for path in zips:
+        try:
+            with ensure_zip_archive_readable(path, args._zip_input_snapshots[path]):
+                pass
+        except (OSError, ZipPublicationError) as error:
+            preflight["errors"].append({'archive': os.path.basename(path), 'error': str(error)})
     for report in preflight["datasets"]:
         print(f"PREFLIGHT {report['archive']}: {report['sample_count']} samples, "
               f"{report['audio_count']} validated audio files")
@@ -551,6 +562,8 @@ def main() -> int:
             continue
 
         try:
+            with ensure_zip_archive_readable(zip_path, args._zip_input_snapshots[zip_path]):
+                pass
             lease = acquire_batch_registration_lease(args.models_dir, dataset_id)
         except (OSError, ValueError, TaskOwnershipBusy) as error:
             err += 1

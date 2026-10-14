@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import stat
 import sys
 import tempfile
 import unittest
@@ -43,7 +44,23 @@ class BatchPreflightTests(unittest.TestCase):
     def setUp(self):
         apply_test_training_dependency_fixture(self)
 
+    def assert_files_preserved_with_archive_leases(self, root, before, archives):
+        """Only exact native coordination files may supplement unchanged data."""
+        after = {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+        leases = {archive.parent / ('.' + archive.name + '.volumes.lock') for archive in archives}
+        new_leases = {path.relative_to(root) for path in leases if path.relative_to(root) not in before}
+        self.assertEqual(set(), set(after) - set(before) - new_leases)
+        for path, content in before.items():
+            self.assertIn(path, after)
+            self.assertEqual(content, after[path])
+        for path in leases:
+            if os.path.lexists(path):
+                self.assertFalse(path.is_symlink())
+                self.assertTrue(stat.S_ISREG(path.stat().st_mode))
+                self.assertEqual(b'\0' if os.name == 'nt' else b'', path.read_bytes())
+
     def test_damaged_last_zip_refuses_entire_dry_and_full_batch(self):
+        """Refusal preserves data; only selected archives' native leases may appear."""
         for dry in (False, True):
             with self.subTest(dry=dry), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
@@ -57,7 +74,7 @@ class BatchPreflightTests(unittest.TestCase):
                     archive.writestr('metadata.jsonl', json.dumps({'audio_filepath': 'clip.wav', 'text': 'Hello.'}) + '\n')
                     archive.writestr('clip.wav', pcm.getvalue())
                 (zips / 'z_bad.zip').write_bytes(b'not a zip')
-                before = {p.name: p.read_bytes() for p in zips.iterdir()}
+                before = {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()}
                 argv = ['batch', '--zips_dir', str(zips), '--models_dir', str(root / 'models'), '--datasets_dir', str(root / 'datasets'), '--manifest', str(root / 'manifest.json'), '--device', 'cpu', '--python', sys.executable]
                 if dry:
                     argv.append('--dry_run')
@@ -68,7 +85,9 @@ class BatchPreflightTests(unittest.TestCase):
                 self.assertIn('z_bad.zip', output.getvalue())
                 self.assertFalse((root / 'models').exists())
                 self.assertFalse((root / 'datasets').exists())
-                self.assertEqual(before, {p.name: p.read_bytes() for p in zips.iterdir()})
+                self.assertFalse((root / 'manifest.json').exists())
+                self.assert_files_preserved_with_archive_leases(
+                    root, before, [zips / 'a_good.zip', zips / 'z_bad.zip'])
 
     def test_all_bad_archives_are_reported_and_temp_inputs_retained(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -145,7 +164,8 @@ class BatchPreflightTests(unittest.TestCase):
                 get_training_dataset_preflight(str(root))
             self.assertEqual(before, {str(path): path.read_bytes() for path in Path(temporary).rglob('*') if path.is_file()})
 
-    def test_valid_cpu_dry_run_is_read_only(self):
+    def test_valid_cpu_dry_run_preserves_data_allowing_only_native_archive_leases(self):
+        """Dry runs preserve sources/output state, allowing exact coordination metadata."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             zips = root / 'zips'
@@ -165,5 +185,5 @@ class BatchPreflightTests(unittest.TestCase):
                 self.assertEqual(0, batch.main())
             train.assert_not_called()
             resume.assert_not_called()
-            self.assertEqual(before, {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()})
+            self.assert_files_preserved_with_archive_leases(root, before, [zips / 'valid.zip'])
             self.assertFalse((root / 'datasets').exists())

@@ -33,10 +33,21 @@ from utils import secure_filename
 from preparer_numeric_settings import (validate_preparer_numeric_booleans,
                                        validate_preparer_numeric_settings)
 from preparer_enrichment_settings import validate_preparer_enrichment_settings
+from alexandria_zip_publication import (ensure_zip_archive_readable, ensure_zip_family_readable,
+                                       get_zip_archive_family, ZipPublicationError)
 
 
 router = APIRouter()
 logger = logging.getLogger("AlexandriaUI")
+
+
+class _PreparerZipResponse(FileResponse):
+    async def __call__(self, scope, receive, send):
+        try:
+            with ensure_zip_archive_readable(self.path):
+                return await super().__call__(scope, receive, send)
+        except ZipPublicationError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
 
 def publish_preparer_uploads(staged, schedule):
@@ -407,12 +418,13 @@ async def preparer_list_outputs():
             continue
         fpath = os.path.join(PREPARER_OUTPUT_DIR, fname)
         try:
-            entry = {
-                "filename": fname,
-                "size_mb": round(os.path.getsize(fpath) / (1024 * 1024), 1),
-                "modified": os.path.getmtime(fpath),
-            }
-        except OSError:
+            with ensure_zip_archive_readable(fpath):
+                entry = {
+                    "filename": fname,
+                    "size_mb": round(os.path.getsize(fpath) / (1024 * 1024), 1),
+                    "modified": os.path.getmtime(fpath),
+                }
+        except (OSError, ZipPublicationError):
             # File vanished between listdir and stat (concurrent delete) - skip it.
             continue
         files.append(entry)
@@ -428,9 +440,18 @@ async def preparer_download(filename: str):
         raise HTTPException(status_code=400, detail="Invalid filename.")
     if not file_path.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Only dataset ZIP files can be downloaded.")
+    if os.path.exists(file_path) and not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="File not found.")
+    try:
+        with ensure_zip_family_readable(get_zip_archive_family(file_path)):
+            pass
+    except FileNotFoundError:
+        pass
+    except ZipPublicationError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="File not found.")
-    return FileResponse(file_path, media_type="application/zip", filename=os.path.basename(file_path))
+    return _PreparerZipResponse(file_path, media_type="application/zip", filename=os.path.basename(file_path))
 
 
 @router.post("/api/preparer/batch/start")

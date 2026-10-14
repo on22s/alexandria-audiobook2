@@ -11,6 +11,7 @@ import zipfile
 
 import numpy as np
 import soundfile as sf
+from alexandria_zip_publication import ensure_zip_sources_readable
 
 from dataset_metadata import get_training_reference_relative_path
 
@@ -56,6 +57,11 @@ def get_decoded_pcm_hash(audio, sample_rate) -> str:
 
 
 def get_source_records(paths: list[Path]) -> list[dict]:
+    with ensure_zip_sources_readable(paths):
+        return _get_source_records_locked(paths)
+
+
+def _get_source_records_locked(paths: list[Path]) -> list[dict]:
     return [{"path": str(path.resolve()), "fingerprint": get_file_fingerprint(path)}
             for path in sorted(paths, key=lambda item: str(item))]
 
@@ -110,11 +116,17 @@ def _get_reference_pair(source, relative):
     raise ValueError("selected reference has no source-owned transcript")
 
 
-def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
+def merge_voice_datasets(paths: list[Path], destination: Path, *, expected_inputs=None) -> dict:
+    """Merge within one admitted source generation, retaining the existing merge policy."""
+    with ensure_zip_sources_readable(paths, expected_inputs, destination):
+        return _merge_voice_datasets_locked(paths, destination)
+
+
+def _merge_voice_datasets_locked(paths: list[Path], destination: Path) -> dict:
     """Atomically merge confirmed same-speaker ZIPs, removing exact PCM duplicates."""
     if not paths:
         raise ValueError("at least one source archive is required")
-    sources = get_source_records(paths)
+    sources = _get_source_records_locked(paths)
     if is_reusable_merge(destination, sources):
         return {"status": "reused", "destination": str(destination)}
 
@@ -226,7 +238,7 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
                         "provenance": provenance}
             output.writestr("merge_manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
         reference_sources.close()
-        if get_source_records(paths) != sources:
+        if _get_source_records_locked(paths) != sources:
             raise ValueError("source archive changed during merge; destination was not replaced")
         os.replace(temporary, destination)
     finally:

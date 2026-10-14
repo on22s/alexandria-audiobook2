@@ -5,7 +5,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def copy_report_driver(root):
-    for name in ('corpus_run_report.py', 'alexandria_run_manifest.py', 'alexandria_file_lock.py'):
+    for name in ('corpus_run_report.py', 'alexandria_run_manifest.py', 'alexandria_file_lock.py',
+                 'alexandria_zip_publication.py'):
         (root / name).write_bytes((ROOT / name).read_bytes())
 
 

@@ -94,6 +94,7 @@ from pathlib import Path
 # for the legacy ASR-only workflow because nothing in the chunker calls into
 # it unless source_state is populated.
 import alexandria_alignment as alignment
+from alexandria_zip_publication import apply_zip_volume_set
 from alexandria_run_manifest import (
     LOCK_ENV, RunStateError, acquire_run_lock, cleanup_run_artifacts, ensure_run_manifest,
     run_phase_with_lock, sync_run_directory,
@@ -3195,19 +3196,6 @@ def _create_zip_dataset(metadata: List[Dict], output_path: str, val_split: float
 
     import random
     base, ext = os.path.splitext(output_path)
-    manifest_path = output_path + '.volumes.json'
-    previous_volumes = []
-    if os.path.exists(manifest_path):
-        with open(manifest_path, encoding='utf-8') as stream:
-            previous_volumes = json.load(stream)['volumes']
-        output_name = os.path.basename(output_path)
-        output_stem = os.path.splitext(output_name)[0]
-        if not isinstance(previous_volumes, list) or any(
-                not isinstance(name, str) or os.path.dirname(name)
-                or not name.endswith(ext)
-                or not (name == output_name or name.startswith(output_stem + '_'))
-                for name in previous_volumes):
-            raise RunStateError(f'Invalid ZIP volume manifest: {manifest_path}')
     planned = []
     used_paths = set()
     for (speaker, char, style), group_metadata in groups.items():
@@ -3236,98 +3224,75 @@ def _create_zip_dataset(metadata: List[Dict], output_path: str, val_split: float
             used_paths.add(vol_path)
             planned.append((group_metadata[vol_idx * zip_max_files:(vol_idx + 1) * zip_max_files], vol_idx, vol_path))
 
-    # Older runs had no manifest. Refuse an ambiguous stale volume rather than
-    # claiming completion while training might pick it up as current output.
-    if not os.path.exists(manifest_path):
-        import glob
-        for candidate in glob.glob(glob.escape(base) + '_*' + glob.escape(ext)):
-            if candidate not in used_paths and re.search(r'_vol\d+' + re.escape(ext) + r'$', candidate):
-                raise RunStateError(f'Unmanaged old ZIP volume: {candidate}')
-
     total_train = 0
     total_val = 0
     total_vols = 0
 
-    for vol_metadata, vol_idx, vol_path in planned:
-
-        # Partition this volume into train/val
-        indices = list(range(len(vol_metadata)))
-        random.seed(42 + vol_idx) # stable per volume
-        random.shuffle(indices)
-
-        v_count = int(len(vol_metadata) * val_split)
-        v_indices = set(indices[:v_count])
-
-        train_meta = []
-        val_meta = []
-
-        # Write to a temp path and atomically replace vol_path only once the
-        # zip is fully written, so a crash mid-write never leaves a
-        # truncated/corrupt file at the permanent path, and a re-run never
-        # destroys the prior good volume before the new one is confirmed
-        # good. See FIXED.md F-115.
-        tmp_vol_path = vol_path + ".tmp"
-        try:
-            with zipfile.ZipFile(tmp_vol_path, "w", zipfile.ZIP_DEFLATED) as z:
-                for i, entry in enumerate(vol_metadata):
-                    wav_name = entry["audio_filepath"]
-                    src_path = str(get_sample_path(temp_dir, wav_name))
-                    if not os.path.isfile(src_path):
-                        raise RunStateError(f'Missing sample WAV for ZIP: {src_path}')
-
-                    is_val = (i in v_indices)
-                    folder = "val" if is_val else "train"
-                    zip_wav_path = f"{folder}/{wav_name}"
-
-                    zip_entry = entry.copy()
-                    zip_entry["audio_filepath"] = zip_wav_path
-
-                    if is_val:
-                        val_meta.append(zip_entry)
-                        total_val += 1
-                    else:
-                        train_meta.append(zip_entry)
-                        total_train += 1
-
-                    z.write(src_path, zip_wav_path)
-
-                # Write partitioned metadata.jsonl files
-                if train_meta:
-                    train_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in train_meta]) + "\n"
-                    z.writestr("train/metadata.jsonl", train_jsonl)
-                if val_meta:
-                    val_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in val_meta]) + "\n"
-                    z.writestr("val/metadata.jsonl", val_jsonl)
-
-                # Volume manifest
-                vol_manifest = sorted(train_meta + val_meta, key=lambda x: x["audio_filepath"])
-                if vol_manifest:
-                    manifest_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in vol_manifest]) + "\n"
-                    z.writestr("metadata.jsonl", manifest_jsonl)
-            os.replace(tmp_vol_path, vol_path)
-        except Exception:
-            if os.path.exists(tmp_vol_path):
-                os.remove(tmp_vol_path)
-            raise
-
-        total_vols += 1
-        logger.info(f"  ✓ Volume {total_vols} saved: {vol_path} ({len(vol_metadata)} segments)")
-
     new_names = [os.path.basename(path) for _, _, path in planned]
-    for name in previous_volumes:
-        stale_path = os.path.join(os.path.dirname(output_path), name)
-        if name not in new_names and os.path.exists(stale_path):
-            os.remove(stale_path)
-    manifest_tmp = manifest_path + '.tmp'
-    try:
-        with open(manifest_tmp, 'w', encoding='utf-8') as stream:
-            json.dump({'volumes': new_names}, stream)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(manifest_tmp, manifest_path)
-    finally:
-        if os.path.exists(manifest_tmp):
-            os.remove(manifest_tmp)
+    staged_bytes = 0
+    with apply_zip_volume_set(output_path, new_names) as stage:
+        for vol_metadata, vol_idx, vol_path in planned:
+
+            # Partition this volume into train/val
+            indices = list(range(len(vol_metadata)))
+            random.seed(42 + vol_idx) # stable per volume
+            random.shuffle(indices)
+
+            v_count = int(len(vol_metadata) * val_split)
+            v_indices = set(indices[:v_count])
+
+            train_meta = []
+            val_meta = []
+
+            # Every volume reaches the private stage before any prior ZIP changes.
+            tmp_vol_path = str(stage / os.path.basename(vol_path))
+            try:
+                with zipfile.ZipFile(tmp_vol_path, "w", zipfile.ZIP_DEFLATED) as z:
+                    for i, entry in enumerate(vol_metadata):
+                        wav_name = entry["audio_filepath"]
+                        src_path = str(get_sample_path(temp_dir, wav_name))
+                        if not os.path.isfile(src_path):
+                            raise RunStateError(f'Missing sample WAV for ZIP: {src_path}')
+
+                        is_val = (i in v_indices)
+                        folder = "val" if is_val else "train"
+                        zip_wav_path = f"{folder}/{wav_name}"
+
+                        zip_entry = entry.copy()
+                        zip_entry["audio_filepath"] = zip_wav_path
+
+                        if is_val:
+                            val_meta.append(zip_entry)
+                            total_val += 1
+                        else:
+                            train_meta.append(zip_entry)
+                            total_train += 1
+
+                        z.write(src_path, zip_wav_path)
+
+                    # Write partitioned metadata.jsonl files
+                    if train_meta:
+                        train_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in train_meta]) + "\n"
+                        z.writestr("train/metadata.jsonl", train_jsonl)
+                    if val_meta:
+                        val_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in val_meta]) + "\n"
+                        z.writestr("val/metadata.jsonl", val_jsonl)
+
+                    # Volume manifest
+                    vol_manifest = sorted(train_meta + val_meta, key=lambda x: x["audio_filepath"])
+                    if vol_manifest:
+                        manifest_jsonl = "\n".join([json.dumps(e, ensure_ascii=False) for e in vol_manifest]) + "\n"
+                        z.writestr("metadata.jsonl", manifest_jsonl)
+            except Exception:
+                if os.path.exists(tmp_vol_path):
+                    os.remove(tmp_vol_path)
+                raise
+
+            total_vols += 1
+            staged_bytes += os.path.getsize(tmp_vol_path)
+            logger.info(f"  ✓ Volume {total_vols} staged: {vol_path} (staged_bytes={staged_bytes})")
+    for index, (vol_metadata, _, vol_path) in enumerate(planned, 1):
+        logger.info(f"  ✓ Volume {index} saved: {vol_path} ({len(vol_metadata)} segments)")
     durations = [m["duration"] for m in metadata]
     logger.info("=" * 70)
     logger.info(f"Total segments across {total_vols} volume(s): {len(metadata)}")

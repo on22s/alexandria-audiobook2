@@ -11,10 +11,16 @@ import tempfile
 
 from alexandria_run_manifest import get_file_identity, write_json_atomic
 from alexandria_file_lock import acquire_exclusive_file_lock
+from alexandria_zip_publication import ensure_zip_family_readable
 
 
 def get_dataset_identity(output):
     """Hash the exact exported volume set, retaining support for legacy single ZIPs."""
+    with ensure_zip_family_readable(output):
+        return _get_dataset_identity_locked(output)
+
+
+def _get_dataset_identity_locked(output):
     output = Path(output)
     manifest = Path(str(output) + '.volumes.json')
     if not manifest.exists():

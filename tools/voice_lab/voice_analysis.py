@@ -238,6 +238,14 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
     merge each confirmed same-speaker cluster into zips2_root/_deduped/ so the
     train stage has exactly one provenance-preserving ZIP per distinct voice.
     """
+    from alexandria_zip_publication import (get_zip_directory_snapshot,
+                                           ensure_zip_archive_readable)
+    def apply_unique_copy(source, destination, expected):
+        temporary = destination.with_suffix(destination.suffix + ".tmp")
+        with ensure_zip_archive_readable(source, expected):
+            shutil.copy2(source, temporary)
+            os.replace(temporary, destination)
+
     output_dir.mkdir(exist_ok=True)
     from voice_analysis_cache import save_voice_analysis_checkpoint, compact_voice_analysis_checkpoints
     cache_file = output_dir / "embeddings_cache.pkl"
@@ -273,8 +281,9 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
         print(f"FOLDER: {folder_name}")
         print(f"{'='*60}")
 
-        zips = [z for z in sorted(ndir.iterdir())
-                if z.is_file() and z.name not in EXCLUDE_ZIPS and zipfile.is_zipfile(z)]
+        source_snapshots = get_zip_directory_snapshot(ndir, archive_filter=lambda z:
+            z.is_file() and z.name not in EXCLUDE_ZIPS and zipfile.is_zipfile(z))
+        zips = [Path(path) for path in source_snapshots]
         if not zips:
             raise RuntimeError(f"Dedup incomplete: no readable ZIPs in {ndir}; preserving prior outputs")
         print(f"  Found {len(zips)} zips")
@@ -288,12 +297,12 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
 
         for zp in zips:
             label     = zp.stem
-            source_sha256 = get_file_sha256(zp)
-            identity = get_voice_analysis_stage_identity(
-                model, device, [zp], Path(__file__), DEDUP_SAMPLES, seed)
-            cache_key = f"{folder_name}/{label}::{identity['sha256']}"
-
-            all_wavs = list_wavs_in_zip(str(zp))
+            with ensure_zip_archive_readable(zp, source_snapshots[str(zp)]):
+                source_sha256 = get_file_sha256(zp)
+                identity = get_voice_analysis_stage_identity(
+                    model, device, [zp], Path(__file__), DEDUP_SAMPLES, seed)
+                cache_key = f"{folder_name}/{label}::{identity['sha256']}"
+                all_wavs = list_wavs_in_zip(str(zp))
             if not all_wavs:
                 raise RuntimeError(f"Dedup incomplete: no WAVs in {zp}; preserving prior outputs")
             selected = random.Random(seed).sample(all_wavs, min(DEDUP_SAMPLES, len(all_wavs)))
@@ -305,7 +314,7 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
                 continue
 
             embs, used    = [], []
-            with zipfile.ZipFile(zp) as archive:
+            with ensure_zip_archive_readable(zp, source_snapshots[str(zp)]), zipfile.ZipFile(zp) as archive:
                 for wn in tqdm(selected, desc=f"  {label}", leave=False):
                     try:
                         wav, sr = load_wav_from_zip(str(zp), wn, archive=archive)
@@ -348,9 +357,7 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
                 dest_path = deduped_dir / get_deduped_zip_name(folder_name, rep_path.name)
                 expected_outputs.add(dest_path)
                 folder_outputs.append(dest_path)
-                temporary = dest_path.with_suffix(dest_path.suffix + ".tmp")
-                shutil.copy2(rep_path, temporary)
-                os.replace(temporary, dest_path)
+                apply_unique_copy(rep_path, dest_path, source_snapshots[str(rep_path)])
                 print(f"  [UNIQUE] kept {rep_path.name}")
                 narrator_records[folder_name] = get_dedup_narrator_evidence(zips, folder_outputs, expected_sources)
             continue
@@ -425,13 +432,12 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
             folder_outputs.append(dest_path)
             if len(cluster) > 1:
                 cluster_paths = [label_to_path[zip_labels[idx]] for idx in cluster]
-                merge_result = merge_voice_datasets(cluster_paths, dest_path)
+                merge_result = merge_voice_datasets(cluster_paths, dest_path, expected_inputs={
+                    str(path): source_snapshots[str(path)] for path in cluster_paths})
                 print(f"  [GROUP {ci+1}] {merge_result['status']} {len(cluster_paths)} ZIPs"
                       f" → {dest_path.name}")
             else:
-                temporary = dest_path.with_suffix(dest_path.suffix + ".tmp")
-                shutil.copy2(rep_path, temporary)
-                os.replace(temporary, dest_path)
+                apply_unique_copy(rep_path, dest_path, source_snapshots[str(rep_path)])
                 print(f"  [UNIQUE] kept {rep_path.name}")
 
         narrator_records[folder_name] = get_dedup_narrator_evidence(zips, folder_outputs, expected_sources)

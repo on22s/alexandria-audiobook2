@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 from alexandria_run_manifest import sync_run_directory
+from alexandria_zip_publication import ensure_zip_family_readable, ensure_zip_archive_readable, ZipPublicationError
 from gpu_stats import run_rocm_smi_json
 sys.path.append(str(Path(__file__).resolve().parent / "app"))
 from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
@@ -308,18 +309,34 @@ def get_text_source_identity(path):
 def get_output_volumes(output_name):
     """Find the base archive and any speaker/style/volume-suffixed archives."""
     output = Path(output_name)
-    return sorted(str(path) for path in output.parent.iterdir()
-                  if path.is_file() and path.suffix == ".zip" and
-                  (path.name == output.name or path.stem.startswith(output.stem + "_")))
+    with ensure_zip_family_readable(output_name, include_legacy_prefixes=True) as snapshot:
+        return _get_output_volumes_locked(output, snapshot)
+
+
+def _get_output_volumes_locked(output, snapshot):
+    return sorted(str(output.parent / name) for name in snapshot['files'])
 
 
 def get_volume_state(output_name):
+    with ensure_zip_family_readable(output_name, include_legacy_prefixes=True) as snapshot:
+        return _get_volume_state_locked(output_name, snapshot)
+
+
+def _get_volume_state_locked(output_name, snapshot):
     return {path: (os.stat(path).st_size, os.stat(path).st_mtime_ns)
-            for path in get_output_volumes(output_name)}
+            for path in _get_output_volumes_locked(Path(output_name), snapshot)}
 
 
 def is_complete_dataset_zip(path):
     """Accept a prior output only when its ZIP and dataset payload are readable."""
+    try:
+        with ensure_zip_archive_readable(path):
+            return _is_complete_dataset_zip_locked(path)
+    except (OSError, ZipPublicationError):
+        return False
+
+
+def _is_complete_dataset_zip_locked(path):
     try:
         if not os.path.isfile(path) or os.path.getsize(path) == 0:
             return False
@@ -338,19 +355,36 @@ def get_completed_volumes(audio_file, output_name, text_source=None):
     """Return recorded, verified volumes or an empty list when resume is unsafe."""
     marker = output_name + ".complete.json"
     try:
-        with open(marker, encoding="utf-8") as file:
-            record = json.load(file)
-        volumes = record["volumes"]
-        if record["source"] != get_source_identity(audio_file):
-            return []
-        if record.get("text_source") != get_text_source_identity(text_source):
-            return []
-        available = set(get_output_volumes(output_name))
-        if not volumes or any(path not in available or not is_complete_dataset_zip(path)
-                              for path in volumes):
-            return []
-        return volumes
+        with ensure_zip_family_readable(output_name, include_legacy_prefixes=True) as snapshot:
+            with open(marker, encoding="utf-8") as file:
+                record = json.load(file)
+            volumes = record["volumes"]
+            if record["source"] != get_source_identity(audio_file):
+                return []
+            if record.get("text_source") != get_text_source_identity(text_source):
+                return []
+            available = set(_get_output_volumes_locked(Path(output_name), snapshot))
+            if not volumes or any(path not in available or not _is_complete_dataset_zip_locked(path)
+                                  for path in volumes):
+                return []
+            return volumes
     except (OSError, ValueError, KeyError, TypeError):
+        return []
+
+
+def ensure_completed_volume_receipt(audio_file, output_name, previous_volumes,
+                                    source_identity, text_source_identity, matched_source):
+    """Publish a batch completion receipt while the exact checked ZIP set is held."""
+    with ensure_zip_family_readable(output_name, include_legacy_prefixes=True) as snapshot:
+        current = _get_volume_state_locked(output_name, snapshot)
+        volumes = [path for path, state in current.items() if previous_volumes.get(path) != state]
+        if (volumes and get_source_identity(audio_file) == source_identity
+                and get_text_source_identity(matched_source) == text_source_identity
+                and all(_is_complete_dataset_zip_locked(path) for path in volumes)):
+            save_batch_receipt(output_name + '.complete.json', {
+                'source': source_identity, 'text_source': text_source_identity, 'volumes': volumes,
+            })
+            return volumes
         return []
 
 class BatchProcessor:
@@ -679,11 +713,15 @@ class BatchProcessor:
                 line = line.rstrip()
                 if line:
                     print(line, flush=True)  # Real-time display
-                    if re.search(r"Volume \d+ saved:", line):
+                    staged = re.search(r"Volume \d+ staged:.*\(staged_bytes=(\d+)\)", line)
+                    if staged or re.search(r"Volume \d+ saved:", line):
                         # The preparer emits this only after atomic ZIP publication.
-                        current = get_volume_state(output_name)
-                        published_bytes = sum(state[0] for path, state in current.items()
-                                              if previous_volumes.get(path) != state)
+                        if staged:
+                            published_bytes = int(staged.group(1))
+                        else:
+                            current = get_volume_state(output_name)
+                            published_bytes = sum(state[0] for path, state in current.items()
+                                                  if previous_volumes.get(path) != state)
                         remaining_gb = max(0.5, self.get_disk_estimate_gb(audio_file)
                                            - published_bytes / 1024 ** 3)
                         if not self.ensure_disk_space(audio_file, remaining_gb):
@@ -707,17 +745,10 @@ class BatchProcessor:
             if returncode == 0:
                 logger.info(f"✓ SUCCESS: {Path(audio_file).name} processed ({time_str})")
 
-                current_volumes = get_volume_state(output_name)
-                new_volumes = [path for path, state in current_volumes.items()
-                               if previous_volumes.get(path) != state]
-                if (new_volumes and get_source_identity(audio_file) == source_identity and
-                        get_text_source_identity(matched_source) == text_source_identity and
-                        all(is_complete_dataset_zip(path) for path in new_volumes)):
-                    save_batch_receipt(output_name + ".complete.json", {
-                        "source": source_identity,
-                        "text_source": text_source_identity,
-                        "volumes": new_volumes,
-                    })
+                new_volumes = ensure_completed_volume_receipt(
+                    audio_file, output_name, previous_volumes, source_identity,
+                    text_source_identity, matched_source)
+                if new_volumes:
                     output_bytes = sum(os.path.getsize(path) for path in new_volumes)
                     duration = self.audio_durations.get(audio_file)
                     if duration:
