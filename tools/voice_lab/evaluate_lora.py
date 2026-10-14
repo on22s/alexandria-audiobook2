@@ -2,6 +2,7 @@
 """Generate fixed LoRA probes and write resumable, warning-only evaluations."""
 
 import argparse
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -19,10 +20,13 @@ if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 from adapter_artifacts import AdapterValidationError, validate_adapter_artifacts
-from audio_validation import remove_stale_audio, validate_finite_audio_values
+from adapter_checkpoint_transaction import (ensure_adapter_checkpoint,
+    ensure_adapter_generation_snapshot, validate_adapter_checkpoint_generation)
+from audio_validation import GeneratedAudioError, remove_stale_audio, validate_finite_audio_values
 from config_settings import load_app_config
 from lora_evidence import (EVALUATION_EVIDENCE_VERSION, get_evidence_error,
-                           get_evaluation_spec_sha256, get_file_sha256)
+                           get_adapter_generation_sha256, get_adapter_generation_file_identity,
+                           get_evaluation_spec_sha256, get_file_sha256, get_tts_model_settings)
 from device_utils import normalize_device, resolve_device
 from tts import TTSEngine
 from utils import atomic_json_write, is_path_inside
@@ -67,12 +71,13 @@ def get_checkpoint_file_identity(checkpoint_dir):
 def partition_unique_candidates(adapter_dir: str, candidates_root: str, *, production_snapshot=None):
     if not is_path_inside(candidates_root, adapter_dir):
         raise ValueError("evaluation candidates are outside the adapter")
-    if (production_snapshot is not None
-            and production_snapshot[1] == get_checkpoint_file_identity(adapter_dir)):
-        production_hash = production_snapshot[0]
+    if (production_snapshot is not None and len(production_snapshot) == 3
+            and production_snapshot[1] == get_adapter_generation_file_identity(adapter_dir)):
+        production_generation, _identity, production_hash = production_snapshot
     else:
         production_hash = get_checkpoint_sha256(adapter_dir)
-    checkpoint_hashes = {production_hash: "production"}
+        production_generation = get_adapter_generation_sha256(adapter_dir)
+    checkpoint_hashes = {production_generation: "production"}
     unique = []
     duplicates = []
     skipped = []
@@ -83,27 +88,20 @@ def partition_unique_candidates(adapter_dir: str, candidates_root: str, *, produ
         if not os.path.isdir(candidate_dir):
             continue
         try:
-            validate_adapter_artifacts(candidate_dir)
-            reference = Path(candidate_dir, "ref_sample.wav")
-            if not reference.is_file():
-                raise AdapterValidationError("missing regular ref_sample.wav")
-            try:
-                info = sf.info(reference)
-            except RuntimeError as error:
-                raise AdapterValidationError(f"invalid ref_sample.wav: {error}") from error
-            if info.frames <= 0:
-                raise AdapterValidationError("ref_sample.wav contains no audio frames")
+            validate_adapter_checkpoint_generation(candidate_dir)
             candidate_hash = get_checkpoint_sha256(candidate_dir)
-        except (AdapterValidationError, OSError) as error:
+            candidate_generation = get_adapter_generation_sha256(candidate_dir)
+        except (AdapterValidationError, OSError, ValueError, GeneratedAudioError) as error:
             skipped.append({"id": candidate_id, "status": "skipped_incomplete",
                             "reason": str(error)})
             continue
-        duplicate_of = checkpoint_hashes.get(candidate_hash)
+        duplicate_of = checkpoint_hashes.get(candidate_generation)
         if duplicate_of:
             duplicates.append({"id": candidate_id, "duplicate_of": duplicate_of,
-                               "sha256": candidate_hash})
+                               "sha256": candidate_hash,
+                               "adapter_generation_sha256": candidate_generation})
         else:
-            checkpoint_hashes[candidate_hash] = candidate_id
+            checkpoint_hashes[candidate_generation] = candidate_id
             unique.append((candidate_id, candidate_dir, candidate_hash))
     return production_hash, unique, duplicates, skipped
 
@@ -167,7 +165,7 @@ def get_speaker_similarity(model, reference_path: str, probe_path: str,
         return float(torch.nn.functional.cosine_similarity(reference, probe, dim=0).cpu())
 
 
-def is_complete_evaluation(result: dict, adapter_dir: str) -> bool:
+def is_complete_evaluation(result: dict, adapter_dir: str, synthesis_settings=None) -> bool:
     if not isinstance(result, dict):
         return False
     probes = result.get("probes")
@@ -191,10 +189,23 @@ def is_complete_evaluation(result: dict, adapter_dir: str) -> bool:
         if not isinstance(cleanup, dict) or cleanup.get("status") != "complete":
             return False
     try:
+        settings = get_tts_model_settings({}) if synthesis_settings is None else synthesis_settings
+        recommendation = result.get("candidate_recommendation")
+        if recommendation is not None:
+            recommended = recommendation.get("recommended")
+            if not isinstance(recommended, str) or not recommended:
+                return False
+            if recommended != "production":
+                candidate_dir = get_evaluation_directory(os.path.join(adapter_dir, "candidates"), recommended)
+                with open(os.path.join(candidate_dir, "evaluation.json"), encoding="utf-8") as handle:
+                    candidate_result = json.load(handle)
+                if not is_complete_evaluation(candidate_result, candidate_dir, settings):
+                    return False
         return (
             get_evidence_error(
                 result, adapter_dir,
-                get_evaluation_spec_sha256(PROBES, EVALUATION_SEED, THRESHOLDS)) is None
+                get_evaluation_spec_sha256(PROBES, EVALUATION_SEED, THRESHOLDS, settings),
+                expected_synthesis_settings=settings) is None
             and [item.get("id") for item in result.get("probes", [])]
             == [probe_id for probe_id, _text in PROBES]
         )
@@ -202,60 +213,92 @@ def is_complete_evaluation(result: dict, adapter_dir: str) -> bool:
         return False
 
 
+@contextlib.contextmanager
+def ensure_evaluation_source(result, adapter_dir, synthesis_settings):
+    """Admit current serving bytes before publishing captured evaluation evidence."""
+    with ensure_adapter_checkpoint(adapter_dir) as current:
+        validate_adapter_checkpoint_generation(current)
+        error = get_evidence_error(result, str(current), expected_synthesis_settings=synthesis_settings)
+        if error:
+            raise ValueError(error)
+        yield str(current)
+
+
 def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
-                     embedding_model, device: str, adapter_dir_override: str | None = None) -> dict:
+                     embedding_model, device: str, adapter_dir_override: str | None = None,
+                     *, synthesis_settings=None, expected_generation=None) -> dict:
     adapter_id = entry["id"]
     production_dir = get_evaluation_directory(models_dir, adapter_id)
     adapter_dir = os.path.realpath(adapter_dir_override) if adapter_dir_override else production_dir
     if not is_path_inside(adapter_dir, production_dir):
         raise ValueError("evaluation override is outside the adapter")
-    reference_path = os.path.join(adapter_dir, "ref_sample.wav")
-    if not os.path.isfile(reference_path):
+    if not os.path.isfile(os.path.join(adapter_dir, "ref_sample.wav")):
         raise FileNotFoundError(f"missing ref_sample.wav for {adapter_id}")
-
-    probe_results = []
-    for probe_index, (probe_id, text) in enumerate(PROBES):
-        probe_seed = EVALUATION_SEED + probe_index
-        apply_evaluation_seed(probe_seed)
-        filename = f"evaluation_{probe_id}.wav"
-        output_path = os.path.join(adapter_dir, filename)
-        remove_stale_audio(output_path)
-        generated = engine.generate_voice(
-            text=text, instruct_text="", speaker="_evaluation_",
-            voice_config={"_evaluation_": {
-                "type": "lora", "adapter_id": adapter_id, "adapter_path": adapter_dir,
-            }},
-            output_path=output_path,
-        )
-        if generated is False or not os.path.isfile(output_path):
-            raise RuntimeError(f"probe generation failed: {probe_id}")
-        metrics = get_audio_metrics(output_path)
-        metrics["speaker_similarity"] = get_speaker_similarity(
-            embedding_model, reference_path, output_path, device)
-        warnings = get_warnings(metrics)
-        probe_results.append({
-            "id": probe_id, "text": text, "audio_file": filename, "seed": probe_seed,
-            "audio_sha256": get_file_sha256(output_path),
-            "metrics": metrics, "warnings": warnings,
-        })
-
-    warnings = sorted({warning for result in probe_results for warning in result["warnings"]})
-    return {
-        "version": EVALUATION_VERSION,
-        "evidence": {
-            "checkpoint_sha256": get_checkpoint_sha256(adapter_dir),
-            "reference_audio_sha256": get_file_sha256(reference_path),
-            "evaluation_spec_sha256": get_evaluation_spec_sha256(
-                PROBES, EVALUATION_SEED, THRESHOLDS),
-            "evaluator": "evaluate_lora.py",
-        },
-        "status": "warning" if warnings else "pass",
-        "warning_only": True,
-        "warnings": warnings,
-        "thresholds": THRESHOLDS,
-        "evaluated_at": time.time(),
-        "probes": probe_results,
-    }
+    settings_reader = getattr(engine, "get_model_settings", None)
+    if synthesis_settings is None:
+        if not callable(settings_reader):
+            raise ValueError("Evaluation requires declared synthesis settings")
+        synthesis_settings = settings_reader()
+    settings = get_tts_model_settings({"tts": synthesis_settings})
+    with ensure_adapter_generation_snapshot(adapter_dir, validate=True) as (snapshot, generation):
+        if expected_generation is not None and generation != expected_generation:
+            raise ValueError("Adapter serving generation changed since evaluation admission")
+        reference_path = os.path.join(snapshot, "ref_sample.wav")
+        probe_results = []
+        for probe_index, (probe_id, text) in enumerate(PROBES):
+            if get_adapter_generation_sha256(snapshot) != generation:
+                raise ValueError("Captured evaluation inputs changed during generation")
+            if callable(settings_reader) and settings_reader() != settings:
+                raise ValueError("Engine synthesis settings changed during evaluation")
+            probe_seed = EVALUATION_SEED + probe_index
+            apply_evaluation_seed(probe_seed)
+            filename = f"evaluation_{probe_id}.wav"
+            output_path = os.path.join(adapter_dir, filename)
+            remove_stale_audio(output_path)
+            generated = engine.generate_voice(
+                text=text, instruct_text="", speaker="_evaluation_",
+                voice_config={"_evaluation_": {
+                    "type": "lora", "adapter_id": adapter_id, "adapter_path": snapshot,
+                    "adapter_generation_sha256": generation, "seed": probe_seed,
+                }},
+                output_path=output_path,
+            )
+            if generated is False or not os.path.isfile(output_path):
+                raise RuntimeError(f"probe generation failed: {probe_id}")
+            metrics = get_audio_metrics(output_path)
+            metrics["speaker_similarity"] = get_speaker_similarity(
+                embedding_model, reference_path, output_path, device)
+            warnings = get_warnings(metrics)
+            probe_results.append({
+                "id": probe_id, "text": text, "audio_file": filename, "seed": probe_seed,
+                "audio_sha256": get_file_sha256(output_path),
+                "metrics": metrics, "warnings": warnings,
+            })
+        if (get_adapter_generation_sha256(snapshot) != generation
+                or (callable(settings_reader) and settings_reader() != settings)):
+            raise ValueError("Captured evaluation inputs changed during generation")
+        warnings = sorted({warning for probe in probe_results for warning in probe["warnings"]})
+        result = {
+            "version": EVALUATION_VERSION,
+            "evidence": {
+                "checkpoint_sha256": get_checkpoint_sha256(snapshot),
+                "reference_audio_sha256": get_file_sha256(reference_path),
+                "adapter_generation_sha256": generation,
+                "evaluation_spec_sha256": get_evaluation_spec_sha256(
+                    PROBES, EVALUATION_SEED, THRESHOLDS, settings),
+                "evaluator": "evaluate_lora.py",
+            },
+            "status": "warning" if warnings else "pass",
+            "warning_only": True,
+            "warnings": warnings,
+            "thresholds": THRESHOLDS,
+            "synthesis_settings": settings,
+            "evaluated_at": time.time(),
+            "probes": probe_results,
+        }
+        with ensure_evaluation_source(result, adapter_dir, settings):
+            pass
+        return result
 
 
 def get_evaluation_rank(result: dict) -> tuple:
@@ -333,7 +376,9 @@ def main() -> int:
         run_opts={"device": device},
     )
     embedding_model.eval()
-    engine = TTSEngine(load_app_config(args.config))
+    config = load_app_config(args.config)
+    synthesis_settings = get_tts_model_settings(config)
+    engine = TTSEngine(config)
 
     failures = 0
     manifest_needs_save = True
@@ -351,7 +396,7 @@ def main() -> int:
                 existing = json.load(handle)
         except (OSError, json.JSONDecodeError):
             pass
-        if not args.overwrite and is_complete_evaluation(existing, adapter_dir):
+        if not args.overwrite and is_complete_evaluation(existing, adapter_dir, synthesis_settings):
             print(f"SKIP {adapter_id} — evaluation complete", flush=True)
             entry["evaluation"] = {key: existing.get(key) for key in
                                    ("version", "status", "warnings", "evaluated_at")}
@@ -365,17 +410,21 @@ def main() -> int:
             continue
         print(f"EVALUATE {adapter_id}", flush=True)
         try:
-            checkpoint_identity = get_checkpoint_file_identity(adapter_dir)
-            result = evaluate_adapter(entry, args.models_dir, engine, embedding_model, device)
+            checkpoint_identity = get_adapter_generation_file_identity(adapter_dir)
+            result = evaluate_adapter(entry, args.models_dir, engine, embedding_model, device,
+                                      synthesis_settings=synthesis_settings)
             evaluations = {"production": result}
             candidates_root = os.path.join(adapter_dir, "candidates")
             production_hash, unique_candidates, duplicate_candidates, skipped_candidates = (
                 partition_unique_candidates(adapter_dir, candidates_root,
-                    production_snapshot=(result["evidence"]["checkpoint_sha256"], checkpoint_identity)))
+                    production_snapshot=(result["evidence"]["adapter_generation_sha256"],
+                        checkpoint_identity, result["evidence"]["checkpoint_sha256"])))
             result["checkpoint_sha256"] = production_hash
             available_candidates = [candidate_id for candidate_id, _path, _hash
                                     in unique_candidates]
             available_candidates.extend(item["id"] for item in duplicate_candidates)
+            admitted_generations = {item["id"]: item["adapter_generation_sha256"]
+                                    for item in duplicate_candidates}
             for item in skipped_candidates:
                 print(f"  candidate {item['id']} — incomplete, preserved: {item['reason']}",
                       flush=True)
@@ -384,12 +433,17 @@ def main() -> int:
                       flush=True)
             for candidate_id, candidate_dir, candidate_hash in unique_candidates:
                 print(f"  candidate {candidate_id}", flush=True)
+                candidate_generation = get_adapter_generation_sha256(candidate_dir)
+                admitted_generations[candidate_id] = candidate_generation
                 candidate_result = evaluate_adapter(
                     entry, args.models_dir, engine, embedding_model, device,
-                    adapter_dir_override=candidate_dir)
+                    adapter_dir_override=candidate_dir, synthesis_settings=synthesis_settings,
+                    expected_generation=candidate_generation)
+                if candidate_result["evidence"]["checkpoint_sha256"] != candidate_hash:
+                    raise ValueError("Candidate weights changed since evaluation admission")
                 candidate_result["checkpoint_sha256"] = candidate_hash
-                atomic_json_write(candidate_result,
-                                  os.path.join(candidate_dir, "evaluation.json"))
+                with ensure_evaluation_source(candidate_result, candidate_dir, synthesis_settings) as current:
+                    atomic_json_write(candidate_result, os.path.join(current, "evaluation.json"))
                 evaluations[candidate_id] = candidate_result
             recommendation = get_candidate_recommendation(evaluations)
             keep = (recommendation["recommended"]
@@ -418,11 +472,18 @@ def main() -> int:
             # Persist the comparison and cleanup plan before removing any
             # generated candidate directory. A crash can then be diagnosed and
             # resumed without silently losing the selection evidence.
-            atomic_json_write(result, result_path)
-            recommendation["cleanup"]["removed_candidates"] = cleanup_candidates(
-                adapter_dir, keep, available_candidates)
-            recommendation["cleanup"]["status"] = "complete"
-            atomic_json_write(result, result_path)
+            with ensure_evaluation_source(result, adapter_dir, synthesis_settings) as current:
+                for candidate_id, generation in admitted_generations.items():
+                    candidate_dir = get_evaluation_directory(os.path.join(current, "candidates"), candidate_id)
+                    validate_adapter_checkpoint_generation(candidate_dir)
+                    if get_adapter_generation_sha256(candidate_dir) != generation:
+                        raise ValueError("Candidate serving generation changed before evaluation cleanup")
+                current_result_path = os.path.join(current, "evaluation.json")
+                atomic_json_write(result, current_result_path)
+                recommendation["cleanup"]["removed_candidates"] = cleanup_candidates(
+                    current, keep, available_candidates)
+                recommendation["cleanup"]["status"] = "complete"
+                atomic_json_write(result, current_result_path)
             entry["evaluation"] = {key: result[key] for key in
                                    ("version", "status", "warnings", "evaluated_at")}
             entry["evaluation"]["recommended_candidate"] = recommendation["recommended"]

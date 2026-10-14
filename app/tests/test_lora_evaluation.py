@@ -8,7 +8,8 @@ from unittest.mock import call, patch
 
 import numpy as np
 import soundfile as sf
-from tests.test_support import write_test_adapter
+from tests.test_support import (SyntheticEvaluationEngine, write_test_adapter,
+                               write_test_serving_adapter)
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -19,7 +20,7 @@ SPEC.loader.exec_module(evaluation)
 
 class LoraEvaluationTests(unittest.TestCase):
     def test_adapter_evaluation_generates_both_probes_and_scores_them(self):
-        class FakeEngine:
+        class FakeEngine(SyntheticEvaluationEngine):
             def generate_voice(self, output_path, **_kwargs):
                 times = np.arange(8000, dtype=np.float32) / 16000
                 sf.write(output_path, 0.1 * np.sin(2 * np.pi * 180 * times), 16000)
@@ -27,8 +28,7 @@ class LoraEvaluationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             adapter_dir = Path(tmp, "voice")
-            adapter_dir.mkdir()
-            (adapter_dir / "adapter_model.safetensors").write_bytes(b"checkpoint")
+            write_test_serving_adapter(adapter_dir)
             sf.write(adapter_dir / "ref_sample.wav", np.ones(8000) * 0.1, 16000)
             with (patch.object(evaluation, "get_speaker_similarity", return_value=0.9),
                   patch.object(evaluation, "apply_evaluation_seed") as apply_seed):
@@ -110,14 +110,13 @@ class LoraEvaluationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             adapter = Path(tmp, "voice")
             candidates = adapter / "candidates"
-            write_test_adapter(adapter)
+            write_test_serving_adapter(adapter)
             for candidate_id, weights in (
                     ("epoch_001", 2.0),
                     ("epoch_002", 1.0),
                     ("epoch_003", 2.0)):
                 candidate = candidates / candidate_id
-                write_test_adapter(candidate, weights)
-                sf.write(candidate / "ref_sample.wav", np.ones(80) * .1, 16000)
+                write_test_serving_adapter(candidate, weights)
 
             production_hash, unique, duplicates, skipped = evaluation.partition_unique_candidates(
                 str(adapter), str(candidates))
@@ -134,11 +133,11 @@ class LoraEvaluationTests(unittest.TestCase):
         from adapter_artifacts import AdapterValidationDependencyError
         with tempfile.TemporaryDirectory() as tmp:
             adapter = Path(tmp, "voice")
-            write_test_adapter(adapter)
+            write_test_serving_adapter(adapter)
             root = adapter / "candidates"
             for name in ("complete", "bad_config", "empty_reference"):
                 candidate = root / name
-                write_test_adapter(candidate, 2.0)
+                write_test_serving_adapter(candidate, 2.0)
                 sf.write(candidate / "ref_sample.wav", np.ones(80) * .1, 16000)
             (root / "bad_config" / "adapter_config.json").write_text("{}")
             sf.write(root / "empty_reference" / "ref_sample.wav", np.array([]), 16000)
@@ -150,8 +149,8 @@ class LoraEvaluationTests(unittest.TestCase):
             self.assertEqual(["bad_config", "empty_reference"], [item["id"] for item in skipped])
             self.assertEqual(before, {p.relative_to(root): p.read_bytes()
                                      for p in root.rglob("*") if p.is_file()})
-            with patch.object(evaluation, "validate_adapter_artifacts",
-                              side_effect=AdapterValidationDependencyError("validator unavailable")):
+            with patch('adapter_checkpoint_transaction.validate_adapter_artifacts',
+                       side_effect=AdapterValidationDependencyError("validator unavailable")):
                 with self.assertRaisesRegex(AdapterValidationDependencyError, "unavailable"):
                     evaluation.partition_unique_candidates(str(adapter), str(root))
 
@@ -169,11 +168,12 @@ class LoraEvaluationTests(unittest.TestCase):
 
     def test_resume_requires_version_probes_and_audio_files(self):
         with tempfile.TemporaryDirectory() as tmp:
-            Path(tmp, "adapter_model.safetensors").write_bytes(b"checkpoint")
-            Path(tmp, "ref_sample.wav").write_bytes(b"reference")
+            write_test_serving_adapter(tmp)
             result = {"version": evaluation.EVALUATION_VERSION, "probes": [],
                       "thresholds": evaluation.THRESHOLDS,
+                      "synthesis_settings": evaluation.get_tts_model_settings({}),
                       "evidence": {
+                          "adapter_generation_sha256": evaluation.get_adapter_generation_sha256(tmp),
                           "checkpoint_sha256": evaluation.get_file_sha256(
                               str(Path(tmp, "adapter_model.safetensors"))),
                           "reference_audio_sha256": evaluation.get_file_sha256(
@@ -208,15 +208,14 @@ if __name__ == "__main__":
 class EvaluationSpecIntegrityTests(unittest.TestCase):
     def test_edited_spec_with_unchanged_hash_is_rejected_from_actual_generated_evidence(self):
         from lora_evidence import get_evidence_error
-        class Engine:
+        class Engine(SyntheticEvaluationEngine):
             def generate_voice(self, output_path, **kwargs):
                 time = np.arange(8000, dtype=np.float32)/16000
                 sf.write(output_path, .1*np.sin(2*np.pi*180*time), 16000)
                 return True
         with tempfile.TemporaryDirectory() as tmp:
             adapter = Path(tmp, 'voice')
-            adapter.mkdir()
-            (adapter/'adapter_model.safetensors').write_bytes(b'checkpoint')
+            write_test_serving_adapter(adapter)
             sf.write(adapter/'ref_sample.wav', np.ones(8000)*.1, 16000)
             with patch.object(evaluation, 'get_speaker_similarity', return_value=.9), \
                  patch.object(evaluation, 'apply_evaluation_seed'):
@@ -257,14 +256,10 @@ class EvaluationSpecIntegrityTests(unittest.TestCase):
 class EvaluationCacheShapeTests(unittest.TestCase):
     def make_valid_evidence(self, root):
         adapter = root / 'voice'
-        adapter.mkdir()
-        (adapter / 'adapter_model.safetensors').write_bytes(b'cache fixture checkpoint identity')
+        write_test_serving_adapter(adapter)
         sf.write(adapter / 'ref_sample.wav', np.ones(8000) * .1, 16000)
 
-        class PcmEngine:
-            def __init__(self, *args):
-                pass
-
+        class PcmEngine(SyntheticEvaluationEngine):
             def generate_voice(self, output_path, **kwargs):
                 time = np.arange(8000, dtype=np.float32) / 16000
                 sf.write(output_path, .1 * np.sin(2 * np.pi * 180 * time), 16000)
@@ -356,8 +351,7 @@ class EvaluationCacheShapeTests(unittest.TestCase):
 class EvaluationProbeFreshnessTests(unittest.TestCase):
     def make_adapter(self, root):
         adapter = Path(root, "voice")
-        adapter.mkdir()
-        (adapter / "adapter_model.safetensors").write_bytes(b"checkpoint")
+        write_test_serving_adapter(adapter)
         sf.write(adapter / "ref_sample.wav", np.ones(8000) * .1, 16000)
         for probe_id, _text in evaluation.PROBES:
             sf.write(adapter / f"evaluation_{probe_id}.wav", np.ones(4000) * .2, 16000)
@@ -370,6 +364,7 @@ class EvaluationProbeFreshnessTests(unittest.TestCase):
                 adapter = self.make_adapter(tmp)
                 dialogue = (adapter / "evaluation_dialogue.wav").read_bytes()
                 engine = Mock()
+                engine.get_model_settings.return_value = evaluation.get_tts_model_settings({})
                 engine.generate_voice.return_value = returned
                 with patch.object(evaluation, "apply_evaluation_seed"), \
                      patch.object(evaluation, "get_audio_metrics", wraps=evaluation.get_audio_metrics) as metrics, \
@@ -387,7 +382,7 @@ class EvaluationProbeFreshnessTests(unittest.TestCase):
             with self.subTest(returned=returned), tempfile.TemporaryDirectory() as tmp:
                 adapter = self.make_adapter(tmp)
                 original = {p.name: p.read_bytes() for p in adapter.iterdir()}
-                class Engine:
+                class Engine(SyntheticEvaluationEngine):
                     def generate_voice(self, output_path, **_kwargs):
                         self_test.assertFalse(Path(output_path).exists())
                         times = np.arange(8000, dtype=np.float32) / 16000
@@ -411,7 +406,7 @@ class EvaluationProbeFreshnessTests(unittest.TestCase):
         for returned, empty in ((False, False), (None, True)):
             with self.subTest(returned=returned, empty=empty), tempfile.TemporaryDirectory() as tmp:
                 adapter = self.make_adapter(tmp)
-                class Engine:
+                class Engine(SyntheticEvaluationEngine):
                     def generate_voice(self, output_path, **_kwargs):
                         sf.write(output_path, np.zeros(0 if empty else 8000), 16000)
                         return returned
@@ -429,14 +424,19 @@ class CandidateReferencePairingTests(unittest.TestCase):
             parent = Path(tmp, "voice")
             candidate = parent / "candidates" / "epoch_001"
             candidate.mkdir(parents=True)
-            (parent / "adapter_model.safetensors").write_bytes(b"production")
-            (candidate / "adapter_model.safetensors").write_bytes(b"candidate")
+            write_test_serving_adapter(parent)
+            write_test_serving_adapter(candidate, 2.0)
             sf.write(parent / "ref_sample.wav", np.ones(8000) * .2, 16000)
             sf.write(candidate / "ref_sample.wav", np.ones(8000) * .1, 16000)
             original = {p.name: p.read_bytes() for p in parent.iterdir() if p.is_file()}
-            class Engine:
+            captured_references = []
+            class Engine(SyntheticEvaluationEngine):
                 def generate_voice(self, output_path, voice_config, **_kwargs):
-                    self_test.assertEqual(str(candidate), voice_config["_evaluation_"]["adapter_path"])
+                    captured = Path(voice_config["_evaluation_"]["adapter_path"])
+                    self_test.assertNotEqual(candidate, captured)
+                    self_test.assertEqual((candidate / "ref_sample.wav").read_bytes(),
+                                          (captured / "ref_sample.wav").read_bytes())
+                    captured_references.append(str(captured / "ref_sample.wav"))
                     self_test.assertEqual(candidate, Path(output_path).parent)
                     times = np.arange(8000, dtype=np.float32) / 16000
                     sf.write(output_path, .1 * np.sin(2 * np.pi * 180 * times), 16000)
@@ -446,8 +446,7 @@ class CandidateReferencePairingTests(unittest.TestCase):
                  patch.object(evaluation, "get_speaker_similarity", return_value=.9) as similarity:
                 result = evaluation.evaluate_adapter({"id": "voice"}, tmp, Engine(), object(), "cpu",
                                                      adapter_dir_override=str(candidate))
-            self.assertTrue(all(args.args[1] == str(candidate / "ref_sample.wav")
-                                for args in similarity.call_args_list))
+            self.assertEqual(captured_references, [args.args[1] for args in similarity.call_args_list])
             digest = evaluation.get_file_sha256(str(candidate / "ref_sample.wav"))
             self.assertEqual(digest, result["evidence"]["reference_audio_sha256"])
             self.assertNotEqual(evaluation.get_file_sha256(str(parent / "ref_sample.wav")), digest)
@@ -487,7 +486,7 @@ class EvaluationCleanupResumeTests(unittest.TestCase):
                     before = copy.deepcopy(result)
                     self.assertFalse(evaluation.is_complete_evaluation(result, str(adapter)))
                     self.assertEqual(before, result)
-            valid["candidate_recommendation"] = {"cleanup": {"status": "complete"}}
+            valid["candidate_recommendation"] = {"recommended": "production", "cleanup": {"status": "complete"}}
             self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter)))
 
     def test_actual_pending_cleanup_is_finished_and_next_run_skips(self):
@@ -503,9 +502,10 @@ class EvaluationCleanupResumeTests(unittest.TestCase):
             candidate = adapter / "candidates" / "losing"
             candidate.mkdir(parents=True)
             weights = adapter / "adapter_model.safetensors"
-            write_test_adapter(adapter)
-            write_test_adapter(candidate)
-            sf.write(candidate / "ref_sample.wav", np.ones(80) * .1, 16000)
+            import shutil
+            from lora_evidence import GENERATION_FILES
+            for filename in GENERATION_FILES:
+                shutil.copy2(adapter / filename, candidate / filename)
             original_weights = weights.read_bytes()
             (candidate / weights.name).write_bytes(original_weights)
             (candidate / "partial-cleanup.txt").write_text("left by interruption")

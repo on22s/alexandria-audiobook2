@@ -47,6 +47,31 @@ def write_test_adapter(path, value=1.0):
     (path / "training_meta.json").write_text(json.dumps({"best_loss":2.5, "final_loss":2.5, "num_samples":1}))
 
 
+def write_test_serving_adapter(path, value=1.0):
+    """Write all four real serving files, with known synthetic reference PCM."""
+    import json
+    from pathlib import Path
+    import numpy as np
+    import soundfile as sf
+    from lora_evidence import get_file_sha256
+    write_test_adapter(path, value)
+    path = Path(path)
+    sf.write(path / "ref_sample.wav", np.full(8000, value * .05), 16000)
+    (path / "training_meta.json").write_text(json.dumps({
+        "ref_sample_text": "Known synthetic reference.",
+        "checkpoint_sha256": get_file_sha256(path / "adapter_model.safetensors")}))
+
+
+class SyntheticEvaluationEngine:
+    """Settings contract for bounded PCM callbacks, without a model backend."""
+    def __init__(self, config=None):
+        from lora_evidence import get_tts_model_settings
+        self._settings = get_tts_model_settings(config or {})
+
+    def get_model_settings(self):
+        return dict(self._settings)
+
+
 def assert_file_lock_released(path):
     """Verify ownership ended by taking the same lock immediately."""
     from utils import file_lock

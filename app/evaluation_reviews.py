@@ -213,11 +213,7 @@ def _apply_pending_decisions(reviews_dir, adapter_id):
 
 
 def evidence_fingerprint(production_result, candidate_result):
-    """The bound identity of a review: spec + checkpoint hashes from both sides.
-
-    Two reviews concern the same evidence iff these four values match. Pulled from
-    each evaluation result's version-2 ``evidence`` block.
-    """
+    """Bind a review to each specification and complete serving generation."""
     prod = production_result.get("evidence") or {}
     cand = candidate_result.get("evidence") or {}
     return {
@@ -225,6 +221,8 @@ def evidence_fingerprint(production_result, candidate_result):
         "candidate_spec_sha256": cand.get("evaluation_spec_sha256"),
         "production_checkpoint_sha256": prod.get("checkpoint_sha256"),
         "candidate_checkpoint_sha256": cand.get("checkpoint_sha256"),
+        "production_generation_sha256": prod.get("adapter_generation_sha256"),
+        "candidate_generation_sha256": cand.get("adapter_generation_sha256"),
     }
 
 

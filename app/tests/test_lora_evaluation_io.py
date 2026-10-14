@@ -32,8 +32,10 @@ class EvaluationIoTests(unittest.TestCase):
             writes=[call for call in write.call_args_list if str(call.args[1])==str(manifest)]
             with self.subTest(kind="manifest_writes"):self.assertEqual(2 if cached_tail else 1,len(writes))
             if not cached and any(row.get('id')=='voice' for row in entries):
-                with self.subTest(kind="production_hash_reads"):
-                    self.assertEqual(1,len([call for call in hash_file.call_args_list if str(call.args[0])==str(adapter)]))
+                with self.subTest(kind="captured_weight_hash_reads"):
+                    self.assertEqual(1,len(hash_file.call_args_list))
+                    self.assertNotEqual(str(adapter),str(hash_file.call_args.args[0]),
+                                        'evidence must identify the captured input, not a later live bundle')
                 result=json.loads((adapter/'evaluation.json').read_text())
                 self.assertEqual(result['evidence']['checkpoint_sha256'],result['checkpoint_sha256'])
                 self.assertTrue(evaluation.is_complete_evaluation(result,str(adapter)))
@@ -41,7 +43,7 @@ class EvaluationIoTests(unittest.TestCase):
             if cached_tail:self.assertIn('evaluation',json.loads(manifest.read_text())[-1])
             self.assertEqual(before,(adapter/'adapter_model.safetensors').read_bytes())
 
-    def test_new_evaluation_hashes_production_once_and_saves_manifest_once(self):self.run_manifest([{'id':'voice'}])
+    def test_new_evaluation_hashes_captured_weights_once_and_saves_manifest_once(self):self.run_manifest([{'id':'voice'}])
     def test_cached_updates_are_still_persisted(self):self.run_manifest([{'id':'voice'}],cached=True)
     def test_empty_manifest_still_has_one_final_write(self):self.run_manifest([])
 
@@ -49,16 +51,20 @@ class EvaluationIoTests(unittest.TestCase):
         self.run_manifest([{'id':'voice'},{'id':'cached_voice'}],cached_tail=True)
 
     def test_hash_reuse_is_scoped_to_unchanged_native_file_identity(self):
+        from tests.test_support import write_test_serving_adapter
         with tempfile.TemporaryDirectory() as tmp:
-            adapter=Path(tmp);weights=adapter/'adapter_model.safetensors';weights.write_bytes(b'original checkpoint')
-            snapshot=(evaluation.get_checkpoint_sha256(tmp),evaluation.get_checkpoint_file_identity(tmp))
+            adapter=Path(tmp);write_test_serving_adapter(adapter);weights=adapter/'adapter_model.safetensors'
+            snapshot=(evaluation.get_adapter_generation_sha256(tmp),
+                      evaluation.get_adapter_generation_file_identity(tmp),evaluation.get_checkpoint_sha256(tmp))
             with patch.object(evaluation,'get_checkpoint_sha256',wraps=evaluation.get_checkpoint_sha256) as hash_file:
                 result=evaluation.partition_unique_candidates(tmp,str(adapter/'candidates'),production_snapshot=snapshot)
-                self.assertEqual(snapshot[0],result[0]);hash_file.assert_not_called()
-            version=weights.stat();weights.write_bytes(b'changed! checkpoint')
+                self.assertEqual(snapshot[2],result[0]);hash_file.assert_not_called()
+            original=weights.read_bytes();changed=original[:-1]+bytes([original[-1]^1])
+            version=weights.stat();weights.write_bytes(changed)
             self.assertEqual(version.st_size,weights.stat().st_size)
             os.utime(weights,ns=(version.st_atime_ns,version.st_mtime_ns))
             with patch.object(evaluation,'get_checkpoint_sha256',wraps=evaluation.get_checkpoint_sha256) as hash_file:
                 changed=evaluation.partition_unique_candidates(tmp,str(adapter/'candidates'),production_snapshot=snapshot)
                 hash_file.assert_called_once_with(tmp)
-            self.assertNotEqual(snapshot[0],changed[0]);self.assertEqual(weights.read_bytes(),b'changed! checkpoint')
+            self.assertNotEqual(snapshot[2],changed[0])
+            self.assertEqual(weights.read_bytes(),original[:-1]+bytes([original[-1]^1]))

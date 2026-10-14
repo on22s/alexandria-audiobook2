@@ -4807,7 +4807,7 @@
     "tests.test_lora_evaluation_io.EvaluationIoTests.test_cached_updates_are_still_persisted",
     "tests.test_lora_evaluation_io.EvaluationIoTests.test_empty_manifest_still_has_one_final_write",
     "tests.test_lora_evaluation_io.EvaluationIoTests.test_hash_reuse_is_scoped_to_unchanged_native_file_identity",
-    "tests.test_lora_evaluation_io.EvaluationIoTests.test_new_evaluation_hashes_production_once_and_saves_manifest_once"
+    "tests.test_lora_evaluation_io.EvaluationIoTests.test_new_evaluation_hashes_captured_weights_once_and_saves_manifest_once"
   ],
   "test_lora_evidence_containment": [
     "tests.test_lora_evidence_containment.CheckpointEvidenceContainmentTests.test_fixed_evidence_outside_symlinks_reject_even_with_matching_hashes",
@@ -4888,6 +4888,22 @@
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_normal_mode_toggles_both_adapter_scales",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_paired_metadata_matches_the_two_executed_arms",
     "tests.test_lora_serving_eval_modes.LoraServingEvalModeTests.test_qwen35_moe_uses_training_compatible_wrapper"
+  ],
+  "test_lora_serving_evidence": [
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_actual_main_reruns_legacy_evidence_instead_of_claiming_complete",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_actual_main_reuses_unchanged_settings_and_rescores_language_change",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_cache_reuse_tracks_config_and_metadata_native_versions_even_with_restored_mtime",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_changed_snapshot_or_engine_settings_stop_before_second_probe",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_config_and_metadata_only_changes_refuse_completed_native_evidence",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_each_model_setting_and_legacy_missing_fields_refuse_cache_reuse",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_real_engine_defaults_and_explicit_settings_match_the_pure_reader",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_rerun_config_only_changes_review_fingerprint_and_refuses_prior_session",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_runtime_comparison_rejects_settings_and_spec_mismatch_without_constructing_engine",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_same_weights_distinct_serving_bundles_are_unique_and_exact_copies_deduplicate",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_shared_evidence_layer_remains_importable_without_site_dependencies",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_shared_generation_digest_preserves_the_original_four_file_contract",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_source_replacement_between_probes_keeps_one_snapshot_and_refuses_newer_source",
+    "tests.test_lora_serving_evidence.ServingEvidenceTests.test_stale_candidate_before_cleanup_fails_without_removing_captured_or_new_candidates"
   ],
   "test_lora_test_pending_js": [
     "tests.test_lora_test_pending_js.LoraTestPendingJsTests.test_pending_failure_retry_and_success"

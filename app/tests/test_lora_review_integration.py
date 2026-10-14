@@ -12,8 +12,10 @@ import tempfile
 import unittest
 
 import evaluation_reviews as er
-from lora_evidence import get_file_sha256, get_evaluation_spec_sha256
+from lora_evidence import (EVALUATION_EVIDENCE_VERSION, get_adapter_generation_sha256,
+                          get_file_sha256, get_evaluation_spec_sha256, get_tts_model_settings)
 from routers import lora
+from tests.test_support import write_test_serving_adapter
 
 
 def _write(path, data):
@@ -22,13 +24,12 @@ def _write(path, data):
 
 
 def _evaluation_json(checkpoint_dir, spec):
-    """A version-2 evaluation result whose recorded hashes match files on disk."""
-    _write(os.path.join(checkpoint_dir, "adapter_model.safetensors"),
-           f"weights-{spec}".encode())
-    _write(os.path.join(checkpoint_dir, "ref_sample.wav"), f"ref-{spec}".encode())
+    """A current full-generation result whose hashes match native serving files."""
+    write_test_serving_adapter(checkpoint_dir, 1 if spec == 'prod' else 2)
     _write(os.path.join(checkpoint_dir, "probe_0.wav"), f"probe-{spec}".encode())
     return {
-        "version": 2,
+        "version": EVALUATION_EVIDENCE_VERSION,
+        "synthesis_settings": get_tts_model_settings({}),
         "thresholds": {},
         "probes": [{
             "id": "probe_0", "audio_file": "probe_0.wav",
@@ -36,6 +37,7 @@ def _evaluation_json(checkpoint_dir, spec):
             "text": "the quick brown fox", "seed": 1, "metrics": {}, "warnings": [],
         }],
         "evidence": {
+            "adapter_generation_sha256": get_adapter_generation_sha256(checkpoint_dir),
             "checkpoint_sha256": get_file_sha256(
                 os.path.join(checkpoint_dir, "adapter_model.safetensors")),
             "reference_audio_sha256": get_file_sha256(

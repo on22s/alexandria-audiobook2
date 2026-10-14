@@ -19,6 +19,7 @@ import zipfile
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
+from config_settings import load_app_config
 
 from dataset_publication import apply_dataset_publication
 from dataset_metadata import get_dataset_metadata, require_dataset_wav
@@ -31,6 +32,7 @@ from adapter_checkpoint_transaction import (apply_adapter_checkpoint_locked,
 from adapter_naming_transaction import apply_adapter_deletion_locked, apply_rollback_backup_deletion_locked, lock_adapter_naming
 
 from core import (
+    CONFIG_PATH,
     VOICE_CONFIG_PATH, VOICE_LIBRARY_PATH, SCRIPTS_DIR,
     BUILTIN_LORA_DIR,
     EVALUATION_REVIEWS_DIR,
@@ -59,7 +61,7 @@ from hf_utils import (
     is_adapter_downloaded,
     get_builtin_manifest_entry,
 )
-from lora_evidence import get_evidence_error
+from lora_evidence import get_evidence_error, get_tts_model_settings
 from train_lora import DEFAULT_LEARNING_RATE
 from utils import atomic_json_write, file_lock, get_unique_id, is_path_inside, secure_filename
 from voice_manifest import get_resolved_adapter_path_locked, validate_adapter_name, get_adapter_asset_snapshot, get_adapter_identity_ids_locked, get_resolved_adapter_ids, validate_adapter_registration_id_locked, get_resolved_adapter_manifest_rows_locked, get_adapter_manifest_rows, get_adapter_identity_read_recovery_command
@@ -409,10 +411,12 @@ def _load_candidate_comparison_full_locked(adapter_id: str, models_dir: str,
         os.path.join(adapter_dir, "evaluation.json"))
     candidate_result = _load_comparison_evaluation(
         os.path.join(candidate_dir, "evaluation.json"))
+    synthesis_settings = get_tts_model_settings(load_app_config(CONFIG_PATH))
     for result, checkpoint_dir in ((production_result, adapter_dir),
                                    (candidate_result, candidate_dir)):
         try:
-            evidence_error = get_evidence_error(result, checkpoint_dir)
+            evidence_error = get_evidence_error(result, checkpoint_dir,
+                                               expected_synthesis_settings=synthesis_settings)
         except (OSError, ValueError):
             evidence_error = "evaluation integrity evidence could not be verified"
         if evidence_error:
@@ -435,6 +439,9 @@ def _load_candidate_comparison_full_locked(adapter_id: str, models_dir: str,
         pairs.append({"id": probe_id, "text": production_probe["text"],
                       "seed": production_probe["seed"],
                       "production": production_probe, "candidate": candidate_probe})
+    if (production_result["evidence"]["evaluation_spec_sha256"] !=
+            candidate_result["evidence"]["evaluation_spec_sha256"]):
+        raise HTTPException(status_code=409, detail="Production and candidate evaluation specifications do not match")
     recommendation = production_result.get("candidate_recommendation") or {}
     comparison = {
         "adapter_id": adapter_id,

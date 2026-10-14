@@ -17,13 +17,9 @@ from adapter_publication import (CHECKPOINT_SWAP_JOURNAL, get_adapter_bundle_sha
                                  get_adapter_publication_recovery_command, get_adapter_publication_owner,
                                  save_adapter_publication_bytes, sync_adapter_directory,
                                  sync_adapter_tree)
-from lora_evidence import get_file_sha256
+from lora_evidence import GENERATION_FILES, get_adapter_generation_sha256, get_file_sha256
 from utils import file_lock
 from voice_manifest import get_resolved_adapter_path_locked
-
-GENERATION_FILES = ('adapter_config.json', 'adapter_model.safetensors',
-                    'ref_sample.wav', 'training_meta.json')
-
 
 def get_adapter_checkpoint_journal(adapter_dir):
     return get_adapter_checkpoint_generation_journal(adapter_dir)
@@ -204,17 +200,13 @@ def validate_adapter_checkpoint_generation(adapter_dir):
     return meta
 
 
-def get_adapter_generation_sha256(adapter_dir):
-    """Identify the exact served config, weights, reference audio and metadata."""
-    rows = [(name, get_file_sha256(str(Path(adapter_dir) / name))) for name in GENERATION_FILES]
-    return hashlib.sha256(json.dumps(rows).encode()).hexdigest()
-
-
 @contextlib.contextmanager
-def ensure_adapter_generation_snapshot(adapter_dir):
+def ensure_adapter_generation_snapshot(adapter_dir, *, validate=False):
     """Capture serving bytes under admission, then release before slow model loads."""
     with tempfile.TemporaryDirectory(prefix='alexandria-lora-generation-') as temporary:
         with ensure_adapter_checkpoint(adapter_dir) as adapter:
+            if validate:
+                validate_adapter_checkpoint_generation(adapter)
             generation = get_adapter_generation_sha256(adapter)
             for name in GENERATION_FILES:
                 shutil.copy2(adapter / name, Path(temporary) / name)

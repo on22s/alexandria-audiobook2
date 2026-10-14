@@ -8,17 +8,19 @@ from unittest.mock import patch
 import numpy as np
 import soundfile as sf
 import lora_evidence as evidence
+from tests.test_support import write_test_serving_adapter
 
 
 def make_checkpoint(root):
-    root.mkdir()
-    (root/'adapter_model.safetensors').write_bytes(b'known fixture checkpoint bytes')
+    write_test_serving_adapter(root)
     sf.write(root/'ref_sample.wav',np.full(200,.1),16000)
     sf.write(root/'probe.wav',np.full(200,.2),16000)
     thresholds={'minimum_similarity':.5}
-    return {'version':2,'thresholds':thresholds,
+    return {'version':evidence.EVALUATION_EVIDENCE_VERSION,'thresholds':thresholds,
+            'synthesis_settings':evidence.get_tts_model_settings({}),
             'evidence':{'checkpoint_sha256':evidence.get_file_sha256(root/'adapter_model.safetensors'),
                         'reference_audio_sha256':evidence.get_file_sha256(root/'ref_sample.wav'),
+                        'adapter_generation_sha256':evidence.get_adapter_generation_sha256(root),
                         'evaluation_spec_sha256':evidence.get_evaluation_spec_sha256([('probe','known line')],0,thresholds)},
             'probes':[{'id':'probe','text':'known line','seed':0,'audio_file':'probe.wav',
                        'audio_sha256':evidence.get_file_sha256(root/'probe.wav')}]}
@@ -26,7 +28,7 @@ def make_checkpoint(root):
 
 class CheckpointEvidenceContainmentTests(unittest.TestCase):
     def test_fixed_evidence_outside_symlinks_reject_even_with_matching_hashes(self):
-        for filename in ('adapter_model.safetensors','ref_sample.wav'):
+        for filename in evidence.GENERATION_FILES:
             with self.subTest(filename=filename),tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp)/'checkpoint';result=make_checkpoint(root)
                 outside=Path(tmp)/('outside-'+filename);outside.write_bytes((root/filename).read_bytes())
@@ -43,7 +45,7 @@ class CheckpointEvidenceContainmentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)/'checkpoint';result=make_checkpoint(root)
             self.assertIsNone(evidence.get_evidence_error(result,str(root)))
-            for filename in ('adapter_model.safetensors','ref_sample.wav','probe.wav'):
+            for filename in (*evidence.GENERATION_FILES,'probe.wav'):
                 saved=root/('actual-'+filename);(root/filename).rename(saved);(root/filename).symlink_to(saved)
             self.assertIsNone(evidence.get_evidence_error(result,str(root)))
             (root/'actual-adapter_model.safetensors').write_bytes(b'changed checkpoint')

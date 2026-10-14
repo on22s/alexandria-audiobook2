@@ -16,8 +16,8 @@ from unittest.mock import patch
 
 import evaluation_reviews as er
 
-PROD = {"evidence": {"evaluation_spec_sha256": "ps", "checkpoint_sha256": "pc"}}
-CAND = {"evidence": {"evaluation_spec_sha256": "cs", "checkpoint_sha256": "cc"}}
+PROD = {"evidence": {"evaluation_spec_sha256": "ps", "checkpoint_sha256": "pc", "adapter_generation_sha256": "pg"}}
+CAND = {"evidence": {"evaluation_spec_sha256": "cs", "checkpoint_sha256": "cc", "adapter_generation_sha256": "cg"}}
 PAIRS = [{"id": "p1", "text": "hello", "seed": 1}]
 AUDIO = {"production": {"p1": "/models/voice/p1.wav"},
          "candidate": {"p1": "/models/voice/candidates/c1/p1.wav"}}

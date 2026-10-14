@@ -15,6 +15,7 @@ from fastapi import HTTPException
 from routers import lora
 from core import process_state
 from lora_evidence import (EVALUATION_EVIDENCE_VERSION,
+                           get_adapter_generation_sha256, get_tts_model_settings,
                            get_evaluation_spec_sha256, get_file_sha256)
 
 
@@ -288,10 +289,8 @@ class LoraCandidatePromotionTests(unittest.TestCase):
         candidate.mkdir(parents=True)
         adapter.mkdir(parents=True, exist_ok=True)
         (adapter / "probe.wav").write_bytes(b"production")
-        (adapter / "adapter_model.safetensors").write_bytes(b"production checkpoint")
-        (adapter / "ref_sample.wav").write_bytes(b"production reference")
-        (candidate / "adapter_model.safetensors").write_bytes(b"candidate checkpoint")
-        (candidate / "ref_sample.wav").write_bytes(b"candidate reference")
+        _write_real_checkpoint(adapter, 'production')
+        _write_real_checkpoint(candidate, 'candidate')
         if candidate_audio == "probe.wav":
             (candidate / candidate_audio).write_bytes(b"candidate")
         probe = {"id": "neutral", "text": "Matched text", "seed": 42,
@@ -302,7 +301,9 @@ class LoraCandidatePromotionTests(unittest.TestCase):
             (("neutral", "Matched text"),), 42, {})
         (adapter / "evaluation.json").write_text(json.dumps({
             "version": EVALUATION_EVIDENCE_VERSION,
+            "synthesis_settings": get_tts_model_settings({}),
             "evidence": {
+                "adapter_generation_sha256": get_adapter_generation_sha256(adapter),
                 "checkpoint_sha256": get_file_sha256(
                     str(adapter / "adapter_model.safetensors")),
                 "reference_audio_sha256": get_file_sha256(str(adapter / "ref_sample.wav")),
@@ -317,7 +318,9 @@ class LoraCandidatePromotionTests(unittest.TestCase):
             candidate_probe["audio_sha256"] = get_file_sha256(str(candidate / candidate_audio))
         (candidate / "evaluation.json").write_text(json.dumps({
             "version": EVALUATION_EVIDENCE_VERSION,
+            "synthesis_settings": get_tts_model_settings({}),
             "evidence": {
+                "adapter_generation_sha256": get_adapter_generation_sha256(candidate),
                 "checkpoint_sha256": get_file_sha256(
                     str(candidate / "adapter_model.safetensors")),
                 "reference_audio_sha256": get_file_sha256(str(candidate / "ref_sample.wav")),

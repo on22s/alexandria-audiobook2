@@ -15,6 +15,7 @@ import numpy as np
 import soundfile as sf
 from tests.test_voice_dataset_quality import quality
 from tests.test_lora_evaluation import evaluation
+from tests.test_support import write_test_serving_adapter
 
 
 class FiniteAudioMetricsTests(unittest.TestCase):
@@ -81,8 +82,7 @@ class FiniteAudioMetricsTests(unittest.TestCase):
             with self.subTest(bad_probe=bad_probe, similarity=similarity), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 adapter = root / 'voice'
-                adapter.mkdir()
-                (adapter / 'adapter_model.safetensors').write_bytes(b'checkpoint')
+                write_test_serving_adapter(adapter)
                 (adapter / 'ref_sample.wav').write_bytes(self.wav(np.full(16000, .1)))
                 candidate = adapter / 'candidates' / 'epoch_001'
                 candidate.mkdir(parents=True)
@@ -96,6 +96,7 @@ class FiniteAudioMetricsTests(unittest.TestCase):
                     samples[7] = np.nan
                 payload = self.wav(samples)
                 engine = Mock()
+                engine.get_model_settings.return_value = evaluation.get_tts_model_settings({})
                 def generate(output_path, **kwargs):
                     Path(output_path).write_bytes(payload)
                     return True
