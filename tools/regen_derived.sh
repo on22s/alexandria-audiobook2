@@ -40,7 +40,6 @@ ab_test_runtime/audit/artifact_structural_audit.json
 ab_test_runtime/audit/legacy_attribution_audit.json
 ab_test_runtime/audit/goal_evidence_audit.json
 app/tests/unit_test_inventory.json
-GOALS.md
 PATHS
 }
 
@@ -87,9 +86,8 @@ say "   goal evidence audit"
     echo "regen_derived: update_test_inventory FAILED" >&2; exit 1; }
 say "   unit test inventory"
 
-# GOALS.md carries a derived line number in its header. It is one sed rather
-# than a generator, but it is derived, it conflicts for the same reason as the
-# indexes, and leaving it out of the one list is how it would be forgotten.
+# Older GOALS.md headers carried this pointer. Keep rebuilding it for the
+# pointer-only resolver, but never classify the surrounding prose as derived.
 if [ -f "$REPO/GOALS.md" ]; then
     line=$(grep -n '^# Part II' "$REPO/GOALS.md" | cut -d: -f1)
     if [ -n "${line:-}" ]; then

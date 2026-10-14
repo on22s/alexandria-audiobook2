@@ -7,7 +7,7 @@ from pathlib import Path
 from utils import atomic_json_write
 
 from tests.test_inventory import (EXCLUDED_TEST_MODULES, INVENTORY_PATH,
-                            _tracked_test_modules, get_unit_test_inventory)
+                            _tracked_test_modules, get_test_directory, get_unit_test_inventory)
 
 
 def format_inventory(inventory):
@@ -42,7 +42,7 @@ def write_inventory(path=INVENTORY_PATH):
     return path
 
 
-def find_untracked_test_modules():
+def find_untracked_test_modules(test_directory=None):
     """Test files on disk that git does not track, so are not inventoried.
 
     The inventory deliberately covers only tracked files, because this tree is
@@ -50,11 +50,12 @@ def find_untracked_test_modules():
     regenerate, commit, and CI discovers tests the inventory never saw. Warning
     here turns a red build into a line of output.
     """
-    tracked = _tracked_test_modules()
+    directory = get_test_directory(test_directory)
+    tracked = _tracked_test_modules(directory)
     if tracked is None:
         return []
     return sorted(
-        path.name for path in Path(__file__).with_name("tests").glob("test*.py")
+        path.name for path in directory.glob("test*.py")
         if path.stem not in EXCLUDED_TEST_MODULES and path.stem not in tracked)
 
 

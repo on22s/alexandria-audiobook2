@@ -6,6 +6,7 @@ import json
 import tempfile
 import unittest
 import zipfile
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -38,8 +39,10 @@ class BatchProcessorPreflightTests(unittest.TestCase):
     def test_mixed_batch_refuses_invalid_inputs_but_accepts_verified_resume_skips(self):
         good=self.root/'good.wav';good.touch()
         save_receipt=batch.save_batch_receipt
-        for kind in ('missing','unsupported','completed'):
+        for second,kind in enumerate(('missing','unsupported','completed')):
             with self.subTest(kind=kind):
+                receipt_dir=self.root/kind
+                receipt_dir.mkdir()
                 other=self.root/('unsupported.txt' if kind=='unsupported' else kind+'.wav')
                 if kind!='missing':other.touch()
                 if kind=='completed':
@@ -57,13 +60,18 @@ class BatchProcessorPreflightTests(unittest.TestCase):
                      patch.object(batch,'get_output_name',side_effect=lambda path:str(Path(path).with_suffix('.zip'))), \
                      patch.object(processor,'ensure_disk_space',return_value=True), \
                      patch.object(processor,'process_file',side_effect=worker) as process, \
-                     patch.object(batch,'save_batch_receipt',side_effect=lambda name,data:save_receipt(self.root/name,data)):
+                     patch.object(batch,'datetime') as clock, \
+                     patch.object(batch,'save_batch_receipt',side_effect=lambda name,data:save_receipt(receipt_dir/name,data)):
+                    clock.now.return_value=datetime(2026,10,13,12,0,second)
                     result=processor.run([str(good),str(other)])
                 self.assertEqual(kind=='completed',result)
                 process.assert_called_once_with(str(good),1,1)
                 self.assertEqual([],processor.results['failed'])
                 self.assertEqual(1,len(processor.results['skipped']))
-                receipt=json.loads(next(self.root.glob('batch_results_*.json')).read_text())
+                receipts=list(receipt_dir.glob('batch_results_*.json'))
+                self.assertEqual(1,len(receipts))
+                self.assertEqual(f'batch_results_20261013_1200{second:02d}.json',receipts[0].name)
+                receipt=json.loads(receipts[0].read_text())
                 self.assertEqual(processor.results,receipt['results'])
 
     def test_folder_discovery_ignores_audio_named_directory(self):

@@ -2414,6 +2414,11 @@
     "tests.test_derived_metadata.DerivedMetadataTests.test_pointer_only_resolver_queries_metadata_once_and_regenerates_once",
     "tests.test_derived_metadata.DerivedMetadataTests.test_ready_regenerates_once_then_checks_and_runs_verifier"
   ],
+  "test_derived_prose_staging": [
+    "tests.test_derived_prose_staging.DerivedProseStagingTests.test_followup_commits_only_generated_blobs_with_unstaged_prose",
+    "tests.test_derived_prose_staging.DerivedProseStagingTests.test_followup_refuses_staged_prose_without_changing_index_or_head",
+    "tests.test_derived_prose_staging.DerivedProseStagingTests.test_precommit_keeps_unstaged_and_deliberately_staged_prose_boundaries"
+  ],
   "test_descriptor_candidates": [
     "tests.test_descriptor_candidates.AnalyseTest.test_a_row_whose_gold_is_off_roster_is_skipped",
     "tests.test_descriptor_candidates.AnalyseTest.test_correct_rows_never_enter_the_wrong_row_counts",
@@ -4068,6 +4073,8 @@
     "tests.test_inventory.AtomicInventoryWriterTests.test_failed_serialization_or_replace_preserves_prior_inventory_and_cleans_temporary_files",
     "tests.test_inventory.AtomicInventoryWriterTests.test_open_reader_keeps_prior_json_while_new_reader_gets_complete_inventory",
     "tests.test_inventory.InventoryCheckWarningTests.test_check_warns_about_actual_untracked_tests_without_writing_inventory",
+    "tests.test_inventory.InventoryFixtureIsolationTests.test_hard_exit_after_each_actual_probe_write_leaves_only_private_residue",
+    "tests.test_inventory.InventoryFixtureIsolationTests.test_overlapping_private_readers_keep_fixed_probe_names_and_indexes_independent",
     "tests.test_inventory.TestInventoryTests.test_inventory_differences_are_compact_and_actionable",
     "tests.test_inventory.TestInventoryTests.test_inventory_writer_is_deterministic_and_check_is_read_only",
     "tests.test_inventory.TestInventoryTests.test_unit_test_inventory_is_stable",
