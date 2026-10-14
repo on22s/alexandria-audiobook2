@@ -18,7 +18,7 @@ import train_lora
 from adapter_checkpoint_transaction import validate_adapter_checkpoint_generation
 from dataset_metadata import get_training_dataset_preflight
 from lora_evidence import get_file_sha256
-from tests.test_support import write_test_adapter
+from tests.test_support import write_test_adapter, apply_test_module_providers
 
 # Resolve the native decoder before scoped provider-module restoration.
 LIBROSA_LOAD = librosa.load
@@ -38,12 +38,39 @@ class TrainingAudioAdmissionTests(unittest.TestCase):
         hf = SimpleNamespace(speaker_encoder=encoder, speech_tokenizer=SimpleNamespace(encode=codec))
         processor = Mock(return_value={'input_ids': torch.tensor([[1, 2, 3]])})
         mel = Mock(return_value=torch.ones(1, 128, 4))
-        with patch.dict(sys.modules, {'qwen_tts.core.models.modeling_qwen3_tts': SimpleNamespace(mel_spectrogram=mel)}), \
+        with apply_test_module_providers({'qwen_tts.core.models.modeling_qwen3_tts': SimpleNamespace(mel_spectrogram=mel)}), \
                 patch.object(librosa, 'load', wraps=LIBROSA_LOAD) as load, contextlib.redirect_stdout(io.StringIO()):
             if decoder is not None:
                 load.side_effect = decoder
             result = train_lora.load_dataset(str(root), hf, processor, 'cpu', torch.float32, limit)
         return result, load, encoder, codec
+
+    def test_cold_native_registrations_survive_scoped_provider_then_real_pitch_analysis(self):
+        import subprocess
+        script = '''
+import importlib, sys, tempfile, unittest
+from pathlib import Path
+from tests.test_training_audio_admission import TrainingAudioAdmissionTests, LIBROSA_LOAD
+from tests.test_unvoiced_profile import UnvoicedProfileTests
+case = TrainingAudioAdmissionTests()
+loaded = []
+with tempfile.TemporaryDirectory() as tmp:
+    root = case.dataset(Path(tmp) / 'dataset')
+    def native_decoder(path, **kwargs):
+        loaded.append(importlib.import_module('numba.core.boxing'))
+        return LIBROSA_LOAD(path, **kwargs)
+    prepared, _, _, _ = case.prepare(root, decoder=native_decoder)
+    assert len(prepared[0]) == 1
+assert sys.modules.get('numba.core.boxing') is loaded[0], 'provider restoration evicted native registrations'
+assert importlib.import_module('numba.core.boxing') is loaded[0]
+result = unittest.TextTestRunner().run(unittest.TestSuite([
+    UnvoicedProfileTests('test_known_voiced_tone_remains_measured_and_near_its_frequency'),
+    UnvoicedProfileTests('test_native_silence_artifact_and_csv_do_not_claim_male_or_bass')]))
+raise SystemExit(not result.wasSuccessful())
+'''
+        result = subprocess.run([sys.executable, '-c', script], cwd=Path(__file__).resolve().parents[1],
+                                capture_output=True, text=True, timeout=90)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_oversized_sample_is_skipped_before_decoder_and_exact_boundary_is_accepted(self):
         with tempfile.TemporaryDirectory() as tmp:

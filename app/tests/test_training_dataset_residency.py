@@ -11,6 +11,7 @@ import soundfile as sf
 import train_lora
 from tests.test_teacher_forcing_language import make_fixture
 from tests.test_upload_event_loop import wav_bytes
+from tests.test_support import apply_test_module_providers
 
 
 class TrainingDatasetResidencyTests(unittest.TestCase):
@@ -29,7 +30,7 @@ class TrainingDatasetResidencyTests(unittest.TestCase):
             hf=SimpleNamespace(speaker_encoder=lambda tensor:speaker,
                 speech_tokenizer=SimpleNamespace(encode=lambda audio,sr:SimpleNamespace(audio_codes=[codes])))
             processor=lambda **kwargs:{'input_ids':texts}
-            with patch.dict(sys.modules,{'librosa':SimpleNamespace(load=read_audio,get_duration=lambda path:sf.info(path).duration),
+            with apply_test_module_providers({'librosa':SimpleNamespace(load=read_audio,get_duration=lambda path:sf.info(path).duration),
                     'qwen_tts.core.models.modeling_qwen3_tts':SimpleNamespace(mel_spectrogram=lambda *args,**kwargs:torch.ones(1,128,4))}):
                 samples,reference=train_lora.load_dataset(tmp,hf,processor,'meta',torch.float32,30)
             self.assertEqual(64,len(samples));self.assertEqual(str(root/'sample.wav'),reference)
