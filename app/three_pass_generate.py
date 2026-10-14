@@ -2799,6 +2799,25 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             # nothing to give it context for.
             if not any(index not in deterministic for index, _ in pending):
                 continue
+            def get_attribute_singletons(request_params, window=tuple(pending)):
+                traits = get_established_traits(named) if speaker_traits else None
+                for index, entry in window:
+                    contexts = get_missing_attribute_contexts(
+                        segmented, [index], attribute_batch_size, attribute_bounds)
+                    surround = build_window_surround(segmented, [index], attribute_context_chars)
+                    if hasattr(entries_provider, "build_request"):
+                        yield entries_provider.build_request(
+                            [entry], request_params, roster, contexts, surround, traits)
+                    else:
+                        yield get_attribute_sizing_request(
+                            [entry], request_params, roster, contexts, surround,
+                            attribute_prompt_variant, attribute_prompt_texts, cast, traits)
+
+            def get_attribute_params(request_params, profile_bound=False):
+                return get_indexed_reasoning_request_params(
+                    request_params, params, get_attribute_singletons, allow_retry_growth=True,
+                    profile_bound=profile_bound)
+
             work = [pending]
             while work:
                 current = work.pop(0)
@@ -2810,7 +2829,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                     segmented, [index for index, _ in current], attribute_batch_size, attribute_bounds)
                 surround = build_window_surround(
                     segmented, [index for index, _ in current], attribute_context_chars)
-                request_params = ensure_run_request_params(client, params)
+                request_params = ensure_run_request_params(client, replace(
+                    params, request_params_resolver=get_attribute_params,
+                    reasoning_reservation={"entry_count": len(current),
+                                           "per_entry_tokens": ATTRIBUTE_TOKENS_PER_ENTRY}))
                 # Admission considers bounded retry growth, not just the starting allowance.
                 system_prompt, user_prompt = get_attribute_sizing_request(
                     batch, request_params, roster, contexts, surround,
@@ -2837,7 +2859,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                     in_flight["current"], in_flight["attempt_start"] = current, attempt_start
                     exhausted = []
                     new_named, vote_confidences = attribute_batch_voted(
-                        client, model_name, batch, params, roster=roster,
+                        client, model_name, batch, request_params, roster=roster,
                         votes=attribution_votes,
                         vote_temperature=vote_temperature,
                         on_exhaustion=on_exhaustion, keep_scope=keep_scope,
@@ -2961,13 +2983,27 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    if annotated[index] is None]
         if not pending:
             continue
+        def get_instruct_singletons(request_params, window=tuple(pending)):
+            for index, entry in window:
+                yield build_instruct_request(
+                    [entry], request_params, get_missing_entry_contexts(named, [index]),
+                    build_instruct_surround(named, [index], instruct_context_chars))
+
+        def get_instruct_params(request_params, profile_bound=False):
+            return get_indexed_reasoning_request_params(
+                request_params, params, get_instruct_singletons, allow_retry_growth=False,
+                profile_bound=profile_bound)
+
         work = [pending]
         while work:
             current = work.pop(0)
             batch = [entry for _, entry in current]
             contexts = get_missing_entry_contexts(
                 named, [index for index, _ in current])
-            request_params = ensure_run_request_params(client, params)
+            request_params = ensure_run_request_params(client, replace(
+                params, request_params_resolver=get_instruct_params,
+                reasoning_reservation={"entry_count": len(current),
+                                       "per_entry_tokens": INSTRUCT_TOKENS_PER_ENTRY}))
             validate_instruct_context_chars(instruct_context_chars, request_params)
             indices = [index for index, _ in current]
             surround = build_instruct_surround(named, indices, instruct_context_chars)
@@ -3257,6 +3293,39 @@ INSTRUCT_TOKENS_PER_ENTRY = 160
 INDEX_OUTPUT_FLOOR = 1024
 
 
+def get_indexed_reasoning_request_params(request_params, source_params,
+                                        get_singleton_requests, allow_retry_growth,
+                                        profile_bound=False):
+    """Bound applied reasoning by a fixed source window, preserving raw learning."""
+    raw = max(0, int(source_params.reasoning_allowance or 0))
+    if not raw:
+        return replace(request_params, reasoning_allowance=0,
+                       observed_calls=source_params.observed_calls,
+                       reasoning_reservation={**request_params.reasoning_reservation,
+                           "raw": 0, "applied": 0, "limit": None, "scope": "unobserved"})
+    initial = min(source_params.request_initial_max_tokens
+                  or (source_params.task_max_tokens if profile_bound else None)
+                  or source_params.max_tokens,
+                  request_params.hard_max_tokens)
+    budgets = [get_effective_max_tokens(
+        request_params.hard_max_tokens if allow_retry_growth else initial,
+        request_params.context_length,
+        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        request_params.hard_max_tokens, scale_to_context=False,
+        max_input_tokens=request_params.max_input_tokens)
+        for system, user in get_singleton_requests(request_params)]
+    limit = max(0, min(budgets) - INDEX_OUTPUT_FLOOR)
+    metadata = {**request_params.reasoning_reservation,
+                "raw": raw, "applied": min(raw, limit), "limit": limit,
+                "scope": "context" if request_params.context_length else "output_only"}
+    resolved = replace(request_params, reasoning_allowance=metadata["applied"],
+                       observed_calls=source_params.observed_calls,
+                       max_tokens=initial, request_initial_max_tokens=None,
+                       reasoning_reservation=metadata)
+    return bound_index_request_params(resolved, metadata["entry_count"],
+                                      metadata["per_entry_tokens"])
+
+
 def resolve_index_output_ceiling(entry_count, per_entry_tokens, params):
     """Bound a Pass 2/3 request to what its window can need, or None.
 
@@ -3274,6 +3343,10 @@ def resolve_index_output_ceiling(entry_count, per_entry_tokens, params):
 
 def bound_index_request_params(call_params, entry_count, per_entry_tokens):
     """Return call_params with max_tokens capped by resolve_index_output_ceiling."""
+    if getattr(call_params, "request_params_resolver", None):
+        call_params = replace(call_params, reasoning_reservation={
+            **call_params.reasoning_reservation,
+            "entry_count": entry_count, "per_entry_tokens": per_entry_tokens})
     ceiling = resolve_index_output_ceiling(entry_count, per_entry_tokens, call_params)
     if ceiling is None:
         return call_params

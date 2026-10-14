@@ -711,6 +711,9 @@ class LLMGenParams:
     request_initial_max_tokens: int = None
     # Experimental review transport; full-text boundary editing remains default.
     review_labels_only: bool = False
+    # Pure resolver(params, profile_bound=False), refreshed after profile changes.
+    request_params_resolver: object = field(default=None, repr=False, compare=False)
+    reasoning_reservation: dict = field(default=None, repr=False, compare=False)
 
 
 
@@ -986,11 +989,12 @@ def ensure_run_request_params(client, params):
     # Only our explicit wrapper owns runtime-profile switching; ordinary SDK
     # clients and in-process providers retain their existing caller settings.
     from llm_provider import FailoverClient
+    resolver = getattr(params, "request_params_resolver", None)
     if not isinstance(client, FailoverClient):
-        return params
+        return resolver(params) if resolver else params
     profile = client.ensure_active_runtime_profile()
     if profile is None:
-        return params
+        return resolver(params) if resolver else params
     config = profile["config"]
     defaults = LLMGenParams()
     changes = {name: config.get(name, getattr(defaults, name)) for name in (
@@ -1009,7 +1013,8 @@ def ensure_run_request_params(client, params):
     changes["max_tokens"] = min(
         params.request_initial_max_tokens or params.task_max_tokens or params.max_tokens,
         changes["hard_max_tokens"])
-    return replace(params, **changes)
+    resolved = replace(params, **changes)
+    return resolver(resolved, profile_bound=True) if resolver else resolved
 
 
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
@@ -1229,6 +1234,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     "error": None,
                     "response_fingerprint": response_fingerprint,
                     "response_repeat_count": repeat_count,
+                    **({"reasoning_reservation": dict(params.reasoning_reservation)}
+                       if getattr(params, "reasoning_reservation", None) is not None else {}),
                 }
                 if response_log_error is not None:
                     attempt_record["response_log_error"] = response_log_error
@@ -1288,6 +1295,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                   "finish_reason": None, "requested_max_tokens": requested_max,
                                   "effective_max_tokens": None, "prompt_tokens": None,
                                   "completion_tokens": None,
+                                  **({"reasoning_reservation": dict(params.reasoning_reservation)}
+                                     if getattr(params, "reasoning_reservation", None) is not None else {}),
                                   "error": f"{type(e).__name__}: {e}",
                                   "error_category": error_details["category"],
                                   "http_status": error_details["status_code"],

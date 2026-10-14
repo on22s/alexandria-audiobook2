@@ -1066,7 +1066,8 @@ def get_llm_worker_params(params):
     """Serialize request settings without process-local capability/admission state."""
     return {field.name: getattr(params, field.name)
             for field in dataclasses.fields(params)
-            if field.name not in ('schema_rejected_by', 'request_admission')}
+            if field.name not in ('schema_rejected_by', 'request_admission',
+                                  'request_params_resolver', 'reasoning_reservation')}
 
 
 def _run_llm_worker(stage, payload, settings, ssh_alias):
