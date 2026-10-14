@@ -1959,7 +1959,7 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
     # now-complete registry as hindsight context). With discovery off it would be a pure re-apply.
     bidirectional = bool(request.bidirectional) and discover
 
-    names = request.script_names
+    names = list(request.script_names)
     total = len(names)
 
     def _run():
@@ -1984,7 +1984,7 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
         registry_path = CHARACTER_ALIASES_PATH if dedupe else None
         source_paths = []
 
-        def _process_book(i: int, name: str, tag: str = "") -> bool:
+        def _process_book_unlocked(i: int, name: str, tag: str = "") -> bool:
             """Discover + review one book in place. Returns False to stop the batch (cancel)."""
             state["current_task_idx"] = i
             orig_status = state["tasks"][i].get("status")
@@ -2126,6 +2126,13 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                 state["logs"].append(f"[{i+1}]{tag} Failed (exit {rc}): {name}")
             return True
 
+        def _process_book(i: int, name: str, tag: str = "") -> bool:
+            safe_name = secure_filename(name)
+            if not safe_name:
+                return _process_book_unlocked(i, name, tag)
+            with file_lock(os.path.join(SCRIPTS_DIR, f"{safe_name}.json")):
+                return _process_book_unlocked(i, name, tag)
+
         # Forward pass (reading order)
         state["current_pass"] = "fwd"
         if bidirectional:
@@ -2173,7 +2180,10 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
         state["running"] = False
         state["logs"].append("Batch review finished.")
 
-    schedule_claimed_background_task(background_tasks, "batch_review", _run_claimed_background_task, "batch_review", _run)
+    destinations = [os.path.join(SCRIPTS_DIR, f"{secure_filename(name)}.json")
+                    for name in names if secure_filename(name)]
+    schedule_claimed_background_task(background_tasks, "batch_review", _run_claimed_background_task,
+                                    "batch_review", _run, saved_destinations=destinations)
     return {"status": "started", "task_count": total, "bidirectional": bidirectional}
 
 

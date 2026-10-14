@@ -25,7 +25,7 @@ from core import (
     UPLOADS_DIR,
     VOICE_CONFIG_PATH,
     _get_saved_book_id,
-    _gpu_lock, ensure_book_switch_allowed,
+    _gpu_lock, ensure_book_switch_allowed, ensure_saved_book_destination_available,
     _require_safe_filename,
     _save_active_book_id,
     _saved_book_meta_path,
@@ -147,7 +147,7 @@ def validate_book_json_bytes(raw, expected_type, status_code, label):
 def _save_script_sync(request):
     safe_name = _require_saved_book_name(request.name)
     dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
-    with ensure_book_state(DATA_DIR), ensure_book_state(SCRIPTS_DIR), contextlib.ExitStack() as locks:
+    with ensure_saved_book_destination_available(dest), ensure_book_state(DATA_DIR), ensure_book_state(SCRIPTS_DIR), contextlib.ExitStack() as locks:
         for path in (dest, SCRIPT_PATH, VOICE_CONFIG_PATH, *_get_saved_book_companions(dest)):
             locks.enter_context(file_lock(path))
         if not os.path.isfile(SCRIPT_PATH):
