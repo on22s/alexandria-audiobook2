@@ -24,6 +24,7 @@ that does not mark dialogue".
 """
 from bisect import bisect_left
 from collections import deque
+import logging
 import re
 
 PAIRED = [
@@ -34,6 +35,10 @@ PAIRED = [
 ]
 # An em or en dash opening a line, the Continental convention.
 DASH_LINE = re.compile(r"^[ \t]*[—–][ \t]*(\S.*)$", re.M)
+# A possible turn after narration, with a second dash introducing its tag.
+# Its formatting establishes uncertainty, not speech or a speaker identity.
+INTERIOR_DASH_TURN = re.compile(
+    r"[.!?。！？…][ \t]+[—–][ \t]*(\S[^—–\r\n]*?[,!?！？…])[ \t]+[—–][ \t]+\S")
 # Script form: a speaker label, a colon, then the line.
 LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
 
@@ -120,6 +125,14 @@ def spoken_spans(text, convention=None):
     return merged
 
 
+def get_interior_dash_ambiguities(text, convention):
+    """Return candidate utterance offsets without classifying them as speech."""
+    if convention != "dash_lines":
+        return []
+    return [(match.start(1), match.end(1)) for match in INTERIOR_DASH_TURN.finditer(text)
+            if any(character.isalpha() for character in match.group(1))]
+
+
 def _normalize(value):
     return re.sub(r"\s+", " ", re.sub(r'["“”「」『』]',
                                       "", value or "")).strip()
@@ -195,7 +208,9 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
     guessed: `spoken` absent means "not established", which is a different
     claim from `spoken: false`.
     """
+    convention = detect_convention(source_text) if convention is None else convention
     spans = spoken_spans(source_text, convention)
+    ambiguities = get_interior_dash_ambiguities(source_text, convention)
     entries = list(entries)
     if speaker_names is None:
         speaker_names = {str(entry.get('speaker') or '') for entry in entries}
@@ -214,6 +229,7 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
         row.pop('source_speaker', None)
         row.pop('source_span', None)
         row.pop('spoken', None)
+        row.pop('dialogue_ambiguity', None)
         needle = _normalize(str(entry.get("text", "")))
         if needle:
             if match_positions is None:
@@ -239,7 +255,11 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
                 end = raw_offsets[normalized_where + len(needle) - 1] + 1
                 overlap = any(start < end and where < stop
                               for start, stop in spans)
-                row["spoken"] = bool(overlap)
+                if not overlap and any(start < end and where < stop
+                                       for start, stop in ambiguities):
+                    row["dialogue_ambiguity"] = "interior_dash_turn"
+                else:
+                    row["spoken"] = bool(overlap)
                 row["source_span"] = [where, end]
                 # THE AUTHOR'S OWN ANSWER, where the book prints one. Checked
                 # against the model on arc4_volume10wn: they agree on 2,909 of
@@ -259,14 +279,20 @@ def apply_dialogue_map(entries, source_text, speaker_names=None):
     convention = detect_convention(source_text)
     if not convention:
         return {"entries": list(entries), "convention": None,
-                "located": 0, "spoken": 0, "speaker_changes": []}
+                "located": 0, "spoken": 0, "ambiguous": 0, "speaker_changes": []}
     mapped = mark_entries(entries, source_text, convention, speaker_names=speaker_names)
     mapped, speaker_changes = apply_source_speakers(mapped)
+    ambiguous = sum(1 for entry in mapped if entry.get("dialogue_ambiguity"))
+    if ambiguous:
+        logging.getLogger(__name__).warning(
+            "Dialogue map: %s interior dash entries need review; spoken status is unestablished.",
+            ambiguous)
     return {
         "entries": mapped,
         "convention": convention,
-        "located": sum(1 for entry in mapped if "spoken" in entry),
+        "located": sum(1 for entry in mapped if "source_span" in entry),
         "spoken": sum(1 for entry in mapped if entry.get("spoken")),
+        "ambiguous": ambiguous,
         "speaker_changes": speaker_changes,
     }
 

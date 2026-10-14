@@ -4064,6 +4064,14 @@
   "test_integrity_jump_js": [
     "tests.test_integrity_jump_js.IntegrityJumpTests.test_jump_reveals_filtered_target_without_changing_filter_for_visible_or_missing_rows"
   ],
+  "test_interior_dash_ambiguity": [
+    "tests.test_interior_dash_ambiguity.InteriorDashAmbiguityTests.test_exact_issue_turn_is_located_unknown_and_visibly_reported",
+    "tests.test_interior_dash_ambiguity.InteriorDashAmbiguityTests.test_narration_apposition_math_and_unpaired_dashes_remain_nonspoken",
+    "tests.test_interior_dash_ambiguity.InteriorDashAmbiguityTests.test_other_conventions_and_insufficient_evidence_keep_existing_contract",
+    "tests.test_interior_dash_ambiguity.InteriorDashAmbiguityTests.test_raw_unicode_offsets_and_tag_only_narration_are_preserved",
+    "tests.test_interior_dash_ambiguity.InteriorDashAmbiguityTests.test_real_paragraph_boundary_still_establishes_speech_without_ambiguity",
+    "tests.test_interior_dash_ambiguity.InteriorDashAmbiguityTests.test_repeated_out_of_order_mapping_and_remapping_do_not_retain_stale_flags"
+  ],
   "test_inventory": [
     "tests.test_inventory.AtomicInventoryWriterTests.test_failed_serialization_or_replace_preserves_prior_inventory_and_cleans_temporary_files",
     "tests.test_inventory.AtomicInventoryWriterTests.test_open_reader_keeps_prior_json_while_new_reader_gets_complete_inventory",
