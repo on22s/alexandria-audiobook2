@@ -239,8 +239,9 @@ try {
   fs.writeFileSync(cast, '{"keep":"reusable cast"}');
   const castBytes = fs.readFileSync(cast);
   for (const step of launcher.run) {
-    if (step.method === 'script.stop' || (step.method === 'stop_writers' && step.uri === 'launcher_lifecycle.js')) {
-      // Lifecycle is stubbed; this fixture checks configured file cleanup.
+    if (step.method === 'script.stop' ||
+        (['stop_writers', 'recover_active_book'].includes(step.method) && step.uri === 'launcher_lifecycle.js')) {
+      // Shutdown and recovery are stubbed here; native lifecycle fixtures exercise both.
     } else {
       assert.equal(step.method, 'fs.rm');
       const target = path.resolve(root, step.params.path);
@@ -253,7 +254,7 @@ try {
   }
   assert.deepEqual(fs.readFileSync(library), libraryBytes);
   assert.deepEqual(fs.readFileSync(cast), castBytes);
-  console.log(JSON.stringify({activeFilesRemoved: activeFiles, savedBookPreserved: true, castPreserved: true, note: 'Configured deletion steps executed with Node fs only in a temporary fixture; Shutdown step mocked in this artifact-only fixture; awaited lifecycle is exercised separately.'}));
+  console.log(JSON.stringify({activeFilesRemoved: activeFiles, savedBookPreserved: true, castPreserved: true, note: 'Configured deletion steps executed with Node fs only in a temporary fixture; shutdown and recovery mocked in this artifact-only fixture; awaited lifecycle and native recovery are exercised separately.'}));
 } finally {
   fs.rmSync(root, {recursive: true, force: true});
 }

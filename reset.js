@@ -9,6 +9,9 @@ module.exports = {
   run: [{
     uri: "launcher_lifecycle.js",
     method: "stop_writers"
+  }, {
+    uri: "launcher_lifecycle.js",
+    method: "recover_active_book"
   }, ...resetPaths.map(path => ({
     method: "fs.rm",
     params: { path }

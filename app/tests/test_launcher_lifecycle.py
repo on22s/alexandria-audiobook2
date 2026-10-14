@@ -42,7 +42,7 @@ class LauncherLifecycleTests(unittest.TestCase):
         self.assertIn('run_stage4_checkpoint.js',result['reset']);self.assertIn('start_llm.js',result['reset']);self.assertIn('install.js',result['reset'])
 
     def run_native_case(self,case):
-        result=subprocess.run(['node','-e',NATIVE_LIFECYCLE,str(ROOT),case],capture_output=True,text=True,timeout=20)
+        result=subprocess.run(['node','-e',NATIVE_LIFECYCLE,str(ROOT),case,__import__('sys').executable],capture_output=True,text=True,timeout=20)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         return json.loads(result.stdout)
 
@@ -104,6 +104,11 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
     const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'alexandria-lifecycle-')),children=new Map();
     try{
       const steps=require(path.join(root,'reset.js')).run;
+      fs.mkdirSync(path.join(tmp,'app'));
+      for(const name of ['book_state_transaction.py','utils.py','adapter_publication.py','editor_poll_snapshot.py','chunk_status_journal.py']){fs.copyFileSync(path.join(root,'app',name),path.join(tmp,'app',name))}
+      fs.copyFileSync(path.join(root,'gpu_stats.py'),path.join(tmp,'gpu_stats.py'));
+      fs.copyFileSync(path.join(root,'launcher_lifecycle.js'),path.join(tmp,'launcher_lifecycle.js'));
+      const scratchHelper=new(require(path.join(tmp,'launcher_lifecycle.js')))();
       for(const step of steps.filter(s=>s.method==='fs.rm')){
         const target=path.join(tmp,step.params.path);fs.mkdirSync(path.dirname(target),{recursive:true});
         if(step.params.path==='voicelines'){fs.mkdirSync(target);fs.writeFileSync(path.join(target,'fixture.wav'),'fixture')}
@@ -114,13 +119,13 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
       await Promise.all(['start.js','start_llm.js','run_stage4_checkpoint.js'].map(name=>new Promise((resolve,reject)=>{
         const child=spawn(process.execPath,['-e',code],{env:{...process.env,FIXTURE_CHUNKS:path.join(tmp,'chunks.json')},stdio:['ignore','ignore','pipe','ipc']});children.set(name,child);child.once('error',reject);child.once('message',()=>resolve());
       })));
-      const kernel={api:{stop:async r=>{
+      const kernel={which:()=>process.argv[3],api:{stop:async r=>{
         const child=children.get(path.basename(r.params.uri));
         if(child&&child.exitCode===null&&child.signalCode===null){await new Promise((resolve,reject)=>{child.once('close',resolve);child.once('error',reject);child.kill('SIGTERM')})}
       }}};
       let removed=0;
       for(const step of steps){
-        if(step.uri==='launcher_lifecycle.js'){await helper[step.method](req('reset.js'),()=>{},kernel)}
+        if(step.uri==='launcher_lifecycle.js'){await scratchHelper[step.method]({parent:{path:path.join(tmp,'reset.js')}},()=>{},kernel)}
         else{
           assert.equal(step.method,'fs.rm');assert.ok([...children.values()].every(p=>p.exitCode!==null||p.signalCode!==null),'mutation started with a live writer');
           fs.rmSync(path.join(tmp,step.params.path),{recursive:true,force:true});removed++;

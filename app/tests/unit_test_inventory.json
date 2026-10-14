@@ -4177,6 +4177,11 @@
     "tests.test_launcher_llama_assets.WhisperAssetVerificationTests.test_valid_full_streamed_bytes_and_tracked_source_are_verified_without_mutation",
     "tests.test_launcher_llama_assets.WhisperAssetVerificationTests.test_wrong_commit_and_dirty_tracked_source_are_rejected_before_success"
   ],
+  "test_launcher_reset_recovery": [
+    "tests.test_launcher_reset_recovery.LauncherResetRecoveryTests.test_every_interrupted_switch_boundary_stays_reset_after_restart",
+    "tests.test_launcher_reset_recovery.LauncherResetRecoveryTests.test_invalid_recovery_evidence_refuses_before_any_reset_deletion",
+    "tests.test_launcher_reset_recovery.LauncherResetRecoveryTests.test_reset_without_journal_and_reset_interruption_do_not_resurrect_deleted_files"
+  ],
   "test_launcher_supervisor": [
     "tests.test_launcher_supervisor.LauncherResetArtifactTests.test_reset_removes_previous_book_aliases_and_preserves_saved_library",
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_address_already_in_use_breaks_case_insensitively",
