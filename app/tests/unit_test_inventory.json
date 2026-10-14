@@ -5581,6 +5581,13 @@
     "tests.test_pitch_profile_matrix.PitchProfileMatrixTests.test_row_validation_rejects_duplicates_and_recomputes_measurement",
     "tests.test_pitch_profile_matrix.PitchProfileMatrixTests.test_summary_reports_dispersion_and_threshold_disagreement"
   ],
+  "test_playback_sequence_epochs_js": [
+    "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_active_run_error_and_rejection_skip_once_and_complete_normally",
+    "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_missing_source_and_undefined_play_promise_keep_normal_sequence_order",
+    "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_saved_old_ended_and_error_handlers_cannot_mutate_restart",
+    "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_stop_retires_handlers_and_resets_audio_feedback_and_button",
+    "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_stopped_play_rejection_cannot_advance_or_stop_a_restarted_run"
+  ],
   "test_polling_recovery_guidance_js": [
     "tests.test_polling_recovery_guidance_js.PollingRecoveryGuidanceJsTests.test_native_warning_cadence_labels_recovery_and_stop"
   ],
