@@ -345,15 +345,17 @@ class ProfilerServingReferenceTests(unittest.TestCase):
                     train_rows, _ = get_training_metadata(data)
                     ref_path = get_training_reference_path(data, train_rows)
                     samples = [{**row, 'audio_path':str(Path(data)/row['audio_filepath'])} for row in train_rows]
+                    self.assertEqual(1, len(samples))
                     ref_text = get_training_reference_text(data, ref_path, samples)
                     write_test_adapter(output)
                     train_lora.save_training_checkpoint(None, output, ref_path, ref_text,
-                        {'best_loss':2.5, 'final_loss':2.5}, [], 0, 1, 2.5)
+                        {'best_loss':2.5, 'final_loss':2.5, 'num_samples':len(samples)}, [], 0, 1, 2.5)
                     return SimpleNamespace(stdout=io.StringIO('[EPOCH] 1/1 avg_loss=2.5\n'),
                                            returncode=0, wait=lambda:0, poll=lambda:0)
                 with patch.object(batch_train.subprocess, 'Popen', side_effect=native_checkpoint_provider):
                     row = batch_train.train_one(str(root/'dataset.zip'), 'Native_dataset', 'voice', args)
                 self.assertIsNotNone(row)
+                self.assertEqual(1, row['sample_count'])
                 adapter = root/'separate_models'/'voice'
                 self.assertEqual(str(adapter), row['adapter_path'])
                 before = {p:p.read_bytes() for p in adapter.iterdir() if p.is_file()}

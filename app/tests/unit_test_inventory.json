@@ -4357,6 +4357,7 @@
   ],
   "test_llama_server_process": [
     "tests.test_llama_server_process.LlamaServerProcessTest.test_changed_birth_identity_refuses_before_signaling",
+    "tests.test_llama_server_process.LlamaServerProcessTest.test_ipv6_fixtures_reserve_ipv4_port_without_a_listener",
     "tests.test_llama_server_process.LlamaServerProcessTest.test_ipv6_loopback_on_same_number_is_not_the_configured_ipv4_endpoint",
     "tests.test_llama_server_process.LlamaServerProcessTest.test_ipv6_wildcard_with_unknown_ipv4_routing_refuses_without_signaling",
     "tests.test_llama_server_process.LlamaServerProcessTest.test_shared_listener_ownership_refuses_without_signaling_any_owner",
