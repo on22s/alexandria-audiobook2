@@ -485,7 +485,7 @@ def main():
 
     concurrency = get_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,
-        ssh_alias=config.get("llm_remote_ssh"), status=status)
+        ssh_alias=config.get("llm_remote_ssh"), status=status, llm_config=llm)
     if concurrency > 1:
         print(f"Using concurrency: {concurrency}")
 

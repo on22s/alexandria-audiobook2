@@ -1,6 +1,6 @@
 from chunk_status_journal import remove_chunk_snapshot
 import os
-from core import llm_timeout_seconds
+from core import llm_timeout_seconds, is_llm_on_this_gpu
 import sys
 import json
 import re
@@ -858,7 +858,9 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     def ensure_secondary_admission(profile):
         if params.request_admission is not None and not params.request_admission(profile):
             return False
-        return profile["is_remote"] or wait_for_vram_headroom()
+        config = {"llm": profile["config"],
+                  "llm_mode": "remote" if profile["is_remote"] else "local"}
+        return not is_llm_on_this_gpu(config) or wait_for_vram_headroom()
 
     request_params = replace(params, request_admission=ensure_secondary_admission)
     sys_prompt = params.system_prompt or REVIEW_SYSTEM_PROMPT
@@ -1226,9 +1228,8 @@ def main():
     if banned_tokens:
         print(f"Banned tokens: {banned_tokens}")
 
-    # A remote LM Studio (e.g. on a Thunder Compute instance) is loaded and
-    # managed elsewhere; the local `lms` CLI and the local-GPU VRAM watchdog
-    # don't apply, so skip them entirely when the endpoint isn't local.
+    # Runtime management follows the endpoint; the VRAM watchdog follows the
+    # profile's declared ownership through the same policy as task admission.
     llm_mode = config.get("llm_mode", "local")
     is_remote, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key)
@@ -1243,6 +1244,12 @@ def main():
     gen_params.max_tokens = min(gen_params.max_tokens, gen_params.hard_max_tokens)
 
     client = make_run_client(config, llm_config, llm_timeout_seconds())
+
+    def is_active_llm_on_this_gpu():
+        active_config = config
+        if get_run_model_binding(client, model_name)["failover_used"]:
+            active_config = {**config, "llm_mode": "remote" if llm_mode == "local" else "local"}
+        return is_llm_on_this_gpu(active_config)
 
     source_sha256 = _entries_fingerprint(entries)
     receipt_fingerprint = get_completed_review_fingerprint(config, llm_config, gen_params, args, client, model_name)
@@ -1263,7 +1270,7 @@ def main():
 
     wave_size = get_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,
-        ssh_alias=config.get("llm_remote_ssh"), status=lm_status)
+        ssh_alias=config.get("llm_remote_ssh"), status=lm_status, llm_config=llm_config)
     if wave_size > 1:
         print(f"Using concurrency: {wave_size}")
 
@@ -1323,7 +1330,7 @@ def main():
             after = entries[end:min(len(entries), end + window)]
 
             # Only this run's first check fails fast (#1114); later ones wait.
-            if not is_remote and not wait_for_vram_headroom(fail_fast=offset_idx == 0):
+            if is_active_llm_on_this_gpu() and not wait_for_vram_headroom(fail_fast=offset_idx == 0):
                 unreviewed_remainder = entries[start:]
                 total_stats["batches_skipped_vram"] = total_batches - batch_index + 1
                 vram_aborted = True
@@ -1453,7 +1460,7 @@ def main():
 
             def _run_one(item):
                 i, batch = item
-                if not is_remote:
+                if is_active_llm_on_this_gpu():
                     with vram_lock:
                         if vram_abort.is_set():
                             return "VRAM_SKIP"
@@ -1562,7 +1569,7 @@ def main():
                 vram_aborted = True
                 break
 
-    if args.dedupe_speakers and not vram_aborted and not is_remote:
+    if args.dedupe_speakers and not vram_aborted and is_active_llm_on_this_gpu():
         if not wait_for_vram_headroom():
             vram_aborted = True
 

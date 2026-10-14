@@ -26,7 +26,8 @@ class ContextualReviewEstimateTests(unittest.TestCase):
                             'instruct':'calm'} for i in range(count)]
                 source.write_text(json.dumps(entries))
                 config.write_text(json.dumps({'llm_mode':'local',
-                    'llm_local':{'base_url':'http://cpu-fixture/v1','model_name':'fixture','api_key':'local'},
+                    'llm_local':{'base_url':'http://cpu-fixture/v1','model_name':'fixture','api_key':'local',
+                                 'on_this_gpu':True},
                     'generation':{'review_batch_size':batch_size}}))
                 original_config = config.read_bytes()
                 calls,commands = [],[]

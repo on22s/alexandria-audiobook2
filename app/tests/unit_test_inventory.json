@@ -4421,6 +4421,18 @@
     "tests.test_llm_endpoint_locality.EndpointLocalityTests.test_external_mapped_addresses_gateways_and_similar_names_are_remote",
     "tests.test_llm_endpoint_locality.EndpointLocalityTests.test_real_status_dispatch_uses_local_probe_without_ssh_for_equivalent_addresses"
   ],
+  "test_llm_profile_admission": [
+    "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_cpu_primary_cannot_bypass_gpu_owned_secondary_headroom",
+    "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_cpu_profile_reaches_real_review_in_both_modes_and_dedupe",
+    "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_gpu_owned_dedupe_gate_still_waits_and_refuses_new_calls",
+    "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_gpu_owned_profile_still_refuses_saturation_before_any_review_request",
+    "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_later_batches_and_dedupe_follow_actual_cpu_failover_in_both_modes",
+    "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_manual_bound_snapshot_returns_one_before_any_probe_or_cache_side_effect",
+    "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_manual_mode_ignores_machine_cache_and_preserves_its_exact_bytes",
+    "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_manual_native_review_and_nickname_queues_only_request_book_work",
+    "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_secondary_admission_uses_selected_runtime_profile_and_retains_caller_gate",
+    "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_shared_core_ownership_remains_conservative_for_missing_or_invalid_profiles"
+  ],
   "test_llm_profile_requests_http": [
     "tests.test_llm_profile_requests_http.LlmProfileRequestHttpTests.test_connection_route_passes_complete_profile_and_releases_claim",
     "tests.test_llm_profile_requests_http.LlmProfileRequestHttpTests.test_invalid_profile_rejected_before_any_provider_call",

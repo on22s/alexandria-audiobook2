@@ -180,7 +180,7 @@ def get_concurrency_environment(base_url, model_name, is_remote, ssh_alias,
 
 def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model_name,
                                            client, ssh_alias=None, max_concurrency=16,
-                                           status=None):
+                                           status=None, llm_config=None):
     """Return a concurrency level for (base_url, model_name).
 
     Reuses the cached value from config.json's llm_local/llm_remote section
@@ -202,12 +202,24 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
     result, if the caller already has one (e.g. from a just-run self-heal
     check via ensure_ideal_settings) - avoids a redundant SSH/subprocess
     round-trip, including when a cached measurement is reused.
+
+    `llm_config`: the caller's bound run profile, when already selected. Manual
+    transport is always serial and never measures human response latency or
+    overwrites a machine concurrency measurement.
     """
+    config = None
+    if llm_config is None:
+        config = load_app_config(config_path)
+        llm_config = lmstudio_settings.get_active_llm_config({**config, "llm_mode": llm_mode})
+    if llm_config.get("transport") == "manual":
+        print("  Manual transport: using concurrency=1 without a machine benchmark.")
+        return 1
     is_remote = lmstudio_settings.is_remote_llm(llm_mode, base_url)
     profile_key = "llm_remote" if is_remote else "llm_local"
     cache_key = f"{base_url}::{model_name}"
 
-    config = load_app_config(config_path)
+    if config is None:
+        config = load_app_config(config_path)
     profile = config.get(profile_key) or {}
     if status is None:
         status = lmstudio_settings.get_current_status(

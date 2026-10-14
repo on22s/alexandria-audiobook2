@@ -901,7 +901,8 @@ class ReviewVramTests(unittest.TestCase):
         with ExitStack() as stack:
             stack.enter_context(redirect_stdout(StringIO()))
             patches = {
-                "load_app_config": {"generation": {"review_batch_size": 1, **(generation or {})}},
+                "load_app_config": {"generation": {"review_batch_size": 1, **(generation or {})},
+                                    "llm_mode": "remote" if remote else "local"},
                 "get_active_llm_config": {},
                 "ensure_ideal_settings": (remote, {}, "test settings"),
                 "get_current_status": {"loaded": False},
