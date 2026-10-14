@@ -42,6 +42,7 @@ from batch_adapter_registration import (
     get_batch_registration_entry, save_batch_registration_entry, clear_batch_registration_intent,
     acquire_batch_registration_lease, restart_incomplete_batch_registration, BATCH_OWNERSHIP_PROTOCOL,
     get_fresh_batch_adapter_id,
+    get_training_sample_count,
 )
 from task_ownership import TaskOwnershipBusy
 from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
@@ -325,7 +326,7 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
 
     try:
         with open(meta_path, encoding="utf-8") as metadata_file:
-            sample_count = sum(1 for line in metadata_file if line.strip())
+            metadata_count = sum(1 for line in metadata_file if line.strip())
     except (OSError, UnicodeError) as exc:
         fail(f"reading metadata: {exc}")
         return None
@@ -411,6 +412,7 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
     try:
         with open(meta_file, encoding="utf-8") as f:
             training_meta = json.load(f)
+        sample_count = get_training_sample_count(training_meta)
         epoch_losses = parse_epoch_losses(log_lines)
         final_loss = training_meta.get("final_loss")
         best_loss = training_meta.get("best_loss", final_loss)
@@ -440,6 +442,7 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
         "final_loss":   final_loss,
         "best_loss":    best_loss,
         "sample_count": sample_count,
+        "metadata_count": metadata_count,
         "lora_r":       args.lora_r,
         "lr":           args.lr,
         "target_loss":  args.target_loss,

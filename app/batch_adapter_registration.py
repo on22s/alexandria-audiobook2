@@ -24,6 +24,14 @@ def get_batch_registration_path(models_dir, dataset_id):
     return path
 
 
+def get_training_sample_count(metadata):
+    """Read the prepared sample count recorded by the completed trainer."""
+    count = metadata.get('num_samples')
+    if type(count) is not int or count < 1:
+        raise ValueError('Completed adapter lacks a positive prepared sample count')
+    return count
+
+
 def get_batch_registration_intent(models_dir, dataset_id):
     path = get_batch_registration_path(models_dir, dataset_id)
     if not os.path.exists(path):
@@ -87,8 +95,9 @@ def get_batch_registration_entry(models_dir, dataset_id, source):
                 or entry.get('checkpoint_sha256') != weights_sha):
             raise ValueError('Pending registration entry conflicts with its frozen identity')
         return dict(entry)
-    count, loss = metadata.get('num_samples'), metadata.get('best_loss', metadata.get('final_loss'))
-    if (type(count) is not int or count < 1 or not isinstance(loss, (int, float))
+    count = get_training_sample_count(metadata)
+    loss = metadata.get('best_loss', metadata.get('final_loss'))
+    if (not isinstance(loss, (int, float))
             or isinstance(loss, bool) or not math.isfinite(loss)):
         raise ValueError('Completed pending adapter lacks recoverable training evidence')
     return {'id': record['adapter_id'], 'name': dataset_id, 'dataset_id': dataset_id,

@@ -30,6 +30,11 @@ def get_pcm_hash(wav_bytes: bytes) -> str:
         audio, sample_rate = sf.read(io.BytesIO(wav_bytes), dtype="float32", always_2d=True)
     except (RuntimeError, OSError, ValueError) as exc:
         raise ValueError("dataset contains unsupported or malformed audio") from exc
+    return get_decoded_pcm_hash(audio, sample_rate)
+
+
+def get_decoded_pcm_hash(audio, sample_rate) -> str:
+    """Identify decoded rate, frame/channel shape and interleaved samples."""
     # Hash the same interleaved little-endian samples without two PCM-sized
     # byte copies. Ensure C order for decoded buffers with unusual strides.
     pcm = np.ascontiguousarray(audio, dtype="<f4")

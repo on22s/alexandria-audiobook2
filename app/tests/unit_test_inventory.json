@@ -2155,6 +2155,17 @@
     "tests.test_dataset_html_render_js.DatasetHtmlRenderJsTests.test_row_fields_are_escaped_and_real_controls_survive",
     "tests.test_dataset_html_render_js.DatasetHtmlRenderJsTests.test_shared_template_escapes_new_values_and_targeted_renderer_uses_same_output"
   ],
+  "test_dataset_measurements": [
+    "tests.test_dataset_measurements.BatchPreparedCountTests.test_existing_frozen_legacy_counts_are_preserved_without_rewriting_artifacts",
+    "tests.test_dataset_measurements.BatchPreparedCountTests.test_legacy_root_only_native_preparation_counts_all_actual_samples",
+    "tests.test_dataset_measurements.BatchPreparedCountTests.test_missing_or_invalid_completed_count_refuses_before_result_or_manifest",
+    "tests.test_dataset_measurements.BatchPreparedCountTests.test_native_split_and_skips_publish_actual_prepared_count_and_recover_same_count",
+    "tests.test_dataset_measurements.DatasetAuditIdentityTests.test_audit_decodes_once_and_retains_exact_merger_digest",
+    "tests.test_dataset_measurements.DatasetAuditIdentityTests.test_cli_rebuilds_v1_mono_digest_cache_then_reuses_corrected_report",
+    "tests.test_dataset_measurements.DatasetAuditIdentityTests.test_different_rates_and_original_channel_shapes_do_not_group",
+    "tests.test_dataset_measurements.DatasetAuditIdentityTests.test_distinct_stereo_channels_with_identical_mono_metrics_do_not_group",
+    "tests.test_dataset_measurements.DatasetAuditIdentityTests.test_genuine_decoded_duplicates_group_across_encodings_and_train_val"
+  ],
   "test_dataset_metadata": [
     "tests.test_dataset_metadata.DatasetMetadataTrainingTests.test_load_dataset_rejects_every_malformed_row_before_reference_or_tokenizer",
     "tests.test_dataset_metadata.DatasetMetadataTrainingTests.test_real_cpu_preparation_preserves_train_split_legacy_audio_and_containment_rules",
