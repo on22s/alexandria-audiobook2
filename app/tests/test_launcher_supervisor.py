@@ -13,9 +13,12 @@ ports, import nothing from this app, need no GPU/model, and start no second
 Alexandria server — so this is safe to run anywhere the unit suite runs.
 """
 
+import os
 import re
+import selectors
 import subprocess
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -64,6 +67,35 @@ def _supervise(lines, success_re, failure_re):
     return ("exited", None)
 
 
+def _read_bind_announcement(stream, timeout=10):
+    """Read raw pipe bytes so buffered lines cannot escape FD readiness checks."""
+    selector = selectors.DefaultSelector()
+    selector.register(stream, selectors.EVENT_READ)
+    lines = []
+    pending = b""
+    try:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            remaining = max(0, deadline - time.monotonic())
+            if not selector.select(timeout=min(0.1, remaining)):
+                continue
+            block = os.read(stream.fileno(), 4096)
+            if not block:
+                if pending:
+                    lines.append(pending.decode("utf-8", errors="replace"))
+                break
+            pending += block
+            while b"\n" in pending:
+                line, pending = pending.split(b"\n", 1)
+                line = (line + b"\n").decode("utf-8", errors="replace")
+                lines.append(line)
+                if "Uvicorn running on " in line:
+                    return lines
+    finally:
+        selector.close()
+    return lines
+
+
 HEALTHY_STARTUP = (
     "INFO:     Started server process [12345]",
     "INFO:     Waiting for application startup.",
@@ -109,8 +141,6 @@ class LauncherSupervisorTests(unittest.TestCase):
         self.assertEqual(("url", "http://127.0.0.1:53411"), self._supervise(lines))
 
     def test_real_uvicorn_bind_announcement_matches_actual_js_event(self):
-        import selectors
-        import time
         from urllib.request import urlopen
         script = """
 import uvicorn
@@ -121,21 +151,9 @@ async def app(scope, receive, send):
 uvicorn.run(app, host='127.0.0.1', port=0, lifespan='off', access_log=False, use_colors=False)
 """
         process = subprocess.Popen([sys.executable, '-u', '-c', script], stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT, text=True)
-        selector = selectors.DefaultSelector()
-        selector.register(process.stdout, selectors.EVENT_READ)
-        lines = []
+                                   stderr=subprocess.STDOUT, bufsize=0)
         try:
-            deadline = time.monotonic() + 10
-            while time.monotonic() < deadline:
-                if not selector.select(timeout=0.1):
-                    continue
-                line = process.stdout.readline()
-                if not line:
-                    break
-                lines.append(line)
-                if 'Uvicorn running on ' in line:
-                    break
+            lines = _read_bind_announcement(process.stdout, timeout=10)
             outcome, url = self._supervise(lines)
             self.assertEqual('url', outcome, lines)
             self.assertTrue(url.startswith('http://127.0.0.1:'), url)
@@ -156,7 +174,6 @@ for (const line of JSON.parse(process.argv[2])) {
                                                text=True, timeout=5).strip()
             self.assertEqual(url, captured)
         finally:
-            selector.close()
             process.terminate()
             try:
                 process.wait(timeout=5)
@@ -164,6 +181,61 @@ for (const line of JSON.parse(process.argv[2])) {
                 process.kill()
                 process.wait(timeout=5)
             process.stdout.close()
+
+    def test_live_startup_burst_does_not_strand_buffered_or_partial_lines(self):
+        from unittest.mock import patch
+        burst = ("WARNING: help at http://docs.example.test/tts\n"
+                 "INFO: Started server process [12345]\n"
+                 "INFO: Uvicorn running on http://127.0.0.1:53411\n")
+        script = ("import os, sys\n"
+                  f"os.write(1, {burst.encode()!r})\n"
+                  "os.write(2, b'ready\\n')\n"
+                  "sys.stdin.buffer.read(1)\n")
+        for text in (True, False):
+            with self.subTest(text_reader=text):
+                process = subprocess.Popen([sys.executable, '-u', '-c', script],
+                                           stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE, text=text,
+                                           bufsize=-1 if text else 0)
+                selector = selectors.DefaultSelector()
+                try:
+                    selector.register(process.stderr, selectors.EVENT_READ)
+                    self.assertTrue(selector.select(timeout=3), "child did not write its burst")
+                    self.assertEqual('ready\n' if text else b'ready\n', process.stderr.readline())
+                    selector.unregister(process.stderr)
+                    selector.register(process.stdout, selectors.EVENT_READ)
+                    if text:
+                        self.assertTrue(selector.select(timeout=0))
+                        first = process.stdout.readline()
+                        # The old reader next waits here although TextIO holds the URL.
+                        self.assertFalse(selector.select(timeout=0))
+                        self.assertEqual(('exited', None), self._supervise([first]))
+                        buffered = [process.stdout.readline(), process.stdout.readline()]
+                        self.assertEqual(('url', 'http://127.0.0.1:53411'), self._supervise(buffered))
+                    else:
+                        native_read = os.read
+                        blocks = []
+                        def read_partial(fd, size):
+                            block = native_read(fd, min(size, 7))
+                            blocks.append(block)
+                            return block
+                        with patch('os.read', side_effect=read_partial):
+                            lines = _read_bind_announcement(process.stdout, timeout=10)
+                        self.assertEqual(burst.splitlines(keepends=True), lines)
+                        self.assertEqual(('url', 'http://127.0.0.1:53411'), self._supervise(lines))
+                        self.assertGreater(len(blocks), 3)
+                        self.assertTrue(any(block and not block.endswith(b'\n') for block in blocks))
+                    self.assertIsNone(process.poll(), "fixture must remain alive after its burst")
+                finally:
+                    selector.close()
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+                    for stream in (process.stdin, process.stdout, process.stderr):
+                        stream.close()
 
     def test_healthy_output_never_trips_the_failure_signal(self):
         # "Application startup complete." must not match "Application startup failed",

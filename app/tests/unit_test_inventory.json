@@ -4197,6 +4197,7 @@
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_healthy_output_never_trips_the_failure_signal",
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_healthy_startup_captures_the_url",
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_import_error_breaks",
+    "tests.test_launcher_supervisor.LauncherSupervisorTests.test_live_startup_burst_does_not_strand_buffered_or_partial_lines",
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_module_not_found_breaks_before_any_url",
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_real_uvicorn_bind_announcement_matches_actual_js_event",
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_traceback_breaks"
@@ -8637,6 +8638,23 @@
     "tests.test_train_split.TrainSplitTest.test_paths_stay_relative_to_the_dataset_root",
     "tests.test_train_split.TrainSplitTest.test_the_val_split_is_not_trained_on",
     "tests.test_train_split.TrainSplitTest.test_train_lora_reads_the_split_not_the_root"
+  ],
+  "test_training_audio_admission": [
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_actual_decoder_bound_rejects_underreported_reference_without_embedding",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_actual_decoder_bound_skips_underreported_sample",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_cold_discovery_does_not_resolve_native_decoder",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_cold_native_registrations_survive_scoped_provider_then_real_pitch_analysis",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_invalid_duration_limits_refuse_before_audio_allocation",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_invalid_stereo_reference_preserves_previous_generation",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_mono_reference_keeps_original_bytes_and_stereo_conversion_reads_blocks",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_oversized_reference_refuses_before_decoder_or_embedding",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_oversized_sample_is_skipped_before_decoder_and_exact_boundary_is_accepted",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_reference_exact_native_limit_survives_resampling_frame_rounding",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_same_audioread_fallback_supplies_duration_and_bounded_pcm",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_standalone_compressed_audio_keeps_native_duration_admission",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_stereo_first_sample_and_explicit_later_reference_keep_the_matching_transcript",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_stereo_reference_publishes_matching_mono_production_and_candidate",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_stereo_source_change_between_admission_and_conversion_preserves_generation"
   ],
   "test_training_benchmark_resume_io": [
     "tests.test_training_benchmark_resume_io.TrainingResumeIoTests.test_completed_resume_reads_no_dataset_and_preserves_report_bytes",
