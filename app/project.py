@@ -14,7 +14,8 @@ import logging
 import gc
 import uuid
 from script_repair import EXPLICIT_SILENCE_MS
-from speech_policy import get_spoken_symbol, get_scene_break_text
+from speech_policy import (get_spoken_symbol, get_spoken_word_text,
+                           get_spoken_text_spacing, get_scene_break_text)
 from verbalization import (SET_APART_HINT, classify,
                            extract_delivery_cues, is_pictographic_kana,
                            split_bracketed_spans)
@@ -166,13 +167,15 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
         if classify(char) == "review" or is_pictographic_kana(char, neighbours):
             review.append(char)
     segments, current = [], []
+    has_renderings = False
     for char in text:
         kind = classify(char)
         if kind == "scene_break":
             segments.append("".join(current))
             current = []
         elif kind == "verbalize":
-            current.append(get_spoken_symbol(char))
+            has_renderings = True
+            current.append(get_spoken_word_text(get_spoken_symbol(char)))
         else:
             current.append(char)
     segments.append("".join(current))
@@ -188,6 +191,8 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
             if set_apart:
                 hints = hints + [SET_APART_HINT]
             cleaned = " ".join(cleaned.split()) if cleaned.strip() else ""
+            if has_renderings:
+                cleaned, _ = get_spoken_text_spacing(cleaned)
             if not cleaned:
                 continue
             part = dict(entry)

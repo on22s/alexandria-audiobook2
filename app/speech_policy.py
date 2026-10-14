@@ -41,6 +41,16 @@ def get_spoken_symbol(char):
     return SPOKEN_SYMBOLS.get(char)
 
 
+def get_spoken_word_text(word):
+    """Keep a symbol's known rendering separate from adjacent source words."""
+    return f" {word} " if word else " "
+
+
+def get_spoken_text_spacing(text):
+    """Return speech text and the count of spaces removed before punctuation."""
+    return re.subn(r"[ \t]+(?=[,;:.!?])", "", text)
+
+
 UNSPEAKABLE_CATEGORIES = frozenset({"So", "Sm", "Sk", "Co", "Cn", "Cs", "Cc"})
 REPLACEMENT_CHARACTER = "�"
 

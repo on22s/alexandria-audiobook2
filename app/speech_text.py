@@ -5,7 +5,8 @@ import logging
 
 
 from speech_policy import (SPEECH_BREAKS, SPEECH_WORDS, VERBALIZED_SYMBOLS,
-                           SPOKEN_SYMBOLS, get_spoken_symbol, get_scene_break_text,
+                           SPOKEN_SYMBOLS, get_spoken_symbol, get_spoken_word_text,
+                           get_spoken_text_spacing, get_scene_break_text,
                            extract_delivery_cues, SCENE_BREAK_MARKER,
                            is_unspeakable_character, UNSPEAKABLE_CATEGORIES,
                            REPLACEMENT_CHARACTER)
@@ -68,7 +69,7 @@ def _get_symbol_rendering(ch):
     character is classified once, not once per chunk."""
     word = get_spoken_symbol(ch)
     if word:
-        return "spoken", f" {word} "
+        return "spoken", get_spoken_word_text(word)
     if is_unspeakable_character(ch):
         return "dropped", " "
     return None, ch
@@ -137,7 +138,7 @@ def get_speech_normalization(text):
                 transformations.append({"type": "dropped_redundant_symbol",
                                         "symbol": symbol, "replacement": ""})
         if symbol in normalized:
-            normalized = normalized.replace(symbol, f" {word} " if word else " ")
+            normalized = normalized.replace(symbol, get_spoken_word_text(word))
             transformations.append({"type": "spoken_symbol" if word else "dropped_reference_mark",
                                     "symbol": symbol, "replacement": word})
     normalized = re.sub(r"\s*" + re.escape(SCENE_BREAK_MARKER) + r"\s*", ". ", normalized)
@@ -149,6 +150,11 @@ def get_speech_normalization(text):
     normalized, count = _SPACE_RE.subn(" ", normalized)
     if count:
         transformations.append({"type": "collapsed_spacing", "count": count})
+    if any(change["type"] in {"spoken_symbol", "verbalized_symbol", "dropped_reference_mark"}
+           for change in transformations):
+        normalized, count = get_spoken_text_spacing(normalized)
+        if count:
+            transformations.append({"type": "normalized_punctuation_spacing", "count": count})
     # Proper-noun respellings, applied LAST so a lexicon entry is never
     # mangled by symbol or break handling. Recorded as a transformation like
     # everything else: a silent respelling would be untraceable, with the

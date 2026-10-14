@@ -18,6 +18,55 @@ if os.environ.get('SPEECH_SYMBOL_BASELINE'):
 
 
 class SpeechSymbolDispatchTests(unittest.TestCase):
+    def test_prose_without_symbol_renderings_keeps_existing_punctuation_spacing(self):
+        source = 'Normal , prose.'
+        entry = {'speaker': 'A', 'text': source, 'instruct': 'Calm.'}
+        self.assertEqual(source, get_speakable_entries([entry])[0]['text'])
+        normalized = speech_text.get_speech_normalization(source)
+        self.assertEqual(source, normalized['text'])
+        self.assertFalse(any(row['type'] == 'normalized_punctuation_spacing'
+                             for row in normalized['transformations']))
+
+    def test_compact_symbols_preserve_boundaries_in_direct_and_prepared_dispatch(self):
+        from project import group_into_chunks
+        engine = object.__new__(tts.TTSEngine)
+        engine._compile_codec_enabled = False
+        config = {'A': {'type': 'custom', 'speaker': 'Ryan'}}
+        cases = (('Tom&Jerry', 'Tom and Jerry.'),
+                 ('Alpha→Beta', 'Alpha right arrow Beta.'),
+                 ('3×5', '3 times 5.'),
+                 ('account@example.com', 'account at example.com.'),
+                 ('Alpha†Beta', 'Alpha Beta.'),
+                 ('Alpha‡Beta', 'Alpha Beta.'),
+                 ('The value is ∞.', 'The value is infinity.'),
+                 ('Value∞,now', 'Value infinity,now.'),
+                 ('3%!', '3 percent!.'),
+                 ('Tom&Jerry,3×5!', 'Tom and Jerry,3 times 5!.'))
+        for source, expected in cases:
+            with self.subTest(source=source):
+                entry = {'speaker': 'A', 'text': source, 'instruct': 'Calm.'}
+                original = copy.deepcopy(entry)
+                chunks = group_into_chunks([entry])
+                self.assertEqual(1, len(chunks))
+                captured, batches = [], []
+                def synth(text, instruction, *args, **kwargs):
+                    captured.append((text, instruction))
+                    return True
+                def batch(rows, *args):
+                    batches.extend(copy.deepcopy(rows))
+                    return {'completed': [0], 'failed': []}
+                with patch.object(engine, 'get_voice_backend', return_value='local'), \
+                     patch.object(engine, '_local_generate_custom', side_effect=synth), \
+                     patch.object(engine, '_local_batch_custom', side_effect=batch), \
+                     patch.object(engine, '_clear_gpu_cache'):
+                    engine.generate_custom_voice(source, 'Calm.', 'A', config, 'unused')
+                    engine.generate_custom_voice(chunks[0]['text'], chunks[0]['instruct'], 'A', config, 'unused')
+                    engine.generate_batch([{**chunks[0], 'index': 0}], config, 'unused')
+                self.assertEqual([(expected, 'Calm.'), (expected, 'Calm.')], captured)
+                self.assertEqual(expected, batches[0]['text'])
+                self.assertEqual('Calm.', batches[0]['instruct'])
+                self.assertEqual(original, entry)
+
     def test_known_symbols_use_identical_words_in_chunk_and_direct_voice_paths(self):
         symbols = {'→': 'right arrow', '←': 'left arrow', '↑': 'up arrow', '↓': 'down arrow',
                    '★': 'star', '☆': 'star', '♥': 'heart', '≤': 'at most', '√': 'the square root of',

@@ -7719,9 +7719,11 @@
   ],
   "test_speech_symbol_dispatch": [
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_classifier_uses_the_shared_rendering_object",
+    "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_compact_symbols_preserve_boundaries_in_direct_and_prepared_dispatch",
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_direct_custom_dispatch_preserves_the_same_cues_as_prepared_entries",
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_known_symbols_use_identical_words_in_chunk_and_direct_voice_paths",
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_native_batch_handoff_preserves_cues_without_mutating_source",
+    "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_prose_without_symbol_renderings_keeps_existing_punctuation_spacing",
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_scene_rules_match_chunk_pauses_and_direct_normalized_boundaries",
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_unknown_glyph_review_and_final_drop_share_the_same_classification"
   ],
