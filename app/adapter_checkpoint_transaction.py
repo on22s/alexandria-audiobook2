@@ -210,6 +210,25 @@ def get_adapter_generation_sha256(adapter_dir):
     return hashlib.sha256(json.dumps(rows).encode()).hexdigest()
 
 
+def get_adapter_serving_metadata(adapter_dir, max_metadata_bytes=None):
+    """Read the serving transcript and verify any declared artifact identities."""
+    adapter = Path(adapter_dir)
+    with (adapter / 'training_meta.json').open('rb') as handle:
+        if max_metadata_bytes is not None and os.fstat(handle.fileno()).st_size > max_metadata_bytes:
+            raise ValueError('Adapter metadata exceeds the byte limit')
+        content = handle.read() if max_metadata_bytes is None else handle.read(max_metadata_bytes + 1)
+    if max_metadata_bytes is not None and len(content) > max_metadata_bytes:
+        raise ValueError('Adapter metadata exceeds the byte limit')
+    meta = json.loads(content.decode('utf-8'))
+    if not isinstance(meta, dict) or not isinstance(meta.get('ref_sample_text'), str) or not meta['ref_sample_text'].strip():
+        raise ValueError('ref_sample_text missing from training_meta.json')
+    if 'checkpoint_sha256' in meta and meta['checkpoint_sha256'] != get_file_sha256(str(adapter / 'adapter_model.safetensors')):
+        raise ValueError('Adapter metadata does not match its weights')
+    if 'reference_audio_sha256' in meta and meta['reference_audio_sha256'] != get_file_sha256(str(adapter / 'ref_sample.wav')):
+        raise ValueError('Adapter metadata does not match its reference audio')
+    return meta
+
+
 @contextlib.contextmanager
 def ensure_adapter_generation_snapshot(adapter_dir):
     """Capture serving bytes under admission, then release before slow model loads."""

@@ -435,6 +435,7 @@ def train_one(zip_path: str, dataset_id: str, adapter_id: str, args) -> dict | N
         "name":         dataset_id,
         "dataset_id":   dataset_id,
         "zip_source":   zip_path,
+        "adapter_path": os.path.abspath(output_dir),
         "epochs_run":   max(epoch_losses.keys()) if epoch_losses else None,
         "epoch_losses": epoch_losses,
         "final_loss":   final_loss,

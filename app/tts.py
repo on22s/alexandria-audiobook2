@@ -19,7 +19,8 @@ import numpy as np
 import soundfile as sf
 
 import device_utils
-from adapter_checkpoint_transaction import ensure_adapter_generation_snapshot, get_adapter_generation_sha256
+from adapter_checkpoint_transaction import (ensure_adapter_generation_snapshot, get_adapter_generation_sha256,
+                                            get_adapter_serving_metadata)
 from lora_evidence import get_file_sha256
 from audio_validation import GeneratedAudioError, publish_audio_output
 from speech_text import normalize_for_speech, get_speech_preparation
@@ -1783,14 +1784,7 @@ class TTSEngine:
         with ensure_adapter_generation_snapshot(adapter_path) as (snapshot, generation):
             if expected_generation is not None and generation != expected_generation:
                 raise ValueError('Adapter generation changed since benchmark fixture admission')
-            with open(os.path.join(snapshot, 'training_meta.json'), encoding='utf-8') as handle:
-                meta = json.load(handle)
-            if not isinstance(meta, dict) or not isinstance(meta.get('ref_sample_text'), str) or not meta['ref_sample_text'].strip():
-                raise ValueError('ref_sample_text missing from training_meta.json')
-            if 'checkpoint_sha256' in meta and meta['checkpoint_sha256'] != get_file_sha256(os.path.join(snapshot, 'adapter_model.safetensors')):
-                raise ValueError('Adapter metadata does not match its weights')
-            if 'reference_audio_sha256' in meta and meta['reference_audio_sha256'] != get_file_sha256(os.path.join(snapshot, 'ref_sample.wav')):
-                raise ValueError('Adapter metadata does not match its reference audio')
+            meta = get_adapter_serving_metadata(snapshot)
             model = self._init_local_lora(snapshot, generation_sha256=generation, source_adapter_path=adapter_path)
             prompt = self._ensure_lora_prompt(snapshot, model, meta['ref_sample_text'], generation_sha256=generation, source_adapter_path=adapter_path)
             # A provider must not mutate the captured serving evidence while loading.

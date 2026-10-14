@@ -1,6 +1,7 @@
 """Deterministic, provenance-preserving merges for confirmed voice datasets."""
 
 import hashlib
+import contextlib
 import io
 import json
 import os
@@ -11,18 +12,29 @@ import zipfile
 import numpy as np
 import soundfile as sf
 
+from dataset_metadata import get_training_reference_relative_path
 
-MERGE_VERSION = 6
+MERGE_VERSION = 7
 
 
-def get_file_fingerprint(path: Path) -> dict:
+def get_source_fingerprint(handle) -> dict:
+    """Identify opened bytes without changing the archive reader's position."""
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
+    position = handle.tell()
+    try:
+        handle.seek(0)
         stat = os.fstat(handle.fileno())
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
+    finally:
+        handle.seek(position)
     return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns,
             "sha256": digest.hexdigest()}
+
+
+def get_file_fingerprint(path: Path) -> dict:
+    with path.open("rb") as handle:
+        return get_source_fingerprint(handle)
 
 
 def get_pcm_hash(wav_bytes: bytes) -> str:
@@ -54,15 +66,43 @@ def is_reusable_merge(destination: Path, sources: list[dict]) -> bool:
         return False
 
 
-def _load_metadata(archive: zipfile.ZipFile) -> list[dict]:
+def _load_metadata(archive: zipfile.ZipFile, name="metadata.jsonl") -> list[dict]:
     try:
-        lines = archive.read("metadata.jsonl").decode("utf-8").splitlines()
+        lines = archive.read(name).decode("utf-8").splitlines()
     except KeyError as error:
         raise ValueError("source archive has no metadata.jsonl") from error
     try:
         return [json.loads(line) for line in lines if line.strip()]
     except json.JSONDecodeError as error:
         raise ValueError("source archive metadata.jsonl is invalid JSON") from error
+
+
+def _get_reference_pair(source, relative):
+    """Pair the selected audio with evidence from its owning archive only."""
+    entries = _load_metadata(source)
+    training = (_load_metadata(source, "train/metadata.jsonl")
+                if "train/metadata.jsonl" in source.namelist() else
+                [entry for entry in entries if not entry["audio_filepath"].startswith("val/")])
+    reference = source.read(relative)
+    reference_hash = get_pcm_hash(reference)
+    effective = (get_training_reference_relative_path(training, "ref.wav" in source.namelist())
+                 if training else ("ref.wav" if "ref.wav" in source.namelist() else None))
+    is_effective = effective == relative or (effective is not None and
+                     get_pcm_hash(source.read(effective)) == reference_hash)
+    if is_effective and "ref_text.txt" in source.namelist():
+        text = source.read("ref_text.txt").decode("utf-8").strip()
+        if text:
+            return reference, text
+    for entry in entries:
+        if get_pcm_hash(source.read(entry["audio_filepath"])) == reference_hash:
+            text = entry.get("text")
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("selected reference has no matching transcript")
+            return reference, text
+    # Keep the trainer's documented legacy fallback within its own source.
+    if is_effective and training and isinstance(training[0].get("text"), str) and training[0]["text"].strip():
+        return reference, training[0]["text"]
+    raise ValueError("selected reference has no source-owned transcript")
 
 
 def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
@@ -87,16 +127,19 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
     provenance = []
     duplicate_count = 0
     reference_paths = {}
-    reference = None
-    reference_text = None
+    root_reference = None
+    first_training_reference = None
+    reference_sources = contextlib.ExitStack()
     try:
         with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as output:
             for source_index, source_path in enumerate(sorted(paths, key=lambda item: str(item))):
-                with zipfile.ZipFile(source_path) as source:
-                    if reference is None and "ref.wav" in source.namelist():
-                        reference = source.read("ref.wav")
-                    if reference_text is None and "ref_text.txt" in source.namelist():
-                        reference_text = source.read("ref_text.txt")
+                source = zipfile.ZipFile(source_path)
+                try:
+                    if get_source_fingerprint(source.fp) != sources[source_index]["fingerprint"]:
+                        raise ValueError("source archive changed before copying samples")
+                    if root_reference is None and "ref.wav" in source.namelist():
+                        root_reference = (source, "ref.wav")
+                        reference_sources.callback(source.close)
                     for entry_index, entry in enumerate(_load_metadata(source)):
                         original_path = entry.get("audio_filepath", "")
                         if not original_path:
@@ -117,6 +160,9 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
                                                "duplicate_of": seen_pcm[pcm_hash]})
                             continue
                         partition = "val" if original_path.startswith("val/") else "train"
+                        if partition == "train" and first_training_reference is None:
+                            first_training_reference = (source, entry.get("ref_audio") or original_path)
+                            reference_sources.callback(source.close)
                         output_path = f"{partition}/s{source_index:03d}_{entry_index:06d}.wav"
                         output.writestr(output_path, wav_bytes)
                         merged_entry = dict(entry)
@@ -142,6 +188,12 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
                         provenance.append({"output_audio": output_path,
                                            "source_zip": str(source_path),
                                            "source_audio": original_path})
+                finally:
+                    # Only these two possible owners stay open through selection.
+                    # Their original ZIP member index and FD survive a path replacement.
+                    if not any(reference is not None and reference[0] is source
+                               for reference in (root_reference, first_training_reference)):
+                        source.close()
             if not merged_metadata:
                 raise ValueError("source archives contain no unique audio entries")
             train = [entry for entry in merged_metadata if entry["audio_filepath"].startswith("train/")]
@@ -152,17 +204,28 @@ def merge_voice_datasets(paths: list[Path], destination: Path) -> dict:
                 if entries:
                     output.writestr(name, "".join(json.dumps(entry, ensure_ascii=False) + "\n"
                                                    for entry in entries))
-            if reference is not None:
-                output.writestr("ref.wav", reference)
-            if reference_text is not None:
+            selected_reference = root_reference
+            if train and get_training_reference_relative_path(train, root_reference is not None) != "ref.wav":
+                selected_reference = first_training_reference
+            if selected_reference is not None:
+                try:
+                    reference, reference_text = _get_reference_pair(*selected_reference)
+                except zipfile.BadZipFile as error:
+                    raise ValueError("source archive changed or contains malformed reference members") from error
+                if root_reference is not None:
+                    output.writestr("ref.wav", reference)
                 output.writestr("ref_text.txt", reference_text)
             manifest = {"version": MERGE_VERSION, "sources": sources,
                         "unique_clip_count": len(merged_metadata),
                         "duplicate_clip_count": duplicate_count,
                         "provenance": provenance}
             output.writestr("merge_manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+        reference_sources.close()
+        if get_source_records(paths) != sources:
+            raise ValueError("source archive changed during merge; destination was not replaced")
         os.replace(temporary, destination)
     finally:
+        reference_sources.close()
         if temporary.exists():
             temporary.unlink()
     return {"status": "merged", "destination": str(destination),
