@@ -19,6 +19,7 @@ from types import MappingProxyType
 from core import llm_timeout_seconds
 from source_encoding import read_source_text, get_normalized_source_newlines
 from llm_provider import make_llm_client, make_run_client, get_run_model_binding, get_run_fingerprint_identity
+from llm_request_budget import get_prompt_token_estimate
 
 from judge_reason_log import record_judge_run
 from generate_script import (call_llm_for_entries, split_into_chunks,
@@ -1230,17 +1231,18 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
     if validate is None:
         validate = lambda entries: validate_segment_for_params(
             chunk, entries, params, quote_analysis=quote_analysis)
-    # Segmentation only adds small JSON/type overhead around source text. Bound
-    # both the first request and retry ceiling so a weak model cannot spend
-    # 10k-16k tokens expanding a ~1k-token source chunk.
+    # Include per-line JSON overhead while keeping both requests and retries
+    # bounded, so short lines fit without letting a weak model expand forever.
     source_words = max(1, len(chunk.split()))
     completion_ceiling = resolve_completion_ceiling(
-        source_words, params, reasoning_allowance=params.reasoning_allowance)
+        source_words, params, reasoning_allowance=params.reasoning_allowance,
+        source_text=chunk)
+    completion_ceiling = min(params.request_output_ceiling or completion_ceiling,
+                             completion_ceiling)
     bounded_params = replace(
         params, max_tokens=min(params.max_tokens, completion_ceiling),
         hard_max_tokens=min(params.hard_max_tokens, completion_ceiling),
-        request_output_ceiling=min(params.request_output_ceiling or completion_ceiling,
-                                   completion_ceiling),
+        request_output_ceiling=completion_ceiling,
         temperature=(params.segment_temperature
                      if params.segment_temperature is not None else params.temperature))
     def repair(entries):
@@ -1694,7 +1696,9 @@ def get_segment_chunk_records(source_text, chunk_size, params):
         if chunk_size <= 30000 or not params.context_length:
             return records
         if all(does_request_fit_context(system_prompt, user_template.format(chunk=record["text"]),
-                                        params, resolve_completion_ceiling(len(record["text"].split()), params))
+                                        params, resolve_completion_ceiling(
+                                            len(record["text"].split()), params,
+                                            source_text=record["text"]))
                for record in records):
             return records
         if size <= 500:
@@ -1830,7 +1834,7 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
     largest_completion = 0
     for chunk in chunks:
         largest_completion = max(largest_completion, resolve_completion_ceiling(
-            max(1, len(chunk.split())), params))
+            max(1, len(chunk.split())), params, source_text=chunk))
     unresolved = set(unresolved_chunks)
     for index, chunk in enumerate(chunks):
         if chunk not in unresolved:
@@ -1838,7 +1842,7 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
         completion = min(
             int(settings["max_tokens"]),
             resolve_completion_ceiling(
-                max(1, len(chunk.split())), params))
+                max(1, len(chunk.split())), params, source_text=chunk))
         add_request("segment", segment_system,
                     segment_template.format(chunk=chunk), completion)
         max_window = max(context_windows)
@@ -3356,15 +3360,21 @@ def bound_index_request_params(call_params, entry_count, per_entry_tokens):
     return replace(call_params, max_tokens=initial, request_initial_max_tokens=initial)
 
 
-def resolve_completion_ceiling(source_words, params, reasoning_allowance=0):
+def resolve_completion_ceiling(source_words, params, reasoning_allowance=0, *,
+                               source_text=None):
     """Bound segmentation output, leaving room for invisible reasoning.
 
-    The visible-output bound is unchanged from the original: it stops a weak
-    model spending 10k-16k tokens expanding a ~1k-token chunk. The reasoning
-    allowance is added on top rather than carved out of it, so a reasoning
-    model gets the same visible budget as everyone else.
+    Keep the word-ratio floor and estimate JSON overhead for line-heavy text.
+    One object per nonblank line is a budgeting surrogate, not a segmentation
+    rule or a tokenizer guarantee. Words-only callers retain their old bound.
+    Reasoning is added once, separately from the visible output allowance.
     """
     visible = max(512, math.ceil(max(1, source_words) * params.segment_output_ratio))
+    if source_text is not None:
+        entries = [{"type": "NARRATOR", "text": line}
+                   for line in source_text.splitlines() if line.strip()]
+        serialized = json.dumps(entries, ensure_ascii=False, indent=2)
+        visible = max(visible, get_prompt_token_estimate([{"content": serialized}]))
     return visible + max(0, int(reasoning_allowance))
 
 
