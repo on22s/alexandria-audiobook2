@@ -11,6 +11,7 @@ ALEXANDRIA_RUN_ID set, the request log sits beside the run's response log.
 Synthetic text only.
 """
 import contextlib
+import errno
 import io
 import json
 import os
@@ -20,6 +21,9 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+
+import httpx
+from openai import OpenAI
 
 import generate_script as gs
 from pass_quality import validate_attribution
@@ -48,6 +52,30 @@ def blocks(path):
 
 
 class RequestLogTests(unittest.TestCase):
+    def run_sdk_call(self, tmp, handler, params=None, max_retries=0):
+        params = params or gs.LLMGenParams(
+            "system text", "", 8192, 0.0, 1, api_retry_limit=0)
+        output, attempts = io.StringIO(), []
+        with OpenAI(base_url="http://fixture.invalid/v1", api_key="synthetic",
+                    max_retries=0, http_client=httpx.Client(
+                        transport=httpx.MockTransport(handler))) as client, \
+                patch.dict(os.environ, {"ALEXANDRIA_RUN_ID": ""}), \
+                patch.object(gs, "get_response_log_path",
+                             side_effect=lambda name: os.path.join(tmp, name)), \
+                contextlib.redirect_stdout(output):
+            result = gs.call_llm_for_entries(
+                client, "fixture-model", "system text", "user text", params,
+                "llm_responses.log", "ATTRIBUTE", max_retries=max_retries,
+                attempt_observer=attempts.append)
+        return result, output.getvalue(), attempts
+
+    def sdk_response(self, content=CORRECT):
+        return httpx.Response(200, json={
+            "id": "synthetic", "object": "chat.completion", "created": 0,
+            "model": "fixture-model", "choices": [{"index": 0,
+                "finish_reason": "stop", "message": {
+                    "role": "assistant", "content": content}}]})
+
     def run_call(self, tmp, replies, validate=None, max_retries=0, run_id=""):
         client, sent = make_client(replies)
         params = gs.LLMGenParams("system text", "", 8192, 0.0, 1)
@@ -106,6 +134,150 @@ class RequestLogTests(unittest.TestCase):
             request = gs.get_request_log_path(response)
         self.assertEqual(os.path.dirname(response), os.path.dirname(request))
         self.assertTrue(request.endswith(os.path.join("run-1", "llm_responses.requests.log")))
+
+    def test_request_is_closed_and_lock_released_before_backend_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            handles, held, seen = [], [], []
+            native_open, native_lock = open, gs.file_lock
+
+            def opening(*args, **kwargs):
+                handle = native_open(*args, **kwargs)
+                handles.append(handle)
+                return handle
+
+            @contextlib.contextmanager
+            def locking(*args, **kwargs):
+                with native_lock(*args, **kwargs):
+                    held.append(True)
+                    try:
+                        yield
+                    finally:
+                        held.pop()
+
+            def handle(request):
+                seen.append(json.loads(request.content))
+                self.assertTrue(handles, "backend entered before any request append")
+                self.assertTrue(all(item.closed for item in handles))
+                self.assertEqual([], held)
+                [logged] = blocks(os.path.join(tmp, "llm_responses.requests.log"))
+                self.assertIn(seen[0]["messages"][1]["content"], logged)
+                self.assertIn("scope=prepared_logical_attempt", logged)
+                return self.sdk_response()
+
+            with patch.object(gs, "open", opening, create=True), \
+                    patch.object(gs, "file_lock", locking):
+                result, _, _ = self.run_sdk_call(tmp, handle)
+            self.assertEqual(json.loads(CORRECT), result)
+            self.assertEqual(1, len(seen))
+
+    def test_sdk_timeout_keeps_prepared_request_without_a_response_block(self):
+        seen = []
+
+        def handle(request):
+            seen.append(json.loads(request.content))
+            raise httpx.ReadTimeout("synthetic timeout", request=request)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result, _, attempts = self.run_sdk_call(tmp, handle)
+            self.assertEqual([], result)
+            self.assertEqual(1, len(seen))
+            self.assertEqual("api_error", attempts[0]["outcome"])
+            [logged] = blocks(os.path.join(tmp, "llm_responses.requests.log"))
+            self.assertIn(seen[0]["messages"][1]["content"], logged)
+            self.assertFalse(Path(tmp, "llm_responses.log").exists())
+
+    def test_api_retry_records_distinct_logical_ids_before_each_send(self):
+        seen = []
+
+        def handle(request):
+            seen.append(json.loads(request.content))
+            if len(seen) == 1:
+                raise httpx.ReadTimeout("synthetic timeout", request=request)
+            return self.sdk_response()
+
+        params = gs.LLMGenParams("system text", "", 8192, 0.0, 1, api_retry_limit=1)
+        with tempfile.TemporaryDirectory() as tmp:
+            result, _, _ = self.run_sdk_call(tmp, handle, params)
+            requests = blocks(os.path.join(tmp, "llm_responses.requests.log"))
+            [response] = blocks(os.path.join(tmp, "llm_responses.log"))
+        self.assertEqual(json.loads(CORRECT), result)
+        self.assertEqual(2, len(seen))
+        self.assertEqual(2, len(requests))
+        ids = [re.search(r"request=(\w+)", item).group(1) for item in requests]
+        self.assertNotEqual(ids[0], ids[1])
+        self.assertIn(f"request={ids[1]}", response)
+
+    def test_schema_fallback_is_two_wire_sends_under_one_prepared_id(self):
+        seen = []
+
+        def handle(request):
+            seen.append(json.loads(request.content))
+            if "response_format" in seen[-1]:
+                return httpx.Response(400, json={"error": {
+                    "message": "response_format is unsupported", "type": "invalid_request_error"}})
+            return self.sdk_response()
+
+        params = gs.LLMGenParams("system text", "", 8192, 0.0, 1,
+                                 api_retry_limit=0, response_schema={
+                                     "name": "entries", "schema": {"type": "array"}})
+        with tempfile.TemporaryDirectory() as tmp:
+            result, _, _ = self.run_sdk_call(tmp, handle, params)
+            [request] = blocks(os.path.join(tmp, "llm_responses.requests.log"))
+            [response] = blocks(os.path.join(tmp, "llm_responses.log"))
+        self.assertEqual(json.loads(CORRECT), result)
+        self.assertEqual(2, len(seen))
+        self.assertIn("response_format", seen[0])
+        self.assertNotIn("response_format", seen[1])
+        self.assertEqual(seen[0]["messages"], seen[1]["messages"])
+        self.assertIn("scope=prepared_logical_attempt", request)
+        self.assertIn(re.search(r"request=\w+", request).group(), response)
+
+    def test_failed_request_append_does_not_suppress_response_or_retry_provider(self):
+        seen = []
+
+        def handle(request):
+            seen.append(request)
+            return self.sdk_response()
+
+        native_open = open
+
+        def opening(path, *args, **kwargs):
+            if str(path).endswith(".requests.log"):
+                raise OSError(errno.ENOSPC, "synthetic request append refusal")
+            return native_open(path, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(gs, "open", opening, create=True), \
+                patch.object(gs, "classify_llm_error", wraps=gs.classify_llm_error) as classify:
+            result, output, _ = self.run_sdk_call(tmp, handle)
+            [response] = blocks(os.path.join(tmp, "llm_responses.log"))
+        self.assertEqual(json.loads(CORRECT), result)
+        self.assertEqual(1, len(seen))
+        self.assertIn(CORRECT, response)
+        self.assertIn("WARNING: request logging failed", output)
+        classify.assert_not_called()
+
+    def test_input_budget_refusal_never_logs_or_sends_a_prepared_request(self):
+        seen = []
+
+        def handle(request):
+            seen.append(request)
+            return self.sdk_response()
+
+        params = gs.LLMGenParams("system text", "", 8192, 0.0, 1, max_input_tokens=1)
+        with tempfile.TemporaryDirectory() as tmp:
+            result, _, attempts = self.run_sdk_call(tmp, handle, params)
+            self.assertEqual([], result)
+            self.assertEqual("context_budget", attempts[0]["error_category"])
+            self.assertEqual([], seen)
+            self.assertFalse(Path(tmp, "llm_responses.requests.log").exists())
+
+    def test_temperature_zero_duplicate_refusal_does_not_append_a_second_intent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, sent, _ = self.run_call(tmp, ["no JSON"], max_retries=2)
+            self.assertEqual([], result)
+            self.assertEqual(1, len(sent))
+            self.assertEqual(1, len(blocks(os.path.join(tmp, "llm_responses.requests.log"))))
 
 
 if __name__ == "__main__":

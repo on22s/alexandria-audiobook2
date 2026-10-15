@@ -76,7 +76,11 @@ REQUEST_LOG_MAX_BYTES = 50 * 1024 * 1024
 
 def get_request_log_path(response_log_path):
     """The request log beside a response log: llm_responses.log ->
-    llm_responses.requests.log, matched block-for-block by request id."""
+    llm_responses.requests.log, joined to replies by request id.
+
+    Blocks describe prepared logical attempts, which may fail before a reply
+    or contain multiple SDK retries or schema-fallback wire requests.
+    """
     stem, extension = os.path.splitext(response_log_path)
     return f"{stem}.requests{extension or '.log'}"
 
@@ -1145,6 +1149,31 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                           f"rejected at temperature 0; further retries cannot "
                           f"differ", flush=True)
                     break
+            # Close the prepared request block before provider work, so a
+            # timeout or terminated worker does not erase what was asked.
+            # Do not hold the log lock across inference or retry/fallback.
+            request_id = uuid.uuid4().hex[:12]
+            request_log_error = None
+            log_path = None
+            try:
+                log_path = get_response_log_path(log_name)
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                with file_lock(log_path):
+                    request_log_path = get_request_log_path(log_path)
+                    if not os.environ.get("ALEXANDRIA_RUN_ID"):
+                        _rotate_log_if_large(request_log_path, max_bytes=REQUEST_LOG_MAX_BYTES)
+                    with open(request_log_path, "a", encoding="utf-8") as rf:
+                        rf.write(f"\n{'='*80}\n")
+                        rf.write(f"{label} | attempt {attempt_number} | request={request_id} | "
+                                 f"model={model_name} | temperature={params.temperature} | "
+                                 f"max_tokens={effective_max} | scope=prepared_logical_attempt\n")
+                        for message in messages:
+                            rf.write(f"{'─'*80}\n[{message['role']}]\n{message['content']}\n")
+                        rf.write(f"{'='*80}\n")
+            except (OSError, UnicodeError, ValueError) as exc:
+                request_log_error = f"{type(exc).__name__}: {exc}"
+                print(f"WARNING: request logging failed for {label}: {request_log_error}. "
+                      "Continuing with the provider request.", flush=True)
             response = create_completion(
                 client, get_response_format(params, client),
                 schema_rejected_by=schema_rejected_by,
@@ -1202,24 +1231,13 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
 
             # A local log failure must not consume the provider retry/failover budget.
             response_log_error = None
-            request_id = uuid.uuid4().hex[:12]
             try:
-                log_path = get_response_log_path(log_name)
+                if log_path is None:
+                    log_path = get_response_log_path(log_name)
                 os.makedirs(os.path.dirname(log_path), exist_ok=True)
                 with file_lock(log_path):
                     if not os.environ.get("ALEXANDRIA_RUN_ID"):
                         _rotate_log_if_large(log_path)
-                    request_log_path = get_request_log_path(log_path)
-                    if not os.environ.get("ALEXANDRIA_RUN_ID"):
-                        _rotate_log_if_large(request_log_path, max_bytes=REQUEST_LOG_MAX_BYTES)
-                    with open(request_log_path, "a", encoding="utf-8") as rf:
-                        rf.write(f"\n{'='*80}\n")
-                        rf.write(f"{label} | attempt {attempt_number} | request={request_id} | "
-                                 f"model={model_name} | temperature={params.temperature} | "
-                                 f"max_tokens={effective_max}\n")
-                        for message in messages:
-                            rf.write(f"{'─'*80}\n[{message['role']}]\n{message['content']}\n")
-                        rf.write(f"{'='*80}\n")
                     with open(log_path, "a", encoding="utf-8") as lf:
                         lf.write(f"\n{'='*80}\n")
                         lf.write(f"{label} | attempt {attempt_number} | finish_reason={finish_reason} | request={request_id}\n")
@@ -1256,6 +1274,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 if response_log_error is not None:
                     attempt_record["response_log_error"] = response_log_error
                     attempt_record["raw_response"] = text
+                if request_log_error is not None:
+                    attempt_record["request_log_error"] = request_log_error
                 attempt_observer(attempt_record)
 
             if finish_reason == "length":
