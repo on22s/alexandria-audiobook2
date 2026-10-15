@@ -596,7 +596,9 @@ def build_attribute_request(frozen_batch, params, roster,
         sys_prompt = params.attribute_system_prompt
     elif params.system_prompt:
         sys_prompt = params.system_prompt
-    if params.user_prompt_template:
+    if params.attribute_user_prompt_template:
+        usr_template = params.attribute_user_prompt_template
+    elif params.user_prompt_template:
         usr_template = params.user_prompt_template
     neighbor_contexts = neighbor_contexts or [{} for _ in frozen_batch]
     batch_json = json.dumps([
@@ -3645,7 +3647,7 @@ def main():
             attribute_prompt_texts = dict(attribute_prompt_texts, system=params.attribute_system_prompt)
     elif attribute_prompt_texts and attribute_prompt_variant == "default":
         params.attribute_system_prompt = attribute_prompt_texts.get("system") or None
-        params.user_prompt_template = attribute_prompt_texts.get("user") or None
+        params.attribute_user_prompt_template = attribute_prompt_texts.get("user") or None
     client = make_run_client(config, llm, llm_timeout_seconds())
 
     # The CLI flag overrides the Setup switch; neither set means 'line'.

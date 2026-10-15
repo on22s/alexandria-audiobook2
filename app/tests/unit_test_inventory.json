@@ -8478,6 +8478,7 @@
     "tests.test_three_pass_checkpoint_recovery.DiagnosticCheckpointReplayTests.test_native_process_death_after_second_delta_resumes_without_replaying_prefix"
   ],
   "test_three_pass_cli_settings": [
+    "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_default_shaped_preset_reaches_pass_2_only",
     "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_samples_and_full_run_receive_same_selected_controls_and_plan_votes",
     "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_selected_preset_texts_reach_samples_and_estimated_prompt"
   ],

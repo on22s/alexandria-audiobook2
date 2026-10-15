@@ -91,6 +91,36 @@ class ThreePassCliSettingsTests(unittest.TestCase):
             self.assertEqual(9, len([r for r in report['requests'] if r['stage'] == 'attribute']))
         self.assertEqual(original, config)
 
+    def test_default_shaped_preset_reaches_pass_2_only(self):
+        """A custom preset of the `default` shape (the shape the attrv1/attrv2
+        adapters were trained on) put its {roster}/{batch} user text in
+        params.user_prompt_template - the field Pass 1 and Pass 3 fall back to -
+        so every book crashed at the first Pass 1 chunk with KeyError 'roster'.
+        The text must reach the Pass 2 request and nothing else."""
+        user = 'PRESET-MARKER characters: {roster}\nentries: {batch}'
+        config = {'llm_mode':'local', 'llm_local':{'model_name':'fixture'},
+                  'generation':{'max_tokens':4096}, 'prompts':{'attribution_preset':'trained'},
+                  'prompt_presets':[{'name':'trained', 'variant':'default',
+                                    'system_prompt':'Preset system.', 'user_prompt':user}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            calls, _ = self.run_cli(tmp, config, False, [])
+        params = calls[0][1]
+        self.assertIsNone(params.user_prompt_template)
+        self.assertEqual(user, params.attribute_user_prompt_template)
+        sent = []
+
+        def fake_call(client, model_name, chunk, sys_prompt, user_prompt, *args, **kwargs):
+            sent.append(user_prompt)
+            return [{'type':'NARRATOR', 'text':chunk}]
+        with patch.object(tp, '_call_segment', side_effect=fake_call):
+            tp.segment_chunk(None, 'm', 'Alice stood by the door.', params)
+        self.assertIn('Alice stood by the door.', sent[0])
+        self.assertNotIn('PRESET-MARKER', sent[0])
+        _, attribute_user = tp.build_attribute_request(
+            [{'type':'SPOKEN', 'text':'"Yes."'}], params, ['ALICE'])
+        self.assertIn('PRESET-MARKER', attribute_user)
+        self.assertIn('ALICE', attribute_user)
+
     def test_selected_preset_texts_reach_samples_and_estimated_prompt(self):
         texts = dict(builtin_texts('michel2'), system='Custom attribution system ' * 100)
         config = {'llm_mode':'local', 'llm_local':{'model_name':'fixture'},

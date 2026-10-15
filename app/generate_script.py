@@ -714,6 +714,11 @@ class LLMGenParams:
     # Pure resolver(params, profile_bound=False), refreshed after profile changes.
     request_params_resolver: object = field(default=None, repr=False, compare=False)
     reasoning_reservation: dict = field(default=None, repr=False, compare=False)
+    # Pass 2's user template from a default-shaped attribution preset. Its own
+    # field because user_prompt_template is the Pass 1/3 fallback, and a
+    # {roster}/{batch} template there crashed Pass 1 with KeyError 'roster'.
+    # compare=False: review receipts compare params, and review never sets it.
+    attribute_user_prompt_template: str = field(default=None, compare=False)
 
 
 
