@@ -516,6 +516,40 @@ def index_head_check(frozen_entries, response_entries):
     return True, "", ordered
 
 
+def get_attribution_shift_feedback_report(frozen_entries, response_entries, report):
+    """Copy a failed native report, explaining a possible adjacent label shift.
+
+    This is retry wording only. Neither the returned narration label nor an
+    apparent speech tag establishes the quote's speaker; acceptance is unchanged.
+    """
+    result = copy.deepcopy(report)
+    if report.get("passed") is not False:
+        return result
+    aligned, _, _ = index_head_check(frozen_entries, response_entries)
+    if not aligned:
+        return result
+    failures = {(finding.get("code"), finding.get("entry_number"))
+                for finding in report.get("findings", [])}
+    for index in range(len(frozen_entries) - 1):
+        if (frozen_entries[index].get("type") != "SPOKEN"
+                or frozen_entries[index + 1].get("type") != "NARRATOR"
+                or ("spoken_not_named", index + 1) not in failures
+                or ("narrator_renamed", index + 2) not in failures):
+            continue
+        hint = (f"Possible adjacent-row label displacement: output n={index} labels "
+                f"the spoken line; output n={index + 1} labels narration and must "
+                f"stay NARRATOR. Re-evaluate who speaks n={index} from the passage "
+                f"and put that answer on n={index}. Do not assume the previously "
+                "proposed narration label is correct. Keep all other fields "
+                "under the existing schema.")
+        for finding in result["findings"]:
+            if (finding.get("code") == "spoken_not_named"
+                    and finding.get("entry_number") == index + 1
+                    and hint not in finding["message"]):
+                finding["message"] += " " + hint
+    return result
+
+
 _VALIDATION_EXPECTED = {
     "speaker_not_in_source": "an attested character name from the source text",
     "speaker_is_entry_type": "a character name, not the entry type",

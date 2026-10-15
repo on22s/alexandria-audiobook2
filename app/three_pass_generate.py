@@ -44,6 +44,7 @@ from pass_quality import (is_attested_name, strip_roster_alias_echo,
                           classify_lexical_quote_regions,
                           validate_segment_quality, validate_attribution,
                           get_attribution_tag_evidence,
+                          get_attribution_shift_feedback_report,
                           validate_instruct, index_head_check,
                           analyze_outer_quote_regions, split_outer_quote_regions,
                           QUOTE_MARKS)
@@ -801,7 +802,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                     attempt_observer=None, source_text=None,
                     exhaustion_sink=None, entries_provider=None, surround=None,
                     cast=None, keep_scope="line", speaker_traits=False, roster_traits=None,
-                    *, repair_exact_shift=False):
+                    *, repair_exact_shift=False, targeted_shift_feedback=False):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -810,7 +811,10 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     entry, returns keep_exhausted_answer instead of aborting the book. With
     keep_scope='batch' a multi-entry batch whose last answer failed only
     keepable checks is kept whole instead of subdivided (#668: one rejected
-    label otherwise costs a halving per level, ~25 requests for 25 lines)."""
+    label otherwise costs a halving per level, ~25 requests for 25 lines).
+    targeted_shift_feedback is an evaluation-only retry-wording opt-in; it
+    does not repair labels or change validation, prompts on first attempts,
+    schemas or retry budgets."""
     params = ensure_run_request_params(client, params)
     sys_prompt, user_prompt = build_attribute_request(
         frozen_batch, params, roster, neighbor_contexts, surround)
@@ -840,11 +844,13 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             attempt_observer(attempt)
 
     def get_quality(entries):
-        return validate_attribution(frozen_batch, entries, source_text,
-                                    known_names=known_names,
-                                    tag_evidence=tag_evidence,
-                                    speaker_aliases=aliases,
-                                    established_names=established_names)
+        report = validate_attribution(frozen_batch, entries, source_text,
+                                      known_names=known_names,
+                                      tag_evidence=tag_evidence,
+                                      speaker_aliases=aliases,
+                                      established_names=established_names)
+        return (get_attribution_shift_feedback_report(frozen_batch, entries, report)
+                if targeted_shift_feedback else report)
 
     def transform(entries):
         # Keep original parsed evidence even when a later provider gate rejects
@@ -947,7 +953,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                 exhaustion_sink=exhaustion_sink, entries_provider=entries_provider,
                 surround=surround, cast=cast, keep_scope=keep_scope,
                 speaker_traits=speaker_traits, roster_traits=roster_traits,
-                repair_exact_shift=repair_exact_shift))
+                repair_exact_shift=repair_exact_shift,
+                targeted_shift_feedback=targeted_shift_feedback))
         return combined
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)
