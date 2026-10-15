@@ -530,6 +530,12 @@ class ProjectManager:
             self._config_cache = None
             self._config_mtime = None
 
+    def reset_engine(self):
+        """Invalidate settings and the cached engine after pending construction."""
+        with self._engine_lock:
+            self.invalidate_config_cache()
+            self.engine = None
+
     def _read_config(self):
         """Load config.json, caching by mtime to avoid repeated disk reads/parses
         across hot-path calls (get_engine, _load_tts_config, ...)."""

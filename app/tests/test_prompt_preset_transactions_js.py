@@ -171,7 +171,7 @@ mode='fail';await assert.rejects(context.saveConfigPayload(context.buildConfigPa
         from routers import system
         from attribution_prompt_variants import builtin_presets
         app=FastAPI();app.include_router(system.router)
-        with tempfile.TemporaryDirectory() as root,patch.object(system,'CONFIG_PATH',str(Path(root,'config.json'))),patch.object(system,'project_manager',SimpleNamespace(invalidate_config_cache=lambda:None,engine=None)),TestClient(app,raise_server_exceptions=False) as client:
+        with tempfile.TemporaryDirectory() as root,patch.object(system,'CONFIG_PATH',str(Path(root,'config.json'))),patch.object(system,'project_manager',SimpleNamespace(reset_engine=lambda:None,engine=None)),TestClient(app,raise_server_exceptions=False) as client:
             path=Path(root,'config.json');path.write_text('{}');original_bytes=path.read_bytes();requests=[];statuses=[]
             class Handler(BaseHTTPRequestHandler):
                 def log_message(self,*args):pass

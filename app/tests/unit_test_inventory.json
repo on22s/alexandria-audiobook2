@@ -1823,6 +1823,12 @@
     "tests.test_config_backup_resume.ConfigBackupResumeTests.test_stale_backup_restored_before_capture_normal_exit_and_new_user_edit_survive_next_run",
     "tests.test_config_backup_resume.ConfigRestorePublicationTests.test_failed_rename_preserves_both_files_then_retry_publishes_exact_backup"
   ],
+  "test_config_engine_reset": [
+    "tests.test_config_engine_reset.ConfigEngineResetTests.test_failed_write_keeps_engine_and_cached_config",
+    "tests.test_config_engine_reset.ConfigEngineResetTests.test_overlapping_saves_complete_without_deadlock_and_engine_matches_disk",
+    "tests.test_config_engine_reset.ConfigEngineResetTests.test_pending_constructor_is_reset_before_save_success_and_event_loop_stays_responsive",
+    "tests.test_config_engine_reset.ConfigEngineResetTests.test_same_mtime_save_invalidates_config_and_engine"
+  ],
   "test_config_jsonable": [
     "tests.test_config_jsonable.ConfigIsJsonNativeTest.test_a_config_without_profiles_is_unaffected",
     "tests.test_config_jsonable.ConfigIsJsonNativeTest.test_a_loaded_config_can_be_written_back",

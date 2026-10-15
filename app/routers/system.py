@@ -942,7 +942,6 @@ async def save_config(config: AppConfig):
             atomic_json_write(normalized_config.model_dump(), CONFIG_PATH)
 
     await asyncio.to_thread(_save)
-    project_manager.invalidate_config_cache()
-    # Reset engine so it picks up new TTS settings on next use
-    project_manager.engine = None
+    # Serialize reset with construction without blocking the event loop.
+    await asyncio.to_thread(project_manager.reset_engine)
     return {"status": "saved"}

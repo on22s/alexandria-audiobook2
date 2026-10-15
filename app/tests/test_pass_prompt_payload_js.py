@@ -52,7 +52,7 @@ console.log(JSON.stringify({payload,reloaded:{pass1:[elements['pass1-system-prom
 
     def test_actual_config_http_save_persists_prompt_text_used_after_disk_reload(self):
         output=self.build();payload=output['payload'];app=FastAPI();app.include_router(system.router)
-        with tempfile.TemporaryDirectory() as root,patch.object(system,'CONFIG_PATH',str(Path(root,'config.json'))),patch.object(system,'project_manager',SimpleNamespace(invalidate_config_cache=lambda:None,engine=None)),TestClient(app) as client:
+        with tempfile.TemporaryDirectory() as root,patch.object(system,'CONFIG_PATH',str(Path(root,'config.json'))),patch.object(system,'project_manager',SimpleNamespace(reset_engine=lambda:None,engine=None)),TestClient(app) as client:
             response=client.post('/api/config',json=payload);self.assertEqual(200,response.status_code,response.text)
             saved=json.loads(Path(root,'config.json').read_text())
             for name in ['pass1','pass3']:self.assertEqual(tuple(output['reloaded'][name]),resolve_three_pass_prompt(saved,name))

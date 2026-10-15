@@ -42,7 +42,7 @@ console.log(JSON.stringify(context.buildConfigPayload(2)));
         self.assertFalse(payload['prompts']['persona_allow_unknown_network_context'])
         keys=list(FIELDS.values())+['chunk_size','banned_tokens','context_rescue_windows','merge_narrators','three_pass_quoted_must_be_spoken','three_pass_unquoted_must_be_narrator','three_pass_keep_whole_batch','three_pass_group_rule','three_pass_speaker_traits']
         self.assertEqual({key:expected[key] for key in keys},{key:payload['generation'][key] for key in keys})
-        with tempfile.TemporaryDirectory() as root,patch.object(system,'CONFIG_PATH',str(Path(root,'config.json'))),patch.object(system,'project_manager',SimpleNamespace(invalidate_config_cache=lambda:None,engine=None)),TestClient(app) as client:
+        with tempfile.TemporaryDirectory() as root,patch.object(system,'CONFIG_PATH',str(Path(root,'config.json'))),patch.object(system,'project_manager',SimpleNamespace(reset_engine=lambda:None,engine=None)),TestClient(app) as client:
             response=client.post('/api/config',json=payload);self.assertEqual(200,response.status_code,response.text);saved=json.loads(Path(root,'config.json').read_text());self.assertEqual({key:expected[key] for key in keys},{key:saved['generation'][key] for key in keys})
             self.assertEqual(saved['prompts']['persona_reference_chars'], PromptConfig().persona_reference_chars)
             payload['prompts']['persona_allow_unknown_network_context'] = True
