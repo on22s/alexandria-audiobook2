@@ -800,7 +800,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                     max_retries=3, on_exhaustion="fail", neighbor_contexts=None,
                     attempt_observer=None, source_text=None,
                     exhaustion_sink=None, entries_provider=None, surround=None,
-                    cast=None, keep_scope="line", speaker_traits=False, roster_traits=None):
+                    cast=None, keep_scope="line", speaker_traits=False, roster_traits=None,
+                    *, repair_exact_shift=False):
     """Assign speakers to one batch of frozen {type,text} entries. Enforces the
     text freeze; retries on invalid output. On exhaustion: 'fail' raises
     PassExhausted (testing default); 'fallback' keeps frozen text and labels
@@ -813,9 +814,23 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     params = ensure_run_request_params(client, params)
     sys_prompt, user_prompt = build_attribute_request(
         frozen_batch, params, roster, neighbor_contexts, surround)
-    tag_evidence = get_attribution_tag_evidence(
-        frozen_batch, source_text, set(roster or ()) | set((cast or {}).get("known_names") or ()),
-        (cast or {}).get("alias_to_name"))
+    from pass_quality import (get_attribution_tag_proofs, get_attribution_snapshot_digest,
+                              get_exact_attribution_shift_repair)
+    if (repair_exact_shift and entries_provider is not None
+            and not getattr(entries_provider, "supports_attribution_transform", False)):
+        raise ValueError("This attribution provider does not support exact-shift transforms")
+    known_names = set((cast or {}).get("known_names") or ())
+    established_names = set(roster or ())
+    aliases = (cast or {}).get("alias_to_name") or {}
+    if repair_exact_shift:
+        proofs = get_attribution_tag_proofs(
+            frozen_batch, source_text, established_names | known_names, aliases)
+        tag_evidence = {index: proof["speaker"] for index, proof in proofs.items()}
+        snapshot = get_attribution_snapshot_digest([
+            frozen_batch, sorted(established_names), sorted(known_names), aliases])
+    else:
+        tag_evidence = get_attribution_tag_evidence(
+            frozen_batch, source_text, established_names | known_names, aliases)
     validated = {}
     attempts = []
 
@@ -824,15 +839,35 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         if attempt_observer:
             attempt_observer(attempt)
 
+    def get_quality(entries):
+        return validate_attribution(frozen_batch, entries, source_text,
+                                    known_names=known_names,
+                                    tag_evidence=tag_evidence,
+                                    speaker_aliases=aliases,
+                                    established_names=established_names)
+
+    def transform(entries):
+        # Keep original parsed evidence even when a later provider gate rejects
+        # the native-valid copied candidate. No candidate enters keep/fallback.
+        from copy import deepcopy
+        validated["last"] = deepcopy(entries)
+        validated["last_report"] = get_quality(entries)
+        if getattr(entries_provider, "fills_immutable_narration", False):
+            # Sparse providers own narration expansion and its stricter gate;
+            # never repair raw named narration before that refusal runs.
+            return {"entries": entries, "raw_native_report": validated["last_report"]}
+        prepared = get_exact_attribution_shift_repair(
+            frozen_batch, entries, source_text, proofs, tag_evidence, snapshot,
+            known_names=known_names, established_names=established_names,
+            speaker_aliases=aliases, speaker_traits=speaker_traits)
+        return {**prepared, "raw_native_report": validated["last_report"]}
+
     def validate(entries):
-        validated["last"] = entries
-        report = validate_attribution(frozen_batch, entries, source_text,
-                                      known_names=(cast or {}).get("known_names"),
-                                      tag_evidence=tag_evidence,
-                                      speaker_aliases=(cast or {}).get("alias_to_name"),
-                                      established_names=roster)
-        validated["last_report"] = report
-        if report["passed"]:
+        report = get_quality(entries)
+        if not repair_exact_shift or "last" not in validated:
+            validated["last"] = entries
+            validated["last_report"] = report
+        if report["passed"] and not repair_exact_shift:
             validated["ordered"] = index_head_check(frozen_batch, entries)[2]
         return report
 
@@ -857,12 +892,13 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     # binding, the exhaustion path - is shared by any provider, so an
     # alternative attribution strategy cannot quietly skip them. Default None
     # is the production path, byte-identical to before.
+    transform_kwargs = {"transform_entries": transform} if repair_exact_shift else {}
     if entries_provider is None:
         named = call_llm_for_entries(
             client, model_name, sys_prompt, user_prompt, call_params,
             log_name="llm_responses.log", label="ATTRIBUTE",
             max_retries=max_retries, validate_entries=validate,
-            attempt_observer=observe, retry_decider=decide_retry)
+            attempt_observer=observe, retry_decider=decide_retry, **transform_kwargs)
     else:
         # A provider also receives frozen_batch, because a strategy that
         # serialises WITHOUT a second model has to build {n, head, speaker}
@@ -872,7 +908,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
             log_name="llm_responses.log", label="ATTRIBUTE",
             max_retries=max_retries, validate_entries=validate,
             attempt_observer=observe, retry_decider=decide_retry,
-            frozen_batch=frozen_batch,
+            frozen_batch=frozen_batch, **transform_kwargs,
             # what a provider that rebuilds the prompt its own way needs: the
             # roster and contexts the canonical prompt was built from, and the
             # surrounding text when the user asked for it
@@ -883,7 +919,19 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         # The model returned only {n, head, speaker} (never full text, so it can't
         # corrupt it). Bind by the validated index order and keep the frozen text
         # byte-exact; take only the assigned speaker.
-        ordered = validated.get("ordered")
+        if repair_exact_shift:
+            ordered = index_head_check(frozen_batch, named)[2]
+            if ordered is None or not get_quality(named)["passed"]:
+                raise RuntimeError("returned attribution lost its accepted native binding")
+            accepted_metadata = next((attempt["accepted_entry_transform"]
+                                      for attempt in reversed(attempts)
+                                      if attempt.get("outcome") == "accepted"
+                                      and "accepted_entry_transform" in attempt), None)
+            if (accepted_metadata is not None and accepted_metadata.get("answer_sha256")
+                    != get_attribution_snapshot_digest(named)):
+                raise RuntimeError("returned attribution differs from the accepted transform")
+        else:
+            ordered = validated.get("ordered")
         if ordered is None:
             raise RuntimeError("validated attribution response lost its index binding")
         return get_named_from_answer(frozen_batch, ordered, cast, speaker_traits)
@@ -898,7 +946,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
                 attempt_observer=attempt_observer, source_text=source_text,
                 exhaustion_sink=exhaustion_sink, entries_provider=entries_provider,
                 surround=surround, cast=cast, keep_scope=keep_scope,
-                speaker_traits=speaker_traits, roster_traits=roster_traits))
+                speaker_traits=speaker_traits, roster_traits=roster_traits,
+                repair_exact_shift=repair_exact_shift))
         return combined
     if exhaustion_sink is not None:
         exhaustion_sink.append(True)

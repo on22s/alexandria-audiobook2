@@ -2,6 +2,10 @@
 instruct). Segment reuses recall_core for source-fidelity scoring; attribute and
 instruct enforce a hard per-entry text freeze (they may only add fields)."""
 
+import copy
+import hashlib
+import json
+import math
 import re
 import unicodedata
 
@@ -667,7 +671,56 @@ _SOURCE_SPEECH_TAG = re.compile(
     r"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
 
 
-def get_attribution_tag_evidence(entries, source_text, established_names=(),
+def get_attribution_source_digest(source_text):
+    """Bind UTF-8 source, abstaining from repair for unencodable strings."""
+    try:
+        return hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+    except UnicodeError:
+        return None
+
+
+def get_attribution_snapshot_digest(value):
+    """A strict JSON snapshot identity, or None when repair cannot bind it."""
+    active = set()
+    remaining = 100000
+
+    def is_json(item, depth=0):
+        nonlocal remaining
+        remaining -= 1
+        if remaining < 0 or depth > 64:
+            return False
+        kind = type(item)
+        if item is None or kind in (bool, int, str):
+            return True
+        if kind is float:
+            return math.isfinite(item)
+        if kind not in (list, dict) or id(item) in active:
+            return False
+        active.add(id(item))
+        try:
+            if kind is dict:
+                return all(type(key) is str and is_json(child, depth + 1)
+                           for key, child in item.items())
+            return all(is_json(child, depth + 1) for child in item)
+        finally:
+            active.remove(id(item))
+
+    if not is_json(value):
+        return None
+    try:
+        raw = json.dumps(value, sort_keys=True, ensure_ascii=False,
+                         allow_nan=False, separators=(",", ":")).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError):
+        return None
+    return hashlib.sha256(raw).hexdigest()
+
+
+def get_attribution_identity_digest(entry):
+    return get_attribution_snapshot_digest({key: entry.get(key)
+                                            for key in ("type", "text")})
+
+
+def get_attribution_tag_proofs(entries, source_text, established_names=(),
                                  speaker_aliases=None):
     """Map batch indexes to uniquely resolved, immediately following tags.
 
@@ -679,6 +732,7 @@ def get_attribution_tag_evidence(entries, source_text, established_names=(),
     from dialogue_spans import get_source_match_positions, spoken_spans
     from speaker_identity import get_speaker_label_index
     aliases = speaker_aliases or {}
+    established_names = set(established_names)
     identities = {}
     for label in set(established_names) | set(aliases):
         canonical = aliases.get(label, label)
@@ -703,6 +757,8 @@ def get_attribution_tag_evidence(entries, source_text, established_names=(),
         content = source_text[start:end]
         quote_bounds.add((start + len(content) - len(content.lstrip(" \t")),
                           end - len(content) + len(content.rstrip(" \t"))))
+    source_digest = get_attribution_source_digest(source_text)
+    context_digest = get_attribution_snapshot_digest([sorted(established_names), aliases])
     evidence = {}
     for index, entry in enumerate(entries):
         if entry.get("type") != "SPOKEN":
@@ -731,13 +787,122 @@ def get_attribution_tag_evidence(entries, source_text, established_names=(),
             continue
         key = next(iter(get_speaker_label_index([name])), None)
         candidates = identities.get(key, set())
+        def get_proof(speaker):
+            # Identity uses only fields the original evidence decision reads.
+            # Opaque unrelated row metadata must not break the legacy projection.
+            opener = max(0, start - 8) + len(before) - 1
+            suffix = source_text[end:end + 160]
+            close = end + len(suffix) - len(after)
+            base = close + 1
+            group = "before" if tag.group("before") else "after"
+            return {"speaker": speaker, "source_sha256": source_digest,
+                    "entry_identity_sha256": get_attribution_identity_digest(entry),
+                    "quote_bounds": [start, end], "opener_offset": opener,
+                    "closing_offset": close,
+                    "reporting_tag_bounds": [base + tag.start(), base + tag.end()],
+                    "name_bounds": [base + tag.start(group), base + tag.end(group)],
+                    "resolver_context_sha256": context_digest}
         if len(candidates) == 1:
-            evidence[index] = next(iter(candidates))
+            evidence[index] = get_proof(next(iter(candidates)))
         elif not candidates and is_attested_name(name, source_text):
             # A source-attested character need not have spoken in an earlier
             # batch. Ambiguous existing identities must still abstain.
-            evidence[index] = name.upper()
+            evidence[index] = get_proof(name.upper())
     return evidence
+
+
+def get_attribution_tag_evidence(entries, source_text, established_names=(),
+                                 speaker_aliases=None):
+    """Legacy name evidence, projected from the shared source proof."""
+    return {index: proof["speaker"] for index, proof in get_attribution_tag_proofs(
+        entries, source_text, established_names, speaker_aliases).items()}
+
+
+_ATTRIBUTION_REPAIR_UNSAFE_FIELDS = frozenset({
+    "gender", "age_group", "ageless", "speaker_gender", "speaker_age_group",
+    "speaker_ageless", "traits", "speaker_traits", "reason", "reasoning",
+    "explanation", "confidence", "evidence", "judge", "judgement", "why",
+})
+
+
+def get_exact_attribution_shift_repair(frozen_entries, response_entries, source_text,
+                                      proofs, tag_evidence, snapshot_digest,
+                                      known_names=(), established_names=(),
+                                      speaker_aliases=None, speaker_traits=False):
+    """Prepare copied exact adjacent shifts; acceptance still needs the full provider gate.
+
+    The caller computes proofs/projection once per batch and retains the raw
+    answer. No pending correction survives a failed whole native gate.
+    """
+    aliases = speaker_aliases or {}
+    context = [frozen_entries, sorted(established_names), sorted(known_names), aliases]
+    unchanged = {"entries": response_entries}
+    if (speaker_traits or not source_text or snapshot_digest is None
+            or get_attribution_snapshot_digest(context) != snapshot_digest):
+        return unchanged
+    ok, _reason, ordered = index_head_check(frozen_entries, response_entries)
+    if not ok or get_attribution_snapshot_digest(response_entries) is None:
+        return unchanged
+    from dialogue_spans import get_source_match_positions
+    from speaker_identity import resolve_speaker_label
+    source_digest = get_attribution_source_digest(source_text)
+    if source_digest is None:
+        return unchanged
+    resolver_digest = get_attribution_snapshot_digest([
+        sorted(set(established_names) | set(known_names)), aliases])
+    proposed = copy.deepcopy(ordered)
+    changes = []
+    for index, proof in proofs.items():
+        if (type(index) is not int or not 0 <= index < len(frozen_entries) - 1
+                or frozen_entries[index].get("type") != "SPOKEN"
+                or frozen_entries[index + 1].get("type") != "NARRATOR"):
+            continue
+        left, right = ordered[index:index + 2]
+        if (left.get("speaker") != "NARRATOR"
+                or not isinstance(right.get("speaker"), str)
+                or (set(left) | set(right) | set(frozen_entries[index])
+                    | set(frozen_entries[index + 1])) & _ATTRIBUTION_REPAIR_UNSAFE_FIELDS
+                or proof.get("source_sha256") != source_digest
+                or proof.get("entry_identity_sha256") != get_attribution_identity_digest(frozen_entries[index])
+                or proof.get("resolver_context_sha256") != resolver_digest):
+            continue
+        name = right["speaker"].strip().upper()
+        expected = proof["speaker"]
+        if (name in ("", "UNKNOWN", "NARRATOR")
+                or not resolve_speaker_label(aliases.get(name, name), [expected])):
+            continue
+        text = frozen_entries[index + 1].get("text", "")
+        if not isinstance(text, str) or not text or text != text.strip(" \t"):
+            continue
+        begin = proof["closing_offset"] + 1
+        while begin < len(source_text) and source_text[begin] in " \t":
+            begin += 1
+        end = proof["reporting_tag_bounds"][1]
+        while end < len(source_text) and source_text[end] in " \t":
+            end += 1
+        if (end >= len(source_text) or source_text[end] not in ",.!?:;"
+                or len(text) < end + 1 - begin
+                or source_text[begin:begin + len(text)] != text
+                or get_source_match_positions(source_text, [text]).get(text) != [begin]):
+            continue
+        proposed[index]["speaker"] = expected
+        proposed[index + 1]["speaker"] = "NARRATOR"
+        changes.append({"code": "exact_adjacent_attribution_shift", "indexes": [index, index + 1],
+                        "speaker": expected, "source_sha256": source_digest,
+                        "snapshot_sha256": snapshot_digest, "quote_bounds": proof["quote_bounds"],
+                        "reporting_tag_bounds": proof["reporting_tag_bounds"],
+                        "closing_offset": proof["closing_offset"],
+                        "resolver_context_sha256": proof["resolver_context_sha256"],
+                        "name_bounds": proof["name_bounds"], "narration_bounds": [begin, begin + len(text)]})
+    if not changes:
+        return unchanged
+    quality = validate_attribution(frozen_entries, proposed, source_text,
+        known_names=known_names, established_names=established_names,
+        speaker_aliases=aliases, tag_evidence=tag_evidence)
+    if not quality["passed"]:
+        return unchanged
+    return {"entries": proposed, "accepted_metadata": {
+        "repairs": changes, "answer_sha256": get_attribution_snapshot_digest(proposed)}}
 
 
 def validate_attribution(frozen_entries, response_entries, source_text=None,

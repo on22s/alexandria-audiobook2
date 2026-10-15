@@ -548,7 +548,7 @@ def make_provider(variant, alias_groups=None, texts=None):
     def provider(client, model_name, sys_prompt, user_prompt, params, log_name, label,
                  max_retries, validate_entries, attempt_observer, frozen_batch,
                  roster=None, neighbor_contexts=None, surround=None, roster_traits=None,
-                 retry_decider=None, **_ignored):
+                 retry_decider=None, transform_entries=None, **_ignored):
         michel2_family = variant.startswith("michel2")
         sys_prompt, body = build_request(
             frozen_batch, params, roster, neighbor_contexts, surround, roster_traits)
@@ -585,7 +585,8 @@ def make_provider(variant, alias_groups=None, texts=None):
         named = call_llm_for_entries(
             client, model_name, sys_prompt, body, params, log_name=log_name, label=label,
             max_retries=max_retries, validate_entries=validator,
-            attempt_observer=attempt_observer, retry_decider=retry_decider)
+            attempt_observer=attempt_observer, retry_decider=retry_decider,
+            **({"transform_entries": transform_entries} if transform_entries else {}))
         if is_spoken_only_variant(variant) and named:
             named, _ = get_expanded_spoken_answer(frozen_batch, named)
         from pass_quality import index_head_check
@@ -600,12 +601,14 @@ def make_provider(variant, alias_groups=None, texts=None):
                                   if f["type"] == "SPOKEN"][-TAIL_LINES:]
         if variant == "judge":
             record_judge_reasons(frozen_batch, named, run_id)
-        if variant == "continuity":
+        if variant == "continuity" and (not transform_entries or (named and aligned)):
             memory["summary"] = rolling_summary(
                 client, model_name, params, memory["summary"],
                 passage_text(frozen_batch, neighbor_contexts))
         return named
 
+    provider.supports_attribution_transform = True
+    provider.fills_immutable_narration = is_spoken_only_variant(variant)
     provider.variant = variant
     provider.build_request = build_request
     return provider

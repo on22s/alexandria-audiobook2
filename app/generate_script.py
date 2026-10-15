@@ -1022,6 +1022,17 @@ def ensure_run_request_params(client, params):
     return resolver(resolved, profile_bound=True) if resolver else resolved
 
 
+def get_transform_metadata(transformed, key="accepted_metadata"):
+    """Build detached bounded JSON for transform diagnostics or accepted provenance."""
+    metadata = (transformed or {}).get(key)
+    if metadata is None:
+        return
+    raw = json.dumps(metadata, allow_nan=False, ensure_ascii=True, separators=(",", ":"))
+    if len(raw.encode("utf-8")) > 65536:
+        raise ValueError("Response transform metadata exceeds 64KiB")
+    return json.loads(raw)
+
+
 def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                          log_name, label, max_retries=2, validate_entries=None,
                          transform_entries=None, attempt_observer=None,
@@ -1387,10 +1398,14 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
 
         # Try to parse, with repair attempts
         entries = codec.parse(json_text)
+        transformed = None
 
         if entries or (codec.name == "json_object" and isinstance(entries, dict)):
             if transform_entries:
                 transformed = transform_entries(entries)
+                raw_report = get_transform_metadata(transformed, "raw_native_report")
+                if attempt_record is not None and raw_report is not None:
+                    attempt_record["raw_native_report"] = raw_report
                 if transformed.get("unresolved"):
                     if attempt_record is not None:
                         attempt_record["outcome"] = "response_rejected"
@@ -1409,7 +1424,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     print(f"  Speaker identity review: {transformed['review']}")
             if validate_entries:
                 quality = validate_entries(entries)
+                if attempt_record is not None and "raw_native_report" in (transformed or {}):
+                    attempt_record["full_provider_report"] = get_transform_metadata({"report": quality}, "report")
                 if not quality["passed"]:
+                    if attempt_record is not None and (transformed or {}).get("accepted_metadata"):
+                        attempt_record["quality_findings"] = quality.get("findings", [])
                     if near_miss_sink is not None and is_trigram_only_near_miss(quality):
                         best = (near_miss_sink[0][1]["metrics"]["ordered_trigram_recall"]
                                 if near_miss_sink else -1.0)
@@ -1463,6 +1482,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     print("Retrying truncated response with a larger token budget...")
                     continue
                 return []
+            accepted_metadata = get_transform_metadata(transformed)
+            if attempt_record is not None and accepted_metadata is not None:
+                attempt_record["accepted_entry_transform"] = accepted_metadata
             if attempt > 0:
                 print(f"  Succeeded on retry {attempt_number}")
             if attempt_record is not None:
@@ -1486,18 +1508,31 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         # Last resort after every full-response retry is exhausted.
         salvaged_entries = codec.salvage(json_text)
         if salvaged_entries:
+            transformed = None
             if transform_entries:
                 transformed = transform_entries(salvaged_entries)
+                raw_report = get_transform_metadata(transformed, "raw_native_report")
+                if attempt_record is not None and raw_report is not None:
+                    attempt_record["raw_native_report"] = raw_report
                 if transformed.get("unresolved"):
                     print("Regex-salvaged response has unresolved deterministic repairs")
                     return []
                 salvaged_entries = transformed["entries"]
             if validate_entries:
                 quality = validate_entries(salvaged_entries)
+                if attempt_record is not None and "raw_native_report" in (transformed or {}):
+                    attempt_record["full_provider_report"] = get_transform_metadata({"report": quality}, "report")
                 if not quality["passed"]:
+                    if attempt_record is not None and (transformed or {}).get("accepted_metadata"):
+                        attempt_record["quality_findings"] = quality.get("findings", [])
+                        attempt_record["failure_codes"] = [finding.get("code") for finding in quality.get("findings", [])]
+                        attempt_record["outcome"] = "quality_rejected"
                     codes = ", ".join(finding["code"] for finding in quality["findings"])
                     print(f"Regex-salvaged response failed quality validation: {codes}")
                     return []
+            accepted_metadata = get_transform_metadata(transformed)
+            if attempt_record is not None and accepted_metadata is not None:
+                attempt_record["accepted_entry_transform"] = accepted_metadata
             print(f"Regex-salvaged {len(salvaged_entries)} entries from malformed response")
             if attempt_record is not None:
                 attempt_record["outcome"] = "accepted"
