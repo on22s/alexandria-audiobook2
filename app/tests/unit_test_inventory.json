@@ -7135,7 +7135,9 @@
     "tests.test_review_labels_only.ReviewLabelsTests.test_full_text_review_remains_available_for_lossless_boundary_changes",
     "tests.test_review_labels_only.ReviewLabelsTests.test_labels_mode_does_not_format_custom_full_text_template",
     "tests.test_review_labels_only.ReviewLabelsTests.test_narrator_character_shift_retries_before_binding",
-    "tests.test_review_labels_only.ReviewLabelsTests.test_rejects_invented_text_incomplete_or_duplicate_indexes"
+    "tests.test_review_labels_only.ReviewLabelsTests.test_rejects_invented_text_incomplete_or_duplicate_indexes",
+    "tests.test_review_labels_only.ReviewLabelsTests.test_source_boolean_role_wins_but_malformed_flags_keep_legacy_fallback",
+    "tests.test_review_labels_only.ReviewLabelsTests.test_source_mapped_speech_can_correct_wrong_narrator_labels"
   ],
   "test_review_partial_retention": [
     "tests.test_review_partial_retention.PartialPublicationTests.test_actual_saved_partial_resume_keeps_existing_input_policy_without_stale_change_stats",
@@ -7155,7 +7157,9 @@
     "tests.test_review_partial_retention.PartialRetentionTests.test_native_parser_uses_entries_only_interface_without_an_observer",
     "tests.test_review_partial_retention.PartialRetentionTests.test_no_optin_or_observer_keeps_direct_list_none_contract",
     "tests.test_review_partial_retention.PartialRetentionTests.test_parser_detached_metadata_preserves_every_existing_repair_filter_output",
+    "tests.test_review_partial_retention.PartialRetentionTests.test_partial_labels_cannot_rename_source_narration_despite_model_speech",
     "tests.test_review_partial_retention.PartialRetentionTests.test_real_failover_adaptive_parts_do_not_opt_into_partial_retention",
+    "tests.test_review_partial_retention.PartialRetentionTests.test_source_speech_corrects_wrong_narrator_only_after_quality_exhaustion",
     "tests.test_review_partial_retention.PartialRetentionTests.test_unique_complete_field_and_narrator_guards_abstain",
     "tests.test_review_partial_retention.PartialRetentionTests.test_unknown_codec_and_request_admission_refuse"
   ],
@@ -7172,7 +7176,9 @@
     "tests.test_review_source_binding.ReviewSourceBindingTests.test_lossless_single_source_split_copies_metadata_and_pauses_only_at_source_end",
     "tests.test_review_source_binding.ReviewSourceBindingTests.test_model_metadata_cannot_overwrite_source_or_invent_new_fields",
     "tests.test_review_source_binding.ReviewSourceBindingTests.test_punctuation_drift_recovers_labels_but_preserves_exact_source_text",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_punctuation_recovery_protects_source_narration_despite_model_speech",
     "tests.test_review_source_binding.ReviewSourceBindingTests.test_punctuation_recovery_reuses_narrator_guard_and_labels_validation",
+    "tests.test_review_source_binding.ReviewSourceBindingTests.test_punctuation_recovery_uses_source_speech_over_wrong_model_narration",
     "tests.test_review_source_binding.ReviewSourceBindingTests.test_real_cli_publication_keeps_pause_and_traits_in_the_saved_artifact",
     "tests.test_review_source_binding.ReviewSourceBindingTests.test_symbol_changes_case_changes_and_contraction_changes_are_not_punctuation_recovery",
     "tests.test_review_source_binding.ReviewSourceBindingTests.test_three_field_reply_preserves_all_metadata_and_original_whitespace"

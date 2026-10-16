@@ -91,3 +91,45 @@ class ReviewLabelsTests(unittest.TestCase):
         self.assertTrue(get_review_label_binding(batch, self.labels)[1]['passed'])
         batch[0]['type'] = 'NARRATOR'
         self.assertFalse(get_review_label_binding(batch, self.labels)[1]['passed'])
+
+    def test_source_mapped_speech_can_correct_wrong_narrator_labels(self):
+        from dialogue_spans import apply_dialogue_map
+        texts = ['Please close the gate.', 'Leave the blue cup.', 'Bring a warm coat.',
+                 'Wait beside the bridge.', 'Return before the dawn.']
+        source = ' '.join(f'"{text}" said Alice.' for text in texts)
+        mapped = apply_dialogue_map([
+            {'speaker': 'NARRATOR', 'text': text, 'instruct': ''} for text in texts], source)
+        batch = mapped['entries']
+        self.assertEqual(5, mapped['spoken'])
+        self.assertTrue(all(entry['spoken'] is True and 'type' not in entry for entry in batch))
+        self.assertTrue(all(entry['speaker'] == 'NARRATOR' for entry in batch))
+        before = copy.deepcopy(batch)
+        labels = [{'n': i, 'speaker': 'ALICE', 'instruct': 'Calmly.'} for i in range(5)]
+        client, calls = client_for([(labels, 'stop')])
+        out = review_batch(client, 'm', batch, 1, 1,
+                           LLMGenParams(review_labels_only=True), max_retries=0)
+        self.assertEqual([{**entry, 'speaker': 'ALICE', 'instruct': 'Calmly.'}
+                          for entry in before], out)
+        self.assertEqual(before, batch)
+        self.assertEqual(1, len(calls))
+        for original, result in zip(batch, out):
+            self.assertIsNot(original['source_span'], result['source_span'])
+
+    def test_source_boolean_role_wins_but_malformed_flags_keep_legacy_fallback(self):
+        roles = ((None, 'NARRATOR', False), (None, 'BOB', True),
+                 ('SPOKEN', 'NARRATOR', True), ('SPOKEN', 'BOB', True),
+                 ('NARRATOR', 'NARRATOR', False), ('NARRATOR', 'BOB', False))
+        for spoken in (True, False, None, 0, 1, 'true', 'false', [], {}):
+            for kind, speaker, legacy_allowed in roles:
+                with self.subTest(spoken=spoken, kind=kind, speaker=speaker):
+                    original = {**self.batch[0], 'spoken': spoken, 'speaker': speaker}
+                    if kind is not None:
+                        original['type'] = kind
+                    before = copy.deepcopy(original)
+                    labels = copy.deepcopy(self.labels[:1])
+                    before_labels = copy.deepcopy(labels)
+                    _, report = get_review_label_binding([original], labels)
+                    expected = spoken if type(spoken) is bool else legacy_allowed
+                    self.assertEqual(expected, report['passed'])
+                    self.assertEqual(before, original)
+                    self.assertEqual(before_labels, labels)

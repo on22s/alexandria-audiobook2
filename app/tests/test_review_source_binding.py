@@ -112,6 +112,27 @@ class ReviewSourceBindingTests(unittest.TestCase):
                 output, _, _ = self.run_review(source, [reply])
                 self.assertIsNone(output)
 
+    def test_punctuation_recovery_uses_source_speech_over_wrong_model_narration(self):
+        for kind in (None, 'NARRATOR'):
+            with self.subTest(kind=kind):
+                source = [row('Please wait— beside the gate.', speaker='NARRATOR', spoken=True,
+                              source_span=[4, 37], pause_after=700)]
+                if kind is not None:
+                    source[0]['type'] = kind
+                reply = [row('Please wait, beside the gate.', speaker='ALICE')]
+                output, calls, _ = self.run_review(source, [reply])
+                self.assertEqual([{**source[0], 'speaker': 'ALICE'}], output)
+                self.assertIsNot(source[0]['source_span'], output[0]['source_span'])
+                self.assertEqual(1, len(calls))
+
+    def test_punctuation_recovery_protects_source_narration_despite_model_speech(self):
+        source = [row('Alice waited— beside the gate.', speaker='BOB', spoken=False, type='SPOKEN')]
+        reply = [row('Alice waited, beside the gate.', speaker='ALICE')]
+        output, calls, attempts = self.run_review(source, [reply, reply])
+        self.assertIsNone(output)
+        self.assertEqual(2, len(calls))
+        self.assertTrue(all('narrator_renamed' in attempt['failure_codes'] for attempt in attempts))
+
     def test_lossless_single_source_split_copies_metadata_and_pauses_only_at_source_end(self):
         source = [row('Hello, said Alice; goodbye.', pause_after=1500,
                       speaker_gender='female', speaker_age_group='young_adult',

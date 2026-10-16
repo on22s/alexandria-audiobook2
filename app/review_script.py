@@ -892,8 +892,12 @@ def get_review_label_binding(batch_entries, entries):
     else:
         for i, row in enumerate(ordered):
             original = batch_entries[i]
-            is_narration = (original.get("type") == "NARRATOR" or
-                            (original.get("type") != "SPOKEN" and original.get("speaker") == "NARRATOR"))
+            spoken = original.get("spoken")
+            if type(spoken) is bool:
+                is_narration = not spoken
+            else:
+                is_narration = (original.get("type") == "NARRATOR" or
+                                (original.get("type") != "SPOKEN" and original.get("speaker") == "NARRATOR"))
             if is_narration and row.get("speaker") != "NARRATOR":
                 findings.append({"code": "narrator_renamed", "entry_number": i + 1,
                                  "message": "A narrator line must keep the speaker NARRATOR."})

@@ -91,6 +91,30 @@ class PartialRetentionTests(unittest.TestCase):
         self.assertEqual([1, 2], [r['n'] for r in records[-1]['skipped_positions']])
         self.assertEqual(3, len(calls))
 
+    def test_source_speech_corrects_wrong_narrator_only_after_quality_exhaustion(self):
+        source = copy.deepcopy(SOURCE)
+        source[0].update(spoken=True, speaker='NARRATOR', type='NARRATOR')
+        reply = get_reply(source)
+        output, calls, records = self.run_review([reply] * 3, source=source)
+        self.assertEqual([{**source[0], 'speaker': 'ALICE', 'instruct': 'Calmly.'},
+                          *source[1:]], output)
+        self.assertIsNot(source[0]['provenance'], output[0]['provenance'])
+        self.assertEqual(3, len(calls))
+        status = review.get_review_batch_status(output, records)
+        self.assertEqual('partial', status['status'])
+        self.assertEqual([0], status['partial_retention']['retained_positions'])
+        self.assertEqual(3, status['partial_retention']['source_attempt'])
+        self.assertEqual(['quality_rejected'] * 3,
+                         [attempt['outcome'] for attempt in status['attempts']])
+
+    def test_partial_labels_cannot_rename_source_narration_despite_model_speech(self):
+        source = copy.deepcopy(SOURCE)
+        source[0].update(spoken=False, type='SPOKEN')
+        output, calls, records = self.run_review([get_reply(source)] * 3, source=source)
+        self.assertIsNone(output)
+        self.assertEqual(3, len(calls))
+        self.assertFalse(any(record.get('event') == review.REVIEW_PARTIAL_EVENT for record in records))
+
     def test_last_candidate_only_and_later_complete_answer_always_wins(self):
         first = get_reply(); first[0]['speaker'] = 'EARLIER'
         last = get_reply(); last[0]['speaker'] = 'LATEST'
@@ -463,7 +487,7 @@ class PartialPublicationTests(unittest.TestCase):
         def fingerprint():
             return review.get_completed_review_fingerprint(config, config['llm_remote'], params,
                                                          args, object(), 'fixture')
-        with patch.object(review, 'REVIEW_ALGORITHM_VERSION', 2):old = fingerprint()
+        with patch.object(review, 'REVIEW_ALGORITHM_VERSION', 3):old = fingerprint()
         current = fingerprint()
         self.assertNotEqual(old, current)
         with tempfile.TemporaryDirectory() as directory:
@@ -479,7 +503,7 @@ class PartialPublicationTests(unittest.TestCase):
             manifest = {'schema_version': 1, 'stage': 'script_review', 'targets': ['local'],
                         'fixtures': [{'id': 'fixture', 'sha256': 'fixture'}]}
             base = benchmark.build_environment_fingerprint('local', ENVIRONMENT)
-            with patch.object(receipt, 'REVIEW_ALGORITHM_VERSION', 2):
+            with patch.object(receipt, 'REVIEW_ALGORITHM_VERSION', 3):
                 prior_env = benchmark.get_benchmark_execution_environment(manifest, base, config)
             new_env = benchmark.get_benchmark_execution_environment(manifest, base, config)
             self.assertNotEqual(prior_env, new_env)
