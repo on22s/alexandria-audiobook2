@@ -8,7 +8,8 @@ from pydub import AudioSegment
 from pydub.audio_segment import audioop
 
 from audio_pcm_producer import (PCMProducer, is_bounded_pcm_supported,
-                                iter_raw_pcm, iter_default_silence_pcm, iter_converted_pcm)
+                                iter_raw_pcm, iter_default_silence_pcm, iter_converted_pcm,
+                                get_pcm_source_shape, get_pcm_source_byte_count, is_plain_pcm_source)
 
 from tts import (ensure_audio_export_active, get_pause_duration_ms,
                  trim_edge_silence)
@@ -28,19 +29,12 @@ def ensure_riff_pcm_size(data_bytes):
 
 def get_pcm_shape(segment):
     """Return (layout, frames) for ordinary PCM, without copying its data."""
-    if not isinstance(segment, AudioSegment):
-        return None
-    layout = (segment.channels, segment.frame_rate, segment.sample_width)
-    if (any(type(value) is not int or value <= 0 for value in layout)
-            or layout[2] not in (1, 2, 4)
-            or len(segment.raw_data) % (layout[0] * layout[2])):
-        return None
-    return layout, len(segment.raw_data) // (layout[0] * layout[2])
+    return get_pcm_source_shape(segment)
 
 
 def is_plain_pcm_sequence(segments):
     """Whether every input has the ordinary native channel-conversion contract."""
-    return all(type(segment) is AudioSegment and get_pcm_shape(segment) is not None
+    return all(is_plain_pcm_source(segment) and get_pcm_shape(segment) is not None
                for segment in segments)
 
 
@@ -80,7 +74,7 @@ def ensure_pcm_shape_fits_riff(shape):
 
 
 def get_streamable_layout(segments):
-    if not segments or any(type(segment) is not AudioSegment for segment in segments):
+    if not segments or any(not is_plain_pcm_source(segment) for segment in segments):
         return None
     first = segments[0]
     layout = (first.channels, first.frame_rate, first.sample_width)
@@ -91,7 +85,7 @@ def get_streamable_layout(segments):
     if any(any(type(value) is not int for value in
                (segment.channels, segment.frame_rate, segment.sample_width))
            or (segment.channels, segment.frame_rate, segment.sample_width) != layout
-           or len(segment.raw_data) % segment.frame_width for segment in segments):
+           or get_pcm_source_byte_count(segment) % segment.frame_width for segment in segments):
         return None
     return layout
 
@@ -116,10 +110,9 @@ def iter_silence_pcm(duration_ms, layout, cancel_check=None):
 
 
 def iter_segment_pcm(segment, cancel_check=None):
-    data = memoryview(segment.raw_data)
-    for offset in range(0, len(data), 1024 * 1024):
+    for data in iter_raw_pcm(segment, 1024 * 1024):
         ensure_audio_export_active(cancel_check)
-        yield data[offset:offset + 1024 * 1024]
+        yield data
 
 
 def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms,
@@ -237,7 +230,7 @@ def get_track_wav_plan(entries, total_duration_ms, cancel_check=None):
     data_bytes = 0
     for kind, value in iter_track_pieces(entries, total_duration_ms, cancel_check):
         if kind == 'audio':
-            data_bytes += len(value.raw_data)
+            data_bytes += get_pcm_source_byte_count(value)
         else:
             data_bytes += get_silence_frame_count(value, layout[1]) * layout[0] * layout[2]
     ensure_audio_export_active(cancel_check)

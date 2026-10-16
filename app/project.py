@@ -32,6 +32,7 @@ from tts import (
     ensure_audio_export_active,
     combine_audio_with_pauses,
     compute_timeline,
+    iter_timeline,
     get_pause_duration_ms,
     sanitize_filename,
     voice_category,
@@ -41,6 +42,7 @@ from tts import (
                  get_chunk_voice_inputs)
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
+from audio_pcm_producer import PCMSourceStore
 from audio_streaming import (get_track_wav_plan, write_track_wav, write_combined_wav,
                              get_streamable_layout)
 
@@ -1126,13 +1128,16 @@ class ProjectManager:
             print(f"Error loading audio segment {path}: {error}")
             return None
 
-    def _load_chunks_with_audio(self, cancel_check=None, progress_callback=None, chunks=None):
+    def _load_chunks_with_audio(self, cancel_check=None, progress_callback=None, chunks=None,
+                                segment_transform=None):
         """Load chunks and pair each with its AudioSegment.
 
         Returns (result, skipped_count): result is the list of (chunk, segment)
         pairs that loaded successfully; skipped_count is how many chunks were
         dropped (missing audio_path, missing file, or a failed audio load) so
         callers can report a partial export instead of a silent blanket success.
+        An optional transform returns an owned snapshot instead of retaining
+        decoded PCM. Its errors propagate; they are not corrupt-input skips.
         """
         chunks = self.load_chunks() if chunks is None else chunks
         result = []
@@ -1144,9 +1149,10 @@ class ProjectManager:
                 progress_callback(position, len(chunks))
             segment = self.get_chunk_audio_segment(chunk)
             if segment is not None:
-                result.append((chunk, segment))
+                result.append((chunk, segment_transform(segment) if segment_transform else segment))
             else:
                 skipped += 1
+            del segment
         return result, skipped
 
     def merge_audio(self, cancel_check=None, progress_callback=None, chunks=None):
@@ -1193,131 +1199,134 @@ class ProjectManager:
         """Export project as an Audacity-compatible zip with per-speaker WAV tracks,
         a LOF file for auto-import, and a labels file for chunk annotations."""
         try:
-            chunks_with_audio, skipped = self._load_chunks_with_audio(
-                cancel_check=cancel_check,
-                progress_callback=_loading_progress(progress_callback))
-        except ExportCancelled:
-            return False, "Export cancelled"
-        if not chunks_with_audio:
-            return False, "No audio segments found"
+            with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
+                chunks_with_audio, skipped = self._load_chunks_with_audio(
+                    cancel_check=cancel_check,
+                    progress_callback=_loading_progress(progress_callback),
+                    segment_transform=sources.save_segment)
+                if not chunks_with_audio:
+                    return False, "No audio segments found"
 
-        # Phase 1 — Compute timeline
-        pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
-        try:
-            timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms,
-                                        cancel_check=cancel_check)
-        except ExportCancelled:
-            return False, "Export cancelled"
+                # Phase 1 — Compute timeline
+                pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+                decoded = ((chunk, sources.load_segment(segment)) for chunk, segment in chunks_with_audio)
+                timeline = []
+                for chunk, segment, start_ms in iter_timeline(
+                        decoded, pause_ms, same_speaker_pause_ms, cancel_check=cancel_check):
+                    timeline.append((chunk, sources.save_segment(segment), start_ms))
+                    del segment
 
-        if not timeline:
-            return False, "No audio segments found"
+                if not timeline:
+                    return False, "No audio segments found"
 
-        # Total duration = last chunk's start + its length
-        _, last_seg, last_start = timeline[-1]
-        total_duration_ms = last_start + len(last_seg)
+                # Total duration = last chunk's start + its length
+                _, last_seg, last_start = timeline[-1]
+                total_duration_ms = last_start + len(last_seg)
 
-        # Phase 2 — Group once, retaining only the already-loaded segments.
-        speaker_chunks = {}
-        for chunk, segment, start_ms in timeline:
-            speaker_chunks.setdefault(chunk["speaker"], []).append((segment, start_ms))
-        speakers_ordered = list(speaker_chunks)
+                # Phase 2 — Group once, retaining only the already-loaded segments.
+                speaker_chunks = {}
+                for chunk, segment, start_ms in timeline:
+                    speaker_chunks.setdefault(chunk["speaker"], []).append((segment, start_ms))
+                speakers_ordered = list(speaker_chunks)
 
-        # Phase 3 — Build LOF and labels content
-        speaker_filenames = {}
-        used_filenames = set()
-        for speaker in speakers_ordered:
-            base_name = sanitize_filename(speaker)
-            safe_name = base_name
-            suffix = 2
-            while safe_name in used_filenames:
-                safe_name = f"{base_name}_{suffix}"
-                suffix += 1
-            speaker_filenames[speaker] = safe_name
-            used_filenames.add(safe_name)
-
-        lof_lines = []
-        for speaker in speakers_ordered:
-            lof_lines.append(f'file "{speaker_filenames[speaker]}.wav"')
-        lof_content = "\n".join(lof_lines) + "\n"
-
-        label_lines = []
-        for chunk, segment, start_ms in timeline:
-            start_sec = start_ms / 1000.0
-            end_sec = (start_ms + len(segment)) / 1000.0
-            text_preview = chunk.get("text", "")[:80]
-            label = f"[{chunk['speaker']}] {text_preview}"
-            # Audacity labels are tab-separated, one per line - a tab or newline
-            # inside the text would add a phantom column or split the row.
-            label = label.replace("\t", " ").replace("\r", " ").replace("\n", " ")
-            label_lines.append(f"{start_sec:.6f}\t{end_sec:.6f}\t{label}")
-        labels_content = "\n".join(label_lines) + "\n"
-
-        # Phase 4 — Zip everything to a temp path, then atomically replace, so a
-        # failure mid-write can't leave a truncated zip the download route serves
-        # as valid (or clobber a previous good export with garbage).
-        zip_path = os.path.join(self.root_dir, "audacity_export.zip")
-        tmp_zip = zip_path + f".pending.{uuid.uuid4().hex}"
-        try:
-            ensure_audio_export_active(cancel_check)
-            with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr("project.lof", lof_content)
-                zf.writestr("labels.txt", labels_content)
-
+                # Phase 3 — Build LOF and labels content
+                speaker_filenames = {}
+                used_filenames = set()
                 for speaker in speakers_ordered:
-                    if progress_callback:
-                        progress_callback(f"Writing track: {speaker}")
+                    base_name = sanitize_filename(speaker)
+                    safe_name = base_name
+                    suffix = 2
+                    while safe_name in used_filenames:
+                        safe_name = f"{base_name}_{suffix}"
+                        suffix += 1
+                    speaker_filenames[speaker] = safe_name
+                    used_filenames.add(safe_name)
+
+                lof_lines = []
+                for speaker in speakers_ordered:
+                    lof_lines.append(f'file "{speaker_filenames[speaker]}.wav"')
+                lof_content = "\n".join(lof_lines) + "\n"
+
+                label_lines = []
+                for chunk, segment, start_ms in timeline:
+                    start_sec = start_ms / 1000.0
+                    end_sec = (start_ms + len(segment)) / 1000.0
+                    text_preview = chunk.get("text", "")[:80]
+                    label = f"[{chunk['speaker']}] {text_preview}"
+                    # Audacity labels are tab-separated, one per line - a tab or newline
+                    # inside the text would add a phantom column or split the row.
+                    label = label.replace("\t", " ").replace("\r", " ").replace("\n", " ")
+                    label_lines.append(f"{start_sec:.6f}\t{end_sec:.6f}\t{label}")
+                labels_content = "\n".join(label_lines) + "\n"
+
+                # Phase 4 — Zip everything to a temp path, then atomically replace, so a
+                # failure mid-write can't leave a truncated zip the download route serves
+                # as valid (or clobber a previous good export with garbage).
+                zip_path = os.path.join(self.root_dir, "audacity_export.zip")
+                tmp_zip = zip_path + f".pending.{uuid.uuid4().hex}"
+                try:
                     ensure_audio_export_active(cancel_check)
-                    entries = speaker_chunks[speaker]
-                    plan = get_track_wav_plan(entries, total_duration_ms, cancel_check)
-                    if plan is not None:
-                        layout, frames = plan
-                        member = zipfile.ZipInfo(f"{speaker_filenames[speaker]}.wav", time.localtime()[:6])
-                        member.compress_type = zf.compression
-                        member._compresslevel = zf.compresslevel
-                        member.file_size = 44 + frames * layout[0] * layout[2]
-                        with zf.open(member, "w") as stream:
-                            if get_streamable_layout([segment for segment, _ in entries]) is None:
-                                write_track_wav(stream, entries, total_duration_ms, plan, cancel_check,
-                                                spool_directory=self.root_dir)
-                            else:
-                                write_track_wav(stream, entries, total_duration_ms, plan, cancel_check)
-                        continue
-                    track_cursor = 0
-                    track_builder = AudioSegmentBuilder(AudioSegment.empty())
-                    for segment, start_ms in speaker_chunks[speaker]:
-                        ensure_audio_export_active(cancel_check)
-                        gap = start_ms - track_cursor
-                        if gap > 0:
-                            track_builder.append(AudioSegment.silent(duration=gap))
-                        track_builder.append(segment)
-                        track_cursor = start_ms + len(segment)
-                    remaining = total_duration_ms - track_cursor
-                    if remaining > 0:
-                        track_builder.append(AudioSegment.silent(duration=remaining))
+                    with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+                        zf.writestr("project.lof", lof_content)
+                        zf.writestr("labels.txt", labels_content)
 
-                    track = track_builder.finish()
-                    del track_builder
-                    safe_name = speaker_filenames[speaker]
-                    with io.BytesIO() as wav_buffer:
-                        track.export(wav_buffer, format="wav")
-                        ensure_audio_export_active(cancel_check)
-                        zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
-                    del track
-            ensure_audio_export_active(cancel_check)
-            os.replace(tmp_zip, zip_path)
-        except BaseException as error:
-            try:
-                if os.path.exists(tmp_zip):
-                    os.remove(tmp_zip)
-            except OSError:
-                pass
-            if isinstance(error, ExportCancelled):
-                return False, "Export cancelled"
-            raise
+                        for speaker in speakers_ordered:
+                            if progress_callback:
+                                progress_callback(f"Writing track: {speaker}")
+                            ensure_audio_export_active(cancel_check)
+                            entries = speaker_chunks[speaker]
+                            plan = get_track_wav_plan(entries, total_duration_ms, cancel_check)
+                            if plan is not None:
+                                layout, frames = plan
+                                member = zipfile.ZipInfo(f"{speaker_filenames[speaker]}.wav", time.localtime()[:6])
+                                member.compress_type = zf.compression
+                                member._compresslevel = zf.compresslevel
+                                member.file_size = 44 + frames * layout[0] * layout[2]
+                                with zf.open(member, "w") as stream:
+                                    if get_streamable_layout([segment for segment, _ in entries]) is None:
+                                        write_track_wav(stream, entries, total_duration_ms, plan, cancel_check,
+                                                        spool_directory=self.root_dir)
+                                    else:
+                                        write_track_wav(stream, entries, total_duration_ms, plan, cancel_check)
+                                continue
+                            track_cursor = 0
+                            track_builder = AudioSegmentBuilder(AudioSegment.empty())
+                            for segment, start_ms in speaker_chunks[speaker]:
+                                ensure_audio_export_active(cancel_check)
+                                segment = sources.load_segment(segment)
+                                gap = start_ms - track_cursor
+                                if gap > 0:
+                                    track_builder.append(AudioSegment.silent(duration=gap))
+                                track_builder.append(segment)
+                                track_cursor = start_ms + len(segment)
+                            remaining = total_duration_ms - track_cursor
+                            if remaining > 0:
+                                track_builder.append(AudioSegment.silent(duration=remaining))
 
-        if skipped:
-            return True, f"{zip_path} ({skipped} chunk(s) skipped — missing/corrupt audio)"
-        return True, zip_path
+                            track = track_builder.finish()
+                            del track_builder
+                            safe_name = speaker_filenames[speaker]
+                            with io.BytesIO() as wav_buffer:
+                                track.export(wav_buffer, format="wav")
+                                ensure_audio_export_active(cancel_check)
+                                zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
+                            del track
+                    sources.close()
+                    ensure_audio_export_active(cancel_check)
+                    os.replace(tmp_zip, zip_path)
+                except BaseException as error:
+                    try:
+                        if os.path.exists(tmp_zip):
+                            os.remove(tmp_zip)
+                    except OSError:
+                        pass
+                    raise
+
+                if skipped:
+                    return True, f"{zip_path} ({skipped} chunk(s) skipped — missing/corrupt audio)"
+                return True, zip_path
+        except ExportCancelled:
+            return False, "Export cancelled"
 
     def merge_m4b(self, per_chunk_chapters=False, metadata=None, cancel_check=None, progress_callback=None):
         """Merge audio chunks into an M4B audiobook with chapter markers.

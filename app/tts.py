@@ -554,7 +554,13 @@ def compute_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
     Returns:
         list of (chunk_dict, AudioSegment, abs_start_ms) tuples.
     """
-    timeline = []
+    return list(iter_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms,
+                              cancel_check=cancel_check))
+
+
+def iter_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
+                  same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS, cancel_check=None):
+    """Yield the existing trimmed timeline without retaining preceding audio."""
     cursor_ms = 0
     prev_chunk = None
 
@@ -565,11 +571,10 @@ def compute_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
             cursor_ms += get_pause_duration_ms(
                 prev_chunk, chunk, pause_ms, same_speaker_pause_ms)
 
-        timeline.append((chunk, segment, cursor_ms))
+        yield chunk, segment, cursor_ms
         cursor_ms += len(segment)
         prev_chunk = chunk
-
-    return timeline
+        del segment
 
 
 

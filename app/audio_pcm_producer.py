@@ -3,6 +3,7 @@ import array
 import math
 import sys
 import tempfile
+from dataclasses import dataclass
 
 from pydub import AudioSegment
 from pydub.audio_segment import audioop
@@ -11,17 +12,129 @@ from pydub.audio_segment import audioop
 PCM_BLOCK_BYTES = 65536
 
 
+@dataclass(frozen=True)
+class PCMSourceRange:
+    store: object
+    offset: int
+    byte_count: int
+    channels: int
+    frame_rate: int
+    sample_width: int
+    duration_ms: int
+
+    @property
+    def frame_width(self):
+        return self.channels * self.sample_width
+
+    def __len__(self):
+        return self.duration_ms
+
+
+def get_pcm_source_byte_count(segment):
+    return segment.byte_count if type(segment) is PCMSourceRange else len(segment.raw_data)
+
+
+def get_pcm_source_shape(segment):
+    """Normalize real segments and owned snapshots without materializing PCM."""
+    if not isinstance(segment, AudioSegment) and type(segment) is not PCMSourceRange:
+        return None
+    layout = (segment.channels, segment.frame_rate, segment.sample_width)
+    if (any(type(value) is not int or value <= 0 for value in layout)
+            or layout[2] not in (1, 2, 4)
+            or get_pcm_source_byte_count(segment) % (layout[0] * layout[2])):
+        return None
+    return layout, get_pcm_source_byte_count(segment) // (layout[0] * layout[2])
+
+
+def is_plain_pcm_source(segment):
+    return type(segment) in (AudioSegment, PCMSourceRange)
+
+
+class PCMSourceStore:
+    """Own raw/trimmed source snapshots for one export, beside its destination."""
+    def __init__(self, directory, cancel_check):
+        self.cancel_check = cancel_check
+        self.stream = tempfile.TemporaryFile(prefix='.source-pcm-', dir=directory)
+        self.byte_count = 0
+
+    def save_segment(self, segment):
+        # Actual custom objects and unknown/very wide layouts keep their old
+        # behavior. This is a staging decision, never a new format rejection.
+        if type(segment) is not AudioSegment:
+            return segment
+        shape = get_pcm_source_shape(segment)
+        if (shape is None or segment.frame_width != segment.channels * segment.sample_width
+                or segment.channels * max(2, segment.sample_width) * 2 > PCM_BLOCK_BYTES):
+            return segment
+        self.cancel_check()
+        offset = self.byte_count
+        # Reads for the trim phase move the shared handle. Append only after
+        # the committed high-water mark, never after the last range read.
+        self.stream.seek(offset)
+        view = memoryview(segment.raw_data)
+        try:
+            step = PCM_BLOCK_BYTES // segment.frame_width * segment.frame_width
+            for start in range(0, len(view), step):
+                self.cancel_check()
+                block = view[start:start + step]
+                if self.stream.write(block) != len(block):
+                    raise OSError('Incomplete source PCM snapshot write')
+            size = len(view)
+        finally:
+            view.release()
+        self.byte_count += size
+        return PCMSourceRange(self, offset, size, *shape[0], len(segment))
+
+    def iter_pcm(self, source, block_bytes):
+        if (source.store is not self or self.stream is None
+                or source.offset < 0 or source.byte_count < 0
+                or source.offset + source.byte_count > self.byte_count):
+            raise ValueError('Source PCM snapshot is unavailable')
+        step = max(source.frame_width, block_bytes // source.frame_width * source.frame_width)
+        position = 0
+        while position < source.byte_count:
+            self.cancel_check()
+            count = min(step, source.byte_count - position)
+            self.stream.seek(source.offset + position)
+            block = self.stream.read(count)
+            if len(block) != count:
+                raise OSError('Incomplete source PCM snapshot read')
+            yield block
+            position += count
+
+    def load_segment(self, source):
+        if type(source) is not PCMSourceRange:
+            return source
+        data = b''.join(self.iter_pcm(source, PCM_BLOCK_BYTES))
+        return AudioSegment(data=data, channels=source.channels,
+                            frame_rate=source.frame_rate, sample_width=source.sample_width)
+
+    def close(self):
+        if self.stream is not None:
+            self.stream.close()
+            self.stream = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, kind, value, traceback):
+        if kind is None:
+            self.close()
+        else:
+            try:
+                self.close()
+            except BaseException:
+                pass
+        return False
+
+
 def is_bounded_pcm_supported(segments):
     """Keep custom segment behavior and very wide frames on legacy."""
-    if not segments or any(type(segment) is not AudioSegment for segment in segments):
+    if not segments or any(not is_plain_pcm_source(segment) or get_pcm_source_shape(segment) is None
+                           for segment in segments):
         return False
     layouts = [(segment.channels, segment.frame_rate, segment.sample_width)
                for segment in segments]
-    if any(any(type(value) is not int or value <= 0 for value in layout)
-           or layout[2] not in (1, 2, 4)
-           or len(segment.raw_data) % (layout[0] * layout[2])
-           for segment, layout in zip(segments, layouts)):
-        return False
     # Preserve the existing minimum frame allowance, including default silence.
     channels = max(layout[0] for layout in layouts)
     width = max(2, *(layout[2] for layout in layouts))
@@ -29,10 +142,13 @@ def is_bounded_pcm_supported(segments):
 
 
 
-def iter_raw_pcm(segment):
+def iter_raw_pcm(segment, block_bytes=PCM_BLOCK_BYTES):
+    if type(segment) is PCMSourceRange:
+        yield from segment.store.iter_pcm(segment, block_bytes)
+        return
     view = memoryview(segment.raw_data)
     frame = segment.channels * segment.sample_width
-    step = max(frame, PCM_BLOCK_BYTES // frame * frame)
+    step = max(frame, block_bytes // frame * frame)
     for start in range(0, len(view), step):
         yield view[start:start + step]
 
