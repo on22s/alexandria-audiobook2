@@ -1341,46 +1341,56 @@ class ProjectManager:
             tuple: (success: bool, message: str)
         """
         metadata = metadata or {}
+        cleanup = []
         try:
-            chunks_with_audio, skipped = self._load_chunks_with_audio(cancel_check=cancel_check,
-                    progress_callback=_loading_progress(progress_callback))
-            if not chunks_with_audio:
-                return False, "No audio segments found"
+            with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
+                chunks_with_audio, skipped = self._load_chunks_with_audio(cancel_check=cancel_check,
+                        progress_callback=_loading_progress(progress_callback),
+                        segment_transform=sources.save_segment)
+                if not chunks_with_audio:
+                    return False, "No audio segments found"
 
-            # Phase 1 — Compute timeline
-            pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
-            timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms, cancel_check=cancel_check)
+                # Phase 1 — Compute timeline
+                pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+                decoded = ((chunk, sources.load_segment(segment)) for chunk, segment in chunks_with_audio)
+                timeline = []
+                for chunk, segment, start_ms in iter_timeline(
+                        decoded, pause_ms, same_speaker_pause_ms, cancel_check=cancel_check):
+                    timeline.append((chunk, sources.save_segment(segment), start_ms))
+                    del segment
 
-            if not timeline:
-                return False, "No audio segments found"
+                if not timeline:
+                    return False, "No audio segments found"
 
-            # Phase 2 — Build chapters
-            chapters = self._build_m4b_chapters(timeline, per_chunk_chapters)
-            print(f"  M4B: {len(chapters)} chapters")
+                # Phase 2 — Build chapters
+                chapters = self._build_m4b_chapters(timeline, per_chunk_chapters)
+                print(f"  M4B: {len(chapters)} chapters")
 
-            # Phase 3 — Combine audio and export to temp WAV
-            audio_segments = [seg for _, seg, _ in timeline]
-            speakers = [chunk["speaker"] for chunk, _, _ in timeline]
-            pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
+                # Phase 3 — Combine audio and export to temp WAV
+                audio_segments = [seg for _, seg, _ in timeline]
+                speakers = [chunk["speaker"] for chunk, _, _ in timeline]
+                pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
 
-        except ExportCancelled:
-            return False, "Export cancelled"
+                staging_id = uuid.uuid4().hex
+                temp_wav = os.path.join(self.root_dir, f".m4b-{staging_id}.wav")
+                meta_path = os.path.join(self.root_dir, f".m4b-{staging_id}.txt")
+                output_path = os.path.join(self.root_dir, "audiobook.m4b")
+                pending_output = output_path + f".pending.{uuid.uuid4().hex}"
 
-        staging_id = uuid.uuid4().hex
-        temp_wav = os.path.join(self.root_dir, f".m4b-{staging_id}.wav")
-        meta_path = os.path.join(self.root_dir, f".m4b-{staging_id}.txt")
-        output_path = os.path.join(self.root_dir, "audiobook.m4b")
-        pending_output = output_path + f".pending.{uuid.uuid4().hex}"
+                cleanup = [temp_wav, meta_path, pending_output]
 
-        try:
-            duration_ms = write_combined_wav(audio_segments, speakers, temp_wav,
-                pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check)
-            if duration_ms is None:
-                final_audio = combine_audio_with_pauses(audio_segments, speakers,
-                    pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check)
-                _export_audio_segment(final_audio, temp_wav, "wav", cancel_check=cancel_check)
-                duration_ms = len(final_audio)
+                duration_ms = write_combined_wav(audio_segments, speakers, temp_wav,
+                    pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check,
+                    source_store=sources)
+                if duration_ms is None:
+                    legacy_segments = [sources.load_segment(segment) for segment in audio_segments]
+                    final_audio = combine_audio_with_pauses(legacy_segments, speakers,
+                        pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check)
+                    _export_audio_segment(final_audio, temp_wav, "wav", cancel_check=cancel_check)
+                    duration_ms = len(final_audio)
+                sources.close()
 
+            ensure_audio_export_active(cancel_check)
             # Phase 4 — Write FFmpeg metadata file with book metadata
             meta_lines = [";FFMETADATA1"]
             meta_lines.append(f"title={self._escape_ffmeta(metadata.get('title') or 'Audiobook')}")
@@ -1438,7 +1448,6 @@ class ProjectManager:
         finally:
             # Only the unpublished staging output is ever removed here; a prior
             # complete audiobook remains available when an encode fails.
-            cleanup = [temp_wav, meta_path, pending_output]
             for tmp in cleanup:
                 if os.path.exists(tmp):
                     try:

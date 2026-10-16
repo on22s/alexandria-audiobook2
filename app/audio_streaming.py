@@ -116,7 +116,7 @@ def iter_segment_pcm(segment, cancel_check=None):
 
 
 def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms,
-                       pause_overrides=None, cancel_check=None):
+                       pause_overrides=None, cancel_check=None, source_store=None):
     """Return rounded duration, or None without writing for a legacy fallback."""
     ensure_audio_export_active(cancel_check)
     layout = get_streamable_layout(segments)
@@ -124,8 +124,14 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
     if len(speakers) != len(segments):
         return None
     ordinary_pcm = is_plain_pcm_sequence(segments)
-    segments = [trim_edge_silence(segment, cancel_check=cancel_check)
-                for segment in segments]
+    trimmed_segments = []
+    for segment in segments:
+        loaded = source_store.load_segment(segment) if source_store is not None else segment
+        trimmed = trim_edge_silence(loaded, cancel_check=cancel_check)
+        trimmed_segments.append(source_store.save_segment(trimmed)
+                                if source_store is not None else trimmed)
+        del segment, loaded, trimmed
+    segments = trimmed_segments
     ordinary_pcm = ordinary_pcm and is_plain_pcm_sequence(segments)
     shape = get_pcm_shape(segments[0]) if segments else None
     frames = shape[1] if shape is not None else 0
@@ -137,7 +143,7 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
             {'speaker': speakers[index]}, pause_ms, same_speaker_pause_ms)
         if layout is not None:
             frames += (get_silence_frame_count(duration, layout[1])
-                       + len(segment.raw_data) // (layout[0] * layout[2]))
+                       + get_pcm_source_byte_count(segment) // (layout[0] * layout[2]))
         else:
             # Legacy combine appends (gap + segment), then promotes the prefix.
             piece = get_joined_pcm_shape(get_silence_pcm_shape(duration),
