@@ -8,7 +8,7 @@ from pydub import AudioSegment
 from pydub.audio_segment import audioop
 
 from audio_pcm_producer import (PCMProducer, is_bounded_pcm_supported,
-                                iter_raw_pcm, iter_default_silence_pcm)
+                                iter_raw_pcm, iter_default_silence_pcm, iter_converted_pcm)
 
 from tts import (ensure_audio_export_active, get_pause_duration_ms,
                  trim_edge_silence)
@@ -97,20 +97,22 @@ def get_streamable_layout(segments):
 
 
 def iter_silence_pcm(duration_ms, layout, cancel_check=None):
-    """Use Pydub's native ratecv, retaining its state across bounded zero blocks."""
+    """Retain silence rounding/state through the shared bounded converter."""
     channels, frame_rate, sample_width = layout
     frames = int(11025 * (duration_ms / 1000.0))
-    state = None
-    while frames > 0:
-        ensure_audio_export_active(cancel_check)
-        count = min(frames, 16384)
-        data = b'\0' * (count * channels * 2)
-        if frame_rate != 11025:
-            data, state = audioop.ratecv(data, 2, channels, 11025, frame_rate, state)
-        if sample_width != 2:
-            data = audioop.lin2lin(data, 2, sample_width)
-        yield data
-        frames -= count
+    if frames <= 0:
+        return
+
+    def iter_zeros():
+        remaining = frames
+        while remaining > 0:
+            ensure_audio_export_active(cancel_check)
+            count = min(remaining, 16384)
+            yield b'\0' * (count * channels * 2)
+            remaining -= count
+
+    check = lambda: ensure_audio_export_active(cancel_check)
+    yield from iter_converted_pcm(iter_zeros(), (channels, 11025, 2), layout, check)
 
 
 def iter_segment_pcm(segment, cancel_check=None):

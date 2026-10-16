@@ -1,5 +1,7 @@
 """Disk-backed PCM assembly preserving Pydub's incremental promotion order."""
 import array
+import math
+import sys
 import tempfile
 
 from pydub import AudioSegment
@@ -10,7 +12,7 @@ PCM_BLOCK_BYTES = 65536
 
 
 def is_bounded_pcm_supported(segments):
-    """Keep custom segment behavior and irreducibly large conversions on legacy."""
+    """Keep custom segment behavior and very wide frames on legacy."""
     if not segments or any(type(segment) is not AudioSegment for segment in segments):
         return False
     layouts = [(segment.channels, segment.frame_rate, segment.sample_width)
@@ -20,15 +22,11 @@ def is_bounded_pcm_supported(segments):
            or len(segment.raw_data) % (layout[0] * layout[2])
            for segment, layout in zip(segments, layouts)):
         return False
-    # Silence uses mono/11025 Hz/16-bit. Include every possible prefix layout;
-    # a single native resampling step must also fit the block allowance.
+    # Preserve the existing minimum frame allowance, including default silence.
     channels = max(layout[0] for layout in layouts)
-    rate = max(11025, *(layout[1] for layout in layouts))
     width = max(2, *(layout[2] for layout in layouts))
-    source_rate = min([11025] + [layout[1] for segment, layout in zip(segments, layouts)
-                                  if segment.raw_data])
-    ratio = max(1, (rate + source_rate - 1) // source_rate)
-    return channels * width * (ratio + 1) <= PCM_BLOCK_BYTES
+    return channels * width * 2 <= PCM_BLOCK_BYTES
+
 
 
 def iter_raw_pcm(segment):
@@ -47,36 +45,120 @@ def iter_default_silence_pcm(duration_ms):
         remaining -= count
 
 
+def _iter_python_ratecv(pieces, width, channels, inrate, outrate,
+                        cancel_check, block_bytes):
+    """Mirror audioop's default filter without allocating a rate-sized buffer.
+
+    The termination value exposes the native-shaped state for differential tests.
+    Each logical conversion starts fresh; input pieces do not reset the state.
+    """
+    common = math.gcd(inrate, outrate)
+    input_step, output_step = inrate // common, outrate // common
+    phase = -output_step
+    previous = [0] * channels
+    current = [0] * channels
+    initialized = False
+    shift = (4 - width) * 8
+    frame_bytes = channels * width
+    output = bytearray()
+    for piece in pieces:
+        if not piece:
+            continue
+        if not initialized:
+            # Validate C arguments at the original first nonempty rate call.
+            # Empty input requests no native output buffer, even at huge ratios.
+            _, state = audioop.ratecv(b'', width, channels, inrate, outrate, None)
+            phase, pairs = state
+            previous = [pair[0] for pair in pairs]
+            current = [pair[1] for pair in pairs]
+            initialized = True
+        if len(piece) % frame_bytes:
+            raise audioop.error('not a whole number of frames')
+        for offset in range(0, len(piece), frame_bytes):
+            cancel_check()
+            previous, current = current, previous
+            for channel in range(channels):
+                start = offset + channel * width
+                current[channel] = int.from_bytes(
+                    piece[start:start + width], sys.byteorder, signed=True) << shift
+            phase += output_step
+            while phase >= 0:
+                cancel_check()
+                if len(output) + frame_bytes > block_bytes:
+                    yield bytes(output)
+                    output.clear()
+                for old, new in zip(previous, current):
+                    # C truncates the double interpolation before shifting width.
+                    value = int((float(old) * float(phase)
+                                 + float(new) * float(output_step - phase))
+                                / float(output_step))
+                    output.extend((value >> shift).to_bytes(
+                        width, sys.byteorder, signed=True))
+                phase -= input_step
+    if output:
+        cancel_check()
+        yield bytes(output)
+    return phase, tuple(zip(previous, current))
+
+
 def iter_converted_pcm(pieces, source, target, cancel_check):
     channels, rate, width = source
     target_channels, target_rate, target_width = target
     if target_channels != channels and channels != 1:
         raise ValueError('AudioSegment.set_channels only supports mono-to-multi channel and multi-to-mono channel conversion')
+    frame_bytes = target_channels * max(width, target_width)
     ratio = max(1, (target_rate + rate - 1) // rate)
-    frames = PCM_BLOCK_BYTES // (target_channels * max(width, target_width) * (ratio + 1))
-    step = max(1, frames) * channels * width
-    state = None
-    for piece in pieces:
-        if len(piece) and frames < 1:
-            raise ValueError('PCM conversion exceeds the bounded block allowance')
-        for start in range(0, len(piece), step):
-            cancel_check()
-            data = piece[start:start + step]
-            if target_channels != channels:
-                if target_channels == 2:
-                    data = audioop.tostereo(data, width, 1, 1)
-                else:
-                    samples = array.array({1: 'b', 2: 'h', 4: 'i'}[width])
-                    samples.frombytes(data)
-                    output = array.array(samples.typecode, [0]) * (len(samples) * target_channels)
-                    for channel in range(target_channels):
-                        output[channel::target_channels] = samples
-                    data = output.tobytes()
-            if rate != target_rate and len(data):
-                data, state = audioop.ratecv(data, width, target_channels, rate, target_rate, state)
-            if width != target_width:
-                data = audioop.lin2lin(data, width, target_width)
-            yield data
+    frames = max(1, PCM_BLOCK_BYTES // (frame_bytes * (ratio + 1)))
+    native_ratecv = True
+    if rate != target_rate:
+        common = math.gcd(rate, target_rate)
+        input_step, output_step = rate // common, target_rate // common
+        # audioop allocates ceil(N / input_step) * output_step frames,
+        # even when its actual output is only a single sample.
+        groups = (PCM_BLOCK_BYTES // (output_step * frame_bytes)
+                  if input_step > 0 and output_step > 0 else 0)
+        native_ratecv = groups > 0
+        if native_ratecv:
+            frames = min(frames, groups * input_step)
+    step = frames * channels * width
+
+    def iter_promoted():
+        for piece in pieces:
+            if len(piece) and frame_bytes * 2 > PCM_BLOCK_BYTES:
+                raise ValueError('PCM conversion exceeds the bounded block allowance')
+            for start in range(0, len(piece), step):
+                cancel_check()
+                data = piece[start:start + step]
+                if target_channels != channels:
+                    if target_channels == 2:
+                        data = audioop.tostereo(data, width, 1, 1)
+                    else:
+                        samples = array.array({1: 'b', 2: 'h', 4: 'i'}[width])
+                        samples.frombytes(data)
+                        output = array.array(samples.typecode, [0]) * (len(samples) * target_channels)
+                        for channel in range(target_channels):
+                            output[channel::target_channels] = samples
+                        data = output.tobytes()
+                yield data
+
+    promoted = iter_promoted()
+    if not native_ratecv:
+        block_bytes = PCM_BLOCK_BYTES // frame_bytes * target_channels * width
+        converted = _iter_python_ratecv(promoted, width, target_channels,
+                                        rate, target_rate, cancel_check, block_bytes)
+    else:
+        def iter_native():
+            state = None
+            for data in promoted:
+                if rate != target_rate and len(data):
+                    data, state = audioop.ratecv(
+                        data, width, target_channels, rate, target_rate, state)
+                yield data
+        converted = iter_native()
+    for data in converted:
+        if width != target_width:
+            data = audioop.lin2lin(data, width, target_width)
+        yield data
 
 
 class PCMProducer:
