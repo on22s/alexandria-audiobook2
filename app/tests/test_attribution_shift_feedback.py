@@ -146,8 +146,9 @@ class FeedbackNativeTests(unittest.TestCase):
         disabled = self.run_batch(False)
         enabled = self.run_batch(True)
         self.assertEqual(ordinary[:2], disabled[:2])
-        strip_time = lambda rows: [{k: v for k, v in row.items() if k != 'elapsed_seconds'} for row in rows]
-        self.assertEqual(strip_time(ordinary[2]), strip_time(disabled[2]))
+        stable_attempts = lambda rows: [{k: v for k, v in row.items()
+            if k not in ('elapsed_seconds', 'request_id')} for row in rows]
+        self.assertEqual(stable_attempts(ordinary[2]), stable_attempts(disabled[2]))
         self.assertEqual(ordinary[0], enabled[0])
         self.assertEqual(ordinary[1][0], enabled[1][0])
         self.assertNotIn(HINT, ordinary[1][1]['messages'][-1]['content'])

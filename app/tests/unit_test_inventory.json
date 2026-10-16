@@ -4608,6 +4608,19 @@
     "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_omitted_effort_preserves_sampling_for_documented_none_defaults",
     "tests.test_llm_provider.ReasoningModelRequestShapeTests.test_top_level_effort_and_extra_body_override_control_sampling"
   ],
+  "test_llm_replay_metadata": [
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_closed_prepared_metadata_matches_direct_sdk_and_pre_response_state",
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_configured_reasoning_adaptation_remains_later_than_logged_shared_arguments",
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_failover_rebinds_logged_model_budget_and_seed_to_new_profile",
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_metadata_failures_keep_valid_response_without_provider_retry",
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_nested_unknown_options_are_omitted_without_changing_transport_or_inputs",
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_non_string_response_id_is_explicitly_omitted",
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_reasoning_zero_estimate_and_missing_remain_distinct_and_trace_is_not_logged",
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_rejected_attempt_id_survives_in_saved_source_failure_diagnostics",
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_response_id_accessor_failures_keep_valid_response_without_retry",
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_schema_fallback_keeps_logical_scope_and_next_preparation_uses_capability_cache",
+    "tests.test_llm_replay_metadata.ReplayMetadataTests.test_timeout_id_joins_intent_and_later_admission_does_not_inherit_it"
+  ],
   "test_llm_request_budget": [
     "tests.test_llm_request_budget.ProfileBudgetAdmissionTests.test_declared_context_allows_unknown_manual_large_target_and_preserves_cache_capacity",
     "tests.test_llm_request_budget.ProfileBudgetAdmissionTests.test_unknown_context_refuses_before_claiming_a_job",

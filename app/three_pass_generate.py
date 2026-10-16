@@ -3303,6 +3303,8 @@ def build_failure_record(pass_name, index, text, last_attempt=None):
         "prompt_tokens": attempt.get("prompt_tokens"),
         "completion_tokens": attempt.get("completion_tokens"),
         "reasoning_tokens": attempt.get("reasoning_tokens"),
+        **{key: attempt[key] for key in ('request_id', 'response_id', 'reasoning_tokens_source')
+           if key in attempt},
         "effective_max_tokens": attempt.get("effective_max_tokens"),
         "attempt": attempt.get("attempt"),
     }

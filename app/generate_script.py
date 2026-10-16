@@ -85,6 +85,79 @@ def get_request_log_path(response_log_path):
     return f"{stem}.requests{extension or '.log'}"
 
 
+def get_llm_request_log_metadata(request_id, model_name, params, requested_max,
+                                 effective_max, response_format, extra_body):
+    """Project prepared arguments/state; never inspect client credentials.
+
+    Provider wrappers can still add defaults, intersect budgets or adapt these
+    arguments. Unknown options are explicitly omitted, not treated as captured.
+    """
+    options = {}
+    for key in ('top_k', 'min_p', 'banned_tokens', 'reasoning_effort', 'seed'):
+        if key not in extra_body:
+            continue
+        value = extra_body[key]
+        valid = (value is None or
+                 (key in ('top_k', 'seed') and type(value) is int) or
+                 (key == 'min_p' and (type(value) is int
+                                     or type(value) is float and math.isfinite(value))) or
+                 (key == 'reasoning_effort' and type(value) is str) or
+                 (key == 'banned_tokens' and type(value) is list
+                  and all(type(item) is str for item in value)))
+        if valid:
+            options[key] = list(value) if isinstance(value, list) else value
+    omitted = bool(extra_body.keys() - options.keys())
+    if 'chat_template_kwargs' in extra_body:
+        template = extra_body['chat_template_kwargs']
+        if type(template) is dict:
+            projected = {}
+            if 'enable_thinking' in template and type(template['enable_thinking']) is bool:
+                projected['enable_thinking'] = template['enable_thinking']
+            options['chat_template_kwargs'] = projected
+            omitted = bool(extra_body.keys() - options.keys() or template.keys() - projected.keys())
+
+    budget, budget_omitted = {}, False
+    for name in ('context_length', 'hard_max_tokens', 'max_input_tokens',
+                 'request_output_ceiling', 'request_initial_max_tokens',
+                 'reasoning_allowance', 'observed_calls'):
+        value = getattr(params, name)
+        if value is None or type(value) is int:
+            budget[name] = value
+        else:
+            budget_omitted = True
+    budget.update(requested_max_tokens=requested_max, effective_max_tokens=effective_max)
+    reservation, reservation_omitted = None, False
+    original = getattr(params, 'reasoning_reservation', None)
+    if original is not None:
+        reservation = {}
+        if type(original) is dict:
+            for name, value in original.items():
+                if (name in ('entry_count', 'per_entry_tokens', 'raw', 'applied', 'limit')
+                        and (value is None or type(value) is int)):
+                    reservation[name] = value
+                elif name == 'scope' and value in ('unobserved', 'context', 'output_only'):
+                    reservation[name] = value
+                else:
+                    reservation_omitted = True
+        else:
+            reservation_omitted = True
+    sampling = {}
+    for name in ('temperature', 'top_p', 'presence_penalty'):
+        value = getattr(params, name)
+        if type(value) is int or type(value) is float and math.isfinite(value):
+            sampling[name] = value
+    return {
+        'version': 1, 'request_id': request_id, 'prepared_at_unix_seconds': time.time(),
+        'run_id': os.environ.get('ALEXANDRIA_RUN_ID') or None, 'model': model_name,
+        'scope': 'shared_completion_arguments_before_provider_adaptation',
+        'sampling': sampling, 'sampling_fields_omitted': len(sampling) != 3,
+        'response_format': response_format, 'extra_body': options,
+        'provider_options_omitted': omitted, 'budget': budget,
+        'budget_fields_omitted': budget_omitted, 'reasoning_reservation': reservation,
+        'reasoning_reservation_fields_omitted': reservation_omitted,
+    }
+
+
 def get_returned_values_note(quality):
     """Log-only note of what the model answered for each finding that records
     it; kept out of the retry feedback so logging never changes the prompt."""
@@ -1125,6 +1198,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         attempt_requested_max = requested_max
         attempt_record = None
         effective_max = None
+        request_id = None
         try:
             base_messages = [
                 {"role": "system", "content": sys_prompt},
@@ -1163,6 +1237,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             request_id = uuid.uuid4().hex[:12]
             request_log_error = None
             log_path = None
+            response_format = get_response_format(params, client)
+            extra_body = build_extra_body(params)
             try:
                 log_path = get_response_log_path(log_name)
                 os.makedirs(os.path.dirname(log_path), exist_ok=True)
@@ -1170,20 +1246,25 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     request_log_path = get_request_log_path(log_path)
                     if not os.environ.get("ALEXANDRIA_RUN_ID"):
                         _rotate_log_if_large(request_log_path, max_bytes=REQUEST_LOG_MAX_BYTES)
+                    metadata = get_llm_request_log_metadata(
+                        request_id, model_name, params, attempt_requested_max,
+                        effective_max, response_format, extra_body)
+                    metadata_json = json.dumps(metadata, ensure_ascii=False, allow_nan=False)
                     with open(request_log_path, "a", encoding="utf-8") as rf:
                         rf.write(f"\n{'='*80}\n")
                         rf.write(f"{label} | attempt {attempt_number} | request={request_id} | "
                                  f"model={model_name} | temperature={params.temperature} | "
                                  f"max_tokens={effective_max} | scope=prepared_logical_attempt\n")
+                        rf.write('REQUEST_METADATA_JSON: ' + metadata_json + '\n')
                         for message in messages:
                             rf.write(f"{'─'*80}\n[{message['role']}]\n{message['content']}\n")
                         rf.write(f"{'='*80}\n")
-            except (OSError, UnicodeError, ValueError) as exc:
+            except (OSError, UnicodeError, ValueError, TypeError) as exc:
                 request_log_error = f"{type(exc).__name__}: {exc}"
                 print(f"WARNING: request logging failed for {label}: {request_log_error}. "
                       "Continuing with the provider request.", flush=True)
             response = create_completion(
-                client, get_response_format(params, client),
+                client, response_format,
                 schema_rejected_by=schema_rejected_by,
                 run_profile_index=run_profile_index, request_admission=params.request_admission,
                 model=model_name,
@@ -1192,7 +1273,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 top_p=params.top_p,
                 presence_penalty=params.presence_penalty,
                 max_tokens=effective_max,
-                extra_body=build_extra_body(params)
+                extra_body=extra_body
             )
             # Some OpenAI-compatible providers return a successful HTTP
             # response with no choices (or a JSON null response) during a
@@ -1226,6 +1307,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             # to any budget sized on the visible response.
             usage_details = getattr(usage, "completion_tokens_details", None)
             reasoning_tokens = getattr(usage_details, "reasoning_tokens", None)
+            reasoning_tokens_source = 'provider' if reasoning_tokens is not None else 'unreported'
             # llama.cpp returns the trace in message.reasoning_content but
             # reports no reasoning_tokens in usage, so the allowance never
             # grew and a short chunk's ceiling (512) was spent entirely on
@@ -1236,25 +1318,37 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 trace = getattr(choice.message, "reasoning_content", None) or ""
                 if trace:
                     reasoning_tokens = max(1, len(trace) // 4)
+                    reasoning_tokens_source = 'estimated_from_reasoning_content'
 
             # A local log failure must not consume the provider retry/failover budget.
+            response_id = None
             response_log_error = None
             try:
+                raw_response_id = getattr(response, 'id', None)
+                response_id = raw_response_id if type(raw_response_id) is str else None
                 if log_path is None:
                     log_path = get_response_log_path(log_name)
                 os.makedirs(os.path.dirname(log_path), exist_ok=True)
                 with file_lock(log_path):
                     if not os.environ.get("ALEXANDRIA_RUN_ID"):
                         _rotate_log_if_large(log_path)
+                    metadata_json = json.dumps({
+                        'version': 1, 'request_id': request_id,
+                        'response_id': response_id,
+                        'response_id_omitted': raw_response_id is not None and response_id is None,
+                        'reasoning_tokens': reasoning_tokens,
+                        'reasoning_tokens_source': reasoning_tokens_source,
+                    }, ensure_ascii=False, allow_nan=False)
                     with open(log_path, "a", encoding="utf-8") as lf:
                         lf.write(f"\n{'='*80}\n")
                         lf.write(f"{label} | attempt {attempt_number} | finish_reason={finish_reason} | request={request_id}\n")
                         if usage:
                             lf.write(f"tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}\n")
+                        lf.write('RESPONSE_METADATA_JSON: ' + metadata_json + '\n')
                         lf.write(f"{'─'*80}\n")
                         lf.write(text)
                         lf.write(f"\n{'='*80}\n")
-            except (OSError, UnicodeError, ValueError) as exc:
+            except (OSError, UnicodeError, ValueError, TypeError) as exc:
                 response_log_error = f"{type(exc).__name__}: {exc}"
                 print(f"WARNING: response logging failed for {label}: {response_log_error}. "
                       "Keeping the provider response for validation.", flush=True)
@@ -1266,6 +1360,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             if attempt_observer:
                 attempt_record = {
                     "attempt": attempt_number,
+                    "request_id": request_id,
+                    "response_id": response_id,
                     "elapsed_seconds": round(time.time() - t0, 3),
                     "finish_reason": finish_reason,
                     "requested_max_tokens": requested_max,
@@ -1273,6 +1369,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     "prompt_tokens": getattr(usage, "prompt_tokens", None) if usage else None,
                     "completion_tokens": getattr(usage, "completion_tokens", None) if usage else None,
                     "reasoning_tokens": reasoning_tokens,
+                    "reasoning_tokens_source": reasoning_tokens_source,
                     "error": None,
                     "response_fingerprint": response_fingerprint,
                     "response_repeat_count": repeat_count,
@@ -1335,6 +1432,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 if can_retry else None)
             if attempt_observer:
                 attempt_observer({"attempt": attempt_number,
+                                  "request_id": request_id,
                                   "elapsed_seconds": round(time.time() - t0, 3),
                                   "finish_reason": None, "requested_max_tokens": requested_max,
                                   "effective_max_tokens": None, "prompt_tokens": None,
