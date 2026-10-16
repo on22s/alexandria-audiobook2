@@ -1,6 +1,6 @@
 from chunk_status_journal import remove_chunk_snapshot
 import os
-from core import llm_timeout_seconds, is_llm_on_this_gpu
+from core import llm_timeout_seconds, is_llm_on_this_gpu, get_review_accounting_warning
 import sys
 import json
 import re
@@ -195,6 +195,155 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
     return get_review_entries_fingerprint(get_run_fingerprint_identity(identity))
 
 
+REVIEW_EDIT_COUNTERS = ('text_changed', 'speaker_changed', 'instruct_changed',
+                       'entries_changed', 'entries_added', 'entries_removed')
+
+
+def get_review_edit_counts(stats, *, required=True):
+    """Read native edit counters without coercing unavailable values to zero."""
+    for key in REVIEW_EDIT_COUNTERS:
+        if key in stats and (type(stats[key]) is not int or stats[key] < 0):
+            raise ValueError(f"Saved review counter {key} is unreadable; checkpoint preserved.")
+    if any(key not in stats for key in REVIEW_EDIT_COUNTERS):
+        if required:
+            raise ValueError("Saved review edit counters are unavailable; checkpoint preserved.")
+        return None
+    return {key: stats[key] for key in REVIEW_EDIT_COUNTERS}
+
+
+def is_review_accounting_coordinates(count, offsets, lengths, source_count, output_count):
+    if (type(count) is not int or count < 0 or type(source_count) is not int or source_count < 0
+            or not isinstance(offsets, list) or not isinstance(lengths, list)
+            or len(offsets) != count or len(lengths) != count
+            or any(type(value) is not int or value < 0 for value in offsets + lengths)):
+        return False
+    return (all(left < right for left, right in zip([0] + offsets, offsets))
+            and (not offsets or offsets[-1] <= source_count)
+            and sum(lengths) == output_count)
+
+
+def get_review_contribution(source_end, output_length, counts):
+    return {'source_end': source_end, 'output_length': output_length, **counts}
+
+
+def get_review_checkpoint_accounting(data, entries, keep_count, *, migrated=False):
+    """Bind counters before native rewind, independently of content acceptance."""
+    counts = get_review_edit_counts(data['total_stats'], required=False)
+    source_hash = _entries_fingerprint(entries)
+    same_source = source_hash == data.get('source_sha256')
+    count, lengths = data['completed_batches'], data['batch_lengths']
+    offsets = data.get('source_offsets')
+    old = data.get('review_accounting')
+    rows = data.get('review_batch_contributions')
+    valid = (counts is not None and isinstance(old, dict) and type(old.get('version')) is int
+             and old.get('version') == 1 and isinstance(old.get('source_sha256'), str)
+             and old.get('mode') == 'owned' and type(old.get('inherited_unverified')) is bool
+             and old.get('source_sha256') == data.get('source_sha256')
+             and type(keep_count) is int and 0 <= keep_count <= count
+             and all(type(index) is int and 1 <= index <= count for index in data['failed_batches'])
+             and is_review_accounting_coordinates(count, offsets, lengths,
+                 old.get('source_entry_count'), len(data['all_corrected']))
+             and isinstance(rows, list) and len(rows) == count)
+    inherited = old.get('inherited') if isinstance(old, dict) else None
+    if valid:
+        try:
+            valid = (isinstance(inherited, dict) and set(inherited) == set(REVIEW_EDIT_COUNTERS)
+                     and get_review_edit_counts(inherited) is not None)
+            for index, row in enumerate(rows):
+                valid = (valid and isinstance(row, dict)
+                         and set(row) == set(REVIEW_EDIT_COUNTERS) | {'source_end', 'output_length'}
+                         and type(row['source_end']) is int and type(row['output_length']) is int
+                         and row['source_end'] == offsets[index]
+                         and row['output_length'] == lengths[index]
+                         and get_review_edit_counts(row) is not None
+                         and (index + 1 not in data['failed_batches']
+                              or not any(row[key] for key in REVIEW_EDIT_COUNTERS)))
+            valid = valid and all(inherited[key] + sum(row[key] for row in rows) == counts[key]
+                                  for key in REVIEW_EDIT_COUNTERS)
+        except (KeyError, TypeError, ValueError):
+            valid = False
+    if same_source and valid and old['source_entry_count'] != len(entries):
+        valid = False
+    if valid and same_source:
+        contributions = copy.deepcopy(rows[:keep_count])
+        inherited = dict(inherited)
+        counts = {key: inherited[key] + sum(row[key] for row in contributions)
+                  for key in REVIEW_EDIT_COUNTERS}
+        owned = True
+    else:
+        # Incoming output already contains ALL prior edits, even past a failure.
+        # Legacy counters have no removable ownership; retain them as inherited.
+        inherited = dict(counts or {})
+        incoming_offsets = offsets
+        if not same_source:
+            incoming_offsets, end = [], 0
+            for length in lengths:
+                if type(length) is not int or length < 0:
+                    break
+                end += length
+                incoming_offsets.append(end)
+        owned = (counts is not None and type(keep_count) is int and 0 <= keep_count <= count
+                 and (keep_count == 0 or
+            is_review_accounting_coordinates(count, incoming_offsets, lengths,
+                                              len(entries), len(data['all_corrected']))))
+        zero = {key: 0 for key in REVIEW_EDIT_COUNTERS}
+        contributions = ([get_review_contribution(incoming_offsets[i], lengths[i], zero)
+                          for i in range(keep_count)] if owned else [])
+    metadata = {'version': 1, 'mode': 'owned' if owned else 'unowned',
+                'source_sha256': source_hash, 'source_entry_count': len(entries),
+                'inherited': inherited,
+                'inherited_unverified': bool(migrated or not valid
+                    or old.get('inherited_unverified', False))}
+    return metadata, contributions, counts
+
+
+def get_review_runtime_accounting(checkpoint, source_hash, source_count, total_stats,
+                                  source_offsets, batch_lengths, output_count):
+    counts = get_review_edit_counts(total_stats)
+    metadata = (checkpoint['review_accounting'] if checkpoint else
+        {'version': 1, 'mode': 'owned', 'source_sha256': source_hash,
+         'source_entry_count': source_count,
+         'inherited': {key: 0 for key in REVIEW_EDIT_COUNTERS}, 'inherited_unverified': False})
+    return {'metadata': copy.deepcopy(metadata),
+            'contributions': copy.deepcopy(checkpoint['review_batch_contributions']) if checkpoint else [],
+            'totals': counts, 'source_offsets': list(source_offsets),
+            'batch_lengths': list(batch_lengths), 'output_count': output_count}
+
+
+def get_saved_review_accounting(accounting, data):
+    """Project one native per-batch counter update; never split an unknown delta."""
+    counts = get_review_edit_counts(data['total_stats'])
+    metadata = copy.deepcopy(accounting['metadata'])
+    rows = copy.deepcopy(accounting['contributions'])
+    previous = len(accounting['batch_lengths'])
+    current = data['completed_batches']
+    owned = (metadata['mode'] == 'owned' and len(rows) == previous
+             and metadata['source_sha256'] == data['source_sha256']
+             and is_review_accounting_coordinates(current, data['source_offsets'], data['batch_lengths'],
+                     metadata['source_entry_count'], len(data['all_corrected']))
+             and data['source_offsets'][:previous] == accounting['source_offsets']
+             and data['batch_lengths'][:previous] == accounting['batch_lengths']
+             and sum(data['batch_lengths'][:previous]) == accounting['output_count'])
+    if owned and current == previous:
+        owned = counts == accounting['totals']
+    elif owned and current == previous + 1:
+        delta = {key: counts[key] - accounting['totals'][key] for key in REVIEW_EDIT_COUNTERS}
+        owned = (all(value >= 0 for value in delta.values())
+                 and (current not in data['failed_batches'] or not any(delta.values())))
+        if owned:
+            rows.append(get_review_contribution(data['source_offsets'][-1],
+                                                data['batch_lengths'][-1], delta))
+    else:
+        owned = False
+    if not owned:
+        metadata.update(mode='unowned', inherited=counts, inherited_unverified=True)
+        rows = []
+    detached = {**data, 'review_accounting': metadata, 'review_batch_contributions': rows}
+    return get_review_runtime_accounting(detached, data['source_sha256'],
+        metadata['source_entry_count'], data['total_stats'], data['source_offsets'],
+        data['batch_lengths'], len(data['all_corrected']))
+
+
 def load_checkpoint(output_path, total_batches, batch_size, context_window, entries,
                     execution_sha256=None):
     """Return checkpoint dict if one exists and matches this run's parameters.
@@ -272,11 +421,22 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
     data.setdefault("failed_batches", [])
     data.setdefault("total_stats", {})
     data["total_stats"].setdefault("batches_skipped_vram", 0)
+    migrated_counts = 'entries_changed' not in data['total_stats']
     data["total_stats"].setdefault("entries_changed", 0)
 
     failed_batches = sorted(data["failed_batches"])
     batch_lengths = data["batch_lengths"]
     completed_batches = data["completed_batches"]
+    keep_count = (max(0, failed_batches[0] - 1)
+                  if failed_batches and len(batch_lengths) == completed_batches else completed_batches)
+    metadata, contributions, counts = get_review_checkpoint_accounting(
+        data, entries, keep_count, migrated=migrated_counts)
+    data['review_accounting'] = metadata
+    data['review_batch_contributions'] = contributions
+    if counts is not None:
+        data['total_stats'].update(counts)
+    if metadata['inherited_unverified']:
+        print('WARNING: ' + get_review_accounting_warning({'accounting_unverified': True}))
     if failed_batches and len(batch_lengths) == completed_batches:
         retry_from = failed_batches[0]
         # Keep entries from all batches before the first failed one
@@ -305,7 +465,7 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
                      context_window, all_corrected, total_stats, previous_tail,
                      batch_lengths, failed_batches, source_sha256,
                      output_sha256=None, writer=None, source_offsets=None,
-                     literal_policy=None, execution_sha256=None):
+                     literal_policy=None, execution_sha256=None, accounting=None):
     path = _checkpoint_path(output_path)
     data = {
         "execution_sha256": execution_sha256,
@@ -325,6 +485,11 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
     }
     if literal_policy is not None:
         data["literal_source_policy"] = literal_policy
+    updated_accounting = None
+    if accounting is not None:
+        updated_accounting = get_saved_review_accounting(accounting, data)
+        data['review_accounting'] = updated_accounting['metadata']
+        data['review_batch_contributions'] = updated_accounting['contributions']
     # Use atomic_json_write for consistent cross-platform behavior with Windows retry logic
     try:
         if writer is not None:
@@ -336,6 +501,8 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
         # If checkpoint save fails (e.g., disk full, permission denied),
         # log the error but don't crash the review process
         print(f"WARNING: Failed to save checkpoint: {e}. Review will continue but resume may not work.")
+    # Advance the attempted boundary even on I/O failure, since review continues.
+    return updated_accounting
 
 
 def clear_checkpoint(output_path):
@@ -1346,6 +1513,36 @@ def main():
             close()
         return
     print('Completed-review reuse: ' + ('forced rerun' if args.force_review else receipt_reason))
+    all_corrected = []
+    total_stats = {
+        "text_changed": 0,
+        "speaker_changed": 0,
+        "instruct_changed": 0,
+        "entries_changed": 0,
+        "entries_added": 0,
+        "entries_removed": 0,
+        "batches_failed": 0,
+        "batches_skipped_vram": 0,
+    }
+    total_batches_estimate = (len(entries) + batch_size - 1) // batch_size
+    try:
+        (all_corrected, total_stats, previous_tail, completed_batches, batch_lengths,
+         failed_batches, resume_offset, checkpoint) = _load_resume_state(
+            output_path, total_batches_estimate, batch_size, args.context_window,
+            entries, all_corrected, total_stats, execution_sha256=receipt_fingerprint)
+        source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
+        accounting = get_review_runtime_accounting(checkpoint, source_sha256, len(entries),
+            total_stats, source_offsets, batch_lengths, len(all_corrected))
+    except ValueError:
+        close = getattr(client, 'close', None)
+        if close:
+            try:
+                close()
+            except Exception as close_error:
+                print(f"WARNING: client close failed: {type(close_error).__name__}")
+        raise
+    checkpoint_writer = GenerationCheckpointDeltas(
+        _checkpoint_path(output_path), reset=checkpoint is None)
     remove_completed_review_receipt(output_path)
 
     wave_size = get_cached_or_benchmarked_concurrency(
@@ -1367,34 +1564,14 @@ def main():
             print("This may cause OOM crashes during batch review. Consider restarting LM Studio")
             print("with VRAM-safe settings or reducing batch size.")
 
-    source_sha256 = _entries_fingerprint(entries)
-    all_corrected = []
-    total_stats = {
-        "text_changed": 0,
-        "speaker_changed": 0,
-        "instruct_changed": 0,
-        "entries_changed": 0,
-        "entries_added": 0,
-        "entries_removed": 0,
-        "batches_failed": 0,
-        "batches_skipped_vram": 0,
-    }
     highlight_pool = {"text": [], "speaker": []}
     failed_sections = []
     vram_aborted = False
 
     if args.context_window and args.context_window > 0:
         window = max(1, args.context_window)
-        total_batches_estimate = max(1, (len(entries) + batch_size - 1) // batch_size)
         print(f"Contextual review mode enabled: batching ~{batch_size} entries per LLM call with +/-{window} neighbors")
 
-        (all_corrected, total_stats, previous_tail, completed_batches, batch_lengths,
-         failed_batches, resume_offset, checkpoint) = _load_resume_state(
-            output_path, total_batches_estimate, batch_size, args.context_window,
-            entries, all_corrected, total_stats, execution_sha256=receipt_fingerprint)
-        source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
-        checkpoint_writer = GenerationCheckpointDeltas(
-            _checkpoint_path(output_path), reset=checkpoint is None)
         num_remaining_batches = len(range(resume_offset, len(entries), batch_size))
         total_batches = max(1, completed_batches + num_remaining_batches)
         if checkpoint:
@@ -1448,9 +1625,9 @@ def main():
                 failed_batches.append(batch_index)
                 failed_sections.append(get_failed_section(
                     batch_index, start, len(batch), "review_failed"))
-                save_checkpoint(output_path, batch_index, total_batches, batch_size,
+                accounting = save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
                 continue
 
             passed, orig_text, corr_text, ratio = check_text_loss(batch, corrected, threshold=0.95, upper_bound=1.05)
@@ -1465,9 +1642,9 @@ def main():
                 failed_batches.append(batch_index)
                 failed_sections.append(get_failed_section(
                     batch_index, start, len(batch), "text_length_mismatch", ratio))
-                save_checkpoint(output_path, batch_index, total_batches, batch_size,
+                accounting = save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
                 continue
 
             if get_review_batch_status(corrected, batch_attempts)['status'] == 'partial':
@@ -1479,9 +1656,9 @@ def main():
                 failed_batches.append(batch_index)
                 failed_sections.append(get_failed_section(
                     batch_index, start, len(batch), REVIEW_PARTIAL_EVENT))
-                save_checkpoint(output_path, batch_index, total_batches, batch_size,
+                accounting = save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
                 continue
 
             stats = diff_entries(batch, corrected, highlight_pool, entry_offset=start)
@@ -1507,20 +1684,12 @@ def main():
             all_corrected.extend(corrected)
             previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
             batch_lengths.append(len(corrected))
-            save_checkpoint(output_path, batch_index, total_batches, batch_size,
+            accounting = save_checkpoint(output_path, batch_index, total_batches, batch_size,
                             args.context_window, all_corrected, total_stats, previous_tail,
-                            batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                            batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
     else:
-        total_batches_estimate = (len(entries) + batch_size - 1) // batch_size if entries else 0
         print(f"Split into {total_batches_estimate} batches of ~{batch_size} entries")
 
-        (all_corrected, total_stats, previous_tail, completed_batches, batch_lengths,
-         failed_batches, resume_offset, checkpoint) = _load_resume_state(
-            output_path, total_batches_estimate, batch_size, args.context_window,
-            entries, all_corrected, total_stats, execution_sha256=receipt_fingerprint)
-        source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
-        checkpoint_writer = GenerationCheckpointDeltas(
-            _checkpoint_path(output_path), reset=checkpoint is None)
         remaining_entries = entries[resume_offset:]
         remaining_batches = [remaining_entries[i:i + batch_size] for i in range(0, len(remaining_entries), batch_size)]
         total_batches = completed_batches + len(remaining_batches)
@@ -1587,9 +1756,9 @@ def main():
                     batch_lengths.append(len(batch))
                     failed_batches.append(i)
                     previous_tail = batch[-2:] if len(batch) >= 2 else batch
-                    save_checkpoint(output_path, i, total_batches, batch_size,
+                    accounting = save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
                     continue
 
                 corrected, review_status = result
@@ -1603,9 +1772,9 @@ def main():
                     entry_start = resume_offset + (i - completed_batches - 1) * batch_size + 1
                     failed_sections.append(get_failed_section(
                         i, entry_start - 1, len(batch), "review_failed"))
-                    save_checkpoint(output_path, i, total_batches, batch_size,
+                    accounting = save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
                     continue
 
                 # Text-loss safety check (same bounds as contextual mode for consistency)
@@ -1622,9 +1791,9 @@ def main():
                     entry_start = resume_offset + (i - completed_batches - 1) * batch_size + 1
                     failed_sections.append(get_failed_section(
                         i, entry_start - 1, len(batch), "text_length_mismatch", ratio))
-                    save_checkpoint(output_path, i, total_batches, batch_size,
+                    accounting = save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
                     continue
 
                 if review_status == 'partial':
@@ -1637,9 +1806,9 @@ def main():
                     entry_start = resume_offset + (i - completed_batches - 1) * batch_size
                     failed_sections.append(get_failed_section(
                         i, entry_start, len(batch), REVIEW_PARTIAL_EVENT))
-                    save_checkpoint(output_path, i, total_batches, batch_size,
+                    accounting = save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
-                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
                     continue
 
                 # Diff stats
@@ -1667,9 +1836,9 @@ def main():
                 all_corrected.extend(corrected)
                 previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
                 batch_lengths.append(len(corrected))
-                save_checkpoint(output_path, i, total_batches, batch_size,
+                accounting = save_checkpoint(output_path, i, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
-                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
 
             if vram_abort.is_set():
                 # Some batches in this wave may have already succeeded before
@@ -1730,10 +1899,10 @@ def main():
     output_entries = retain_literal_policy(output_entries, literal_policy)
 
     if not review_complete:
-        save_checkpoint(output_path, len(batch_lengths), total_batches, batch_size,
+        accounting = save_checkpoint(output_path, len(batch_lengths), total_batches, batch_size,
                         args.context_window, all_corrected, total_stats, previous_tail,
                         batch_lengths, failed_batches, source_sha256,
-                        _entries_fingerprint(output_entries), writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                        _entries_fingerprint(output_entries), writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
 
     # Write corrected script atomically so a crash mid-write doesn't corrupt the output
     atomic_json_write(output_entries, output_path)
@@ -1752,6 +1921,12 @@ def main():
         chunks_path = os.path.join(data_dir, "chunks.json")
         if remove_chunk_snapshot(chunks_path):
             print("Cleared old chunks.json")
+
+    accounting_unverified = accounting['metadata']['inherited_unverified']
+    print('REVIEW_ACCOUNTING_JSON: ' + json.dumps({'inherited_unverified': accounting_unverified}))
+    warning = get_review_accounting_warning({'accounting_unverified': accounting_unverified})
+    if warning:
+        print('WARNING: ' + warning)
 
     # Final summary
     total_changes = (total_stats["text_changed"] + total_stats["speaker_changed"] +
@@ -1804,6 +1979,8 @@ def main():
               "(e.g. close other GPU apps) and re-run to review the rest.")
     elif not review_complete:
         print("Review remains incomplete; unresolved batches will retry on resume.")
+    elif accounting_unverified:
+        print(f"Review recorded {total_changes} changes; historical counts are unverified.")
     elif total_changes == 0:
         print("No issues found -- script looks clean.")
     else:

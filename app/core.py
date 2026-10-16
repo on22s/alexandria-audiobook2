@@ -1575,6 +1575,7 @@ def _new_review_totals() -> dict:
     """Zeroed accumulator matching the keys _extract_review_stats() may set."""
     totals = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
     totals["books_done"] = 0
+    totals['accounting_unverified'] = False
     return totals
 
 
@@ -1589,10 +1590,23 @@ def _extract_review_stats(lines: List[str]) -> Optional[dict]:
     stats["entries_before"] = int(entries_match.group(1))
     stats["entries_after"] = int(entries_match.group(2))
     for line in lines:
+        if line.startswith('REVIEW_ACCOUNTING_JSON: '):
+            try:
+                accounting = json.loads(line.split(': ', 1)[1])
+                unverified = accounting['inherited_unverified']
+                if type(unverified) is not bool:
+                    raise ValueError('Invalid review accounting flag')
+                if unverified:
+                    stats['accounting_unverified'] = True
+            except (ValueError, KeyError, TypeError):
+                logger.warning('Malformed review accounting summary; historical counts are unverified.')
+                stats['accounting_unverified'] = True
         for key, pattern in _REVIEW_SUMMARY_PATTERNS.items():
             m = pattern.search(line)
             if m:
                 stats[key] = int(m.group(1))
+    if stats.get('accounting_unverified'):
+        stats['accounting_warning'] = get_review_accounting_warning(stats)
     return stats
 
 
@@ -1607,13 +1621,17 @@ def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
     actually contributed to this total"."""
     combined = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
     combined["partial"] = False
+    combined['accounting_unverified'] = False
     for stats in stat_dicts:
         if not stats:
             combined["partial"] = True
             continue
-        for key in combined:
-            if key != "partial":
-                combined[key] += stats.get(key, 0)
+        for key in _REVIEW_SUMMARY_PATTERNS:
+            combined[key] += stats.get(key, 0)
+        combined['partial'] = combined['partial'] or bool(stats.get('partial'))
+        combined['accounting_unverified'] = (combined['accounting_unverified']
+                                            or bool(stats.get('accounting_unverified')))
+    combined['accounting_warning'] = get_review_accounting_warning(combined)
     return combined
 
 
@@ -1736,6 +1754,8 @@ def _format_book_summary(i: int, total: int, tag: str, name: str, stats: dict) -
         bits.append(f"{stats['batches_failed']} batch(es) failed")
     if stats["batches_skipped_vram"]:
         bits.append(f"{stats['batches_skipped_vram']} batch(es) skipped (VRAM)")
+    if get_review_accounting_warning(stats):
+        bits.append(get_review_accounting_warning(stats))
     return f">>> [{i+1}/{total}]{tag} '{name}' done: {', '.join(bits)} <<<"
 
 
@@ -1748,6 +1768,8 @@ def _format_pass_summary(label: str, totals: dict, aliases: List[dict], show_ali
         lines.append(f"  Narrators merged: {totals['narrators_merged']}, Speakers merged: {totals['speakers_merged']}")
     if totals["batches_failed"] or totals["batches_skipped_vram"]:
         lines.append(f"  Batches failed: {totals['batches_failed']}, skipped (VRAM): {totals['batches_skipped_vram']}")
+    if get_review_accounting_warning(totals):
+        lines.append('  ' + get_review_accounting_warning(totals))
     if show_aliases:
         if aliases:
             lines.append(f"  New alias(es) found ({len(aliases)}):")
@@ -1780,9 +1802,19 @@ def _markdown_stats_table(stats: dict) -> List[str]:
     return lines
 
 
+def get_review_accounting_warning(stats: dict) -> str:
+    """Keep uncertainty visible without changing completed-content status."""
+    if stats.get('accounting_unverified'):
+        return ('Historical review change counts are unverified: saved batch ownership '
+                'could not be reconstructed. Saved corrections were preserved.')
+    return ''
+
+
 def _markdown_heads_up_lines(stats: dict) -> List[str]:
     """Plain-language notes about anything the reviewer couldn't finish."""
     lines = []
+    if get_review_accounting_warning(stats):
+        lines.append('- ' + get_review_accounting_warning(stats))
     if stats.get("batches_failed"):
         lines.append(f"- {stats['batches_failed']} section(s) ran into an error and were left "
                       f"unchanged. Running the review again may fix these.")
@@ -1799,6 +1831,8 @@ _HIGH_CHANGE_DENSITY_THRESHOLD = 0.20
 
 def _markdown_change_density_lines(stats: dict) -> List[str]:
     """Warn about broad review passes without treating change volume as failure."""
+    if stats.get('accounting_unverified'):
+        return []
     entries_before = stats.get("entries_before", 0)
     entries_changed = stats.get("entries_changed", 0)
     if entries_before < _HIGH_CHANGE_DENSITY_MIN_ENTRIES:
@@ -2045,6 +2079,9 @@ _UNSUPPORTED_SUMMARY_CLAIMS = (
 def _get_deterministic_review_summary(stats: dict, incomplete: bool) -> str:
     """Describe verified review status without making a quality judgment."""
     total_changes = stats.get("total_changes", 0)
+    accounting_warning = get_review_accounting_warning(stats)
+    if accounting_warning:
+        accounting_warning = ' ' + accounting_warning
     if incomplete:
         failed = stats.get("batches_failed", 0)
         skipped = stats.get("batches_skipped_vram", 0)
@@ -2057,11 +2094,12 @@ def _get_deterministic_review_summary(stats: dict, incomplete: bool) -> str:
         return (
             f"This review was incomplete: {reason}. Completed sections reported "
             f"{total_changes} change(s). Check the warnings below before generating audio."
+            + accounting_warning
         )
     return (
         "The automated review completed without recorded failed or skipped sections. "
         f"It reported {total_changes} change(s); the detailed counts and examples below "
-        "show what changed."
+        "show what changed." + accounting_warning
     )
 
 

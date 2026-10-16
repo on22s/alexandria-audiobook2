@@ -780,6 +780,7 @@
   "test_batch_review_task_snapshots": [
     "tests.test_batch_review_task_snapshots.BatchReviewTaskSnapshotTests.test_legacy_generic_only_state_keeps_existing_response",
     "tests.test_batch_review_task_snapshots.BatchReviewTaskSnapshotTests.test_missing_backward_pass_is_partial_only_for_bidirectional_runs",
+    "tests.test_batch_review_task_snapshots.BatchReviewTaskSnapshotTests.test_status_delivers_shared_uncertainty_warning_without_changing_task_state",
     "tests.test_batch_review_task_snapshots.BatchReviewTaskSnapshotTests.test_status_discards_stale_generic_copies_and_keeps_pass_results",
     "tests.test_batch_review_task_snapshots.BatchReviewTaskSnapshotTests.test_successive_status_reads_follow_pass_updates_without_generic_writes"
   ],
@@ -7056,6 +7057,24 @@
     "tests.test_retrofit_matcher.SourceSelectionTest.test_short_lines_are_not_used_as_probes",
     "tests.test_retrofit_matcher.SourceSelectionTest.test_the_right_source_wins_and_is_reported",
     "tests.test_retrofit_matcher.SourceSelectionTest.test_two_equally_good_sources_are_refused"
+  ],
+  "test_review_change_accounting": [
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_actual_frontend_displays_supplied_warning_and_escapes_live_totals",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_actual_separate_input_repeated_rewind_counts_one_edit_once_in_both_modes",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_failed_save_advances_runtime_then_native_delta_replay_has_two_batches",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_impossible_accounting_rewind_keeps_readable_counts_unowned",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_in_place_promotes_previous_edits_and_equal_hash_resume_keeps_them",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_invalid_ledger_history_stays_warned_across_source_and_output_resumes",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_invalid_structured_summary_is_not_reported_as_verified_zero",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_legacy_missing_lengths_stays_unowned_and_warning_survives_completion_report",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_native_missing_entries_changed_migration_preserves_zero_but_warns",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_output_resume_without_rewind_rebases_merged_source_coordinates",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_repeated_text_split_merge_counts_remain_per_batch",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_report_and_per_book_pass_merger_keep_uncertainty_boolean",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_stale_malformed_counter_checkpoint_keeps_native_ignore_policy",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_successful_prefix_partial_middle_and_redone_suffix_have_distinct_contributions",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_unknown_multi_batch_delta_is_not_split_into_invented_rows_or_mutated",
+    "tests.test_review_change_accounting.ReviewAccountingTests.test_unreadable_accepted_counts_stop_before_benchmark_and_preserve_all_artifacts"
   ],
   "test_review_checkpoint_deltas": [
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_actual_full_review_cli_uses_one_delta_writer_and_retires_its_scope",

@@ -75,9 +75,10 @@ class ReviewCheckpointDeltaTests(unittest.TestCase):
             writers, formats = [], []
 
             def observe(*args, **kwargs):
-                native_save(*args, **kwargs)
+                accounting = native_save(*args, **kwargs)
                 writers.append(kwargs.get('writer'))
                 formats.append(json.loads(Path(review._checkpoint_path(str(output))).read_text()).get('storage'))
+                return accounting
 
             with patch.object(review, 'save_checkpoint', side_effect=observe):
                 fixtures.ReviewVramTests().run_review(output, [True] * 4,
@@ -232,8 +233,9 @@ class ReviewResumeCoordinateTests(unittest.TestCase):
                 review.save_checkpoint(str(output), 1, 2, 2, context, corrected, self.stats(), corrected[-2:], [3], [], review._entries_fingerprint(original), execution_sha256='fixture')
                 recorded = []; native_save = review.save_checkpoint
                 def save_and_read(*args, **kwargs):
-                    native_save(*args, **kwargs)
+                    accounting = native_save(*args, **kwargs)
                     recorded.append(deltas.load_generation_checkpoint_document(review._checkpoint_path(str(output))).get('source_offsets'))
+                    return accounting
                 with contextlib.ExitStack() as stack:
                     for name, value in [('get_runtime_data_dir', tmp), ('load_app_config', {'generation': {'review_batch_size': 2}, 'llm_mode': 'remote'}), ('get_active_llm_config', {'model_name': 'fixture'}), ('ensure_ideal_settings', (True, {}, 'fixture')), ('make_run_client', object()), ('get_completed_review_fingerprint', 'fixture'), ('get_cached_or_benchmarked_concurrency', 1), ('get_current_status', {'loaded': False})]:
                         stack.enter_context(patch.object(review, name, return_value=value))

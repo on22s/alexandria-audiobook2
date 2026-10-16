@@ -2096,10 +2096,9 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
                 if stats:
                     state["tasks"][i][f"stats_{pass_key}"] = stats
                     totals = state["totals_bwd"] if tag == " [bwd]" else state["totals_fwd"]
-                    for key in totals:
-                        if key != "books_done":
-                            totals[key] += stats[key]
-                    totals["books_done"] += 1
+                    combined = _combine_pass_stats(totals, stats)
+                    combined['books_done'] = totals['books_done'] + 1
+                    totals.update(combined)
                     state["logs"].append(_format_book_summary(i, total, tag, name, stats))
                 else:
                     # The subprocess exited 0 but its "Review complete: X -> Y

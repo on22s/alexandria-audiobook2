@@ -7,6 +7,7 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from routers import script
+from core import _extract_review_stats, _combine_pass_stats, get_review_accounting_warning
 
 if os.environ.get('BATCH_REVIEW_SOURCE'):
     spec=importlib.util.spec_from_file_location('saved_review_router',os.environ['BATCH_REVIEW_SOURCE'])
@@ -50,6 +51,29 @@ class BatchReviewTaskSnapshotTests(unittest.TestCase):
         task={'name':'Old','status':'done','stats':{'total_changes':4},
               'diffs':{'text_rewrites':[]},'failures':{'sections':[]}}
         self.assertEqual(task,self.status({'running':False,'tasks':[task]})['tasks'][0])
+
+    def test_status_delivers_shared_uncertainty_warning_without_changing_task_state(self):
+        uncertain = _extract_review_stats(['Review complete: 6 -> 6 entries',
+            'Speaker changed: 2', 'Total changes: 2',
+            'REVIEW_ACCOUNTING_JSON: {"inherited_unverified": true}'])
+        known = _extract_review_stats(['Review complete: 6 -> 6 entries',
+            'Speaker changed: 1', 'Total changes: 1',
+            'REVIEW_ACCOUNTING_JSON: {"inherited_unverified": false}'])
+        self.assertNotIn('accounting_warning', known)
+        warning = get_review_accounting_warning(uncertain)
+        self.assertTrue(warning)
+        task = {'name': 'Book', 'status': 'done', 'stats_fwd': uncertain, 'stats_bwd': known}
+        totals = {**_combine_pass_stats(uncertain, known), 'books_done': 1}
+        state = {'running': False, 'bidirectional': True, 'tasks': [task], 'totals_fwd': totals}
+        before = copy.deepcopy(state)
+        result = self.status(state)
+        stats = result['tasks'][0]['stats']
+        self.assertEqual(3, stats['speaker_changed'])
+        self.assertIs(True, stats['accounting_unverified'])
+        self.assertEqual(warning, stats['accounting_warning'])
+        self.assertEqual(warning, result['tasks'][0]['stats_fwd']['accounting_warning'])
+        self.assertEqual(warning, result['totals_fwd']['accounting_warning'])
+        self.assertEqual(before, state)
 
     def test_successive_status_reads_follow_pass_updates_without_generic_writes(self):
         task={'name':'Book','status':'running','stats_fwd':{'total_changes':2},
