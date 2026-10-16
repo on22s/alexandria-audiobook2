@@ -549,12 +549,14 @@ def make_provider(variant, alias_groups=None, texts=None):
                  max_retries, validate_entries, attempt_observer, frozen_batch,
                  roster=None, neighbor_contexts=None, surround=None, roster_traits=None,
                  retry_decider=None, transform_entries=None, **_ignored):
+        from dataclasses import replace
+        from three_pass_generate import get_exact_index_schema
         michel2_family = variant.startswith("michel2")
         sys_prompt, body = build_request(
             frozen_batch, params, roster, neighbor_contexts, surround, roster_traits)
         validator = validate_entries
+        request_indexes = list(range(len(frozen_batch)))
         if variant == "judge":
-            from dataclasses import replace
             params = replace(params, response_schema=JUDGE_RESPONSE_SCHEMA)
 
             def validator(entries):
@@ -566,12 +568,8 @@ def make_provider(variant, alias_groups=None, texts=None):
                         "findings": list(report.get("findings", [])) + reasons["findings"]}
 
         if is_spoken_only_variant(variant):
-            from dataclasses import replace
-            from three_pass_generate import get_exact_index_schema
             spoken_indexes = [i for i, row in enumerate(frozen_batch) if row["type"] == "SPOKEN"]
-            if spoken_indexes:
-                params = replace(params, response_schema=get_exact_index_schema(
-                    params.response_schema, spoken_indexes))
+            request_indexes = spoken_indexes
             base_validator = validator
 
             def validator(entries):
@@ -582,6 +580,9 @@ def make_provider(variant, alias_groups=None, texts=None):
                 expanded, _ = get_expanded_spoken_answer(frozen_batch, [])
                 return expanded if base_validator(expanded)["passed"] else []
 
+        if params.response_schema is not None:
+            params = replace(params, response_schema=get_exact_index_schema(
+                params.response_schema, request_indexes, frozen_entries=frozen_batch))
         named = call_llm_for_entries(
             client, model_name, sys_prompt, body, params, log_name=log_name, label=label,
             max_retries=max_retries, validate_entries=validator,

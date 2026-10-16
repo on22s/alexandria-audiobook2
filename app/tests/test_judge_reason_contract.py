@@ -89,11 +89,27 @@ class JudgeReasonContractTests(unittest.TestCase):
                                entries_provider=apv.make_provider('judge'))
         schema = client.calls[0]['response_format']['json_schema']['schema']
         branches = schema['items']['anyOf']
-        self.assertEqual(original['schema']['items'], branches[0])
-        self.assertEqual({'type': 'string'}, branches[1]['properties']['why'])
-        self.assertEqual(['n', 'speaker', 'why'], branches[1]['required'])
-        self.assertFalse(branches[1]['additionalProperties'])
-        self.assertEqual({'n', 'speaker', 'why'}, set(branches[1]['properties']))
+        self.assertEqual(4, len(branches))
+        self.assertEqual((2, 2), (schema['minItems'], schema['maxItems']))
+        for branch in branches:
+            fields = {'n', 'speaker'}
+            if 'why' in branch['properties']:
+                fields.add('why')
+                self.assertEqual({'type': 'string'}, branch['properties']['why'])
+            self.assertEqual(fields, set(branch['required']))
+            self.assertEqual(fields, set(branch['properties']))
+            self.assertFalse(branch['additionalProperties'])
+            indexes = branch['properties']['n']['enum']
+            self.assertIn(indexes, ([0], [1]))
+            self.assertEqual(tp.SPEAKER_MAX_CHARS, branch['properties']['speaker']['maxLength'])
+            if indexes == [0]:
+                self.assertEqual('NARRATOR', branch['properties']['speaker']['const'])
+            else:
+                self.assertNotIn('const', branch['properties']['speaker'])
+        self.assertEqual(
+            [((0,), False), ((0,), True), ((1,), False), ((1,), True)],
+            sorted((tuple(branch['properties']['n']['enum']),
+                    'why' in branch['properties']) for branch in branches))
         self.assertEqual(original, tp.ATTRIBUTION_RESPONSE_SCHEMA)
         self.assertIs(params.response_schema, tp.ATTRIBUTION_RESPONSE_SCHEMA)
 

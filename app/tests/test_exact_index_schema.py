@@ -45,10 +45,16 @@ THREE = [{"type": "SPOKEN", "text": "Come here,"},
 
 
 class ExactIndexSchemaTests(unittest.TestCase):
+    def get_item_alternatives(self, schema):
+        items = schema["items"]
+        return items.get("anyOf", [items])
+
     def assert_exact(self, schema, size):
         self.assertEqual(size, schema["minItems"])
         self.assertEqual(size, schema["maxItems"])
-        self.assertEqual(list(range(size)), schema["items"]["properties"]["n"]["enum"])
+        indexes = [index for item in self.get_item_alternatives(schema)
+                   for index in item["properties"]["n"]["enum"]]
+        self.assertEqual(list(range(size)), sorted(indexes))
 
     def test_one_entry_window_allows_exactly_one_row(self):
         self.assert_exact(run_window(ONE), 1)
@@ -59,12 +65,14 @@ class ExactIndexSchemaTests(unittest.TestCase):
     def test_traits_schema_is_narrowed_too(self):
         schema = run_window(THREE, speaker_traits=True)
         self.assert_exact(schema, 3)
-        self.assertIn("gender", schema["items"]["properties"])
+        for item in self.get_item_alternatives(schema):
+            self.assertIn("gender", item["properties"])
 
     def test_speaker_length_is_capped(self):
         # a local run looped one name inside a single speaker value to the cap
         schema = run_window(THREE)
-        self.assertEqual(tp.SPEAKER_MAX_CHARS, schema["items"]["properties"]["speaker"]["maxLength"])
+        for item in self.get_item_alternatives(schema):
+            self.assertEqual(tp.SPEAKER_MAX_CHARS, item["properties"]["speaker"]["maxLength"])
         self.assertGreaterEqual(tp.SPEAKER_MAX_CHARS, 52)   # longest gold label
 
     def test_shared_schema_is_not_mutated(self):

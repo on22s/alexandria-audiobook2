@@ -637,7 +637,7 @@ def wrap_window_surround(user_prompt, surround, instruct=False):
 # What the attribution pass asks the server to constrain replies to, when
 # the profile's structured_output is "auto" (issue #522 s9.1). Validation of
 # the CONTENT (index head check, text freeze, roster membership) is unchanged:
-# the schema only guarantees the shape.
+# the window schema also fixes the already-frozen narration labels.
 ATTRIBUTION_RESPONSE_SCHEMA = {
     "name": "speaker_attribution",
     "schema": {
@@ -650,6 +650,8 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
         },
     },
 }
+
+ATTRIBUTION_SCHEMA_POLICY = "frozen_narration_v1"
 
 
 def get_attribution_response_schema(speaker_traits=False, indexes=None):
@@ -667,7 +669,7 @@ def get_attribution_response_schema(speaker_traits=False, indexes=None):
 SPEAKER_MAX_CHARS = 80
 
 
-def get_exact_index_schema(schema, indexes):
+def get_exact_index_schema(schema, indexes, *, frozen_entries=None):
     """`schema` narrowed to one row per index, each `n` drawn from `indexes`.
 
     A grammar-constrained server (llama.cpp) then cannot return a wrong row
@@ -678,12 +680,45 @@ def get_exact_index_schema(schema, indexes):
     strict-schema providers accept; a server that rejects it falls back for
     the run like any schema rejection. Labels are still the model's.
 
+    With frozen entries, narration indexes can only produce NARRATOR. Each
+    alternative is a complete object schema so grammar converters cannot
+    discard constraints beside an anyOf. Existing alternatives (judge reasons)
+    and sparse index selections retain their own fields.
+
     `speaker` is also capped at SPEAKER_MAX_CHARS: with only the row count
     fixed, a Pass 2 window on a local run (Qwen3-14B, 2026-10-13) answered
     with one name repeated inside a single speaker value until the cap, four
     times, each retry with a larger budget. The longest gold speaker label in any fixture is 52
     characters."""
     indexes = list(indexes)
+    original_items = schema["schema"]["items"]
+    if frozen_entries is not None or "anyOf" in original_items:
+        alternatives = []
+        for item in original_items.get("anyOf", [original_items]):
+            allowed = item["properties"]["n"].get("enum", indexes)
+            selected = [index for index in indexes if index in allowed]
+            groups = [(selected, False)]
+            if frozen_entries is not None:
+                groups = [([index for index in selected
+                            if frozen_entries[index]["type"] == "SPOKEN"], False),
+                          ([index for index in selected
+                            if frozen_entries[index]["type"] != "SPOKEN"], True)]
+            for group, narration in groups:
+                if not group:
+                    continue
+                narrowed = get_exact_index_schema(
+                    {**schema, "schema": {**schema["schema"], "items": item}}, group)
+                narrowed_item = narrowed["schema"]["items"]
+                if narration:
+                    narrowed_item["properties"]["speaker"] = {
+                        **narrowed_item["properties"]["speaker"], "const": "NARRATOR"}
+                alternatives.append(narrowed_item)
+        if indexes and not alternatives:
+            raise ValueError("No attribution schema alternative covers the requested indexes")
+        items = (alternatives[0] if len(alternatives) == 1
+                 else {"anyOf": alternatives} if alternatives else original_items)
+        return {**schema, "schema": {**schema["schema"], "items": items,
+                                     "minItems": len(indexes), "maxItems": len(indexes)}}
     items = dict(schema["schema"]["items"])
     properties = {**items["properties"], "n": {"type": "integer", "enum": indexes}}
     if "speaker" in properties:
@@ -897,9 +932,11 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     # function safe - validate_attribution's text freeze, the index_head_check
     # binding, the exhaustion path - is shared by any provider, so an
     # alternative attribution strategy cannot quietly skip them. Default None
-    # is the production path, byte-identical to before.
+    # uses the canonical attribution prompt and the same role-bound schema.
     transform_kwargs = {"transform_entries": transform} if repair_exact_shift else {}
     if entries_provider is None:
+        call_params = replace(call_params, response_schema=get_exact_index_schema(
+            call_params.response_schema, range(len(frozen_batch)), frozen_entries=frozen_batch))
         named = call_llm_for_entries(
             client, model_name, sys_prompt, user_prompt, call_params,
             log_name="llm_responses.log", label="ATTRIBUTE",
@@ -2277,6 +2314,9 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         "collect_all_failures": collect_all_failures,
         # Older checkpoints cannot prove the voting/seed/reasoning controls.
         "pipeline_version": 9,
+        # A free-form primary can fail over to structured output, so bind
+        # the schema policy even when the initial profile has it disabled.
+        "attribution_schema_policy": ATTRIBUTION_SCHEMA_POLICY,
         "attribution_votes": attribution_votes,
         "vote_temperature": vote_temperature,
         "first_person_narrator": normalize_narrator_name(first_person_narrator),

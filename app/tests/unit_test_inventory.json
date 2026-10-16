@@ -524,6 +524,16 @@
     "tests.test_attribution_hybrid.AttributionHybridTest.test_preserves_source_alias_aware_correctness",
     "tests.test_attribution_hybrid.AttributionHybridTest.test_select_policy_uses_pilot_labels_and_returns_reusable_policy"
   ],
+  "test_attribution_narration_schema": [
+    "tests.test_attribution_narration_schema.NarrationSchemaTests.test_all_builtin_requests_retain_their_fields_and_target_indexes",
+    "tests.test_attribution_narration_schema.NarrationSchemaTests.test_ignored_schema_keeps_native_refusal_and_existing_retry_budget",
+    "tests.test_attribution_narration_schema.NarrationSchemaTests.test_native_request_binds_narration_indexes_without_a_name_whitelist",
+    "tests.test_attribution_narration_schema.NarrationSchemaTests.test_policy_revision_invalidates_checkpoint_identity_including_freeform_failover",
+    "tests.test_attribution_narration_schema.NarrationSchemaTests.test_schema_and_frozen_inputs_are_not_mutated",
+    "tests.test_attribution_narration_schema.NarrationSchemaTests.test_single_role_and_sparse_renarrowing_have_no_empty_alternatives",
+    "tests.test_attribution_narration_schema.NarrationSchemaTests.test_structured_off_keeps_native_validation_without_sending_a_schema",
+    "tests.test_attribution_narration_schema.NarrationSchemaTests.test_trait_fields_survive_on_both_source_roles"
+  ],
   "test_attribution_phonetic_identity": [
     "tests.test_attribution_phonetic_identity.PhoneticIdentityTests.test_declared_variants_preserve_separate_exact_and_phonetic_metrics",
     "tests.test_attribution_phonetic_identity.PhoneticIdentityTests.test_gold_fixtures_keep_answers_and_aliases_with_consistent_variant_declarations",

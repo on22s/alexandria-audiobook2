@@ -1640,12 +1640,20 @@ class AttributionSchemaTransportTests(unittest.TestCase):
                     if mode == "auto":
                         schema = payload["response_format"]["json_schema"]
                         self.assertTrue(schema["strict"])
-                        item = schema["schema"]["items"]
-                        self.assertFalse(item["additionalProperties"])
-                        self.assertEqual({"n", "speaker"}, set(item["required"]))
-                        self.assertEqual({"n", "speaker"}, set(item["properties"]))
+                        items = schema["schema"]["items"]
+                        alternatives = items.get("anyOf", [items])
+                        for item in alternatives:
+                            self.assertFalse(item["additionalProperties"])
+                            self.assertEqual({"n", "speaker"}, set(item["required"]))
+                            self.assertEqual({"n", "speaker"}, set(item["properties"]))
                         for response in responses:
+                            matches = [item for item in alternatives
+                                       if response["n"] in item["properties"]["n"]["enum"]]
+                            self.assertEqual(1, len(matches))
+                            item = matches[0]
                             self.assertEqual(set(item["required"]), set(response))
+                            if "const" in item["properties"]["speaker"]:
+                                self.assertEqual(item["properties"]["speaker"]["const"], response["speaker"])
                     else:
                         self.assertNotIn("response_format", payload)
                     return httpx.Response(200, json={
