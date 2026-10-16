@@ -404,10 +404,8 @@ def _load_audio_segment(path, **kwargs):
 
 def _export_audio_segment(segment, path, format_name, cancel_check=None, **kwargs):
     """Export audio with an explicitly owned output handle."""
-    easy_wav = (format_name == 'wav' and kwargs.get('codec') is None
-                and kwargs.get('parameters') is None)
-    if cancel_check is not None or not easy_wav:
-        from audio_export import export_audio_segment
+    from audio_export import export_audio_segment, is_easy_wav_export
+    if cancel_check is not None or not is_easy_wav_export(format_name, kwargs):
         return export_audio_segment(segment, path, format_name, cancel_check, **kwargs)
     with open(path, "wb+") as target:
         segment.export(target, format=format_name, **kwargs)

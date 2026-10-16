@@ -2,11 +2,85 @@
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
+import wave
 
 from subprocess_ownership import start_owned_subprocess
+
+
+def is_easy_wav_export(format_name, options):
+    return (format_name == 'wav' and options.get('codec') is None
+            and options.get('parameters') is None)
+
+
+def write_pcm_wav(raw_path, output_path, settings):
+    """Write ordinary easy-WAV PCM in blocks, or defer to the native exporter."""
+    if type(settings) is not dict:
+        return False
+    options = settings.get('options')
+    if (type(options) is not dict or type(settings.get('format')) is not str
+            or not options.keys() <= {'codec', 'parameters', 'bitrate', 'tags', 'id3v2_version', 'cover'}
+            or not is_easy_wav_export(settings['format'], options)):
+        return False
+    width, rate, channels = (settings.get(key) for key in ('sample_width', 'frame_rate', 'channels'))
+    if (any(type(value) is not int or value <= 0 for value in (width, rate, channels))
+            or width not in (1, 2, 4)):
+        return False
+    frame_width = width * channels
+    block_size = (65536 // frame_width) * frame_width
+    if not block_size:
+        return False
+
+    from pydub.audio_segment import audioop
+    handles = []
+    primary_error = False
+    try:
+        source = open(raw_path, 'rb')
+        handles.append(source)
+        info = os.fstat(source.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size % frame_width:
+            return False
+        target = open(output_path, 'wb+')
+        handles.append(target)
+        target.seek(0)
+        stream = wave.open(target, 'wb')
+        handles.append(stream)
+        stream.setnchannels(channels)
+        stream.setsampwidth(width)
+        stream.setframerate(rate)
+        stream.setnframes(int(float(info.st_size // frame_width)))
+        # Let wave pack the same native header/RIFF fields before reading PCM.
+        stream.writeframesraw(b'')
+        remaining = info.st_size
+        while remaining:
+            data = source.read(min(remaining, block_size))
+            if not data or len(data) % frame_width:
+                raise OSError('PCM snapshot ended before its declared frame count')
+            remaining -= len(data)
+            if width == 1:
+                data = audioop.bias(data, 1, 128)
+            stream.writeframesraw(data)
+        if source.read(1):
+            raise OSError('PCM snapshot grew during WAV export')
+        stream.close()
+        target.seek(0)
+        return True
+    except BaseException:
+        primary_error = True
+        raise
+    finally:
+        close_error = None
+        for handle in reversed(handles):
+            try:
+                handle.close()
+            except BaseException as error:
+                if not primary_error and close_error is None:
+                    close_error = error
+        if close_error is not None:
+            raise close_error
 
 
 def get_encoder_exception(path, fallback):
@@ -87,6 +161,8 @@ def export_audio_segment(segment, path, format_name, cancel_check, **kwargs):
 
 def run_encoder(raw_path, output_path, settings):
     from pydub import AudioSegment
+    if write_pcm_wav(raw_path, output_path, settings):
+        return
     segment = AudioSegment(data=Path(raw_path).read_bytes(),
                            sample_width=settings['sample_width'],
                            frame_rate=settings['frame_rate'], channels=settings['channels'])
