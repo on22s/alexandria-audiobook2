@@ -133,6 +133,76 @@ class ReviewSourceBindingTests(unittest.TestCase):
         self.assertEqual(2, len(calls))
         self.assertTrue(all('narrator_renamed' in attempt['failure_codes'] for attempt in attempts))
 
+    def test_exact_full_review_retries_narration_rename_despite_model_role_fields(self):
+        source = [row('The rain stopped.', speaker='BOB', spoken=False, type='SPOKEN',
+                      source_span=[4, 21], pause_after=700)]
+        bad = [row(source[0]['text'], speaker='ALICE', spoken=True)]
+        good = [row(source[0]['text'], speaker='NARRATOR')]
+        output, calls, attempts = self.run_review(source, [bad, good])
+        self.assertEqual(2, len(calls))
+        self.assertIn('narrator_renamed', attempts[0]['failure_codes'])
+        self.assertEqual([{**source[0], 'speaker': 'NARRATOR'}], output)
+        self.assertIsNot(source[0]['source_span'], output[0]['source_span'])
+        self.assertIn('source-confirmed narration', calls[0]['messages'][-1]['content'])
+
+    def test_full_review_split_and_merge_keep_confirmed_narration_roles(self):
+        split_source = [row('Rain fell. Wind rose.', speaker='NARRATOR', spoken=False,
+                            provenance={'section': 1}, pause_after=700)]
+        merge_source = [row('Rain fell.', speaker='NARRATOR', spoken=False, provenance={'section': 1}),
+                        row('Wind rose.', speaker='NARRATOR', spoken=False,
+                            provenance={'section': 1}, pause_after=700)]
+        for source, texts in ((split_source, ['Rain fell.', 'Wind rose.']),
+                              (merge_source, ['Rain fell. Wind rose.'])):
+            with self.subTest(texts=texts):
+                bad = [row(text, speaker='ALICE') for text in texts]
+                good = [row(text, speaker='NARRATOR') for text in texts]
+                output, calls, attempts = self.run_review(source, [bad, good])
+                self.assertEqual(2, len(calls))
+                self.assertIn('narrator_renamed', attempts[0]['failure_codes'])
+                self.assertEqual(texts, [entry['text'] for entry in output])
+                self.assertTrue(all(entry['speaker'] == 'NARRATOR' and entry['spoken'] is False
+                                    for entry in output))
+                self.assertEqual([None] * (len(texts) - 1) + [700],
+                                 [entry.get('pause_after') for entry in output])
+
+    def test_full_review_preserves_speech_and_legacy_boundary_corrections(self):
+        for spoken in (True, None, 0, 1, 'false', [], {}, Ellipsis):
+            with self.subTest(spoken=spoken):
+                source = [row('Hello. Rain fell.', speaker='NARRATOR', type='NARRATOR', pause_after=700)]
+                if spoken is not Ellipsis:
+                    source[0]['spoken'] = spoken
+                reply = [row('Hello.', speaker='ALICE'), row('Rain fell.', speaker='NARRATOR')]
+                output, calls, _ = self.run_review(source, [reply])
+                self.assertEqual(['ALICE', 'NARRATOR'], [entry['speaker'] for entry in output])
+                self.assertEqual([None, 700], [entry.get('pause_after') for entry in output])
+                self.assertEqual(1, len(calls))
+                self.assertNotIn('source-confirmed narration', calls[0]['messages'][-1]['content'])
+
+    def test_full_review_uses_positional_source_roles_for_repeated_text(self):
+        source = [row('Wait.', speaker='NARRATOR', spoken=False),
+                  row('Wait.', speaker='NARRATOR', spoken=True)]
+        bad = [row('Wait.', speaker='ALICE'), row('Wait.', speaker='ALICE')]
+        good = [row('Wait.', speaker='NARRATOR'), row('Wait.', speaker='ALICE')]
+        output, calls, attempts = self.run_review(source, [bad, good])
+        self.assertEqual(2, len(calls))
+        self.assertIn('narrator_renamed', attempts[0]['failure_codes'])
+        self.assertEqual([False, True], [entry['spoken'] for entry in output])
+        self.assertEqual(['NARRATOR', 'ALICE'], [entry['speaker'] for entry in output])
+
+    def test_full_review_refuses_merges_that_erase_boolean_role_facts(self):
+        for spoken in ((0, False), (False, 0), (1, True), (True, 1)):
+            with self.subTest(spoken=spoken):
+                source = [row('Rain fell.', speaker='NARRATOR', spoken=spoken[0]),
+                          row('Wind rose.', speaker='NARRATOR', spoken=spoken[1])]
+                reply = [row('Rain fell. Wind rose.', speaker='NARRATOR')]
+                output, _, attempts = self.run_review(source, [reply])
+                self.assertIsNone(output)
+                self.assertIn('review_metadata_conflict', attempts[0]['failure_codes'])
+        source = [row('Rain fell.', spoken=0), row('Wind rose.', spoken=0)]
+        output, _, _ = self.run_review(source, [[row('Rain fell. Wind rose.')]])
+        self.assertEqual(0, output[0]['spoken'])
+        self.assertIs(type(output[0]['spoken']), int)
+
     def test_lossless_single_source_split_copies_metadata_and_pauses_only_at_source_end(self):
         source = [row('Hello, said Alice; goodbye.', pause_after=1500,
                       speaker_gender='female', speaker_age_group='young_adult',

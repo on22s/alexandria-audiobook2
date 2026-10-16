@@ -883,6 +883,12 @@ REVIEW_LABEL_SYSTEM = (
     'label the surrounding context. Source text is immutable; only labels are editable.')
 
 
+def get_review_source_narration(entry):
+    """Return the source's narration fact, or None when it is unestablished."""
+    spoken = entry.get('spoken')
+    return not spoken if type(spoken) is bool else None
+
+
 def get_review_label_binding(batch_entries, entries):
     """Validate complete indexes and label fields, without trusting model text."""
     from pass_quality import index_head_check
@@ -893,10 +899,8 @@ def get_review_label_binding(batch_entries, entries):
     else:
         for i, row in enumerate(ordered):
             original = batch_entries[i]
-            spoken = original.get("spoken")
-            if type(spoken) is bool:
-                is_narration = not spoken
-            else:
+            is_narration = get_review_source_narration(original)
+            if is_narration is None:
                 is_narration = (original.get("type") == "NARRATOR" or
                                 (original.get("type") != "SPOKEN" and original.get("speaker") == "NARRATOR"))
             if is_narration and row.get("speaker") != "NARRATOR":
@@ -1007,12 +1011,18 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
         metadata = [{key: value for key, value in original.items()
                      if key not in ('speaker', 'text', 'instruct', 'pause_after')}
                     for _, _, original in sources]
-        if not sources or any(value != metadata[0] for value in metadata[1:]):
+        source_roles = [get_review_source_narration(original) for _, _, original in sources]
+        if (not sources or any(value != metadata[0] for value in metadata[1:])
+                or any(role is not source_roles[0] for role in source_roles[1:])):
             findings.append({"code": "review_metadata_conflict", "entry_number": number,
                              "message": "A review boundary crosses conflicting source metadata."})
         elif any('pause_after' in original and stop < end for _, stop, original in sources):
             findings.append({"code": "review_pause_boundary", "entry_number": number,
                              "message": "A review boundary would move an explicit source pause."})
+        elif (entry['speaker'] != 'NARRATOR'
+                and any(get_review_source_narration(original) is True for _, _, original in sources)):
+            findings.append({"code": "narrator_renamed", "entry_number": number,
+                             "message": "A source-confirmed narrator span must keep the speaker NARRATOR."})
         else:
             row = {**copy.deepcopy(metadata[0]), "speaker": entry["speaker"],
                    "text": entry["text"], "instruct": entry["instruct"]}
@@ -1106,6 +1116,11 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     # Build context
     context_parts = []
     context_parts.append(f"Batch {batch_num} of {total_batches}.")
+    if not params.review_labels_only and any(get_review_source_narration(entry) is True
+                                            for entry in batch_entries):
+        context_parts.append("\nAn input's Boolean spoken=false marks source-confirmed narration. "
+                             "Keep every portion of those spans assigned to NARRATOR, "
+                             "including after splitting or merging entries.")
 
     if previous_tail:
         context_parts.append("\nPrevious batch ended with:")

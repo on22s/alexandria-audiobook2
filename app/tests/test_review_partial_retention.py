@@ -84,6 +84,19 @@ class PartialRetentionTests(unittest.TestCase):
         self.assertIsNone(disabled)
         self.assertEqual(old_calls, calls)
 
+    def test_full_review_retries_narration_rename_before_complete_sdk_publication(self):
+        source = [{'speaker': 'NARRATOR', 'text': 'The rain stopped.', 'instruct': '',
+                   'spoken': False, 'uid': 'n1', 'source_span': [4, 21], 'pause_after': 700}]
+        bad = [{**source[0], 'speaker': 'ALICE', 'spoken': True}]
+        good = [{key: source[0][key] for key in ('speaker', 'text', 'instruct')}]
+        output, calls, records = self.run_review([bad, good], source=source)
+        self.assertEqual(2, len(calls))
+        self.assertEqual(['quality_rejected', 'accepted'], [record['outcome'] for record in records])
+        self.assertIn('narrator_renamed', records[0]['failure_codes'])
+        self.assertEqual(source, output)
+        self.assertIsNot(source[0]['source_span'], output[0]['source_span'])
+        self.assertEqual('complete', review.get_review_batch_status(output, records)['status'])
+
     def test_moved_other_rows_are_skipped_but_unaffected_exact_row_is_retained(self):
         reply = get_reply(); reply[1:] = [reply[2], {key: SOURCE[1][key] for key in ('speaker', 'text', 'instruct')}]
         output, calls, records = self.run_review([reply] * 3)
@@ -554,7 +567,7 @@ class PartialPublicationTests(unittest.TestCase):
         def fingerprint():
             return review.get_completed_review_fingerprint(config, config['llm_remote'], params,
                                                          args, object(), 'fixture')
-        with patch.object(review, 'REVIEW_ALGORITHM_VERSION', 4):old = fingerprint()
+        with patch.object(review, 'REVIEW_ALGORITHM_VERSION', 5):old = fingerprint()
         current = fingerprint()
         self.assertNotEqual(old, current)
         with tempfile.TemporaryDirectory() as directory:
@@ -570,7 +583,7 @@ class PartialPublicationTests(unittest.TestCase):
             manifest = {'schema_version': 1, 'stage': 'script_review', 'targets': ['local'],
                         'fixtures': [{'id': 'fixture', 'sha256': 'fixture'}]}
             base = benchmark.build_environment_fingerprint('local', ENVIRONMENT)
-            with patch.object(receipt, 'REVIEW_ALGORITHM_VERSION', 4):
+            with patch.object(receipt, 'REVIEW_ALGORITHM_VERSION', 5):
                 prior_env = benchmark.get_benchmark_execution_environment(manifest, base, config)
             new_env = benchmark.get_benchmark_execution_environment(manifest, base, config)
             self.assertNotEqual(prior_env, new_env)

@@ -5,7 +5,7 @@ import os
 from utils import atomic_json_write
 
 VERSION = 1
-REVIEW_ALGORITHM_VERSION = 5
+REVIEW_ALGORITHM_VERSION = 6
 
 
 def get_review_entries_fingerprint(entries):
