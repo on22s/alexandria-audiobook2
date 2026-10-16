@@ -1113,6 +1113,7 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
             report_path = None
             if task_name == "review":
                 stats = _extract_review_stats(state["logs"])
+                failures = _extract_failed_sections(state["logs"])
                 if stats is None or stats.get("batches_failed") or stats.get("batches_skipped_vram"):
                     if "status" in state: state["status"] = "incomplete"
                 if stats is None:
@@ -1122,10 +1123,15 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
                     )
                 if stats:
                     if stats.get("batches_failed"):
+                        disposition = (
+                            "The original entries were preserved" if failures.get("original_entries_preserved")
+                            else "Source-bound partial label edits were retained; unresolved sections still need review"
+                            if _has_partial_review_labels(failures)
+                            else "The unresolved sections still need review")
                         completion_note = (
                             f"Task {task_name} completed, but {stats['batches_failed']} "
-                            f"section(s) could not be reviewed. The original entries were "
-                            f"preserved; see the report for exact ranges and retry guidance."
+                            f"section(s) could not be reviewed. {disposition}; "
+                            f"see the report for exact ranges and retry guidance."
                         )
                     elif stats.get("batches_skipped_vram"):
                         completion_note = (
@@ -1134,7 +1140,6 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
                             f"Re-run the review to finish the rest."
                         )
                     highlights = _extract_diff_highlights(state["logs"])
-                    failures = _extract_failed_sections(state["logs"])
                     report_path = _write_single_review_report(stats, highlights, failures)
             state["logs"].append(completion_note)
             if report_path:
@@ -1546,7 +1551,7 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             log_fh.close()
 
 
-_REVIEW_ENTRIES_RE = re.compile(r'Review complete:\s*(\d+)\s*->\s*(\d+)\s*entries')
+_REVIEW_ENTRIES_RE = re.compile(r'Review (?:complete|incomplete):\s*(\d+)\s*->\s*(\d+)\s*entries')
 _REVIEW_SUMMARY_PATTERNS = {
     "text_changed": re.compile(r'Text changed:\s*(\d+)'),
     "speaker_changed": re.compile(r'Speaker changed:\s*(\d+)'),
@@ -1574,7 +1579,7 @@ def _new_review_totals() -> dict:
 
 
 def _extract_review_stats(lines: List[str]) -> Optional[dict]:
-    """Parse the 'Review complete: X -> Y entries ... Total changes: N' block that
+    """Parse the complete/incomplete 'Review ...: X -> Y entries' summary that
     review_script.py prints at the end of each book's review. Returns None if the
     block isn't present (e.g. the subprocess crashed before finishing)."""
     entries_match = next((m for l in lines if (m := _REVIEW_ENTRIES_RE.search(l))), None)
@@ -1683,6 +1688,12 @@ def _extract_failed_sections(lines: List[str]) -> dict:
     return {"sections": []}
 
 
+def _has_partial_review_labels(failures: Optional[dict]) -> bool:
+    return bool(failures and any(isinstance(section, dict)
+        and section.get("category") == "review_partial_label_retention"
+        for section in failures.get("sections", [])))
+
+
 def _markdown_failed_sections_lines(failures: Optional[dict]) -> List[str]:
     """Format failed review ranges and their safe retry disposition."""
     if not failures or not failures.get("sections"):
@@ -1690,6 +1701,7 @@ def _markdown_failed_sections_lines(failures: Optional[dict]) -> List[str]:
     labels = {
         "review_failed": "the review request or response failed",
         "text_length_mismatch": "text-loss protection rejected the response",
+        "review_partial_label_retention": "only source-bound label edits were retained; complete review remains pending",
     }
     lines = []
     for section in failures["sections"]:
@@ -2103,7 +2115,12 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
                        "Re-run the review to finish the rest."]
 
     lines = list(intro)
-    if stats["total_changes"] == 0:
+    if _has_partial_review_labels(failures):
+        lines += ["", "Source-bound partial label edits were retained in unresolved sections. "
+                       "The completed-section counts below exclude those partial edits."]
+    if stats["total_changes"] == 0 and _has_partial_review_labels(failures):
+        lines += ["", "No completed-section changes were reported during this pass."]
+    elif stats["total_changes"] == 0:
         lines += ["", "No changes were reported during this pass."]
     else:
         lines += ["", "## What changed", ""]

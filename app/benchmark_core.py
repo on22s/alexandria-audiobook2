@@ -127,7 +127,9 @@ def get_benchmark_execution_environment(manifest, environment, config):
             prompts = config.get("prompts") or {}
             identity["prompts"] = {key: prompts.get(key) for key in prompt_keys}
             if stage == "script_review":
+                from completed_review_receipt import REVIEW_ALGORITHM_VERSION
                 from config_settings import get_review_labels_only
+                identity["review_algorithm"] = REVIEW_ALGORITHM_VERSION
                 if get_review_labels_only(config):
                     identity["prompts"]["review_labels_only"] = True
     if stage in {"tts_generation", "dataset_builder"}:

@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config, get_review_labels_only
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
                           get_run_fingerprint_identity, resolve_api_key)
-from completed_review_receipt import (get_review_entries_fingerprint,
+from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, get_review_entries_fingerprint,
     get_review_sidecar_identity, get_completed_review_match,
     save_completed_review_receipt, remove_completed_review_receipt)
 from llm_bench import get_cached_or_benchmarked_concurrency
@@ -181,7 +181,7 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         profiles.append({key: value for key, value in profile.items()
                          if key not in ('concurrency', 'concurrency_for', 'concurrency_environment')})
         profiles[-1]['resolved_api_key'] = resolve_api_key(profile.get('api_key'))
-    identity = {'algorithm': 2, 'profiles': profiles,
+    identity = {'algorithm': REVIEW_ALGORITHM_VERSION, 'profiles': profiles,
         'model_binding': get_run_model_binding(client, model_name),
         'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare
                    and (field.name != 'literal_source_preserving' or params.literal_source_preserving)
@@ -741,14 +741,8 @@ def get_review_label_binding(batch_entries, entries):
     return ordered, {"passed": not findings, "findings": findings}
 
 
-def get_review_source_binding(batch_entries, entries, literal_source_preserving=False):
-    """Bind classic labels and immutable metadata to ordered source spans.
-
-    Lossless boundary changes inherit only metadata shared by every overlapping
-    source entry. A pause stays on its source end; merging over it is refused.
-    Punctuation drift can recover labels only for unique, unchanged per-entry
-    word sequences, using the same label contract as index-only review.
-    """
+def get_review_field_report(entries):
+    """Validate the common classic-review fields before source binding."""
     findings = []
     for number, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
@@ -765,8 +759,28 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                                  or (key != 'instruct' and not entry[key].strip())):
                 findings.append({'code': 'invalid_field', 'entry_number': number,
                                  'field': key, 'message': 'Review labels and text must be strings; speaker and text must be nonempty.'})
-    if findings:
-        return None, {"passed": False, "findings": findings}
+    return {"passed": not findings, "findings": findings}
+
+
+def get_review_text_identity(text):
+    """Keep word case/contractions and NFC nonpunctuation symbols."""
+    symbols = ''.join(char for char in unicodedata.normalize('NFC', text)
+                      if not char.isspace() and not unicodedata.category(char).startswith('P'))
+    return get_word_identity([text])['sha256'], symbols
+
+
+def get_review_source_binding(batch_entries, entries, literal_source_preserving=False):
+    """Bind classic labels and immutable metadata to ordered source spans.
+
+    Lossless boundary changes inherit only metadata shared by every overlapping
+    source entry. A pause stays on its source end; merging over it is refused.
+    Punctuation drift can recover labels only for unique, unchanged per-entry
+    word sequences, using the same label contract as index-only review.
+    """
+    report = get_review_field_report(entries)
+    if not report['passed']:
+        return None, report
+    findings = []
 
     original_texts = [" ".join(entry.get("text", "").split()) for entry in batch_entries]
     reviewed_texts = [" ".join(entry["text"].split()) for entry in entries]
@@ -779,16 +793,9 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                 "code": "literal_source_word_mismatch",
                 "message": "Review narration words could not be verified.", "details": audit}]}
     if reviewed_text != original_text:
-        def get_text_identity(text):
-            # Words guard case, contractions and Unicode lexical marks; the
-            # second identity also keeps symbols such as +, $, and emoji.
-            symbols = ''.join(char for char in unicodedata.normalize('NFC', text)
-                              if not char.isspace() and not unicodedata.category(char).startswith('P'))
-            return get_word_identity([text])['sha256'], symbols
-
         try:
-            source_ids = [get_text_identity(entry['text']) for entry in batch_entries]
-            reply_ids = [get_text_identity(entry['text']) for entry in entries]
+            source_ids = [get_review_text_identity(entry['text']) for entry in batch_entries]
+            reply_ids = [get_review_text_identity(entry['text']) for entry in entries]
         except ValueError:
             source_ids, reply_ids = None, None
         if (source_ids is not None and source_ids == reply_ids
@@ -847,13 +854,63 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
     return (None if findings else bound), {"passed": not findings, "findings": findings}
 
 
+REVIEW_PARTIAL_EVENT = 'review_partial_label_retention'
+
+
+def get_review_batch_status(entries, records):
+    """Separate terminal partial status from actual model-attempt records."""
+    partial = [record for record in records if record.get('event') == REVIEW_PARTIAL_EVENT]
+    return {'status': ('failed' if not entries else 'partial' if partial else 'complete'),
+            'attempts': [copy.deepcopy(record) for record in records
+                         if record.get('event') != REVIEW_PARTIAL_EVENT],
+            'partial_retention': copy.deepcopy(partial[-1]) if partial else None}
+
+
+def get_review_partial_label_retention(batch_entries, entries, literal):
+    """Retain labels only on exact, unique, same-position source text."""
+    if (len(entries) != len(batch_entries) or not entries
+            or not get_review_field_report(batch_entries)['passed']
+            or not get_review_field_report(entries)['passed']):
+        return None, None
+    try:
+        source_ids = [get_review_text_identity(row['text']) for row in batch_entries]
+        reply_ids = [get_review_text_identity(row['text']) for row in entries]
+    except ValueError:
+        return None, None
+    if len(set(source_ids)) != len(source_ids) or len(set(reply_ids)) != len(reply_ids):
+        return None, None
+    labels, retained, skipped = [], [], []
+    for i, (original, reply) in enumerate(zip(batch_entries, entries)):
+        exact = source_ids[i] == reply_ids[i] and original['text'] == reply['text']
+        changed = any(original[key] != reply[key] for key in ('speaker', 'instruct'))
+        chosen = reply if exact else original
+        labels.append({'n': i, 'speaker': chosen['speaker'], 'instruct': chosen['instruct']})
+        if exact and changed:
+            retained.append(i)
+        else:
+            skipped.append({'n': i, 'reason': 'labels_unchanged' if exact else 'text_not_exact_at_source_position'})
+    ordered, quality = get_review_label_binding(batch_entries, labels)
+    if not retained or not quality['passed']:
+        return None, None
+    proposed = [{**copy.deepcopy(original), 'speaker': row['speaker'], 'instruct': row['instruct']}
+                for original, row in zip(batch_entries, ordered)]
+    bound, quality = get_review_source_binding(batch_entries, proposed, literal)
+    if not quality['passed']:
+        return None, None
+    return bound, {'event': REVIEW_PARTIAL_EVENT, 'status': 'partial',
+                   'retained_positions': retained, 'skipped_positions': skipped,
+                   'reason': 'strict_stop_quality_exhausted'}
+
+
 def review_batch(client, model_name, batch_entries, batch_num, total_batches, params,
                  previous_tail=None, source_context=None, max_retries=2,
-                 attempt_observer=None):
+                 attempt_observer=None, retain_partial_labels=False):
     """Send a batch of script entries through the LLM for review and correction.
 
     Returns the corrected entries, or None if every attempt failed (so the caller
     can keep the originals and retry on the next resume).
+    Completion-aware callers can opt into source-bound partial labels, reported
+    by a distinct terminal observer event; those batches remain incomplete.
     """
     def ensure_secondary_admission(profile):
         if params.request_admission is not None and not params.request_admission(profile):
@@ -897,12 +954,16 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     else:
         user_prompt = usr_template.format(context=context, batch=batch_json)
 
+    candidate = None
+    attempts = []
+
     def validate_review_entries(entries):
+        nonlocal candidate
         if params.review_labels_only:
             return get_review_label_binding(batch_entries, entries)[1]
+        if retain_partial_labels and attempt_observer is not None and attempts:
+            candidate = (copy.deepcopy(entries), attempts[-1])
         return get_review_source_binding(batch_entries, entries, literal)[1]
-
-    attempts = []
 
     def observe(attempt):
         attempts.append(attempt)
@@ -926,6 +987,25 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
         if quality.get('source_bound_label_recovery'):
             print("  Recovered source-bound review labels after punctuation drift; original text retained.")
         return bound
+    # Completion-aware consumers opt in; ordinary list/None callers retain
+    # their original semantics. Earlier candidates are never combined.
+    if (retain_partial_labels and attempt_observer is not None and candidate is not None
+            and not params.review_labels_only and not getattr(client, 'switched', False)
+            and type(max_retries) is int and max_retries >= 0
+            and len(attempts) == max_retries + 1 and candidate[1] is attempts[-1]
+            and all(attempt.get('attempt') == i + 1
+                    and attempt.get('finish_reason') == 'stop'
+                    and attempt.get('outcome') == 'quality_rejected'
+                    and attempt.get('error') is None
+                    and 'request_log_error' not in attempt and 'response_log_error' not in attempt
+                    and attempt.get('parse_provenance') == {
+                        'method': 'strict_json', 'filtered_entries': 0, 'codec': 'json',
+                        'extraction_unchanged': True, 'raw_fallback_used': False, 'salvage_used': False}
+                    for i, attempt in enumerate(attempts))):
+        retained, status = get_review_partial_label_retention(batch_entries, candidate[0], literal)
+        if retained is not None:
+            attempt_observer({**status, 'source_attempt': attempts[-1]['attempt']})
+            return retained
     # Keep the caller's checkpoint batch intact: adapt only the requests,
     # then validate the complete recombination against that original batch.
     if (not getattr(client, "switched", False)
@@ -1012,7 +1092,7 @@ _HIGHLIGHT_CONTEXT_LEN = 160
 
 
 def get_failed_section(batch, zero_based_start, length, category, word_ratio=None):
-    """Return structured metadata for one batch whose original entries were kept."""
+    """Return structured metadata for one unresolved source-preserving batch."""
     section = {
         "batch": batch,
         "entry_start": zero_based_start + 1,
@@ -1350,10 +1430,12 @@ def main():
                 contextual_lines.append("\n--- NEXT ENTRIES (Context Only) ---")
                 contextual_lines.extend(json.dumps(e, ensure_ascii=False) for e in after)
 
+            batch_attempts = []
             corrected = review_batch(
                 client, model_name, batch, batch_index, total_batches, gen_params,
                 previous_tail=None,  # contextual mode uses explicit before/after window instead
                 source_context="\n".join(contextual_lines),
+                attempt_observer=batch_attempts.append, retain_partial_labels=True,
             )
             source_offsets.append(end)
 
@@ -1383,6 +1465,20 @@ def main():
                 failed_batches.append(batch_index)
                 failed_sections.append(get_failed_section(
                     batch_index, start, len(batch), "text_length_mismatch", ratio))
+                save_checkpoint(output_path, batch_index, total_batches, batch_size,
+                                args.context_window, all_corrected, total_stats, previous_tail,
+                                batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                continue
+
+            if get_review_batch_status(corrected, batch_attempts)['status'] == 'partial':
+                print(f"  PARTIAL — source-bound labels retained for batch {batch_index}; unresolved entries will retry.")
+                all_corrected.extend(corrected)
+                total_stats["batches_failed"] += 1
+                previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
+                batch_lengths.append(len(corrected))
+                failed_batches.append(batch_index)
+                failed_sections.append(get_failed_section(
+                    batch_index, start, len(batch), REVIEW_PARTIAL_EVENT))
                 save_checkpoint(output_path, batch_index, total_batches, batch_size,
                                 args.context_window, all_corrected, total_stats, previous_tail,
                                 batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
@@ -1469,19 +1565,22 @@ def main():
                         if not wait_for_vram_headroom(fail_fast=is_first_check):
                             vram_abort.set()
                             return "VRAM_SKIP"
-                return review_batch(
+                batch_attempts = []
+                corrected = review_batch(
                     client, model_name, batch, i, total_batches, gen_params,
                     previous_tail=wave_tail,
                     source_context=None,  # Mode 2: would pass source text chunk here
+                    attempt_observer=batch_attempts.append, retain_partial_labels=True,
                 )
+                return corrected, get_review_batch_status(corrected, batch_attempts)['status']
 
             with ThreadPoolExecutor(max_workers=len(wave_batches)) as executor:
                 wave_results = list(executor.map(_run_one, zip(wave_indices, wave_batches)))
 
-            for i, batch, corrected in zip(wave_indices, wave_batches, wave_results):
+            for i, batch, result in zip(wave_indices, wave_batches, wave_results):
                 source_offsets.append(min(len(entries), resume_offset +
                                           (i - completed_batches - 1) * batch_size + len(batch)))
-                if corrected == "VRAM_SKIP":
+                if result == "VRAM_SKIP":
                     # Keep the skipped batch at its original position even if
                     # concurrent workers acquired the VRAM lock out of order.
                     all_corrected.extend(batch)
@@ -1493,6 +1592,7 @@ def main():
                                     batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
                     continue
 
+                corrected, review_status = result
                 if corrected is None:
                     print(f"  FAILED — keeping original entries for batch {i} (will retry on next resume)")
                     all_corrected.extend(batch)
@@ -1522,6 +1622,21 @@ def main():
                     entry_start = resume_offset + (i - completed_batches - 1) * batch_size + 1
                     failed_sections.append(get_failed_section(
                         i, entry_start - 1, len(batch), "text_length_mismatch", ratio))
+                    save_checkpoint(output_path, i, total_batches, batch_size,
+                                    args.context_window, all_corrected, total_stats, previous_tail,
+                                    batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
+                    continue
+
+                if review_status == 'partial':
+                    print(f"  PARTIAL — source-bound labels retained for batch {i}; unresolved entries will retry.")
+                    all_corrected.extend(corrected)
+                    total_stats["batches_failed"] += 1
+                    previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
+                    batch_lengths.append(len(corrected))
+                    failed_batches.append(i)
+                    entry_start = resume_offset + (i - completed_batches - 1) * batch_size
+                    failed_sections.append(get_failed_section(
+                        i, entry_start, len(batch), REVIEW_PARTIAL_EVENT))
                     save_checkpoint(output_path, i, total_batches, batch_size,
                                     args.context_window, all_corrected, total_stats, previous_tail,
                                     batch_lengths, failed_batches, source_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint)
@@ -1644,7 +1759,11 @@ def main():
                      total_stats["entries_removed"] + narrator_merges + speakers_merged)
 
     print(f"\n{'='*60}")
-    print(f"Review complete: {len(entries)} -> {len(output_entries)} entries")
+    print(f"Review {'complete' if review_complete else 'incomplete'}: {len(entries)} -> {len(output_entries)} entries")
+    partial_batches = sum(section['category'] == REVIEW_PARTIAL_EVENT for section in failed_sections)
+    if partial_batches:
+        print(f"  Partial label retention: {partial_batches} batch(es); unresolved review remains pending.")
+        print("  Completed-batch changes below exclude those partial label edits.")
     print(f"  Text changed:    {total_stats['text_changed']}")
     print(f"  Speaker changed: {total_stats['speaker_changed']}")
     print(f"  Instruct changed:{total_stats['instruct_changed']}")
@@ -1663,7 +1782,8 @@ def main():
     if failed_sections:
         failure_details = {
             "sections": failed_sections,
-            "original_entries_preserved": True,
+            "original_entries_preserved": not any(
+                section['category'] == REVIEW_PARTIAL_EVENT for section in failed_sections),
             "checkpoint_retained": os.path.exists(_checkpoint_path(output_path)),
             "retry_from_batch": min(section["batch"] for section in failed_sections),
         }
@@ -1682,6 +1802,8 @@ def main():
         print("Stopped early: GPU VRAM stayed too high to safely continue.")
         print("The remaining entries were saved unreviewed. Free up VRAM "
               "(e.g. close other GPU apps) and re-run to review the rest.")
+    elif not review_complete:
+        print("Review remains incomplete; unresolved batches will retry on resume.")
     elif total_changes == 0:
         print("No issues found -- script looks clean.")
     else:
@@ -1691,7 +1813,7 @@ def main():
     if vram_aborted:
         print("Task review completed with an early VRAM-abort - some entries were saved unreviewed.")
     elif total_stats["batches_failed"] > 0:
-        print(f"Task review completed with {total_stats['batches_failed']} batch failure(s) - those entries were saved unreviewed.")
+        print(f"Task review completed with {total_stats['batches_failed']} unresolved batch(es) - complete review remains pending.")
     else:
         print("Task review completed successfully.")
 

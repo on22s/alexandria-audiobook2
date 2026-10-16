@@ -401,21 +401,29 @@ def _extract_valid_json_objects(json_text):
 
 def repair_json_array(json_text):
     """Attempt to repair common JSON array issues from LLM output."""
-    if not json_text:
-        return None
+    return get_json_array_parse_result(json_text)[0]
 
-    def _filter_entries(lst):
+
+def get_json_array_parse_result(json_text):
+    """Return the existing parse result and detached repair/filter provenance."""
+    def get_result(entries, method, filtered=0):
+        return entries, {"method": method, "filtered_entries": filtered}
+
+    if not json_text:
+        return get_result(None, "unparsed")
+
+    def _filter_entries(lst, method):
         """Keep only dict entries; LLMs sometimes emit bare strings in the array."""
         filtered = [e for e in lst if isinstance(e, dict)]
         if len(filtered) < len(lst):
             print(f"  Warning: Dropped {len(lst) - len(filtered)} non-object entries from LLM JSON array")
-        return filtered if filtered else None
+        return get_result(filtered if filtered else None, method, len(lst) - len(filtered))
 
     # Try parsing as-is first
     try:
         result = json.loads(json_text)
         if isinstance(result, list):
-            return _filter_entries(result)
+            return _filter_entries(result, "strict_json")
     except json.JSONDecodeError:
         pass
 
@@ -424,7 +432,7 @@ def repair_json_array(json_text):
     try:
         result = json.loads(fixed)
         if isinstance(result, list):
-            return _filter_entries(result)
+            return _filter_entries(result, "missing_commas")
     except json.JSONDecodeError:
         pass
 
@@ -433,7 +441,7 @@ def repair_json_array(json_text):
     try:
         result = json.loads(fixed)
         if isinstance(result, list):
-            return _filter_entries(result)
+            return _filter_entries(result, "trailing_commas")
     except json.JSONDecodeError:
         pass
 
@@ -443,11 +451,11 @@ def repair_json_array(json_text):
     entries = _extract_valid_json_objects(json_text)
 
     if entries:
-        return entries
+        return get_result(entries, "object_extraction")
 
     # No truncate-to-last-"}," fallback: whatever follows it is malformed,
     # so keeping the prefix always loses source text (#1111).
-    return None
+    return get_result(None, "unparsed")
 
 def salvage_json_entries(json_text):
     """Last resort: extract individual valid objects for any generation pass."""
@@ -1396,6 +1404,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 continue
             return []
 
+        extraction_unchanged = json_text == text
+        raw_fallback_used = False
         if not json_text:
             if attempt_record is not None:
                 attempt_record["outcome"] = "response_rejected"
@@ -1411,13 +1421,23 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             # safe only because the normal transform + deterministic quality
             # gates below must accept the reconstructed source in full.
             json_text = codec.raw_fallback(text)
+            raw_fallback_used = True
             if not json_text:
                 print(f"Response preview: {text[:300]}...")
                 return []
             print("  Trying quality-gated raw-array salvage after retries exhausted")
 
         # Try to parse, with repair attempts
-        entries = codec.parse(json_text)
+        parse_with_provenance = getattr(codec, "parse_with_provenance", None)
+        if parse_with_provenance is not None and attempt_record is not None:
+            entries, parse_provenance = parse_with_provenance(json_text)
+            if attempt_record is not None:
+                attempt_record["parse_provenance"] = {
+                    **parse_provenance, "codec": codec.name,
+                    "extraction_unchanged": extraction_unchanged,
+                    "raw_fallback_used": raw_fallback_used, "salvage_used": False}
+        else:
+            entries = codec.parse(json_text)
         transformed = None
 
         if entries or (codec.name == "json_object" and isinstance(entries, dict)):
@@ -1528,6 +1548,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         # Last resort after every full-response retry is exhausted.
         salvaged_entries = codec.salvage(json_text)
         if salvaged_entries:
+            if attempt_record is not None and "parse_provenance" in attempt_record:
+                attempt_record["parse_provenance"]["salvage_used"] = True
             transformed = None
             if transform_entries:
                 transformed = transform_entries(salvaged_entries)

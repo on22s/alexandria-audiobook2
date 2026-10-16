@@ -19,16 +19,18 @@ list as "this attempt failed" and already knows what to do with it.
 
 
 class ResponseCodec:
-    def __init__(self, name, extract, parse, salvage, raw_fallback):
+    def __init__(self, name, extract, parse, salvage, raw_fallback,
+                 parse_with_provenance=None):
         self.name = name
         self.extract = extract
         self.parse = parse
         self.salvage = salvage
         self.raw_fallback = raw_fallback
+        self.parse_with_provenance = parse_with_provenance
 
 
 def _json_codec():
-    from generate_script import (clean_json_string, repair_json_array,
+    from generate_script import (clean_json_string, repair_json_array, get_json_array_parse_result,
                                  salvage_json_entries)
 
     def raw_fallback(text):
@@ -39,7 +41,7 @@ def _json_codec():
         return text[start:] if start != -1 else None
 
     return ResponseCodec("json", clean_json_string, repair_json_array,
-                         salvage_json_entries, raw_fallback)
+                         salvage_json_entries, raw_fallback, get_json_array_parse_result)
 
 
 def _line_codec():
