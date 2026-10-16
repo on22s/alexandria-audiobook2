@@ -12,6 +12,7 @@ import argparse
 import threading
 import unicodedata
 from dataclasses import fields, replace
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config, get_review_labels_only
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
@@ -1039,7 +1040,7 @@ def get_review_batch_status(entries, records):
 
 def get_review_partial_label_retention(batch_entries, entries, literal):
     """Retain labels only on exact, unique, same-position source text."""
-    if (len(entries) != len(batch_entries) or not entries
+    if (not entries
             or not get_review_field_report(batch_entries)['passed']
             or not get_review_field_report(entries)['passed']):
         return None, None
@@ -1048,18 +1049,22 @@ def get_review_partial_label_retention(batch_entries, entries, literal):
         reply_ids = [get_review_text_identity(row['text']) for row in entries]
     except ValueError:
         return None, None
-    if len(set(source_ids)) != len(source_ids) or len(set(reply_ids)) != len(reply_ids):
-        return None, None
+    source_counts, reply_counts = Counter(source_ids), Counter(reply_ids)
     labels, retained, skipped = [], [], []
-    for i, (original, reply) in enumerate(zip(batch_entries, entries)):
-        exact = source_ids[i] == reply_ids[i] and original['text'] == reply['text']
-        changed = any(original[key] != reply[key] for key in ('speaker', 'instruct'))
+    for i, original in enumerate(batch_entries):
+        reply = entries[i] if i < len(entries) else None
+        same_position = (reply is not None and source_ids[i] == reply_ids[i]
+                         and original['text'] == reply['text'])
+        exact = (same_position and source_counts[source_ids[i]] == 1
+                 and reply_counts[source_ids[i]] == 1)
+        changed = exact and any(original[key] != reply[key] for key in ('speaker', 'instruct'))
         chosen = reply if exact else original
         labels.append({'n': i, 'speaker': chosen['speaker'], 'instruct': chosen['instruct']})
         if exact and changed:
             retained.append(i)
         else:
-            skipped.append({'n': i, 'reason': 'labels_unchanged' if exact else 'text_not_exact_at_source_position'})
+            skipped.append({'n': i, 'reason': ('labels_unchanged' if exact else
+                'ambiguous_text_identity' if same_position else 'text_not_exact_at_source_position')})
     ordered, quality = get_review_label_binding(batch_entries, labels)
     if not retained or not quality['passed']:
         return None, None

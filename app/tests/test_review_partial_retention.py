@@ -91,6 +91,72 @@ class PartialRetentionTests(unittest.TestCase):
         self.assertEqual([1, 2], [r['n'] for r in records[-1]['skipped_positions']])
         self.assertEqual(3, len(calls))
 
+    def test_extra_unrelated_duplicate_keeps_only_independently_bound_source_rows(self):
+        reply = get_reply() + [copy.deepcopy(get_reply()[2])]
+        output, calls, records = self.run_review([reply] * 3)
+        self.assertEqual(3, len(calls))
+        self.assertEqual([{**SOURCE[0], 'speaker': 'ALICE', 'instruct': 'Calmly.'}, *SOURCE[1:]], output)
+        status = review.get_review_batch_status(output, records)
+        self.assertEqual('partial', status['status'])
+        self.assertEqual([0], status['partial_retention']['retained_positions'])
+        self.assertEqual(3, len(status['attempts']))
+        self.assertEqual(4, len(records))
+
+    def test_missing_tail_keeps_every_source_row_and_marks_partial_after_exhaustion(self):
+        output, calls, records = self.run_review([get_reply()[:2]] * 3)
+        self.assertEqual(3, len(calls))
+        self.assertEqual([{**SOURCE[0], 'speaker': 'ALICE', 'instruct': 'Calmly.'}, *SOURCE[1:]], output)
+        self.assertEqual('partial', review.get_review_batch_status(output, records)['status'])
+        output[0]['provenance']['span'].append(99)
+        self.assertEqual([3, 8], SOURCE[0]['provenance']['span'])
+
+    def test_inserted_or_removed_middle_rows_never_remap_shifted_labels(self):
+        reply = get_reply()
+        extra = {'speaker': 'INVENTED', 'text': 'An unrelated extra sentence.', 'instruct': ''}
+        for rows in ([reply[0], extra, *reply[1:]], [reply[0], reply[2]]):
+            with self.subTest(rows=rows):
+                output, calls, records = self.run_review([rows] * 3)
+                self.assertEqual(3, len(calls))
+                self.assertEqual([{**SOURCE[0], 'speaker': 'ALICE', 'instruct': 'Calmly.'}, *SOURCE[1:]], output)
+                self.assertEqual([0], review.get_review_batch_status(output, records)['partial_retention']['retained_positions'])
+        output, _, _ = self.run_review([reply[1:]] * 3)
+        self.assertIsNone(output)
+
+    def test_repeated_other_source_rows_do_not_disqualify_a_unique_changed_row(self):
+        source = copy.deepcopy(SOURCE)
+        source[2]['text'] = source[1]['text']
+        output, calls, records = self.run_review([get_reply(source)] * 3, source=source)
+        self.assertEqual(3, len(calls))
+        self.assertEqual([{**source[0], 'speaker': 'ALICE', 'instruct': 'Calmly.'}, *source[1:]], output)
+        self.assertEqual([0], review.get_review_batch_status(output, records)['partial_retention']['retained_positions'])
+
+    def test_duplicate_identity_anywhere_in_candidate_cannot_authorize_that_label(self):
+        reply = get_reply()
+        reply[2]['speaker'] = 'DAVE'
+        for duplicate in (copy.deepcopy(reply[0]), {**reply[0], 'text': SOURCE[0]['text'][:-1] + '!'}):
+            with self.subTest(duplicate=duplicate):
+                output, _, records = self.run_review([reply + [duplicate]] * 3)
+                self.assertEqual([SOURCE[0], SOURCE[1], {**SOURCE[2], 'speaker': 'DAVE'}], output)
+                self.assertEqual([2], review.get_review_batch_status(output, records)['partial_retention']['retained_positions'])
+
+    def test_twenty_six_reply_rows_keep_only_unique_exact_positions_in_twenty_five_source_rows(self):
+        source = [{'speaker': 'BOB', 'text': f'Unique spoken sentence number {i}.',
+                   'instruct': '', 'type': 'SPOKEN', 'spoken': True, 'uid': str(i),
+                   'pause_after': 100 + i, 'provenance': {'row': i}} for i in range(25)]
+        reply = [{key: row[key] for key in ('speaker', 'text', 'instruct')} for row in source]
+        for row in reply:
+            row.update(speaker='ALICE', instruct='Calmly.')
+        reply[24]['text'] = 'A lexically different final sentence.'
+        reply.append(copy.deepcopy(reply[17]))
+        output, calls, records = self.run_review([reply] * 3, source=source)
+        safe = [i for i in range(24) if i != 17]
+        self.assertEqual(3, len(calls))
+        self.assertEqual([{**row, 'speaker': 'ALICE', 'instruct': 'Calmly.'} if i in safe else row
+                          for i, row in enumerate(source)], output)
+        status = review.get_review_batch_status(output, records)
+        self.assertEqual('partial', status['status'])
+        self.assertEqual(safe, status['partial_retention']['retained_positions'])
+
     def test_source_speech_corrects_wrong_narrator_only_after_quality_exhaustion(self):
         source = copy.deepcopy(SOURCE)
         source[0].update(spoken=True, speaker='NARRATOR', type='NARRATOR')
@@ -146,7 +212,7 @@ class PartialRetentionTests(unittest.TestCase):
     def test_unique_complete_field_and_narrator_guards_abstain(self):
         bads = []
         rows = get_reply(); rows[2] = copy.deepcopy(rows[0]); bads.append(rows)
-        bads.extend([get_reply()[:2], get_reply() + [get_reply()[0]]])
+        bads.append(get_reply() + [get_reply()[0]])
         for field, value in [('speaker', ''), ('speaker', None), ('instruct', 1), ('text', '')]:
             rows = get_reply(); rows[2][field] = value; bads.append(rows)
         rows = get_reply(); rows[1]['text'] = SOURCE[1]['text']; rows[1]['speaker'] = 'INVENTED'
@@ -479,6 +545,7 @@ class PartialPublicationTests(unittest.TestCase):
         from types import SimpleNamespace
         import completed_review_receipt as receipt
         import benchmark_core as benchmark
+        from benchmark_runner import get_benchmark_completed_cases
         from tests.test_benchmark_review_mode import ENVIRONMENT, get_config
         args = SimpleNamespace(context_window=0, dedupe_speakers=False,
                                alias_registry=None, remap_voice_config=None)
@@ -487,7 +554,7 @@ class PartialPublicationTests(unittest.TestCase):
         def fingerprint():
             return review.get_completed_review_fingerprint(config, config['llm_remote'], params,
                                                          args, object(), 'fixture')
-        with patch.object(review, 'REVIEW_ALGORITHM_VERSION', 3):old = fingerprint()
+        with patch.object(review, 'REVIEW_ALGORITHM_VERSION', 4):old = fingerprint()
         current = fingerprint()
         self.assertNotEqual(old, current)
         with tempfile.TemporaryDirectory() as directory:
@@ -503,14 +570,15 @@ class PartialPublicationTests(unittest.TestCase):
             manifest = {'schema_version': 1, 'stage': 'script_review', 'targets': ['local'],
                         'fixtures': [{'id': 'fixture', 'sha256': 'fixture'}]}
             base = benchmark.build_environment_fingerprint('local', ENVIRONMENT)
-            with patch.object(receipt, 'REVIEW_ALGORITHM_VERSION', 3):
+            with patch.object(receipt, 'REVIEW_ALGORITHM_VERSION', 4):
                 prior_env = benchmark.get_benchmark_execution_environment(manifest, base, config)
             new_env = benchmark.get_benchmark_execution_environment(manifest, base, config)
             self.assertNotEqual(prior_env, new_env)
             labels_config = copy.deepcopy(config); labels_config['prompts']['review_labels_only'] = True
             self.assertNotEqual(new_env, benchmark.get_benchmark_execution_environment(manifest, base, labels_config))
             report = benchmark.build_benchmark_report(manifest, prior_env)
-            report['cases'] = [{'fixture_id': 'fixture', 'repetition': 1, 'status': 'passed'}]
+            report['cases'] = [{'fixture_id': 'fixture', 'repetition': 1, 'status': 'failed'}]
+            self.assertEqual({('fixture', 1)}, get_benchmark_completed_cases(report))
             path = str(Path(directory, 'benchmark.json'))
             benchmark.save_benchmark_report(path, report)
             self.assertEqual(report, benchmark.load_resumable_benchmark_report(path, manifest, prior_env))
