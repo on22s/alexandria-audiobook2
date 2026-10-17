@@ -122,7 +122,10 @@ def get_recorded_owners(engine, released):
     recorded = dict(released)
     for label, objects in owned.items():
         for obj in objects:
-            recorded.setdefault(id(obj), (label, weakref.ref(obj)))
+            key = id(obj)
+            # A render can retire the old owner and reuse its ID before pruning.
+            if key not in recorded or recorded[key][1]() is not obj:
+                recorded[key] = (label, weakref.ref(obj))
     return {key for key, (_label, ref) in recorded.items()
             if any(ref() is obj for objects in owned.values() for obj in objects)}, recorded
 

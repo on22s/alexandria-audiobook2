@@ -9241,7 +9241,9 @@
     "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_one_step_growing_each_cycle_is_a_leak_at_that_step",
     "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_one_time_first_cycle_allocation_is_warmup_not_a_leak",
     "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_two_cycles_cannot_separate_warmup_from_growth",
-    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_warmup_followed_by_growth_is_still_a_leak"
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_warmup_followed_by_growth_is_still_a_leak",
+    "tests.test_tts_vram_family_cycle.OwnerRegistryTests.test_fresh_and_still_live_slots_keep_weak_identity",
+    "tests.test_tts_vram_family_cycle.OwnerRegistryTests.test_reused_id_replaces_dead_slot_and_detects_later_orphan"
   ],
   "test_two_stage_hosted_client": [
     "tests.test_two_stage_hosted_client.HostedClientTests.test_a_hosted_endpoint_skips_the_guard_and_uses_the_key",
