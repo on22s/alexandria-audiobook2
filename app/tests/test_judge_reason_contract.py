@@ -88,7 +88,12 @@ class JudgeReasonContractTests(unittest.TestCase):
             tp.attribute_batch(client, 'm', FROZEN, params, ['ALICE', 'BOB'], max_retries=0,
                                entries_provider=apv.make_provider('judge'))
         schema = client.calls[0]['response_format']['json_schema']['schema']
-        branches = schema['items']['anyOf']
+        branches = []
+        for index, item in enumerate(schema['items']):
+            self.assertTrue(all(branch['properties']['n']['enum'] == [index]
+                                for branch in item['anyOf']))
+            branches.extend(item['anyOf'])
+        self.assertFalse(schema['additionalItems'])
         self.assertEqual(4, len(branches))
         self.assertEqual((2, 2), (schema['minItems'], schema['maxItems']))
         for branch in branches:

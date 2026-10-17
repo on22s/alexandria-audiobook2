@@ -51,7 +51,7 @@ class StructuredOutput(unittest.TestCase):
         rf = client.calls[0]["response_format"]
         self.assertEqual("json_schema", rf["type"])
         self.assertTrue(rf["json_schema"]["strict"])
-        self.assertEqual(["n", "speaker"], rf["json_schema"]["schema"]["items"]["required"])
+        self.assertEqual(["n", "speaker"], rf["json_schema"]["schema"]["items"][0]["required"])
 
     def test_off_never_sends_it(self):
         client = _Client()

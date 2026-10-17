@@ -72,7 +72,8 @@ class ReviewLabelsTests(unittest.TestCase):
         schema = calls[0]['response_format']['json_schema']['schema']
         self.assertEqual(2, schema['minItems'])
         self.assertEqual(2, schema['maxItems'])
-        self.assertEqual([0, 1], schema['items']['properties']['n']['enum'])
+        self.assertEqual([[0], [1]], [item['properties']['n']['enum'] for item in schema['items']])
+        self.assertFalse(schema['additionalItems'])
         self.assertEqual(original, REVIEW_LABEL_SCHEMA)
 
     def test_narrator_character_shift_retries_before_binding(self):

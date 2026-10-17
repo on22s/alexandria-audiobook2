@@ -1641,7 +1641,10 @@ class AttributionSchemaTransportTests(unittest.TestCase):
                         schema = payload["response_format"]["json_schema"]
                         self.assertTrue(schema["strict"])
                         items = schema["schema"]["items"]
-                        alternatives = items.get("anyOf", [items])
+                        self.assertEqual([[0], [1]],
+                                         [item['properties']['n']['enum'] for item in items])
+                        self.assertFalse(schema["schema"]["additionalItems"])
+                        alternatives = items
                         for item in alternatives:
                             self.assertFalse(item["additionalProperties"])
                             self.assertEqual({"n", "speaker"}, set(item["required"]))

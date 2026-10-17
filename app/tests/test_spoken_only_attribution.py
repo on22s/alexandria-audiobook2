@@ -66,7 +66,8 @@ class SpokenOnlyTests(unittest.TestCase):
         schema = calls[0]['response_format']['json_schema']['schema']
         self.assertEqual(2, schema['minItems'])
         self.assertEqual(2, schema['maxItems'])
-        self.assertEqual([1, 3], schema['items']['properties']['n']['enum'])
+        self.assertEqual([[1], [3]], [item['properties']['n']['enum'] for item in schema['items']])
+        self.assertFalse(schema['additionalItems'])
 
     def test_harmless_narration_rows_are_dropped_without_mutating_answer(self):
         rows = [{'n': 0, 'speaker': 'NARRATOR'}, *self.answer,

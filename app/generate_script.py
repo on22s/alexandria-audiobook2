@@ -804,6 +804,10 @@ class LLMGenParams:
     # {roster}/{batch} template there crashed Pass 1 with KeyError 'roster'.
     # compare=False: review receipts compare params, and review never sets it.
     attribute_user_prompt_template: str = field(default=None, compare=False)
+    # Shared live run-capability state, like schema_rejected_by; replace()
+    # callers intentionally see the same endpoint-specific negotiation result.
+    ordered_schema_rejected_by: set = field(default_factory=set, repr=False,
+                                            compare=False)
 
 
 
@@ -846,17 +850,21 @@ def redact_recovery_value(value, key=None):
     return value
 
 
-def get_response_format(params, client):
+def get_response_format(params, client, *, portable=False):
     """-> the OpenAI-style response_format for this call, or None."""
     if params.structured_output == "off" or not params.response_schema:
         return None
     if str(getattr(client, "base_url", "")) in getattr(
             params, "schema_rejected_by", set()):
         return None
+    endpoint = str(getattr(client, "base_url", ""))
+    schema = params.response_schema["schema"]
+    if not portable and endpoint not in getattr(params, "ordered_schema_rejected_by", set()):
+        schema = params.response_schema.get("ordered_schema", schema)
     return {"type": "json_schema",
             "json_schema": {"name": params.response_schema.get("name", "entries"),
                             "strict": True,
-                            "schema": params.response_schema["schema"]}}
+                            "schema": schema}}
 
 
 def is_schema_rejection(error):
@@ -870,6 +878,15 @@ def is_schema_rejection(error):
     if status not in (400, 422):
         return False
     text = str(error).lower()
+    # Gateways may prefix an explicit feature rejection with "Invalid schema".
+    # Match the rejected response_format itself before checking schema errors.
+    if re.search(r"response_format(?:\.type|\s+type)?\s+(?:is\s+)?"
+                 r"(?:not supported|unsupported|must be one of|must be ['\"]text['\"])", text):
+        return True
+    if any(marker in text for marker in (
+            "invalid schema", "invalid_json_schema", "json schema error",
+            "schema validation error")) or ("schema" in text and "keyword" in text):
+        return False
     # The second list is what a server says when it refuses the FEATURE, as
     # opposed to a bad schema ("JSON schema error at #: ..."). "must be one
     # of" / "but got" is llama.cpp's own wording for a response_format type it
@@ -881,25 +898,55 @@ def is_schema_rejection(error):
                             "must be one of", "but got", "must be 'text'", "invalid parameter"))
 
 
+def is_ordered_schema_rejection(error):
+    """A tuple-specific 400/422, not an unrelated malformed schema or API error."""
+    if getattr(error, "status_code", None) not in (400, 422):
+        return False
+    text = str(error).lower()
+    if "schema" not in text and "response_format" not in text:
+        return False
+    if "tuple" in text and any(word in text for word in (
+            "unsupported", "not supported", "not allowed")):
+        return True
+    if "prefixitems" in text and any(word in text for word in ("required", "use", "expected")):
+        return True
+    if "items" not in text:
+        return False
+    return (any(word in text for word in ("array", "list", "dict_type"))
+            and any(word in text for word in ("object", "boolean", "dict_type"))
+            and any(word in text for word in (
+                "expected", "must", "not of type", "should", "got", "dict_type")))
+
+
 def create_completion(client, response_format, schema_rejected_by=None,
-                      run_profile_index=None, request_admission=None, **kwargs):
-    """One completion request; if the server rejects the schema, remember
-    that for its base URL and send the same request free-form."""
+                      run_profile_index=None, request_admission=None,
+                      portable_response_format=None, ordered_schema_rejected_by=None,
+                      **kwargs):
+    """Negotiate positional/portable schemas, then the existing feature fallback."""
     endpoint = str(getattr(client, "base_url", ""))
     if isinstance(client, FailoverClient) and run_profile_index is not None:
         endpoint = client.get_profile_base_url(run_profile_index)
         kwargs["_run_profile_index"] = run_profile_index
         kwargs["_request_admission"] = request_admission
-    if response_format:
+    while response_format:
         try:
             return client.chat.completions.create(response_format=response_format, **kwargs)
         except Exception as error:  # noqa: BLE001 - classified below
+            if portable_response_format and is_ordered_schema_rejection(error):
+                if ordered_schema_rejected_by is not None:
+                    ordered_schema_rejected_by.add(endpoint)
+                print("  positional schema rejected; retaining the portable JSON schema "
+                      "for this server for the rest of this run", flush=True)
+                response_format = portable_response_format
+                portable_response_format = None
+                continue
             if not is_schema_rejection(error):
                 raise
             if schema_rejected_by is not None:
                 schema_rejected_by.add(endpoint)
             print(f"  structured output rejected by the server ({error}); "
                   "sending free-form JSON for the rest of this run", flush=True)
+            break
     return client.chat.completions.create(**kwargs)
 
 
@@ -1238,6 +1285,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             request_log_error = None
             log_path = None
             response_format = get_response_format(params, client)
+            portable_response_format = get_response_format(params, client, portable=True)
+            if portable_response_format == response_format:
+                portable_response_format = None
             extra_body = build_extra_body(params)
             try:
                 log_path = get_response_log_path(log_name)
@@ -1266,6 +1316,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             response = create_completion(
                 client, response_format,
                 schema_rejected_by=schema_rejected_by,
+                portable_response_format=portable_response_format,
+                ordered_schema_rejected_by=getattr(params, "ordered_schema_rejected_by", None),
                 run_profile_index=run_profile_index, request_admission=params.request_admission,
                 model=model_name,
                 messages=messages,

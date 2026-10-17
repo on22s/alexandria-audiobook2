@@ -64,7 +64,8 @@ class LlmBatchReviewRegressions(unittest.TestCase):
         self.assertEqual(4, create.call_count)
 
     def test_remote_wire_settings_reach_worker_as_json_with_fresh_runtime_state(self):
-        params = generation.LLMGenParams(max_tokens=100, schema_rejected_by={'endpoint'}, request_admission=object())
+        params = generation.LLMGenParams(max_tokens=100, schema_rejected_by={'endpoint'},
+            ordered_schema_rejected_by={'portable-only-endpoint'}, request_admission=object())
         for stage in ('script-generation', 'script-review'):
             with self.subTest(stage=stage):
                 payload = {'params': benchmark.get_llm_worker_params(params), 'fixtures': []}
@@ -75,6 +76,7 @@ class LlmBatchReviewRegressions(unittest.TestCase):
                 restored = generation.LLMGenParams(**wire['params'])
                 self.assertEqual(100, restored.max_tokens)
                 self.assertEqual(set(), restored.schema_rejected_by)
+                self.assertEqual(set(), restored.ordered_schema_rejected_by)
                 self.assertIsNone(restored.request_admission)
 
     def test_review_rejects_bad_types_and_empty_speaker_but_accepts_empty_instruct(self):

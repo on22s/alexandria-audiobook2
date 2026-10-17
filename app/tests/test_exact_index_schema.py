@@ -47,7 +47,9 @@ THREE = [{"type": "SPOKEN", "text": "Come here,"},
 class ExactIndexSchemaTests(unittest.TestCase):
     def get_item_alternatives(self, schema):
         items = schema["items"]
-        return items.get("anyOf", [items])
+        positions = items if isinstance(items, list) else [items]
+        return [alternative for position in positions
+                for alternative in position.get("anyOf", [position])]
 
     def assert_exact(self, schema, size):
         self.assertEqual(size, schema["minItems"])
@@ -55,6 +57,9 @@ class ExactIndexSchemaTests(unittest.TestCase):
         indexes = [index for item in self.get_item_alternatives(schema)
                    for index in item["properties"]["n"]["enum"]]
         self.assertEqual(list(range(size)), sorted(indexes))
+        self.assertEqual([[index] for index in range(size)],
+                         [item['properties']['n']['enum'] for item in schema['items']])
+        self.assertFalse(schema['additionalItems'])
 
     def test_one_entry_window_allows_exactly_one_row(self):
         self.assert_exact(run_window(ONE), 1)

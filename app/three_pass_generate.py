@@ -651,7 +651,7 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
     },
 }
 
-ATTRIBUTION_SCHEMA_POLICY = "frozen_narration_v1"
+ATTRIBUTION_SCHEMA_POLICY = "ordered_frozen_narration_v2"
 
 
 def get_attribution_response_schema(speaker_traits=False, indexes=None):
@@ -670,7 +670,28 @@ SPEAKER_MAX_CHARS = 80
 
 
 def get_exact_index_schema(schema, indexes, *, frozen_entries=None):
-    """`schema` narrowed to one row per index, each `n` drawn from `indexes`.
+    """Keep the portable schema and offer a positional schema to capable servers.
+
+    Draft-7 tuple items bind every position to one physical source index. The
+    portable schema remains separate so rejecting tuple validation cannot turn
+    off otherwise working structured output. Native validation remains final.
+    """
+    indexes = list(indexes)
+    portable = get_portable_index_schema(
+        {key: value for key, value in schema.items() if key != "ordered_schema"},
+        indexes, frozen_entries=frozen_entries)
+    if indexes:
+        portable["ordered_schema"] = {
+            **portable["schema"],
+            "items": [get_portable_index_schema(portable, [index])["schema"]["items"]
+                      for index in indexes],
+            "additionalItems": False,
+        }
+    return portable
+
+
+def get_portable_index_schema(schema, indexes, *, frozen_entries=None):
+    """Fix the row count and allowed indices without requiring tuple support.
 
     A grammar-constrained server (llama.cpp) then cannot return a wrong row
     count or an out-of-window index. Measured 2026-10-13 on full Alice with
@@ -706,7 +727,7 @@ def get_exact_index_schema(schema, indexes, *, frozen_entries=None):
             for group, narration in groups:
                 if not group:
                     continue
-                narrowed = get_exact_index_schema(
+                narrowed = get_portable_index_schema(
                     {**schema, "schema": {**schema["schema"], "items": item}}, group)
                 narrowed_item = narrowed["schema"]["items"]
                 if narration:
