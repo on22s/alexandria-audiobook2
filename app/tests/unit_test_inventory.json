@@ -9232,6 +9232,17 @@
     "tests.test_tts_vram_cli.VramSummaryHeadroomTests.test_absolute_peak_counts_resident_model_once_and_preserves_headroom_margin",
     "tests.test_tts_vram_cli.VramSummaryHeadroomTests.test_multiple_recommendations_retain_peak_and_both_timing_columns"
   ],
+  "test_tts_vram_family_cycle": [
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_a_released_object_still_alive_is_a_leak_even_with_flat_bytes",
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_allocation_left_after_dropping_the_engine_is_a_leak",
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_flat_cycles_and_restored_baseline_are_clean",
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_growth_inside_tolerance_is_not_a_leak",
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_high_reserved_with_flat_allocated_is_clean",
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_one_step_growing_each_cycle_is_a_leak_at_that_step",
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_one_time_first_cycle_allocation_is_warmup_not_a_leak",
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_two_cycles_cannot_separate_warmup_from_growth",
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_warmup_followed_by_growth_is_still_a_leak"
+  ],
   "test_two_stage_hosted_client": [
     "tests.test_two_stage_hosted_client.HostedClientTests.test_a_hosted_endpoint_skips_the_guard_and_uses_the_key",
     "tests.test_two_stage_hosted_client.HostedClientTests.test_a_local_endpoint_still_takes_the_gpu_guard",
