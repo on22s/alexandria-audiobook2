@@ -850,7 +850,7 @@ def redact_recovery_value(value, key=None):
     return value
 
 
-def get_response_format(params, client, *, portable=False):
+def get_response_format(params, client, *, ordered=False):
     """-> the OpenAI-style response_format for this call, or None."""
     if params.structured_output == "off" or not params.response_schema:
         return None
@@ -859,7 +859,7 @@ def get_response_format(params, client, *, portable=False):
         return None
     endpoint = str(getattr(client, "base_url", ""))
     schema = params.response_schema["schema"]
-    if not portable and endpoint not in getattr(params, "ordered_schema_rejected_by", set()):
+    if ordered and endpoint not in getattr(params, "ordered_schema_rejected_by", set()):
         schema = params.response_schema.get("ordered_schema", schema)
     return {"type": "json_schema",
             "json_schema": {"name": params.response_schema.get("name", "entries"),
@@ -1188,6 +1188,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         codec = get_codec("json")
     resume_state = _resume_state or {}
     retry_feedback = resume_state.get("retry_feedback")
+    use_ordered_schema = resume_state.get("use_ordered_schema", False)
     requested_max = resume_state.get("requested_max", params.max_tokens)
     consecutive_severe = resume_state.get("consecutive_severe", 0)
     response_fingerprints = dict(resume_state.get("response_fingerprints", {}))
@@ -1211,6 +1212,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         if preserve_retry_state:
             state = {
                 "retry_feedback": retry_feedback,
+                "use_ordered_schema": use_ordered_schema,
                 "requested_max": requested_max,
                 "consecutive_severe": consecutive_severe,
                 "response_fingerprints": response_fingerprints,
@@ -1284,8 +1286,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             request_id = uuid.uuid4().hex[:12]
             request_log_error = None
             log_path = None
-            response_format = get_response_format(params, client)
-            portable_response_format = get_response_format(params, client, portable=True)
+            response_format = get_response_format(params, client, ordered=use_ordered_schema)
+            portable_response_format = get_response_format(params, client)
             if portable_response_format == response_format:
                 portable_response_format = None
             extra_body = build_extra_body(params)
@@ -1661,6 +1663,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         print("  Repeated unproductive response; switching to adaptive split")
                         return []
                     if attempt < max_retries:
+                        if (finish_reason != "length" and params.response_schema
+                                and params.response_schema.get("ordered_schema")
+                                and any(finding.get("code") == "alignment_violated"
+                                        for finding in quality.get("findings", []))):
+                            use_ordered_schema = True
                         print(retry_line(attempt, max_retries))
                         continue
                     return []

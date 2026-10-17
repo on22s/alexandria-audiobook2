@@ -28,11 +28,17 @@ class OrderedIndexSchemaTests(unittest.TestCase):
         self.addCleanup(client.close)
         return client
 
-    def get_reply(self, rows=None):
+    def get_reply(self, rows=None, finish='stop'):
         return httpx.Response(200, json={'id': 'fixture-result', 'object': 'chat.completion',
             'created': 0, 'model': 'fixture', 'choices': [{'index': 0,
                 'message': {'role': 'assistant', 'content': json.dumps(
-                    self.answer if rows is None else rows)}, 'finish_reason': 'stop'}]})
+                    self.answer if rows is None else rows)}, 'finish_reason': finish}]})
+
+    def get_duplicate_reply(self):
+        return self.get_reply([self.answer[0], self.answer[1], self.answer[0]])
+
+    def is_feedback_request(self, body):
+        return 'Your previous response was rejected' in body['messages'][-1]['content']
 
     def get_error(self, status, message):
         return httpx.Response(status, json={'error': {'message': message, 'type': 'invalid_request_error'}})
@@ -48,19 +54,137 @@ class OrderedIndexSchemaTests(unittest.TestCase):
                 ['ALICE', 'BOB'], max_retries=retries,
                 attempt_observer=attempts.append if attempts is not None else None)
 
-    def test_sdk_wire_binds_each_position_and_preserves_source(self):
+    def test_first_request_keeps_portable_schema_and_preserves_source(self):
         sent = []
         def respond(request):
             sent.append(json.loads(request.content))
             return self.get_reply()
         result = self.run_batch(self.get_client(respond), self.get_params())
         schema = sent[0]['response_format']['json_schema']['schema']
-        self.assertEqual([[0], [1], [2]], [row['properties']['n']['enum'] for row in schema['items']])
-        self.assertFalse(schema['additionalItems'])
-        self.assertEqual('NARRATOR', schema['items'][1]['properties']['speaker']['const'])
+        self.assertIsInstance(schema['items'], dict)
+        self.assertEqual([0, 2], schema['items']['anyOf'][0]['properties']['n']['enum'])
+        self.assertEqual('NARRATOR', schema['items']['anyOf'][1]['properties']['speaker']['const'])
+        self.assertEqual(1, len(sent))
         self.assertEqual([row['text'] for row in self.frozen], [row['text'] for row in result])
         self.assertEqual([row['uid'] for row in self.frozen], [row['uid'] for row in result])
         self.assertEqual(['ALICE', 'NARRATOR', 'BOB'], [row['speaker'] for row in result])
+
+    def test_alignment_retry_binds_each_position_without_mutating_params(self):
+        sent = []
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return self.get_duplicate_reply() if len(sent) == 1 else self.get_reply()
+        params = self.get_params()
+        before = deepcopy(vars(params))
+        result = self.run_batch(self.get_client(respond), params, retries=1)
+        self.assertEqual(2, len(sent))
+        self.assertIsInstance(sent[0]['response_format']['json_schema']['schema']['items'], dict)
+        schema = sent[1]['response_format']['json_schema']['schema']
+        self.assertEqual([[0], [1], [2]], [row['properties']['n']['enum'] for row in schema['items']])
+        self.assertFalse(schema['additionalItems'])
+        self.assertEqual('NARRATOR', schema['items'][1]['properties']['speaker']['const'])
+        self.assertEqual(sent[0]['max_tokens'], sent[1]['max_tokens'])
+        self.assertEqual(before, vars(params))
+        self.assertEqual([row['text'] for row in self.frozen], [row['text'] for row in result])
+        self.assertEqual([row['uid'] for row in self.frozen], [row['uid'] for row in result])
+
+    def test_semantic_rejection_does_not_change_the_schema(self):
+        sent = []
+        bad = deepcopy(self.answer)
+        bad[0]['speaker'] = 'NARRATOR'
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return self.get_reply(bad if len(sent) == 1 else self.answer)
+        self.run_batch(self.get_client(respond), self.get_params(), retries=1)
+        self.assertEqual(2, len(sent))
+        self.assertEqual(sent[0]['response_format'], sent[1]['response_format'])
+        self.assertIsInstance(sent[1]['response_format']['json_schema']['schema']['items'], dict)
+
+    def test_length_rejection_keeps_existing_portable_budget_escalation(self):
+        sent = []
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return self.get_reply(finish='length') if len(sent) == 1 else self.get_reply()
+        self.run_batch(self.get_client(respond), self.get_params(), retries=1)
+        self.assertEqual(2, len(sent))
+        self.assertEqual(sent[0]['response_format'], sent[1]['response_format'])
+        self.assertGreater(sent[1]['max_tokens'], sent[0]['max_tokens'])
+
+    def test_row_count_split_still_preempts_schema_retry(self):
+        sent = []
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return self.get_reply(self.answer[:2])
+        with self.assertRaises(tp.PassExhausted):
+            self.run_batch(self.get_client(respond), self.get_params(), retries=2)
+        self.assertEqual(1, len(sent))
+        self.assertIsInstance(sent[0]['response_format']['json_schema']['schema']['items'], dict)
+
+    def test_same_provider_pause_retains_the_selected_retry_schema(self):
+        sent = []
+        def respond(request):
+            sent.append(json.loads(request.content))
+            if len(sent) == 1:
+                return self.get_duplicate_reply()
+            if len(sent) == 2:
+                return self.get_error(503, 'service unavailable')
+            return self.get_reply()
+        params = self.get_params()
+        params.on_api_exhaustion = 'pause'
+        with patch.object(gs, 'pause_for_operator', return_value=True) as paused:
+            self.run_batch(self.get_client(respond), params, retries=1)
+        self.assertEqual(3, len(sent))
+        self.assertEqual(1, paused.call_count)
+        self.assertIsInstance(sent[0]['response_format']['json_schema']['schema']['items'], dict)
+        self.assertIsInstance(sent[1]['response_format']['json_schema']['schema']['items'], list)
+        self.assertEqual(sent[1]['response_format'], sent[2]['response_format'])
+        self.assertEqual(sent[1]['messages'], sent[2]['messages'])
+        self.assertEqual(sent[1]['max_tokens'], sent[2]['max_tokens'])
+
+    def test_failover_starts_with_the_secondary_portable_schema(self):
+        primary_calls, secondary_calls = [], []
+        def primary(request):
+            primary_calls.append(json.loads(request.content))
+            return self.get_duplicate_reply() if len(primary_calls) == 1 else self.get_error(503, 'unavailable')
+        def secondary(request):
+            secondary_calls.append(json.loads(request.content))
+            return self.get_reply()
+        client = FailoverClient(self.get_client(primary), 'primary',
+            self.get_client(secondary, 'http://secondary/v1'), 'secondary', secondary_label='local',
+            secondary_config={'base_url': 'http://secondary/v1', 'model_name': 'secondary',
+                              'structured_output': 'auto', 'api_retry_limit': 0})
+        with patch('lmstudio_settings.get_current_status', return_value={
+                'available': True, 'loaded': True, 'context_length': 8192, 'parallel': 1}):
+            self.run_batch(client, self.get_params(), retries=1)
+        self.assertEqual(2, len(primary_calls))
+        self.assertEqual(1, len(secondary_calls))
+        self.assertIsInstance(primary_calls[1]['response_format']['json_schema']['schema']['items'], list)
+        self.assertIsInstance(secondary_calls[0]['response_format']['json_schema']['schema']['items'], dict)
+
+    def test_schema_selection_does_not_leak_to_the_next_batch(self):
+        sent = []
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return self.get_duplicate_reply() if len(sent) == 1 else self.get_reply()
+        client, params = self.get_client(respond), self.get_params()
+        self.run_batch(client, params, retries=1)
+        self.run_batch(client, params)
+        self.assertEqual(3, len(sent))
+        self.assertIsInstance(sent[1]['response_format']['json_schema']['schema']['items'], list)
+        self.assertIsInstance(sent[2]['response_format']['json_schema']['schema']['items'], dict)
+
+    def test_temperature_zero_still_stops_a_repeated_rejected_prompt(self):
+        sent = []
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return self.get_duplicate_reply()
+        params = self.get_params()
+        params.temperature = 0
+        with self.assertRaises(tp.PassExhausted):
+            self.run_batch(self.get_client(respond), params, retries=4)
+        self.assertEqual(2, len(sent))
+        self.assertIsInstance(sent[0]['response_format']['json_schema']['schema']['items'], dict)
+        self.assertIsInstance(sent[1]['response_format']['json_schema']['schema']['items'], list)
 
     def test_tuple_rejection_keeps_portable_schema_and_sticks_only_for_endpoint_and_run(self):
         sent = []
@@ -68,28 +192,29 @@ class OrderedIndexSchemaTests(unittest.TestCase):
             body = json.loads(request.content); sent.append(body)
             if isinstance(body['response_format']['json_schema']['schema']['items'], list):
                 return self.get_error(400, self.tuple_error)
-            return self.get_reply()
+            return self.get_reply() if self.is_feedback_request(body) else self.get_duplicate_reply()
         client, params = self.get_client(respond), self.get_params()
-        self.run_batch(client, params)
-        self.run_batch(client, params)
-        self.assertEqual(3, len(sent))
-        self.assertEqual(sent[0]['messages'], sent[1]['messages'])
-        self.assertEqual(sent[0]['max_tokens'], sent[1]['max_tokens'])
-        portable = sent[1]['response_format']['json_schema']['schema']
+        self.run_batch(client, params, retries=1)
+        self.run_batch(client, params, retries=1)
+        self.assertEqual(5, len(sent))
+        self.assertEqual(sent[1]['messages'], sent[2]['messages'])
+        self.assertEqual(sent[1]['max_tokens'], sent[2]['max_tokens'])
+        portable = sent[2]['response_format']['json_schema']['schema']
         self.assertIsInstance(portable['items'], dict)
-        self.assertEqual(portable, sent[2]['response_format']['json_schema']['schema'])
+        self.assertEqual(portable, sent[4]['response_format']['json_schema']['schema'])
         narrator = portable['items']['anyOf'][1]
         self.assertEqual([1], narrator['properties']['n']['enum'])
         self.assertEqual('NARRATOR', narrator['properties']['speaker']['const'])
         self.assertFalse(params.schema_rejected_by)
         self.assertEqual({'http://fixture/v1/'}, params.ordered_schema_rejected_by)
-        self.run_batch(client, self.get_params())
-        self.assertIsInstance(sent[3]['response_format']['json_schema']['schema']['items'], list)
+        self.run_batch(client, self.get_params(), retries=1)
+        self.assertIsInstance(sent[6]['response_format']['json_schema']['schema']['items'], list)
         other = []
         def accept(request):
-            other.append(json.loads(request.content)); return self.get_reply()
-        self.run_batch(self.get_client(accept, 'http://other/v1'), params)
-        self.assertIsInstance(other[0]['response_format']['json_schema']['schema']['items'], list)
+            body = json.loads(request.content); other.append(body)
+            return self.get_reply() if self.is_feedback_request(body) else self.get_duplicate_reply()
+        self.run_batch(self.get_client(accept, 'http://other/v1'), params, retries=1)
+        self.assertIsInstance(other[1]['response_format']['json_schema']['schema']['items'], list)
 
     def test_whole_feature_rejection_retains_existing_single_fallback(self):
         for message in ['response_format is not supported',
@@ -116,15 +241,17 @@ class OrderedIndexSchemaTests(unittest.TestCase):
         def respond(request):
             body = json.loads(request.content); sent.append(body)
             if len(sent) == 1:
+                return self.get_duplicate_reply()
+            if len(sent) == 2:
                 return self.get_error(422, self.tuple_error)
-            if len(sent) == 3:
+            if len(sent) == 4:
                 return self.get_error(400, 'response_format is not supported')
             return self.get_reply()
         params = self.get_params(); client = self.get_client(respond)
-        self.run_batch(client, params); self.run_batch(client, params)
-        self.assertEqual(4, len(sent))
-        self.assertIsInstance(sent[2]['response_format']['json_schema']['schema']['items'], dict)
-        self.assertNotIn('response_format', sent[3])
+        self.run_batch(client, params, retries=1); self.run_batch(client, params)
+        self.assertEqual(5, len(sent))
+        self.assertIsInstance(sent[3]['response_format']['json_schema']['schema']['items'], dict)
+        self.assertNotIn('response_format', sent[4])
         self.assertEqual({'http://fixture/v1/'}, params.schema_rejected_by)
 
     def test_tuple_error_policy_requires_explicit_schema_shape_evidence(self):
@@ -150,11 +277,13 @@ class OrderedIndexSchemaTests(unittest.TestCase):
                 sent = []
                 def respond(request):
                     body = json.loads(request.content); sent.append(body)
-                    return self.get_error(400, self.tuple_error) if len(sent) == 1 else self.get_error(status, message)
+                    if len(sent) == 1:
+                        return self.get_duplicate_reply()
+                    return self.get_error(400, self.tuple_error) if len(sent) == 2 else self.get_error(status, message)
                 params = self.get_params()
                 with self.assertRaises(tp.PassExhausted):
-                    self.run_batch(self.get_client(respond), params)
-                self.assertEqual(2, len(sent))
+                    self.run_batch(self.get_client(respond), params, retries=1)
+                self.assertEqual(3, len(sent))
                 self.assertTrue(all('response_format' in row for row in sent))
                 self.assertFalse(params.schema_rejected_by)
 
@@ -166,11 +295,13 @@ class OrderedIndexSchemaTests(unittest.TestCase):
             with self.subTest(status=status):
                 sent = []
                 def respond(request):
-                    sent.append(json.loads(request.content)); return self.get_error(status, message)
+                    sent.append(json.loads(request.content))
+                    return self.get_duplicate_reply() if len(sent) == 1 else self.get_error(status, message)
                 params = self.get_params()
                 with self.assertRaises(tp.PassExhausted):
-                    self.run_batch(self.get_client(respond), params)
-                self.assertEqual(1, len(sent))
+                    self.run_batch(self.get_client(respond), params, retries=1)
+                self.assertEqual(2, len(sent))
+                self.assertIsInstance(sent[1]['response_format']['json_schema']['schema']['items'], list)
                 self.assertFalse(params.schema_rejected_by | params.ordered_schema_rejected_by)
 
     def test_ignored_schema_still_rejects_duplicate_indices_without_repair(self):
@@ -202,29 +333,32 @@ class OrderedIndexSchemaTests(unittest.TestCase):
             body = json.loads(request.content); first.append(body)
             if isinstance(body['response_format']['json_schema']['schema']['items'], list):
                 return self.get_error(400, self.tuple_error)
-            return self.get_reply()
+            return self.get_reply() if self.is_feedback_request(body) else self.get_duplicate_reply()
         def secondary(request):
-            second.append(json.loads(request.content)); return self.get_reply()
+            body = json.loads(request.content); second.append(body)
+            return self.get_reply() if self.is_feedback_request(body) else self.get_duplicate_reply()
         client = FailoverClient(self.get_client(primary), 'primary',
             self.get_client(secondary, 'http://secondary/v1'), 'secondary', secondary_label='local',
             secondary_config={'base_url': 'http://secondary/v1', 'model_name': 'secondary',
                               'structured_output': 'auto', 'api_retry_limit': 0})
         params = self.get_params()
-        self.run_batch(client, params)
+        self.run_batch(client, params, retries=1)
         client.failover({'category': 'timeout'})
         with patch('lmstudio_settings.get_current_status', return_value={
                 'available': True, 'loaded': True, 'context_length': 8192, 'parallel': 1}):
-            self.run_batch(client, params)
-        self.assertEqual(2, len(first))
-        self.assertEqual(1, len(second))
-        self.assertIsInstance(second[0]['response_format']['json_schema']['schema']['items'], list)
+            self.run_batch(client, params, retries=1)
+        self.assertEqual(3, len(first))
+        self.assertEqual(2, len(second))
+        self.assertIsInstance(second[0]['response_format']['json_schema']['schema']['items'], dict)
+        self.assertIsInstance(second[1]['response_format']['json_schema']['schema']['items'], list)
         self.assertEqual('secondary', second[0]['model'])
         self.assertEqual(first[0]['max_tokens'], second[0]['max_tokens'])
 
     def test_portable_fallback_still_passes_secondary_request_admission(self):
         sent, admitted = [], []
         def respond(request):
-            sent.append(json.loads(request.content)); return self.get_error(400, self.tuple_error)
+            sent.append(json.loads(request.content))
+            return self.get_duplicate_reply() if len(sent) == 1 else self.get_error(400, self.tuple_error)
         sdk = self.get_client(respond, 'http://secondary/v1')
         client = FailoverClient(sdk, 'primary', sdk, 'secondary', secondary_label='local',
             secondary_config={'base_url': 'http://secondary/v1', 'model_name': 'secondary',
@@ -233,14 +367,14 @@ class OrderedIndexSchemaTests(unittest.TestCase):
         params = self.get_params()
         def admission(profile):
             admitted.append(profile)
-            return len(admitted) == 1
+            return len(admitted) <= 2
         params.request_admission = admission
         with patch('lmstudio_settings.get_current_status', return_value={
                 'available': True, 'loaded': True, 'context_length': 8192, 'parallel': 1}):
             with self.assertRaises(tp.PassExhausted):
-                self.run_batch(client, params)
-        self.assertEqual(2, len(admitted))
-        self.assertEqual(1, len(sent), 'Admission refusal must prevent the portable wire send')
+                self.run_batch(client, params, retries=1)
+        self.assertEqual(3, len(admitted))
+        self.assertEqual(2, len(sent), 'Admission refusal must prevent the portable fallback wire send')
 
 
 if __name__ == '__main__':

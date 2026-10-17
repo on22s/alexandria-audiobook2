@@ -651,7 +651,7 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
     },
 }
 
-ATTRIBUTION_SCHEMA_POLICY = "ordered_frozen_narration_v2"
+ATTRIBUTION_SCHEMA_POLICY = "alignment_retry_frozen_narration_v3"
 
 
 def get_attribution_response_schema(speaker_traits=False, indexes=None):
@@ -670,7 +670,7 @@ SPEAKER_MAX_CHARS = 80
 
 
 def get_exact_index_schema(schema, indexes, *, frozen_entries=None):
-    """Keep the portable schema and offer a positional schema to capable servers.
+    """Keep the portable schema and offer positional output on alignment retries.
 
     Draft-7 tuple items bind every position to one physical source index. The
     portable schema remains separate so rejecting tuple validation cannot turn

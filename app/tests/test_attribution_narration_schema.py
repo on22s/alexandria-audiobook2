@@ -18,9 +18,7 @@ class NarrationSchemaTests(unittest.TestCase):
 
     def get_items(self, schema):
         item = schema['items']
-        positions = item if isinstance(item, list) else [item]
-        return [alternative for position in positions
-                for alternative in position.get('anyOf', [position])]
+        return item.get('anyOf', [item])
 
     def get_request(self, variant=None, *, traits=False, params=None, responses=None):
         client, calls = client_for(responses or [(deepcopy(self.answer), 'stop')])
@@ -35,16 +33,15 @@ class NarrationSchemaTests(unittest.TestCase):
         result, calls = self.get_request()
         schema = calls[0]['response_format']['json_schema']['schema']
         self.assertEqual((3, 3), (schema['minItems'], schema['maxItems']))
-        self.assertIsInstance(schema['items'], list)
-        spoken, narration, last = self.get_items(schema)
-        self.assertEqual([0], spoken['properties']['n']['enum'])
-        self.assertEqual([2], last['properties']['n']['enum'])
+        self.assertEqual({'anyOf'}, set(schema['items']))
+        spoken, narration = self.get_items(schema)
+        self.assertEqual([0, 2], spoken['properties']['n']['enum'])
         self.assertEqual([1], narration['properties']['n']['enum'])
         self.assertEqual('NARRATOR', narration['properties']['speaker']['const'])
         self.assertNotIn('enum', spoken['properties']['speaker'])
         self.assertNotIn('const', spoken['properties']['speaker'])
         self.assertEqual(tp.SPEAKER_MAX_CHARS, spoken['properties']['speaker']['maxLength'])
-        for item in (spoken, narration, last):
+        for item in (spoken, narration):
             self.assertFalse(item['additionalProperties'])
             self.assertEqual(['n', 'speaker'], item['required'])
         self.assertEqual(['ALICE', 'NARRATOR', 'BOB'], [row['speaker'] for row in result])
