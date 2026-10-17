@@ -1755,6 +1755,23 @@
     "tests.test_colab_installation.ColabInstallationTests.test_real_child_failure_displays_diagnostics_and_preserves_exit_code",
     "tests.test_colab_installation.ColabInstallationTests.test_real_child_stdout_and_stderr_reach_python_output_in_order"
   ],
+  "test_colab_ollama": [
+    "tests.test_colab_ollama.ColabOllamaTests.test_HTTP_errors_and_malformed_readiness_do_not_become_transient",
+    "tests.test_colab_ollama.ColabOllamaTests.test_checked_install_failures_stop_before_start_and_pull_failure_retires_owner",
+    "tests.test_colab_ollama.ColabOllamaTests.test_cleanup_errors_and_interruptions_preserve_handle_and_do_not_claim_success",
+    "tests.test_colab_ollama.ColabOllamaTests.test_cleanup_return_without_retirement_is_a_failure",
+    "tests.test_colab_ollama.ColabOllamaTests.test_existing_listener_refuses_before_start_or_model_pull",
+    "tests.test_colab_ollama.ColabOllamaTests.test_final_cleanup_attempts_both_services_when_tunnel_or_server_fails",
+    "tests.test_colab_ollama.ColabOllamaTests.test_final_cleanup_refuses_a_legacy_handle_without_signalling_it",
+    "tests.test_colab_ollama.ColabOllamaTests.test_missing_or_foreign_handle_never_dispatches_a_signal",
+    "tests.test_colab_ollama.ColabOllamaTests.test_primary_start_failure_keeps_cleanup_refusal_and_original_handle",
+    "tests.test_colab_ollama.ColabOllamaTests.test_readiness_retries_only_connection_and_timeout_with_same_policy",
+    "tests.test_colab_ollama.ColabOllamaTests.test_readiness_timeout_is_finite_and_owned_exit_refuses_before_request",
+    "tests.test_colab_ollama.ColabOllamaTests.test_restart_retires_previous_tree_before_replacing_handle_and_binds_pull",
+    "tests.test_colab_ollama.ColabOllamaTests.test_startup_or_pull_failure_retires_only_the_new_owner_and_never_prints_running",
+    "tests.test_colab_ollama.ColabOllamaTests.test_stop_cell_uses_helper_and_keeps_VRAM_readback_separate",
+    "tests.test_colab_ollama.ColabOllamaTests.test_stop_retires_original_handle_then_clears_it_and_is_idempotent"
+  ],
   "test_collect_audit_snapshot": [
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_audit_replacement_after_close_cannot_mix_status_and_seed_snapshots",
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_native_report_preserves_group_order_scored_rows_and_legacy_precedence"

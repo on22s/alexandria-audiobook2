@@ -105,6 +105,9 @@ Fresh Pinokio installations use CPython 3.10 for the prebuilt NVIDIA SageAttenti
 Runs the app on a free T4 GPU. You need a free [ngrok](https://dashboard.ngrok.com/signup)
 account for the tunnel; the notebook walks you through it.
 
+See the [Colab guide](docs/guides/COLAB.md) for installation errors and logs,
+temporary storage, and the Ollama-to-TTS GPU handoff.
+
 ### Option C: Docker (NVIDIA)
 
 ```bash
