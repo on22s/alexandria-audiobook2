@@ -1935,7 +1935,10 @@
   "test_config_schema_boundary": [
     "tests.test_config_schema_boundary.ConfigSchemaBoundaryTests.test_current_schema_keeps_json_native_presets_and_partial_profile_semantics",
     "tests.test_config_schema_boundary.ConfigSchemaBoundaryTests.test_new_schema_scalar_is_validated_without_adding_a_second_dispatch_list",
-    "tests.test_config_schema_boundary.ConfigSchemaBoundaryTests.test_new_schema_sections_preserve_partial_unknowns_and_existing_shape_policies"
+    "tests.test_config_schema_boundary.ConfigSchemaBoundaryTests.test_new_schema_sections_preserve_partial_unknowns_and_existing_shape_policies",
+    "tests.test_config_schema_boundary.ConfigSchemaBoundaryTests.test_subscription_only_annotated_preserves_valid_constrained_config",
+    "tests.test_config_schema_boundary.ConfigSchemaBoundaryTests.test_subscription_only_annotated_retains_bounds_and_strict_types",
+    "tests.test_config_schema_boundary.ConfigSchemaBoundaryTests.test_unconstrained_fields_do_not_need_an_annotated_wrapper"
   ],
   "test_config_secret_endpoint_binding": [
     "tests.test_config_secret_endpoint_binding.ConfigSecretEndpointBindingTests.test_changed_endpoint_cannot_restore_or_resolve_saved_key",

@@ -260,7 +260,7 @@ def _get_field_adapter(model: type[BaseModel], field_name: str) -> TypeAdapter:
     field = model.model_fields[field_name]
     annotation = field.annotation
     if field.metadata:
-        annotation = Annotated.__class_getitem__((annotation, *field.metadata))
+        annotation = Annotated[(annotation, *field.metadata)]
     return TypeAdapter(annotation)
 
 

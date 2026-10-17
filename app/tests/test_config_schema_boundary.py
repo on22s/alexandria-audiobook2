@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from typing import Optional
+from typing import Annotated, Optional
 from pydantic import BaseModel, Field, create_model
 import config_settings as config
 
@@ -57,3 +57,35 @@ class ConfigSchemaBoundaryTests(unittest.TestCase):
             'user_prompt':'','example':'','builtin':False},result.data['prompt_presets'][0])
         self.assertEqual({},result.data['generation']);self.assertIsNone(result.data['llm_remote'])
         self.assertEqual('retained',result.data['unknown'])
+
+    def test_subscription_only_annotated_preserves_valid_constrained_config(self):
+        class SubscriptionOnlyAnnotated:
+            # Python 3.13 exposes subscription rather than __class_getitem__.
+            def __getitem__(self, parameters):
+                return Annotated[parameters]
+        original={'tts':{'parallel_workers':8,'max_new_tokens':2048},
+                  'llm':{'context_length':16384,'max_output_tokens':1024}}
+        with patch.object(config,'Annotated',SubscriptionOnlyAnnotated()):
+            result=self.load(original)
+        self.assertEqual(original,result.data)
+        self.assertEqual((),result.warnings)
+
+    def test_subscription_only_annotated_retains_bounds_and_strict_types(self):
+        class SubscriptionOnlyAnnotated:
+            def __getitem__(self, parameters):
+                return Annotated[parameters]
+        with patch.object(config,'Annotated',SubscriptionOnlyAnnotated()):
+            result=self.load({'tts':{'parallel_workers':0,'max_new_tokens':8193,'device':'auto'},
+                              'llm':{'context_length':True,'max_output_tokens':0,
+                                     'max_input_tokens':'200'}})
+        self.assertEqual({'tts':{'device':'auto'},'llm':{}},result.data)
+        self.assertEqual({'tts.parallel_workers','tts.max_new_tokens','llm.context_length',
+                          'llm.max_output_tokens','llm.max_input_tokens'},
+                         {warning.field for warning in result.warnings})
+
+    def test_unconstrained_fields_do_not_need_an_annotated_wrapper(self):
+        original={'tts':{'device':'auto','compile_codec':True},'unknown':'kept'}
+        with patch.object(config,'Annotated',object()):
+            result=self.load(original)
+        self.assertEqual(original,result.data)
+        self.assertEqual((),result.warnings)
