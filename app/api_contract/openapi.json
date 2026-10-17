@@ -430,7 +430,7 @@
       "Body_clone_voices_upload_api_clone_voices_upload_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -469,7 +469,7 @@
       "Body_lora_upload_dataset_api_lora_upload_dataset_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -484,7 +484,7 @@
         "properties": {
           "audio_files": {
             "items": {
-              "format": "binary",
+              "contentMediaType": "application/octet-stream",
               "type": "string"
             },
             "title": "Audio Files",
@@ -505,7 +505,7 @@
       "Body_preparer_start_api_preparer_start_post": {
         "properties": {
           "audio_file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "Audio File",
             "type": "string"
           },
@@ -516,7 +516,7 @@
           "source_file": {
             "anyOf": [
               {
-                "format": "binary",
+                "contentMediaType": "application/octet-stream",
                 "type": "string"
               },
               {
@@ -536,7 +536,7 @@
       "Body_upload_file_api_upload_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -550,7 +550,7 @@
       "Body_upload_m4b_cover_api_m4b_cover_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -3389,6 +3389,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
