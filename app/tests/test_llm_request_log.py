@@ -52,7 +52,8 @@ def blocks(path):
 
 
 class RequestLogTests(unittest.TestCase):
-    def run_sdk_call(self, tmp, handler, params=None, max_retries=0):
+    def run_sdk_call(self, tmp, handler, params=None, max_retries=0, *,
+                     validate=None, system_prompt="system text", user_prompt="user text"):
         params = params or gs.LLMGenParams(
             "system text", "", 8192, 0.0, 1, api_retry_limit=0)
         output, attempts = io.StringIO(), []
@@ -64,9 +65,9 @@ class RequestLogTests(unittest.TestCase):
                              side_effect=lambda name: os.path.join(tmp, name)), \
                 contextlib.redirect_stdout(output):
             result = gs.call_llm_for_entries(
-                client, "fixture-model", "system text", "user text", params,
+                client, "fixture-model", system_prompt, user_prompt, params,
                 "llm_responses.log", "ATTRIBUTE", max_retries=max_retries,
-                attempt_observer=attempts.append)
+                attempt_observer=attempts.append, validate_entries=validate)
         return result, output.getvalue(), attempts
 
     def sdk_response(self, content=CORRECT):
@@ -113,6 +114,52 @@ class RequestLogTests(unittest.TestCase):
             self.assertNotEqual(ids[0], ids[1])
             self.assertIn(sent[1][1]["content"], requests[1])
             self.assertIn("previous response was rejected", requests[1])
+
+    def test_quality_retry_preserves_index_only_contract_and_budget(self):
+        sent = []
+        system = 'Return only JSON rows with n and speaker. Never return source text.'
+        user = 'Assign a speaker to each numbered entry.'
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return self.sdk_response(SHIFTED if len(sent) == 1 else CORRECT)
+        with tempfile.TemporaryDirectory() as tmp:
+            result, _, attempts = self.run_sdk_call(tmp, respond, max_retries=1,
+                validate=lambda rows: validate_attribution(FROZEN, rows),
+                system_prompt=system, user_prompt=user)
+            requests = blocks(os.path.join(tmp, 'llm_responses.requests.log'))
+        self.assertEqual(json.loads(CORRECT), result)
+        self.assertEqual(2, len(sent))
+        self.assertEqual([{'role': 'system', 'content': system},
+                          {'role': 'user', 'content': user}], sent[0]['messages'])
+        self.assertEqual(system, sent[1]['messages'][0]['content'])
+        retry = sent[1]['messages'][1]['content']
+        self.assertTrue(retry.startswith(user))
+        self.assertIn('Return the complete result in the required output format.', retry)
+        self.assertNotIn('Return the complete source text', retry)
+        self.assertIn('A narrator line must keep the speaker NARRATOR', retry)
+        self.assertEqual(sent[0]['max_tokens'], sent[1]['max_tokens'])
+        self.assertEqual(['quality_rejected', 'accepted'], [a['outcome'] for a in attempts])
+        self.assertIn(retry, requests[1])
+
+    def test_quality_retry_preserves_full_text_fidelity_contract(self):
+        import review_script
+        source = [{'speaker': 'NARRATOR', 'text': 'The rain stopped.', 'instruct': ''}]
+        changed = [{**source[0], 'text': 'The snow stopped.'}]
+        sent = []
+        system = 'Return all source text in JSON rows without changing any words.'
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return self.sdk_response(json.dumps(changed if len(sent) == 1 else source))
+        with tempfile.TemporaryDirectory() as tmp:
+            result, _, attempts = self.run_sdk_call(tmp, respond, max_retries=1,
+                validate=lambda rows: review_script.get_review_source_binding(source, rows)[1],
+                system_prompt=system, user_prompt=json.dumps(source))
+        self.assertEqual(source, result)
+        self.assertEqual(2, len(sent))
+        self.assertEqual(system, sent[1]['messages'][0]['content'])
+        self.assertIn('preserve the complete text in its original order', sent[1]['messages'][1]['content'])
+        self.assertEqual(['quality_rejected', 'accepted'], [a['outcome'] for a in attempts])
+        self.assertEqual(['review_text_mismatch'], attempts[0]['failure_codes'])
 
     def test_rejected_answer_reaches_the_log_line_but_not_the_prompt(self):
         validate = lambda entries: validate_attribution(FROZEN, entries)

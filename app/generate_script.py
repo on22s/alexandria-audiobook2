@@ -1207,7 +1207,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             attempt_prompt = user_prompt
             if retry_feedback:
                 attempt_prompt += ("\n\nYour previous response was rejected by deterministic "
-                                   "quality checks. Return the complete source text exactly once. "
+                                   "quality checks. Return the complete result in the required output format. "
                                    f"Failures: {retry_feedback}")
             messages = base_messages if not retry_feedback else [
                 base_messages[0], {"role": "user", "content": attempt_prompt}

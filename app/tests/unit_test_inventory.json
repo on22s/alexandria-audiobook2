@@ -4652,6 +4652,8 @@
     "tests.test_llm_request_log.RequestLogTests.test_api_retry_records_distinct_logical_ids_before_each_send",
     "tests.test_llm_request_log.RequestLogTests.test_failed_request_append_does_not_suppress_response_or_retry_provider",
     "tests.test_llm_request_log.RequestLogTests.test_input_budget_refusal_never_logs_or_sends_a_prepared_request",
+    "tests.test_llm_request_log.RequestLogTests.test_quality_retry_preserves_full_text_fidelity_contract",
+    "tests.test_llm_request_log.RequestLogTests.test_quality_retry_preserves_index_only_contract_and_budget",
     "tests.test_llm_request_log.RequestLogTests.test_rejected_answer_reaches_the_log_line_but_not_the_prompt",
     "tests.test_llm_request_log.RequestLogTests.test_request_is_closed_and_lock_released_before_backend_entry",
     "tests.test_llm_request_log.RequestLogTests.test_request_is_logged_with_the_id_its_response_carries",
