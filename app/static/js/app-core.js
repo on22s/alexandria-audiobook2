@@ -4174,8 +4174,52 @@
         // --- Voices Tab ---
         const AVAILABLE_VOICES = ["Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian"];
 
-        function getVoiceCandidateMarkup(candidates) {
-            return Array.isArray(candidates) && candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${candidates.map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(candidate.candidate_id || '')}${candidate.rank ? ` · #${candidate.rank}` : ''}${candidate.type === 'clone' && candidate.ref_text ? ` · “${escapeHtml(String(candidate.ref_text).slice(0, 40))}${String(candidate.ref_text).length > 40 ? '…' : ''}”` : ''}</span><button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" data-voice-focus-key="${escapeHtml('candidate-favorite:' + (candidate.candidate_id || ''))}" aria-label="${candidate.favorite ? 'Unfavourite' : 'Favourite'} candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="favoriteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')}, ${candidate.favorite ? 'false' : 'true'})">★</button><button class="btn btn-sm btn-outline-success py-0" type="button" aria-label="Use candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="selectVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">Use</button><button class="btn btn-sm btn-outline-danger py-0" type="button" aria-label="Delete candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="deleteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">×</button></div>`).join('')}</div>` : '';
+        function getVoiceCandidateMarkup(candidates, activeCandidate) {
+            return Array.isArray(candidates) && candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${getCandidatesNewestFirst(candidates).map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(getCandidateLabel(candidate))}${candidate.rank ? ` · #${candidate.rank}` : ''}${candidate.type === 'clone' && candidate.ref_text ? ` · “${escapeHtml(String(candidate.ref_text).slice(0, 40))}${String(candidate.ref_text).length > 40 ? '…' : ''}”` : ''}</span>${getCandidateAudioUrl(candidate) ? `<button class="btn btn-sm btn-outline-primary py-0 candidate-play" type="button" data-label="${escapeHtml('candidate ' + getCandidateLabel(candidate))}" aria-label="${escapeHtml('Play candidate ' + getCandidateLabel(candidate))}" onclick="toggleCandidatePlayback(this, ${getInlineStringArgument(candidate.candidate_id || '')})"><i class="fas fa-play"></i></button>` : ''}<button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" data-voice-focus-key="${escapeHtml('candidate-favorite:' + (candidate.candidate_id || ''))}" aria-label="${candidate.favorite ? 'Unfavourite' : 'Favourite'} candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="favoriteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')}, ${candidate.favorite ? 'false' : 'true'})">★</button>${candidate.candidate_id && candidate.candidate_id === activeCandidate ? `<button class="btn btn-sm btn-success py-0" type="button" disabled aria-label="Candidate ${escapeHtml(candidate.candidate_id)} is in use">In use</button>` : `<button class="btn btn-sm btn-outline-success py-0" type="button" aria-label="Use candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="selectVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">Use</button>`}<button class="btn btn-sm btn-outline-danger py-0" type="button" aria-label="Delete candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="deleteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">×</button></div>`).join('')}</div>` : '';
+        }
+
+        // Newest first (#1300). Candidates are stored in saving order, so the list
+        // is reversed - except that a run of ranked suggestions (auto-suggest
+        // saves #1..#n together) keeps its rank order; a rank that does not grow
+        // starts a new run, so two suggestion batches never merge.
+        function getCandidatesNewestFirst(candidates) {
+            const runs = [];
+            for (const candidate of candidates) {
+                const run = runs[runs.length - 1];
+                const previous = run ? run[run.length - 1] : null;
+                if (candidate.rank && previous && previous.rank && candidate.rank > previous.rank) {
+                    run.push(candidate);
+                } else {
+                    runs.push([candidate]);
+                }
+            }
+            return runs.reverse().flat();
+        }
+
+        // #1298: a saved candidate reads as when it was saved, biggest unit first
+        // (design-YYYYMMDD-HHMMSS, local time). Its id stays the identity and
+        // shows on hover; a candidate saved before times were kept shows its id.
+        function getCandidateLabel(candidate) {
+            const id = candidate.candidate_id || '';
+            const saved = candidate.saved_at ? new Date(candidate.saved_at) : null;
+            if (!saved || Number.isNaN(saved.getTime())) {
+                return id;
+            }
+            const two = number => String(number).padStart(2, '0');
+            const prefix = id.includes('-') ? id.slice(0, id.indexOf('-')) : 'design';
+            return `${prefix}-${saved.getFullYear()}${two(saved.getMonth() + 1)}${two(saved.getDate())}`
+                + `-${two(saved.getHours())}${two(saved.getMinutes())}${two(saved.getSeconds())}`;
+        }
+
+        // #1299: what a saved candidate sounds like - its reference audio, or a
+        // LoRA adapter's preview. null when there is nothing to play.
+        function getCandidateAudioUrl(candidate) {
+            if (candidate.ref_audio) {
+                return getLocalAudioUrl(String(candidate.ref_audio), Date.now());
+            }
+            const adapterId = candidate.adapter_id || candidate.candidate_id;
+            const model = candidate.type === 'lora' ? getLoraModelsById().get(adapterId) : null;
+            return model && model.preview_audio_url ? model.preview_audio_url : null;
         }
 
         function getLibraryVoiceReference(refAudio) {
@@ -4189,6 +4233,52 @@
             }
             return null;
         }
+
+        function setCandidatePlayButton(button, playing) {
+            button.innerHTML = playing ? '<i class="fas fa-stop"></i>' : '<i class="fas fa-play"></i>';
+            button.setAttribute('aria-label', (playing ? 'Stop ' : 'Play ') + button.dataset.label);
+            button.classList.toggle('btn-primary', playing);
+            button.classList.toggle('btn-outline-primary', !playing);
+        }
+
+        // One candidate plays at a time: Play on another stops the current one,
+        // and Stop (or the end of the audio) turns the button back to Play.
+        window.toggleCandidatePlayback = async function toggleCandidatePlayback(button, candidateId) {
+            const current = window._candidatePlayback;
+            if (current) {
+                current.audio.pause();
+                setCandidatePlayButton(current.button, false);
+                window._candidatePlayback = null;
+                if (current.button === button) {
+                    return;
+                }
+            }
+            const card = button.closest('.voice-card');
+            const candidate = (getVoiceCardMetadata(card).candidates || [])
+                .find(item => item && item.candidate_id === candidateId);
+            const url = candidate ? getCandidateAudioUrl(candidate) : null;
+            if (!url) {
+                showToast('This candidate has no audio to play.', 'warning');
+                return;
+            }
+            const audio = new Audio(url);
+            const playback = {audio, button};
+            window._candidatePlayback = playback;
+            setCandidatePlayButton(button, true);
+            const finish = () => {
+                if (window._candidatePlayback === playback) {
+                    window._candidatePlayback = null;
+                    setCandidatePlayButton(button, false);
+                }
+            };
+            audio.addEventListener('ended', finish);
+            try {
+                await audio.play();
+            } catch (error) {
+                finish();
+                showToast('Could not play this candidate. Check that Alexandria is running, then try Play again.', 'warning');
+            }
+        };
 
         // Gender/age per line (#653): one tag per character - the most common
         // values, "ageless" when marked, and any big change in order (a time
@@ -4315,7 +4405,7 @@
                                 <div class="form-text" ${voice.version_id ? 'hidden' : ''}>Selecting a saved version replaces the current voice settings. Save the current settings as a version first if you want to return to them later.</div>
                                 ${((voice.traits && voice.traits.states) || []).length > 1 ? `<div class="voice-states mt-1"><button class="btn btn-sm btn-outline-primary" type="button" aria-label="${escapeHtml('Load voice changes for ' + label)}" onclick="openVoiceStates(this)"><i class="fas fa-user-clock me-1"></i>Voice changes (${voice.traits.states.length - 1} change${voice.traits.states.length === 2 ? '' : 's'})</button><div class="form-text">Review which voice is used before and after each change.</div><div class="voice-state-rows"></div></div>` : ''}
                                 <button class="btn btn-sm btn-outline-secondary mt-1" type="button" aria-label="${escapeHtml('Generate more voice candidates for ' + label)}" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>Generate more candidates</button>
-                                <div class="saved-voice-candidates">${getVoiceCandidateMarkup(config.candidates)}</div>
+                                <div class="saved-voice-candidates">${getVoiceCandidateMarkup(config.candidates, config.active_candidate)}</div>
                                 <div class="form-check form-switch small">
                                     <input class="form-check-input voice-ready" aria-label="${escapeHtml('Ready for audio generation for ' + label)}" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
                                     <label class="form-check-label" for="voice-ready-${index}">Ready</label>
@@ -5118,7 +5208,8 @@
                 document.querySelectorAll('.voice-card').forEach(card => {
                     const list = card.querySelector('.saved-voice-candidates');
                     if (list) {
-                        list.innerHTML = getVoiceCandidateMarkup(getVoiceCardMetadata(card).candidates);
+                        const metadata = getVoiceCardMetadata(card);
+                        list.innerHTML = getVoiceCandidateMarkup(metadata.candidates, metadata.active_candidate);
                     }
                 });
                 if (n === 0) {

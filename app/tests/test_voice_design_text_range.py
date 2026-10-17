@@ -214,9 +214,12 @@ class ChosenLineDesignTests(unittest.TestCase):
         self.assertEqual(saved["description"], "Bright, quick voice.")
         self.assertEqual(saved["ref_text"], "Okay")
         self.assertNotEqual(saved["ref_audio"], old["ref_audio"])
-        [candidate] = saved["candidates"]
+        # The replaced voice and the new one are both saved; the new one is active (#1297).
+        candidate, designed = saved["candidates"]
         self.assertTrue(candidate["candidate_id"].startswith("design-"))
         self.assertEqual(candidate["ref_audio"], old["ref_audio"])
+        self.assertEqual(designed["ref_audio"], saved["ref_audio"])
+        self.assertEqual(saved["active_candidate"], designed["candidate_id"])
         # Character-level fields are not part of a voice candidate.
         self.assertNotIn("ready", candidate)
         self.assertNotIn("persona_status", candidate)
@@ -351,8 +354,10 @@ class StateCardDesignTests(unittest.TestCase):
         state = saved["versions"][adult]
         self.assertEqual((state["ref_text"], state["description"]), ("This is adult line number 3.", "adult voice."))
         self.assertEqual(state["persona_state"], before["ARTHUR"]["versions"][adult]["persona_state"])
-        [candidate] = state["candidates"]
+        candidate, designed = state["candidates"]
         self.assertEqual(candidate["ref_audio"], "state2.wav")
+        self.assertEqual(designed["ref_audio"], state["ref_audio"])
+        self.assertEqual(state["active_candidate"], designed["candidate_id"])
         self.assertNotIn("persona_state", candidate)
         self.assertEqual(saved["versions"][teen], before["ARTHUR"]["versions"][teen])
         self.assertEqual({k: v for k, v in saved.items() if k != "versions"},

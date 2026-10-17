@@ -68,6 +68,7 @@ from utils import (
 )
 from persona_validation import get_design_text_range, get_selectable_design_texts, validate_persona_payload
 from repair_voice_config import get_unseeded_voice_seed_changes, apply_unseeded_voice_seeds
+from voice_candidates import get_entry_using_candidate, get_entry_with_current_candidate
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -566,10 +567,17 @@ async def select_voice_candidate(speaker: str, candidate_id: str, request: Voice
                           if isinstance(c, dict) and c.get("candidate_id") == candidate_id), None)
         if candidate is None:
             raise HTTPException(status_code=404, detail="Voice candidate not found")
-        entry.update({k: v for k, v in candidate.items()
-                      if k != "candidate_id" and (not request.version_id or k not in
-                          {"persona_state", "description", "age_group", "gender", "versions", "version_timeline"})})
-        entry["active_candidate"] = candidate_id
+        # Save the voice being replaced first, so "Use" can never lose it -
+        # including voices made before every voice was saved (#1297).
+        entry["candidates"] = get_entry_with_current_candidate(entry).get(
+            "candidates", entry.get("candidates", []))
+        # The card takes exactly the candidate's voice (no fields left over from
+        # the previous one); a state version keeps its own identity fields.
+        kept = ({"persona_state", "description", "age_group", "gender", "versions", "version_timeline"}
+                if request.version_id else set())
+        selected = get_entry_using_candidate(entry, candidate, kept)
+        entry.clear()
+        entry.update(selected)
         entry["voice_status"] = "assigned"
     entry = await asyncio.to_thread(_mutate_voice_target, speaker, select, request.version_id, request.book_token)
     return {"status": "selected", "speaker": speaker, "candidate_id": candidate_id,

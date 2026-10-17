@@ -9665,6 +9665,20 @@
     "tests.test_voice_book_snapshot.VoiceBookSnapshotTests.test_recovery_switch_between_validation_and_worker_save_refuses_publication",
     "tests.test_voice_book_snapshot.VoiceBookSnapshotTests.test_reloading_same_named_book_rejects_old_suggestion_generation"
   ],
+  "test_voice_candidates": [
+    "tests.test_voice_candidates.CandidatePlaybackTests.test_play_stop_switches_and_only_one_candidate_plays",
+    "tests.test_voice_candidates.CurrentCandidateTests.test_a_voice_saved_under_another_id_is_not_saved_twice",
+    "tests.test_voice_candidates.CurrentCandidateTests.test_an_entry_without_a_voice_adds_nothing",
+    "tests.test_voice_candidates.CurrentCandidateTests.test_resaving_keeps_the_original_place_in_the_list",
+    "tests.test_voice_candidates.CurrentCandidateTests.test_the_current_voice_is_added_once_and_made_active",
+    "tests.test_voice_candidates.CurrentCandidateTests.test_the_save_time_is_recorded_once_and_is_not_part_of_the_voice",
+    "tests.test_voice_candidates.CurrentCandidateTests.test_using_a_candidate_installs_exactly_its_voice",
+    "tests.test_voice_candidates.GeneratedVoicesAreSavedTests.test_a_generated_persona_voice_is_a_saved_active_candidate",
+    "tests.test_voice_candidates.GeneratedVoicesAreSavedTests.test_designing_keeps_both_voices_and_makes_the_new_one_active",
+    "tests.test_voice_candidates.NewestFirstListTests.test_newest_first_with_ranked_runs_in_rank_order_and_in_use_marked",
+    "tests.test_voice_candidates.UseKeepsTheReplacedVoiceTests.test_the_designed_voice_survives_using_an_older_candidate",
+    "tests.test_voice_candidates.UseKeepsTheReplacedVoiceTests.test_use_keeps_candidate_bookkeeping_off_the_card_and_adds_no_duplicates"
+  ],
   "test_voice_clustering": [
     "tests.test_voice_clustering.SimilarityMatrixValidationTests.test_nonfinite_or_asymmetric_matrices_are_rejected_before_clustering",
     "tests.test_voice_clustering.SimilarityMatrixValidationTests.test_one_split_member_can_merge_with_an_unrelated_label",

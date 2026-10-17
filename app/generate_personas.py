@@ -19,6 +19,7 @@ from generate_script import (LLMGenParams, call_llm_for_object, split_failed_chu
                              ensure_run_request_params)
 
 from tts import TTSEngine, sanitize_filename, voice_is_set, VERSION_OVERLAY_EXCLUDED
+from voice_candidates import get_entry_with_current_candidate
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed, file_lock
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 from persona_validation import (validate_persona_payload, get_reference_samples,
@@ -824,7 +825,9 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
             "character_style": description,
             "seed": character_voice_seed(speaker),
         })
-        voice_config[speaker] = voice_entry
+        # The new voice is saved as a candidate too, so replacing it later
+        # (Design, "Use") can never lose it (#1297).
+        voice_config[speaker] = get_entry_with_current_candidate(voice_entry)
     except Exception as e:
         if preview_dir is not None:
             shutil.rmtree(preview_dir)
@@ -846,28 +849,11 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
     return True
 
 
-# Fields that belong to the character, not to one voice: a saved design
-# candidate never carries them, so using it later cannot rewind them.
-DESIGN_CANDIDATE_EXCLUDED = {"versions", "candidates", "active_version", "active_candidate",
-                             "style_timeline", "narrator_strategy", "alias_of", "ready",
-                             "persona_status", "voice_status", "age_group", "persona_state",
-                             "version_timeline"}
-
-
-def get_previous_voice_candidate(entry):
-    """-> the voice `entry` holds now as a saved candidate, or None when no voice is set."""
-    if not isinstance(entry, dict) or not voice_is_set(entry):
-        return None
-    snapshot = {key: copy.deepcopy(value) for key, value in entry.items()
-                if key not in DESIGN_CANDIDATE_EXCLUDED}
-    identity = json.dumps(snapshot, sort_keys=True, ensure_ascii=False).encode("utf-8")
-    return {**snapshot, "candidate_id": "design-" + hashlib.sha256(identity).hexdigest()[:12]}
-
-
 def design_from_chosen_line(voice_config, speaker, ref_text, lines, engine, root, book_id=None, version_id=None):
     """Design `speaker`'s voice, or one state version of it, from `ref_text`, one of
     the `lines` spoken there, keeping that voice's persona description (#1232, #1251).
-    The voice it replaces is kept as a saved candidate on the same card.
+    The voice it replaces and the new voice are both kept as saved candidates on
+    the same card, the new one active (#1297).
     -> a new voice_config; raises ValueError when refused."""
     if ref_text not in get_selectable_design_texts(lines):
         raise ValueError("The chosen line is not one of this character's lines")
@@ -879,17 +865,11 @@ def design_from_chosen_line(voice_config, speaker, ref_text, lines, engine, root
     description = str(target.get("description") or "").strip()
     if not description:
         raise ValueError("Generate a persona for this character first; a chosen line reuses its description")
-    previous = get_previous_voice_candidate(target)
-    if previous is not None:
-        target["candidates"] = [candidate for candidate in target.get("candidates") or []
-                                if not (isinstance(candidate, dict)
-                                        and candidate.get("candidate_id") == previous["candidate_id"])]
-        target["candidates"].append(previous)
+    target = get_entry_with_current_candidate(target)  # the voice being replaced
     # The preview saver writes one speaker's entry; hand it the target alone.
     designed = {speaker: target}
     if not _save_generated_preview(root, engine, designed, speaker, description, ref_text, book_id=book_id):
         raise RuntimeError(f"Voice design failed for {speaker}")
-    designed[speaker].pop("active_candidate", None)
     if version_id:
         entry["versions"][version_id] = designed[speaker]
     else:
@@ -1413,7 +1393,6 @@ def run_advanced_persona_generation(script, selected_speakers, samples, voice_co
                 continue
             generated = state_config[speaker]
             generated.update(get_state_version_identity(target))
-            generated.pop("active_candidate", None)
             generated["persona_status"] = "generated"
             generated["voice_status"] = "generated"
             voice.setdefault("versions", {})[version_id] = generated

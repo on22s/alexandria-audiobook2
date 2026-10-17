@@ -275,7 +275,13 @@ class StatePublicationCandidateRegressionTests(unittest.TestCase):
             self.assertEqual(voice['age_group'], first['age_group'])
             self.assertEqual(voice['candidates'], base_pool)
             self.assertEqual(voice['active_candidate'], 'root_saved')
-            self.assertEqual(voice['versions'][first['version_id']]['candidates'], state_pool)
+            # The saved state pool is kept, and the generated state voice is added
+            # to it and made active, so it can never be lost (#1297).
+            state = voice['versions'][first['version_id']]
+            self.assertEqual(state['candidates'][:1], state_pool)
+            self.assertEqual(len(state['candidates']), 2)
+            self.assertEqual(state['candidates'][1]['ref_audio'], state['ref_audio'])
+            self.assertEqual(state['active_candidate'], state['candidates'][1]['candidate_id'])
 
     def test_pending_only_reuses_completed_first_state_without_generating_assets(self):
         with tempfile.TemporaryDirectory() as directory:
