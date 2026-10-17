@@ -1746,10 +1746,14 @@
     "tests.test_codec_oom_recovery.CodecOomRecoveryTests.test_shared_model_loader_installs_retry_after_cache_or_download_load"
   ],
   "test_colab_installation": [
+    "tests.test_colab_installation.ColabInstallationTests.test_cleanup_error_does_not_replace_the_original_output_error",
     "tests.test_colab_installation.ColabInstallationTests.test_existing_checkout_updates_before_installing",
     "tests.test_colab_installation.ColabInstallationTests.test_fresh_clone_installs_one_joint_requirement_set_in_kernel_python",
     "tests.test_colab_installation.ColabInstallationTests.test_git_failure_stops_before_pip_and_completion",
-    "tests.test_colab_installation.ColabInstallationTests.test_pip_failure_is_not_followed_by_other_installs_or_success"
+    "tests.test_colab_installation.ColabInstallationTests.test_interrupt_kills_and_reaps_the_running_child",
+    "tests.test_colab_installation.ColabInstallationTests.test_pip_failure_is_not_followed_by_other_installs_or_success",
+    "tests.test_colab_installation.ColabInstallationTests.test_real_child_failure_displays_diagnostics_and_preserves_exit_code",
+    "tests.test_colab_installation.ColabInstallationTests.test_real_child_stdout_and_stderr_reach_python_output_in_order"
   ],
   "test_collect_audit_snapshot": [
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_audit_replacement_after_close_cannot_mix_status_and_seed_snapshots",
