@@ -29,7 +29,7 @@ seaborn==0.13.2
 # (gfx1201); the PyPI wheel is CPU-only and would overwrite it on every update.
 # install.js provisions the backend-specific source build through llama_cpp.js.
 transformers==4.57.3
-peft==0.18.1
+peft==0.21.2
 python-multipart==0.0.32
 aiofiles==24.1.0
 # Only consumed by alexandria_preparer_rocm_compatible.py's WAV tagging, which
