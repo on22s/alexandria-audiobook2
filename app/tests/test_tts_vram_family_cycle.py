@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import weakref
 
 SPEC = importlib.util.spec_from_file_location(
     "tts_vram_family_cycle",
@@ -79,6 +80,59 @@ class CycleVerdictTests(unittest.TestCase):
         verdict = cycle.get_cycle_verdict(make_samples(reserved=12 * GIB), 0, 0)
         self.assertEqual(verdict["verdict"], "CLEAN")
 
+
+
+class Model:
+    """Stands in for a loaded model: weakref-able, identity only."""
+
+
+class FakeEngine:
+    def __init__(self, **models):
+        for family in cycle.FAMILIES:
+            setattr(self, f"_local_{family}_model", models.get(family))
+        self._clone_prompt_cache = {}
+        self._lora_prompt_cache = {}
+
+
+def get_dead_ref():
+    gone = Model()
+    ref = weakref.ref(gone)
+    del gone
+    return ref
+
+
+class RecordedOwnerTests(unittest.TestCase):
+    """#1292: Python may give a new owner the id of a dead one."""
+
+    def test_a_dead_entry_under_a_reused_id_is_replaced_by_the_new_owner(self):
+        model = Model()
+        stale = {id(model): ("model:clone", get_dead_ref())}  # the id reuse, made explicit
+        owned_ids, recorded = cycle.get_recorded_owners(FakeEngine(custom=model), stale)
+        self.assertIn(id(model), owned_ids)
+        label, ref = recorded[id(model)]
+        self.assertIs(ref(), model)
+        self.assertEqual(label, "model:custom")
+
+    def test_the_new_owner_is_reported_once_something_outside_keeps_it_alive(self):
+        model = Model()
+        stale = {id(model): ("model:clone", get_dead_ref())}
+        _, recorded = cycle.get_recorded_owners(FakeEngine(custom=model), stale)
+        # Next step: the engine evicted it, but this test still holds `model`.
+        owned_ids, recorded = cycle.get_recorded_owners(FakeEngine(), recorded)
+        self.assertEqual(cycle.get_orphans(recorded, owned_ids), ["model:custom"])
+
+    def test_an_owner_still_held_by_the_engine_is_not_an_orphan(self):
+        model = Model()
+        _, recorded = cycle.get_recorded_owners(FakeEngine(lora=model), {})
+        owned_ids, recorded = cycle.get_recorded_owners(FakeEngine(lora=model), recorded)
+        self.assertEqual(cycle.get_orphans(recorded, owned_ids), [])
+        self.assertEqual(recorded[id(model)][0], "model:lora")
+
+    def test_the_callers_registry_is_not_changed(self):
+        stale = {1: ("model:clone", get_dead_ref())}
+        before = dict(stale)
+        cycle.get_recorded_owners(FakeEngine(design=Model()), stale)
+        self.assertEqual(stale, before)
 
 if __name__ == "__main__":
     unittest.main()

@@ -117,14 +117,26 @@ def get_recorded_owners(engine, released):
     """Ids the engine owns now, and `released` extended with weakrefs to them.
 
     Returns ids, never the objects: a strong reference kept here would hold
-    the evicted model alive through the next load and read as a leak."""
+    the evicted model alive through the next load and read as a leak.
+
+    An entry is replaced when its weakref no longer points at the object now
+    holding that id: Python reuses the id of a dead object, and keeping the
+    stale entry would leave the new owner untracked (#1292)."""
     owned = get_owned(engine)
     recorded = dict(released)
     for label, objects in owned.items():
         for obj in objects:
-            recorded.setdefault(id(obj), (label, weakref.ref(obj)))
+            entry = recorded.get(id(obj))
+            if entry is None or entry[1]() is not obj:
+                recorded[id(obj)] = (label, weakref.ref(obj))
     return {key for key, (_label, ref) in recorded.items()
             if any(ref() is obj for objects in owned.values() for obj in objects)}, recorded
+
+
+def get_orphans(released, owned_ids):
+    """Labels of recorded objects still alive that the engine no longer owns."""
+    return sorted({label for key, (label, ref) in released.items()
+                   if ref() is not None and key not in owned_ids})
 
 
 def get_live_cuda_tensors():
@@ -235,8 +247,7 @@ def main():
             seconds = round(time.time() - started, 1)
             owned_ids, released = get_recorded_owners(engine, released)
             ensure_released_memory(device)
-            orphans = sorted({label for key, (label, ref) in released.items()
-                              if ref() is not None and key not in owned_ids})
+            orphans = get_orphans(released, owned_ids)
             released = {key: value for key, value in released.items() if value[1]() is not None}
             sample = {"cycle": cycle, "step": step, "seconds": seconds,
                       "resident": [f for f in FAMILIES

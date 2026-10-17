@@ -9258,7 +9258,11 @@
     "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_one_step_growing_each_cycle_is_a_leak_at_that_step",
     "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_one_time_first_cycle_allocation_is_warmup_not_a_leak",
     "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_two_cycles_cannot_separate_warmup_from_growth",
-    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_warmup_followed_by_growth_is_still_a_leak"
+    "tests.test_tts_vram_family_cycle.CycleVerdictTests.test_warmup_followed_by_growth_is_still_a_leak",
+    "tests.test_tts_vram_family_cycle.RecordedOwnerTests.test_a_dead_entry_under_a_reused_id_is_replaced_by_the_new_owner",
+    "tests.test_tts_vram_family_cycle.RecordedOwnerTests.test_an_owner_still_held_by_the_engine_is_not_an_orphan",
+    "tests.test_tts_vram_family_cycle.RecordedOwnerTests.test_the_callers_registry_is_not_changed",
+    "tests.test_tts_vram_family_cycle.RecordedOwnerTests.test_the_new_owner_is_reported_once_something_outside_keeps_it_alive"
   ],
   "test_two_stage_hosted_client": [
     "tests.test_two_stage_hosted_client.HostedClientTests.test_a_hosted_endpoint_skips_the_guard_and_uses_the_key",
