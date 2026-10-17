@@ -1,7 +1,9 @@
 """Private real Git/flock chain and promoter admission across interruption."""
+import contextlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,6 +17,45 @@ from tests.regate_campaign_fixture import (
 )
 from tests.test_chain_failure_guards import prepare_artifact_commit_fixture
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
+
+
+def get_cleanup_report(folder, error):
+    """What still lives in a temp root that could not be removed (#1302)."""
+    folder = os.path.realpath(folder)
+    leftovers = sorted(os.path.relpath(os.path.join(base, name), folder)
+                       for base, dirs, files in os.walk(folder) for name in dirs + files)
+    processes = []
+    for pid in filter(str.isdigit, os.listdir('/proc')):
+        try:
+            cwd = os.readlink(f'/proc/{pid}/cwd')
+            with open(f'/proc/{pid}/cmdline', 'rb') as handle:
+                command = handle.read().replace(b'\0', b' ').decode(errors='replace').strip()
+        except OSError:
+            continue
+        if cwd.startswith(folder) or folder in command:
+            processes.append(f'{pid}: {command[:200]}')
+    return (f'temp root cleanup failed ({error}); {len(leftovers)} path(s) remain, '
+            f'{len(processes)} process(es) still use it.\nprocesses:\n  '
+            + ('\n  '.join(processes) or '(none)') + '\nleftovers (first 40):\n  '
+            + '\n  '.join(leftovers[:40]))
+
+
+@contextlib.contextmanager
+def chain_temporary_directory():
+    """A temp root for a chain fixture whose failed cleanup says what is still
+    writing to it. A failing test body keeps its own error; cleanup is never
+    retried or ignored after a passing body, since a late writer may be a real
+    orphaned process (#1302)."""
+    folder = tempfile.mkdtemp()
+    try:
+        yield folder
+    except BaseException:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    try:
+        shutil.rmtree(folder)
+    except OSError as error:
+        raise AssertionError(get_cleanup_report(folder, error)) from error
 
 
 class RegateCampaignChainTests(unittest.TestCase):
@@ -77,7 +118,7 @@ if name=='b' and os.environ.get('MODE')=='noop':sys.exit(0)
         self.assertNotIn('ab_test_runtime/experiments/other-session.json', changed)
 
     def test_interrupted_mixed_set_refuses_then_restart_completes(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with chain_temporary_directory() as tmp:
             root = Path(tmp)
             script, gates = self.prepare(root)
             old_b = (gates / 'gate_promote__b.json').read_bytes()
@@ -106,7 +147,7 @@ if name=='b' and os.environ.get('MODE')=='noop':sys.exit(0)
 
     def test_success_and_measured_rejection_have_complete_campaigns(self):
         for rejected in (False, True):
-            with self.subTest(rejected=rejected), tempfile.TemporaryDirectory() as tmp:
+            with self.subTest(rejected=rejected), chain_temporary_directory() as tmp:
                 root = Path(tmp)
                 script, gates = self.prepare(root, rejected)
                 result = self.run_chain(root, script)
@@ -119,7 +160,7 @@ if name=='b' and os.environ.get('MODE')=='noop':sys.exit(0)
 
     def test_execution_failure_or_zero_exit_old_artifact_cannot_complete(self):
         for mode in ('error', 'noop'):
-            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+            with self.subTest(mode=mode), chain_temporary_directory() as tmp:
                 root = Path(tmp)
                 script, gates = self.prepare(root)
                 result = self.run_chain(root, script, mode)
@@ -129,3 +170,33 @@ if name=='b' and os.environ.get('MODE')=='noop':sys.exit(0)
                 self.assertIsNone(self.admit(gates, 'a'))
                 self.assertEqual('running', json.loads((gates / JOURNAL_NAME).read_text())['status'])
                 self.assertIsNone(self.admit(gates, 'a'))
+
+
+class ChainTemporaryDirectoryTests(unittest.TestCase):
+    def test_a_failed_cleanup_names_the_leftovers_and_the_live_process(self):
+        with patch('shutil.rmtree', side_effect=OSError(39, 'Directory not empty')) as remove:
+            with self.assertRaises(AssertionError) as caught:
+                with chain_temporary_directory() as tmp:
+                    Path(tmp, '.git', 'objects').mkdir(parents=True)
+                    Path(tmp, '.git', 'objects', 'ab').write_text('x')
+                    writer = subprocess.Popen(['sleep', '30'], cwd=tmp)
+                    self.addCleanup(writer.wait)  # cleanups run last-in first-out:
+                    self.addCleanup(writer.kill)  # kill, then reap
+            folder = remove.call_args_list[0][0][0]
+        report = str(caught.exception)
+        self.assertIn('Directory not empty', report)
+        self.assertIn(os.path.join('.git', 'objects', 'ab'), report)
+        self.assertIn(f'{writer.pid}: sleep 30', report)
+        shutil.rmtree(folder, ignore_errors=True)
+
+    def test_a_failing_body_keeps_its_own_error(self):
+        with self.assertRaises(ValueError):
+            with chain_temporary_directory() as tmp:
+                folder = tmp
+                raise ValueError('the real failure')
+        self.assertFalse(os.path.exists(folder))
+
+    def test_a_clean_run_removes_the_root(self):
+        with chain_temporary_directory() as tmp:
+            Path(tmp, 'file').write_text('x')
+        self.assertFalse(os.path.exists(tmp))
