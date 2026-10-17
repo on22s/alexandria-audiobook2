@@ -6701,6 +6701,7 @@
     "tests.test_regate_campaign_chain.ChainTemporaryDirectoryTests.test_a_failed_cleanup_names_the_leftovers_and_the_live_process",
     "tests.test_regate_campaign_chain.ChainTemporaryDirectoryTests.test_a_failing_body_keeps_its_own_error",
     "tests.test_regate_campaign_chain.RegateCampaignChainTests.test_execution_failure_or_zero_exit_old_artifact_cannot_complete",
+    "tests.test_regate_campaign_chain.RegateCampaignChainTests.test_interrupted_chain_waits_for_late_git_writer_before_return",
     "tests.test_regate_campaign_chain.RegateCampaignChainTests.test_interrupted_mixed_set_refuses_then_restart_completes",
     "tests.test_regate_campaign_chain.RegateCampaignChainTests.test_success_and_measured_rejection_have_complete_campaigns"
   ],

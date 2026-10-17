@@ -3,7 +3,9 @@ import contextlib
 import json
 import os
 from pathlib import Path
+import select
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -144,6 +146,57 @@ if name=='b' and os.environ.get('MODE')=='noop':sys.exit(0)
             self.assertIsNotNone(self.admit(gates, 'a'))
             self.assertIsNotNone(self.admit(gates, 'b'))
             self.assert_scopes(root)
+
+    def test_interrupted_chain_waits_for_late_git_writer_before_return(self):
+        from subprocess_ownership import ensure_pidfd_support
+        pidfds = ensure_pidfd_support()
+        with chain_temporary_directory() as tmp:
+            root = Path(tmp)
+            script, _ = self.prepare(root)
+            write_campaign_worker(root, '''
+if name=='b':
+ import subprocess
+ birth=Path('/proc/self/stat').read_text().rsplit(')',1)[1].split()[19]
+ Path('late-writer.json').write_text(json.dumps({'pid':os.getpid(),'birth':birth}))
+ status=Path('/proc/'+str(os.getppid())+'/stat').read_text().rsplit(')',1)[1].split()
+ os.kill(int(status[1]),signal.SIGTERM)
+ time.sleep(1)
+ subprocess.run(['git','hash-object','-w','--stdin'],input=b'late fixture object',stdout=subprocess.DEVNULL,check=True,timeout=2)
+ Path('late-write-done').write_text('finished')
+ sys.exit(2)
+''')
+            try:
+                result = self.run_chain(root, script, 'interrupt')
+                self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertTrue((root / 'late-write-done').exists(),
+                                'the CPU helper returned before its interrupted writer finished')
+                digest = subprocess.check_output(['git', 'hash-object', '--stdin'],
+                                                 input=b'late fixture object', cwd=root).decode().strip()
+                self.assertTrue((root / '.git/objects' / digest[:2] / digest[2:]).is_file())
+            finally:
+                # Also let the deliberately live old-code writer exit before
+                # teardown, so its expected assertion failure cannot race rmtree.
+                record = root / 'late-writer.json'
+                if record.exists():
+                    identity = json.loads(record.read_text())
+                    descriptor = None
+                    try:
+                        fields = Path(f"/proc/{identity['pid']}/stat").read_text().rsplit(')', 1)[1].split()
+                        if fields[19] == identity['birth']:
+                            descriptor = pidfds.pidfd_open(identity['pid'], 0)
+                            fields = Path(f"/proc/{identity['pid']}/stat").read_text().rsplit(')', 1)[1].split()
+                            self.assertEqual(identity['birth'], fields[19], 'synthetic writer PID was reused')
+                            if not select.select([descriptor], [], [], 5)[0]:
+                                pidfds.pidfd_send_signal(descriptor, signal.SIGKILL, None, 0)
+                                self.assertTrue(select.select([descriptor], [], [], 5)[0],
+                                                'synthetic writer did not stop before teardown')
+                    except ProcessLookupError:
+                        pass
+                    except FileNotFoundError:
+                        pass
+                    finally:
+                        if descriptor is not None:
+                            os.close(descriptor)
 
     def test_success_and_measured_rejection_have_complete_campaigns(self):
         for rejected in (False, True):

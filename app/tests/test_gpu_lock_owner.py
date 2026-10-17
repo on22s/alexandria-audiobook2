@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from experiments import gpu_guard
+from subprocess_ownership import run_owned_capture
 
 ROOT=Path(__file__).resolve().parents[2]
 GPU_JOB=ROOT/'gpu_job.sh'
@@ -39,7 +40,10 @@ if mode=='exclusive':
 
 
 def run_owned_cpu_chain(command, root, env=None, **kwargs):
-    """Run a model-free chain fixture under a real temporary fd9 owner."""
+    """Capture a model-free chain and retire descendants before fixture cleanup."""
+    if kwargs.pop('capture_output', False) is not True:
+        raise ValueError('CPU chain fixtures require capture_output=True')
+    timeout = kwargs.pop('timeout', None)
     root = Path(root)
     wrapper = root / "gpu_job.sh"
     if not wrapper.exists():
@@ -51,8 +55,8 @@ def run_owned_cpu_chain(command, root, env=None, **kwargs):
     owner = ('exec 9>"$GPU_LOCK"; flock -x 9; '
              'export ALEXANDRIA_GPU_LOCK_PID=$$; '
              '"$@" 9>&-; rc=$?; exit "$rc"')
-    return subprocess.run(["bash", "-c", owner, "owned-cpu-fixture"] + command,
-                          env=environment, **kwargs)
+    return run_owned_capture(["bash", "-c", owner, "owned-cpu-fixture"] + command,
+                             timeout=timeout, env=environment, **kwargs)
 
 
 class KernelGpuLockOwnershipTests(unittest.TestCase):
