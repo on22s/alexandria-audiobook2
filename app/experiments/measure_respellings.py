@@ -366,7 +366,7 @@ def rows_for_terms(candidates, wanted, term_books, verdict):
     coverage scan's `term_to_books`. A term that does not romanise cleanly is
     refused rather than measured against a reading that is not a reading.
     """
-    import romkan
+    import romkan2 as romkan
     known = {c["term"].lower(): c for c in candidates}
     rows = []
     for term in sorted({t.lower() for t in wanted}):

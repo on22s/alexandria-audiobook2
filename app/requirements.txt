@@ -58,5 +58,6 @@ pyopenjtalk==0.4.1
 # app). Nothing at generation time imports these.
 sudachipy==0.6.11
 sudachidict_core==20260723
-romkan==0.2.1
+# The original romkan setup imports imp, removed in Python 3.12.
+romkan2==0.1.1
 pyspellchecker==0.9.0

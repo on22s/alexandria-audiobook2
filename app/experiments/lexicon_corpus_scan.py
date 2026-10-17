@@ -153,7 +153,7 @@ def main():
             book_count[term] += 1
             series_for[term].add(record.get("series") or "?")
 
-    import romkan
+    import romkan2 as romkan
     from sudachipy import Dictionary
     tokenizer = Dictionary(dict="core").create()
 

@@ -1745,6 +1745,12 @@
     "tests.test_codec_oom_recovery.CodecOomRecoveryTests.test_retry_uses_same_codes_and_overlap_and_keeps_complete_output",
     "tests.test_codec_oom_recovery.CodecOomRecoveryTests.test_shared_model_loader_installs_retry_after_cache_or_download_load"
   ],
+  "test_colab_installation": [
+    "tests.test_colab_installation.ColabInstallationTests.test_existing_checkout_updates_before_installing",
+    "tests.test_colab_installation.ColabInstallationTests.test_fresh_clone_installs_one_joint_requirement_set_in_kernel_python",
+    "tests.test_colab_installation.ColabInstallationTests.test_git_failure_stops_before_pip_and_completion",
+    "tests.test_colab_installation.ColabInstallationTests.test_pip_failure_is_not_followed_by_other_installs_or_success"
+  ],
   "test_collect_audit_snapshot": [
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_audit_replacement_after_close_cannot_mix_status_and_seed_snapshots",
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_native_report_preserves_group_order_scored_rows_and_legacy_precedence"

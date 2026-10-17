@@ -62,11 +62,11 @@ CONTRACTION_TAILS = ("aren", "weren", "wasn", "hasn", "hadn", "didn", "doesn",
 def build_detector():
     """-> f(word) -> bool, or None with a reason if the tools are missing."""
     try:
-        import romkan
+        import romkan2 as romkan
         from sudachipy import Dictionary
         from spellchecker import SpellChecker
     except ImportError as exc:
-        return None, f"missing {exc.name}: pip install sudachipy sudachidict_core romkan pyspellchecker"
+        return None, f"missing {exc.name}: pip install sudachipy sudachidict_core romkan2 pyspellchecker"
     tokenizer = Dictionary(dict="core").create()
     english = SpellChecker()
 
