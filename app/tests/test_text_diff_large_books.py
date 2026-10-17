@@ -6,13 +6,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from review_script import normalize_text
-from text_diff import word_diff
+from text_diff import get_comparison_words, word_diff
 
 
 class LargeBookDiffTests(unittest.TestCase):
     def assert_reconstructs(self, source, entries, result):
-        source_words=normalize_text(source).split(); recovered=[];cursor=0
+        source_words=get_comparison_words(source); recovered=[];cursor=0
         for hunk in result['hunks']:
             start=hunk['source_pos']
             self.assertGreaterEqual(start,cursor)
@@ -21,7 +20,20 @@ class LargeBookDiffTests(unittest.TestCase):
             self.assertEqual(old,source_words[start:start+len(old)])
             recovered.extend(hunk['script_words'].split());cursor=start+len(old)
         recovered.extend(source_words[cursor:])
-        self.assertEqual(normalize_text(' '.join(entry['text'] for entry in entries)).split(),recovered)
+        expected=[word for entry in entries for word in get_comparison_words(entry['text'])]
+        self.assertEqual(expected,recovered)
+
+    def test_dialogue_adjacent_edits_reconstruct_with_literal_counts(self):
+        source='Before."Hello"—then wait.\n\nLater."Goodbye"–then leave.'
+        entries=[{'text':'Before.'},{'text':'Hello'},{'text':'—then wait.'},
+                 {'text':'Later.'},{'text':'Farewell'},{'text':'–then leave.'}]
+        result=word_diff(source,entries)
+        self.assert_reconstructs(source,entries,result)
+        self.assertEqual((8,8,0,0,1),tuple(result['totals'][key] for key in
+                         ('source_words','script_words','deleted','inserted','replaced')))
+        self.assertEqual(1,len(result['hunks']))
+        self.assertEqual((5,4,'goodbye','farewell'),tuple(result['hunks'][0][key]
+                         for key in ('source_pos','entry_index','source_words','script_words')))
 
     def test_empty_and_boundary_edits_keep_context_and_entry_ownership(self):
         cases = [('', [{'text':'new words'}], (0,2,0)),

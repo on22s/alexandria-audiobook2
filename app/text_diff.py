@@ -1,24 +1,37 @@
 """Where the generated script diverges from the source (issue #522 s7.4/7.5).
 
 The text-integrity checks report *how much* text was lost or gained; this
-says *where*. Both sides are reduced to the words `review_script.normalize_text`
-uses (lowercase, punctuation stripped), so quote marks, italics and the
-chunker's whitespace never show up as differences - only words do.
+says *where*. Both sides use the same word boundaries before lowercasing and
+stripping punctuation, so dialogue split into entries compares like its source.
 """
 import bisect
 from rapidfuzz.distance import Levenshtein
 
+from dialogue_spans import PAIRED
 from generate_script import split_into_chunk_records
 from review_script import normalize_text
 
 CONTEXT_WORDS = 3
+_WORD_BOUNDARIES = str.maketrans({
+    mark: " " for mark in "".join(opening + closing for opening, closing in PAIRED) + "–—"
+})
+
+
+def get_comparison_words(text):
+    """Keep dialogue boundaries before stripping punctuation from either side.
+
+    Removing an unspaced closing quote/dash joins words in the whole source,
+    while separate script entries still have two words. Apostrophes and ASCII
+    hyphens retain normalize_text's existing within-word treatment.
+    """
+    return normalize_text(text.translate(_WORD_BOUNDARIES)).split()
 
 
 def _words_with_owners(entries):
     """-> (words, owner) where owner[i] is the index of the entry word i came from."""
     words, owner = [], []
     for index, entry in enumerate(entries):
-        for w in normalize_text(entry.get("text") or "").split():
+        for w in get_comparison_words(entry.get("text") or ""):
             words.append(w)
             owner.append(index)
     return words, owner
@@ -29,13 +42,13 @@ def _source_chunk_starts(source_text):
     starts, total = [], 0
     for record in split_into_chunk_records(source_text):
         starts.append(total)
-        total += len(normalize_text(record["text"]).split())
+        total += len(get_comparison_words(record["text"]))
     return starts
 
 
 def word_diff(source_text, entries, context=CONTEXT_WORDS):
     """-> {"hunks": [...], "totals": {...}}: one hunk per differing region."""
-    source_words = normalize_text(source_text).split()
+    source_words = get_comparison_words(source_text)
     script_words, owner = _words_with_owners(entries)
     starts = _source_chunk_starts(source_text)
     hunks = []

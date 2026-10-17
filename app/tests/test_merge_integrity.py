@@ -131,6 +131,31 @@ class MergeIntegrityAdmission(unittest.TestCase):
 
 
 class SourceIntegritySnapshotTests(unittest.TestCase):
+    def test_dialogue_boundaries_verify_but_real_word_changes_still_fail(self):
+        from merge_integrity import get_source_integrity
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'source.txt'
+            source.write_text('He said,"Hello"—then left.', encoding='utf-8')
+            state = {'input_file_path': str(source), 'book_generation': 'fixture'}
+            rows = [{'text': 'He said,'}, {'text': 'Hello'}, {'text': '—then left.'}]
+            before = source.read_bytes()
+            result = get_source_integrity(state, b'annotation', rows)
+            self.assertEqual('verified', result['status'])
+            self.assertEqual([], result['hunks'])
+            self.assertEqual(5, result['totals']['source_words'])
+            changed = [dict(row, text='Goodbye') if index == 1 else dict(row)
+                       for index, row in enumerate(rows)]
+            rejected = get_source_integrity(state, b'changed annotation', changed)
+            self.assertEqual('differences', rejected['status'])
+            self.assertNotEqual(result['snapshot'], rejected['snapshot'])
+            self.assertEqual(('hello', 'goodbye', 1),
+                             tuple(rejected['hunks'][0][key] for key in
+                                   ('source_words', 'script_words', 'entry_index')))
+            source.write_text('nowhere', encoding='utf-8')
+            self.assertEqual('differences', get_source_integrity(
+                state, b'split', [{'text': 'now here'}])['status'])
+            self.assertEqual('He said,"Hello"—then left.', before.decode('utf-8'))
+
     def test_real_owned_http_admission_does_not_deadlock_and_releases_failed_registration(self):
         import subprocess
         import sys
