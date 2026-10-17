@@ -16,4 +16,4 @@
 
 ---
 
-> **Reminder:** PRs should target the `dev` branch, not `main`. See [CONTRIBUTING.md](/.github/CONTRIBUTING.md) for guidelines.
+> **Reminder:** PRs target the `main` branch. See [CONTRIBUTING.md](/.github/CONTRIBUTING.md) for guidelines.

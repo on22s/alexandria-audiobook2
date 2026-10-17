@@ -22,6 +22,6 @@ most often need. Supporting guides and reference material are grouped here.
 - [`../README.md`](../README.md) is the app and project starting point; [`../README_CN.md`](../README_CN.md) is its Chinese edition; [`../README_JA.md`](../README_JA.md) and [`wiki/Home-JA.md`](wiki/Home-JA.md) provide Japanese documentation.
 - [`../GOALS.md`](../GOALS.md) records project goals and evidence; [`../RECIPES.md`](../RECIPES.md) records tested settings and results.
 - [`../RESULTS_INDEX.md`](../RESULTS_INDEX.md) indexes experiment artifacts; [`../HF_MODEL_GUIDE.md`](../HF_MODEL_GUIDE.md) explains the public model releases.
-- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) covers contributions. `CLAUDE.md` contains repository-agent workflow rules.
+- [`../.github/CONTRIBUTING.md`](../.github/CONTRIBUTING.md) covers contributions. `CLAUDE.md` contains repository-agent workflow rules.
 
 Pinokio launcher files remain at the root because Pinokio expects them there.
