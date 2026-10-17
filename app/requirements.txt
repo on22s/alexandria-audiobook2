@@ -2,7 +2,7 @@
 # which install.js runs BEFORE this file. Do NOT pin torch here — on AMD/ROCm
 # machines it would pull a CUDA build from PyPI and break GPU detection.
 # (peft below requires torch, but torch.js has already satisfied it.)
-fastapi==0.136.1
+fastapi==0.143.3
 starlette==1.3.1
 uvicorn==0.54.0
 pydantic==2.14.1

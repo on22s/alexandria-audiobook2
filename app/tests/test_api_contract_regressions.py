@@ -337,13 +337,14 @@ class ApiContractTests(unittest.TestCase):
     def test_api_routes_have_no_duplicate_method_path_pairs(self):
         seen = {}
         duplicates = []
-        for route in app_module.app.routes:
-            for method in sorted(getattr(route, "methods", []) or []):
-                key = (method, route.path)
+        from api_routes import get_app_routes
+        for route in get_app_routes(app_module.app):
+            for method in route["methods"]:
+                key = (method, route["path"])
                 if key in seen:
-                    duplicates.append((key, seen[key], route.name))
+                    duplicates.append((key, seen[key], route["name"]))
                 else:
-                    seen[key] = route.name
+                    seen[key] = route["name"]
 
         self.assertEqual([], duplicates)
 

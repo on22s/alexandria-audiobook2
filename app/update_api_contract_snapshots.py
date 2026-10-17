@@ -15,15 +15,16 @@ ROUTES_SNAPSHOT = CONTRACT_DIR / "routes.json"
 
 def get_route_manifest(application):
     """Return the ordered public routing contract for a FastAPI application."""
+    from api_routes import get_app_routes
     return [
         {
             "index": index,
-            "methods": sorted(getattr(route, "methods", []) or []),
-            "name": route.name,
-            "path": route.path,
-            "type": type(route).__name__,
+            "methods": route["methods"],
+            "name": route["name"],
+            "path": route["path"],
+            "type": route["type"],
         }
-        for index, route in enumerate(application.routes)
+        for index, route in enumerate(get_app_routes(application))
     ]
 
 

@@ -678,7 +678,8 @@ class AdapterIdAliasTests(unittest.TestCase):
         from fastapi.testclient import TestClient
         from adapter_static import AdapterStaticFiles
         import app as app_module
-        mount=next(route for route in app_module.app.routes if getattr(route,'name',None)=='lora_models')
+        from api_routes import get_app_routes
+        mount=next(route['route'] for route in get_app_routes(app_module.app) if route['name']=='lora_models')
         self.assertIsInstance(mount.app,AdapterStaticFiles)
         from tests.test_adapter_naming_transaction import NamingTransactionTests,_invoke
         with tempfile.TemporaryDirectory() as tmp:

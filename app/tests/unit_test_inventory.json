@@ -309,6 +309,11 @@
     "tests.test_api_contract_regressions.ApiContractTests.test_preparer_publication_failure_restores_previous_uploads",
     "tests.test_api_contract_regressions.ApiContractTests.test_preparer_rejects_source_and_audio_upload_name_collision_before_writing"
   ],
+  "test_api_routes": [
+    "tests.test_api_routes.AppRoutesTests.test_registration_order_is_kept",
+    "tests.test_api_routes.AppRoutesTests.test_routes_inside_included_routers_are_listed_with_their_full_paths",
+    "tests.test_api_routes.AppRoutesTests.test_the_route_object_itself_is_returned"
+  ],
   "test_api_summary": [
     "tests.test_api_summary.ApiSummaryTests.test_json_summary_records_ordered_test_identities_statuses_and_reasons",
     "tests.test_api_summary.ApiSummaryTests.test_main_writes_summary_before_exiting_after_a_failure"
