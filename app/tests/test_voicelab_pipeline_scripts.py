@@ -19,6 +19,7 @@ from fastapi import BackgroundTasks
 import core
 import archive_utils
 from tests import test_lora_batch_preflight as training_fixtures
+from tests.test_support import use_private_cpu_fixture_lock
 from routers import voicelab
 from voicelab_settings import get_deduped_zip_name, get_profiler_paths, get_voice_lab_script_path
 
@@ -551,6 +552,7 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                     voice_profiler.atomic_csv_write([], target)
             self.assertEqual("old content", Path(target).read_text(encoding="utf-8"))
 
+    @use_private_cpu_fixture_lock()
     def test_quality_train_evaluate_and_profile_background_dispatch_reaches_subprocess(self):
         for stage in ("quality", "train", "evaluate", "profile"):
             with self.subTest(stage=stage), tempfile.TemporaryDirectory() as tmp:

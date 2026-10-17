@@ -1,4 +1,4 @@
-from tests.test_support import assert_file_lock_released
+from tests.test_support import assert_file_lock_released, use_private_cpu_fixture_lock
 import asyncio
 import multiprocessing
 import os
@@ -464,7 +464,7 @@ class LoraCheckpointSwapRouteClaimTests(unittest.TestCase):
         self.assertFalse(process_state["lora_training"]["running"])
 
     def test_running_flag_resets_after_successful_promote(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with use_private_cpu_fixture_lock(), tempfile.TemporaryDirectory() as tmp:
             models = Path(tmp, "models")
             adapter = models / "voice"
             candidate = adapter / "candidates" / "epoch_002"
@@ -485,7 +485,7 @@ class LoraCheckpointSwapRouteClaimTests(unittest.TestCase):
         self.assertFalse(process_state["lora_training"]["running"])
 
     def test_running_flag_resets_after_promote_raises(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with use_private_cpu_fixture_lock(), tempfile.TemporaryDirectory() as tmp:
             models = Path(tmp, "models")
             models.mkdir()
             manifest_path = models / "manifest.json"
@@ -604,7 +604,7 @@ class NativeCheckpointHttpArtifactTests(unittest.TestCase):
         from fastapi.testclient import TestClient
         for operation in ('promotion','rollback'):
             for point in ('adapter','manifest','committed'):
-                with self.subTest(operation=operation,point=point),tempfile.TemporaryDirectory() as tmp:
+                with use_private_cpu_fixture_lock(), self.subTest(operation=operation,point=point),tempfile.TemporaryDirectory() as tmp:
                     models=Path(tmp)/'models';adapter,candidate,manifest,entries=_promotion_fixture(self,models)
                     app=FastAPI();app.include_router(lora.router)
                     running=process_state['lora_training']['running']

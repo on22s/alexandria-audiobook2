@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 
 from fastapi import HTTPException
 from routers import dataset_builder
+from tests.test_support import use_private_cpu_fixture_lock
 
 
 class DatasetBuilderRegressionTests(unittest.TestCase):
@@ -498,7 +499,7 @@ class DatasetAudioRevisionTests(unittest.TestCase):
         engine = SimpleNamespace(generate_voice_design=render)
         dataset_builder.process_state["dataset_builder"]["cancel"] = False
         urls = []
-        with TestClient(app) as client, \
+        with use_private_cpu_fixture_lock(), TestClient(app) as client, \
              patch.object(dataset_builder, "check_global_gpu_lock"), \
              patch.object(dataset_builder, "claim_gpu_task"), \
              patch.object(dataset_builder.project_manager, "get_engine", return_value=engine), \
@@ -513,9 +514,10 @@ class DatasetAudioRevisionTests(unittest.TestCase):
                     response = client.post("/api/dataset_builder/generate_batch", json={
                         "name": "voice", "description": "warm", "global_seed": 3,
                         "samples": [{"text": "Current line.", "emotion": "calm"}]})
+                self.assertEqual(200, response.status_code, response.text)
+                if mode == "batch":
                     threads[-1].join(2)
                     self.assertFalse(threads[-1].is_alive())
-                self.assertEqual(200, response.status_code, response.text)
                 row = dataset_builder._load_builder_state("voice")["samples"][0]
                 urls.append(row["audio_url"])
                 self.assertEqual("/dataset_builder/voice/sample_000.wav", urlsplit(urls[-1]).path)

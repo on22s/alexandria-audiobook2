@@ -17,7 +17,7 @@ import core
 from routers import lora
 import adapter_naming_transaction as transaction
 from adapter_publication import NAMING_PUBLICATION_JOURNAL, get_adapter_publication_recovery_command
-from tests.test_support import write_test_adapter
+from tests.test_support import use_private_cpu_fixture_lock, write_test_adapter
 
 
 def tree_bytes(root):
@@ -53,6 +53,9 @@ def crash_delete(root, point):
 
 class AdapterDeletionTransactionTests(unittest.TestCase):
     def setUp(self):
+        self.fixture_context = ExitStack()
+        self.addCleanup(self.fixture_context.close)
+        self.fixture_context.enter_context(use_private_cpu_fixture_lock())
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)

@@ -1,5 +1,23 @@
 from contextlib import contextmanager
+import os
+from pathlib import Path
 import sys
+import tempfile
+from unittest.mock import patch
+
+
+@contextmanager
+def use_private_cpu_fixture_lock():
+    """Select a real private lease for model-free CPU fixtures.
+
+    Real GPU/model work must retain the normal shared lease. These CPU fixtures
+    acquire the unchanged native lock on their own path, without claiming to
+    inherit the caller's ownership.
+    """
+    with tempfile.TemporaryDirectory(prefix='aa2-cpu-fixture-lock-') as directory:
+        lock = Path(directory) / 'gpu.lock'
+        with patch.dict(os.environ, {'GPU_LOCK': str(lock), 'ALEXANDRIA_GPU_LOCK_HELD': '0'}):
+            yield lock
 
 
 @contextmanager

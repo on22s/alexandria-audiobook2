@@ -14,7 +14,7 @@ import promote_adapters as promotion
 from adapter_publication import CLI_PUBLICATION_JOURNAL
 from fastapi import HTTPException
 from routers import lora
-from tests.test_support import write_test_adapter
+from tests.test_support import write_test_adapter, use_private_cpu_fixture_lock
 from utils import file_lock
 
 # An isolated saved source can reproduce the old defect without editing the tree.
@@ -413,6 +413,7 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
 
 
 class HttpPublicationAdmissionTests(unittest.TestCase):
+    @use_private_cpu_fixture_lock()
     def test_actual_http_writers_refuse_pending_cli_journal_and_release_claim(self):
         import copy
         import core

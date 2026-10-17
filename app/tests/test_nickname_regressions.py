@@ -1,6 +1,6 @@
 """Alias discovery must reject group mappings and malformed input shapes."""
 
-from tests.test_support import assert_file_lock_released
+from tests.test_support import assert_file_lock_released, use_private_cpu_fixture_lock
 from contextlib import redirect_stdout
 import io
 import json
@@ -145,7 +145,7 @@ class NicknameRegressionTests(unittest.TestCase):
         import asyncio
         from fastapi import BackgroundTasks
         from routers import script as routes
-        with tempfile.TemporaryDirectory() as tmp:
+        with use_private_cpu_fixture_lock(), tempfile.TemporaryDirectory() as tmp:
             book = Path(tmp, "book.json")
             book.write_text('[{"speaker":"ALICE","text":"Keep this."}]')
             checkpoint = Path(str(book) + ".review_checkpoint.json")

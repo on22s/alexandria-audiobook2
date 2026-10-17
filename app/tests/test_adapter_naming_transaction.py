@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from adapter_publication import NAMING_PUBLICATION_JOURNAL, CLI_PUBLICATION_JOURNAL
 from adapter_naming_transaction import _apply_adapter_changes_locked, apply_adapter_naming_locked, lock_adapter_naming, recover_adapter_naming_locked
-from tests.test_support import write_test_adapter
+from tests.test_support import use_private_cpu_fixture_lock, write_test_adapter
 
 SCRIPT = Path(__file__).resolve().parents[2] / 'tools/voice_lab/name_voices.py'
 subject_path = os.environ.get('NAMING_BASELINE_FILE') or str(SCRIPT)
@@ -270,7 +270,7 @@ class NamingTransactionTests(unittest.TestCase):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from routers import lora
-        with tempfile.TemporaryDirectory() as tmp:
+        with use_private_cpu_fixture_lock(), tempfile.TemporaryDirectory() as tmp:
             models,_rows=self.fixture(Path(tmp));self.child_crash(models,'first');before=_files(models)
             with patch.object(promote_adapters,'MODELS',str(models)):
                 for action in (lambda:promote_adapters.promote(['raw_a'],'stamp',False),lambda:promote_adapters.rollback('stamp'),promote_adapters.recover_publication):

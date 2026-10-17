@@ -9,9 +9,11 @@ from unittest.mock import patch
 from fastapi import HTTPException
 import core
 from routers import system, voices, editor
+from tests.test_support import use_private_cpu_fixture_lock
 
 
 class GpuClaimRouteTests(unittest.TestCase):
+    @use_private_cpu_fixture_lock()
     def test_connectivity_probe_claims_slot_and_releases_on_success_and_error(self):
         state = copy.deepcopy(core.process_state)
         for entry in state.values():
@@ -40,6 +42,7 @@ class GpuClaimRouteTests(unittest.TestCase):
                 asyncio.run(system.llm_test())
             self.assertFalse(state["llm_test"]["running"])
 
+    @use_private_cpu_fixture_lock()
     def test_cancelled_request_keeps_connectivity_slot_until_worker_finishes(self):
         state = copy.deepcopy(core.process_state)
         for entry in state.values():
@@ -111,6 +114,7 @@ class GpuClaimRouteTests(unittest.TestCase):
                 asyncio.run(operation())
             self.assertEqual(4, len(project.mock_calls))
 
+    @use_private_cpu_fixture_lock()
     def test_suggestion_and_optimize_refuse_a_conflicting_gpu_task(self):
         state = copy.deepcopy(core.process_state)
         for entry in state.values():

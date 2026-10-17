@@ -12,9 +12,11 @@ import httpx
 from fastapi import FastAPI
 from routers import editor
 from project import ProjectManager
+from tests.test_support import use_private_cpu_fixture_lock
 
 
 class EditorWorkerIoTests(unittest.TestCase):
+    @use_private_cpu_fixture_lock()
     def test_native_io_and_chunk_edits_leave_same_event_loop_ping_responsive(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)

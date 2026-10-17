@@ -2119,6 +2119,10 @@
   "test_cors_auth_order": [
     "tests.test_cors_auth_order.CorsAuthOrderTests.test_native_allowed_denied_origins_and_optional_auth"
   ],
+  "test_cpu_fixture_lock": [
+    "tests.test_cpu_fixture_lock.CpuFixtureLockTests.test_exception_restores_the_callers_inherited_claim_without_borrowing_it",
+    "tests.test_cpu_fixture_lock.CpuFixtureLockTests.test_private_lease_is_native_and_external_lease_stays_protected"
+  ],
   "test_cpu_task_claims": [
     "tests.test_cpu_task_claims.CpuTaskClaimTests.test_cancelled_request_keeps_started_cpu_owner_until_worker_exits",
     "tests.test_cpu_task_claims.CpuTaskClaimTests.test_cpu_and_gpu_admission_both_orders_preserve_double_start_exclusion",

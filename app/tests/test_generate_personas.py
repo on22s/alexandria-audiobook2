@@ -15,7 +15,7 @@ Case folding is NOT the same hazard and must keep working: the live config has
 eleven pairs like EMILIA/Emilia and NOT-SATELLA/Not-Satella that are one
 character each and rely on being merged.
 """
-from tests.test_support import assert_file_lock_released
+from tests.test_support import assert_file_lock_released, use_private_cpu_fixture_lock
 import os
 import json
 import sys
@@ -108,6 +108,7 @@ class NormalizationTest(unittest.TestCase):
                              json.loads(manifest_path.read_text()))
 
 
+    @use_private_cpu_fixture_lock()
     def test_persona_route_passes_context_lines_to_the_script(self):
         import asyncio
         from unittest.mock import patch

@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import alexandria_batch_processor as batch
 import io
 from tests.batch_mock_support import adapt_owner_fixture
+from tests.test_support import use_private_cpu_fixture_lock
 
 class BatchDiskScratchTests(unittest.TestCase):
     def setUp(self):
@@ -145,7 +146,8 @@ class BatchDiskScratchTests(unittest.TestCase):
             argv = ['batch', 'book.wav', '--model', 'fixture.gguf']
             if enabled:
                 argv.append('--skip-disk-check')
-            with self.subTest(enabled=enabled), patch.object(sys, 'argv', argv), \
+            with self.subTest(enabled=enabled), use_private_cpu_fixture_lock(), \
+                    patch.object(sys, 'argv', argv), \
                     patch.object(batch, 'BatchProcessor', return_value=processor) as constructor:
                 with self.assertRaises(SystemExit) as exited:
                     batch.main()

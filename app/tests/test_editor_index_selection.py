@@ -10,9 +10,11 @@ from fastapi.testclient import TestClient
 from routers import editor
 from project import CHAPTER_EXPORT_DIR, ProjectManager
 from tests import test_chapter_export as chapter_fixture
+from tests.test_support import use_private_cpu_fixture_lock
 
 
 class EditorIndexSelectionTests(unittest.TestCase):
+    @use_private_cpu_fixture_lock()
     def test_generation_routes_reject_invalid_requests_before_scheduling(self):
         with tempfile.TemporaryDirectory() as root:
             pm = ProjectManager(root)
@@ -32,6 +34,7 @@ class EditorIndexSelectionTests(unittest.TestCase):
                             schedule.assert_not_called()
                             self.assertEqual(before, Path(pm.chunks_path).read_bytes())
 
+    @use_private_cpu_fixture_lock()
     def test_generation_workers_receive_unique_source_order_and_correct_total(self):
         with tempfile.TemporaryDirectory() as root:
             pm = ProjectManager(root)

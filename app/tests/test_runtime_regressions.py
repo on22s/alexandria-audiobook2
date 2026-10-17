@@ -36,12 +36,12 @@ import utils
 from tests.test_frontend_regressions import _read_frontend_source
 import hf_utils
 import project as project_module
-from tests.test_support import _Upload
+from tests.test_support import _Upload, use_private_cpu_fixture_lock
 
 
 class RuntimeTests(unittest.TestCase):
     def test_training_blocks_dataset_deletion_until_worker_exits(self):
-        with tempfile.TemporaryDirectory() as root:
+        with tempfile.TemporaryDirectory() as root, use_private_cpu_fixture_lock():
             dataset = Path(root) / "book"
             dataset.mkdir()
             (dataset / "metadata.jsonl").write_text("sample\n")
@@ -669,7 +669,8 @@ class RuntimeTests(unittest.TestCase):
     def test_voice_design_logs_unexpected_failure_and_returns_sanitized_500(self):
         request = voice_design_module.VoiceDesignPreviewRequest(
             description="voice", sample_text="text", language="english")
-        with patch.object(core_module.project_manager, "get_engine",
+        with use_private_cpu_fixture_lock(), \
+             patch.object(core_module.project_manager, "get_engine",
                           side_effect=RuntimeError("internal model path")), \
              patch.object(voice_design_module.logger, "exception") as log_exception:
             with self.assertRaises(HTTPException) as raised:
@@ -725,15 +726,16 @@ class RuntimeTests(unittest.TestCase):
         }
         core_module.GPU_TASKS.add(key)
         try:
-            core_module.claim_gpu_task(key)
-            self.assertFalse(core_module.process_state[key]["cancel"])
-            core_module.process_state[key]["cancel"] = True
-            observed = []
-            core_module._run_claimed_background_task(
-                key, lambda: observed.append(core_module.process_state[key]["cancel"])
-            )
-            self.assertEqual(observed, [True])
-            self.assertFalse(core_module.process_state[key]["running"])
+            with use_private_cpu_fixture_lock():
+                core_module.claim_gpu_task(key)
+                self.assertFalse(core_module.process_state[key]["cancel"])
+                core_module.process_state[key]["cancel"] = True
+                observed = []
+                core_module._run_claimed_background_task(
+                    key, lambda: observed.append(core_module.process_state[key]["cancel"])
+                )
+                self.assertEqual(observed, [True])
+                self.assertFalse(core_module.process_state[key]["running"])
         finally:
             core_module.GPU_TASKS.discard(key)
             core_module.process_state.pop(key, None)

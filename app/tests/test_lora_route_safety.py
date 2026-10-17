@@ -16,6 +16,7 @@ import soundfile as sf
 
 import core
 from routers import lora
+from tests.test_support import use_private_cpu_fixture_lock
 
 
 class LoraRouteSafetyTests(unittest.TestCase):
@@ -25,6 +26,7 @@ class LoraRouteSafetyTests(unittest.TestCase):
             entry['running'] = False
         return state
 
+    @use_private_cpu_fixture_lock()
     def test_training_registers_metadata_only_after_successful_uncancelled_subprocess(self):
         from fastapi import BackgroundTasks
         for rc, cancelled, registered in ((0, False, True), (17, False, False),
@@ -60,6 +62,7 @@ class LoraRouteSafetyTests(unittest.TestCase):
                 else:
                     self.assertFalse(manifest.exists(), 'failed training must not publish the adapter')
 
+    @use_private_cpu_fixture_lock()
     def test_adapter_delete_holds_gpu_claim_and_unloads_engine_before_removing_files(self):
         for cleanup_error in (False, True):
             with self.subTest(cleanup_error=cleanup_error), tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
@@ -124,6 +127,7 @@ class LoraRouteSafetyTests(unittest.TestCase):
             self.assertTrue(adapter.is_dir())
             self.assertEqual([{'id':'voice'}], json.loads(manifest.read_text()))
 
+    @use_private_cpu_fixture_lock()
     def test_checkpoint_changes_hold_claim_through_engine_cleanup(self):
         routes = [(lora.lora_promote_candidate, '_promote_lora_candidate'),
                   (lora.lora_rollback_promotion, '_rollback_lora_promotion'),
@@ -184,6 +188,7 @@ class LoraRouteSafetyTests(unittest.TestCase):
                     self.assertFalse(state['lora_training']['running'])
                     operation.assert_not_called()
 
+    @use_private_cpu_fixture_lock()
     def test_failed_preview_cannot_publish_partial_cache_and_next_attempt_recovers(self):
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
             adapter = Path(tmp, 'voice'); adapter.mkdir()
@@ -227,6 +232,7 @@ class LoraRouteSafetyTests(unittest.TestCase):
             self.assertEqual('cached', asyncio.run(lora.lora_preview('voice'))['status'])
             self.assertEqual(2, len(calls))
 
+    @use_private_cpu_fixture_lock()
     def test_legacy_invalid_preview_is_rebuilt_instead_of_served(self):
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
             adapter = Path(tmp, 'voice'); adapter.mkdir()
