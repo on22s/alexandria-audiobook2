@@ -850,8 +850,8 @@ def redact_recovery_value(value, key=None):
     return value
 
 
-def get_response_format(params, client, *, portable=False):
-    """-> the OpenAI-style response_format for this call, or None."""
+def get_response_format(params, client, *, portable=True):
+    """Return a portable response_format; positional schemas require explicit opt-in."""
     if params.structured_output == "off" or not params.response_schema:
         return None
     if str(getattr(client, "base_url", "")) in getattr(

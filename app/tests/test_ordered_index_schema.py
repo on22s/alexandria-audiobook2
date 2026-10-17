@@ -1,4 +1,5 @@
 """Positional output negotiation preserves native attribution safety."""
+from contextlib import nullcontext
 from copy import deepcopy
 import json
 import os
@@ -41,19 +42,66 @@ class OrderedIndexSchemaTests(unittest.TestCase):
         return gs.LLMGenParams(max_tokens=500, hard_max_tokens=1000, temperature=.3,
                                api_retry_limit=0)
 
-    def run_batch(self, client, params, retries=0, attempts=None):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(gs, 'get_response_log_path',
+    def run_batch(self, client, params, retries=0, attempts=None, *, positional=False):
+        # Negotiation fixtures explicitly opt in; default fixtures exercise the
+        # unpatched production selector on every native retry.
+        selector = gs.get_response_format
+        explicit_positional = (patch.object(gs, 'get_response_format',
+            side_effect=lambda params, client, *, portable=False: selector(
+                params, client, portable=portable)) if positional else nullcontext())
+        with explicit_positional, tempfile.TemporaryDirectory() as tmp, patch.object(gs, 'get_response_log_path',
                 side_effect=lambda name: os.path.join(tmp, name)):
             return tp.attribute_batch(client, 'fixture', deepcopy(self.frozen), params,
                 ['ALICE', 'BOB'], max_retries=retries,
                 attempt_observer=attempts.append if attempts is not None else None)
 
-    def test_sdk_wire_binds_each_position_and_preserves_source(self):
+    def test_production_default_sends_portable_schema_and_preserves_frozen_source(self):
         sent = []
+        frozen = deepcopy(self.frozen)
         def respond(request):
             sent.append(json.loads(request.content))
             return self.get_reply()
         result = self.run_batch(self.get_client(respond), self.get_params())
+        self.assertEqual(1, len(sent))
+        schema = sent[0]['response_format']['json_schema']['schema']
+        self.assertIsInstance(schema['items'], dict)
+        self.assertNotIn('additionalItems', schema)
+        self.assertEqual((3, 3), (schema['minItems'], schema['maxItems']))
+        spoken, narrator = schema['items']['anyOf']
+        self.assertEqual([0, 2], spoken['properties']['n']['enum'])
+        self.assertEqual([1], narrator['properties']['n']['enum'])
+        self.assertEqual('NARRATOR', narrator['properties']['speaker']['const'])
+        self.assertEqual(frozen, self.frozen)
+        self.assertEqual([{**{key: value for key, value in row.items() if key != 'type'},
+                          'speaker': label} for row, label in zip(
+            frozen, ['ALICE', 'NARRATOR', 'BOB'])], result)
+
+    def test_production_alignment_retry_keeps_portable_schema_and_native_budget(self):
+        sent, attempts = [], []
+        duplicate = [self.answer[0], self.answer[1], self.answer[0]]
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return self.get_reply(duplicate if len(sent) == 1 else None)
+        params = self.get_params()
+        result = self.run_batch(self.get_client(respond), params,
+                                retries=1, attempts=attempts)
+        self.assertEqual(2, len(sent))
+        self.assertEqual(['quality_rejected', 'accepted'], [a['outcome'] for a in attempts])
+        self.assertEqual(['alignment_violated'], attempts[0]['failure_codes'])
+        self.assertEqual(sent[0]['response_format'], sent[1]['response_format'])
+        self.assertTrue(all(isinstance(body['response_format']['json_schema']['schema']['items'],
+                                      dict) for body in sent))
+        self.assertEqual(sent[0]['max_tokens'], sent[1]['max_tokens'])
+        self.assertEqual((500, 1000), (params.max_tokens, params.hard_max_tokens))
+        self.assertFalse(params.schema_rejected_by | params.ordered_schema_rejected_by)
+        self.assertEqual(['ALICE', 'NARRATOR', 'BOB'], [row['speaker'] for row in result])
+
+    def test_explicit_positional_sdk_wire_binds_each_position_and_preserves_source(self):
+        sent = []
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return self.get_reply()
+        result = self.run_batch(self.get_client(respond), self.get_params(), positional=True)
         schema = sent[0]['response_format']['json_schema']['schema']
         self.assertEqual([[0], [1], [2]], [row['properties']['n']['enum'] for row in schema['items']])
         self.assertFalse(schema['additionalItems'])
@@ -70,8 +118,8 @@ class OrderedIndexSchemaTests(unittest.TestCase):
                 return self.get_error(400, self.tuple_error)
             return self.get_reply()
         client, params = self.get_client(respond), self.get_params()
-        self.run_batch(client, params)
-        self.run_batch(client, params)
+        self.run_batch(client, params, positional=True)
+        self.run_batch(client, params, positional=True)
         self.assertEqual(3, len(sent))
         self.assertEqual(sent[0]['messages'], sent[1]['messages'])
         self.assertEqual(sent[0]['max_tokens'], sent[1]['max_tokens'])
@@ -83,12 +131,12 @@ class OrderedIndexSchemaTests(unittest.TestCase):
         self.assertEqual('NARRATOR', narrator['properties']['speaker']['const'])
         self.assertFalse(params.schema_rejected_by)
         self.assertEqual({'http://fixture/v1/'}, params.ordered_schema_rejected_by)
-        self.run_batch(client, self.get_params())
+        self.run_batch(client, self.get_params(), positional=True)
         self.assertIsInstance(sent[3]['response_format']['json_schema']['schema']['items'], list)
         other = []
         def accept(request):
             other.append(json.loads(request.content)); return self.get_reply()
-        self.run_batch(self.get_client(accept, 'http://other/v1'), params)
+        self.run_batch(self.get_client(accept, 'http://other/v1'), params, positional=True)
         self.assertIsInstance(other[0]['response_format']['json_schema']['schema']['items'], list)
 
     def test_whole_feature_rejection_retains_existing_single_fallback(self):
@@ -103,7 +151,7 @@ class OrderedIndexSchemaTests(unittest.TestCase):
                     return (self.get_error(400, message)
                             if 'response_format' in body else self.get_reply())
                 params = self.get_params(); client = self.get_client(respond)
-                self.run_batch(client, params); self.run_batch(client, params)
+                self.run_batch(client, params, positional=True); self.run_batch(client, params, positional=True)
                 self.assertEqual(3, len(sent))
                 self.assertIn('response_format', sent[0])
                 self.assertNotIn('response_format', sent[1])
@@ -121,7 +169,7 @@ class OrderedIndexSchemaTests(unittest.TestCase):
                 return self.get_error(400, 'response_format is not supported')
             return self.get_reply()
         params = self.get_params(); client = self.get_client(respond)
-        self.run_batch(client, params); self.run_batch(client, params)
+        self.run_batch(client, params, positional=True); self.run_batch(client, params, positional=True)
         self.assertEqual(4, len(sent))
         self.assertIsInstance(sent[2]['response_format']['json_schema']['schema']['items'], dict)
         self.assertNotIn('response_format', sent[3])
@@ -153,7 +201,7 @@ class OrderedIndexSchemaTests(unittest.TestCase):
                     return self.get_error(400, self.tuple_error) if len(sent) == 1 else self.get_error(status, message)
                 params = self.get_params()
                 with self.assertRaises(tp.PassExhausted):
-                    self.run_batch(self.get_client(respond), params)
+                    self.run_batch(self.get_client(respond), params, positional=True)
                 self.assertEqual(2, len(sent))
                 self.assertTrue(all('response_format' in row for row in sent))
                 self.assertFalse(params.schema_rejected_by)
@@ -169,7 +217,7 @@ class OrderedIndexSchemaTests(unittest.TestCase):
                     sent.append(json.loads(request.content)); return self.get_error(status, message)
                 params = self.get_params()
                 with self.assertRaises(tp.PassExhausted):
-                    self.run_batch(self.get_client(respond), params)
+                    self.run_batch(self.get_client(respond), params, positional=True)
                 self.assertEqual(1, len(sent))
                 self.assertFalse(params.schema_rejected_by | params.ordered_schema_rejected_by)
 
@@ -210,11 +258,11 @@ class OrderedIndexSchemaTests(unittest.TestCase):
             secondary_config={'base_url': 'http://secondary/v1', 'model_name': 'secondary',
                               'structured_output': 'auto', 'api_retry_limit': 0})
         params = self.get_params()
-        self.run_batch(client, params)
+        self.run_batch(client, params, positional=True)
         client.failover({'category': 'timeout'})
         with patch('lmstudio_settings.get_current_status', return_value={
                 'available': True, 'loaded': True, 'context_length': 8192, 'parallel': 1}):
-            self.run_batch(client, params)
+            self.run_batch(client, params, positional=True)
         self.assertEqual(2, len(first))
         self.assertEqual(1, len(second))
         self.assertIsInstance(second[0]['response_format']['json_schema']['schema']['items'], list)
@@ -238,7 +286,7 @@ class OrderedIndexSchemaTests(unittest.TestCase):
         with patch('lmstudio_settings.get_current_status', return_value={
                 'available': True, 'loaded': True, 'context_length': 8192, 'parallel': 1}):
             with self.assertRaises(tp.PassExhausted):
-                self.run_batch(client, params)
+                self.run_batch(client, params, positional=True)
         self.assertEqual(2, len(admitted))
         self.assertEqual(1, len(sent), 'Admission refusal must prevent the portable wire send')
 

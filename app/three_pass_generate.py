@@ -651,7 +651,7 @@ ATTRIBUTION_RESPONSE_SCHEMA = {
     },
 }
 
-ATTRIBUTION_SCHEMA_POLICY = "ordered_frozen_narration_v2"
+ATTRIBUTION_SCHEMA_POLICY = "portable_default_frozen_narration_v3"
 
 
 def get_attribution_response_schema(speaker_traits=False, indexes=None):

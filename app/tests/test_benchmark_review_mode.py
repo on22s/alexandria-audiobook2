@@ -126,10 +126,8 @@ class BenchmarkReviewModeTests(unittest.TestCase):
         self.assertEqual(8192, result['params'][0].context_length)
         self.assertEqual([{**SOURCE[0], 'speaker': 'ALICE', 'instruct': 'Gently.'}, SOURCE[1]], result['outputs'][0])
         schema = result['requests'][0]['response_format']['json_schema']['schema']
-        for index, item in enumerate(schema['items']):
-            self.assertEqual({'n', 'speaker', 'instruct'}, set(item['properties']))
-            self.assertEqual([index], item['properties']['n']['enum'])
-        self.assertFalse(schema['additionalItems'])
+        self.assertEqual({'n', 'speaker', 'instruct'}, set(schema['items']['properties']))
+        self.assertEqual([0, 1], schema['items']['properties']['n']['enum'])
         self.assertEqual((2, 2), (schema['minItems'], schema['maxItems']))
         self.assertIn('Never return text', result['requests'][0]['messages'][0]['content'])
         self.assertEqual(0, result['report']['cases'][0]['changes']['text_changed'])
