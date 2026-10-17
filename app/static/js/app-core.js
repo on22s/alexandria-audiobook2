@@ -4218,7 +4218,7 @@
                 return getLocalAudioUrl(String(candidate.ref_audio), Date.now());
             }
             const adapterId = candidate.adapter_id || candidate.candidate_id;
-            const model = candidate.type === 'lora' ? getLoraModelsById().get(adapterId) : null;
+            const model = (candidate.type === 'lora' || candidate.type === 'builtin_lora') ? getLoraModelsById().get(adapterId) : null;
             return model && model.preview_audio_url ? model.preview_audio_url : null;
         }
 

@@ -203,10 +203,15 @@ function button(){return{dataset:{label:'candidate x'},innerHTML:'',attrs:{},cla
 const candidates=[{candidate_id:'design-a',type:'clone',ref_audio:'designed_voices/a.wav'},
   {candidate_id:'design-b',type:'clone',ref_audio:'designed_voices/b.wav'},
   {candidate_id:'warm_tenor',type:'lora',adapter_id:'warm_tenor'},
+  {candidate_id:'builtin_tenor',type:'builtin_lora',adapter_id:'builtin_tenor'},
+  {candidate_id:'builtin_silent',type:'builtin_lora',adapter_id:'builtin_silent'},
   {candidate_id:'bare',type:'lora',adapter_id:'missing'}];
 let toasts=[];
 const c={window:{},Audio,escapeHtml:x=>String(x),getInlineStringArgument:x=>JSON.stringify(x),
-  getLocalAudioUrl:(p)=>'/'+p,getLoraModelsById:()=>new Map([['warm_tenor',{preview_audio_url:'/lora/warm.wav'}]]),
+  getLocalAudioUrl:(p)=>'/'+p,getLoraModelsById:()=>new Map([
+    ['warm_tenor',{id:'warm_tenor',preview_audio_url:'/lora/warm.wav'}],
+    ['builtin_tenor',{id:'builtin_tenor',builtin:true,preview_audio_url:'/builtin_lora/builtin_tenor/preview_sample.wav'}],
+    ['builtin_silent',{id:'builtin_silent',builtin:true,preview_audio_url:null}]]),
   getVoiceCardMetadata:()=>({candidates}),showToast:(m)=>toasts.push(m)};
 vm.createContext(c);
 vm.runInContext(s.slice(s.indexOf('function getVoiceCandidateMarkup('),s.indexOf('// Gender/age per line (#653)')),c);
@@ -225,8 +230,14 @@ vm.runInContext(s.slice(s.indexOf('function getVoiceCandidateMarkup('),s.indexOf
   assert.strictEqual(c.window._candidatePlayback,null);
   await c.window.toggleCandidatePlayback(button(),'warm_tenor');
   assert.strictEqual(played[3].url,'/lora/warm.wav','a LoRA candidate plays its adapter preview');
+  await c.window.toggleCandidatePlayback(button(),'builtin_tenor');
+  assert.strictEqual(played.length,5,'a built-in LoRA candidate starts its preview');
+  assert.strictEqual(played[4].url,'/builtin_lora/builtin_tenor/preview_sample.wav');
+  assert(played[3].paused,'a built-in preview stops the previously playing user LoRA');
   const html=c.getVoiceCandidateMarkup(candidates,'');
-  assert.strictEqual((html.match(/candidate-play/g)||[]).length,3,'only candidates with audio get a Play button');
+  assert.strictEqual((html.match(/candidate-play/g)||[]).length,4,'only candidates with audio get a Play button');
+  assert(/toggleCandidatePlayback\(this, "builtin_tenor"\)/.test(html));
+  assert(!/toggleCandidatePlayback\(this, "builtin_silent"\)/.test(html));
   assert(!/toggleCandidatePlayback\(this, "bare"\)/.test(html));
   process.stdout.write('ok');
 })().catch(e=>{console.error(e);process.exitCode=1;});'''
