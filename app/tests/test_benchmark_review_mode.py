@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import httpx
+import httpx2
 from openai import OpenAI
 
 import benchmark_core as core
@@ -69,14 +69,14 @@ def run_native_benchmark(target='local', mode=True, reply=None, runner_module=ru
         def respond(request):
             body = json.loads(request.content)
             requests.append(body)
-            return httpx.Response(200, json={'id': 'fixture', 'object': 'chat.completion',
+            return httpx2.Response(200, json={'id': 'fixture', 'object': 'chat.completion',
                 'created': 1, 'model': 'fixture', 'choices': [{'index': 0,
                 'message': {'role': 'assistant', 'content': json.dumps(response_rows)},
                 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 20, 'completion_tokens': 20,
                                                   'total_tokens': 40}})
 
         def construct(**kwargs):
-            client = OpenAI(**kwargs, http_client=httpx.Client(transport=httpx.MockTransport(respond)))
+            client = OpenAI(**kwargs, http_client=httpx2.Client(transport=httpx2.MockTransport(respond)))
             stack.callback(client.close)
             return client
 

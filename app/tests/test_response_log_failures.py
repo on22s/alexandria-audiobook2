@@ -7,7 +7,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-import httpx
+import httpx2
 from openai import OpenAI
 import generate_script as gs
 import llm_provider as provider
@@ -22,11 +22,11 @@ class ResponseLogFailureTests(unittest.TestCase):
                 if malformed:
                     data = response.json()
                     data['choices'][0]['message']['content'] = 'Not a JSON response.'
-                    return httpx.Response(200, json=data)
+                    return httpx2.Response(200, json=data)
                 return response
         primary, secondary = CompletionTransport(8192), RuntimeTransport(8192)
         sdks = [OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                       http_client=httpx.Client(transport=transport)) for transport in (primary, secondary)]
+                       http_client=httpx2.Client(transport=transport)) for transport in (primary, secondary)]
         for sdk in sdks:
             self.addCleanup(sdk.close)
         client = provider.FailoverClient(provider.ConfiguredOpenAI(sdks[0], {}), 'primary',

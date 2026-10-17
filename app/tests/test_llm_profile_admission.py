@@ -12,7 +12,7 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 
 import core
@@ -87,14 +87,14 @@ def run_workflow(profile, *, target='review', context=0, dedupe=False,
             body = json.loads(request.content)
             requests.append(copy.deepcopy(body))
             if failover and body['model'] == 'fixture-model':
-                return httpx.Response(429, json={'error': {'message': 'fixture primary unavailable',
+                return httpx2.Response(429, json={'error': {'message': 'fixture primary unavailable',
                                                           'type': 'rate_limit'}})
-            return httpx.Response(200, json={'id': 'fixture', 'object': 'chat.completion', 'created': 1,
+            return httpx2.Response(200, json={'id': 'fixture', 'object': 'chat.completion', 'created': 1,
                 'model': body['model'], 'choices': [{'index': 0, 'finish_reason': 'stop',
                 'message': {'role': 'assistant', 'content': get_reply(body['messages'])}}]})
 
         def make_sdk(**kwargs):
-            client = OpenAI(**kwargs, http_client=httpx.Client(transport=httpx.MockTransport(handle)))
+            client = OpenAI(**kwargs, http_client=httpx2.Client(transport=httpx2.MockTransport(handle)))
             clients.append(client)
             stack.callback(client.close)
             return client

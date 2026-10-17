@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 import llm_provider as provider
 
@@ -14,7 +14,7 @@ if os.environ.get('FAILOVER_CLOSE_BASELINE'):
     exec(compile(path.read_text(), str(path), 'exec'), provider.__dict__)
 
 
-class OwnedTransport(httpx.BaseTransport):
+class OwnedTransport(httpx2.BaseTransport):
     def __init__(self):
         self.closes = 0
 
@@ -29,7 +29,7 @@ class FailoverClientCleanupTests(unittest.TestCase):
     def sdk(self):
         transport = OwnedTransport()
         sdk = OpenAI(base_url='http://127.0.0.1:1/v1', api_key='local',
-                     http_client=httpx.Client(transport=transport))
+                     http_client=httpx2.Client(transport=transport))
         self.addCleanup(sdk.close)
         return provider.ConfiguredOpenAI(sdk, {}), transport
 

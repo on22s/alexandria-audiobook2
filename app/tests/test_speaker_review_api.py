@@ -9,7 +9,7 @@ import routers.speaker_review as r
 import speaker_review as m
 import three_pass_generate as t
 from utils import atomic_json_write
-import httpx, llm_provider
+import httpx2, llm_provider
 c = r.core
 app = FastAPI(); app.include_router(r.router)
 client = TestClient(app)
@@ -246,9 +246,9 @@ class SpeakerReviewApiTests(unittest.TestCase):
         requests=[]; status=[200]; finish=['stop']
         def handler(request):
             requests.append(request);body=json.loads(request.content)
-            return httpx.Response(status[0],json={'id':'synthetic','object':'chat.completion','created':1,'model':'gpt-5.4','choices':[{'index':0,'finish_reason':finish[0],'message':{'role':'assistant','content':json.dumps({'same_identity':True,'reason':'Synthetic verdict'})}}]})
+            return httpx2.Response(status[0],json={'id':'synthetic','object':'chat.completion','created':1,'model':'gpt-5.4','choices':[{'index':0,'finish_reason':finish[0],'message':{'role':'assistant','content':json.dumps({'same_identity':True,'reason':'Synthetic verdict'})}}]})
         real=llm_provider.OpenAI
-        def create(**kwargs):return real(http_client=httpx.Client(transport=httpx.MockTransport(handler)),**kwargs)
+        def create(**kwargs):return real(http_client=httpx2.Client(transport=httpx2.MockTransport(handler)),**kwargs)
         candidate={'id':'x','entry_index':0,'labels':['ALICE','AL'],'prediction_label':'ALICE','reference_label':'AL','context':[],'reference_context':[]}
         with patch.object(llm_provider,'OpenAI',side_effect=create):
             transport,review=m.make_reviewer(profile)

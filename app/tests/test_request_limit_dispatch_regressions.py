@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 import generate_script as gs
 from llm_provider import ConfiguredOpenAI, FailoverClient
@@ -21,14 +21,14 @@ class DispatchLimitsTests(unittest.TestCase):
         def respond(request):
             body = json.loads(request.content)
             sent.append(body)
-            return httpx.Response(200, json={
+            return httpx2.Response(200, json={
                 'id': 'fixture', 'object': 'chat.completion', 'created': 1,
                 'model': body['model'], 'choices': [{'index': 0,
                     'message': {'role': 'assistant', 'content': content},
                     'finish_reason': 'length' if len(sent) - 1 in lengths else 'stop'}]})
 
         sdk = OpenAI(base_url='http://fixture.invalid/v1', api_key='synthetic',
-                     max_retries=0, http_client=httpx.Client(transport=httpx.MockTransport(respond)))
+                     max_retries=0, http_client=httpx2.Client(transport=httpx2.MockTransport(respond)))
         self.addCleanup(sdk.close)
         return ConfiguredOpenAI(sdk, {}), sent
 

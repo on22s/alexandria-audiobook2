@@ -3,7 +3,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 from pydantic import ValidationError
 
@@ -85,6 +85,8 @@ class ProviderRequestSettingsTest(unittest.TestCase):
     def test_profile_timeout_uses_request_and_connect_limits(self):
         timeout = get_profile_timeout(
             {"request_timeout_seconds": 45, "connect_timeout_seconds": 3}, 600)
+        # openai 3 sends through httpx2; its own Timeout type is what it documents.
+        self.assertIsInstance(timeout, httpx2.Timeout)
         self.assertEqual(45, timeout.read)
         self.assertEqual(3, timeout.connect)
 
@@ -164,7 +166,7 @@ class ProviderRequestSettingsTest(unittest.TestCase):
 
         def handle(request):
             requests.append(json.loads(request.content))
-            return httpx.Response(200, json={
+            return httpx2.Response(200, json={
                 "id": "test", "object": "chat.completion", "created": 0,
                 "model": "model", "choices": [{
                     "index": 0,
@@ -175,7 +177,7 @@ class ProviderRequestSettingsTest(unittest.TestCase):
 
         raw_client = OpenAI(
             base_url="http://provider.test/v1", api_key="key",
-            http_client=httpx.Client(transport=httpx.MockTransport(handle)),
+            http_client=httpx2.Client(transport=httpx2.MockTransport(handle)),
         )
         self.addCleanup(raw_client.close)
         return ConfiguredOpenAI(raw_client, provider_extra_body), requests

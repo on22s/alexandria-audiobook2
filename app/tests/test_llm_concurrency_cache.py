@@ -204,19 +204,19 @@ class StandaloneBenchmarkClientTests(unittest.TestCase):
         import io
         import os
         import sys
-        import httpx
+        import httpx2
         import llm_provider
         from openai import OpenAI
         requests = []
         clients = []
         def handle(request):
             requests.append((str(request.url), request.headers.get("authorization"), json.loads(request.content)))
-            return httpx.Response(200, json={"id": "fixture", "object": "chat.completion", "created": 0,
+            return httpx2.Response(200, json={"id": "fixture", "object": "chat.completion", "created": 0,
                 "model": "fixture-model", "choices": [{"index": 0, "finish_reason": "stop",
                 "message": {"role": "assistant", "content": "Known benchmark completion."}}],
                 "usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30}})
         def make_sdk(**kwargs):
-            client = OpenAI(**kwargs, http_client=httpx.Client(transport=httpx.MockTransport(handle)))
+            client = OpenAI(**kwargs, http_client=httpx2.Client(transport=httpx2.MockTransport(handle)))
             clients.append(client)
             return client
         with patch.dict(os.environ, {"CLI_FIXTURE_KEY": "fixture-secret"}), \

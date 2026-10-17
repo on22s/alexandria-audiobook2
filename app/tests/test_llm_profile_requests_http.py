@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import httpx
+import httpx2
 from openai import OpenAI
 
 from routers import system
@@ -96,13 +96,13 @@ class LlmProfileRequestHttpTests(unittest.TestCase):
             requests.append(request)
             self.assertEqual('blue', request.headers['X-Route'])
             if request.url.path.endswith('/models'):
-                return httpx.Response(200, json={'object': 'list', 'data': [
+                return httpx2.Response(200, json={'object': 'list', 'data': [
                     {'id': 'chosen', 'object': 'model', 'created': 0, 'owned_by': 'fixture'}]})
-            return httpx.Response(200, json={'id': 'fixture', 'object': 'chat.completion',
+            return httpx2.Response(200, json={'id': 'fixture', 'object': 'chat.completion',
                 'created': 0, 'model': 'chosen', 'choices': [{'index': 0,
                 'message': {'role': 'assistant', 'content': 'pong'}, 'finish_reason': 'stop'}]})
 
-        with httpx.Client(transport=httpx.MockTransport(respond)) as transport:
+        with httpx2.Client(transport=httpx2.MockTransport(respond)) as transport:
             def make_sdk(**kwargs):
                 return OpenAI(**kwargs, http_client=transport)
 

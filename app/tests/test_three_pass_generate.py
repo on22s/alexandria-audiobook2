@@ -1624,7 +1624,7 @@ class AttributionContextKnobTests(unittest.TestCase):
 class AttributionSchemaTransportTests(unittest.TestCase):
     def test_strict_and_freeform_transports_bind_indices_without_heads(self):
         import copy
-        import httpx
+        import httpx2
         from openai import OpenAI
         import generate_script
         frozen = [{"type": "NARRATOR", "text": "Alice said,", "pause_after": 0.2},
@@ -1656,13 +1656,13 @@ class AttributionSchemaTransportTests(unittest.TestCase):
                                 self.assertEqual(item["properties"]["speaker"]["const"], response["speaker"])
                     else:
                         self.assertNotIn("response_format", payload)
-                    return httpx.Response(200, json={
+                    return httpx2.Response(200, json={
                         "id": "fixture", "object": "chat.completion", "created": 0,
                         "model": "fixture", "choices": [{"index": 0,
                             "message": {"role": "assistant", "content": json.dumps(responses)},
                             "finish_reason": "stop"}]})
                 with OpenAI(base_url="http://provider.test/v1", api_key="fixture",
-                            http_client=httpx.Client(transport=httpx.MockTransport(handle))) as client, \
+                            http_client=httpx2.Client(transport=httpx2.MockTransport(handle))) as client, \
                      patch.object(generate_script, "get_response_log_path",
                                   return_value=os.path.join(tmp, "responses.log")):
                     result = tp.attribute_batch(client, "fixture", frozen,

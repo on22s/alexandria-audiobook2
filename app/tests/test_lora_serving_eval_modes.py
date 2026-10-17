@@ -13,7 +13,7 @@ class LoraServingEvalModeTests(unittest.TestCase):
     def test_http_capture_preserves_request_and_attribution_decision(self):
         import base64, json, tempfile
         from unittest.mock import patch
-        import httpx
+        import httpx2
         from openai import DefaultHttpxClient, OpenAI
         from generate_script import LLMGenParams
         from three_pass_generate import attribute_batch
@@ -30,13 +30,13 @@ class LoraServingEvalModeTests(unittest.TestCase):
                     "finish_reason": "stop"}]}).encode()
                 def serve(request):
                     requests.append(request.content)
-                    return httpx.Response(200, content=body)
+                    return httpx2.Response(200, content=body)
                 capture = ServingResponseCapture()
                 for enabled in (False, True):
                     hooks = {"request": [capture.observe_request],
                              "response": [capture.observe_response]} if enabled else {}
                     with OpenAI(base_url="http://localhost/v1", api_key="synthetic-secret",
-                        http_client=DefaultHttpxClient(transport=httpx.MockTransport(serve),
+                        http_client=DefaultHttpxClient(transport=httpx2.MockTransport(serve),
                                                       event_hooks=hooks)) as client:
                         with patch("generate_script.get_response_log_path", return_value=tmp + "/responses.log"):
                             try:
@@ -58,14 +58,14 @@ class LoraServingEvalModeTests(unittest.TestCase):
                 self.assertEqual(64, len(diagnostic["prompt_sha256"]))
 
     def test_http_capture_retains_sdk_retry_reply(self):
-        import httpx
+        import httpx2
         from openai import DefaultHttpxClient, OpenAI
         capture = ServingResponseCapture()
-        replies = [httpx.Response(500, content=b'{"error":{"message":"synthetic"}}'),
-                   httpx.Response(200, json={"id": "stub", "object": "chat.completion",
+        replies = [httpx2.Response(500, content=b'{"error":{"message":"synthetic"}}'),
+                   httpx2.Response(200, json={"id": "stub", "object": "chat.completion",
                        "created": 0, "model": "stub", "choices": []})]
         with OpenAI(base_url="http://localhost/v1", api_key="local", max_retries=1,
-                    http_client=DefaultHttpxClient(transport=httpx.MockTransport(
+                    http_client=DefaultHttpxClient(transport=httpx2.MockTransport(
                         lambda request: replies.pop(0)), event_hooks={
                             "request": [capture.observe_request],
                             "response": [capture.observe_response]})) as client:

@@ -22,7 +22,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 
 import generate_script as gs
@@ -58,8 +58,8 @@ class RequestLogTests(unittest.TestCase):
             "system text", "", 8192, 0.0, 1, api_retry_limit=0)
         output, attempts = io.StringIO(), []
         with OpenAI(base_url="http://fixture.invalid/v1", api_key="synthetic",
-                    max_retries=0, http_client=httpx.Client(
-                        transport=httpx.MockTransport(handler))) as client, \
+                    max_retries=0, http_client=httpx2.Client(
+                        transport=httpx2.MockTransport(handler))) as client, \
                 patch.dict(os.environ, {"ALEXANDRIA_RUN_ID": ""}), \
                 patch.object(gs, "get_response_log_path",
                              side_effect=lambda name: os.path.join(tmp, name)), \
@@ -71,7 +71,7 @@ class RequestLogTests(unittest.TestCase):
         return result, output.getvalue(), attempts
 
     def sdk_response(self, content=CORRECT):
-        return httpx.Response(200, json={
+        return httpx2.Response(200, json={
             "id": "synthetic", "object": "chat.completion", "created": 0,
             "model": "fixture-model", "choices": [{"index": 0,
                 "finish_reason": "stop", "message": {
@@ -222,7 +222,7 @@ class RequestLogTests(unittest.TestCase):
 
         def handle(request):
             seen.append(json.loads(request.content))
-            raise httpx.ReadTimeout("synthetic timeout", request=request)
+            raise httpx2.ReadTimeout("synthetic timeout", request=request)
 
         with tempfile.TemporaryDirectory() as tmp:
             result, _, attempts = self.run_sdk_call(tmp, handle)
@@ -239,7 +239,7 @@ class RequestLogTests(unittest.TestCase):
         def handle(request):
             seen.append(json.loads(request.content))
             if len(seen) == 1:
-                raise httpx.ReadTimeout("synthetic timeout", request=request)
+                raise httpx2.ReadTimeout("synthetic timeout", request=request)
             return self.sdk_response()
 
         params = gs.LLMGenParams("system text", "", 8192, 0.0, 1, api_retry_limit=1)
@@ -260,7 +260,7 @@ class RequestLogTests(unittest.TestCase):
         def handle(request):
             seen.append(json.loads(request.content))
             if "response_format" in seen[-1]:
-                return httpx.Response(400, json={"error": {
+                return httpx2.Response(400, json={"error": {
                     "message": "response_format is unsupported", "type": "invalid_request_error"}})
             return self.sdk_response()
 

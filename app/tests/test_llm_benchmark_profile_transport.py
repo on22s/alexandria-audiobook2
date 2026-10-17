@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 import benchmark_runner as runner
 import llm_benchmark_worker as worker
@@ -46,12 +46,12 @@ class BenchmarkProfileTransportTests(unittest.TestCase):
 
                 def handler(request):
                     requests.append((dict(request.headers), json.loads(request.content)))
-                    return httpx.Response(200, json={'id': 'fixture', 'object': 'chat.completion',
+                    return httpx2.Response(200, json={'id': 'fixture', 'object': 'chat.completion',
                         'created': 1, 'model': 'gpt-5', 'choices': [{'index': 0,
                         'message': {'role': 'assistant', 'content': '[]'}, 'finish_reason': 'stop'}]})
 
                 def construct(**kwargs):
-                    raw = OpenAI(**kwargs, http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+                    raw = OpenAI(**kwargs, http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
                     clients.append(raw)
                     return raw
 

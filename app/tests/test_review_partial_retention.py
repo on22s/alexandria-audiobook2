@@ -9,7 +9,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 import generate_script as generation
 from generate_script import LLMGenParams
@@ -33,7 +33,7 @@ def get_reply(source=SOURCE):
 
 
 def get_response(text, reason='stop'):
-    return httpx.Response(200, json={'id': 'synthetic', 'object': 'chat.completion',
+    return httpx2.Response(200, json={'id': 'synthetic', 'object': 'chat.completion',
         'created': 1, 'model': 'fixture', 'choices': [{'index': 0,
         'message': {'role': 'assistant', 'content': text}, 'finish_reason': reason}],
         'usage': {'prompt_tokens': 30, 'completion_tokens': 30, 'total_tokens': 60}})
@@ -53,7 +53,7 @@ class PartialRetentionTests(unittest.TestCase):
             return get_response(answer if isinstance(answer, str) else json.dumps(answer), reason)
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
             client = stack.enter_context(OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture',
-                max_retries=0, http_client=httpx.Client(transport=httpx.MockTransport(respond))))
+                max_retries=0, http_client=httpx2.Client(transport=httpx2.MockTransport(respond))))
             client.switched = switched
             if logging_error:
                 stack.enter_context(patch.object(generation, 'get_response_log_path', side_effect=OSError('fixture log refusal')))
@@ -286,8 +286,8 @@ class PartialRetentionTests(unittest.TestCase):
 
     def test_length_api_logging_switched_and_earlybreak_do_not_recover_stale_candidate(self):
         reply = get_reply()
-        request = httpx.Request('POST', 'http://fixture.invalid/v1/chat/completions')
-        errors = [httpx.ReadTimeout('fixture timeout', request=request)]
+        request = httpx2.Request('POST', 'http://fixture.invalid/v1/chat/completions')
+        errors = [httpx2.ReadTimeout('fixture timeout', request=request)]
         output, _, _ = self.run_review([reply, reply, errors[0]])
         self.assertIsNone(output)
         output, _, _ = self.run_review([reply] * 3, reasons=['stop', 'stop', 'length'])
@@ -330,7 +330,7 @@ class PartialRetentionTests(unittest.TestCase):
             return get_response(json.dumps(rows), reason)
         with tempfile.TemporaryDirectory() as directory, \
              OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                    http_client=httpx.Client(transport=httpx.MockTransport(respond))) as sdk, \
+                    http_client=httpx2.Client(transport=httpx2.MockTransport(respond))) as sdk, \
              patch.object(generation, 'get_response_log_path', return_value=str(Path(directory, 'responses.log'))), \
              patch.object(generation.time, 'sleep'), redirect_stdout(io.StringIO()):
             client = FailoverClient(sdk, 'primary', sdk, 'secondary')
@@ -375,7 +375,7 @@ class PartialRetentionTests(unittest.TestCase):
         for observed in (False, True):
             with self.subTest(observed=observed), tempfile.TemporaryDirectory() as directory, \
                  OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                        http_client=httpx.Client(transport=httpx.MockTransport(
+                        http_client=httpx2.Client(transport=httpx2.MockTransport(
                             lambda request: get_response(json.dumps(complete))))) as client, \
                  patch.object(generation, 'get_response_log_path', return_value=str(Path(directory, 'responses.log'))), \
                  patch.object(generation, 'repair_json_array', wraps=generation.repair_json_array) as entries_parser, \
@@ -467,7 +467,7 @@ class PartialPublicationTests(unittest.TestCase):
                     else:rows = get_reply()
                     return get_response(json.dumps(rows))
                 with OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                            http_client=httpx.Client(transport=httpx.MockTransport(respond))) as client:
+                            http_client=httpx2.Client(transport=httpx2.MockTransport(respond))) as client:
                     log = self.run_main(directory, source, client, contextual=contextual, concurrency=2)
                 saved = json.loads(source.read_text())
                 self.assertEqual('ALICE', saved[0]['speaker']); self.assertEqual(SOURCE[1:], saved[1:3])
@@ -499,7 +499,7 @@ class PartialPublicationTests(unittest.TestCase):
                 reply = get_reply() if failed else copy.deepcopy(SOURCE)
                 if failed:reply[0].update(speaker=SOURCE[0]['speaker'], instruct='')
                 with OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                            http_client=httpx.Client(transport=httpx.MockTransport(
+                            http_client=httpx2.Client(transport=httpx2.MockTransport(
                                 lambda request: get_response(json.dumps(reply))))) as client:
                     log = self.run_main(directory, path, client, partial=False)
                 info = self.assert_parent_report(log, directory, failed=failed)
@@ -519,7 +519,7 @@ class PartialPublicationTests(unittest.TestCase):
                     rows[0].update(speaker='ALICE', instruct='Calmly.')
                     return get_response(json.dumps(rows))
                 with OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                            http_client=httpx.Client(transport=httpx.MockTransport(respond))) as client:
+                            http_client=httpx2.Client(transport=httpx2.MockTransport(respond))) as client:
                     self.run_main(directory, source, client, output=output if separate else None)
                     first = load_generation_checkpoint_document(str(output) + '.review_checkpoint.json')
                     self.assertEqual(0, first['total_stats']['speaker_changed'])

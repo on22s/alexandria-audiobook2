@@ -14,7 +14,7 @@ import threading
 import time
 from types import SimpleNamespace
 
-import httpx
+import httpx2
 from openai import OpenAI
 
 
@@ -253,7 +253,7 @@ def get_profile_timeout(llm_config, default_timeout):
     connect_timeout = llm_config.get("connect_timeout_seconds")
     if connect_timeout is None:
         return request_timeout
-    return httpx.Timeout(request_timeout, connect=connect_timeout)
+    return httpx2.Timeout(request_timeout, connect=connect_timeout)
 
 
 class RunProfileChanged(RuntimeError):

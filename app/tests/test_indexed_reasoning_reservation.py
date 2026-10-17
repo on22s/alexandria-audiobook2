@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 import generate_script as gs
 import llm_provider as provider
@@ -17,7 +17,7 @@ import three_pass_generate as tp
 from lmstudio_settings import TokenBudgetError
 
 
-class IndexedTransport(httpx.BaseTransport):
+class IndexedTransport(httpx2.BaseTransport):
     def __init__(self, first_reasoning=0, truncated_calls=0, fail_after=None, reasoning_only=False):
         self.first_reasoning = first_reasoning
         self.truncated_calls = truncated_calls
@@ -29,14 +29,14 @@ class IndexedTransport(httpx.BaseTransport):
         body = json.loads(request.content)
         self.bodies.append(body)
         if self.fail_after is not None and len(self.bodies) > self.fail_after:
-            return httpx.Response(429, json={'error': {'message': 'unavailable'}})
+            return httpx2.Response(429, json={'error': {'message': 'unavailable'}})
         rows = json.loads(body['messages'][-1]['content'])
         truncated = len(self.bodies) <= self.truncated_calls
         content = ('' if self.reasoning_only else '[{"n":') if truncated else json.dumps([
             {'n': row['n'], 'head': ' '.join(row['text'].split()[:3]),
              **({'speaker': 'UNKNOWN'} if 'type' in row else {'instruct': 'Natural.'})}
             for row in rows])
-        return httpx.Response(200, json={'id': 'cpu-indexed', 'object': 'chat.completion',
+        return httpx2.Response(200, json={'id': 'cpu-indexed', 'object': 'chat.completion',
             'created': 1, 'model': body['model'], 'choices': [{'index': 0,
             'message': {'role': 'assistant', 'content': content},
             'finish_reason': 'length' if truncated else 'stop'}],
@@ -48,7 +48,7 @@ class IndexedTransport(httpx.BaseTransport):
 class IndexedReasoningReservationTests(unittest.TestCase):
     def get_sdk(self, transport):
         sdk = OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                     http_client=httpx.Client(transport=transport))
+                     http_client=httpx2.Client(transport=transport))
         self.addCleanup(sdk.close)
         return provider.ConfiguredOpenAI(sdk, {})
 

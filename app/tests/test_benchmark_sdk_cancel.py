@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import unittest
 from unittest.mock import patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 import benchmark_execution as execution
 import generate_script as gs
@@ -30,8 +30,8 @@ class BenchmarkSdkCancelTests(unittest.TestCase):
         def handler(request):
             calls.append(request.url.path)
             if len(calls)==1:
-                return httpx.Response(429,headers={'retry-after-ms':'1'},json={'error':{'message':'fixture rate limit'}})
-            return httpx.Response(200,json={'object':'list','data':[]})
+                return httpx2.Response(429,headers={'retry-after-ms':'1'},json={'error':{'message':'fixture rate limit'}})
+            return httpx2.Response(200,json={'object':'list','data':[]})
         native,_=self.make_client(state,handler)
         retrying=native.with_options(max_retries=1)
         token=execution.BENCHMARK_STATE.set(state)
@@ -43,7 +43,7 @@ class BenchmarkSdkCancelTests(unittest.TestCase):
         self.assertEqual(17,retrying.timeout)
 
     def make_client(self,state,handler):
-        http=httpx.Client(transport=httpx.MockTransport(handler))
+        http=httpx2.Client(transport=httpx2.MockTransport(handler))
         native=OpenAI(api_key='fixture',base_url='http://fixture/v1',http_client=http,timeout=17,max_retries=0)
         self.addCleanup(native.close)
         token=execution.BENCHMARK_STATE.set(state)
@@ -65,7 +65,7 @@ class BenchmarkSdkCancelTests(unittest.TestCase):
         state={'cancel':False};calls=[]
         def handler(request):
             calls.append(json.loads(request.content));state['cancel']=True
-            return httpx.Response(200,json={'id':'fixture','object':'chat.completion','created':0,'model':'fixture',
+            return httpx2.Response(200,json={'id':'fixture','object':'chat.completion','created':0,'model':'fixture',
                 'choices':[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'{"description":"Calm voice.","ref_text":"Hello."}'}}]})
         _,guarded=self.make_client(state,handler)
         with self.assertRaises(execution.BenchmarkCancelled):
@@ -82,7 +82,7 @@ class BenchmarkSdkCancelTests(unittest.TestCase):
                 state={'cancel':False};calls=[]
                 def handler(request):
                     calls.append(request.url.path);state['cancel']=True
-                    raise httpx.ConnectError('fixture transport failure',request=request)
+                    raise httpx2.ConnectError('fixture transport failure',request=request)
                 _,guarded=self.make_client(state,handler)
                 with self.assertRaises(execution.BenchmarkCancelled):
                     if rtt:guarded.models.list()
@@ -95,7 +95,7 @@ class BenchmarkSdkCancelTests(unittest.TestCase):
         active={'cancel':False};cancelled={'cancel':True};calls=[]
         def handler(request):
             calls.append(json.loads(request.content))
-            return httpx.Response(200,json={'id':'fixture','object':'chat.completion','created':0,'model':'fixture',
+            return httpx2.Response(200,json={'id':'fixture','object':'chat.completion','created':0,'model':'fixture',
                 'choices':[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'ok'}}]})
         native,first=self.make_client(active,handler)
         token=execution.BENCHMARK_STATE.set(cancelled)

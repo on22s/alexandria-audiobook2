@@ -83,15 +83,15 @@ class ScriptRecoveryTests(unittest.TestCase):
         self.assertTrue(all(a['outcome']=='quality_rejected' for a in attempts))
 
     def test_reasoning_sampling_in_serialized_sdk_body(self):
-        import httpx
+        import httpx2
         from openai import OpenAI
         for model,effort,removed in (('o1','medium',True),('gpt-5.1','none',False),('local','medium',False)):
             request={'model':model,'messages':[{'role':'user','content':'hello'}],'temperature':.5,'extra_body':{'temperature':.2,'top_p':.8,'reasoning_effort':effort}}
             before=json.dumps(request,sort_keys=True);bodies=[]
             def transport(req):
                 bodies.append(json.loads(req.content))
-                return httpx.Response(200,json={'id':'fixture','object':'chat.completion','created':0,'model':model,'choices':[{'index':0,'message':{'role':'assistant','content':'ok'},'finish_reason':'stop'}]})
-            with OpenAI(api_key='fixture',http_client=httpx.Client(transport=httpx.MockTransport(transport))) as client:
+                return httpx2.Response(200,json={'id':'fixture','object':'chat.completion','created':0,'model':model,'choices':[{'index':0,'message':{'role':'assistant','content':'ok'},'finish_reason':'stop'}]})
+            with OpenAI(api_key='fixture',http_client=httpx2.Client(transport=httpx2.MockTransport(transport))) as client:
                 client.chat.completions.create(**lp.adapt_request_for_reasoning_model(request))
             self.assertEqual(before,json.dumps(request,sort_keys=True))
             for key in ('temperature','top_p'): self.assertEqual(not removed,key in bodies[0])

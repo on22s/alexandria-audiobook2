@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 
 import generate_script as gs
@@ -25,18 +25,18 @@ class OrderedIndexSchemaTests(unittest.TestCase):
 
     def get_client(self, handler, url='http://fixture/v1'):
         client = OpenAI(api_key='fixture', base_url=url, max_retries=0,
-            http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+            http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
         self.addCleanup(client.close)
         return client
 
     def get_reply(self, rows=None):
-        return httpx.Response(200, json={'id': 'fixture-result', 'object': 'chat.completion',
+        return httpx2.Response(200, json={'id': 'fixture-result', 'object': 'chat.completion',
             'created': 0, 'model': 'fixture', 'choices': [{'index': 0,
                 'message': {'role': 'assistant', 'content': json.dumps(
                     self.answer if rows is None else rows)}, 'finish_reason': 'stop'}]})
 
     def get_error(self, status, message):
-        return httpx.Response(status, json={'error': {'message': message, 'type': 'invalid_request_error'}})
+        return httpx2.Response(status, json={'error': {'message': message, 'type': 'invalid_request_error'}})
 
     def get_params(self):
         return gs.LLMGenParams(max_tokens=500, hard_max_tokens=1000, temperature=.3,

@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-import httpx
+import httpx2
 from openai import OpenAI
 
 import generate_script as gs
@@ -81,7 +81,7 @@ class ReplayMetadataTests(unittest.TestCase):
                         data['usage'] = {'prompt_tokens': 20, 'completion_tokens': 1000,
                                          'total_tokens': 1020,
                                          'completion_tokens_details': {'reasoning_tokens': reported}}
-                    return httpx.Response(200, json=data)
+                    return httpx2.Response(200, json=data)
                 result, _, attempts = self.run_sdk_call(tmp, handle)
                 path = Path(tmp, 'llm_responses.log')
                 [meta] = self.metadata(path, 'RESPONSE')
@@ -98,7 +98,7 @@ class ReplayMetadataTests(unittest.TestCase):
         seen = []
         def handle(request):
             seen.append(request)
-            raise httpx.ReadTimeout('synthetic timeout', request=request)
+            raise httpx2.ReadTimeout('synthetic timeout', request=request)
         params = gs.LLMGenParams(max_tokens=4096, temperature=.4, api_retry_limit=1)
         with tempfile.TemporaryDirectory() as tmp, patch.object(gs, 'get_effective_max_tokens',
                 side_effect=[4096, gs.TokenBudgetError('synthetic later admission refusal')]):
@@ -117,7 +117,7 @@ class ReplayMetadataTests(unittest.TestCase):
             body = json.loads(request.content)
             seen.append(body)
             if 'response_format' in body:
-                return httpx.Response(400, json={'error': {
+                return httpx2.Response(400, json={'error': {
                     'message': 'response_format is unsupported', 'type': 'invalid_request_error'}})
             return self.sdk_response()
         params = gs.LLMGenParams(max_tokens=4096, temperature=.4, api_retry_limit=0,
@@ -170,7 +170,7 @@ class ReplayMetadataTests(unittest.TestCase):
         seen, attempts = [], []
         with tempfile.TemporaryDirectory() as tmp, OpenAI(
                 base_url='http://fixture.invalid/v1', api_key='synthetic', max_retries=0,
-                http_client=httpx.Client(transport=httpx.MockTransport(
+                http_client=httpx2.Client(transport=httpx2.MockTransport(
                     lambda request: seen.append(json.loads(request.content)) or self.sdk_response()))) as sdk:
             client = provider.ConfiguredOpenAI(sdk, {'profile_option': True})
             params = gs.LLMGenParams(max_tokens=4096, temperature=.4)
@@ -306,12 +306,12 @@ class ReplayMetadataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
             def primary(request):
                 seen.append(json.loads(request.content))
-                raise httpx.ReadTimeout('synthetic primary failure', request=request)
+                raise httpx2.ReadTimeout('synthetic primary failure', request=request)
             def secondary(request):
                 seen.append(json.loads(request.content))
                 return self.sdk_response()
             sdks = [stack.enter_context(OpenAI(base_url='http://fixture.invalid/v1', api_key='synthetic',
-                max_retries=0, http_client=httpx.Client(transport=httpx.MockTransport(handler))))
+                max_retries=0, http_client=httpx2.Client(transport=httpx2.MockTransport(handler))))
                 for handler in (primary, secondary)]
             client = provider.FailoverClient(sdks[0], 'primary', sdks[1], 'secondary',
                 secondary_config={'base_url': 'http://secondary.invalid/v1', 'context_length': 8192,

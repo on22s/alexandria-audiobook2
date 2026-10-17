@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 import unittest
 from unittest.mock import patch
-import httpx
+import httpx2
 from openai import OpenAI
 import generate_script as gs
 import llm_provider as provider
@@ -20,7 +20,7 @@ import generate_personas as personas
 import three_pass_generate as tp
 
 
-class RuntimeTransport(httpx.BaseTransport):
+class RuntimeTransport(httpx2.BaseTransport):
     def __init__(self, context, fail=False):
         self.context = context
         self.fail = fail
@@ -36,15 +36,15 @@ class RuntimeTransport(httpx.BaseTransport):
                               'max_tokens': body['max_tokens'], 'footprint': footprint,
                               'context': self.context})
         if self.fail:
-            return httpx.Response(429, json={'error': {'message': 'primary unavailable', 'type': 'rate_limit'}})
+            return httpx2.Response(429, json={'error': {'message': 'primary unavailable', 'type': 'rate_limit'}})
         if footprint > self.context:
-            return httpx.Response(400, json={'error': {'message': 'context window exceeded', 'type': 'invalid_request_error'}})
+            return httpx2.Response(400, json={'error': {'message': 'context window exceeded', 'type': 'invalid_request_error'}})
         text = body['messages'][-1]['content'].rsplit('TARGET\n', 1)[-1]
         try:
             entries = json.loads(text)
         except ValueError:
             entries = [{'speaker': 'NARRATOR', 'text': text, 'instruct': ''}]
-        return httpx.Response(200, json={'id': 'cpu-fixture', 'object': 'chat.completion',
+        return httpx2.Response(200, json={'id': 'cpu-fixture', 'object': 'chat.completion',
             'created': 1, 'model': body['model'], 'choices': [{'index': 0,
             'message': {'role': 'assistant', 'content': json.dumps(entries)}, 'finish_reason': 'stop'}]})
 
@@ -55,7 +55,7 @@ class RuntimeBudgetProbe(unittest.TestCase):
         clients = []
         for transport, model in ((primary, 'remote'), (secondary, 'local')):
             sdk = OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                         http_client=httpx.Client(transport=transport))
+                         http_client=httpx2.Client(transport=transport))
             self.addCleanup(sdk.close)
             clients.append(provider.ConfiguredOpenAI(sdk, {}))
         cfg = {'llm_failover': True, 'llm_mode': 'remote',
@@ -103,7 +103,7 @@ class RuntimeBudgetProbe(unittest.TestCase):
 class RuntimeProfileBindingTests(unittest.TestCase):
     def client(self, transport=None, config=None):
         secondary = OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                           http_client=httpx.Client(transport=transport or RuntimeTransport(8192)))
+                           http_client=httpx2.Client(transport=transport or RuntimeTransport(8192)))
         self.addCleanup(secondary.close)
         sdk = provider.ConfiguredOpenAI(secondary, {})
         return provider.FailoverClient(sdk, 'remote', sdk, 'local', secondary_label='local',
@@ -188,7 +188,7 @@ class RuntimeSwitchRaceTests(unittest.TestCase):
         clients = []
         for transport, config in zip((p, q), configs):
             sdk = OpenAI(base_url=config['base_url'], api_key='fixture', max_retries=0,
-                         http_client=httpx.Client(transport=transport))
+                         http_client=httpx2.Client(transport=transport))
             self.addCleanup(sdk.close)
             clients.append(provider.ConfiguredOpenAI(sdk, config['provider_extra_body']))
         with patch.object(provider, 'make_llm_client', side_effect=clients):
@@ -290,7 +290,7 @@ class RuntimeSwitchRaceTests(unittest.TestCase):
                 def handle(request):
                     response = original_handler(request)
                     if fail_second and len(secondary.requests) == 2:
-                        return httpx.Response(400, json={'error': {
+                        return httpx2.Response(400, json={'error': {
                             'message': 'fixture second review request rejected', 'type': 'invalid_request_error'}})
                     return response
                 secondary.handle_request = handle
@@ -330,7 +330,7 @@ class RuntimeSwitchRaceTests(unittest.TestCase):
             target = json.loads(request.content)['messages'][-1]['content'].split('SOURCE TEXT:\n')[1]
             data = response.json()
             data['choices'][0]['message']['content'] = json.dumps([{'type': 'NARRATOR', 'text': target}])
-            return httpx.Response(200, json=data)
+            return httpx2.Response(200, json=data)
         secondary.handle_request = handle
         target = 'The target room held an unbroken silence.'
         chunks = ['Earlier historical events. ' * 1500, target, 'Later future events. ' * 1500]
@@ -357,7 +357,7 @@ class RuntimeSwitchRaceTests(unittest.TestCase):
             def handle_request(self, request):
                 self.bodies.append(json.loads(request.content))
                 self.switch()
-                return httpx.Response(400, json={'error': {
+                return httpx2.Response(400, json={'error': {
                     'message': 'response_format json_schema is unsupported', 'type': 'invalid_request_error'}})
         primary = Primary(98304)
         client, _, secondary = self.pair(primary)
@@ -389,14 +389,14 @@ class NicknameRuntimeRecoveryTests(unittest.TestCase):
                 payload = {'aliases': {'BETTY': 'ALICE'}, 'evidence': {'BETTY': 'Alice is called Betty in these passages.'}}
                 data = response.json()
                 data['choices'][0]['message']['content'] = json.dumps(payload)
-                return httpx.Response(200, json=data)
+                return httpx2.Response(200, json=data)
         primary, secondary = RuntimeTransport(98304, True), NicknameTransport(8192)
         clients = []
         configs = [{'base_url': 'http://remote.invalid/v1', 'model_name': 'remote'},
                    {'base_url': 'http://127.0.0.1:1/v1', 'model_name': 'local', 'api_retry_limit': 0}]
         for transport, config in zip((primary, secondary), configs):
             sdk = OpenAI(base_url=config['base_url'], api_key='fixture', max_retries=0,
-                         http_client=httpx.Client(transport=transport))
+                         http_client=httpx2.Client(transport=transport))
             self.addCleanup(sdk.close)
             clients.append(provider.ConfiguredOpenAI(sdk, {}))
         with patch.object(provider, 'make_llm_client', side_effect=clients):
@@ -450,14 +450,14 @@ class PersonaDiscoveryRuntimeRecoveryTests(unittest.TestCase):
                     'evidence': [{'entry_index': int(index), 'quote': text} for index, _, text in lines]}}
                 data = response.json()
                 data['choices'][0]['message']['content'] = json.dumps(payload)
-                return httpx.Response(200, json=data)
+                return httpx2.Response(200, json=data)
         primary, secondary = RuntimeTransport(98304, True), DiscoveryTransport(8192)
         clients = []
         configs = [{'base_url': 'http://remote.invalid/v1', 'model_name': 'remote'},
                    {'base_url': 'http://127.0.0.1:1/v1', 'model_name': 'local', 'api_retry_limit': 0}]
         for transport, config in zip((primary, secondary), configs):
             sdk = OpenAI(base_url=config['base_url'], api_key='fixture', max_retries=0,
-                         http_client=httpx.Client(transport=transport))
+                         http_client=httpx2.Client(transport=transport))
             self.addCleanup(sdk.close)
             clients.append(provider.ConfiguredOpenAI(sdk, {}))
         with patch.object(provider, 'make_llm_client', side_effect=clients):
@@ -510,14 +510,14 @@ class PersonaAliasRuntimeRecoveryTests(unittest.TestCase):
                 targets = re.findall(r"Speaker label: '([^']+)'", prompt)
                 data = response.json()
                 data['choices'][0]['message']['content'] = json.dumps({name: 'ALICE' for name in targets})
-                return httpx.Response(200, json=data)
+                return httpx2.Response(200, json=data)
         primary, secondary = RuntimeTransport(98304, True), AliasTransport(8192)
         configs = [{'base_url': 'http://remote.invalid/v1', 'model_name': 'remote'},
                    {'base_url': 'http://127.0.0.1:1/v1', 'model_name': 'local', 'api_retry_limit': 0}]
         clients = []
         for transport, config in zip((primary, secondary), configs):
             sdk = OpenAI(base_url=config['base_url'], api_key='fixture', max_retries=0,
-                         http_client=httpx.Client(transport=transport))
+                         http_client=httpx2.Client(transport=transport))
             self.addCleanup(sdk.close)
             clients.append(provider.ConfiguredOpenAI(sdk, {}))
         with patch.object(provider, 'make_llm_client', side_effect=clients):
@@ -590,10 +590,10 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
                         else:
                             data['choices'][0]['message']['content'] = json.dumps({
                                 'description': 'Dry voice.', 'ref_text': 'Hello.'})
-                        return httpx.Response(200, json=data)
+                        return httpx2.Response(200, json=data)
                 transport = PersonaTransport(4096 if mode == 'reject' else 1000000)
                 sdk = OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                             http_client=httpx.Client(transport=transport))
+                             http_client=httpx2.Client(transport=transport))
                 self.addCleanup(sdk.close)
                 client = provider.ConfiguredOpenAI(sdk, {})
                 ref = {'name': 'ALICE', 'features': ['clue %d ' % i + 'x' * 900 for i in range(15)],
@@ -635,10 +635,10 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
                 data = response.json()
                 data['choices'][0]['message']['content'] = json.dumps({
                     'description': 'Dry voice.', 'ref_text': 'Hello there.'})
-                return httpx.Response(200, json=data)
+                return httpx2.Response(200, json=data)
         transport = PersonaTransport(4096)
         sdk = OpenAI(base_url='http://fixture.invalid/v1', api_key='fixture', max_retries=0,
-                     http_client=httpx.Client(transport=transport))
+                     http_client=httpx2.Client(transport=transport))
         self.addCleanup(sdk.close)
         wrapped = provider.ConfiguredOpenAI(sdk, {})
         client = provider.FailoverClient(wrapped, 'primary', wrapped, 'secondary',
@@ -677,18 +677,18 @@ class PersonaEvidenceRuntimeRecoveryTests(unittest.TestCase):
                 if response.is_error:
                     return response
                 if fail_child and len(self.requests) == 2:
-                    return httpx.Response(400, json={'error': {'message': 'fixture failed child'}})
+                    return httpx2.Response(400, json={'error': {'message': 'fixture failed child'}})
                 data = response.json()
                 data['choices'][0]['message']['content'] = json.dumps({
                     'description': 'Observed fixture calm voice.', 'ref_text': 'Sentence 0 describes a quiet evening.'})
-                return httpx.Response(200, json=data)
+                return httpx2.Response(200, json=data)
         primary, secondary = RuntimeTransport(98304, True), PersonaTransport(8192)
         configs = [{'base_url': 'http://remote.invalid/v1', 'model_name': 'remote', 'api_retry_limit': 0},
                    {'base_url': 'http://127.0.0.1:1/v1', 'model_name': 'local', 'api_retry_limit': 0}]
         clients = []
         for transport, config in zip((primary, secondary), configs):
             sdk = OpenAI(base_url=config['base_url'], api_key='fixture', max_retries=0,
-                         http_client=httpx.Client(transport=transport))
+                         http_client=httpx2.Client(transport=transport))
             self.addCleanup(sdk.close)
             clients.append(provider.ConfiguredOpenAI(sdk, {}))
         with patch.object(provider, 'make_llm_client', side_effect=clients):
@@ -842,14 +842,14 @@ class ThreePassInstructionRuntimeRecoveryTests(unittest.TestCase):
                           if kind == 'instruct' else {'speaker': 'ALICE'})} for row in rows]
                 data = response.json()
                 data['choices'][0]['message']['content'] = json.dumps(output)
-                return httpx.Response(200, json=data)
+                return httpx2.Response(200, json=data)
         primary, secondary = RuntimeTransport(98304, True), InstructionTransport(8192)
         clients = []
         configs = [{'base_url': 'http://remote.invalid/v1', 'model_name': 'remote'},
                    {'base_url': 'http://127.0.0.1:1/v1', 'model_name': 'local', 'api_retry_limit': 0}]
         for transport, config in zip((primary, secondary), configs):
             sdk = OpenAI(base_url=config['base_url'], api_key='fixture', max_retries=0,
-                         http_client=httpx.Client(transport=transport))
+                         http_client=httpx2.Client(transport=transport))
             self.addCleanup(sdk.close)
             clients.append(provider.ConfiguredOpenAI(sdk, {}))
         with patch.object(provider, 'make_llm_client', side_effect=clients):
@@ -928,14 +928,14 @@ class ThreePassPipelineRuntimeRecoveryTests(unittest.TestCase):
                 raise AssertionError('fixture expected deterministic narrator attribution')
             data = response.json()
             data['choices'][0]['message']['content'] = json.dumps(payload)
-            return httpx.Response(200, json=data)
+            return httpx2.Response(200, json=data)
         secondary.handle_request = handle
         clients = []
         configs = [{'base_url': 'http://remote.invalid/v1', 'model_name': 'remote'},
                    {'base_url': 'http://127.0.0.1:1/v1', 'model_name': 'local', 'api_retry_limit': 0}]
         for transport, config in zip((primary, secondary), configs):
             sdk = OpenAI(base_url=config['base_url'], api_key='fixture', max_retries=0,
-                         http_client=httpx.Client(transport=transport))
+                         http_client=httpx2.Client(transport=transport))
             self.addCleanup(sdk.close)
             clients.append(provider.ConfiguredOpenAI(sdk, {}))
         with patch.object(provider, 'make_llm_client', side_effect=clients):
