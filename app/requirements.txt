@@ -7,8 +7,8 @@ uvicorn==0.40.0
 pydantic==2.12.5
 pydub==0.25.1
 # Validate uploaded M4B cover bytes before replacing the current cover.
-Pillow==12.2.0
-requests==2.33.0
+Pillow==12.3.0
+requests==2.34.2
 openai==2.16.0
 gradio_client==2.0.3
 soundfile==0.13.1
@@ -61,3 +61,12 @@ sudachidict_core==20260723
 # The original romkan setup imports imp, removed in Python 3.12.
 romkan2==0.1.1
 pyspellchecker==0.9.0
+
+# Security floors for transitive dependencies (published advisories fixed in
+# these releases). Floors, not pins: the packages that pull them in choose
+# the exact version.
+urllib3>=2.8.0
+anyio>=4.14.2
+msgpack>=1.2.1
+multidict>=6.9.1
+fsspec>=2026.6.0
