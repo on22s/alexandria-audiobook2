@@ -94,6 +94,10 @@ class TTSConfig(BaseModel):
     batch_group_by_type: bool = False
     pause_between_speakers_ms: int = Field(default=500, ge=0)
     pause_same_speaker_ms: int = Field(default=250, ge=0)
+    # Voice Design text length (#1232): the persona line a voice is designed
+    # from, and later cloned against, is chosen inside this character range.
+    design_text_min_chars: int = Field(default=12, ge=1, le=500)
+    design_text_max_chars: int = Field(default=500, ge=1, le=500)
 
 
 PromptVariant = Literal[

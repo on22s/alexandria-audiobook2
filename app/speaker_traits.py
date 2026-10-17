@@ -281,6 +281,13 @@ def find_state_target(targets_by_speaker, speaker, version_id):
                  if row["version_id"] == version_id), None)
 
 
+def get_state_spoken_lines(script_entries, target):
+    """-> the text of every line the state's character speaks inside its segment."""
+    return [(entry.get("text") or "").strip()
+            for entry in script_entries[target["segment_start"]:target["segment_end"]]
+            if isinstance(entry, dict) and get_entry_speaker(entry) == target["speaker"]]
+
+
 def get_persona_state_entries(script_entries, target, narration_window=None):
     """Copy target dialogue and narration with their original source indices.
 

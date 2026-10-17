@@ -450,6 +450,24 @@
             return value;
         }
 
+        // Voice Design text length (#1232): whole numbers 1-500, min <= max.
+        function getDesignTextRangeInput() {
+            const read = (id, label, def) => {
+                const value = getOptionalNumberInput(id, label);
+                if (value === null) { return def; }
+                if (!Number.isSafeInteger(value) || value < 1 || value > 500) {
+                    throw getConfigValidationError(id, label + ' must be a whole number from 1 to 500.');
+                }
+                return value;
+            };
+            const min = read('design-text-min-chars', 'Voice Design text minimum', 12);
+            const max = read('design-text-max-chars', 'Voice Design text maximum', 500);
+            if (min > max) {
+                throw getConfigValidationError('design-text-min-chars', 'Voice Design text minimum is larger than the maximum.');
+            }
+            return {design_text_min_chars: min, design_text_max_chars: max};
+        }
+
         function getIntListInput(id, label, def) {
             const raw = document.getElementById(id).value.trim();
             if (!raw) { return def; }
@@ -1930,6 +1948,12 @@
                 if (config.tts.pause_same_speaker_ms != null) {
                     document.getElementById('pause-same-speaker').value = config.tts.pause_same_speaker_ms;
                 }
+                if (config.tts.design_text_min_chars != null) {
+                    document.getElementById('design-text-min-chars').value = config.tts.design_text_min_chars;
+                }
+                if (config.tts.design_text_max_chars != null) {
+                    document.getElementById('design-text-max-chars').value = config.tts.design_text_max_chars;
+                }
                 toggleTTSMode();
 
                 // Load custom prompts if they exist and are non-empty
@@ -2078,7 +2102,8 @@
                     sub_batch_ratio: getNumFieldValue('sub-batch-ratio', 5),
                     sub_batch_max_items: getNumFieldValue('sub-batch-max-items', 0, true),
                     pause_between_speakers_ms: getNumFieldValue('pause-between-speakers', 500, true),
-                    pause_same_speaker_ms: getNumFieldValue('pause-same-speaker', 250, true)
+                    pause_same_speaker_ms: getNumFieldValue('pause-same-speaker', 250, true),
+                    ...getDesignTextRangeInput()
                 },
                 prompts: {
                     system_prompt: document.getElementById('system-prompt').value,
@@ -4150,7 +4175,7 @@
         const AVAILABLE_VOICES = ["Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian"];
 
         function getVoiceCandidateMarkup(candidates) {
-            return Array.isArray(candidates) && candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${candidates.map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(candidate.candidate_id || '')}${candidate.rank ? ` · #${candidate.rank}` : ''}</span><button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" data-voice-focus-key="${escapeHtml('candidate-favorite:' + (candidate.candidate_id || ''))}" aria-label="${candidate.favorite ? 'Unfavourite' : 'Favourite'} candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="favoriteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')}, ${candidate.favorite ? 'false' : 'true'})">★</button><button class="btn btn-sm btn-outline-success py-0" type="button" aria-label="Use candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="selectVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">Use</button><button class="btn btn-sm btn-outline-danger py-0" type="button" aria-label="Delete candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="deleteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">×</button></div>`).join('')}</div>` : '';
+            return Array.isArray(candidates) && candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${candidates.map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(candidate.candidate_id || '')}${candidate.rank ? ` · #${candidate.rank}` : ''}${candidate.type === 'clone' && candidate.ref_text ? ` · “${escapeHtml(String(candidate.ref_text).slice(0, 40))}${String(candidate.ref_text).length > 40 ? '…' : ''}”` : ''}</span><button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" data-voice-focus-key="${escapeHtml('candidate-favorite:' + (candidate.candidate_id || ''))}" aria-label="${candidate.favorite ? 'Unfavourite' : 'Favourite'} candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="favoriteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')}, ${candidate.favorite ? 'false' : 'true'})">★</button><button class="btn btn-sm btn-outline-success py-0" type="button" aria-label="Use candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="selectVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">Use</button><button class="btn btn-sm btn-outline-danger py-0" type="button" aria-label="Delete candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="deleteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">×</button></div>`).join('')}</div>` : '';
         }
 
         function getLibraryVoiceReference(refAudio) {
@@ -4264,6 +4289,10 @@
                                 <h5 class="card-title">${escapeHtml(label)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? `<span class="badge bg-secondary ms-2" title="${voice.state_line_count} lines spoken in this state">${voice.state_line_count} lines in this state</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Regenerate persona for ' + label)}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Generate age version for ' + label)}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
+                                <div class="input-group input-group-sm mt-1">
+                                    <select class="form-select design-line-select" aria-label="${escapeHtml('Line to design the voice of ' + label + ' from')}" onfocus="loadDesignLines(this)"><option value="">Design from one of their lines…</option></select>
+                                    <button class="btn btn-outline-primary" type="button" aria-label="${escapeHtml('Design the voice of ' + label + ' from the chosen line')}" onclick="designFromChosenLine(this)">Design</button>
+                                </div>
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Recover persona for ' + label)}" onclick="openStatePersonaRecovery(this)">Recover persona</button>` : ''}
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-danger mt-1" type="button"${config.persona_state ? ' data-stale-allowed' : ''} aria-label="${escapeHtml('Remove saved state persona for ' + label)}" onclick="removeStatePersona(this)">Remove saved state persona</button>` : ''}
                                 <div class="small text-muted">${voice.version_id && voice.state_stale ? 'State persona needs generation for the current script. ' : ''}Persona review: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice review: ${escapeHtml(config.voice_status || 'unassigned')}</div>
@@ -4862,6 +4891,56 @@
                 pollPersonaStatus();
                 showToast(`Persona regeneration started for ${speaker}.`, 'success');
             } catch (e) { showActionError("Persona regeneration failed", e, "Check the persona task status before regenerating again. For an LLM refusal, use Setup → Test Connection."); }
+        };
+
+        // Voice Design from a chosen line (#1232): the card lists the character's
+        // own lines, in the Setup length range first, loaded when first opened.
+        window.loadDesignLines = async function loadDesignLines(select) {
+            if (select.dataset.loaded === '1' || select.dataset.loading === '1') { return; }
+            const card = select.closest('.voice-card');
+            const speaker = card?.dataset.voice;
+            if (!speaker) { return; }
+            const version = card.dataset.version || '';
+            const query = version ? `?${new URLSearchParams({version_id: version, book_token: _voiceCardsBookToken || ''})}` : '';
+            select.dataset.loading = '1';
+            try {
+                const result = await API.get(`/api/voices/${encodeURIComponent(speaker)}/design_lines${query}`);
+                const options = (result.lines || []).map(line => {
+                    const option = document.createElement('option');
+                    const text = String(line.text || '');
+                    option.value = text;
+                    option.title = text;
+                    option.textContent = `[${line.chars} ch${line.in_range ? '' : ', outside range'}] ${text.length > 90 ? text.slice(0, 90) + '…' : text}`;
+                    return option;
+                });
+                select.replaceChildren(select.options[0], ...options);
+                select.dataset.loaded = '1';
+            } catch (e) {
+                showActionError('Could not load the character\'s lines', e, 'Reload Voices and open the list again.');
+            } finally {
+                delete select.dataset.loading;
+            }
+        };
+
+        window.designFromChosenLine = async function designFromChosenLine(button) {
+            const card = button.closest('.voice-card');
+            const speaker = card?.dataset.voice;
+            const refText = card?.querySelector('.design-line-select')?.value || '';
+            if (!speaker || !refText) {
+                showToast('Choose one of the character\'s lines first.', 'warning');
+                return;
+            }
+            const version = card.dataset.version || null;
+            const token = version ? _voiceCardsBookToken : null;
+            try {
+                await flushVoiceSaves();
+                if (version) { await ensureStateCardCurrent(card, token); }
+                const payload = {speaker, advanced: false, ref_text: refText};
+                if (version) { Object.assign(payload, {state_version: version, book_token: token}); }
+                await API.post('/api/generate_personas', payload);
+                pollPersonaStatus();
+                showToast(`Designing ${speaker}'s voice from the chosen line. The current voice stays under Saved candidates.`, 'success');
+            } catch (e) { showActionError('Voice design failed', e, 'Check the persona task status before designing again. A character needs a persona first.'); }
         };
 
         window.generateAgeVersion = async function generateAgeVersion(button, presetAge) {

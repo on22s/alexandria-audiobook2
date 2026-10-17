@@ -1210,6 +1210,19 @@
             "title": "New Only",
             "type": "boolean"
           },
+          "ref_text": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Text"
+          },
           "speaker": {
             "anyOf": [
               {
@@ -3132,6 +3145,20 @@
             "default": false,
             "title": "Compile Codec",
             "type": "boolean"
+          },
+          "design_text_max_chars": {
+            "default": 500,
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Design Text Max Chars",
+            "type": "integer"
+          },
+          "design_text_min_chars": {
+            "default": 12,
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Design Text Min Chars",
+            "type": "integer"
           },
           "device": {
             "default": "auto",
@@ -10923,6 +10950,76 @@
           }
         },
         "summary": "Select Voice Candidate"
+      }
+    },
+    "/api/voices/{speaker}/design_lines": {
+      "get": {
+        "description": "The speaker's or state's lines for the card design picker, in-range first (#1232).",
+        "operationId": "get_voice_design_lines_api_voices__speaker__design_lines_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "book_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Voice Design Lines"
       }
     },
     "/api/voices/{speaker}/persona-voice-audit": {

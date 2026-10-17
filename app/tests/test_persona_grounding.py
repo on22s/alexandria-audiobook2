@@ -241,8 +241,11 @@ class PersonaGroundingTests(unittest.TestCase):
                     kwargs['validate_object'](result)
                     outputs.append(result)
                     return result
+                # The long-draft case needs a Voice Design range that admits
+                # its ~2000-character line; the default caps design text at 500.
                 self.assertTrue(self.compile(ref, reply, lambda *a: True,
-                    advanced_prompt=None, context_length=context))
+                    advanced_prompt=None, context_length=context,
+                    design_text_range=(12, 2000) if prefer_original else (12, 500)))
                 if context == 2048 or (context == 8192 and len(ref["features"]) == 20):
                     self.assertEqual(len(calls), 1)
                     self.assertEqual(merges, [])

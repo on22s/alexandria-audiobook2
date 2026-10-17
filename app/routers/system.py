@@ -892,6 +892,9 @@ def keep_unsent_fields(config: AppConfig, existing: dict) -> AppConfig:
 async def save_config(config: AppConfig):
     def _save():
         normalized_config = config.model_copy(deep=True)
+        if normalized_config.tts.design_text_min_chars > normalized_config.tts.design_text_max_chars:
+            raise HTTPException(status_code=400, detail=(
+                "Voice Design text length: the minimum is larger than the maximum."))
 
         # Normalize/validate whichever profiles were sent. The local/remote profiles
         # are persisted side-by-side so toggling never loses the other one's settings.

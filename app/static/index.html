@@ -1198,6 +1198,18 @@
                                 <input type="number" class="form-control" id="pause-same-speaker" value="250" min="0" step="50">
                                 <div class="form-text">Silence when same speaker continues on merge</div>
                             </div>
+                            <div class="col-md-4">
+                                <fieldset>
+                                    <legend class="form-label fs-6 mb-2">Voice Design text length (characters)</legend>
+                                    <div class="input-group">
+                                        <label class="input-group-text" for="design-text-min-chars">Min</label>
+                                        <input type="number" class="form-control" id="design-text-min-chars" value="12" min="1" max="500" step="1">
+                                        <label class="input-group-text" for="design-text-max-chars">Max</label>
+                                        <input type="number" class="form-control" id="design-text-max-chars" value="500" min="1" max="500" step="1">
+                                    </div>
+                                    <div class="form-text">Persona generation designs each voice from one of the character's lines in this range, or the nearest shorter line when none fits. Applies the next time a persona is generated.</div>
+                                </fieldset>
+                            </div>
                         </div>
 
                         <h5 class="mb-3 mt-4">

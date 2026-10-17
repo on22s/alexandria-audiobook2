@@ -56,7 +56,7 @@ from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, get_version_
 from speaker_traits import (get_age_distance, get_library_age_group,
                             get_entry_speaker, get_normalized_age_group, get_normalized_gender,
                             get_speaker_trait_summary, get_state_timeline, get_persona_state_targets, get_persona_state_chunk_indices, get_persona_state_entries,
-                            find_state_target, get_state_version_identity, is_state_version_current, is_possible_gender_reveal)
+                            find_state_target, get_state_spoken_lines, get_state_version_identity, is_state_version_current, is_possible_gender_reveal)
 from utils import (
     atomic_json_write,
     atomic_json_write_pair,
@@ -66,7 +66,7 @@ from utils import (
     safe_load_json,
     secure_filename,
 )
-from persona_validation import validate_persona_payload
+from persona_validation import get_design_text_range, get_selectable_design_texts, validate_persona_payload
 from repair_voice_config import get_unseeded_voice_seed_changes, apply_unseeded_voice_seeds
 
 
@@ -186,6 +186,9 @@ class GeneratePersonasRequest(StateRequestScope):
     # Issue #602: a script regenerated with more chapters should not re-roll
     # every voice.
     new_only: bool = False
+    # Design this speaker's voice from one of their own lines, keeping the
+    # current persona description and skipping the LLM (#1232).
+    ref_text: Optional[str] = Field(default=None, min_length=1, max_length=500)
 
 
 class PersonaRecoveryRequest(StateRequestScope):
@@ -785,6 +788,44 @@ def get_state_voice_sources(state, speaker, entry, candidates, users, limit=6):
             "offer_generate": not versions and not unused and not used}
 
 
+def get_speaker_design_texts(speaker, version_id=None, book_token=None):
+    """-> the selectable Voice Design texts for one speaker, or for one of its
+    states (#1251). Blocking: call from a thread."""
+    _require_script_speaker(speaker)
+    script = safe_load_json(SCRIPT_PATH, default=[])
+    if version_id:
+        target = require_current_state_target(speaker, version_id, book_token, script=script)
+        return get_selectable_design_texts(get_state_spoken_lines(script, target))
+    return get_selectable_design_texts([(entry.get("text") or "") for entry in script
+                                        if isinstance(entry, dict) and get_script_speaker(entry) == speaker])
+
+
+@router.get("/api/voices/{speaker}/design_lines")
+async def get_voice_design_lines(speaker: str, version_id: Optional[str] = None, book_token: Optional[str] = None):
+    """The speaker's or state's lines for the card design picker, in-range first (#1232)."""
+    def read():
+        texts = get_speaker_design_texts(speaker, version_id, book_token)
+        min_chars, max_chars = get_design_text_range(load_app_config(CONFIG_PATH))
+        lines = [{"text": text, "chars": len(text), "in_range": min_chars <= len(text) <= max_chars}
+                 for text in texts]
+        lines.sort(key=lambda line: not line["in_range"])
+        return {"speaker": speaker, "min_chars": min_chars, "max_chars": max_chars, "lines": lines}
+    return await asyncio.to_thread(read)
+
+
+def require_chosen_design_line(request):
+    """Refuse a chosen design line that is not this speaker's or state's own (#1232). Blocking."""
+    if not request.speaker or request.age_group or request.advanced or request.new_only:
+        raise HTTPException(status_code=422, detail="Designing from a chosen line needs one character and no other options")
+    if request.ref_text not in get_speaker_design_texts(request.speaker, request.state_version, request.book_token):
+        raise HTTPException(status_code=422, detail="The chosen line is not one of this character's lines; reload Voices")
+    entry = safe_load_json(VOICE_CONFIG_PATH, default={}).get(request.speaker)
+    if request.state_version and isinstance(entry, dict):
+        entry = (entry.get("versions") or {}).get(request.state_version)
+    if not isinstance(entry, dict) or not str(entry.get("description") or "").strip():
+        raise HTTPException(status_code=409, detail="Generate a persona for this character first; a chosen line reuses its description")
+
+
 @router.get("/api/voices/{speaker}/state_timeline")
 async def get_voice_state_timeline(speaker: str):
     """The suggested voice timeline for a character whose settled gender/age
@@ -911,6 +952,8 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
     - updates `voice_config.json` with a clone-style reference for each character.
     """
     await asyncio.to_thread(_require_script_speaker, request.speaker)
+    if request.ref_text is not None:
+        await asyncio.to_thread(require_chosen_design_line, request)
     if request.state_version:
         if not request.speaker or request.age_group or not request.book_token:
             raise HTTPException(status_code=422, detail="State regeneration requires a speaker and book token, without an age override")
@@ -933,13 +976,16 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
         command.extend(["--age-group", request.age_group])
     if request.state_version:
         command.extend(["--state-version", request.state_version, "--book-token", request.book_token])
-    if request.advanced or request.state_version:
+    if (request.advanced or request.state_version) and request.ref_text is None:
         batch_size = max(1, min(int(request.batch_size or 40), 200))
         command.extend(["--advanced", "--batch-size", str(batch_size)])
     if request.new_only:
         command.append("--new-only")
+    if request.ref_text is not None:
+        # One argv element, so a line starting with "-" is never read as an option.
+        command.append("--ref-text=" + request.ref_text)
     schedule_claimed_background_task(background_tasks, "persona", run_process, command, "persona")
-    return {"status": "started", "advanced": bool(request.advanced or request.state_version)}
+    return {"status": "started", "advanced": bool((request.advanced or request.state_version) and request.ref_text is None)}
 
 
 @router.post("/api/cancel_persona")

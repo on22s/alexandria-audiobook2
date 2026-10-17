@@ -22,8 +22,11 @@ from tts import TTSEngine, sanitize_filename, voice_is_set, VERSION_OVERLAY_EXCL
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed, file_lock
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 from persona_validation import (validate_persona_payload, get_reference_samples,
+                               get_design_text_candidates, get_design_text_range,
+                               DESIGN_TEXT_MIN_CHARS, DESIGN_TEXT_MAX_CHARS, get_selectable_design_texts,
                                validate_compiled_persona_payload)
 from speaker_traits import (find_state_target, get_entry_speaker, get_persona_state_targets, get_persona_state_entries,
+                            get_state_spoken_lines,
                             get_state_version_identity, is_narrator_label, is_state_version_current)
 from speaker_identity import (is_speaker_merge_allowed, resolve_speaker_label,
                               get_validated_alias_graph, get_safe_alias_proposals)
@@ -569,11 +572,9 @@ def _resolve_aliases_batch(client, model_name, speakers_info, existing_names,
     return {}
 
 
-def pick_ref_text(lines):
-    for ln in lines:
-        if ln and len(ln.strip()) >= 12:
-            return ln.strip()
-    return next((ln.strip() for ln in lines if ln and ln.strip()), "")
+def pick_ref_text(lines, design_text_range=(DESIGN_TEXT_MIN_CHARS, DESIGN_TEXT_MAX_CHARS)):
+    candidates = get_design_text_candidates(lines, *design_text_range)
+    return candidates[0] if candidates else ""
 
 
 def _as_list(value):
@@ -772,7 +773,7 @@ def _compile_character_prompt(character_ref, prompt_template=None, reference_tex
     )
 
 
-def _fallback_compiled_persona(character_ref):
+def _fallback_compiled_persona(character_ref, design_text_range=(DESIGN_TEXT_MIN_CHARS, DESIGN_TEXT_MAX_CHARS)):
     name = character_ref.get("name", "Character")
     parts = []
     for key in ("voice_clues", "personality", "features"):
@@ -780,7 +781,7 @@ def _fallback_compiled_persona(character_ref):
     description = f"{name} has a clear, natural audiobook voice."
     if parts:
         description = f"{name} should sound like: " + "; ".join(parts[:10]) + "."
-    ref_text = pick_ref_text(character_ref.get("sample_lines", []))
+    ref_text = pick_ref_text(character_ref.get("sample_lines", []), design_text_range)
     return description, ref_text
 
 
@@ -843,6 +844,57 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
 
     print(f"Persona generated and preview saved for {speaker}: {dest_path}")
     return True
+
+
+# Fields that belong to the character, not to one voice: a saved design
+# candidate never carries them, so using it later cannot rewind them.
+DESIGN_CANDIDATE_EXCLUDED = {"versions", "candidates", "active_version", "active_candidate",
+                             "style_timeline", "narrator_strategy", "alias_of", "ready",
+                             "persona_status", "voice_status", "age_group", "persona_state",
+                             "version_timeline"}
+
+
+def get_previous_voice_candidate(entry):
+    """-> the voice `entry` holds now as a saved candidate, or None when no voice is set."""
+    if not isinstance(entry, dict) or not voice_is_set(entry):
+        return None
+    snapshot = {key: copy.deepcopy(value) for key, value in entry.items()
+                if key not in DESIGN_CANDIDATE_EXCLUDED}
+    identity = json.dumps(snapshot, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return {**snapshot, "candidate_id": "design-" + hashlib.sha256(identity).hexdigest()[:12]}
+
+
+def design_from_chosen_line(voice_config, speaker, ref_text, lines, engine, root, book_id=None, version_id=None):
+    """Design `speaker`'s voice, or one state version of it, from `ref_text`, one of
+    the `lines` spoken there, keeping that voice's persona description (#1232, #1251).
+    The voice it replaces is kept as a saved candidate on the same card.
+    -> a new voice_config; raises ValueError when refused."""
+    if ref_text not in get_selectable_design_texts(lines):
+        raise ValueError("The chosen line is not one of this character's lines")
+    voice_config = copy.deepcopy(voice_config)
+    entry = voice_config.get(speaker) or {}
+    target = (entry.get("versions") or {}).get(version_id) if version_id else entry
+    if not isinstance(target, dict):
+        raise ValueError("Character state changed; reload voices")
+    description = str(target.get("description") or "").strip()
+    if not description:
+        raise ValueError("Generate a persona for this character first; a chosen line reuses its description")
+    previous = get_previous_voice_candidate(target)
+    if previous is not None:
+        target["candidates"] = [candidate for candidate in target.get("candidates") or []
+                                if not (isinstance(candidate, dict)
+                                        and candidate.get("candidate_id") == previous["candidate_id"])]
+        target["candidates"].append(previous)
+    # The preview saver writes one speaker's entry; hand it the target alone.
+    designed = {speaker: target}
+    if not _save_generated_preview(root, engine, designed, speaker, description, ref_text, book_id=book_id):
+        raise RuntimeError(f"Voice design failed for {speaker}")
+    designed[speaker].pop("active_candidate", None)
+    if version_id:
+        entry["versions"][version_id] = designed[speaker]
+    else:
+        voice_config[speaker] = designed[speaker]
+    return voice_config
 
 
 def _parse_discovered_characters(parsed):
@@ -996,7 +1048,8 @@ def _write_batch_character_refs(ref_dir, characters, selected_speakers, batch_nu
 def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, speaker,
                      samples, system_prompt, advanced_prompt, context_length=None,
                      llm_config=None, book_id=None, preview_saver=None, context_lines=DEFAULT_CONTEXT_LINES, reference_chars=12000,
-                     allow_unknown_network_context=False, llm_mode="local"):
+                     allow_unknown_network_context=False, llm_mode="local",
+                     design_text_range=(DESIGN_TEXT_MIN_CHARS, DESIGN_TEXT_MAX_CHARS)):
     """Compile one speaker's accumulated reference data into a final persona
     (description + ref_text) and generate its preview audio. A supplied
     preview_saver handles this call only; production uses its usual saver.
@@ -1018,13 +1071,25 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
         params = _persona_params(messages[0]["content"], context_length, llm_config, 600, 0.25)
         selected = get_selected_character_reference(ref, sample_limit)
         source_cues = get_source_persona_cues(selected)
-        reference_samples = get_reference_samples(selected)
-        if not reference_samples:
+        source_samples = get_reference_samples(selected)
+        # Only lines inside the Voice Design length range may become ref_text (#1232).
+        min_chars = design_text_range[0]
+        reference_samples = get_design_text_candidates(
+            get_reference_samples(selected, max_chars=sys.maxsize), *design_text_range)
+        if not source_samples or not reference_samples:
             raise PersonaContextRecoveryError("No safe source dialogue sample for persona compilation")
-        reference_sample = next((line for line in reference_samples if len(line) >= 12), reference_samples[0])
+        reference_sample = reference_samples[0]
 
         def validate_compiled(payload):
-            return validate_compiled_persona_payload(payload, reference_samples)
+            try:
+                return validate_compiled_persona_payload(payload, reference_samples)
+            except ValueError:
+                result = validate_persona_payload(payload)
+                if result["ref_text"] not in source_samples:
+                    raise
+                # A real line outside the length range: keep the persona and
+                # design the voice from the in-range reference sample instead.
+                return {**result, "ref_text": reference_sample}
         evidence = []
         for field, value in selected.items():
             if field == "name":
@@ -1081,8 +1146,8 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
                     include_cue_context = False
                 else:
                     shorter = next((line for line in get_reference_samples(
-                        selected, max_chars=max(12, len(reference_sample) // 2))
-                        if reference_sample.startswith(line) and len(line) < len(reference_sample)), None)
+                        selected, max_chars=max(min_chars, len(reference_sample) // 2))
+                        if reference_sample.startswith(line) and min_chars <= len(line) < len(reference_sample)), None)
                     if shorter is None:
                         break
                     reference_sample = shorter
@@ -1120,9 +1185,9 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
         raise PersonaContextRecoveryError(f"Persona compilation failed for {speaker}: {e}") from e
 
     if not description:
-        description, ref_text = _fallback_compiled_persona(ref)
+        description, ref_text = _fallback_compiled_persona(ref, design_text_range)
     if not ref_text:
-        ref_text = pick_ref_text(samples.get(speaker, []))
+        ref_text = pick_ref_text(samples.get(speaker, []), design_text_range)
     if not ref_text:
         ref_text = f"{speaker} speaks in a clear, natural voice."
     if not description:
@@ -1215,7 +1280,9 @@ def _run_advanced_speaker_generation(script, selected_speakers, samples, voice_c
                                 context_lines=getattr(args, "context_lines", DEFAULT_CONTEXT_LINES),
                                 reference_chars=getattr(args, "persona_reference_chars", 12000),
                                 allow_unknown_network_context=getattr(args, "persona_allow_unknown_network_context", False),
-                                llm_mode=getattr(args, "llm_mode", "local")) is False:
+                                llm_mode=getattr(args, "llm_mode", "local"),
+                                design_text_range=getattr(args, "design_text_range",
+                                                          (DESIGN_TEXT_MIN_CHARS, DESIGN_TEXT_MAX_CHARS))) is False:
                 failures.append(speaker)
         except Exception as error:
             print(f"Unhandled error for {speaker}: {error}")
@@ -1452,7 +1519,11 @@ def main():
     parser.add_argument("--narration-window", type=int, default=4, help="How many preceding narrator lines to include as intro context")
     parser.add_argument("--context-lines", type=int, default=DEFAULT_CONTEXT_LINES,
                         help="Sample spoken lines per character fed to the persona prompt; the narrator window grows to half of it")
+    parser.add_argument("--ref-text", default="", help="Design --speaker's voice from this line of theirs, keeping its persona description")
     args = parser.parse_args()
+    if args.ref_text and (not args.speaker or args.advanced or args.age_group
+                          or args.new_only or args.recovered_speaker):
+        parser.error("--ref-text needs --speaker and no other generation option")
     if args.state_version:
         if args.age_group:
             parser.error("--state-version cannot be combined with --age-group")
@@ -1520,6 +1591,23 @@ def main():
     # Load LLM config
     config = load_app_config(app_config_path)
 
+    if args.ref_text:
+        # A chosen line needs only the TTS engine: no LLM, no alias work.
+        tts_cfg = dict(config.get("tts", {}))
+        tts_cfg["compile_codec"] = False
+        lines = samples.get(args.speaker, [])
+        if args.state_version:
+            target = find_state_target(state_targets, args.speaker, args.state_version)
+            lines = get_state_spoken_lines(script, target)
+        voice_config = design_from_chosen_line(
+            voice_config, args.speaker, args.ref_text, lines,
+            TTSEngine({"tts": tts_cfg}), data_dir, book_id=book_snapshot["book_id"],
+            version_id=args.state_version or None)
+        save_generated_voice_config(voice_config_path, voice_config, initial_voice_config,
+                                    samples.keys(), {}, book_snapshot=book_snapshot)
+        print(f"Voice designed for {args.speaker} from the chosen line; any previous voice is kept as a saved candidate.")
+        return
+
     llm_cfg = get_active_llm_config(config)
     base_url = llm_cfg.get("base_url", "http://localhost:11434/v1")
     api_key = llm_cfg.get("api_key", "local")
@@ -1542,6 +1630,7 @@ def main():
     args.persona_reference_chars = prompts_cfg.get("persona_reference_chars", 12000)
     args.persona_allow_unknown_network_context = prompts_cfg.get("persona_allow_unknown_network_context", False)
     args.llm_mode = llm_mode
+    args.design_text_range = get_design_text_range(config)
     persona_system = prompts_cfg.get("persona_system_prompt") or PERSONA_SYSTEM_PROMPT
     persona_user = prompts_cfg.get("persona_user_prompt") or PERSONA_USER_PROMPT
     persona_advanced = prompts_cfg.get("persona_advanced_prompt") or PERSONA_ADVANCED_PROMPT
@@ -1742,10 +1831,16 @@ def main():
                 description, ref_text = _fallback_compiled_persona({
                     "name": speaker,
                     "sample_lines": lines
-                })
+                }, args.design_text_range)
 
+            # The design text must be one of the character's own lines inside
+            # the Voice Design length range (#1232). A recovered persona is the
+            # user's own text and is kept as written.
+            candidates = get_design_text_candidates(lines, *args.design_text_range)
+            if not recovered and candidates and ref_text not in candidates:
+                ref_text = candidates[0]
             if not ref_text:
-                ref_text = pick_ref_text(lines)
+                ref_text = pick_ref_text(lines, args.design_text_range)
 
             # Generate and save voice preview
             if not _save_generated_preview(data_dir, engine, voice_config, speaker, description, ref_text,
