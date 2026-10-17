@@ -11,7 +11,7 @@ Pillow==12.3.0
 requests==2.34.2
 openai==2.16.0
 gradio_client==2.0.3
-soundfile==0.13.1
+soundfile==0.14.0
 numpy==2.2.6
 # Exact word-level edit alignment without repetitive-book SequenceMatcher scans.
 rapidfuzz==3.14.5
