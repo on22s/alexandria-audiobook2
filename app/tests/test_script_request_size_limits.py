@@ -48,7 +48,10 @@ class ScriptRequestSizeTests(unittest.TestCase):
             (root / 'pending.json').write_text(json.dumps({'id': 'pending', 'sequence': 1}))
             response_file = root / 'response.json'
             response_file.write_bytes(b'original recovery bytes')
-            with patch.object(script, 'DATA_DIR', tmp), TestClient(app) as client:
+            # This fixture tests reply size; owner liveness has separate coverage.
+            with patch.object(script, 'DATA_DIR', tmp), \
+                 patch.object(script, 'is_manual_request_owner_alive', return_value=True), \
+                 TestClient(app) as client:
                 response = client.post('/api/manual_llm/response', json={'id': 'pending', 'content': 'x' * (count + 1)})
                 self.assertEqual(422, response.status_code, response.text[:200])
                 self.assertEqual(b'original recovery bytes', response_file.read_bytes())
