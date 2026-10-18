@@ -252,15 +252,6 @@ class PersonaVoiceAuditRequest(VoiceTargetScope):
     suggestion_reason: Optional[str] = Field(default=None, max_length=500)
 
 
-def _mutate_voice_entry(speaker, mutator):
-    with file_lock(VOICE_CONFIG_PATH):
-        config = safe_load_json(VOICE_CONFIG_PATH, default={})
-        entry = config.setdefault(speaker, {})
-        mutator(entry)
-        atomic_json_write(config, VOICE_CONFIG_PATH)
-        return entry
-
-
 def _apply_book_voice_update(transform, expected_revision=None, config_path=None):
     """Publish voice changes while fencing affected renders under chunk locks."""
     config_path = VOICE_CONFIG_PATH if config_path is None else config_path

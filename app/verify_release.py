@@ -20,15 +20,11 @@ from pathlib import Path
 from utils import atomic_json_write
 from diagnostics import get_redacted_credentials
 from unit_test_sharding import parse_shard_spec
-from subprocess_ownership import (get_owned_exit_result, is_subprocess_tree_running,
+from subprocess_ownership import (get_owned_exit_result,
                                  start_owned_subprocess, stop_owned_subprocess,
                                  run_owned_capture)
 
 GIT_PROBE_TIMEOUT_SECONDS = 20
-
-
-def is_process_group_running(process):
-    return is_subprocess_tree_running(process)
 
 
 def stop_process_group(process, interrupt=False, timeout=5):

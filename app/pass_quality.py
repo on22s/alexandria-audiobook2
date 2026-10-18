@@ -472,10 +472,6 @@ def _report(source_count, output_count, recall, trigram, ratio, findings,
     }
 
 
-def _leading_tokens(text):
-    return normalize_text(str(text or "")).split()
-
-
 def get_alignment_counts(frozen_entries, response_entries):
     """Expected and returned row counts, recorded on an alignment finding so the
     retry policy can tell an overlong response from a truncated one."""

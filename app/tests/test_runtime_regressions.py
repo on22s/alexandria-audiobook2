@@ -1146,15 +1146,6 @@ class RuntimeTests(unittest.TestCase):
         self.assertFalse("max_new_tokens=2048" in source,
                          "tts.py must read max_new_tokens from config, not hardcode it")
 
-    def _voicelab_start_with(self, cfg_overrides):
-        cfg = dict(core_module.VOICELAB_DEFAULTS)
-        cfg.update(cfg_overrides)
-        request = voicelab_module.VoiceLabRequest(stages=["train"])
-        with patch.object(voicelab_module, "_load_voicelab_config", return_value=cfg):
-            with self.assertRaises(HTTPException) as raised:
-                asyncio.run(voicelab_module.voicelab_start(request, None))
-        return raised.exception
-
     def test_voicelab_start_reports_unconfigured_rocm_python(self):
         with tempfile.TemporaryDirectory() as tmp:
             cfg = dict(core_module.VOICELAB_DEFAULTS,

@@ -62,12 +62,6 @@ def get_checkpoint_sha256(checkpoint_dir: str) -> str:
     return get_file_sha256(os.path.join(checkpoint_dir, "adapter_model.safetensors"))
 
 
-def get_checkpoint_file_identity(checkpoint_dir):
-    """Read the checkpoint version used to bound one evaluation's hash reuse."""
-    stat = os.stat(os.path.join(checkpoint_dir, "adapter_model.safetensors"))
-    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
-
-
 def partition_unique_candidates(adapter_dir: str, candidates_root: str, *, production_snapshot=None):
     if not is_path_inside(candidates_root, adapter_dir):
         raise ValueError("evaluation candidates are outside the adapter")

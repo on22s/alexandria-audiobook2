@@ -1,7 +1,6 @@
 """Expand the non-prose test across six categories selected before rendering."""
 import argparse
 import collections
-import glob
 import hashlib
 import json
 import os
@@ -110,43 +109,6 @@ def load_locked_pairs(source=DEFAULT_FIXTURE, limit_per_category=4):
                 f"probe has no locked control: {probe['source_sha256']}")
         pairs.append((probe, control))
     return pairs
-
-
-def load_prose_pool(excluded_hashes):
-    from experiments.prose_vs_nonprose import classify, is_machine_output
-    seen = set()
-    candidates = []
-    for path in sorted(glob.glob(os.path.join(REPO, "scripts", "*.json"))):
-        if any(marker in path for marker in
-               ("voice_config", "generation_quality", "generation_checkpoint",
-                "review_checkpoint")):
-            continue
-        try:
-            with open(path, encoding="utf-8") as handle:
-                doc = json.load(handle)
-        except (OSError, ValueError):
-            continue
-        entries = doc if isinstance(doc, list) else (
-            doc.get("entries") or doc.get("chunks") or [])
-        for index, entry in enumerate(entries):
-            if not isinstance(entry, dict):
-                continue
-            text = normalized_text(entry.get("text"))
-            sha = hashlib.sha256(text.encode()).hexdigest()
-            if (not 15 <= len(text) <= 500 or sha in seen
-                    or sha in excluded_hashes or is_machine_output(text)
-                    or not is_ordinary_prose(text, classify)):
-                continue
-            seen.add(sha)
-            candidates.append({
-                "text": text, "uid": sha[:12], "source_sha256": sha,
-                "source_path": os.path.relpath(path, REPO),
-                "source_index": index,
-                "_features": surface_features(text),
-            })
-    if not candidates:
-        raise ValueError("no eligible prose controls found")
-    return candidates
 
 
 def is_ordinary_prose(text, classifier=None):

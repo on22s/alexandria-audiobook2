@@ -89,12 +89,6 @@ def get_endpoint_profile(config_path):
     return section
 
 
-def get_endpoint(config_path):
-    """-> (base_url, model_name) for whichever mode config.json selects."""
-    section = get_endpoint_profile(config_path)
-    return section["base_url"], section.get("model_name")
-
-
 def check(base_url, model, timeout=180, max_tokens=400, api_key="local", profile=None):
     """-> (ok, detail). Never raises: a preflight that crashes is a preflight
     that tells you nothing about the server."""

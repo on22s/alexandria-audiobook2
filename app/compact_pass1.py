@@ -64,11 +64,6 @@ def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
 
 
-def is_mixed_unit(unit, analyze):
-    """True when the unit holds both quoted and unquoted words (a 2-label scheme cannot represent it)."""
-    return len({r["type"] for r in analyze(unit)["regions"]}) > 1
-
-
 def build_compact_prompt(units):
     body = "\n".join(f"N{i}: {u}" for i, u in enumerate(units, 1))
     return COMPACT_SYSTEM, "Label every line.\n\n" + body

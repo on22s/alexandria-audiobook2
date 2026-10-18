@@ -127,11 +127,6 @@ def apply_pronunciation(text, path=None):
     return pattern.sub(swap, text), applied
 
 
-def lexicon_names(path=None):
-    """The names the lexicon knows, for reporting and tests."""
-    return sorted(load_lexicon(path))
-
-
 # ── keeping the name list honest ─────────────────────────────────────────
 
 def character_forms(script_path=None, aliases_path=None, voice_config_path=None):

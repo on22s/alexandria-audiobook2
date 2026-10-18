@@ -1353,10 +1353,6 @@ class TTSEngine:
                     print(f"Connected to external TTS server {url}.")
         return client, lock
 
-    def _init_external(self):
-        """Create/return a Gradio client for the next endpoint in the pool."""
-        return self._external_endpoint()[0]
-
     # ── Clone prompt cache (local mode) ──────────────────────────
 
     @ensure_local_tts_serialized
