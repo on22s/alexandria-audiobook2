@@ -11,6 +11,8 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 function matches(node, selector) {
  return selector.split(',').some(raw=>{
   let part=raw.trim();
+  if(part.includes(':hover')&&!node.hovered){return false;}
+  if(part.includes(':focus-within')&&!node.focused){return false;}
   if(part.includes(':not([type="hidden"])')&&node.type==='hidden'){return false;}
   part=part.replace(':not([type="hidden"])','');
   const tag=/^[a-z]+/i.exec(part);if(tag&&node.tagName!==tag[0].toUpperCase()){return false;}
@@ -39,7 +41,7 @@ class Element {
  insertAdjacentElement(position,child){assert.strictEqual(position,'afterend');assert(this.parentElement);const parent=this.parentElement;child.remove();child.parentElement=parent;parent.children.splice(parent.children.indexOf(this)+1,0,child);return child;}
  remove(){if(this.parentElement){const items=this.parentElement.children;items.splice(items.indexOf(this),1);this.parentElement=null;}}
  addEventListener(name,callback){(this.listeners[name]??=[]).push(callback);}
- fire(name,event={}){event.prevented=false;event.stopped=false;event.preventDefault=()=>{event.prevented=true;};event.stopPropagation=()=>{event.stopped=true;};for(let n=this;n&&!event.stopped;n=n.parentElement){for(const callback of n.listeners[name]||[]){callback(event);}}return event;}
+ fire(name,event={}){event.target??=this;event.prevented=false;event.stopped=false;event.preventDefault=()=>{event.prevented=true;};event.stopPropagation=()=>{event.stopped=true;};for(let n=this;n&&!event.stopped;n=n.parentElement){for(const callback of n.listeners[name]||[]){callback(event);}}return event;}
 }
 const body=new Element('body');const observers=[],tooltipCalls=[],instances=new WeakMap();
 const document={nodeType:9,body,createElement:tag=>new Element(tag),getElementById:id=>body.querySelectorAll('[id]').find(n=>n.id===id)||null,querySelectorAll:selector=>body.querySelectorAll(selector)};
@@ -120,6 +122,47 @@ let disposed=0;instances.set(tip,{dispose(){disposed++;instances.delete(tip);}})
 row.remove();mutation({type:'childList',addedNodes:[],removedNodes:[row]});assert(!tip.isConnected);assert.strictEqual(disposed,1);assert.strictEqual(tipFor(field),undefined);
 ''')
 
+    def test_hover_popup_persists_then_leaves_without_disrupting_focus(self):
+        self.run_js(r'''
+const field=body.appendChild(new Element('input',{id:'design-description'}));load();
+const tip=tipFor(field),popup=body.appendChild(new Element('div',{id:'popup',class:'help-tooltip show'}));
+tip.setAttribute('aria-describedby','popup');let hidden=0;
+instances.set(tip,{hide(){if(!tip.fire('hide.bs.tooltip').prevented){hidden++;}}});
+tip.fire('inserted.bs.tooltip');popup.hovered=true;
+assert(tip.fire('hide.bs.tooltip').prevented,'moving onto popup must retain it');
+popup.hovered=false;tip.focused=true;popup.fire('mouseleave');assert.strictEqual(hidden,0,'keyboard focus retains help');
+tip.focused=false;tip.hovered=true;popup.fire('mouseleave');assert.strictEqual(hidden,0,'returning to trigger retains help');
+tip.hovered=false;popup.fire('mouseleave');assert.strictEqual(hidden,1,'leaving both closes help');
+assert.strictEqual(tooltipCalls[0].options.delay.hide,180);
+const other=body.appendChild(new Element('button',{'aria-describedby':'popup'}));popup.hovered=true;
+assert(!other.fire('hide.bs.tooltip').prevented,'unrelated tooltips remain untouched');
+''')
+
+    def test_escape_dismisses_hovered_help_and_next_engagement_can_show_it(self):
+        self.run_js(r'''
+const field=body.appendChild(new Element('input',{id:'design-description'}));load();context.ensureHelpTooltips();
+const tip=tipFor(field),popup=body.appendChild(new Element('div',{id:'popup',class:'help-tooltip show'}));
+tip.setAttribute('aria-describedby','popup');popup.hovered=true;tip.focused=true;let hidden=0;
+instances.set(tip,{hide(){if(!tip.fire('hide.bs.tooltip').prevented){hidden++;}}});
+const escape=tip.fire('keydown',{key:'Escape'});assert(escape.prevented&&escape.stopped);assert.strictEqual(hidden,1);assert(tip.focused);
+tip.fire('show.bs.tooltip');assert(tip.fire('hide.bs.tooltip').prevented,'a new engagement can retain help again');
+assert.strictEqual(body.listeners.keydown.length,1,'re-rendering must not register extra listeners');
+tip.removeAttribute('aria-describedby');assert(!tip.fire('keydown',{key:'Escape'}).prevented,'no help leaves Escape available to surrounding UI');
+''')
+
+    def test_unrelated_escape_and_section_close_are_not_blocked_by_hovered_help(self):
+        self.run_js(r'''
+const section=body.appendChild(new Element('div')),field=section.appendChild(new Element('input',{id:'design-description'}));load();
+const tip=tipFor(field),popup=body.appendChild(new Element('div',{id:'popup',class:'help-tooltip show'}));
+tip.setAttribute('aria-describedby','popup');popup.hovered=true;let hidden=0;
+instances.set(tip,{dispose(){},hide(){if(!tip.fire('hide.bs.tooltip').prevented){hidden++;}}});
+assert(!field.fire('keydown',{key:'Escape'}).stopped,'unrelated widget must still receive Escape');assert.strictEqual(hidden,1);
+for(const name of ['hide.bs.modal','hide.bs.collapse']){
+ tip.fire('show.bs.tooltip');section.fire(name);assert(!tip.fire('hide.bs.tooltip').prevented,'closing section must override hover retention');
+}
+tip.fire('show.bs.tooltip');context.disposeHelpTooltip(tip);assert.strictEqual(tip.getAttribute('aria-describedby'),null,'disposed popup must not leave a dangling description');
+''')
+
     def test_individual_hidden_action_and_removed_glyph_recover(self):
         self.run_js(r'''
 const button=body.appendChild(new Element('button',{id:'btn-gen-script',style:'display:none'}));load();const tip=tipFor(button);assert(tip.hidden);
@@ -170,9 +213,13 @@ assert.strictEqual(helpFor(new Element('input',{class:'unknown-future-field'})),
 const nav=body.appendChild(new Element('nav',{class:'navbar'}));
 const link=nav.appendChild(new Element('a',{class:'nav-link',href:'#designer','data-tab':'designer'}));let navigations=0;link.addEventListener('click',()=>navigations++);
 load();assert.strictEqual(nav.children.length,1);assert.strictEqual(link.parentElement,nav);assert.strictEqual(tipFor(link),undefined);assert(link.hasAttribute('data-help-tip'));assert(link.getAttribute('data-bs-title').includes('reusable voice'));assert.strictEqual(link.getAttribute('aria-label'),null);
+const glyph=link.children[0];assert.strictEqual(glyph.className,'help-nav-glyph');assert.strictEqual(glyph.getAttribute('aria-hidden'),'true');assert.strictEqual(glyph.tabIndex,undefined);
 assert(!link.fire('click').prevented);assert.strictEqual(navigations,1);
 context.renderHelpTips();assert.strictEqual(nav.children.length,1);
+assert.strictEqual(link.children.length,1,'repeated renders must not duplicate inline glyphs');
+glyph.remove();mutation({type:'childList',target:link,removedNodes:[glyph],addedNodes:[]});assert.strictEqual(glyph.parentElement,link,'a control repaint restores its owned glyph');
 body.appendChild(link);context.renderHelpTips();assert(!link.hasAttribute('data-help-tip'));assert(tipFor(link));assert.strictEqual(link.parentElement,body);
+assert(!glyph.isConnected,'moving out of navigation removes the decorative glyph');
 nav.appendChild(link);context.renderHelpTips();assert.strictEqual(nav.children.length,1);assert.strictEqual(tipFor(link),undefined);assert(link.hasAttribute('data-help-tip'));
 link.remove();mutation({type:'childList',removedNodes:[link],addedNodes:[]});assert(!link.hasAttribute('data-help-tip'));
 ''')

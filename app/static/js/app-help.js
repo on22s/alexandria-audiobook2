@@ -571,6 +571,7 @@
         const helpTipOwners = new WeakMap();
         const helpActionGroups = new WeakMap();
         const directHelpControls = new WeakSet();
+        const directHelpGlyphs = new WeakMap();
         const fieldHelpHandlers = new Set(['selectVoiceVersion', 'onVoiceReadyChange', 'toggleVoiceType', 'onDesignedVoiceSelect', 'handleCloneVoiceUpload', 'loadDesignLines', 'reapplyCastSaveThreshold']);
         let helpTipSequence = 0;
 
@@ -627,6 +628,8 @@
         }
 
         function disposeHelpTooltip(tip) {
+            const popup = document.getElementById(tip.getAttribute('aria-describedby'));
+            if (popup?.classList.contains('help-tooltip')) { tip.removeAttribute('aria-describedby'); }
             if (typeof bootstrap !== 'undefined') { bootstrap.Tooltip.getInstance?.(tip)?.dispose(); }
         }
 
@@ -634,6 +637,8 @@
             if (directHelpControls.has(control)) {
                 disposeHelpTooltip(control);
                 directHelpControls.delete(control);
+                directHelpGlyphs.get(control)?.remove();
+                directHelpGlyphs.delete(control);
                 control.removeAttribute('data-help-tip');
                 control.removeAttribute('data-bs-title');
                 control.removeAttribute('data-help-covered');
@@ -674,6 +679,15 @@
                 control.setAttribute('data-help-tip', '');
                 control.setAttribute('data-help-covered', '');
                 directHelpControls.add(control);
+                let glyph = directHelpGlyphs.get(control);
+                if (!glyph) {
+                    glyph = document.createElement('span');
+                    glyph.className = 'help-nav-glyph';
+                    glyph.textContent = 'ⓘ';
+                    glyph.setAttribute('aria-hidden', 'true');
+                    directHelpGlyphs.set(control, glyph);
+                }
+                if (glyph.parentElement !== control) { control.appendChild(glyph); }
                 return;
             }
             if (directHelpControls.has(control)) { removeItemHelp(control); }
@@ -725,9 +739,45 @@
 
         function ensureHelpTooltips() {
             if (!window._helpTooltips && typeof bootstrap !== 'undefined') {
+                const dismissed = new WeakSet();
+                const getPopup = trigger => document.getElementById(trigger.getAttribute('aria-describedby'));
+                const hideShownHelp = root => {
+                    let hidden = false;
+                    root.querySelectorAll('[data-help-tip][aria-describedby]').forEach(trigger => {
+                        if (!getPopup(trigger)?.classList.contains('show')) { return; }
+                        dismissed.add(trigger);
+                        bootstrap.Tooltip.getInstance(trigger)?.hide();
+                        hidden = true;
+                    });
+                    return hidden;
+                };
+                document.body.addEventListener('inserted.bs.tooltip', event => {
+                    const trigger = event.target;
+                    if (!trigger.hasAttribute('data-help-tip')) { return; }
+                    const popup = getPopup(trigger);
+                    popup?.addEventListener('mouseleave', () => {
+                        if (!trigger.matches(':hover,:focus-within')) { bootstrap.Tooltip.getInstance(trigger)?.hide(); }
+                    });
+                });
+                document.body.addEventListener('show.bs.tooltip', event => { dismissed.delete(event.target); });
+                document.body.addEventListener('hide.bs.tooltip', event => {
+                    const trigger = event.target;
+                    if (trigger.hasAttribute('data-help-tip') && !dismissed.has(trigger) && getPopup(trigger)?.matches(':hover')) {
+                        event.preventDefault();
+                    }
+                });
+                document.body.addEventListener('keydown', event => {
+                    if (event.key !== 'Escape') { return; }
+                    if (hideShownHelp(document) && event.target.closest?.('[data-help-tip], .help-tooltip')) {
+                        event.preventDefault(); event.stopPropagation();
+                    }
+                }, true);
+                for (const name of ['hide.bs.modal', 'hide.bs.collapse']) {
+                    document.body.addEventListener(name, event => { hideShownHelp(event.target); });
+                }
                 window._helpTooltips = new bootstrap.Tooltip(document.body, {
                     selector: '[data-help-tip]', trigger: 'hover focus', html: false,
-                    placement: 'top', customClass: 'help-tooltip'});
+                    placement: 'top', customClass: 'help-tooltip', delay: {show: 0, hide: 180}});
             }
             if (window._helpObserver || typeof MutationObserver === 'undefined') { return; }
             window._helpObserver = new MutationObserver(records => {
@@ -736,6 +786,7 @@
                         if (!record.target.classList.contains('help-tip') && record.target.matches(HELP_ITEMS)) { renderItemHelp(record.target); }
                         continue;
                     }
+                    if (record.target?.isConnected && record.target.matches?.(HELP_ITEMS)) { renderItemHelp(record.target); }
                     for (const node of record.removedNodes) {
                         if (node.nodeType !== 1) { continue; }
                         if (node.classList.contains('help-tip')) {
