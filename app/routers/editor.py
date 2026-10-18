@@ -8,6 +8,7 @@ import copy
 import logging
 import json
 import os
+import soundfile
 import tempfile
 import time
 import uuid
@@ -47,6 +48,7 @@ from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection,
                      get_chunk_generation_requests)
+from runtime_estimate import get_book_runtime_estimate
 from routers.voices import get_script_speaker
 from tts import voice_config_for_chunk, resolve_narrator_voice_config, voice_category
 import voice_drift
@@ -126,6 +128,51 @@ def _ensure_editor_chunks():
                 "Repair chunks.json before continuing; saved progress and audio are retained."))
         seen.add(chunk_id)
     return chunks
+
+@router.get("/api/audio/estimate")
+async def get_audio_estimate():
+    return await asyncio.to_thread(_ensure_audio_estimate)
+
+
+def _ensure_audio_estimate():
+    root = os.path.dirname(SCRIPT_PATH)
+    with ensure_book_state(root):
+        chunks = _ensure_editor_chunks()
+    durations, unreadable = get_chunk_audio_durations(chunks)
+    return {**get_book_runtime_estimate(chunks, durations), "unreadable": unreadable}
+
+
+_audio_duration_cache = {}
+
+
+def get_audio_duration(path):
+    """Seconds of audio at path, cached by path, mtime and size so Editor polls stay cheap."""
+    stat = os.stat(path)
+    key = (path, stat.st_mtime_ns, stat.st_size)
+    if key not in _audio_duration_cache:
+        if len(_audio_duration_cache) > 50000:
+            _audio_duration_cache.clear()
+        _audio_duration_cache[key] = soundfile.info(path).duration
+    return _audio_duration_cache[key]
+
+
+def get_chunk_audio_durations(chunks):
+    """Measure rendered chunk audio inside the project; count unreadable files."""
+    durations = {}
+    unreadable = 0
+    for chunk in chunks:
+        if not isinstance(chunk, dict) or chunk.get('status') != 'done':
+            continue
+        path = chunk.get('audio_path')
+        if not project_manager._is_project_audio_path(path):
+            continue
+        try:
+            durations[chunk.get('id')] = get_audio_duration(
+                os.path.join(project_manager.root_dir, path))
+        except Exception:
+            unreadable += 1
+    return durations, unreadable
+
 
 _editor_poll_snapshots = EditorPollSnapshots()
 

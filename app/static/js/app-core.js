@@ -6541,6 +6541,34 @@
             }
         }
 
+        async function refreshRuntimeEstimate() {
+            const label = document.getElementById('editor-runtime-estimate');
+            if (!label) { return; }
+            try {
+                const estimate = await API.get('/api/audio/estimate');
+                label.textContent = formatRuntimeEstimate(estimate);
+            } catch (e) {
+                label.textContent = '';
+            }
+        }
+
+        function formatRuntimeEstimate(estimate) {
+            const total = formatRuntimeDuration(estimate.total_seconds);
+            if (estimate.basis === 'fallback') {
+                return `≈ ${total} (rough: fewer than 3 chunks rendered)`;
+            }
+            const range = `${formatRuntimeDuration(estimate.low_seconds)} – ${formatRuntimeDuration(estimate.high_seconds)}`;
+            const sizeMb = Math.round(estimate.mp3_bytes / (1024 * 1024));
+            return `≈ ${total} (${range}) · ≈ ${sizeMb} MB MP3 · from ${estimate.samples} rendered chunks`;
+        }
+
+        function formatRuntimeDuration(seconds) {
+            const totalMinutes = Math.max(0, Math.round((Number(seconds) || 0) / 60));
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            return `${hours} h ${minutes} m`;
+        }
+
         async function ensureMergeIntegrityApproval() {
             await ensureEditorRenderSnapshot();
             const report = await API.get('/api/editor/integrity');
@@ -6894,6 +6922,7 @@
                 const status = document.getElementById('chunk-load-status');
                 if (status) { status.innerHTML = ''; }
                 void refreshEditorIntegrity();
+                void refreshRuntimeEstimate();
                 await refreshDeliveryReview();
                 return chunks;
             } catch (e) {

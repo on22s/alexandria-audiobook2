@@ -4483,6 +4483,22 @@
         "summary": "Get Annotated Script Diff"
       }
     },
+    "/api/audio/estimate": {
+      "get": {
+        "operationId": "get_audio_estimate_api_audio_estimate_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Audio Estimate"
+      }
+    },
     "/api/audiobook": {
       "get": {
         "operationId": "get_audiobook_api_audiobook_get",

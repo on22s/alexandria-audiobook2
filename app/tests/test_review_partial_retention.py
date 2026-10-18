@@ -18,6 +18,48 @@ from generation_checkpoint_deltas import load_generation_checkpoint_document
 from completed_review_receipt import get_review_receipt_path
 
 
+class TypedMetadataMergeTests(unittest.TestCase):
+    def test_int_and_bool_spoken_values_do_not_merge(self):
+        entries = [
+            {'speaker': 'NARRATOR', 'text': 'Rain fell.', 'instruct': '', 'spoken': 0},
+            {'speaker': 'NARRATOR', 'text': 'Wind rose.', 'instruct': '', 'spoken': False},
+        ]
+
+        merged, merges = review.merge_consecutive_narrators(entries)
+
+        self.assertEqual(merges, 0)
+        self.assertEqual(len(merged), 2)
+        self.assertEqual(merged[0]['spoken'], 0)
+        self.assertIs(type(merged[0]['spoken']), int)
+        self.assertIs(merged[1]['spoken'], False)
+        self.assertIs(type(merged[1]['spoken']), bool)
+
+    def test_matching_bool_spoken_values_merge_and_keep_bool(self):
+        entries = [
+            {'speaker': 'NARRATOR', 'text': 'Rain fell.', 'instruct': '', 'spoken': False},
+            {'speaker': 'NARRATOR', 'text': 'Wind rose.', 'instruct': '', 'spoken': False},
+        ]
+
+        merged, merges = review.merge_consecutive_narrators(entries)
+
+        self.assertEqual(merges, 1)
+        self.assertEqual(len(merged), 1)
+        self.assertIs(merged[0]['spoken'], False)
+        self.assertIs(type(merged[0]['spoken']), bool)
+        self.assertEqual(merged[0]['text'], 'Rain fell. Wind rose.')
+
+    def test_different_instruct_values_do_not_merge(self):
+        entries = [
+            {'speaker': 'NARRATOR', 'text': 'Rain fell.', 'instruct': 'softly', 'spoken': False},
+            {'speaker': 'NARRATOR', 'text': 'Wind rose.', 'instruct': 'loudly', 'spoken': False},
+        ]
+
+        merged, merges = review.merge_consecutive_narrators(entries)
+
+        self.assertEqual(merges, 0)
+        self.assertEqual(len(merged), 2)
+
+
 SOURCE = [
     {'speaker': 'BOB', 'text': 'Please leave the blue cup.', 'instruct': '', 'type': 'SPOKEN',
      'uid': 'first', 'pause_after': 900, 'provenance': {'span': [3, 8]}},

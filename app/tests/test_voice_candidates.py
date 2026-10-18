@@ -57,6 +57,39 @@ class CurrentCandidateTests(unittest.TestCase):
         self.assertEqual([c["candidate_id"] for c in updated["candidates"]], ["warm_tenor"])
         self.assertEqual(updated["active_candidate"], "warm_tenor")
 
+    def test_a_seedless_candidate_is_the_same_voice_whatever_the_current_seed(self):
+        for current_seed in (3, -1):
+            with self.subTest(seed=current_seed):
+                entry = {"type": "lora", "adapter_path": "lora_models/warm_tenor",
+                         "seed": current_seed,
+                         "candidates": [{"type": "lora",
+                                         "adapter_path": "lora_models/warm_tenor",
+                                         "candidate_id": "warm_tenor", "rank": 1}]}
+                updated = get_entry_with_current_candidate(entry)
+                self.assertEqual([c["candidate_id"] for c in updated["candidates"]],
+                                 ["warm_tenor"])
+                self.assertEqual(updated["active_candidate"], "warm_tenor")
+
+    def test_a_saved_seed_is_part_of_the_voice(self):
+        entry = {"type": "lora", "adapter_path": "lora_models/warm_tenor", "seed": 5,
+                 "candidates": [{"type": "lora", "adapter_path": "lora_models/warm_tenor",
+                                 "seed": 3, "candidate_id": "warm_tenor", "rank": 1}]}
+        updated = get_entry_with_current_candidate(entry)
+        self.assertEqual(len(updated["candidates"]), 2)
+        self.assertEqual(updated["candidates"][0]["candidate_id"], "warm_tenor")
+        self.assertEqual(updated["active_candidate"], updated["candidates"][1]["candidate_id"])
+        self.assertNotEqual(updated["active_candidate"], "warm_tenor")
+
+    def test_a_seedless_candidate_with_another_adapter_is_another_voice(self):
+        entry = {"type": "lora", "adapter_path": "lora_models/cool_baritone", "seed": 3,
+                 "candidates": [{"type": "lora", "adapter_path": "lora_models/warm_tenor",
+                                 "candidate_id": "warm_tenor", "rank": 1}]}
+        updated = get_entry_with_current_candidate(entry)
+        self.assertEqual(len(updated["candidates"]), 2)
+        self.assertEqual(updated["candidates"][0]["candidate_id"], "warm_tenor")
+        self.assertEqual(updated["active_candidate"], updated["candidates"][1]["candidate_id"])
+        self.assertNotEqual(updated["active_candidate"], "warm_tenor")
+
     def test_using_a_candidate_installs_exactly_its_voice(self):
         lora = {"candidate_id": "warm_tenor", "type": "lora", "adapter_path": "lora_models/warm_tenor",
                 "rank": 1, "favorite": True}

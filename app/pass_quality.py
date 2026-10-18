@@ -1057,7 +1057,7 @@ def validate_instruct(prior_entries, response_entries, delivery_direction="off")
                          "expected": _VALIDATION_EXPECTED[code], "message": message})
 
     def is_text(value):
-        return isinstance(value, str) and bool(value.strip())
+        return isinstance(value, str) and any(ch.isalnum() for ch in value)
 
     for i, (prior, item) in enumerate(zip(prior_entries, ordered), 1):
         if not directed and not is_text(item.get("instruct")):
