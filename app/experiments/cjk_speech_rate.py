@@ -412,7 +412,7 @@ def main(argv=None):
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
-    atomic_json_write(out_path, result)
+    atomic_json_write(result, out_path)
 
     for language, ratio in sorted(summary["ratio_vs_en"]["pooled"].items()):
         print("%s: %.2fx English characters/second" % (language, ratio))
