@@ -898,7 +898,8 @@ def is_schema_rejection(error):
     # support), and the usual OpenAI-compatible gateway phrasing.
     return any(k in text for k in ("response_format", "json_schema")) and any(
         k in text for k in ("not supported", "unsupported", "unknown", "unexpected",
-                            "must be one of", "but got", "must be 'text'", "invalid parameter"))
+                            "must be one of", "but got", "must be 'text'", "invalid parameter",
+                            "unavailable"))
 
 
 def is_ordered_schema_rejection(error):

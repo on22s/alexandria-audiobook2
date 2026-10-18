@@ -92,14 +92,20 @@ class StructuredOutput(unittest.TestCase):
                                       '\'response_format type must be one of "text" or "json_object", '
                                       'but got: json_schema\', \'type\': \'invalid_request_error\'}}')
         gateway = _ApiError(400, "Invalid parameter: response_format.type must be 'text' or 'json_object'")
+        deepseek = _ApiError(400, 'This response_format type is unavailable now (request_id: req_123)')
         bad_schema = _ApiError(400, "Unable to generate parser for this template. Automatic parser "
                                     "generation failed: JSON schema error at #: unrecognized type nonsense")
+        invalid_schema = _ApiError(400, "Invalid schema for response_format: missing 'type'")
         self.assertTrue(gs.is_schema_rejection(old_llamacpp))
         self.assertTrue(gs.is_schema_rejection(gateway))
+        self.assertTrue(gs.is_schema_rejection(deepseek))
         self.assertFalse(gs.is_schema_rejection(bad_schema))
+        self.assertFalse(gs.is_schema_rejection(invalid_schema))
 
     def test_other_errors_are_not_mistaken_for_schema_rejection(self):
         self.assertFalse(gs.is_schema_rejection(_ApiError(400, "context length exceeded")))
+        self.assertFalse(gs.is_schema_rejection(_ApiError(400, "model unavailable")))
+        self.assertFalse(gs.is_schema_rejection(_ApiError(503, "service unavailable")))
         self.assertFalse(gs.is_schema_rejection(_ApiError(500, "json_schema grammar failed")))
         self.assertTrue(gs.is_schema_rejection(_ApiError(400, "unknown field: json_schema")))
         self.assertFalse(gs.is_schema_rejection(_ApiError(422, "grammar: invalid")))
