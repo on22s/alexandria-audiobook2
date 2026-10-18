@@ -10,6 +10,23 @@ from pydub.audio_segment import audioop
 
 
 PCM_BLOCK_BYTES = 65536
+MAX_PCM_BLOCK_BYTES = 131072
+
+
+def get_pcm_block_bytes(layout):
+    """Keep two ordinary PCM frames within a finite per-layout allowance."""
+    channels, _, width = layout
+    if (type(channels) is not int or channels <= 0
+            or type(width) is not int or width <= 0):
+        return None
+    frame = channels * width
+    if frame * 2 <= PCM_BLOCK_BYTES:
+        return PCM_BLOCK_BYTES
+    # A plain WAV's block-align field holds at most 65535 bytes per frame.
+    # Wide native layouts need two such frames, never a duration-sized buffer.
+    if width in (1, 2, 4) and frame <= 65535 and frame * 2 <= MAX_PCM_BLOCK_BYTES:
+        return frame * 2
+    return None
 
 
 @dataclass(frozen=True)
@@ -63,8 +80,9 @@ class PCMSourceStore:
         if type(segment) is not AudioSegment:
             return segment
         shape = get_pcm_source_shape(segment)
-        if (shape is None or segment.frame_width != segment.channels * segment.sample_width
-                or segment.channels * max(2, segment.sample_width) * 2 > PCM_BLOCK_BYTES):
+        block_bytes = get_pcm_block_bytes(shape[0]) if shape is not None else None
+        if (block_bytes is None
+                or segment.frame_width != segment.channels * segment.sample_width):
             return segment
         self.cancel_check()
         offset = self.byte_count
@@ -73,7 +91,7 @@ class PCMSourceStore:
         self.stream.seek(offset)
         view = memoryview(segment.raw_data)
         try:
-            step = PCM_BLOCK_BYTES // segment.frame_width * segment.frame_width
+            step = block_bytes // segment.frame_width * segment.frame_width
             for start in range(0, len(view), step):
                 self.cancel_check()
                 block = view[start:start + step]
@@ -128,17 +146,18 @@ class PCMSourceStore:
         return False
 
 
-def is_bounded_pcm_supported(segments):
+def is_bounded_pcm_supported(segments, layout=None):
     """Keep custom segment behavior and very wide frames on legacy."""
     if not segments or any(not is_plain_pcm_source(segment) or get_pcm_source_shape(segment) is None
                            for segment in segments):
         return False
-    layouts = [(segment.channels, segment.frame_rate, segment.sample_width)
-               for segment in segments]
-    # Preserve the existing minimum frame allowance, including default silence.
-    channels = max(layout[0] for layout in layouts)
-    width = max(2, *(layout[2] for layout in layouts))
-    return channels * width * 2 <= PCM_BLOCK_BYTES
+    if layout is None:
+        layouts = [(segment.channels, segment.frame_rate, segment.sample_width)
+                   for segment in segments]
+        # Legacy callers may not have the final shape, including default silence.
+        layout = (max(item[0] for item in layouts), max(item[1] for item in layouts),
+                  max(2, *(item[2] for item in layouts)))
+    return get_pcm_block_bytes(layout) is not None
 
 
 
@@ -223,15 +242,17 @@ def iter_converted_pcm(pieces, source, target, cancel_check):
     if target_channels != channels and channels != 1:
         raise ValueError('AudioSegment.set_channels only supports mono-to-multi channel and multi-to-mono channel conversion')
     frame_bytes = target_channels * max(width, target_width)
+    allowance = get_pcm_block_bytes((target_channels, target_rate, max(width, target_width)))
+    block_bytes = allowance if allowance is not None else PCM_BLOCK_BYTES
     ratio = max(1, (target_rate + rate - 1) // rate)
-    frames = max(1, PCM_BLOCK_BYTES // (frame_bytes * (ratio + 1)))
+    frames = max(1, block_bytes // (frame_bytes * (ratio + 1)))
     native_ratecv = True
     if rate != target_rate:
         common = math.gcd(rate, target_rate)
         input_step, output_step = rate // common, target_rate // common
         # audioop allocates ceil(N / input_step) * output_step frames,
         # even when its actual output is only a single sample.
-        groups = (PCM_BLOCK_BYTES // (output_step * frame_bytes)
+        groups = (block_bytes // (output_step * frame_bytes)
                   if input_step > 0 and output_step > 0 else 0)
         native_ratecv = groups > 0
         if native_ratecv:
@@ -240,7 +261,7 @@ def iter_converted_pcm(pieces, source, target, cancel_check):
 
     def iter_promoted():
         for piece in pieces:
-            if len(piece) and frame_bytes * 2 > PCM_BLOCK_BYTES:
+            if len(piece) and allowance is None:
                 raise ValueError('PCM conversion exceeds the bounded block allowance')
             for start in range(0, len(piece), step):
                 cancel_check()
@@ -259,9 +280,9 @@ def iter_converted_pcm(pieces, source, target, cancel_check):
 
     promoted = iter_promoted()
     if not native_ratecv:
-        block_bytes = PCM_BLOCK_BYTES // frame_bytes * target_channels * width
+        output_bytes = block_bytes // frame_bytes * target_channels * width
         converted = _iter_python_ratecv(promoted, width, target_channels,
-                                        rate, target_rate, cancel_check, block_bytes)
+                                        rate, target_rate, cancel_check, output_bytes)
     else:
         def iter_native():
             state = None
@@ -321,9 +342,11 @@ class PCMProducer:
     def read(self):
         self.stream.seek(0)
         frame = self.layout[0] * self.layout[2]
+        allowance = get_pcm_block_bytes(self.layout)
+        block_bytes = allowance if allowance is not None else PCM_BLOCK_BYTES
         while True:
             self.cancel_check()
-            data = self.stream.read(max(frame, PCM_BLOCK_BYTES // frame * frame))
+            data = self.stream.read(max(frame, block_bytes // frame * frame))
             if not data:
                 break
             yield data

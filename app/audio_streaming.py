@@ -120,7 +120,6 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
     """Return rounded duration, or None without writing for a legacy fallback."""
     ensure_audio_export_active(cancel_check)
     layout = get_streamable_layout(segments)
-    bounded_supported = is_bounded_pcm_supported(segments)
     if len(speakers) != len(segments):
         return None
     ordinary_pcm = is_plain_pcm_sequence(segments)
@@ -154,7 +153,7 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
     ensure_audio_export_active(cancel_check)
     ensure_pcm_shape_fits_riff((layout, frames) if layout is not None else shape)
     if layout is None:
-        if bounded_supported and is_bounded_pcm_supported(segments) and shape is not None:
+        if ordinary_pcm and shape is not None and is_bounded_pcm_supported(segments, shape[0]):
             return write_spooled_combined_wav(segments, speakers, path, pause_ms,
                                              same_speaker_pause_ms, pause_overrides,
                                              cancel_check)
@@ -230,7 +229,8 @@ def get_track_wav_plan(entries, total_duration_ms, cancel_check=None):
                                          reject_impossible_channels=ordinary_pcm)
         ensure_audio_export_active(cancel_check)
         ensure_pcm_shape_fits_riff(shape)
-        if shape is not None and is_bounded_pcm_supported([segment for segment, _ in entries]):
+        if shape is not None and is_bounded_pcm_supported(
+                [segment for segment, _ in entries], shape[0]):
             return shape
         return None
     data_bytes = 0
