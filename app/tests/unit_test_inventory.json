@@ -7515,6 +7515,14 @@
     "tests.test_runtime_ab_tools.RuntimeAbRunnerTests.test_set_model_rejects_remote_mode",
     "tests.test_runtime_ab_tools.RuntimeAbRunnerTests.test_set_model_writes_valid_config"
   ],
+  "test_runtime_estimate": [
+    "tests.test_runtime_estimate.AudioEstimateEndpointTests.test_endpoint_counts_unreadable_audio",
+    "tests.test_runtime_estimate.BookRuntimeEstimateTests.test_done_chunks_contribute_measured_seconds",
+    "tests.test_runtime_estimate.BookRuntimeEstimateTests.test_fewer_than_three_samples_uses_fallback",
+    "tests.test_runtime_estimate.BookRuntimeEstimateTests.test_measured_median_and_range",
+    "tests.test_runtime_estimate.BookRuntimeEstimateTests.test_pauses_between_chunks_follow_the_export_rule",
+    "tests.test_runtime_estimate.BookRuntimeEstimateTests.test_zero_durations_and_empty_text_are_not_samples"
+  ],
   "test_runtime_info": [
     "tests.test_runtime_info.RuntimeInfoTests.test_environment_revision_overrides_git_and_missing_packages_are_explicit",
     "tests.test_runtime_info.RuntimeInfoTests.test_real_git_nested_branches_survive_loose_and_packed_refs",
