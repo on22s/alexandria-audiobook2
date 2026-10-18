@@ -11521,6 +11521,23 @@
         "summary": "Select Voice Version"
       }
     },
+    "/api/workspace": {
+      "get": {
+        "description": "Summarize selected-book progress without initializing chunks or generating audio.",
+        "operationId": "get_book_workspace_status_api_workspace_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Book Workspace Status"
+      }
+    },
     "/favicon.ico": {
       "get": {
         "operationId": "read_favicon_favicon_ico_get",

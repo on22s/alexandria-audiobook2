@@ -31,7 +31,29 @@ class Resources(HTMLParser):
 class LocalUiAssetTests(unittest.TestCase):
     def test_page_dependencies_are_local_and_integrity_matches_served_bytes(self):
         resources = Resources((STATIC / 'index.html').read_text()).resources
-        self.assertEqual(13, len(resources))
+        # Pin every original asset, reject duplicates/unknown additions, and
+        # allow the reviewed feature scripts to merge independently.
+        base_assets = {
+            '/static/js/app-core.js?v=__APP_BUILD__',
+            '/static/js/app-help.js?v=__APP_BUILD__',
+            '/static/js/app-reports.js?v=__APP_BUILD__',
+            '/static/js/app-scripts.js?v=__APP_BUILD__',
+            '/static/js/app-speaker-review.js?v=__APP_BUILD__',
+            '/static/js/app-training.js?v=__APP_BUILD__',
+            '/static/js/app-voicelab.js?v=__APP_BUILD__',
+            '/static/js/app-workbench.js?v=__APP_BUILD__',
+            '/static/vendor/bootstrap-5.3.0/bootstrap.bundle.min.js',
+            '/static/vendor/bootstrap-5.3.0/bootstrap.min.css',
+            '/static/vendor/dompurify-3.4.16/purify.min.js',
+            '/static/vendor/font-awesome-6.0.0/css/all.min.css',
+            '/static/vendor/marked-12.0.2/marked.umd.min.js',
+        }
+        feature_assets = {'/static/js/app-settings.js?v=__APP_BUILD__',
+                          '/static/js/app-workspace.js?v=__APP_BUILD__'}
+        urls = [url for url, _ in resources]
+        self.assertEqual(len(urls), len(set(urls)))
+        self.assertTrue(base_assets.issubset(urls))
+        self.assertFalse(set(urls) - base_assets - feature_assets)
         self.assertIn(('/static/js/app-speaker-review.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-help.js?v=__APP_BUILD__', None), resources)
         app = FastAPI()

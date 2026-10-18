@@ -1191,6 +1191,28 @@
     "tests.test_book_state_transaction.BookStateTransactionTests.test_success_publishes_complete_set_and_removes_prior_sidecars",
     "tests.test_book_state_transaction.SavedBookTransactionHttpTests.test_http_load_failure_preserves_prior_book_and_success_publishes_all"
   ],
+  "test_book_workspace": [
+    "tests.test_book_workspace.BookWorkspaceTests.test_actual_route_returns_safe_conflict_for_corrupt_script_without_repair",
+    "tests.test_book_workspace.BookWorkspaceTests.test_empty_and_missing_chunks_are_distinct_from_completed_audio_and_do_not_write",
+    "tests.test_book_workspace.BookWorkspaceTests.test_existing_voice_eligibility_and_pending_state_versions_are_used",
+    "tests.test_book_workspace.BookWorkspaceTests.test_journal_progress_is_read_without_compaction_and_outputs_are_unverified",
+    "tests.test_book_workspace.BookWorkspaceTests.test_missing_empty_and_escaping_audio_do_not_count_as_present",
+    "tests.test_book_workspace.BookWorkspaceTests.test_wrong_book_journal_and_corrupt_chunk_data_remain_unavailable_and_untouched"
+  ],
+  "test_book_workspace_js": [
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_continue_refreshes_identity_and_navigates_without_any_mutating_api",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_declared_task_targets_exist_and_audio_uses_its_actual_cancel_screen",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_failed_library_loader_releases_button_and_refreshes_actual_selected_book",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_hidden_and_stale_monitor_results_do_not_erase_previous_known_work",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_hostile_names_are_text_and_library_load_uses_existing_confirmed_loader",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_invalidation_during_a_read_queues_the_newest_book_and_preserves_library_focus_nodes",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_late_reply_is_ignored_and_queued_refresh_does_not_overlap_requests",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_leaving_home_while_an_action_reads_status_prevents_late_navigation",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_malformed_counts_and_unsafe_next_destination_are_rejected",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_monitor_ignores_obsolete_visit_and_invalid_registry_without_claiming_idle",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_monitor_keeps_disclosure_nodes_and_withholds_eta_for_paused_manual_and_cancel",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_read_failure_keeps_display_but_disables_continue_and_never_navigates"
+  ],
   "test_boundary_conflict_audit": [],
   "test_build_accent_calibration": [],
   "test_build_scoring_sheet": [

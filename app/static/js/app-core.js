@@ -633,6 +633,7 @@
             }
 
             // Trigger tab specific loads
+            window.refreshWorkspaceView?.();
             if (selectedLink.dataset.tab === 'setup') {
                 pollLmStudioStatus();
             } else if (selectedLink.dataset.tab === 'editor') {
@@ -1810,6 +1811,7 @@
             currentBookFilename = typeof filename === 'string' ? filename : '';
             // A reloaded script can change even when its filename stays the same.
             window.resetSpeakerLabelReview?.();
+            window.invalidateBookWorkspace?.();
         }
         function enqueueBookSelection(request, action) {
             const previous = window._existingUploadSelectionPending || Promise.resolve();

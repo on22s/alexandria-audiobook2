@@ -417,6 +417,10 @@
             'auditSavedScript': 'Inspect this saved script’s audit information before using it.',
             'loadScript': 'Load this saved book as the active script and its associated voice assignments.',
             'deleteScript': 'Delete this saved book.',
+            'refreshWorkspaceView': 'Refresh selected-book facts, the saved-book list and running-task status. This does not start or resume generation.',
+            'continueBookWorkspace': 'Refresh the selected book and open the next workflow screen. This does not replace a book or start a task.',
+            'openWorkspaceSavedBook': 'Use the existing saved-book confirmation to load this book; replacing the active book is a separate confirmed action.',
+            'openWorkspaceTask': 'Open this task’s screen and restore its existing status controls. No pause, resume, cancellation or new work is triggered by navigation.',
             'playDesignedVoice': 'Play this saved designed-voice preview.',
             'openDesignedVoiceForEdit': 'Load this saved voice’s description and sample into the Designer.',
             'deleteDesignedVoice': 'Delete this saved designed voice.',
@@ -489,6 +493,7 @@
         };
 
         const NAV_HELP = {
+            'home': 'View the selected book’s saved progress, open its next workflow screen and inspect running work. Viewing does not start generation.',
             'setup': 'Configure the model connection, synthesis settings and prompts used by the app.',
             'script': 'Import a book, annotate its script, review speaker labels and save the result.',
             'voices': 'Assign and review each character’s voice, references and changes over time.',

@@ -10,6 +10,18 @@
     <link href="/static/vendor/bootstrap-5.3.0/bootstrap.min.css" rel="stylesheet">
     <link href="/static/vendor/font-awesome-6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        #home-tab .text-muted { color: var(--text-primary) !important; }
+        #home-tab :is(button, summary):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+        .workspace-stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+        .workspace-stage, .workspace-task { padding: 1rem; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--bg-card-header); min-width: 0; overflow-wrap: anywhere; }
+        .workspace-stage h6 { color: var(--text-heading); }
+        .workspace-stage p { margin-bottom: .5rem; }
+        .workspace-columns { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1.5rem; }
+        .workspace-task-list { display: grid; gap: 1rem; }
+        .workspace-task pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 16rem; overflow: auto; margin-top: .75rem; font-size: .8rem; }
+        .workspace-library-row { padding: .8rem 0; border-bottom: 1px solid var(--border-input); overflow-wrap: anywhere; }
+        @media (max-width: 991px) { .workspace-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); } .workspace-columns { grid-template-columns: minmax(0, 1fr); } }
+        @media (max-width: 575px) { .workspace-stages { grid-template-columns: minmax(0, 1fr); } }
         /* ── Theme tokens ──────────────────────────────────────────────── */
         :root {
             --bg-page:        #f8f9fa;
@@ -884,6 +896,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-section-label" aria-hidden="true">Workflow</li>
+                    <li class="nav-item"><a class="nav-link" href="#home" data-tab="home">Workspace</a></li>
                     <li class="nav-item"><a href="#setup" class="nav-link nav-pipeline active" aria-current="page" data-tab="setup">1. Setup</a></li>
                     <li class="nav-item"><a href="#script" class="nav-link nav-pipeline" data-tab="script">2. Script</a></li>
                     <li class="nav-item"><a href="#voices" class="nav-link nav-pipeline" data-tab="voices">3. Voices</a></li>
@@ -932,6 +945,38 @@
             <div class="mt-1 d-flex align-items-center gap-2">
                 <button class="btn btn-sm btn-primary" id="manual-llm-submit" onclick="submitManualReply()"><i class="fas fa-paper-plane me-1"></i>Submit reply</button>
                 <span class="small text-muted">The pipeline validates it; if it is not usable you will get the retry prompt next.</span>
+            </div>
+        </div>
+
+        <!-- Book workspace: viewing and Continue never start a task. -->
+        <div id="home-tab" class="tab-content" style="display:none;">
+            <div class="card">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <h4 class="m-0">Book workspace</h4>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="refreshWorkspaceView()">Refresh workspace</button>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Your selected book, its saved progress and the work currently running.</p>
+                    <div id="workspace-feedback" role="status" aria-live="polite" class="small mb-3">Book status has not been checked yet.</div>
+                    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
+                        <div><h5 id="workspace-book-name">Selected book</h5><p id="workspace-next-reason" class="mb-0 text-muted"></p></div>
+                        <button type="button" class="btn btn-primary" id="workspace-continue" onclick="continueBookWorkspace()" disabled>Continue</button>
+                    </div>
+                    <div id="workspace-stages" class="workspace-stages mb-4"></div>
+                    <div class="workspace-columns">
+                        <section aria-labelledby="workspace-monitor-title">
+                            <h5 id="workspace-monitor-title" tabindex="-1">Running work</h5>
+                            <div id="workspace-monitor-feedback" role="status" aria-live="polite" class="small mb-2">Task status has not been checked yet.</div>
+                            <div id="workspace-monitor" class="workspace-task-list"></div>
+                        </section>
+                        <section aria-labelledby="workspace-library-title">
+                            <h5 id="workspace-library-title">Saved books</h5>
+                            <p class="small text-muted">Loading a saved book uses the existing confirmation before replacing the active book. Audio and output status above refers to the selected book.</p>
+                            <div id="workspace-library-feedback" role="status" aria-live="polite" class="small mb-2"></div>
+                            <div id="workspace-library"></div>
+                        </section>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -3181,6 +3226,7 @@
     <script src="/static/js/app-training.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-workspace.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-reports.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-help.js?v=__APP_BUILD__"></script>
 </body>

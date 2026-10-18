@@ -128,6 +128,28 @@ async def list_saved_scripts():
     """List saved scripts without blocking the FastAPI event loop on disk I/O."""
     return await asyncio.to_thread(_list_saved_scripts_sync)
 
+def _get_book_workspace_sync():
+    from book_workspace import get_book_workspace
+    from routers.voices import get_voice_rows
+    from core import project_manager
+
+    with ensure_book_state(DATA_DIR):
+        try:
+            return get_book_workspace(DATA_DIR, {"MP3": AUDIOBOOK_PATH, "M4B": M4B_PATH},
+                                      get_voice_rows, project_manager.get_chunk_audio_path)
+        except (OSError, ValueError, TypeError) as error:
+            logger.warning("Book workspace inputs could not be read: %s", type(error).__name__)
+            raise HTTPException(status_code=409, detail=(
+                "Book workspace could not read the saved book. Inspect the script and voice settings; "
+                "No new chunks or audio were generated.")) from error
+
+
+@router.get("/api/workspace")
+async def get_book_workspace_status():
+    """Summarize selected-book progress without initializing chunks or generating audio."""
+    return await asyncio.to_thread(_get_book_workspace_sync)
+
+
 class ScriptSaveRequest(BaseModel):
     name: str
     expected_book_token: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
