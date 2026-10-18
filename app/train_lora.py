@@ -334,13 +334,6 @@ def load_dataset(data_dir, hf_model, processor, device, dtype, max_audio_seconds
     # ── Extract speaker embedding from ref_audio (consistent across all samples) ──
     # Check for ref_audio field in entries, or fall back to ref.wav in dataset dir,
     # or use the first training sample as reference.
-    def _resolve_in_data_dir(rel_path):
-        """Resolve `rel_path` under data_dir, or return None if it escapes."""
-        resolved = os.path.realpath(os.path.join(data_dir, rel_path))
-        if is_path_inside(resolved, data_dir):
-            return resolved
-        return None
-
     try:
         ref_audio_path = get_training_reference_path(data_dir, entries)
     except ValueError as error:
