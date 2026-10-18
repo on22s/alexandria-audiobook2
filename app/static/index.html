@@ -31,6 +31,8 @@
             --log-bg:         #1e1e1e;
             --log-color:      #00ff00;
             --accent:         #0d6efd;
+            --accent-fill:    #0d6efd;
+            --accent-fill-strong: #0b5ed7;
             --accent-strong:  #0a58ca;
             --accent-soft:    rgba(13,110,253,0.12);
             --success:        #198754;
@@ -53,10 +55,10 @@
             --bg-navbar:      #111419;
             --bg-modal:       #252a35;
             --text-primary:   #dde3ed;
-            --text-muted:     #8896a8;
+            --text-muted:     #95a3b7;
             --text-heading:   #e8edf5;
             --border-color:   rgba(255,255,255,0.08);
-            --border-input:   #3d4558;
+            --border-input:   #6d7d95;
             --shadow:         rgba(0,0,0,0.35);
             --step-bg:        #363d50;
             --step-color:     #8896a8;
@@ -65,6 +67,8 @@
             --log-bg:         #111419;
             --log-color:      #4ade80;
             --accent:         #6ea8fe;
+            --accent-fill:    #245ca6;
+            --accent-fill-strong: #1b4c8d;
             --accent-strong:  #9ec5fe;
             --accent-soft:    rgba(110,168,254,0.14);
             --focus-ring:     rgba(110,168,254,0.34);
@@ -78,11 +82,11 @@
             --bg-input:       #0f0f0f;
             --bg-navbar:      #000000;
             --bg-modal:       #111111;
-            --text-primary:   #999999;
-            --text-muted:     #606060;
-            --text-heading:   #bbbbbb;
+            --text-primary:   #f0f4fb;
+            --text-muted:     #a3afc2;
+            --text-heading:   #ffffff;
             --border-color:   rgba(255,255,255,0.09);
-            --border-input:   #2a2a2a;
+            --border-input:   #6d7d95;
             --shadow:         rgba(0,0,0,0.7);
             --step-bg:        #1e1e1e;
             --step-color:     #5a5a5a;
@@ -91,6 +95,8 @@
             --log-bg:         #000000;
             --log-color:      #4a8a4a;
             --accent:         #8ab4f8;
+            --accent-fill:    #245ca6;
+            --accent-fill-strong: #1b4c8d;
             --accent-strong:  #aecbfa;
             --accent-soft:    rgba(138,180,248,0.14);
             --focus-ring:     rgba(138,180,248,0.38);
@@ -386,7 +392,7 @@
             margin-right: 10px;
             font-weight: bold;
         }
-        .step-active { background-color: var(--accent); color: white; }
+        .step-active { background-color: var(--accent-fill); color: white; }
         .voice-card { border-left: 4px solid var(--accent); }
 
         /* Editor row expand/collapse */
@@ -408,7 +414,7 @@
         /* Advanced tabs - blue */
         .nav-link.nav-advanced { color: rgba(130, 177, 255, 0.7); }
         .nav-link.nav-advanced:hover { color: #82b1ff; }
-        .nav-link.nav-advanced.active { color: #fff; background-color: var(--accent); border-radius: 4px; }
+        .nav-link.nav-advanced.active { color: #fff; background-color: var(--accent-fill); border-radius: 4px; }
         .navbar .nav-link { border-radius: var(--radius-sm); margin: 2px 1px; transition: background-color var(--motion-fast), color var(--motion-fast); }
         .navbar .nav-link:focus-visible { outline-color: var(--focus-ring); }
         .navbar .nav-link:not(.active):hover { background-color: var(--accent-soft); }
@@ -839,6 +845,33 @@
             border-color: var(--accent);
         }
         html[data-theme="leek"] .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+        /* Setup discovery keeps the original controls and save scope. */
+        .settings-overview { padding: 1rem; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--bg-card-header); }
+        .settings-section { padding: 1.25rem 0; border-top: 1px solid var(--border-input); scroll-margin-top: 5rem; }
+        .settings-section > h5 { scroll-margin-top: 5rem; }
+        .settings-search-results { display: grid; gap: .5rem; margin-top: .75rem; }
+        .settings-search-results[hidden] { display: none; }
+        .settings-search-hit { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+        .settings-search-hit > button { flex: 1; min-width: 0; text-align: left; white-space: normal; }
+        .settings-advanced { padding: .75rem; border: 1px solid var(--border-input); border-radius: var(--radius-sm); }
+        .settings-advanced > summary { margin-bottom: .5rem; color: var(--text-heading); }
+        html:is([data-theme="night"], [data-theme="super-night"]) .btn-primary {
+            --bs-btn-color: #ffffff;
+            --bs-btn-bg: var(--accent-fill);
+            --bs-btn-border-color: var(--accent-fill);
+            --bs-btn-hover-color: #ffffff;
+            --bs-btn-hover-bg: var(--accent-fill-strong);
+            --bs-btn-hover-border-color: var(--accent-fill-strong);
+            --bs-btn-active-color: #ffffff;
+            --bs-btn-active-bg: var(--accent-fill-strong);
+            --bs-btn-active-border-color: var(--accent-fill-strong);
+            --bs-btn-disabled-color: #ffffff;
+            --bs-btn-disabled-bg: var(--accent-fill);
+            --bs-btn-disabled-border-color: var(--accent-fill);
+        }
+        html:is([data-theme="night"], [data-theme="super-night"]) :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible,
+        html:is([data-theme="night"], [data-theme="super-night"]) .navbar .nav-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
         /* Field help (app-help.js): a small ⓘ after a control's label. */
         .help-tip { border: 0; background: none; padding: 0 0 0 .3rem; font-size: .85em; line-height: 1;
                     color: var(--bs-secondary-color); cursor: help; vertical-align: baseline; }
@@ -954,12 +987,30 @@
                         <span id="config-warning-msg"></span>
                         <button type="button" id="config-load-retry" class="btn btn-sm btn-outline-secondary ms-2" onclick="loadConfig()" style="display:none;">Retry loading configuration</button>
                     </div>
+                    <div class="settings-overview mb-3" id="setup-settings-overview">
+                        <h5>Find your settings</h5>
+                        <p class="small text-muted">Set up your services here. Voice assignments are in Voices; line edits are in Editor. Save Configuration applies your edited Setup settings.</p>
+                        <nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Setup sections">
+                            <span class="d-inline-flex align-items-center gap-1"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="openSetupSettingsSection('settings-llm')">Language model</button></span>
+                            <span class="d-inline-flex align-items-center gap-1"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="openSetupSettingsSection('settings-tts')">Speech generation</button></span>
+                            <span class="d-inline-flex align-items-center gap-1"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="openSetupSettingsSection('settings-prompts')">Prompts &amp; generation</button></span>
+                        </nav>
+                        <label class="form-label" for="setup-settings-search">Find a setting</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="search" class="form-control" id="setup-settings-search" maxlength="120" placeholder="Try context, memory, language or retries" aria-describedby="setup-settings-search-hint" aria-controls="setup-settings-results" oninput="renderSetupSettingsSearch()" onkeydown="onSetupSettingsSearchKeydown(event)">
+                            <button type="button" class="btn btn-outline-secondary" id="setup-settings-clear" onclick="clearSetupSettingsSearch()" hidden>Clear</button>
+                        </div>
+                        <div class="form-text" id="setup-settings-search-hint">Search labels and explanations for settings available with your current services. Selecting a result opens the original setting. Nothing is saved by searching.</div>
+                        <div id="setup-settings-search-status" class="small mt-2" role="status" aria-live="polite"></div>
+                        <div id="setup-settings-results" class="settings-search-results" hidden></div>
+                    </div>
                     <form id="config-form">
                         <div class="config-save-bar d-flex flex-wrap align-items-center gap-2 mb-3 p-2 border rounded">
                             <button id="config-save-button-top" data-config-save-action type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save Configuration</button>
                             <span id="config-save-status" class="small" role="status" aria-live="polite"></span>
                         </div>
-                        <h5 class="mb-3">LLM Settings (Script Generation)</h5>
+                        <section id="settings-llm" class="settings-section" data-settings-section="Language model">
+                        <h5 class="mb-3" tabindex="-1">Language model · script generation</h5>
                         <div class="mb-3">
                             <label class="form-label" for="llm-mode">LLM Location <span id="llm-active-mode-badge" class="badge bg-secondary ms-1">Active: Local</span></label>
                             <select class="form-select" id="llm-mode" onchange="onLlmModeChange()">
@@ -993,6 +1044,8 @@
                             <datalist id="llm-model-options"></datalist>
                             <small id="llm-model-hint" class="text-muted"></small>
                         </div>
+                        <details class="settings-advanced mb-3">
+                            <summary id="settings-llm-advanced-toggle">Context, limits and retries</summary>
                         <div class="mb-3">
                             <label class="form-label mt-2" for="llm-context-length">Total context budget (tokens)</label>
                             <input type="number" class="form-control" id="llm-context-length" min="1" step="1" placeholder="Detected loaded context">
@@ -1048,6 +1101,7 @@
                                 <div class="form-text">Randomises each retry delay by ± this fraction so parallel workers don't retry in lockstep.</div>
                             </div>
                         </div>
+                        </details>
                         <details class="mb-3">
                             <summary>Provider request options: transport, GPU sharing, reasoning, headers</summary>
                             <div class="form-text mb-2">Optional JSON objects sent only to this LLM location. Request-body options apply to chat completions; headers apply to every request.</div>
@@ -1096,7 +1150,9 @@
                             <span id="llm-test-result" class="ms-2 small"></span>
                         </div>
 
-                        <h5 class="mb-3 mt-4">TTS Settings (Voice Generation)</h5>
+                        </section>
+                        <section id="settings-tts" class="settings-section" data-settings-section="Speech generation">
+                        <h5 class="mb-3" tabindex="-1">Speech generation · voices and audio</h5>
                         <div class="row mb-3">
                             <div class="col-md-3">
                                 <label class="form-label" for="tts-mode">TTS Mode</label>
@@ -1232,7 +1288,9 @@
                             </div>
                         </div>
 
-                        <h5 class="mb-3 mt-4">
+                        </section>
+                        <section id="settings-prompts" class="settings-section" data-settings-section="Prompts and generation">
+                        <h5 class="mb-3" tabindex="-1">
                             <a class="text-decoration-none" data-bs-toggle="collapse" href="#promptSettings" role="button" aria-expanded="false">
                                 <i class="fas fa-chevron-right me-2" id="prompt-chevron"></i>Prompt Settings (Advanced)
                             </a>
@@ -1536,6 +1594,7 @@
                             </button>
                         </div>
 
+                        </section>
                         <button id="config-save-button" data-config-save-action type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save Configuration</button>
                         <div class="small mt-2">
                             <span id="config-refresh-status" role="status" aria-live="polite"></span>
@@ -3183,5 +3242,6 @@
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-reports.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-help.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-settings.js?v=__APP_BUILD__"></script>
 </body>
 </html>

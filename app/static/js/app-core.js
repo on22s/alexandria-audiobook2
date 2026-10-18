@@ -415,20 +415,24 @@
             return error;
         }
 
+        function openConfigField(field) {
+            const focusField = () => { field.focus(); field.scrollIntoView({block: 'center'}); };
+            let waiting = false;
+            for (let parent = field.parentElement; parent; parent = parent.parentElement) {
+                if (parent.tagName === 'DETAILS') { parent.open = true; }
+                if (parent.classList.contains('collapse') && !parent.classList.contains('show')) {
+                    waiting = true;
+                    parent.addEventListener('shown.bs.collapse', focusField, {once: true});
+                    bootstrap.Collapse.getOrCreateInstance(parent, {toggle: false}).show();
+                }
+            }
+            if (!waiting) { focusField(); }
+        }
+
         function showConfigValidationError(error) {
             const field = error.fieldId ? document.getElementById(error.fieldId) : null;
             if (field) {
-                const focusField = () => { field.focus(); field.scrollIntoView({block: 'center'}); };
-                let waiting = false;
-                for (let parent = field.parentElement; parent; parent = parent.parentElement) {
-                    if (parent.tagName === 'DETAILS') { parent.open = true; }
-                    if (parent.classList.contains('collapse') && !parent.classList.contains('show')) {
-                        waiting = true;
-                        parent.addEventListener('shown.bs.collapse', focusField, {once: true});
-                        bootstrap.Collapse.getOrCreateInstance(parent, {toggle: false}).show();
-                    }
-                }
-                if (!waiting) { focusField(); }
+                openConfigField(field);
             }
             showToast(error.message, 'error');
         }

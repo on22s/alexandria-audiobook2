@@ -8,12 +8,13 @@
         // has no entry, or if a recommendation has no source.
         /** @type {Object<string, {what: string, recommend?: string, source?: string}>} */
         const FIELD_HELP = {
+            'setup-settings-search': {what: 'Find available Setup settings by their labels and explanations, then jump to the original control. Does not search field values or save settings.'},
             // Setup: LLM connection
             'llm-mode': {what: 'Which LLM profile is active: Local (this machine) or Remote (a server elsewhere). Each profile keeps its own address, model and limits.'},
             'llm-url': {what: 'Address of the OpenAI-compatible server (LM Studio, llama.cpp, Ollama, a hosted API), ending in /v1.'},
             'llm-key': {what: 'API key sent with each request. Local servers usually accept any value. Use env:NAME to read it from an environment variable instead of saving it.'},
             'llm-model': {what: 'Model name sent with each request. It must match a model the server has loaded or offers.'},
-            'llm-context-length': {what: 'Total tokens (prompt plus reply) the model can handle. Blank uses the context the server reports. Set it only if detection is wrong.'},
+            'llm-context-length': {what: 'Profile token budget for prompt and reply. A lower detected context still wins. Reducing this caps requests; it does not unload the model or free GPU memory.'},
             'llm-max-input-tokens': {what: 'Largest prompt this profile may send. Blank inherits the global input ceiling. Lower it for providers with a smaller input limit.'},
             'llm-max-output-tokens': {what: 'Largest reply this profile may request. Blank means no profile cap; each task still has its own safety ceiling.'},
             'llm-request-timeout': {what: 'How long to wait for a reply before treating the request as failed. Blank uses the app default. Raise it for slow models on long chunks.'},
@@ -255,6 +256,9 @@
         };
 
         const ACTION_HELP = {
+            'openSetupSettingsSection': 'Jump to this Setup section without changing or saving settings.',
+            'openSetupSetting': 'Open the matching setting and move keyboard focus to its original control. Does not change its value.',
+            'clearSetupSettingsSearch': 'Clear the settings search and its results without changing your configuration.',
             'reloadPageAfterConfirmation': 'Reload the page to use the running app’s latest files. Confirm first so unsaved work is not discarded accidentally.',
             'cycleTheme': 'Switch the app between its available light and dark themes.',
             'copyManualPrompt': 'Copy the current waiting task’s prompt so you can answer it in another model or chat tool.',
@@ -451,6 +455,7 @@
         };
 
         const ITEM_HELP = {
+            'settings-llm-advanced-toggle': 'Show or hide model context, input/output ceilings, request timeouts and retries. Expanding this group does not change its settings.',
             'script-recovery-inject': 'Paste a replacement model reply for the failed chunk, then validate it before applying it.',
             'config-save-button-top': 'Save the current configuration so subsequent tasks use these settings.',
             'config-save-button': 'Save the current configuration so subsequent tasks use these settings.',
@@ -670,7 +675,7 @@
                 control.removeAttribute('data-help-covered');
                 return;
             }
-            if (control.closest('.navbar')) {
+            if (control.closest('.navbar') || control.tagName === 'SUMMARY') {
                 if (tip) { removeItemHelp(control); }
                 if (control.getAttribute('data-bs-title') !== text) {
                     disposeHelpTooltip(control);
@@ -743,9 +748,9 @@
                 const dismissed = new WeakSet();
                 const clickedNavigation = new WeakSet();
                 const getPopup = trigger => document.getElementById(trigger.getAttribute('aria-describedby'));
-                const getNavigationHelp = target => {
+                const getDirectControlHelp = target => {
                     const trigger = target?.closest?.('[data-help-tip]');
-                    return trigger?.closest('.navbar') ? trigger : null;
+                    return trigger && directHelpControls.has(trigger) ? trigger : null;
                 };
                 const hideShownHelp = root => {
                     let hidden = false;
@@ -770,7 +775,7 @@
                     dismissed.delete(event.target);
                 });
                 document.body.addEventListener('click', event => {
-                    const trigger = getNavigationHelp(event.target);
+                    const trigger = getDirectControlHelp(event.target);
                     if (!trigger) { return; }
                     clickedNavigation.add(trigger);
                     dismissed.add(trigger);
@@ -778,7 +783,7 @@
                 }, true);
                 for (const name of ['mouseover', 'focusin']) {
                     document.body.addEventListener(name, event => {
-                        const trigger = getNavigationHelp(event.target);
+                        const trigger = getDirectControlHelp(event.target);
                         if (!trigger || (event.relatedTarget?.nodeType && trigger.contains(event.relatedTarget))) { return; }
                         if (clickedNavigation.delete(trigger)) { bootstrap.Tooltip.getInstance(trigger)?.show(); }
                     }, true);

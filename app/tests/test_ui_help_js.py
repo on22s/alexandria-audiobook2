@@ -221,6 +221,17 @@ context.renderHelpTips();assert.strictEqual(list.querySelectorAll('.help-list-ac
 link.remove();mutation({type:'childList',target:group,removedNodes:[link],addedNodes:[]});assert(!tip.isConnected);assert(!group.isConnected);
 ''')
 
+    def test_native_summary_keeps_help_inside_its_visible_heading(self):
+        self.run_js(r"""
+const details=body.appendChild(new Element('details'));
+const summary=details.appendChild(new Element('summary',{id:'settings-llm-advanced-toggle'}));
+load();context.renderHelpTips();assert(summary.hasAttribute('data-help-tip'));
+assert.strictEqual(summary.querySelectorAll('.help-nav-glyph').length,1);
+assert.strictEqual(summary.querySelectorAll('.help-nav-glyph')[0].getAttribute('aria-hidden'),'true');
+assert.strictEqual(details.children.length,1,'help must stay inside the visible summary when details is closed');
+assert.strictEqual(summary.fire('click').prevented,false,'native details toggling stays available');
+""")
+
     def test_navigation_keeps_original_layout_and_actions_with_direct_help(self):
         self.run_js(r'''
 const nav=body.appendChild(new Element('nav',{class:'navbar'}));
