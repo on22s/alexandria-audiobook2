@@ -720,9 +720,10 @@
                 helpActionGroups.delete(control);
             }
             if (!label && control.matches('button,a[href]') && !control.parentElement?.classList.contains('help-action-group')
-                    && control.parentElement?.classList.contains('justify-content-between')) {
-                const group = document.createElement('span');
-                group.className = 'help-action-group';
+                    && (control.parentElement?.classList.contains('justify-content-between') || control.matches('.report-list-item'))) {
+                const listAction = control.matches('.report-list-item');
+                const group = document.createElement(listAction ? 'div' : 'span');
+                group.className = 'help-action-group' + (listAction ? ' help-list-action' : '');
                 control.insertAdjacentElement('afterend', group);
                 group.appendChild(control);
                 helpActionGroups.set(control, group);

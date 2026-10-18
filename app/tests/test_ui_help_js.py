@@ -208,6 +208,17 @@ assert(helpFor(new Element('button',{disabled:'','aria-label':'Candidate example
 assert.strictEqual(helpFor(new Element('input',{class:'unknown-future-field'})),'');
 ''')
 
+    def test_report_link_and_help_share_one_row_and_keep_the_real_action(self):
+        self.run_js(r'''
+const list=body.appendChild(new Element('div',{id:'reports-list',class:'list-group'}));
+const link=list.appendChild(new Element('a',{href:'#',class:'report-list-item',onclick:'viewReport(this.dataset.filename)'}));
+let opened=0;link.addEventListener('click',()=>opened++);load();
+const group=link.parentElement,tip=tipFor(link);assert.strictEqual(group.tagName,'DIV');assert(group.classList.contains('help-list-action'));assert.strictEqual(group.parentElement,list);assert.strictEqual(tip.parentElement,group);
+assert(!link.fire('click').prevented);assert.strictEqual(opened,1);tip.fire('click');assert.strictEqual(opened,1);
+context.renderHelpTips();assert.strictEqual(list.querySelectorAll('.help-list-action').length,1);
+link.remove();mutation({type:'childList',target:group,removedNodes:[link],addedNodes:[]});assert(!tip.isConnected);assert(!group.isConnected);
+''')
+
     def test_navigation_keeps_original_layout_and_actions_with_direct_help(self):
         self.run_js(r'''
 const nav=body.appendChild(new Element('nav',{class:'navbar'}));
