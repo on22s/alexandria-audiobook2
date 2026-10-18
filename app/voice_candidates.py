@@ -21,12 +21,27 @@ CANDIDATE_EXCLUDED = {"versions", "candidates", "active_version", "active_candid
 # Bookkeeping that belongs to the saved candidate, never to the voice: "Use"
 # does not copy it onto the card, and it is not part of a voice's identity.
 CANDIDATE_METADATA = {"candidate_id", "saved_at", "favorite", "rank"}
+# A character's seed is assigned per speaker on purpose; a candidate saved
+# without one does not clear it.
+KEPT_WHEN_ABSENT = {"seed"}
 
 
 def get_voice_fields(entry):
     """The fields that make up the voice itself, for comparing two voices."""
     return {key: value for key, value in entry.items()
             if key not in CANDIDATE_EXCLUDED and key not in CANDIDATE_METADATA}
+
+
+def is_same_voice(saved, voice):
+    """Whether `saved` holds the same voice as `voice`.
+
+    A candidate saved without one of KEPT_WHEN_ABSENT does not carry it, so
+    that key is left out of the comparison; a key the candidate does have
+    (a saved seed, an adapter_path) still has to match."""
+    saved_voice = get_voice_fields(saved)
+    absent = KEPT_WHEN_ABSENT - set(saved_voice)
+    return saved_voice == {key: value for key, value in get_voice_fields(voice).items()
+                           if key not in absent}
 
 
 def get_voice_candidate(entry):
@@ -60,18 +75,13 @@ def get_entry_with_current_candidate(entry, now=None):
     # Already saved means the same voice, under whatever id: an auto-suggested
     # LoRA candidate is keyed by its adapter id, not by this hash.
     voice = get_voice_fields(candidate)
-    saved = next((item for item in candidates if get_voice_fields(item) == voice), None)
+    saved = next((item for item in candidates if is_same_voice(item, voice)), None)
     if saved is None:
         saved = {**candidate, "saved_at": get_saved_at(now)}
         candidates.append(saved)
     updated["candidates"] = candidates
     updated["active_candidate"] = saved["candidate_id"]
     return updated
-
-
-# A character's seed is assigned per speaker on purpose; a candidate saved
-# without one does not clear it.
-KEPT_WHEN_ABSENT = {"seed"}
 
 
 def get_entry_using_candidate(entry, candidate, kept=()):
