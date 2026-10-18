@@ -36,6 +36,7 @@ class Element {
  get previousElementSibling(){if(!this.parentElement){return null;}const items=this.parentElement.children;return items[items.indexOf(this)-1]||null;}
  setAttribute(key,value){this.attrs[key]=String(value);}getAttribute(key){return this.hasAttribute(key)?this.attrs[key]??'':null;}hasAttribute(key){return Object.hasOwn(this.attrs,key);}removeAttribute(key){delete this.attrs[key];}
  matches(selector){return matches(this,selector);}closest(selector){for(let n=this;n;n=n.parentElement){if(n.matches(selector)){return n;}}return null;}
+ contains(other){for(let node=other;node;node=node.parentElement){if(node===this){return true;}}return false;}
  querySelectorAll(selector){return this.children.flatMap(c=>[...(c.matches(selector)?[c]:[]),...c.querySelectorAll(selector)]);}
  appendChild(child){child.remove();child.parentElement=this;this.children.push(child);return child;}
  insertAdjacentElement(position,child){assert.strictEqual(position,'afterend');assert(this.parentElement);const parent=this.parentElement;child.remove();child.parentElement=parent;parent.children.splice(parent.children.indexOf(this)+1,0,child);return child;}
@@ -234,6 +235,21 @@ body.appendChild(link);context.renderHelpTips();assert(!link.hasAttribute('data-
 assert(!glyph.isConnected,'moving out of navigation removes the decorative glyph');
 nav.appendChild(link);context.renderHelpTips();assert.strictEqual(nav.children.length,1);assert.strictEqual(tipFor(link),undefined);assert(link.hasAttribute('data-help-tip'));
 link.remove();mutation({type:'childList',removedNodes:[link],addedNodes:[]});assert(!link.hasAttribute('data-help-tip'));
+''')
+
+    def test_navigation_click_dismisses_help_until_a_new_engagement(self):
+        self.run_js(r'''
+const nav=body.appendChild(new Element('nav',{class:'navbar'})),link=nav.appendChild(new Element('a',{class:'nav-link',href:'#designer','data-tab':'designer'}));
+let navigations=0;link.addEventListener('click',()=>navigations++);load();
+assert(link.hasAttribute('data-help-tip'),'fixture must render a known navigation control');
+const popup=body.appendChild(new Element('div',{id:'popup',class:'help-tooltip show'}));link.setAttribute('aria-describedby','popup');popup.hovered=true;let hidden=0,shown=0;
+instances.set(link,{hide(){assert(!link.fire('hide.bs.tooltip').prevented);hidden++;popup.className='help-tooltip';},show(){assert(!link.fire('show.bs.tooltip').prevented);shown++;popup.className='help-tooltip show';}});
+const click=link.fire('click');assert(!click.prevented&&!click.stopped);assert.strictEqual(navigations,1);assert.strictEqual(hidden,1);assert(!popup.classList.contains('show'));
+assert(link.fire('show.bs.tooltip').prevented,'a pending show must not recreate the clicked navigation hint');
+link.fire('mouseover',{relatedTarget:link.children[0]});assert.strictEqual(shown,0,'movement inside a link must not rearm help');
+link.fire('mouseover',{relatedTarget:body});assert.strictEqual(shown,1,'a fresh pointer entry restores help');
+link.fire('click');link.fire('focusin',{relatedTarget:body});assert.strictEqual(shown,2,'a fresh keyboard entry restores help');assert.strictEqual(navigations,2);
+const field=body.appendChild(new Element('input',{id:'design-description'}));context.renderHelpTips();assert(!tipFor(field).fire('show.bs.tooltip').prevented,'ordinary field help stays independent');
 ''')
 
 

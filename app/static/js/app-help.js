@@ -741,7 +741,12 @@
         function ensureHelpTooltips() {
             if (!window._helpTooltips && typeof bootstrap !== 'undefined') {
                 const dismissed = new WeakSet();
+                const clickedNavigation = new WeakSet();
                 const getPopup = trigger => document.getElementById(trigger.getAttribute('aria-describedby'));
+                const getNavigationHelp = target => {
+                    const trigger = target?.closest?.('[data-help-tip]');
+                    return trigger?.closest('.navbar') ? trigger : null;
+                };
                 const hideShownHelp = root => {
                     let hidden = false;
                     root.querySelectorAll('[data-help-tip][aria-describedby]').forEach(trigger => {
@@ -760,7 +765,24 @@
                         if (!trigger.matches(':hover,:focus-within')) { bootstrap.Tooltip.getInstance(trigger)?.hide(); }
                     });
                 });
-                document.body.addEventListener('show.bs.tooltip', event => { dismissed.delete(event.target); });
+                document.body.addEventListener('show.bs.tooltip', event => {
+                    if (clickedNavigation.has(event.target)) { event.preventDefault(); return; }
+                    dismissed.delete(event.target);
+                });
+                document.body.addEventListener('click', event => {
+                    const trigger = getNavigationHelp(event.target);
+                    if (!trigger) { return; }
+                    clickedNavigation.add(trigger);
+                    dismissed.add(trigger);
+                    bootstrap.Tooltip.getInstance(trigger)?.hide();
+                }, true);
+                for (const name of ['mouseover', 'focusin']) {
+                    document.body.addEventListener(name, event => {
+                        const trigger = getNavigationHelp(event.target);
+                        if (!trigger || (event.relatedTarget?.nodeType && trigger.contains(event.relatedTarget))) { return; }
+                        if (clickedNavigation.delete(trigger)) { bootstrap.Tooltip.getInstance(trigger)?.show(); }
+                    }, true);
+                }
                 document.body.addEventListener('hide.bs.tooltip', event => {
                     const trigger = event.target;
                     if (trigger.hasAttribute('data-help-tip') && !dismissed.has(trigger) && getPopup(trigger)?.matches(':hover')) {

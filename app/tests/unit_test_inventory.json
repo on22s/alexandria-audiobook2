@@ -9517,6 +9517,7 @@
     "tests.test_ui_help_js.UiHelpTests.test_hover_popup_persists_then_leaves_without_disrupting_focus",
     "tests.test_ui_help_js.UiHelpTests.test_individual_hidden_action_and_removed_glyph_recover",
     "tests.test_ui_help_js.UiHelpTests.test_lookups_reject_prototype_names_and_unknown_field_saves",
+    "tests.test_ui_help_js.UiHelpTests.test_navigation_click_dismisses_help_until_a_new_engagement",
     "tests.test_ui_help_js.UiHelpTests.test_navigation_keeps_original_layout_and_actions_with_direct_help",
     "tests.test_ui_help_js.UiHelpTests.test_report_link_and_help_share_one_row_and_keep_the_real_action",
     "tests.test_ui_help_js.UiHelpTests.test_reused_control_refreshes_hint_and_disposes_stale_tooltip",
