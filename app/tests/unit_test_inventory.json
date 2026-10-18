@@ -7336,7 +7336,10 @@
     "tests.test_review_partial_retention.PartialRetentionTests.test_source_speech_corrects_wrong_narrator_only_after_quality_exhaustion",
     "tests.test_review_partial_retention.PartialRetentionTests.test_twenty_six_reply_rows_keep_only_unique_exact_positions_in_twenty_five_source_rows",
     "tests.test_review_partial_retention.PartialRetentionTests.test_unique_complete_field_and_narrator_guards_abstain",
-    "tests.test_review_partial_retention.PartialRetentionTests.test_unknown_codec_and_request_admission_refuse"
+    "tests.test_review_partial_retention.PartialRetentionTests.test_unknown_codec_and_request_admission_refuse",
+    "tests.test_review_partial_retention.TypedMetadataMergeTests.test_different_instruct_values_do_not_merge",
+    "tests.test_review_partial_retention.TypedMetadataMergeTests.test_int_and_bool_spoken_values_do_not_merge",
+    "tests.test_review_partial_retention.TypedMetadataMergeTests.test_matching_bool_spoken_values_merge_and_keep_bool"
   ],
   "test_review_source_binding": [
     "tests.test_review_source_binding.ReviewSourceBindingTests.test_adaptive_split_recombination_restores_original_pause_boundary",

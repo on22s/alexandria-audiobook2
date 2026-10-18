@@ -816,6 +816,12 @@ def _is_section_break(text):
     return False
 
 
+def get_typed_metadata(entry):
+    """Return type-tagged metadata for every non-text key in entry."""
+    return {key: (type(value).__name__, value)
+            for key, value in entry.items() if key != "text"}
+
+
 def merge_consecutive_narrators(entries, max_merged_length=800):
     """Merge consecutive NARRATOR entries that share the same instruct value.
 
@@ -839,7 +845,7 @@ def merge_consecutive_narrators(entries, max_merged_length=800):
         # Start a narrator run — accumulate consecutive NARRATORs with same instruct
         combined_text = entry["text"]
         instruct = entry.get("instruct", "")
-        metadata = {key: value for key, value in entry.items() if key != "text"}
+        metadata = get_typed_metadata(entry)
         run_count = 1
         j = i + 1
 
@@ -849,8 +855,7 @@ def merge_consecutive_narrators(entries, max_merged_length=800):
                 break
             if next_entry.get("instruct", "") != instruct:
                 break
-            if entry.get("pause_after") or metadata != {
-                    key: value for key, value in next_entry.items() if key != "text"}:
+            if entry.get("pause_after") or metadata != get_typed_metadata(next_entry):
                 break
             if _is_section_break(next_entry.get("text", "")):
                 break
