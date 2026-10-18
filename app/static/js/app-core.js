@@ -68,15 +68,16 @@
             const container = document.getElementById('toast-container');
             const bgClass = type === 'success' ? 'bg-success' :
                            type === 'error' ? 'bg-danger' :
-                           type === 'warning' ? 'bg-warning text-dark' : 'bg-info';
+                           type === 'warning' ? 'bg-warning' : 'bg-info';
+            const lightBackground = type !== 'success' && type !== 'error';
             const liveRole = type === 'error' ? 'alert' : 'status';
             const livePriority = type === 'error' ? 'assertive' : 'polite';
             const id = 'toast-' + Date.now() + '-' + (++toastSequence);
             const html = `
-                <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0" role="${liveRole}" aria-live="${livePriority}" aria-atomic="true">
+                <div id="${id}" class="toast align-items-center ${lightBackground ? 'text-dark' : 'text-white'} ${bgClass} border-0" role="${liveRole}" aria-live="${livePriority}" aria-atomic="true">
                     <div class="d-flex">
                         <div class="toast-body">${escapeHtml(message)}</div>
-                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Dismiss notification"></button>
+                        <button type="button" class="btn-close${lightBackground ? '' : ' btn-close-white'} me-2 m-auto" ${lightBackground ? 'style="filter: none;"' : ''} data-bs-dismiss="toast" aria-label="Dismiss notification"></button>
                     </div>
                 </div>`;
             container.insertAdjacentHTML('beforeend', html);
