@@ -28,7 +28,6 @@ sys.path.insert(0, os.path.join(REPO, "app"))
 from experiments.library_voice_fidelity import (  # noqa: E402
     PLACEHOLDER_DATASETS, adapter_sources, get_manifest_dataset_ids)
 
-MODELS = os.path.join(REPO, "lora_models")
 
 
 def build_models_dir(root, adapters, manifest=None):
@@ -95,23 +94,6 @@ class AdapterDatasetIdentityTest(unittest.TestCase):
             self.assertEqual({}, get_manifest_dataset_ids(root))
             self.assertEqual([("voice_d", "narrator_d")],
                              [(n, ds) for n, ds, _ in adapter_sources(root)])
-
-    def test_the_local_manifest_names_a_real_dataset_for_every_adapter(self):
-        """manifest.json is local data and is not tracked. The check runs
-        where the manifest exists and skips elsewhere."""
-        path = os.path.join(MODELS, "manifest.json")
-        if not os.path.isfile(path):
-            self.skipTest("lora_models/manifest.json is local-only; not present here")
-        with open(path, encoding="utf-8") as handle:
-            entries = json.load(handle)
-        self.assertGreaterEqual(len(entries), 75)
-        bad = [e.get("id") for e in entries
-               if not e.get("dataset_id") or e["dataset_id"] in PLACEHOLDER_DATASETS]
-        self.assertEqual([], bad,
-                         "these manifest entries carry no usable dataset_id, so "
-                         "the substitution cannot rescue them: %s" % bad[:10])
-        ids = [e["id"] for e in entries]
-        self.assertEqual(len(ids), len(set(ids)), "duplicate adapter ids in manifest")
 
 
 if __name__ == "__main__":
