@@ -2472,7 +2472,9 @@
     "tests.test_delivery_direction.ValidationTests.test_complete_directed_rows_pass",
     "tests.test_delivery_direction.ValidationTests.test_each_bad_field_is_named",
     "tests.test_delivery_direction.ValidationTests.test_gaps_mode_needs_instruct_and_gap",
-    "tests.test_delivery_direction.ValidationTests.test_off_ignores_direction_fields"
+    "tests.test_delivery_direction.ValidationTests.test_non_english_notes_are_accepted",
+    "tests.test_delivery_direction.ValidationTests.test_off_ignores_direction_fields",
+    "tests.test_delivery_direction.ValidationTests.test_punctuation_only_notes_count_as_missing"
   ],
   "test_delivery_fallback": [
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",
@@ -7337,7 +7339,10 @@
     "tests.test_review_partial_retention.PartialRetentionTests.test_source_speech_corrects_wrong_narrator_only_after_quality_exhaustion",
     "tests.test_review_partial_retention.PartialRetentionTests.test_twenty_six_reply_rows_keep_only_unique_exact_positions_in_twenty_five_source_rows",
     "tests.test_review_partial_retention.PartialRetentionTests.test_unique_complete_field_and_narrator_guards_abstain",
-    "tests.test_review_partial_retention.PartialRetentionTests.test_unknown_codec_and_request_admission_refuse"
+    "tests.test_review_partial_retention.PartialRetentionTests.test_unknown_codec_and_request_admission_refuse",
+    "tests.test_review_partial_retention.TypedMetadataMergeTests.test_different_instruct_values_do_not_merge",
+    "tests.test_review_partial_retention.TypedMetadataMergeTests.test_int_and_bool_spoken_values_do_not_merge",
+    "tests.test_review_partial_retention.TypedMetadataMergeTests.test_matching_bool_spoken_values_merge_and_keep_bool"
   ],
   "test_review_source_binding": [
     "tests.test_review_source_binding.ReviewSourceBindingTests.test_adaptive_split_recombination_restores_original_pause_boundary",
@@ -7515,6 +7520,14 @@
     "tests.test_runtime_ab_tools.RuntimeAbRunnerTests.test_runtime_selection_fails_when_selected_alias_does_not_match",
     "tests.test_runtime_ab_tools.RuntimeAbRunnerTests.test_set_model_rejects_remote_mode",
     "tests.test_runtime_ab_tools.RuntimeAbRunnerTests.test_set_model_writes_valid_config"
+  ],
+  "test_runtime_estimate": [
+    "tests.test_runtime_estimate.AudioEstimateEndpointTests.test_endpoint_counts_unreadable_audio",
+    "tests.test_runtime_estimate.BookRuntimeEstimateTests.test_done_chunks_contribute_measured_seconds",
+    "tests.test_runtime_estimate.BookRuntimeEstimateTests.test_fewer_than_three_samples_uses_fallback",
+    "tests.test_runtime_estimate.BookRuntimeEstimateTests.test_measured_median_and_range",
+    "tests.test_runtime_estimate.BookRuntimeEstimateTests.test_pauses_between_chunks_follow_the_export_rule",
+    "tests.test_runtime_estimate.BookRuntimeEstimateTests.test_zero_durations_and_empty_text_are_not_samples"
   ],
   "test_runtime_info": [
     "tests.test_runtime_info.RuntimeInfoTests.test_environment_revision_overrides_git_and_missing_packages_are_explicit",
@@ -8696,12 +8709,17 @@
   ],
   "test_text_diff": [
     "tests.test_text_diff.WordDiff.test_boundary_adjacent_change_keeps_owner_chunk_and_word_offsets",
+    "tests.test_text_diff.WordDiff.test_closing_quote_alone_keeps_word_boundary",
     "tests.test_text_diff.WordDiff.test_comparison_tokens_have_independent_known_answers",
     "tests.test_text_diff.WordDiff.test_dropped_and_expanded_text_are_located",
+    "tests.test_text_diff.WordDiff.test_em_dash_between_words_is_still_a_boundary",
+    "tests.test_text_diff.WordDiff.test_en_dash_compound_matches_hyphen_compound",
     "tests.test_text_diff.WordDiff.test_identical_text_has_no_hunks_whatever_the_punctuation",
     "tests.test_text_diff.WordDiff.test_last_entry_deletion_after_quote_boundary_keeps_previous_owner",
     "tests.test_text_diff.WordDiff.test_native_quotes_and_typographic_dashes_keep_literal_word_boundaries",
+    "tests.test_text_diff.WordDiff.test_real_change_next_to_en_dash_compound_has_hunk",
     "tests.test_text_diff.WordDiff.test_real_word_changes_and_harmful_splits_still_have_hunks",
+    "tests.test_text_diff.WordDiff.test_spaced_en_dash_is_still_a_boundary",
     "tests.test_text_diff.WordDiff.test_unspaced_dialogue_boundaries_do_not_invent_word_changes"
   ],
   "test_text_diff_large_books": [
@@ -9778,6 +9796,9 @@
   ],
   "test_voice_candidates": [
     "tests.test_voice_candidates.CandidatePlaybackTests.test_play_stop_switches_and_only_one_candidate_plays",
+    "tests.test_voice_candidates.CurrentCandidateTests.test_a_saved_seed_is_part_of_the_voice",
+    "tests.test_voice_candidates.CurrentCandidateTests.test_a_seedless_candidate_is_the_same_voice_whatever_the_current_seed",
+    "tests.test_voice_candidates.CurrentCandidateTests.test_a_seedless_candidate_with_another_adapter_is_another_voice",
     "tests.test_voice_candidates.CurrentCandidateTests.test_a_voice_saved_under_another_id_is_not_saved_twice",
     "tests.test_voice_candidates.CurrentCandidateTests.test_an_entry_without_a_voice_adds_nothing",
     "tests.test_voice_candidates.CurrentCandidateTests.test_resaving_keeps_the_original_place_in_the_list",
