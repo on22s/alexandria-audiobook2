@@ -60,6 +60,8 @@ def get_bounded_sample(text, max_chars, latest_boundary=False):
 
 DESIGN_TEXT_MIN_CHARS = 12
 DESIGN_TEXT_MAX_CHARS = 500
+# How many voices one Design click may make from a chosen line (#1313).
+DESIGN_COUNT_MAX = 100
 
 
 def get_design_text_range(config):

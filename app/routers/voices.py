@@ -66,7 +66,7 @@ from utils import (
     safe_load_json,
     secure_filename,
 )
-from persona_validation import get_design_text_range, get_selectable_design_texts, validate_persona_payload
+from persona_validation import DESIGN_COUNT_MAX, get_design_text_range, get_selectable_design_texts, validate_persona_payload
 from repair_voice_config import get_unseeded_voice_seed_changes, apply_unseeded_voice_seeds
 from voice_candidates import get_entry_using_candidate, get_entry_with_current_candidate
 
@@ -190,6 +190,8 @@ class GeneratePersonasRequest(StateRequestScope):
     # Design this speaker's voice from one of their own lines, keeping the
     # current persona description and skipping the LLM (#1232).
     ref_text: Optional[str] = Field(default=None, min_length=1, max_length=500)
+    # How many voices to design from ref_text in one task, each a saved candidate (#1313).
+    design_count: Optional[int] = Field(default=None, ge=1, le=DESIGN_COUNT_MAX)
 
 
 class PersonaRecoveryRequest(StateRequestScope):
@@ -960,6 +962,8 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
     - updates `voice_config.json` with a clone-style reference for each character.
     """
     await asyncio.to_thread(_require_script_speaker, request.speaker)
+    if request.design_count is not None and request.ref_text is None:
+        raise HTTPException(status_code=422, detail="A design count needs a chosen line")
     if request.ref_text is not None:
         await asyncio.to_thread(require_chosen_design_line, request)
     if request.state_version:
@@ -992,6 +996,8 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
     if request.ref_text is not None:
         # One argv element, so a line starting with "-" is never read as an option.
         command.append("--ref-text=" + request.ref_text)
+        if (request.design_count or 1) > 1:
+            command.extend(["--design-count", str(request.design_count)])
     schedule_claimed_background_task(background_tasks, "persona", run_process, command, "persona")
     return {"status": "started", "advanced": bool((request.advanced or request.state_version) and request.ref_text is None)}
 

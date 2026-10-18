@@ -22,7 +22,7 @@ from tts import TTSEngine, sanitize_filename, voice_is_set, VERSION_OVERLAY_EXCL
 from voice_candidates import get_entry_with_current_candidate
 from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed, file_lock
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
-from persona_validation import (validate_persona_payload, get_reference_samples,
+from persona_validation import (DESIGN_COUNT_MAX, validate_persona_payload, get_reference_samples,
                                get_design_text_candidates, get_design_text_range,
                                DESIGN_TEXT_MIN_CHARS, DESIGN_TEXT_MAX_CHARS, get_selectable_design_texts,
                                validate_compiled_persona_payload)
@@ -1499,10 +1499,16 @@ def main():
     parser.add_argument("--context-lines", type=int, default=DEFAULT_CONTEXT_LINES,
                         help="Sample spoken lines per character fed to the persona prompt; the narrator window grows to half of it")
     parser.add_argument("--ref-text", default="", help="Design --speaker's voice from this line of theirs, keeping its persona description")
+    parser.add_argument("--design-count", type=int, default=1,
+                        help=f"With --ref-text: design this many voices (1-{DESIGN_COUNT_MAX}), each saved as a candidate")
     args = parser.parse_args()
     if args.ref_text and (not args.speaker or args.advanced or args.age_group
                           or args.new_only or args.recovered_speaker):
         parser.error("--ref-text needs --speaker and no other generation option")
+    if not 1 <= args.design_count <= DESIGN_COUNT_MAX:
+        parser.error(f"--design-count must be 1-{DESIGN_COUNT_MAX}")
+    if args.design_count > 1 and not args.ref_text:
+        parser.error("--design-count needs --ref-text")
     if args.state_version:
         if args.age_group:
             parser.error("--state-version cannot be combined with --age-group")
@@ -1578,12 +1584,17 @@ def main():
         if args.state_version:
             target = find_state_target(state_targets, args.speaker, args.state_version)
             lines = get_state_spoken_lines(script, target)
-        voice_config = design_from_chosen_line(
-            voice_config, args.speaker, args.ref_text, lines,
-            TTSEngine({"tts": tts_cfg}), data_dir, book_id=book_snapshot["book_id"],
-            version_id=args.state_version or None)
-        save_generated_voice_config(voice_config_path, voice_config, initial_voice_config,
-                                    samples.keys(), {}, book_snapshot=book_snapshot)
+        engine = TTSEngine({"tts": tts_cfg})
+        # Each design is saved as it lands, so a cancel keeps every finished one (#1313).
+        for number in range(1, args.design_count + 1):
+            designed = design_from_chosen_line(
+                voice_config, args.speaker, args.ref_text, lines,
+                engine, data_dir, book_id=book_snapshot["book_id"],
+                version_id=args.state_version or None)
+            save_generated_voice_config(voice_config_path, designed, voice_config,
+                                        samples.keys(), {}, book_snapshot=book_snapshot)
+            voice_config = designed
+            print(f"Designed voice {number}/{args.design_count} for {args.speaker}", flush=True)
         print(f"Voice designed for {args.speaker} from the chosen line; any previous voice is kept as a saved candidate.")
         return
 

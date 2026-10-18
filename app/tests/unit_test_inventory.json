@@ -9756,6 +9756,15 @@
     "tests.test_voice_dedup_source_cache.VoiceDedupSourceCacheTests.test_source_change_during_extraction_refuses_checkpoint_publication",
     "tests.test_voice_dedup_source_cache.VoiceDedupSourceCacheTests.test_unchanged_zip_reuses_extraction_and_preserves_cached_artifact"
   ],
+  "test_voice_design_count": [
+    "tests.test_voice_design_count.DesignCountCliTests.test_a_failure_part_way_keeps_every_voice_already_designed",
+    "tests.test_voice_design_count.DesignCountCliTests.test_count_outside_the_bounds_or_without_a_line_is_refused",
+    "tests.test_voice_design_count.DesignCountCliTests.test_three_designs_load_the_engine_once_and_save_every_voice",
+    "tests.test_voice_design_count.DesignCountRouteTests.test_bad_counts_are_refused_before_the_task_starts",
+    "tests.test_voice_design_count.DesignCountRouteTests.test_count_reaches_the_command_only_when_above_one",
+    "tests.test_voice_design_count.DesignCountUiTests.test_card_input_matches_the_server_bound",
+    "tests.test_voice_design_count.DesignCountUiTests.test_design_sends_the_clamped_count"
+  ],
   "test_voice_design_text_range": [
     "tests.test_voice_design_text_range.AdvancedCompileTests.test_a_copied_line_inside_the_range_is_kept",
     "tests.test_voice_design_text_range.AdvancedCompileTests.test_a_copied_line_outside_the_range_is_replaced_by_an_in_range_one",

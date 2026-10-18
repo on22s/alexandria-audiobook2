@@ -4381,6 +4381,7 @@
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Generate age version for ' + label)}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
                                 <div class="input-group input-group-sm mt-1">
                                     <select class="form-select design-line-select" aria-label="${escapeHtml('Line to design the voice of ' + label + ' from')}" onfocus="loadDesignLines(this)"><option value="">Design from one of their lines…</option></select>
+                                    <input type="number" class="form-control design-count" min="1" max="100" value="1" style="max-width: 4.5rem;" title="How many voices to design from the line; each is saved under Saved candidates" aria-label="${escapeHtml('How many voices to design for ' + label)}">
                                     <button class="btn btn-outline-primary" type="button" aria-label="${escapeHtml('Design the voice of ' + label + ' from the chosen line')}" onclick="designFromChosenLine(this)">Design</button>
                                 </div>
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Recover persona for ' + label)}" onclick="openStatePersonaRecovery(this)">Recover persona</button>` : ''}
@@ -5012,6 +5013,15 @@
             }
         };
 
+        // How many voices one Design click makes (#1313): a whole number inside the
+        // input's own min..max, else 1. The server enforces the same bound.
+        function getDesignCount(input) {
+            const value = Number(input?.value);
+            const max = Number(input?.max) || 1;
+            if (!Number.isInteger(value) || value < 1) { return 1; }
+            return Math.min(value, max);
+        }
+
         window.designFromChosenLine = async function designFromChosenLine(button) {
             const card = button.closest('.voice-card');
             const speaker = card?.dataset.voice;
@@ -5025,11 +5035,13 @@
             try {
                 await flushVoiceSaves();
                 if (version) { await ensureStateCardCurrent(card, token); }
-                const payload = {speaker, advanced: false, ref_text: refText};
+                const count = getDesignCount(card.querySelector('.design-count'));
+                const payload = {speaker, advanced: false, ref_text: refText, design_count: count};
                 if (version) { Object.assign(payload, {state_version: version, book_token: token}); }
                 await API.post('/api/generate_personas', payload);
                 pollPersonaStatus();
-                showToast(`Designing ${speaker}'s voice from the chosen line. The current voice stays under Saved candidates.`, 'success');
+                const what = count > 1 ? `${count} voices for ${speaker}` : `${speaker}'s voice`;
+                showToast(`Designing ${what} from the chosen line. Each new voice and the current one stay under Saved candidates.`, 'success');
             } catch (e) { showActionError('Voice design failed', e, 'Check the persona task status before designing again. A character needs a persona first.'); }
         };
 

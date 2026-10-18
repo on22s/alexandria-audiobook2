@@ -1205,6 +1205,19 @@
             "title": "Context Lines",
             "type": "integer"
           },
+          "design_count": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Design Count"
+          },
           "new_only": {
             "default": false,
             "title": "New Only",
