@@ -46,7 +46,7 @@
     "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_a_placeholder_with_no_manifest_entry_yields_no_dataset",
     "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_an_adapter_absent_from_the_manifest_still_resolves_by_path",
     "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_reading_training_meta_closes_the_file",
-    "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_the_tracked_manifest_names_a_real_dataset_for_every_adapter"
+    "tests.test_adapter_dataset_identity.AdapterDatasetIdentityTest.test_the_local_manifest_names_a_real_dataset_for_every_adapter"
   ],
   "test_adapter_deletion_transaction": [
     "tests.test_adapter_deletion_transaction.AdapterDeletionTransactionTests.test_bundle_symlinks_do_not_delete_external_assets",
