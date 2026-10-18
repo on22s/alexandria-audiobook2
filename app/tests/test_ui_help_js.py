@@ -111,6 +111,7 @@ for(const key of ['Enter',' ']){const event=tip.fire('keydown',{key});assert(eve
 assert(!tip.fire('keydown',{key:'Tab'}).prevented,'keyboard focus must remain escapable');
 assert.strictEqual(tooltipCalls.length,1);assert.strictEqual(tooltipCalls[0].options.trigger,'hover focus');assert.strictEqual(tooltipCalls[0].options.html,false);
 assert.strictEqual(tooltipCalls[0].options.customClass,'help-tooltip');
+assert.strictEqual(tooltipCalls[0].options.fallbackPlacements.join(','),'top,bottom','sideways help can cover its own wide action');
 ''')
 
     def test_dynamic_insert_rerender_removal_and_tooltip_cleanup(self):

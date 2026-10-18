@@ -778,7 +778,7 @@
                 }
                 window._helpTooltips = new bootstrap.Tooltip(document.body, {
                     selector: '[data-help-tip]', trigger: 'hover focus', html: false,
-                    placement: 'top', customClass: 'help-tooltip', delay: {show: 0, hide: 180}});
+                    placement: 'top', fallbackPlacements: ['top', 'bottom'], customClass: 'help-tooltip', delay: {show: 0, hide: 180}});
             }
             if (window._helpObserver || typeof MutationObserver === 'undefined') { return; }
             window._helpObserver = new MutationObserver(records => {
