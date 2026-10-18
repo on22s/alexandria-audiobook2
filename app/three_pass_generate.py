@@ -46,6 +46,7 @@ from pass_quality import (is_attested_name, strip_roster_alias_echo,
                           get_attribution_tag_evidence,
                           get_attribution_shift_feedback_report,
                           validate_instruct, index_head_check,
+                          DELIVERY_DIRECTIONS,
                           analyze_outer_quote_regions, split_outer_quote_regions,
                           QUOTE_MARKS)
 from review_script import normalize_text
@@ -137,7 +138,8 @@ def resolve_hard_max_tokens(configured_max_tokens):
 
 def resolve_three_pass_generation_settings(config, chunk_size_override=None,
                                            segmentation_override=None,
-                                           pass1_format_override=None):
+                                           pass1_format_override=None,
+                                           delivery_direction_override=None):
     """Resolve model-profile-sensitive settings shared by runtime and preflight."""
     llm = get_active_llm_config(config)
     gen = config.get("generation") or {}
@@ -173,7 +175,23 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
         "instruct_target_chars": int(gen.get("three_pass_instruct_target_chars", 0)),
         "instruct_context_chars": int(gen.get("three_pass_instruct_context_chars", 0)),
         "attribute_prompt_variant": gen.get("three_pass_attribute_prompt_variant") or "michel2_full",
+        "delivery_direction": resolve_delivery_direction(config, delivery_direction_override),
     }
+
+
+def resolve_delivery_direction(config, cli_value=None):
+    """-> the Pass 3 delivery-direction mode (#1258): the CLI value, else
+    generation.three_pass_delivery_direction, else "off". Unknown modes raise, and
+    so does a mode with a custom Pass 3 preset: that prompt does not ask for the
+    direction fields, so every window would fail and fall back to defaults."""
+    value = (cli_value if cli_value is not None
+             else (config.get("generation") or {}).get("three_pass_delivery_direction") or "off")
+    if value not in DELIVERY_DIRECTIONS:
+        raise ValueError(f"delivery direction must be one of {DELIVERY_DIRECTIONS} (got {value!r})")
+    if value != "off" and any(resolve_three_pass_prompt(config, "pass3")):
+        raise ValueError("Delivery direction needs the default Pass 3 prompt; select the "
+                         "default Pass 3 preset or set the direction to off")
+    return value
 
 
 LARGE_CONTEXT_CHARS = 20000
@@ -245,7 +263,8 @@ def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generati
         retry_multiplier=llm.get("retry_multiplier", 2),
         retry_max_delay_seconds=llm.get("retry_max_delay_seconds", 30),
         retry_jitter=llm.get("retry_jitter", 0.2),
-        on_api_exhaustion=llm.get("on_api_exhaustion", "fail"))
+        on_api_exhaustion=llm.get("on_api_exhaustion", "fail"),
+        delivery_direction=generation_settings.get("delivery_direction", "off"))
     params.segment_system_prompt, params.segment_user_prompt_template = resolve_three_pass_prompt(
         config, "pass1")
     params.instruct_system_prompt, params.instruct_user_prompt_template = resolve_three_pass_prompt(
@@ -545,6 +564,63 @@ def get_cast_from_data(data):
 def default_instruct(entry):
     speaker = (entry.get("speaker") or "").strip().upper()
     return NARRATOR_DEFAULT_INSTRUCT if speaker == "NARRATOR" else CHARACTER_DEFAULT_INSTRUCT
+
+
+# Silence after the previous line when a line's gap asks for it (#1258). Starting
+# values to tune by ear in the listening test, not measurements; "normal" keeps
+# tts.get_pause_duration_ms's speaker rule (500 ms, 250 ms same speaker).
+GAP_PAUSE_MS = {"cut_off": 60, "beat": 900, "trailing": 700}
+
+
+def compose_directed_instruct(action, delivery, delivery_direction):
+    """The instruct the TTS receives from a directed row: "Reassuring: soft, warm."
+    In action_only the delivery note is dropped, testing the verb alone."""
+    action = action.strip().rstrip(".")
+    label = action[:1].upper() + action[1:]
+    if delivery_direction == "action_only":
+        return f"{label}."
+    return f"{label}: {delivery.strip().rstrip('.')}."
+
+
+def get_directed_entry(prior, item, delivery_direction):
+    """Merge one validated Pass 3 row onto its frozen entry (speaker and text
+    stay the prior's). Directed modes keep the raw fields under `direction`
+    for review; the TTS reads only `instruct`."""
+    entry = {key: value for key, value in prior.items() if key != "instruct_unchecked"}
+    if delivery_direction == "off":
+        return {**entry, "instruct": item.get("instruct")}
+    if delivery_direction == "gaps":
+        return {**entry, "instruct": item["instruct"], "direction": {"gap": item["gap"]}}
+    return {**entry,
+            "instruct": compose_directed_instruct(item["action"], item.get("delivery") or "",
+                                                  delivery_direction),
+            "direction": {"answers": item.get("answers"), "action": item["action"],
+                          "delivery": item.get("delivery"), "gap": item["gap"]}}
+
+
+def apply_gap_pauses(entries):
+    """Return copies with each line's gap placed on the previous entry's pause_after,
+    which is the silence after that entry. A longer pause already there (a scene
+    break) is kept, so cut_off never shortens one."""
+    result = [dict(entry) if isinstance(entry, dict) else entry for entry in entries]
+    for previous, current in zip(result, result[1:]):
+        if not isinstance(previous, dict) or not isinstance(current, dict):
+            continue
+        pause = GAP_PAUSE_MS.get((current.get("direction") or {}).get("gap"))
+        if pause is not None:
+            existing = previous.get("pause_after")
+            previous["pause_after"] = pause if existing is None else max(int(existing), pause)
+    return result
+
+
+def get_gap_counts(entries):
+    """Count of each gap label, plus entries with none (fallback or nonverbal)."""
+    counts = {}
+    for entry in entries:
+        if isinstance(entry, dict):
+            gap = (entry.get("direction") or {}).get("gap") or "none"
+            counts[gap] = counts.get(gap, 0) + 1
+    return counts
 
 
 def get_deterministic_named_entry(entry, cast=None):
@@ -1033,15 +1109,20 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
 
 def build_instruct_request(prior_batch, params, neighbor_contexts=None, surround=None):
     """Build the canonical pass-3 system and user prompts."""
-    sys_prompt, usr_template = load_instruct_prompts()
-    if params.instruct_system_prompt:
-        sys_prompt = params.instruct_system_prompt
-    elif params.system_prompt:
-        sys_prompt = params.system_prompt
-    if params.instruct_user_prompt_template:
-        usr_template = params.instruct_user_prompt_template
-    elif params.user_prompt_template:
-        usr_template = params.user_prompt_template
+    direction = getattr(params, "delivery_direction", "off")
+    sys_prompt, usr_template = load_instruct_prompts(direction)
+    # A delivery-direction mode always sends its own prompt, which asks for its
+    # fields: get_three_pass_run_params refuses a custom Pass 3 preset with a
+    # mode, and the legacy prompt fallbacks would ask for an instruct alone.
+    if direction == "off":
+        if params.instruct_system_prompt:
+            sys_prompt = params.instruct_system_prompt
+        elif params.system_prompt:
+            sys_prompt = params.system_prompt
+        if params.instruct_user_prompt_template:
+            usr_template = params.instruct_user_prompt_template
+        elif params.user_prompt_template:
+            usr_template = params.user_prompt_template
     neighbor_contexts = neighbor_contexts or [{} for _ in prior_batch]
     batch_json = json.dumps([
         {"n": i, "speaker": e["speaker"], "text": e["text"], **neighbor_contexts[i]}
@@ -1087,8 +1168,10 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
         prior_batch, params, neighbor_contexts, surround)
     validated = {}
 
+    direction = getattr(params, "delivery_direction", "off")
+
     def validate(entries):
-        report = validate_instruct(prior_batch, entries)
+        report = validate_instruct(prior_batch, entries, direction)
         if report["passed"]:
             validated["ordered"] = index_head_check(prior_batch, entries)[2]
         return report
@@ -1110,14 +1193,13 @@ def instruct_batch(client, model_name, prior_batch, params, max_retries=3,
         log_name="llm_responses.log", label="INSTRUCT", max_retries=max_retries,
         validate_entries=validate, attempt_observer=observe)
     if annotated:
-        # The model returned only {n, head, instruct}. Keep speaker+text byte-exact
-        # from prior (bound by validated index order); take only the instruct.
+        # The model returned only {n, head, instruct} (or its direction fields).
+        # Keep speaker+text byte-exact from prior (bound by validated index
+        # order); take only the direction.
         ordered = validated.get("ordered")
         if ordered is None:
             raise RuntimeError("validated instruct response lost its index binding")
-        return [{**{key: value for key, value in p.items()
-                    if key != "instruct_unchecked"}, "instruct": item.get("instruct")}
-                for p, item in zip(prior_batch, ordered)]
+        return [get_directed_entry(p, item, direction) for p, item in zip(prior_batch, ordered)]
     ranges = get_exhausted_runtime_batch_ranges(client, prior_batch, attempts)
     if ranges:
         combined = []
@@ -1200,6 +1282,8 @@ def retry_delivery_instructions(client, model_name, entries, params,
                 raise RuntimeError("instruct LLM unavailable; refusing fallback output")
             for (index, _), entry in zip(current, updated):
                 result[index] = entry
+    if getattr(params, "delivery_direction", "off") != "off":
+        result = apply_gap_pauses(result)
     return result
 
 
@@ -2381,6 +2465,12 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         # keep their identity; switching format restarts instead of mixing.
         if getattr(params, "pass1_format", "ordinary") != "ordinary":
             settings["pass1_format"] = params.pass1_format
+        # Only off the default, so existing checkpoints keep their identity; a
+        # resumed book cannot mix delivery-direction modes or prompt revisions.
+        if getattr(params, "delivery_direction", "off") != "off":
+            settings["delivery_direction"] = params.delivery_direction
+            settings["delivery_direction_prompts_sha256"] = hashlib.sha256("\n".join(
+                load_instruct_prompts(params.delivery_direction)).encode("utf-8")).hexdigest()
         if getattr(params, "max_input_tokens", None) is not None:
             settings["max_input_tokens"] = params.max_input_tokens
         from llm_request_budget import get_task_output_fingerprint
@@ -3197,6 +3287,11 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                           "status": ("incomplete" if any(
                               f["pass"] == "instruct" for f in diagnostic_failures)
                               else "complete")}
+    if getattr(params, "delivery_direction", "off") != "off":
+        # #1258: performed gaps become pause_after on the line before them. The
+        # counts make a mode that only ever says "normal" visible in the manifest.
+        annotated = apply_gap_pauses(annotated)
+        passes["instruct"]["gaps"] = get_gap_counts(annotated)
     if unavailable_passes:
         failed_pass = next(pass_name for pass_name in ("attribute", "instruct")
                            if pass_name in unavailable_passes)
@@ -3610,6 +3705,10 @@ def main():
                         help="Override generation.three_pass_pass1_format: ordinary "
                              "(full text, the default) or compact (numbered units in, "
                              "labels out; falls back to ordinary per chunk, #744)")
+    parser.add_argument("--delivery-direction", choices=DELIVERY_DIRECTIONS, default=None,
+                        help="Override generation.three_pass_delivery_direction (#1258): off "
+                             "(the default instruct notes), gaps (adds performed gaps), "
+                             "directed (action + delivery + gap) or action_only")
     parser.add_argument("--segmentation", choices=SEGMENTATION_MODES, default=None,
                         help="Override generation.three_pass_segmentation: auto "
                              "(shown to users as 'Quote marks first, model for the rest'; "
@@ -3707,7 +3806,8 @@ def main():
     try:
         generation_settings = resolve_three_pass_generation_settings(
             config, args.chunk_size, segmentation_override=args.segmentation,
-            pass1_format_override=args.pass1_format)
+            pass1_format_override=args.pass1_format,
+            delivery_direction_override=args.delivery_direction)
     except ValueError as exc:
         print(f"Error: {exc}")
         sys.exit(1)

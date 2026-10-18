@@ -556,7 +556,15 @@ _VALIDATION_EXPECTED = {
     "spoken_not_named": "a character name, not NARRATOR or an empty value",
     "narrator_renamed": "NARRATOR",
     "missing_instruct": "a non-empty delivery instruction",
+    "invalid_gap": "one of normal, beat, cut_off, trailing",
+    "missing_action": "a non-empty playable verb",
+    "missing_delivery": "a non-empty acoustic delivery note",
+    "invalid_answers": "null or the index of another entry in this request",
 }
+
+# Pass 3 delivery-direction modes (#1258); "off" is the shipped instruct-only contract.
+DELIVERY_DIRECTIONS = ("off", "gaps", "directed", "action_only")
+GAP_LABELS = ("normal", "beat", "cut_off", "trailing")
 
 
 # Entry-type tokens the model must never return as a speaker name. NARRATOR is
@@ -1030,21 +1038,45 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
     return {"passed": not findings, "findings": findings}
 
 
-def validate_instruct(prior_entries, response_entries):
+def validate_instruct(prior_entries, response_entries, delivery_direction="off"):
     """Pass 3 gate. Verifies the index+head alignment (speaker/text are supplied
     by the frozen entry, not the model, so they cannot change), and requires a
-    non-empty instruct on every entry."""
+    non-empty instruct on every entry. A delivery-direction mode (#1258) also
+    requires its fields: a known gap, and in the directed modes an action, a
+    delivery note (directed only; action_only discards it) and an `answers`
+    that is null or another entry of this request, in place of the instruct."""
     ok, reason, ordered = index_head_check(prior_entries, response_entries)
     if not ok:
         return {"passed": False,
                 "findings": [{"code": "alignment_violated", "message": reason,
                               **get_alignment_counts(prior_entries, response_entries)}]}
+    if delivery_direction not in DELIVERY_DIRECTIONS:
+        raise ValueError(f"unknown delivery direction {delivery_direction!r}")
+    directed = delivery_direction in ("directed", "action_only")
     findings = []
+
+    def add(code, i, prior, message):
+        findings.append({"code": code, "entry_number": i,
+                         "source_line": prior.get("text", ""),
+                         "expected": _VALIDATION_EXPECTED[code], "message": message})
+
+    def is_text(value):
+        return isinstance(value, str) and bool(value.strip())
+
     for i, (prior, item) in enumerate(zip(prior_entries, ordered), 1):
-        raw_instruct = item.get("instruct")
-        if not isinstance(raw_instruct, str) or not raw_instruct.strip():
-            findings.append({"code": "missing_instruct", "entry_number": i,
-                             "source_line": prior.get("text", ""),
-                             "expected": _VALIDATION_EXPECTED["missing_instruct"],
-                             "message": "Every entry needs a non-empty instruct."})
+        if not directed and not is_text(item.get("instruct")):
+            add("missing_instruct", i, prior, "Every entry needs a non-empty instruct.")
+        if delivery_direction != "off" and item.get("gap") not in GAP_LABELS:
+            add("invalid_gap", i, prior, "Every entry needs a gap from the allowed set.")
+        if not directed:
+            continue
+        if not is_text(item.get("action")):
+            add("missing_action", i, prior, "Every entry needs an action.")
+        if delivery_direction == "directed" and not is_text(item.get("delivery")):
+            add("missing_delivery", i, prior, "Every entry needs a delivery note.")
+        answers = item.get("answers")
+        if answers is not None and (isinstance(answers, bool) or not isinstance(answers, int)
+                                    or not 0 <= answers < len(prior_entries) or answers == i - 1):
+            add("invalid_answers", i, prior,
+                "answers must be null or the index of another entry in this request.")
     return {"passed": not findings, "findings": findings}

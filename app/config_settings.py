@@ -115,6 +115,8 @@ PromptVariant = Literal[
 # "Quote-aware", llm as "Model only". The stored values must not change without a migration.
 SegmentationMode = Literal["auto", "quotes", "lexical", "llm"]
 Pass1Format = Literal["ordinary", "compact"]
+# Pass 3 delivery direction (#1258); must match pass_quality.DELIVERY_DIRECTIONS.
+DeliveryDirection = Literal["off", "gaps", "directed", "action_only"]
 
 
 class ThreePassModelProfile(BaseModel):
@@ -166,6 +168,9 @@ class GenerationConfig(BaseModel):
     three_pass_segmentation: SegmentationMode = "auto"
     # #744 opt-in: compact labels with per-chunk fallback to full text
     three_pass_pass1_format: Pass1Format = "ordinary"
+    # #1258 opt-in: reply-aware Pass 3 notes and performed gaps. "off" until the
+    # blind listen and drift gate pick a mode; no UI control yet.
+    three_pass_delivery_direction: DeliveryDirection = "off"
     three_pass_quoted_must_be_spoken: bool = True
     three_pass_unquoted_must_be_narrator: bool = True
     # Pass 2: when a batch runs out of retries and the ONLY failures are a

@@ -808,6 +808,9 @@ class LLMGenParams:
     # callers intentionally see the same endpoint-specific negotiation result.
     ordered_schema_rejected_by: set = field(default_factory=set, repr=False,
                                             compare=False)
+    # Pass 3 delivery-direction mode (#1258, pass_quality.DELIVERY_DIRECTIONS).
+    # "off" sends the shipped instruct prompt and output unchanged.
+    delivery_direction: str = "off"
 
 
 

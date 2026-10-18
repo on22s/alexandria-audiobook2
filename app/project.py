@@ -207,6 +207,9 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
             if not cleaned:
                 continue
             part = dict(entry)
+            # The entry's own pause_after is the silence after the whole entry,
+            # so only its last part carries it (added below), not every part.
+            part.pop("pause_after", None)
             part["text"] = cleaned
             if hints:
                 existing = str(part.get("instruct") or "").strip()
@@ -228,6 +231,9 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
                 scene_break_pause_ms)
         parts.extend(segment_parts)
 
+    if parts and entry.get("pause_after") is not None:
+        parts[-1]["pause_after"] = max(int(parts[-1].get("pause_after") or 0),
+                                       int(entry["pause_after"]))
     return parts, review
 
 

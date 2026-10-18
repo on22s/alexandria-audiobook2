@@ -1423,6 +1423,17 @@
             "title": "Three Pass Chunk Size",
             "type": "integer"
           },
+          "three_pass_delivery_direction": {
+            "default": "off",
+            "enum": [
+              "off",
+              "gaps",
+              "directed",
+              "action_only"
+            ],
+            "title": "Three Pass Delivery Direction",
+            "type": "string"
+          },
           "three_pass_group_rule": {
             "default": false,
             "title": "Three Pass Group Rule",

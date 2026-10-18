@@ -43,6 +43,14 @@ _INSTRUCT_FILE = os.path.join(os.path.dirname(__file__), "default_prompts_instru
 _segment_cache = {"mtime": None, "prompts": None}
 _attribute_cache = {"mtime": None, "prompts": None}
 _instruct_cache = {"mtime": None, "prompts": None}
+# Pass 3 prompts for the delivery-direction modes (#1258). "off" is the file above;
+# action_only shares the directed prompt and differs only in what is composed from it.
+_DIRECTION_FILES = {
+    "gaps": "default_prompts_instruct_gaps.txt",
+    "directed": "default_prompts_instruct_directed.txt",
+    "action_only": "default_prompts_instruct_directed.txt",
+}
+_direction_caches = {name: {"mtime": None, "prompts": None} for name in set(_DIRECTION_FILES.values())}
 
 
 def _load_pair(path, cache, name):
@@ -61,5 +69,8 @@ def load_attribute_prompts():
     return _load_pair(_ATTRIBUTE_FILE, _attribute_cache, "default_prompts_attribute.txt")
 
 
-def load_instruct_prompts():
-    return _load_pair(_INSTRUCT_FILE, _instruct_cache, "default_prompts_instruct.txt")
+def load_instruct_prompts(delivery_direction="off"):
+    if delivery_direction == "off":
+        return _load_pair(_INSTRUCT_FILE, _instruct_cache, "default_prompts_instruct.txt")
+    name = _DIRECTION_FILES[delivery_direction]
+    return _load_pair(os.path.join(os.path.dirname(__file__), name), _direction_caches[name], name)
