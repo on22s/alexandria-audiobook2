@@ -6751,7 +6751,13 @@
     "tests.test_regate_campaign_chain.RegateCampaignChainTests.test_execution_failure_or_zero_exit_old_artifact_cannot_complete",
     "tests.test_regate_campaign_chain.RegateCampaignChainTests.test_interrupted_chain_waits_for_late_git_writer_before_return",
     "tests.test_regate_campaign_chain.RegateCampaignChainTests.test_interrupted_mixed_set_refuses_then_restart_completes",
-    "tests.test_regate_campaign_chain.RegateCampaignChainTests.test_success_and_measured_rejection_have_complete_campaigns"
+    "tests.test_regate_campaign_chain.RegateCampaignChainTests.test_success_and_measured_rejection_have_complete_campaigns",
+    "tests.test_regate_campaign_chain.RegateGitCaptureTests.test_diagnostic_failure_after_success_is_reported",
+    "tests.test_regate_campaign_chain.RegateGitCaptureTests.test_diagnostic_failure_does_not_mask_command_or_timeout_error",
+    "tests.test_regate_campaign_chain.RegateGitCaptureTests.test_git_command_failure_preserves_output_and_visible_diagnostics",
+    "tests.test_regate_campaign_chain.RegateGitCaptureTests.test_git_preserves_stdout_stripping_and_success_diagnostics",
+    "tests.test_regate_campaign_chain.RegateGitCaptureTests.test_git_timeout_keeps_its_original_error_and_diagnostics",
+    "tests.test_regate_campaign_chain.RegateGitCaptureTests.test_git_waits_for_redirected_writer_before_return"
   ],
   "test_regate_deadline": [
     "tests.test_regate_deadline.RegateDeadlineTests.test_disabled_or_invalid_deadline_refuses_before_workers",
