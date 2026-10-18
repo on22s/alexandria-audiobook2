@@ -76,7 +76,7 @@ print('PORT_OWNERSHIP='+json.dumps({'port':runner.get_isolated_server_port(Path(
                      patch.object(runner.time,'sleep'),patch.object(runner,'stop_owned_subprocess') as stop, \
                      patch.object(runner,'urlopen',side_effect=AssertionError('unpublished port reached readiness')), \
                      patch.object(runner.subprocess,'run',side_effect=AssertionError('failed startup reached suite')):
-                    with self.assertRaises(expected):runner.main()
+                    with self.assertRaises(expected):runner.main([])
                 self.assertFalse(observed['root'].exists())
                 stop.assert_called_once_with(server,timeout=10)
 
@@ -99,7 +99,7 @@ class IsolatedApiCleanupTests(unittest.TestCase):
              patch.object(runner,'urlopen',side_effect=original), \
              patch.object(ownership.sys,'platform','win32'), \
              patch.object(runner.os,'killpg',side_effect=AttributeError('killpg unavailable')):
-            with self.assertRaises(RuntimeError) as caught:runner.main()
+            with self.assertRaises(RuntimeError) as caught:runner.main([])
         self.assertIs(original,caught.exception)
         server.wait.assert_called_once_with(timeout=10)
         control.sendall.assert_called_once_with(b'15\n')

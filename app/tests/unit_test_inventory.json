@@ -4254,6 +4254,15 @@
     "tests.test_isolated_api_fixture.IsolatedApiFixtureTests.test_fixture_voice_is_stable_across_reversed_directory_orders",
     "tests.test_isolated_api_fixture.IsolatedApiFixtureTests.test_no_downloaded_voice_keeps_the_optional_cast_absent"
   ],
+  "test_isolated_api_lock": [
+    "tests.test_isolated_api_lock.IsolatedApiLockTests.test_cli_forwards_urls_and_summary_without_reinterpreting_full_mode",
+    "tests.test_isolated_api_lock.IsolatedApiLockTests.test_failure_paths_restore_private_context_and_keep_original_error",
+    "tests.test_isolated_api_lock.IsolatedApiLockTests.test_full_and_abbreviated_full_preserve_shared_ownership_exactly",
+    "tests.test_isolated_api_lock.IsolatedApiLockTests.test_invalid_arguments_and_help_exit_before_starting_a_server",
+    "tests.test_isolated_api_lock.IsolatedApiLockTests.test_native_quick_server_returns_404_while_original_lease_stays_held",
+    "tests.test_isolated_api_lock.IsolatedApiLockTests.test_quick_mode_replaces_only_fixture_lease_and_restores_environment",
+    "tests.test_isolated_api_lock.IsolatedApiLockTests.test_quick_preparer_missing_fixture_cannot_dispatch_a_subprocess"
+  ],
   "test_isolated_api_port": [
     "tests.test_isolated_api_port.IsolatedApiCleanupTests.test_readiness_error_preserved_without_unix_killpg_and_owner_is_reaped",
     "tests.test_isolated_api_port.IsolatedApiPortTests.test_metadata_missing_invalid_and_valid_ports",

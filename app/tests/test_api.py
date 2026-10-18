@@ -1603,9 +1603,8 @@ def cleanup():
 
 # ── Main ─────────────────────────────────────────────────────
 
-def main():
-    global BASE_URL, FULL_MODE
-
+def parse_api_test_arguments(argv=None):
+    """Keep the client and isolated runner's quick/full dispatch identical."""
     parser = argparse.ArgumentParser(description="Alexandria API test suite")
     parser.add_argument("--url", default="http://127.0.0.1:4200",
                         help="Server URL (default: http://127.0.0.1:4200)")
@@ -1613,7 +1612,13 @@ def main():
                         help="Include TTS/LLM-dependent tests")
     parser.add_argument("--json-summary", metavar="PATH",
                         help="Write a machine-readable test summary to PATH")
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main():
+    global BASE_URL, FULL_MODE
+
+    args = parse_api_test_arguments()
 
     BASE_URL = args.url.rstrip("/")
     FULL_MODE = args.full

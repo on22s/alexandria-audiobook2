@@ -2,6 +2,7 @@
 """Run the live API suite against disposable application state."""
 import json
 import os
+from contextlib import nullcontext
 from pathlib import Path
 import subprocess
 import sys
@@ -10,6 +11,8 @@ import time
 from urllib.request import Request, urlopen
 from api_test_auth import get_api_test_headers
 from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
+from tests.test_api import parse_api_test_arguments
+from tests.test_support import use_private_cpu_fixture_lock
 
 
 SERVER_CODE = "from run_isolated_api_tests import run_isolated_server; run_isolated_server()"
@@ -39,9 +42,14 @@ def get_isolated_server_port(data_path):
     return port
 
 
-def main():
+def main(argv=None):
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    args = parse_api_test_arguments(arguments)
     app_dir = Path(__file__).resolve().parent
-    with tempfile.TemporaryDirectory(prefix="alexandria-api-test-") as data_dir:
+    # Only these disposable quick fixtures are model-free. Full inference keeps
+    # the shared lease, including the parser's accepted --ful/--f spellings.
+    lock_context = nullcontext() if args.full else use_private_cpu_fixture_lock()
+    with lock_context, tempfile.TemporaryDirectory(prefix="alexandria-api-test-") as data_dir:
         data_path = Path(data_dir)
         (data_path / "annotated_script.json").write_text(json.dumps([
             {"speaker": "NARRATOR", "text": "Chapter One", "instruct": ""},
@@ -95,7 +103,7 @@ def main():
             # puts `app/` on the path, which is what those imports mean.
             result = subprocess.run(
                 [sys.executable, "-m", "tests.test_api", "--url", f"http://127.0.0.1:{port}",
-                 *sys.argv[1:]],
+                 *arguments],
                 cwd=app_dir, env=env,
             )
             return result.returncode
