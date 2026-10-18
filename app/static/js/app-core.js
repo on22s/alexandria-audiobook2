@@ -74,7 +74,7 @@
             const livePriority = type === 'error' ? 'assertive' : 'polite';
             const id = 'toast-' + Date.now() + '-' + (++toastSequence);
             const html = `
-                <div id="${id}" class="toast align-items-center ${lightBackground ? 'text-dark' : 'text-white'} ${bgClass} border-0" role="${liveRole}" aria-live="${livePriority}" aria-atomic="true">
+                <div id="${id}" class="toast align-items-center ${lightBackground ? 'text-dark fw-medium' : 'text-white'} ${bgClass} border-0" role="${liveRole}" aria-live="${livePriority}" aria-atomic="true">
                     <div class="d-flex">
                         <div class="toast-body">${escapeHtml(message)}</div>
                         <button type="button" class="btn-close${lightBackground ? '' : ' btn-close-white'} me-2 m-auto" ${lightBackground ? 'style="filter: none;"' : ''} data-bs-dismiss="toast" aria-label="Dismiss notification"></button>
