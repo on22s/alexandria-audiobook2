@@ -149,6 +149,22 @@ def is_numbered_heading(text):
     return bool(heading and NUMBERED_HEADING_SUFFIX_RE.fullmatch(text[heading.end():]))
 
 
+def is_apostrophe(text, position, stack):
+    """True for a ' or ’ that is an apostrophe, not a quote: an elision before a
+    digit ("the '90s") or a word-final possessive ("James'", "dogs’") that has no
+    open single quote to close."""
+    char = text[position]
+    if char not in "'’":
+        return False
+    before = text[position - 1] if position else ""
+    after = text[position + 1] if position + 1 < len(text) else ""
+    before_is_word = bool(before) and (before.isalnum() or before == "_")
+    after_is_word = bool(after) and (after.isalnum() or after == "_")
+    if after.isdigit() and not before_is_word:
+        return True
+    return before_is_word and not after_is_word and not (stack and stack[-1] == char)
+
+
 def is_chapter_line_context_unambiguous(text):
     """Defer rows with enclosed headings or unbalanced delimiter context."""
     stack = []
@@ -157,6 +173,8 @@ def is_chapter_line_context_unambiguous(text):
         if is_numbered_heading(line.strip()) and stack:
             return False
         for position, char in enumerate(line, offset):
+            if is_apostrophe(text, position, stack):
+                continue
             if char in "'‘’" and not CHAPTER_QUOTE_EDGE_RE.match(text, position):
                 continue
             if char in ('"', "'"):

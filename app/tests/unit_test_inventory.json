@@ -5497,7 +5497,10 @@
     "tests.test_normalize_for_speech.TestStructuralMarks.test_the_measured_defect"
   ],
   "test_numbered_chapter_boundaries": [
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_a_heading_inside_an_open_single_quote_still_stays_joined",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_apostrophes_before_a_heading_do_not_block_the_split",
     "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_balanced_context_away_from_heading_keeps_its_boundary",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_balanced_single_quotes_before_a_heading_still_split",
     "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_delivery_retry_preserves_unaffected_heading_audio",
     "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_dialogue_and_inline_mentions_do_not_add_heading_chunks",
     "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_embedded_heading_lines_preserve_source_rows_context_and_pause",

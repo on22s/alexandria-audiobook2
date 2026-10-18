@@ -164,6 +164,33 @@ class NumberedChapterBoundariesTests(unittest.TestCase):
                 parts = get_speakable_entries([{"speaker": "NARRATOR", "text": text}])
                 self.assertEqual([" ".join(text.split())], [part["text"] for part in parts])
 
+    def test_apostrophes_before_a_heading_do_not_block_the_split(self):
+        # A possessive or an elision is not an open quote (found in review of #1326).
+        for apostrophe in ("'", "’"):
+            for prose in (f"James{apostrophe} room was dark.", f"The dogs{apostrophe} bowls were empty.",
+                          f"It was the {apostrophe}90s then."):
+                with self.subTest(prose=prose):
+                    parts = get_speakable_entries([{
+                        "speaker": "NARRATOR", "text": f"{prose}\nCHAPTER II.\nIt was empty."}])
+                    self.assertEqual([prose, "CHAPTER II.", "It was empty."],
+                                     [part["text"] for part in parts])
+
+    def test_a_heading_inside_an_open_single_quote_still_stays_joined(self):
+        for opener, closer in (("'", "'"), ("‘", "’")):
+            with self.subTest(opener=opener):
+                parts = get_speakable_entries([{
+                    "speaker": "NARRATOR", "text": f"He said, {opener}wait\nCHAPTER II.\nfor me.{closer}"}])
+                self.assertEqual(1, len(parts))
+
+    def test_balanced_single_quotes_before_a_heading_still_split(self):
+        for opener, closer in (("'", "'"), ("‘", "’")):
+            with self.subTest(opener=opener):
+                prose = f"He said, {opener}wait{closer} and paused."
+                parts = get_speakable_entries([{
+                    "speaker": "NARRATOR", "text": f"{prose}\nCHAPTER II.\nIt was empty."}])
+                self.assertEqual([prose, "CHAPTER II.", "It was empty."],
+                                 [part["text"] for part in parts])
+
     def test_scene_break_endpoints_keep_existing_pause_when_heading_splits(self):
         for pause in (700, 1700):
             with self.subTest(pause=pause):
