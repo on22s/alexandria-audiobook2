@@ -1,17 +1,18 @@
-"""Field help (app-help.js): every core-tab control is documented, advice is sourced.
+"""Field help (app-help.js): every static field is documented, advice is sourced.
 
 WHAT THIS VERIFIES.
-- Coverage: every visible <input>/<select>/<textarea> on the Setup, Script,
-  Voices, Editor and Result tabs of index.html has a FIELD_HELP entry, and no
+- Coverage: every user-facing static <input>/<select>/<textarea> across all
+  tabs and shared dialogs has a FIELD_HELP entry, and no
   entry names a control that is not there - so a new control fails here until
   it is documented.
 - Content: every `what` is plain text of at most 300 characters; every
   `recommend` names its `source` (advice must point at a measurement).
-- Rendering, against a small DOM stub: one ⓘ per labelled control, inside its
-  <label for=…> or wrapping <label>; the tooltip text is set as an attribute,
-  never as markup; with no label the tooltip goes on the control itself;
+- Rendering, against a small DOM stub: one ⓘ beside each control label, including a
+  wrapping checkbox label; the tooltip text is set as an attribute,
+  never as markup; unlabelled fields receive a visible help glyph;
   calling renderHelpTips() again adds nothing; one delegated Bootstrap tooltip.
 """
+from html.parser import HTMLParser
 import json
 import re
 import subprocess
@@ -19,24 +20,30 @@ import unittest
 from pathlib import Path
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
-CORE_TABS = {"setup-tab", "script-tab", "voices-tab", "editor-tab", "audio-tab"}
 
 
-def get_core_control_ids(html):
-    tabs = sorted((m.start(), m.group(1)) for m in re.finditer(
-        r'<div id="([a-z-]+-tab)" class="tab-content', html))
-    ids = []
-    for m in re.finditer(r"<(input|select|textarea)\b[^>]*>", html):
-        tag = m.group(0)
-        if 'type="hidden"' in tag or re.search(r"\shidden(\s|>|=)", tag):
-            continue
-        pane = None
-        for start, name in tabs:
-            if start <= m.start():
-                pane = name
-        if pane in CORE_TABS:
-            ids.append(re.search(r'id="([^"]+)"', tag).group(1))
-    return ids
+class FieldInventory(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.ids = []
+
+    def handle_starttag(self, tag, attributes):
+        if tag not in {"input", "select", "textarea"}:
+            return
+        attrs = dict(attributes)
+        hidden_proxy = (attrs.get("type") == "file"
+                        and re.search(r"display\s*:\s*none", attrs.get("style", "")))
+        if attrs.get("type") == "hidden" or "hidden" in attrs or hidden_proxy:
+            return
+        if not attrs.get("id"):
+            raise AssertionError("Static fields need an id for their help entry")
+        self.ids.append(attrs["id"])
+
+
+def get_static_field_ids(html):
+    parser = FieldInventory()
+    parser.feed(html)
+    return parser.ids
 
 
 def load_field_help():
@@ -55,10 +62,10 @@ class FieldHelpContentTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.help = load_field_help()
-        cls.ids = get_core_control_ids((STATIC / "index.html").read_text(encoding="utf-8"))
+        cls.ids = get_static_field_ids((STATIC / "index.html").read_text(encoding="utf-8"))
 
-    def test_every_core_tab_control_has_help(self):
-        self.assertGreater(len(self.ids), 100)
+    def test_every_static_field_has_help(self):
+        self.assertGreater(len(self.ids), 220)
         self.assertEqual([], sorted(set(self.ids) - set(self.help)))
 
     def test_no_help_entry_for_a_missing_control(self):
@@ -81,50 +88,25 @@ class FieldHelpContentTests(unittest.TestCase):
 
 
 RENDER_TEST = r"""
-const fs=require('fs'),vm=require('vm'),assert=require('assert');
-function el(tag,attrs){return {tagName:tag,attrs:Object.assign({},attrs),children:[],parent:null,
-  setAttribute(k,v){this.attrs[k]=String(v);},getAttribute(k){return k in this.attrs?this.attrs[k]:null;},
-  hasAttribute(k){return k in this.attrs;},
-  appendChild(c){c.parent=this;this.children.push(c);return c;},
-  closest(sel){let n=this.parent;while(n){if(sel==='label'&&n.tagName==='label'){return n;}n=n.parent;}return null;},
-  querySelector(sel){const m=/^\.help-tip\[data-help-for="([^"]+)"\]$/.exec(sel);
-    return this.children.find(c=>c.className==='help-tip'&&c.attrs['data-help-for']===m[1])||null;},
-  set textContent(v){this._text=v;},get textContent(){return this._text;}};}
-// a labelled select, a checkbox inside its wrapping label, and an unlabelled input
-const forLabel=el('label',{for:'prompt-preset-select'}),select=el('select',{id:'prompt-preset-select'});
-const wrap=el('label',{}),box=el('input',{id:'m4b-per-chunk'});wrap.appendChild(box);
-const bare=el('input',{id:'save-script-name'});
-const byId={'prompt-preset-select':select,'m4b-per-chunk':box,'save-script-name':bare};
-let tooltips=[];
-const c={window:{},document:{getElementById:id=>byId[id]||null,
-  querySelector:sel=>sel==='label[for="prompt-preset-select"]'?forLabel:null,
-  createElement:tag=>el(tag,{}),body:{}},
-  bootstrap:{Tooltip:function(target,opts){tooltips.push([target,opts]);}}};
-vm.createContext(c);
-vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);
-vm.runInContext('renderHelpTips();ensureHelpTooltips();',c);
-assert.strictEqual(forLabel.children.length,1,'one icon in the for= label');
-const icon=forLabel.children[0];
-assert.strictEqual(icon.tagName,'button');assert.strictEqual(icon.type,'button');
-assert.strictEqual(icon.attrs['data-help-for'],'prompt-preset-select');
-assert(icon.attrs['data-bs-title'].includes('Recommended:'));
-assert(icon.attrs['data-bs-title'].includes('(source: '));
-assert(icon.attrs['aria-label'].startsWith('Help: '));
-assert.strictEqual(icon.textContent,'ⓘ');
-assert.strictEqual(wrap.children.length,2,'icon appended inside the wrapping label');
-assert.strictEqual(wrap.children[1].attrs['data-help-for'],'m4b-per-chunk');
-assert('data-help-tip' in bare.attrs,'unlabelled control carries the tooltip itself');
-assert(bare.attrs['data-bs-title'].length>0);
-assert.strictEqual(tooltips.length,1,'one delegated tooltip');
-assert.strictEqual(tooltips[0][1].selector,'[data-help-tip]');
-assert.strictEqual(tooltips[0][1].html,false);
+const label=body.appendChild(new Element('label',{for:'prompt-preset-select'}));
+const select=body.appendChild(new Element('select',{id:'prompt-preset-select'}));select.labels=[label];
+const wrap=body.appendChild(new Element('label',{}));const box=wrap.appendChild(new Element('input',{id:'m4b-per-chunk'}));box.labels=[wrap];
+const bare=body.appendChild(new Element('input',{id:'save-script-name'}));
+load();context.renderHelpTips();context.ensureHelpTooltips();
+assert.strictEqual(label.children.length,0,'help must not become part of the field label');
+const icon=tipFor(select);assert.strictEqual(icon.tagName,'SPAN');assert.strictEqual(icon.previousElementSibling,label);assert.strictEqual(icon.getAttribute('data-help-for'),'prompt-preset-select');
+assert(icon.getAttribute('data-bs-title').includes('Recommended:'));assert(icon.getAttribute('data-bs-title').includes('(source: '));assert(icon.getAttribute('aria-label').startsWith('Help: '));assert.strictEqual(icon.textContent,'ⓘ');
+assert.strictEqual(tipFor(box).previousElementSibling,wrap,'no help control nested in the checkbox label');
+assert.strictEqual(tipFor(bare).previousElementSibling,bare,'unlabelled field gets a visible glyph');
+assert(tipFor(bare).getAttribute('data-bs-title').length>0);
+assert.strictEqual(body.querySelectorAll('.help-tip').length,3,'repeat render has no duplicate icons');assert.strictEqual(tooltipCalls.length,1);assert.strictEqual(tooltipCalls[0].options.selector,'[data-help-tip]');assert.strictEqual(tooltipCalls[0].options.html,false);
 """
 
 
 class FieldHelpRenderTests(unittest.TestCase):
     def test_render_places_icons_once_and_initialises_one_delegated_tooltip(self):
-        result = subprocess.run(["node", "-e", RENDER_TEST, str(STATIC / "js" / "app-help.js")],
-                                capture_output=True, text=True, timeout=15)
+        from tests.test_ui_help_js import run_help_js
+        result = run_help_js(RENDER_TEST)
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
