@@ -3,6 +3,8 @@ function isSetupSettingAvailable(control) {
     const form = document.getElementById('config-form');
     if (!form?.contains(control) || control.disabled || control.type === 'hidden') { return false; }
     for (let node = control; node && node !== form; node = node.parentElement) {
+        // An inactive workspace category is navigable; conditional backend groups are not.
+        if (node.matches('[data-settings-section]')) { continue; }
         if (node.hidden || node.classList.contains('collapsing')) { return false; }
         if (getComputedStyle(node).display === 'none' && !node.classList.contains('collapse')) { return false; }
     }
@@ -64,13 +66,31 @@ function openSetupSetting(id) {
     openConfigField(control);
 }
 
-function openSetupSettingsSection(id) {
+function openSetupSettingsSection(id, focusHeading = true) {
     const section = document.getElementById(id);
     if (!section?.matches('[data-settings-section]')) { return; }
-    const heading = section.querySelector('h5');
-    heading.focus();
-    heading.scrollIntoView({block: 'start'});
+    for (const panel of document.querySelectorAll('#config-form [data-settings-section]')) {
+        panel.hidden = panel !== section;
+    }
+    for (const button of document.querySelectorAll('[data-settings-target]')) {
+        button.setAttribute('aria-current', String(button.getAttribute('data-settings-target') === id));
+    }
+    document.getElementById('setup-settings-category').value = id;
+    if (focusHeading) {
+        const heading = section.querySelector('h5');
+        heading.focus({preventScroll: true});
+        heading.scrollIntoView({block: 'start', behavior: 'instant'});
+    }
 }
+
+// Browser constraint validation happens before submit. Reveal only the first
+// rejected control so later invalid events cannot hide the browser's focus target.
+function onSetupSettingsInvalid(event) {
+    const form = document.getElementById('config-form');
+    if (form.querySelector('input:invalid, select:invalid, textarea:invalid') === event.target) { openConfigField(event.target); }
+}
+
+document.getElementById('config-form').addEventListener('invalid', onSetupSettingsInvalid, true);
 
 function clearSetupSettingsSearch() {
     const search = document.getElementById('setup-settings-search');

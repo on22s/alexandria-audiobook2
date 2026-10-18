@@ -8011,9 +8011,11 @@
   ],
   "test_settings_discovery_js": [
     "tests.test_settings_discovery_js.DarkThemeContrastTests.test_rejects_old_white_on_light_blue_and_accepts_fills_and_text",
+    "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_category_navigation_keeps_original_controls_and_searches_inactive_panels",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_description_matching_and_no_value_or_secret_indexing",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_hidden_backend_and_disabled_controls_refused_but_collapses_searchable",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_match_reveals_original_field_and_rechecks_changed_backend",
+    "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_native_validation_reveals_first_invalid_only",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_plain_text_bounded_results_clear_and_escape",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_search_outside_save_form_and_classic_script_order"
   ],

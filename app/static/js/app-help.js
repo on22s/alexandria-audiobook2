@@ -8,6 +8,7 @@
         // has no entry, or if a recommendation has no source.
         /** @type {Object<string, {what: string, recommend?: string, source?: string}>} */
         const FIELD_HELP = {
+            'setup-settings-category': {what: 'Choose which Setup category to display. Edits in other categories are retained. Save Configuration applies all edited categories.'},
             'setup-settings-search': {what: 'Find available Setup settings by their labels and explanations, then jump to the original control. Does not search field values or save settings.'},
             // Setup: LLM connection
             'llm-mode': {what: 'Which LLM profile is active: Local (this machine) or Remote (a server elsewhere). Each profile keeps its own address, model and limits.'},
@@ -256,7 +257,7 @@
         };
 
         const ACTION_HELP = {
-            'openSetupSettingsSection': 'Jump to this Setup section without changing or saving settings.',
+            'openSetupSettingsSection': 'Display this settings category while keeping edits in every category. Jump to this Setup section without changing or saving settings.',
             'openSetupSetting': 'Open the matching setting and move keyboard focus to its original control. Does not change its value.',
             'clearSetupSettingsSearch': 'Clear the settings search and its results without changing your configuration.',
             'reloadPageAfterConfirmation': 'Reload the page to use the running app’s latest files. Confirm first so unsaved work is not discarded accidentally.',
@@ -455,7 +456,7 @@
         };
 
         const ITEM_HELP = {
-            'settings-llm-advanced-toggle': 'Show or hide model context, input/output ceilings, request timeouts and retries. Expanding this group does not change its settings.',
+            'settings-llm-advanced-toggle': 'Show or hide request timeouts and retry backoff for the selected LLM location. Expanding this group does not change its settings.',
             'script-recovery-inject': 'Paste a replacement model reply for the failed chunk, then validate it before applying it.',
             'config-save-button-top': 'Save the current configuration so subsequent tasks use these settings.',
             'config-save-button': 'Save the current configuration so subsequent tasks use these settings.',
@@ -675,7 +676,7 @@
                 control.removeAttribute('data-help-covered');
                 return;
             }
-            if (control.closest('.navbar') || control.tagName === 'SUMMARY') {
+            if (control.closest('.navbar') || control.tagName === 'SUMMARY' || control.classList.contains('settings-category')) {
                 if (tip) { removeItemHelp(control); }
                 if (control.getAttribute('data-bs-title') !== text) {
                     disposeHelpTooltip(control);

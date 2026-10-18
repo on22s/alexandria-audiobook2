@@ -845,16 +845,45 @@
             border-color: var(--accent);
         }
         html[data-theme="leek"] .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
-        /* Setup discovery keeps the original controls and save scope. */
-        .settings-overview { padding: 1rem; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--bg-card-header); }
-        .settings-section { padding: 1.25rem 0; border-top: 1px solid var(--border-input); scroll-margin-top: 5rem; }
-        .settings-section > h5 { scroll-margin-top: 5rem; }
+        /* One form, task-based panels; navigation never alters saved settings. */
+        .settings-workspace { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+        .settings-sidebar { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; padding: 1rem; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--bg-card-header); min-width: 0; }
+        .settings-sidebar-title { color: var(--text-heading); font-weight: 700; font-size: 1.05rem; }
+        .settings-categories { display: grid; gap: .15rem; margin: 1rem -.4rem; }
+        .settings-category { display: flex; align-items: center; gap: .8rem; text-align: left; padding: .65rem; width: 100%; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-primary); }
+        .settings-category > i { width: 1rem; color: var(--accent); }
+        .settings-category strong, .settings-category small { display: block; }
+        .settings-category > .help-nav-glyph { margin-left: auto; }
+        .settings-category small { font-size: .75rem; color: var(--text-muted); margin-top: .15rem; }
+        .settings-category:hover { background: var(--bg-card); border-color: var(--border-input); }
+        .settings-category[aria-current="true"] { background: var(--accent-fill); color: #fff; }
+        .settings-category[aria-current="true"] :is(i, small) { color: #fff; }
+        .settings-finder { border-top: 1px solid var(--border-input); padding-top: 1rem; }
+        .settings-mobile { display: none; }
+        #config-form { min-width: 0; }
+        .settings-section { padding: 1rem 0; scroll-margin-top: 5rem; }
+        .settings-section[hidden] { display: none; }
+        .settings-section > h5 { scroll-margin-top: 5rem; font-size: 1.5rem; margin-bottom: .5rem; }
+        .settings-intro { color: var(--text-muted); margin-bottom: 1.5rem; max-width: 65ch; }
+        .settings-section .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-left: 0; margin-right: 0; }
+        .settings-section .row > [class*="col"] { width: auto; min-width: 0; padding-left: 0; padding-right: 0; margin-top: 0; }
         .settings-search-results { display: grid; gap: .5rem; margin-top: .75rem; }
         .settings-search-results[hidden] { display: none; }
         .settings-search-hit { display: flex; align-items: center; gap: .5rem; min-width: 0; }
-        .settings-search-hit > button { flex: 1; min-width: 0; text-align: left; white-space: normal; }
-        .settings-advanced { padding: .75rem; border: 1px solid var(--border-input); border-radius: var(--radius-sm); }
-        .settings-advanced > summary { margin-bottom: .5rem; color: var(--text-heading); }
+        .settings-search-hit > button { flex: 1; min-width: 0; text-align: left; white-space: normal; font-size: .8rem; }
+        .settings-advanced { padding: 1rem; border: 1px solid var(--border-input); border-radius: var(--radius-sm); background: var(--bg-card-header); }
+        .settings-advanced > summary { color: var(--text-heading); font-weight: 600; }
+        .settings-advanced[open] > summary { margin-bottom: 1rem; }
+        .settings-section .form-text { line-height: 1.5; }
+        @media (max-width: 991px) {
+            .settings-workspace { grid-template-columns: minmax(0, 1fr); gap: .5rem; }
+            .settings-sidebar { position: static; max-height: none; overflow-y: visible; }
+            .settings-categories { display: none; }
+            .settings-mobile { display: block; }
+        }
+        @media (max-width: 575px) {
+            .settings-section .row { grid-template-columns: minmax(0, 1fr); }
+        }
         html:is([data-theme="night"], [data-theme="super-night"]) .btn-primary {
             --bs-btn-color: #ffffff;
             --bs-btn-bg: var(--accent-fill);
@@ -987,30 +1016,41 @@
                         <span id="config-warning-msg"></span>
                         <button type="button" id="config-load-retry" class="btn btn-sm btn-outline-secondary ms-2" onclick="loadConfig()" style="display:none;">Retry loading configuration</button>
                     </div>
-                    <div class="settings-overview mb-3" id="setup-settings-overview">
-                        <h5>Find your settings</h5>
-                        <p class="small text-muted">Set up your services here. Voice assignments are in Voices; line edits are in Editor. Save Configuration applies your edited Setup settings.</p>
-                        <nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Setup sections">
-                            <span class="d-inline-flex align-items-center gap-1"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="openSetupSettingsSection('settings-llm')">Language model</button></span>
-                            <span class="d-inline-flex align-items-center gap-1"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="openSetupSettingsSection('settings-tts')">Speech generation</button></span>
-                            <span class="d-inline-flex align-items-center gap-1"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="openSetupSettingsSection('settings-prompts')">Prompts &amp; generation</button></span>
-                        </nav>
-                        <label class="form-label" for="setup-settings-search">Find a setting</label>
+<div class="settings-workspace">
+                    <aside class="settings-sidebar" id="setup-settings-overview">
+                        <div class="settings-sidebar-title">Setup workspace</div>
+                        <p class="small text-muted">Choose an area to work on.</p>
+                        <div class="settings-mobile"><label class="form-label" for="setup-settings-category">Settings category</label>
+                        <select class="form-select mb-3" id="setup-settings-category" onchange="openSetupSettingsSection(this.value, false)"><option value="settings-llm">Connection</option><option value="settings-limits">Limits &amp; retries</option><option value="settings-tts">Speech engine</option><option value="settings-audio">Audio &amp; timing</option><option value="settings-generation">Generation</option><option value="settings-strategy">Script strategy</option><option value="settings-prompts">Prompt studio</option></select></div>
+                        <nav class="settings-categories" aria-label="Setup categories"><button type="button" class="settings-category" data-settings-target="settings-llm" aria-controls="settings-llm" aria-current="true" onclick="openSetupSettingsSection('settings-llm')"><i class="fas fa-plug" aria-hidden="true"></i><span><strong>Connection</strong><small>Server, model &amp; credentials</small></span></button>
+<button type="button" class="settings-category" data-settings-target="settings-limits" aria-controls="settings-limits" aria-current="false" onclick="openSetupSettingsSection('settings-limits')"><i class="fas fa-shield-alt" aria-hidden="true"></i><span><strong>Limits &amp; retries</strong><small>Context, timeouts &amp; recovery</small></span></button>
+<button type="button" class="settings-category" data-settings-target="settings-tts" aria-controls="settings-tts" aria-current="false" onclick="openSetupSettingsSection('settings-tts')"><i class="fas fa-microphone" aria-hidden="true"></i><span><strong>Speech engine</strong><small>Local model or external server</small></span></button>
+<button type="button" class="settings-category" data-settings-target="settings-audio" aria-controls="settings-audio" aria-current="false" onclick="openSetupSettingsSection('settings-audio')"><i class="fas fa-sliders-h" aria-hidden="true"></i><span><strong>Audio &amp; timing</strong><small>Batches, takes &amp; pauses</small></span></button>
+<button type="button" class="settings-category" data-settings-target="settings-generation" aria-controls="settings-generation" aria-current="false" onclick="openSetupSettingsSection('settings-generation')"><i class="fas fa-magic" aria-hidden="true"></i><span><strong>Generation</strong><small>Token budgets &amp; sampling</small></span></button>
+<button type="button" class="settings-category" data-settings-target="settings-strategy" aria-controls="settings-strategy" aria-current="false" onclick="openSetupSettingsSection('settings-strategy')"><i class="fas fa-book-open" aria-hidden="true"></i><span><strong>Script strategy</strong><small>Segmentation &amp; speakers</small></span></button>
+<button type="button" class="settings-category" data-settings-target="settings-prompts" aria-controls="settings-prompts" aria-current="false" onclick="openSetupSettingsSection('settings-prompts')"><i class="fas fa-code" aria-hidden="true"></i><span><strong>Prompt studio</strong><small>Advanced instructions &amp; presets</small></span></button>
+</nav>
+                        <div class="settings-finder">                        <label class="form-label" for="setup-settings-search">Find a setting</label>
                         <div class="d-flex align-items-center gap-2">
                             <input type="search" class="form-control" id="setup-settings-search" maxlength="120" placeholder="Try context, memory, language or retries" aria-describedby="setup-settings-search-hint" aria-controls="setup-settings-results" oninput="renderSetupSettingsSearch()" onkeydown="onSetupSettingsSearchKeydown(event)">
                             <button type="button" class="btn btn-outline-secondary" id="setup-settings-clear" onclick="clearSetupSettingsSearch()" hidden>Clear</button>
                         </div>
-                        <div class="form-text" id="setup-settings-search-hint">Search labels and explanations for settings available with your current services. Selecting a result opens the original setting. Nothing is saved by searching.</div>
+                        <div class="form-text" id="setup-settings-search-hint">Search labels and help for your current services.</div>
                         <div id="setup-settings-search-status" class="small mt-2" role="status" aria-live="polite"></div>
                         <div id="setup-settings-results" class="settings-search-results" hidden></div>
-                    </div>
+</div>
+                        <p class="small text-muted mt-3 mb-0">Looking for character voices or line edits? Use Voices or Editor in the main navigation.</p>
+                    </aside>
                     <form id="config-form">
                         <div class="config-save-bar d-flex flex-wrap align-items-center gap-2 mb-3 p-2 border rounded">
                             <button id="config-save-button-top" data-config-save-action type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save Configuration</button>
+                            <span class="small text-muted">Save applies edits across every category.</span>
                             <span id="config-save-status" class="small" role="status" aria-live="polite"></span>
                         </div>
-                        <section id="settings-llm" class="settings-section" data-settings-section="Language model">
-                        <h5 class="mb-3" tabindex="-1">Language model · script generation</h5>
+<section id="settings-llm" class="settings-section" data-settings-section="Connection" aria-labelledby="settings-llm-heading">
+<h5 id="settings-llm-heading" tabindex="-1">Connection</h5>
+<p class="settings-intro">Connect the language model that reads your book and identifies speakers. Each location keeps its own profile.</p>
+
                         <div class="mb-3">
                             <label class="form-label" for="llm-mode">LLM Location <span id="llm-active-mode-badge" class="badge bg-secondary ms-1">Active: Local</span></label>
                             <select class="form-select" id="llm-mode" onchange="onLlmModeChange()">
@@ -1044,64 +1084,6 @@
                             <datalist id="llm-model-options"></datalist>
                             <small id="llm-model-hint" class="text-muted"></small>
                         </div>
-                        <details class="settings-advanced mb-3">
-                            <summary id="settings-llm-advanced-toggle">Context, limits and retries</summary>
-                        <div class="mb-3">
-                            <label class="form-label mt-2" for="llm-context-length">Total context budget (tokens)</label>
-                            <input type="number" class="form-control" id="llm-context-length" min="1" step="1" placeholder="Detected loaded context">
-                            <small class="text-muted d-block">Optional declared budget for this profile, including input and output. A smaller detected loaded context still wins. This does not reload the model or release allocated VRAM.</small>
-                            <label class="form-label mt-2" for="llm-max-input-tokens">Input ceiling (tokens)</label>
-                            <input type="number" class="form-control" id="llm-max-input-tokens" min="1" step="1" placeholder="Inherit global input ceiling">
-                            <label class="form-label mt-2" for="llm-max-output-tokens">Output ceiling (tokens)</label>
-                            <input type="number" class="form-control" id="llm-max-output-tokens" min="1" step="1" placeholder="No profile cap">
-                            <small class="text-muted d-block">Includes reasoning tokens where the provider counts them toward output. A blank output ceiling leaves each task's own retry ceiling in place; a blank input ceiling inherits the global one. Context checks always apply.</small>
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-4">
-                                <label class="form-label" for="llm-request-timeout">Request timeout (seconds)</label>
-                                <input type="number" class="form-control" id="llm-request-timeout" min="0.1" max="3600" step="0.1" placeholder="App default">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label" for="llm-connect-timeout">Connect timeout (seconds)</label>
-                                <input type="number" class="form-control" id="llm-connect-timeout" min="0.1" max="300" step="0.1" placeholder="Request timeout">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label" for="llm-request-interval">Minimum interval (seconds)</label>
-                                <input type="number" class="form-control" id="llm-request-interval" min="0" max="3600" step="0.1" value="0">
-                            </div>
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-3">
-                                <label class="form-label" for="llm-api-retry-limit">API retries</label>
-                                <input type="number" class="form-control" id="llm-api-retry-limit" min="0" max="10" step="1" placeholder="Stage default">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label" for="llm-on-api-exhaustion">When retries run out</label>
-                                <select class="form-select" id="llm-on-api-exhaustion">
-                                    <option value="fail">Fail the chunk</option>
-                                    <option value="pause">Pause and wait for me</option>
-                                </select>
-                                <div class="form-text">Pause freezes the run in place on a rate limit or outage; Resume retries the same request.</div>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label" for="llm-retry-initial-delay">Initial backoff (s)</label>
-                                <input type="number" class="form-control" id="llm-retry-initial-delay" min="0" max="60" step="0.1" value="1">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label" for="llm-retry-multiplier">Backoff multiplier</label>
-                                <input type="number" class="form-control" id="llm-retry-multiplier" min="1" max="10" step="0.1" value="2">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label" for="llm-retry-max-delay">Maximum backoff (s)</label>
-                                <input type="number" class="form-control" id="llm-retry-max-delay" min="0" max="300" step="0.1" value="30">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label" for="llm-retry-jitter">Backoff jitter (0–1)</label>
-                                <input type="number" class="form-control" id="llm-retry-jitter" min="0" max="1" step="0.05" value="0.2">
-                                <div class="form-text">Randomises each retry delay by ± this fraction so parallel workers don't retry in lockstep.</div>
-                            </div>
-                        </div>
-                        </details>
                         <details class="mb-3">
                             <summary>Provider request options: transport, GPU sharing, reasoning, headers</summary>
                             <div class="form-text mb-2">Optional JSON objects sent only to this LLM location. Request-body options apply to chat completions; headers apply to every request.</div>
@@ -1150,9 +1132,77 @@
                             <span id="llm-test-result" class="ms-2 small"></span>
                         </div>
 
-                        </section>
-                        <section id="settings-tts" class="settings-section" data-settings-section="Speech generation">
-                        <h5 class="mb-3" tabindex="-1">Speech generation · voices and audio</h5>
+
+</section>
+<section id="settings-limits" class="settings-section" data-settings-section="Limits &amp; retries" aria-labelledby="settings-limits-heading" hidden>
+<h5 id="settings-limits-heading" tabindex="-1">Limits &amp; retries</h5>
+<p class="settings-intro">Control request size and recovery for the LLM location selected in Connection. Profile ceilings still work together with detected context and task safety limits.</p>
+                        <div class="settings-budget">
+                        <div class="mb-3">
+                            <label class="form-label mt-2" for="llm-context-length">Total context budget (tokens)</label>
+                            <input type="number" class="form-control" id="llm-context-length" min="1" step="1" placeholder="Detected loaded context">
+                            <small class="text-muted d-block">Optional declared budget for this profile, including input and output. A smaller detected loaded context still wins. This does not reload the model or release allocated VRAM.</small>
+                            <label class="form-label mt-2" for="llm-max-input-tokens">Input ceiling (tokens)</label>
+                            <input type="number" class="form-control" id="llm-max-input-tokens" min="1" step="1" placeholder="Inherit global input ceiling">
+                            <label class="form-label mt-2" for="llm-max-output-tokens">Output ceiling (tokens)</label>
+                            <input type="number" class="form-control" id="llm-max-output-tokens" min="1" step="1" placeholder="No profile cap">
+                            <small class="text-muted d-block">Includes reasoning tokens where the provider counts them toward output. A blank output ceiling leaves each task's own retry ceiling in place; a blank input ceiling inherits the global one. Context checks always apply.</small>
+                        </div>
+                        </div>
+                        <details class="settings-advanced mb-3">
+                            <summary id="settings-llm-advanced-toggle">Timeouts and retry backoff</summary>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label" for="llm-request-timeout">Request timeout (seconds)</label>
+                                <input type="number" class="form-control" id="llm-request-timeout" min="0.1" max="3600" step="0.1" placeholder="App default">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="llm-connect-timeout">Connect timeout (seconds)</label>
+                                <input type="number" class="form-control" id="llm-connect-timeout" min="0.1" max="300" step="0.1" placeholder="Request timeout">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="llm-request-interval">Minimum interval (seconds)</label>
+                                <input type="number" class="form-control" id="llm-request-interval" min="0" max="3600" step="0.1" value="0">
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-api-retry-limit">API retries</label>
+                                <input type="number" class="form-control" id="llm-api-retry-limit" min="0" max="10" step="1" placeholder="Stage default">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-on-api-exhaustion">When retries run out</label>
+                                <select class="form-select" id="llm-on-api-exhaustion">
+                                    <option value="fail">Fail the chunk</option>
+                                    <option value="pause">Pause and wait for me</option>
+                                </select>
+                                <div class="form-text">Pause freezes the run in place on a rate limit or outage; Resume retries the same request.</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-retry-initial-delay">Initial backoff (s)</label>
+                                <input type="number" class="form-control" id="llm-retry-initial-delay" min="0" max="60" step="0.1" value="1">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-retry-multiplier">Backoff multiplier</label>
+                                <input type="number" class="form-control" id="llm-retry-multiplier" min="1" max="10" step="0.1" value="2">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-retry-max-delay">Maximum backoff (s)</label>
+                                <input type="number" class="form-control" id="llm-retry-max-delay" min="0" max="300" step="0.1" value="30">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="llm-retry-jitter">Backoff jitter (0–1)</label>
+                                <input type="number" class="form-control" id="llm-retry-jitter" min="0" max="1" step="0.05" value="0.2">
+                                <div class="form-text">Randomises each retry delay by ± this fraction so parallel workers don't retry in lockstep.</div>
+                            </div>
+                        </div>
+                        </details>
+
+</section>
+<section id="settings-tts" class="settings-section" data-settings-section="Speech engine" aria-labelledby="settings-tts-heading" hidden>
+<h5 id="settings-tts-heading" tabindex="-1">Speech engine</h5>
+<p class="settings-intro">Choose where voices are generated and the language used for synthesis. Assign individual character voices in Voices.</p>
+
                         <div class="row mb-3">
                             <div class="col-md-3">
                                 <label class="form-label" for="tts-mode">TTS Mode</label>
@@ -1200,7 +1250,7 @@
                                     <option value="Russian">Russian</option>
                                     <option value="Spanish">Spanish</option>
                                 </select>
-                                <div class="form-text">Language for audio synthesis only. To generate scripts in another language, edit the prompts under Prompt Settings (Advanced).</div>
+                                <div class="form-text">Language for audio synthesis only. To generate scripts in another language, edit the prompts in Prompt studio.</div>
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label" for="parallel-workers">Parallel Workers</label>
@@ -1213,6 +1263,12 @@
                                 <div class="form-text">Seed for reproducibility</div>
                             </div>
                         </div>
+
+</section>
+<section id="settings-audio" class="settings-section" data-settings-section="Audio &amp; timing" aria-labelledby="settings-audio-heading" hidden>
+<h5 id="settings-audio-heading" tabindex="-1">Audio &amp; timing</h5>
+<p class="settings-intro">Tune rendering, reproducible takes and the pauses used when audio is merged. Voice-design text limits apply to the next persona generation.</p>
+<details class="settings-advanced mb-3"><summary>Advanced local rendering and batching</summary>
                         <div class="row mb-3" id="tts-local-options" style="display:none;">
                             <div class="col-md-2">
                                 <div class="form-check form-switch mt-4">
@@ -1256,6 +1312,7 @@
                                 <div class="form-text">Hard cap on sequences per sub-batch (0 = auto from VRAM estimate)</div>
                             </div>
                         </div>
+</details>
                         <div class="row mb-3">
                             <div class="col-md-2">
                                 <label class="form-label" for="pause-between-speakers">Speaker Change Pause (ms)</label>
@@ -1288,18 +1345,11 @@
                             </div>
                         </div>
 
-                        </section>
-                        <section id="settings-prompts" class="settings-section" data-settings-section="Prompts and generation">
-                        <h5 class="mb-3" tabindex="-1">
-                            <a class="text-decoration-none" data-bs-toggle="collapse" href="#promptSettings" role="button" aria-expanded="false">
-                                <i class="fas fa-chevron-right me-2" id="prompt-chevron"></i>Prompt Settings (Advanced)
-                            </a>
-                        </h5>
-                        <div class="small mb-2">
-                            <span id="prompt-defaults-status" role="status" aria-live="polite"></span>
-                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="prompt-defaults-retry" onclick="loadMissingPromptDefaults()" hidden>Retry loading prompts</button>
-                        </div>
-                        <div class="collapse" id="promptSettings">
+
+</section>
+<section id="settings-generation" class="settings-section" data-settings-section="Generation" aria-labelledby="settings-generation-heading" hidden>
+<h5 id="settings-generation-heading" tabindex="-1">Generation</h5>
+<p class="settings-intro">Set shared LLM response allowances and sampling. Profile limits and task safeguards continue to apply.</p>
                             <h6 class="mb-3">Generation Settings</h6>
                             <div class="row mb-3">
                                 <div class="col-md-6">
@@ -1311,6 +1361,7 @@
                                     <div class="form-text">Conservative baseline. Verified LM Studio context may raise the effective allowance, up to each task's hard safety ceiling. Set a profile Output ceiling to cap it.</div>
                                 </div>
                             </div>
+<details class="settings-advanced mb-3"><summary>Sampling and token restrictions</summary>
                             <h6 class="mb-3">LLM Sampling Parameters</h6>
                             <div class="row mb-3">
                                 <div class="col">
@@ -1344,13 +1395,30 @@
                                 <input type="text" class="form-control" id="banned-tokens" placeholder="Optional: comma-separated tokens">
                                 <div class="form-text">Comma-separated tokens the LLM is forbidden from generating. Do not ban <code>&lt;think&gt;</code> to disable reasoning; use <strong>Reasoning effort</strong> set to <strong>low</strong> in Provider request options instead.</div>
                             </div>
+</details>
                             <div class="mb-3 form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="merge-narrators">
                                 <label class="form-check-label" for="merge-narrators">Merge consecutive narrator lines</label>
                                 <div class="form-text">During script review, combine adjacent NARRATOR entries that share the same instruct into a single longer entry. Disable for better per-line voice direction control.</div>
                             </div>
-                            <details class="mb-3" open>
-                                <summary class="text-muted small">Script generation: how much of the book the AI reads at once</summary>
+
+                            <div class="mb-3">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="lmstudio-optimize-toggle" onchange="toggleLmStudioOptimize()">
+                                        <label class="form-check-label" for="lmstudio-optimize-toggle">Optimize LM Studio settings</label>
+                                    </div>
+                                    <span id="lmstudio-status-badge" class="badge bg-secondary">Checking...</span>
+                                </div>
+                                <div class="form-text">Local: reloads with context 8192 / parallel 1 (lower VRAM during batch review). Remote: reloads the remote model with context 98304 / parallel 2 over SSH (needs the SSH host alias above). Off restores LM Studio's defaults.</div>
+                            </div>
+
+</section>
+<section id="settings-strategy" class="settings-section" data-settings-section="Script strategy" aria-labelledby="settings-strategy-heading" hidden>
+<h5 id="settings-strategy-heading" tabindex="-1">Script strategy</h5>
+<p class="settings-intro">Choose segmentation, speaker context and per-pass behavior for script generation. Keep the defaults unless a book needs a different approach.</p>
+                            <div class="settings-strategy">
+                                <p class="form-text">Choose how much of the book the AI reads at once.</p>
                                 <div class="form-text mb-2">Turning a book into a script happens in three steps, for one book or a batch alike: <strong>1</strong> split the text into narration and spoken lines, <strong>2</strong> decide who says each line, <strong>3</strong> write a delivery note for each line. The settings below control how much text the AI sees in all three steps. The defaults are what this project's published accuracy numbers were measured with; change them to trade speed for context.</div>
                                 <div class="row g-2 mt-1">
                                     <div class="col-md-4">
@@ -1465,19 +1533,17 @@
                                         <input type="number" class="form-control form-control-sm" id="context-rescue-retries" min="0" max="10" step="1" value="2">
                                     </div>
                                 </div>
-                            </details>
-                            <div class="mb-3">
-                                <div class="d-flex align-items-center justify-content-between">
-                                    <div class="form-check form-switch mb-0">
-                                        <input class="form-check-input" type="checkbox" id="lmstudio-optimize-toggle" onchange="toggleLmStudioOptimize()">
-                                        <label class="form-check-label" for="lmstudio-optimize-toggle">Optimize LM Studio settings</label>
-                                    </div>
-                                    <span id="lmstudio-status-badge" class="badge bg-secondary">Checking...</span>
-                                </div>
-                                <div class="form-text">Local: reloads with context 8192 / parallel 1 (lower VRAM during batch review). Remote: reloads the remote model with context 98304 / parallel 2 over SSH (needs the SSH host alias above). Off restores LM Studio's defaults.</div>
                             </div>
-                            <hr>
-                            <h6 class="mb-3">Prompt Customization</h6>
+</section>
+                        <section id="settings-prompts" class="settings-section" data-settings-section="Prompt studio" aria-labelledby="settings-prompts-heading" hidden>
+                        <h5 id="settings-prompts-heading" tabindex="-1">Prompt studio</h5>
+                        <p class="settings-intro">Advanced: change what the model is asked. Open a prompt family to edit its original fields. Preserve the required template placeholders.</p>
+                        <div class="small mb-2">
+                            <span id="prompt-defaults-status" role="status" aria-live="polite"></span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="prompt-defaults-retry" onclick="loadMissingPromptDefaults()" hidden>Retry loading prompts</button>
+                        </div>
+                        <div id="promptSettings">
+                            <details class="settings-advanced mb-3"><summary>Attribution and segmentation prompts</summary>
                             <div class="card card-body bg-light mb-3">
                                 <div class="row g-2 align-items-end">
                                     <div class="col-md-6">
@@ -1535,8 +1601,8 @@
                                 <div class="small text-muted">User message (sample window)</div>
                                 <pre class="border rounded p-2 bg-light" id="prompt-preview-user" style="white-space: pre-wrap; font-size: 0.8em; max-height: 30em; overflow: auto;"></pre>
                             </div>
-                            <hr>
-                            <h6 class="mb-3">Review Prompt Customization</h6>
+                            </details>
+                            <details class="settings-advanced mb-3"><summary>Delivery notes and review prompts</summary>
                             <div class="mb-3">
                                 <div class="row g-2 align-items-end mb-2">
                                     <div class="col-md-6">
@@ -1564,8 +1630,8 @@
                                 <textarea class="form-control font-monospace" id="review-user-prompt" rows="4" style="font-size: 0.85em;"></textarea>
                                 <div class="form-text">Template for each review batch. Use <code>{context}</code> for batch context and <code>{batch}</code> for the script entries.</div>
                             </div>
-                            <hr>
-                            <h6 class="mb-3">Persona Prompt Customization</h6>
+                            </details>
+                            <details class="settings-advanced mb-3"><summary>Persona and voice design prompts</summary>
                             <div class="mb-3">
                                 <label class="form-label" for="persona-system-prompt">Persona System Prompt</label>
                                 <textarea class="form-control font-monospace" id="persona-system-prompt" rows="4" style="font-size: 0.85em;"></textarea>
@@ -1589,6 +1655,7 @@
                                 <textarea class="form-control font-monospace" id="persona-advanced-prompt" rows="8" style="font-size: 0.85em;"></textarea>
                                 <div class="form-text">Template for advanced mode final compilation. Use <code>{character_ref}</code> for the accumulated character reference data.</div>
                             </div>
+                            </details>
                             <button type="button" class="btn btn-outline-secondary btn-sm mb-3" data-config-save-action onclick="resetPrompts()">
                                 <i class="fas fa-undo me-1"></i>Reset to Defaults
                             </button>
@@ -1605,6 +1672,7 @@
                             <span id="notification-status" class="form-text ms-2" role="status" aria-live="polite">Optional: receive desktop updates when tasks finish.</span>
                         </div>
                     </form>
+                    </div>
                 </div>
             </div>
         </div>

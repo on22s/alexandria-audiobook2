@@ -416,7 +416,9 @@
         }
 
         function openConfigField(field) {
-            const focusField = () => { field.focus(); field.scrollIntoView({block: 'center'}); };
+            const section = field.closest('[data-settings-section]');
+            if (section) { openSetupSettingsSection(section.id, false); }
+            const focusField = () => { field.focus({preventScroll: true}); field.scrollIntoView({block: 'center', behavior: 'instant'}); };
             let waiting = false;
             for (let parent = field.parentElement; parent; parent = parent.parentElement) {
                 if (parent.tagName === 'DETAILS') { parent.open = true; }
@@ -2070,14 +2072,6 @@
                 showToast("Could not load defaults. Check the Alexandria server, then try Reset to Defaults again.", 'error');
             }
         };
-
-        // Toggle chevron on collapse
-        document.getElementById('promptSettings')?.addEventListener('show.bs.collapse', () => {
-            document.getElementById('prompt-chevron').classList.replace('fa-chevron-right', 'fa-chevron-down');
-        });
-        document.getElementById('promptSettings')?.addEventListener('hide.bs.collapse', () => {
-            document.getElementById('prompt-chevron').classList.replace('fa-chevron-down', 'fa-chevron-right');
-        });
 
         // The whole payload in one place, so a bad field (a non-numeric rescue
         // window, malformed JSON) throws here and is shown, not swallowed.

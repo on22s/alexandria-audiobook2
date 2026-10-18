@@ -16,7 +16,7 @@ STATIC = Path(__file__).resolve().parent.parent / 'static'
 SETUP = r'''
 load();
 Element.prototype.replaceChildren=function(){for(const child of [...this.children]){child.remove();}};
-Element.prototype.querySelector=function(selector){return this.querySelectorAll(selector)[0]||null;};
+Element.prototype.querySelector=function(selector){return (selector==='h5'?this.children.find(node=>node.tagName==='H5'):this.querySelectorAll(selector)[0])||null;};
 Element.prototype.focus=function(){document.activeElement=this;};
 Element.prototype.scrollIntoView=function(){this.scrolled=true;};
 context.getComputedStyle=node=>({display:node.style.display||'block'});
@@ -24,6 +24,7 @@ const form=body.appendChild(new Element('form',{id:'config-form'}));
 const overview=body.appendChild(new Element('div'));
 const search=overview.appendChild(new Element('input',{id:'setup-settings-search'}));search.value='';
 const results=overview.appendChild(new Element('div',{id:'setup-settings-results',hidden:''}));
+const category=overview.appendChild(new Element('select',{id:'setup-settings-category'}));
 const status=overview.appendChild(new Element('div',{id:'setup-settings-search-status'}));
 overview.appendChild(new Element('button',{id:'setup-settings-clear'}));
 const section=form.appendChild(new Element('section',{'data-settings-section':'Language model',id:'settings-llm'}));
@@ -37,7 +38,7 @@ function field(id,label,parent=details){
 const budget=field('llm-context-length','Total context budget (tokens)');
 const key=field('llm-key','API Key',section);
 const queryAll=document.querySelectorAll.bind(document);
-document.querySelectorAll=selector=>selector.startsWith('#config-form ')?form.querySelectorAll('input,select,textarea'):queryAll(selector);
+document.querySelectorAll=selector=>selector==='#config-form [data-settings-section]'?form.querySelectorAll('[data-settings-section]'):selector.startsWith('#config-form ')?form.querySelectorAll('input,select,textarea'):queryAll(selector);
 let revealed=null;context.openConfigField=node=>{revealed=node;details.open=true;node.focus();};
 vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);
 '''
@@ -88,6 +89,29 @@ assert(results.children.every(row=>row.children[0].children.length===0&&row.chil
 assert(results.children.every(row=>row.children[0].getAttribute('data-help-key')==='openSetupSetting'));
 const event={key:'Escape',preventDefault(){this.prevented=true;}};context.onSetupSettingsSearchKeydown(event);assert(event.prevented);assert(results.hidden);assert.equal(search.value,'');assert.strictEqual(document.activeElement,search);
 search.value='keep';context.onSetupSettingsSearchKeydown({key:'Tab',preventDefault(){throw Error('Tab intercepted');}});assert.equal(search.value,'keep');
+''')
+
+    def test_category_navigation_keeps_original_controls_and_searches_inactive_panels(self):
+        self.run_js(r'''
+const other=form.appendChild(new Element('section',{'data-settings-section':'Speech engine',id:'settings-tts',hidden:''}));
+other.appendChild(new Element('h5'));
+const language=field('tts-language','TTS Language',other);
+const buttons=['settings-llm','settings-tts'].map(id=>overview.appendChild(new Element('button',{'data-settings-target':id})));
+assert.equal(context.getSetupSettingsMatches('tts language')[0].id,'tts-language');
+context.openSetupSettingsSection('settings-tts');assert(section.hidden);assert(!other.hidden);assert.equal(category.value,'settings-tts');
+assert.equal(buttons[0].getAttribute('aria-current'),'false');assert.equal(buttons[1].getAttribute('aria-current'),'true');
+assert.strictEqual(document.activeElement,other.querySelector('h5'));assert.strictEqual(document.getElementById('tts-language'),language);
+context.openSetupSettingsSection('settings-llm',false);assert(!section.hidden);assert(other.hidden);assert.strictEqual(document.getElementById('llm-context-length'),budget);
+context.openSetupSettingsSection('not-a-panel');assert(!section.hidden);assert(other.hidden);
+const conditional=other.appendChild(new Element('div',{hidden:''}));field('server','Backend only',conditional);
+assert.equal(context.getSetupSettingsMatches('backend only').length,0);
+''')
+
+    def test_native_validation_reveals_first_invalid_only(self):
+        self.run_js(r'''
+form.querySelector=selector=>{assert.equal(selector,'input:invalid, select:invalid, textarea:invalid');return budget;};
+context.onSetupSettingsInvalid({target:budget});assert.strictEqual(revealed,budget);
+revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(revealed,null);
 ''')
 
     def test_search_outside_save_form_and_classic_script_order(self):
