@@ -5496,6 +5496,22 @@
     "tests.test_normalize_for_speech.TestStructuralMarks.test_standalone_asterisk_and_underscore_scene_breaks_still_work",
     "tests.test_normalize_for_speech.TestStructuralMarks.test_the_measured_defect"
   ],
+  "test_numbered_chapter_boundaries": [
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_balanced_context_away_from_heading_keeps_its_boundary",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_delivery_retry_preserves_unaffected_heading_audio",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_dialogue_and_inline_mentions_do_not_add_heading_chunks",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_embedded_heading_lines_preserve_source_rows_context_and_pause",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_existing_saved_chunks_and_audio_are_not_regenerated",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_heading_split_preserves_punctuation_and_native_final_pause",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_literal_policy_and_chunk_size_limits_stay_enforced",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_malformed_context_after_heading_defers_the_whole_row",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_native_preview_and_m4b_follow_the_grouped_boundaries",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_numbered_narrator_rows_keep_native_chapter_groups",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_quoted_and_spoken_headings_keep_their_existing_context",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_review_indices_stay_bound_to_original_rows",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_scene_break_endpoints_keep_existing_pause_when_heading_splits",
+    "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_trailing_heading_keeps_only_final_pause"
+  ],
   "test_one_serving_harness": [
     "tests.test_one_serving_harness.OneServingHarnessTest.test_defaults_preserve_pre_merge_behaviour",
     "tests.test_one_serving_harness.OneServingHarnessTest.test_every_flag_the_experiments_use_is_present",
