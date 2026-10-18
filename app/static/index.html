@@ -1337,6 +1337,16 @@
                                         <div class="form-text">Only affects chunks the quote marks don't settle. <strong>Compact labels</strong> sends numbered sentences and asks the model for a label per sentence instead of rewriting the text; if a reply is unusable or fails the fidelity check, that chunk falls back to <strong>Full text</strong> automatically. In testing (#744) it used fewer output tokens and failed fewer chunks on messy formats, but scored a little lower on clean single-quote books. Changing this restarts an unfinished book instead of resuming it.</div>
                                     </div>
                                     <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="tp-delivery-direction">Step 3: delivery notes</label>
+                                        <select class="form-select form-select-sm" id="tp-delivery-direction">
+                                            <option value="off" selected>Current notes (default)</option>
+                                            <option value="gaps">Current notes + timed pauses (experimental)</option>
+                                            <option value="directed">Directed replies + timed pauses (experimental)</option>
+                                            <option value="action_only">Intent only + timed pauses (experimental)</option>
+                                        </select>
+                                        <div class="form-text">The experimental modes ask the model to direct how each line answers the one before it and to mark pauses (a beat, a cut-off, trailing off) that become silence between lines. They are being evaluated in a blind listening test and are off by default. They need the default Step 3 prompt preset. Changing this restarts an unfinished book instead of resuming it.</div>
+                                    </div>
+                                    <div class="col-md-4">
                                         <label class="form-label small mb-1">Fidelity gate controls</label>
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="tp-quoted-must-be-spoken" checked>

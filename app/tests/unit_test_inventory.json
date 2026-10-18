@@ -2476,6 +2476,23 @@
     "tests.test_delivery_direction.ValidationTests.test_off_ignores_direction_fields",
     "tests.test_delivery_direction.ValidationTests.test_punctuation_only_notes_count_as_missing"
   ],
+  "test_delivery_direction_toggle": [
+    "tests.test_delivery_direction_toggle.DeliveryDirectionSelectTests.test_experimental_modes_are_not_preselected",
+    "tests.test_delivery_direction_toggle.DeliveryDirectionSelectTests.test_off_is_selected_by_default",
+    "tests.test_delivery_direction_toggle.DeliveryDirectionSelectTests.test_option_values_are_unique",
+    "tests.test_delivery_direction_toggle.DeliveryDirectionSelectTests.test_option_values_match_backend_directions_in_order",
+    "tests.test_delivery_direction_toggle.DeliveryDirectionSelectTests.test_select_follows_the_step_one_column",
+    "tests.test_delivery_direction_toggle.FieldHelpTests.test_entry_without_what_returns_none",
+    "tests.test_delivery_direction_toggle.FieldHelpTests.test_has_entry",
+    "tests.test_delivery_direction_toggle.FieldHelpTests.test_unknown_field_has_no_entry",
+    "tests.test_delivery_direction_toggle.FieldHelpTests.test_what_text_is_filled_in",
+    "tests.test_delivery_direction_toggle.GenerationControlMappingTests.test_maps_field_to_config_key",
+    "tests.test_delivery_direction_toggle.GenerationControlMappingTests.test_save_payload_defaults_to_off",
+    "tests.test_delivery_direction_toggle.GenerationControlMappingTests.test_save_payload_sends_the_choice",
+    "tests.test_delivery_direction_toggle.GenerationControlMappingTests.test_unknown_field_has_no_mapping",
+    "tests.test_delivery_direction_toggle.SelectParsingTests.test_missing_select_is_rejected",
+    "tests.test_delivery_direction_toggle.SelectParsingTests.test_missing_value_attribute_returns_none"
+  ],
   "test_delivery_fallback": [
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_exhaustion_marks_defaults_without_mutating_inputs",
