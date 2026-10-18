@@ -189,6 +189,21 @@ class OrderedIndexSchemaTests(unittest.TestCase):
             error = type('APIError', (Exception,), {'status_code': status})(message)
             self.assertFalse(gs.is_ordered_schema_rejection(error))
 
+    def test_items_object_type_rejection_is_recognised(self):
+        message = ("Invalid schema for response_format 'speaker_attribution': "
+                   "In context=(), 'items' is not of type 'object'.")
+        # The function only reads a 400/422 that names the schema, so the short
+        # variants carry that context as a real server message would.
+        for text in (message, "Invalid schema: 'items' must be an object",
+                     "response_format schema: 'items' must be of type object"):
+            for status in (400, 422):
+                error = type('APIError', (Exception,), {'status_code': status})(text)
+                self.assertTrue(gs.is_ordered_schema_rejection(error))
+        for status, text in [(400, "Invalid schema for response_format: missing 'type'"),
+                             (500, message)]:
+            error = type('APIError', (Exception,), {'status_code': status})(text)
+            self.assertFalse(gs.is_ordered_schema_rejection(error))
+
     def test_portable_errors_are_not_reinterpreted_as_capability_rejection(self):
         for status, message in [(400, 'Invalid schema for response_format: unsupported keyword mystery'),
                                 (400, 'json_schema has an unsupported pattern keyword'),

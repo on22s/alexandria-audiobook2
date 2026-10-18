@@ -916,6 +916,12 @@ def is_ordered_schema_rejection(error):
         return True
     if "items" not in text:
         return False
+    unquoted = text.replace("'", "").replace('"', "")
+    if any(phrase in unquoted for phrase in (
+            "items is not of type object",
+            "items must be of type object",
+            "items must be an object")):
+        return True
     return (any(word in text for word in ("array", "list", "dict_type"))
             and any(word in text for word in ("object", "boolean", "dict_type"))
             and any(word in text for word in (

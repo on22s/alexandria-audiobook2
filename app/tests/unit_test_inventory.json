@@ -5534,6 +5534,7 @@
     "tests.test_ordered_index_schema.OrderedIndexSchemaTests.test_cached_portable_schema_can_later_record_whole_feature_rejection",
     "tests.test_ordered_index_schema.OrderedIndexSchemaTests.test_explicit_positional_sdk_wire_binds_each_position_and_preserves_source",
     "tests.test_ordered_index_schema.OrderedIndexSchemaTests.test_ignored_schema_still_rejects_duplicate_indices_without_repair",
+    "tests.test_ordered_index_schema.OrderedIndexSchemaTests.test_items_object_type_rejection_is_recognised",
     "tests.test_ordered_index_schema.OrderedIndexSchemaTests.test_non_tuple_failure_never_downgrades_the_ordered_schema",
     "tests.test_ordered_index_schema.OrderedIndexSchemaTests.test_portable_errors_are_not_reinterpreted_as_capability_rejection",
     "tests.test_ordered_index_schema.OrderedIndexSchemaTests.test_portable_fallback_still_passes_secondary_request_admission",
