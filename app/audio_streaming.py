@@ -1,6 +1,7 @@
 """Bounded PCM WAV writers; unsupported layouts retain the existing builder."""
 import os
 from pathlib import Path
+import struct
 import tempfile
 import wave
 
@@ -71,6 +72,15 @@ def ensure_pcm_shape_fits_riff(shape):
     if shape is not None:
         layout, frames = shape
         ensure_riff_pcm_size(frames * layout[0] * layout[2])
+
+
+def ensure_pcm_wav_header(layout, *, ordinary_pcm):
+    """Reject an unrepresentable native WAV header before assembling its PCM."""
+    if layout is not None and ordinary_pcm:
+        channels, rate, width = layout
+        # Match wave.Wave_write's unsigned field order without writing a file.
+        struct.pack('<HLLHH', channels, rate, channels * rate * width,
+                    channels * width, width * 8)
 
 
 def get_streamable_layout(segments):
@@ -151,7 +161,10 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
             shape = get_joined_pcm_shape(shape, piece,
                                          reject_impossible_channels=ordinary_pcm)
     ensure_audio_export_active(cancel_check)
-    ensure_pcm_shape_fits_riff((layout, frames) if layout is not None else shape)
+    final_shape = (layout, frames) if layout is not None else shape
+    ensure_pcm_shape_fits_riff(final_shape)
+    ensure_pcm_wav_header(final_shape[0] if final_shape is not None else None,
+                          ordinary_pcm=ordinary_pcm)
     if layout is None:
         if ordinary_pcm and shape is not None and is_bounded_pcm_supported(segments, shape[0]):
             return write_spooled_combined_wav(segments, speakers, path, pause_ms,
@@ -217,11 +230,11 @@ def get_track_wav_plan(entries, total_duration_ms, cancel_check=None):
     """Count silence frames without generating or resampling their PCM."""
     ensure_audio_export_active(cancel_check)
     layout = get_streamable_layout([segment for segment, _ in entries])
+    ordinary_pcm = is_plain_pcm_sequence(segment for segment, _ in entries)
     if layout is None:
         # Preserve valid legacy layouts, but count their final promoted PCM
         # before the caller allocates silence or joins the complete track.
         shape = get_pcm_shape(AudioSegment.empty())
-        ordinary_pcm = is_plain_pcm_sequence(segment for segment, _ in entries)
         for kind, value in iter_track_pieces(entries, total_duration_ms, cancel_check):
             piece = (get_pcm_shape(value) if kind == 'audio'
                      else get_silence_pcm_shape(value))
@@ -229,6 +242,8 @@ def get_track_wav_plan(entries, total_duration_ms, cancel_check=None):
                                          reject_impossible_channels=ordinary_pcm)
         ensure_audio_export_active(cancel_check)
         ensure_pcm_shape_fits_riff(shape)
+        ensure_pcm_wav_header(shape[0] if shape is not None else None,
+                              ordinary_pcm=ordinary_pcm)
         if shape is not None and is_bounded_pcm_supported(
                 [segment for segment, _ in entries], shape[0]):
             return shape
@@ -241,6 +256,7 @@ def get_track_wav_plan(entries, total_duration_ms, cancel_check=None):
             data_bytes += get_silence_frame_count(value, layout[1]) * layout[0] * layout[2]
     ensure_audio_export_active(cancel_check)
     ensure_riff_pcm_size(data_bytes)
+    ensure_pcm_wav_header(layout, ordinary_pcm=ordinary_pcm)
     return layout, data_bytes // (layout[0] * layout[2])
 
 
