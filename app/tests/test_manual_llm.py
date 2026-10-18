@@ -445,5 +445,121 @@ class ManualEndpointTests(unittest.TestCase):
                 state.update(original)
 
 
+class ManualPendingOwnershipTests(unittest.TestCase):
+    """An old casting prompt must not become a new design task's request."""
+
+    def write_pending(self, folder, **owner):
+        from pathlib import Path
+        path = Path(llm_provider.manual_llm_dir(folder), "pending.json")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"id": "old-casting", "sequence": 1,
+                                    "messages": [{"role": "user", "content": "Rank synthetic voices."}],
+                                    **owner}), encoding="utf-8")
+        return path
+
+    def test_orphaned_prompt_is_not_attached_to_single_or_multiple_design_status(self):
+        for count in (1, 3):
+            with self.subTest(count=count), tempfile.TemporaryDirectory() as tmp:
+                path = self.write_pending(tmp)
+                original = path.read_bytes()
+                states = {"persona": {"running": True, "logs": [f"Designing voice 1/{count}"]}}
+                with patch.object(script, "DATA_DIR", tmp), patch.object(script, "process_state", states):
+                    status = asyncio.run(script.get_status("persona"))
+                self.assertTrue(status["running"])
+                self.assertIsNone(status["manual_request"])
+                self.assertEqual(original, path.read_bytes())
+                self.assertNotIn("manual_request", states["persona"])
+
+    def test_pending_endpoint_ignores_legacy_and_invalid_owners_without_deleting(self):
+        for owner in ({}, {"owner_pid": True}, {"owner_pid": -1}, {"owner_pid": "123"}):
+            with self.subTest(owner=owner), tempfile.TemporaryDirectory() as tmp:
+                path = self.write_pending(tmp, **owner)
+                original = path.read_bytes()
+                with patch.object(script, "DATA_DIR", tmp):
+                    self.assertIsNone(asyncio.run(script.manual_llm_pending())["pending"])
+                self.assertEqual(original, path.read_bytes())
+
+    def test_reply_to_orphaned_prompt_is_refused_without_writing_or_deleting(self):
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write_pending(tmp)
+            original = path.read_bytes()
+            with patch.object(script, "DATA_DIR", tmp):
+                with self.assertRaises(script.HTTPException) as raised:
+                    asyncio.run(script.manual_llm_response(
+                        script.ManualReply(id="old-casting", content="Stale answer")))
+            self.assertEqual(409, raised.exception.status_code)
+            self.assertFalse(Path(path.parent, "response.json").exists())
+            self.assertEqual(original, path.read_bytes())
+
+    def test_reused_process_number_cannot_revive_a_prompt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.write_pending(tmp, owner_pid=98765, owner_process_identity="previous-birth")
+            with patch.object(script, "DATA_DIR", tmp), \
+                 patch.object(llm_provider, "get_manual_process_identity", return_value="new-birth"):
+                self.assertIsNone(script.read_manual_pending())
+
+    def test_abandoned_same_process_request_cannot_borrow_a_live_thread(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.write_pending(tmp, owner_pid=os.getpid(), owner_thread=threading.get_ident())
+            with patch.object(script, "DATA_DIR", tmp):
+                self.assertIsNone(script.read_manual_pending())
+
+    def test_live_persona_manual_request_remains_answerable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            client = ManualClient(tmp)
+            client.POLL_SECONDS = .01
+            done = {}
+            worker = threading.Thread(target=lambda: done.update(
+                text=client.create(model="fixture", messages=[{"role": "user", "content": "Synthetic persona?"}])
+                .choices[0].message.content), daemon=True)
+            worker.start()
+            try:
+                deadline = time.monotonic() + 3
+                while not os.path.exists(client.pending_path) and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertTrue(os.path.exists(client.pending_path))
+                states = {"persona": {"running": True, "logs": ["Step 1 (persona): waiting"]}}
+                with patch.object(script, "DATA_DIR", tmp), patch.object(script, "process_state", states):
+                    pending = asyncio.run(script.manual_llm_pending())["pending"]
+                    self.assertEqual("persona", pending["task"])
+                    status = asyncio.run(script.get_status("persona"))
+                    self.assertEqual(pending["id"], status["manual_request"]["id"])
+                    reply = asyncio.run(script.manual_llm_response(
+                        script.ManualReply(id=pending["id"], content="A warm synthetic voice.")))
+                    self.assertTrue(reply["accepted"])
+                worker.join(3)
+                self.assertFalse(worker.is_alive())
+                self.assertEqual("A warm synthetic voice.", done.get("text"))
+                self.assertFalse(os.path.exists(client.pending_path))
+                self.assertFalse(os.path.exists(client.response_path))
+            finally:
+                if worker.is_alive():
+                    with open(client.pending_path, encoding="utf-8") as handle:
+                        pending = json.load(handle)
+                    from utils import atomic_json_write
+                    atomic_json_write({"id": pending["id"], "content": "Cleanup answer"}, client.response_path)
+                    worker.join(3)
+                    self.assertFalse(worker.is_alive(), "manual fixture owner did not retire")
+
+    def test_owner_probe_runs_off_event_loop_and_errors_stay_visible(self):
+        caller = threading.get_ident()
+        def fail_probe(pid):
+            self.assertEqual(98765, pid)
+            self.assertNotEqual(caller, threading.get_ident())
+            raise OSError("synthetic owner probe failure")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write_pending(tmp, owner_pid=98765, owner_process_identity="birth")
+            original = path.read_bytes()
+            states = {"persona": {"running": True, "logs": []}}
+            with patch.object(script, "DATA_DIR", tmp), patch.object(script, "process_state", states), \
+                 patch.object(llm_provider, "get_manual_process_identity", side_effect=fail_probe):
+                for call in (lambda: script.get_status("persona"), script.manual_llm_pending,
+                             lambda: script.manual_llm_response(script.ManualReply(id="old-casting", content="Answer"))):
+                    with self.subTest(call=call), self.assertRaisesRegex(OSError, "owner probe failure"):
+                        asyncio.run(call())
+            self.assertEqual(original, path.read_bytes())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2,6 +2,7 @@
 
 Every fixture sentence is synthetic.
 """
+import asyncio
 import contextlib
 import io
 import json
@@ -16,7 +17,7 @@ from unittest.mock import patch
 import core
 import generate_personas as personas
 from persona_validation import DESIGN_COUNT_MAX
-from routers import voices
+from routers import script, voices
 # The module, not its TestCase classes: importing those by name makes discovery run them twice.
 from tests import test_voice_design_text_range as design_tests
 from tests.test_voice_design_text_range import FakeEngine, run_main
@@ -95,6 +96,56 @@ class DesignCountCliTests(unittest.TestCase):
 
 
 class DesignCountRouteTests(unittest.TestCase):
+    def test_chosen_line_status_ignores_live_prompt_then_regular_personas_restore_it(self):
+        states = {"persona": {"running": False, "cancel": False, "logs": []}}
+        observed = []
+        with tempfile.TemporaryDirectory() as tmp:
+            stack, client = design_tests.DesignLineRouteTests().client(tmp, {"ALICE": {"description": "Bright."}})
+            pending = Path(tmp, "manual_llm", "pending.json")
+            pending.parent.mkdir()
+            pending.write_text(json.dumps({"id": "other-live-request", "sequence": 1}))
+            before = pending.read_bytes()
+            def observe(*_args):
+                observed.append(asyncio.run(script.get_status("persona")))
+            with stack, patch.object(voices, "project_manager", SimpleNamespace(engine=None)), \
+                 patch.object(voices, "process_state", states), patch.object(script, "process_state", states), \
+                 patch.object(script, "DATA_DIR", tmp), patch.object(core, "DATA_DIR", tmp), \
+                 patch.object(script, "is_manual_request_owner_alive", return_value=True), \
+                 patch.object(voices, "check_global_gpu_lock"), patch.object(core, "process_state", states), \
+                 patch.object(core, "_task_claims", {}), patch.object(core, "_gpu_leases", {}), \
+                 patch.object(core, "acquire_gpu_lock", return_value=None), \
+                 patch.object(core, "llm_is_on_this_gpu", return_value=True), \
+                 patch.object(voices, "run_process", side_effect=observe):
+                for payload in ({"ref_text": "Okay", "design_count": 1},
+                                {"ref_text": "Okay", "design_count": 3}, {}, {"advanced": True}):
+                    with self.subTest(payload=payload):
+                        response = client.post("/api/generate_personas", json={"speaker": "ALICE", **payload})
+                        self.assertEqual(200, response.status_code, response.text)
+                        status = observed[-1]
+                        self.assertTrue(status["running"])
+                        if "ref_text" in payload:
+                            self.assertIsNone(status["manual_request"])
+                        else:
+                            self.assertEqual("other-live-request", status["manual_request"]["id"])
+                        self.assertEqual("other-live-request",
+                                         asyncio.run(script.manual_llm_pending())["pending"]["id"])
+                        self.assertEqual(before, pending.read_bytes())
+
+    def test_failed_registration_does_not_change_manual_capability(self):
+        from fastapi import BackgroundTasks
+        for capability, payload in ((False, {}), (True, {"ref_text": "Okay"})):
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tmp:
+                states = {"persona": {"running": False, "cancel": False, "logs": [],
+                                      "accepts_manual_requests": capability}}
+                stack, _client = design_tests.DesignLineRouteTests().client(tmp, {"ALICE": {"description": "Bright."}})
+                with stack, patch.object(voices, "project_manager", SimpleNamespace(engine=None)), \
+                     patch.object(voices, "process_state", states), patch.object(voices, "check_global_gpu_lock"), \
+                     patch.object(voices, "schedule_claimed_background_task", side_effect=RuntimeError("registration failed")):
+                    with self.assertRaisesRegex(RuntimeError, "registration failed"):
+                        asyncio.run(voices.generate_personas(
+                            BackgroundTasks(), voices.GeneratePersonasRequest(speaker="ALICE", **payload)))
+                self.assertEqual(capability, states["persona"]["accepts_manual_requests"])
+
     def post(self, payload):
         state = {"persona": {"running": False, "cancel": True, "logs": []}}
         with tempfile.TemporaryDirectory() as tmp:

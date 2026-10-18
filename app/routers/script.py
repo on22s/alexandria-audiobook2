@@ -34,7 +34,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StrictBool
 
 from speaker_identity import get_validated_alias_graph
-from llm_provider import manual_llm_dir
+from llm_provider import manual_llm_dir, is_manual_request_owner_alive
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
                                            remove_generation_shard_checkpoint)
@@ -2779,7 +2779,8 @@ async def get_status(task_name: str, include_health: bool = False):
     state["eta"] = _compute_eta(state) if state.get("running") else None
     # a manual-transport run waiting on the user: id + where it is, so the
     # page fetches the full prompt only when the request changes
-    pending = read_manual_pending() if state.get("running") else None
+    pending = (await asyncio.to_thread(read_manual_pending)
+               if state.get("running") and state.get("accepts_manual_requests", True) else None)
     state["manual_request"] = ({"id": pending["id"], "sequence": pending["sequence"],
                                 "stage_hint": _stage_hint(state.get("logs") or [])}
                                if pending else None)
@@ -2806,10 +2807,11 @@ def _stage_hint(logs):
 
 
 def read_manual_pending():
-    """The request a manual-transport run is waiting on, or None."""
+    """The request a live manual-transport owner is waiting on, or None."""
     path = os.path.join(manual_llm_dir(DATA_DIR), "pending.json")
     data = safe_load_json(path, None)
-    return data if isinstance(data, dict) and data.get("id") else None
+    return (data if isinstance(data, dict) and data.get("id")
+            and is_manual_request_owner_alive(data) else None)
 
 
 class ManualReply(BaseModel):
@@ -2821,7 +2823,7 @@ class ManualReply(BaseModel):
 async def manual_llm_pending():
     """The prompt to copy for the request the run is waiting on (issue #593).
     The messages are the exact request the model would have received."""
-    pending = read_manual_pending()
+    pending = await asyncio.to_thread(read_manual_pending)
     if not pending:
         return {"pending": None}
     running = [name for name, state in process_state.items() if state.get("running")]
@@ -2834,7 +2836,7 @@ async def manual_llm_response(reply: ManualReply):
     """The user's (or their script's) answer to the pending request. Whether
     the content is acceptable is the pipeline's call - a rejected paste comes
     back as the next pending request, carrying the retry prompt."""
-    pending = read_manual_pending()
+    pending = await asyncio.to_thread(read_manual_pending)
     if not pending:
         raise HTTPException(status_code=409, detail="No request is waiting for a reply.")
     if reply.id != pending["id"]:

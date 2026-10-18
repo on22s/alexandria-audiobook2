@@ -5241,6 +5241,13 @@
     "tests.test_manual_llm.ManualClientTests.test_the_request_file_carries_the_exact_messages_and_a_sequence",
     "tests.test_manual_llm.ManualClientTests.test_windows_owner_probe_queries_birth_time_without_sending_a_signal",
     "tests.test_manual_llm.ManualEndpointTests.test_pending_and_response_round_trip_with_stage_hint",
+    "tests.test_manual_llm.ManualPendingOwnershipTests.test_abandoned_same_process_request_cannot_borrow_a_live_thread",
+    "tests.test_manual_llm.ManualPendingOwnershipTests.test_live_persona_manual_request_remains_answerable",
+    "tests.test_manual_llm.ManualPendingOwnershipTests.test_orphaned_prompt_is_not_attached_to_single_or_multiple_design_status",
+    "tests.test_manual_llm.ManualPendingOwnershipTests.test_owner_probe_runs_off_event_loop_and_errors_stay_visible",
+    "tests.test_manual_llm.ManualPendingOwnershipTests.test_pending_endpoint_ignores_legacy_and_invalid_owners_without_deleting",
+    "tests.test_manual_llm.ManualPendingOwnershipTests.test_reply_to_orphaned_prompt_is_refused_without_writing_or_deleting",
+    "tests.test_manual_llm.ManualPendingOwnershipTests.test_reused_process_number_cannot_revive_a_prompt",
     "tests.test_manual_llm.ManualThreePassTests.test_a_three_pass_run_completes_with_a_person_answering_every_request"
   ],
   "test_manual_persona_ui": [
@@ -5895,6 +5902,7 @@
   "test_persona_recovery_claim": [
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_cancelled_request_cannot_register_work_or_release_a_replacement_owner",
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_cpu_only_recovery_remains_available_during_another_gpu_task",
+    "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_resume_after_chosen_line_restores_manual_capability_before_worker",
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_resume_reserves_before_the_awaited_write_and_adopts_the_same_owner",
     "tests.test_persona_recovery_claim.PersonaRecoveryClaimTests.test_save_and_registration_failure_release_only_the_pending_reservation"
   ],
@@ -9865,7 +9873,9 @@
     "tests.test_voice_design_count.DesignCountCliTests.test_count_outside_the_bounds_or_without_a_line_is_refused",
     "tests.test_voice_design_count.DesignCountCliTests.test_three_designs_load_the_engine_once_and_save_every_voice",
     "tests.test_voice_design_count.DesignCountRouteTests.test_bad_counts_are_refused_before_the_task_starts",
+    "tests.test_voice_design_count.DesignCountRouteTests.test_chosen_line_status_ignores_live_prompt_then_regular_personas_restore_it",
     "tests.test_voice_design_count.DesignCountRouteTests.test_count_reaches_the_command_only_when_above_one",
+    "tests.test_voice_design_count.DesignCountRouteTests.test_failed_registration_does_not_change_manual_capability",
     "tests.test_voice_design_count.DesignCountUiTests.test_card_input_matches_the_server_bound",
     "tests.test_voice_design_count.DesignCountUiTests.test_design_sends_the_clamped_count"
   ],

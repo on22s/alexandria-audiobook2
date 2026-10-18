@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from fastapi import BackgroundTasks, HTTPException
 import core
-from routers import voices
+from routers import script, voices
 
 
 class PersonaRecoveryClaimTests(unittest.TestCase):
@@ -44,6 +44,22 @@ class PersonaRecoveryClaimTests(unittest.TestCase):
     def request(self, resume=True):
         return voices.PersonaRecoveryRequest(speaker='Hero', resume=resume,
                       persona_json='{"description":"warm and measured","ref_text":"Hello there."}')
+
+    def test_resume_after_chosen_line_restores_manual_capability_before_worker(self):
+        self.state['persona']['accepts_manual_requests'] = False
+        tasks = BackgroundTasks()
+        observed = []
+        def observe(*_args):
+            observed.append(asyncio.run(script.get_status('persona')))
+        pending = {'id': 'live-recovery', 'sequence': 1}
+        with patch.object(script, 'process_state', self.state), \
+             patch.object(script, 'read_manual_pending', return_value=pending), \
+             patch.object(voices, 'run_process', side_effect=observe):
+            result = asyncio.run(voices.recover_persona(tasks, self.request()))
+            self.assertEqual('resuming', result['status'])
+            asyncio.run(tasks())
+        self.assertEqual('live-recovery', observed[0]['manual_request']['id'])
+        self.assertTrue(self.state['persona']['accepts_manual_requests'])
 
     def test_resume_reserves_before_the_awaited_write_and_adopts_the_same_owner(self):
         arrived, release = threading.Event(), threading.Event()
@@ -93,6 +109,7 @@ class PersonaRecoveryClaimTests(unittest.TestCase):
 
         for mode in ('save', 'register'):
             with self.subTest(mode=mode):
+                self.state['persona']['accepts_manual_requests'] = False
                 self.config.write_text('{"Hero":{"type":"custom","voice":"Ryan"}}')
                 before = self.config.read_bytes()
                 tasks = RejectTasks() if mode == 'register' else BackgroundTasks()
@@ -103,6 +120,7 @@ class PersonaRecoveryClaimTests(unittest.TestCase):
                         asyncio.run(voices.recover_persona(tasks, self.request()))
                 self.assertFalse(self.state['persona']['running'])
                 self.assertNotIn('persona', core._task_claims)
+                self.assertFalse(self.state['persona']['accepts_manual_requests'])
                 self.assertEqual([], tasks.tasks)
                 if mode == 'save':
                     self.assertEqual(before, self.config.read_bytes())
@@ -110,6 +128,7 @@ class PersonaRecoveryClaimTests(unittest.TestCase):
                 self.assertTrue(core.release_gpu_task_claim('audio', new))
 
     def test_cpu_only_recovery_remains_available_during_another_gpu_task(self):
+        self.state['persona']['accepts_manual_requests'] = False
         owner = core.claim_gpu_task('audio')
         tasks = BackgroundTasks()
         result = asyncio.run(voices.recover_persona(tasks, self.request(resume=False)))
@@ -117,6 +136,7 @@ class PersonaRecoveryClaimTests(unittest.TestCase):
         self.assertEqual([], tasks.tasks)
         self.assertEqual(owner, core._task_claims['audio']['id'])
         self.assertNotIn('persona', core._task_claims)
+        self.assertFalse(self.state['persona']['accepts_manual_requests'])
         self.assertTrue(core.release_gpu_task_claim('audio', owner))
 
     def test_cancelled_request_cannot_register_work_or_release_a_replacement_owner(self):

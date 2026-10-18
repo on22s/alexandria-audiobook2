@@ -990,6 +990,8 @@ async def generate_personas(background_tasks: BackgroundTasks, request: Generate
         if (request.design_count or 1) > 1:
             command.extend(["--design-count", str(request.design_count)])
     schedule_claimed_background_task(background_tasks, "persona", run_process, command, "persona")
+    # Chosen-line design skips the LLM, including any unrelated manual request.
+    process_state["persona"]["accepts_manual_requests"] = request.ref_text is None
     return {"status": "started", "advanced": bool((request.advanced or request.state_version) and request.ref_text is None)}
 
 
@@ -1084,6 +1086,7 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
                 command.extend(["--advanced", "--state-version", request.state_version,
                                 "--book-token", book_token])
             register_claimed_background_task(background_tasks, "persona", claim_id, run_process, command, "persona")
+            process_state["persona"]["accepts_manual_requests"] = True
     except BaseException:
         if claim_id is not None:
             release_gpu_task_claim("persona", claim_id, pending_only=True)
