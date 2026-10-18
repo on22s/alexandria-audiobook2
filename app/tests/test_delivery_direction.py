@@ -131,6 +131,17 @@ class ValidationTests(unittest.TestCase):
         rows[2]["instruct"] = ""
         self.assertEqual(["invalid_gap", "missing_instruct"], self.codes(rows, "gaps"))
 
+    def test_punctuation_only_notes_count_as_missing(self):
+        # Found reviewing #1323: "..." composed the instruct ": soft, warm."
+        self.assertEqual(["missing_action"], self.codes(self.rows({(0, "action"): "..."})))
+        self.assertEqual(["missing_delivery"], self.codes(self.rows({(1, "delivery"): "."})))
+        self.assertEqual([], self.codes(self.rows({(1, "delivery"): "."}), "action_only"))
+        rows = [{"n": i, "instruct": "—" if i == 2 else "Quiet.", "gap": "normal"} for i in range(3)]
+        self.assertEqual(["missing_instruct"], self.codes(rows, "gaps"))
+
+    def test_non_english_notes_are_accepted(self):
+        self.assertEqual([], self.codes(self.rows({(0, "action"): "安心させる", (0, "delivery"): "やさしく"})))
+
     def test_off_ignores_direction_fields(self):
         rows = [{"n": i, "instruct": "Quiet.", "gap": "nonsense"} for i in range(3)]
         self.assertEqual([], self.codes(rows, "off"))

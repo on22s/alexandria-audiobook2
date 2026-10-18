@@ -2472,7 +2472,9 @@
     "tests.test_delivery_direction.ValidationTests.test_complete_directed_rows_pass",
     "tests.test_delivery_direction.ValidationTests.test_each_bad_field_is_named",
     "tests.test_delivery_direction.ValidationTests.test_gaps_mode_needs_instruct_and_gap",
-    "tests.test_delivery_direction.ValidationTests.test_off_ignores_direction_fields"
+    "tests.test_delivery_direction.ValidationTests.test_non_english_notes_are_accepted",
+    "tests.test_delivery_direction.ValidationTests.test_off_ignores_direction_fields",
+    "tests.test_delivery_direction.ValidationTests.test_punctuation_only_notes_count_as_missing"
   ],
   "test_delivery_fallback": [
     "tests.test_delivery_fallback.DeliveryFallbackTests.test_adaptive_split_marks_only_exhausted_leaf",
