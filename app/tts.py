@@ -1,6 +1,7 @@
 import os
 import copy
 import ntpath
+import zlib
 import hashlib
 import io
 import re
@@ -256,6 +257,33 @@ def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
         if voice_category(config) == "ensemble":
             pending.extend(member for member in config.get("members") or [] if isinstance(member, str))
     return inputs
+
+
+CHUNK_SEED_PRIME = 1_000_003
+
+
+def get_chunk_seed(text, take=0):
+    """Return a stable, non-negative seed for normalized text and a take."""
+    normalized = " ".join(str(text).split())
+    return (zlib.crc32(normalized.encode("utf-8")) + int(take) * CHUNK_SEED_PRIME) % 2**31
+
+
+def get_reproducible_voice_config(resolved, seed):
+    """Copy resolved voices, seeding every voice that does not pin a seed."""
+    reproducible = {}
+    for name, data in resolved.items():
+        if not isinstance(data, dict):
+            reproducible[name] = copy.deepcopy(data)
+            continue
+        entry = copy.deepcopy(data)
+        try:
+            current_seed = int(entry.get("seed", -1))
+        except (TypeError, ValueError):
+            current_seed = -1
+        if current_seed < 0:
+            entry["seed"] = seed
+        reproducible[name] = entry
+    return reproducible
 
 
 def get_batch_voice_config(voice_config, speaker, chunk_index, batch_seed):

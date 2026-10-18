@@ -51,6 +51,7 @@
             'sub-batch-max-items': {what: 'Hard cap on lines per sub-batch. 0 picks a size from the VRAM estimate.'},
             'pause-between-speakers': {what: 'Silence inserted when the speaker changes, in milliseconds, when audio is merged.'},
             'pause-same-speaker': {what: 'Silence inserted between consecutive lines by the same speaker, in milliseconds.'},
+            'reproducible-takes': {what: 'Regenerating an unchanged line gives the same take, and the Editor shows a Different take button for a new one. Covers one-at-a-time renders only; batch renders share one random state.'},
             'design-text-min-chars': {what: 'Shortest character line a persona voice is designed from. Very short lines like "Okay" make a voice hard to judge and a weak clone reference.'},
             'design-text-max-chars': {what: 'Longest character line a persona voice is designed from, up to 500. Longer lines are cut at a sentence end.'},
 

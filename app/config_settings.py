@@ -85,6 +85,8 @@ class TTSConfig(BaseModel):
     language: str = "English"
     parallel_workers: int = Field(default=2, ge=1)
     batch_seed: Optional[int] = None
+    # Opt-in: single-chunk renders derive their seed from text + take.
+    reproducible_takes: bool = False
     compile_codec: bool = False
     max_new_tokens: int = Field(default=2048, ge=256, le=8192)
     sub_batch_enabled: bool = True

@@ -75,6 +75,7 @@ class ChunkUpdate(BaseModel):
     text: Optional[str] = None
     instruct: Optional[str] = None
     speaker: Optional[str] = None
+    take: Optional[int] = Field(default=None, ge=0, le=1_000_000)
     pause_after: Optional[int] = None
 
     @field_validator("text", "instruct", "speaker", mode="before")

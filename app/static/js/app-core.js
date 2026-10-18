@@ -1932,6 +1932,7 @@
                 }
                 document.getElementById('batch-group-by-type').checked = !!config.tts.batch_group_by_type;
                 document.getElementById('sub-batch-enabled').checked = config.tts.sub_batch_enabled !== false;
+                document.getElementById('reproducible-takes').checked = config.tts.reproducible_takes === true;
                 toggleSubBatchFields();
                 if (config.tts.sub_batch_min_size != null) {
                     document.getElementById('sub-batch-min-size').value = config.tts.sub_batch_min_size;
@@ -2098,6 +2099,7 @@
                     max_new_tokens: getNumFieldValue('tts-max-new-tokens', 2048, true),
                     batch_group_by_type: document.getElementById('batch-group-by-type').checked,
                     sub_batch_enabled: document.getElementById('sub-batch-enabled').checked,
+                    reproducible_takes: document.getElementById('reproducible-takes').checked,
                     sub_batch_min_size: getNumFieldValue('sub-batch-min-size', 4, true),
                     sub_batch_ratio: getNumFieldValue('sub-batch-ratio', 5),
                     sub_batch_max_items: getNumFieldValue('sub-batch-max-items', 0, true),
@@ -7056,7 +7058,7 @@
                     return `
                         <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" class="chunk-row">
                             <td class="text-center align-middle" style="white-space:nowrap;">
-                                <button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="Voice changes here: from this line on, this character sounds different (time skip, older)"><i class="fas fa-user-clock"></i></button>
+                                <button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="Voice changes here: from this line on, this character sounds different (time skip, older)"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="Different take: render this line again with a new seed"><i class="fas fa-dice"></i></button>` : ''}
                             </td>
                             <td>${buildSpeakerSelect(chunk)}</td>
                             <td><textarea class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>
@@ -7176,6 +7178,20 @@
                 isCurrent: () => book === currentBookFilename && token === chunkSnapshotBookToken
             };
         }
+
+        window.differentTake = async (id) => {
+            try {
+                const context = captureChunkMutation(id);
+                const row = cachedChunks.find(chunk => chunk.id === id);
+                if (!row) { return; }
+                await API.post(`/api/chunks/${id}?${context.query}`, {take: (row.take || 0) + 1});
+                if (!context.isCurrent()) { return; }
+                await loadChunks();
+                await window.generateChunk(id);
+            } catch (e) {
+                showActionError("Failed to change take", e, "Refresh the Editor and check whether the take changed before retrying.", "error");
+            }
+        };
 
         window.insertChunkAfter = async (id) => {
             try {

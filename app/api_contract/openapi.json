@@ -757,6 +757,19 @@
             ],
             "title": "Speaker"
           },
+          "take": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Take"
+          },
           "text": {
             "anyOf": [
               {
@@ -3241,6 +3254,11 @@
             "minimum": 0.0,
             "title": "Pause Same Speaker Ms",
             "type": "integer"
+          },
+          "reproducible_takes": {
+            "default": false,
+            "title": "Reproducible Takes",
+            "type": "boolean"
           },
           "sub_batch_enabled": {
             "default": true,

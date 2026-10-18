@@ -7035,6 +7035,15 @@
     "tests.test_report_sample_publication.BoundedBatchHighlightsTests.test_selection_returns_new_lists_and_keeps_stable_ties",
     "tests.test_report_sample_publication.SamplePublicationTests.test_single_and_background_batch_publish_complete_audio_and_preserve_old_on_failure"
   ],
+  "test_reproducible_takes": [
+    "tests.test_reproducible_takes.ChunkSeedTests.test_seed_is_stable_and_whitespace_normalized",
+    "tests.test_reproducible_takes.ChunkSeedTests.test_take_changes_seed_and_stays_in_range",
+    "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_changing_take_marks_chunk_stale",
+    "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_reproducible_takes_off_keeps_voice_seed",
+    "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_reproducible_takes_passes_derived_seed_to_engine",
+    "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_same_take_keeps_render",
+    "tests.test_reproducible_takes.ReproducibleVoiceConfigTests.test_unpinned_voice_seeds_are_replaced_without_mutation"
+  ],
   "test_request_context_preflight": [
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_actual_process_chunk_uses_the_same_complete_prompt",
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_future_context_cannot_be_reported_as_fitting_from_fixed_allowance",

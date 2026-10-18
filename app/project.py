@@ -28,6 +28,8 @@ from literal_policy import (ensure_literal_narration, bind_literal_chunks,
 from audio_validation import publish_audio_output, remove_stale_audio, validate_generated_audio
 from tts import (
     TTSEngine,
+    get_chunk_seed,
+    get_reproducible_voice_config,
     ExportCancelled,
     ensure_audio_export_active,
     combine_audio_with_pauses,
@@ -62,7 +64,7 @@ NARRATOR_GENERATION_FIELDS = (
     "focus_speaker", "character_focus", "narrator_version", "chapter_narrator_version",
     "narrator_gender", "focus_gender", "narrator_age_group", "focus_age_group")
 CHUNK_GENERATION_FIELDS = (
-    "text", "speaker", "instruct", *NARRATOR_GENERATION_FIELDS,
+    "text", "speaker", "instruct", "take", *NARRATOR_GENERATION_FIELDS,
     "character_style", "default_style", "style_timeline", "voice_revision", CHUNK_POLICY_KEY)
 GENERATION_INPUTS_CHANGED = "Chunk removed or generation inputs changed during generation"
 
@@ -955,6 +957,11 @@ class ProjectManager:
             if "text" in data: chunk["text"] = data["text"]
             if "instruct" in data: chunk["instruct"] = data["instruct"]
             if "speaker" in data: chunk["speaker"] = data["speaker"]
+            if "take" in data:
+                take = max(0, int(data["take"]))
+                if int(chunk.get("take") or 0) != take:
+                    render_changed = True
+                chunk["take"] = take
 
             # pause_after: set or clear (None removes the key)
             if "pause_after" in data:
@@ -1145,9 +1152,13 @@ class ProjectManager:
             # Pass canonical speaker to the TTS engine so it uses the aliased config;
             # the identity anchor in force at this line (a character can change
             # from a point in the book - tts.active_character_style)
-            generation_args = (text, instruct, speaker_to_use,
-                voice_config_for_chunk(resolve_narrator_voice_config(
-                    speaker_to_use, voice_config, chunk), speaker_to_use, index), temp_path)
+            chunk_voice_config = voice_config_for_chunk(
+                resolve_narrator_voice_config(speaker_to_use, voice_config, chunk),
+                speaker_to_use, index)
+            if self._load_tts_config().get("reproducible_takes") is True:
+                chunk_voice_config = get_reproducible_voice_config(
+                    chunk_voice_config, get_chunk_seed(text, chunk.get("take", 0)))
+            generation_args = (text, instruct, speaker_to_use, chunk_voice_config, temp_path)
             failure = None
             if callable(getattr(engine, "generate_voice_result", None)):
                 result = engine.generate_voice_result(*generation_args)
