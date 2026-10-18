@@ -5268,9 +5268,16 @@
   ],
   "test_modernbooknlp_adapter": [],
   "test_morning_chain": [
+    "tests.test_morning_chain.MorningChainTests.test_chain_capture_waits_for_redirected_late_git_writer",
+    "tests.test_morning_chain.MorningChainTests.test_chain_preserves_cwd_env_nonzero_and_completed_process",
     "tests.test_morning_chain.MorningChainTests.test_empty_partial_without_count_is_remeasured_instead_of_skipped",
     "tests.test_morning_chain.MorningChainTests.test_failed_or_partial_generation_is_not_scored_and_independent_blocks_still_attempt",
+    "tests.test_morning_chain.MorningChainTests.test_git_and_chain_keep_fifteen_second_bound_and_retire_on_timeout",
+    "tests.test_morning_chain.MorningChainTests.test_git_capture_waits_for_redirected_late_git_writer",
+    "tests.test_morning_chain.MorningChainTests.test_git_replays_decoded_stderr_on_success_and_before_nonzero_error",
     "tests.test_morning_chain.MorningChainTests.test_server_failure_prevents_dependent_launch_and_fails_summary",
+    "tests.test_morning_chain.MorningChainTests.test_stderr_replay_failure_after_success_remains_an_error",
+    "tests.test_morning_chain.MorningChainTests.test_stderr_replay_failure_preserves_original_git_error_or_timeout",
     "tests.test_morning_chain.MorningChainTests.test_success_commits_only_each_generated_output_preserving_other_sessions_index_and_work"
   ],
   "test_mp3_bitrate": [

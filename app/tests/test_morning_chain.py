@@ -1,4 +1,6 @@
 """Actual historical driver under private Git, CPU workers and native timeouts."""
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -9,13 +11,32 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
+
+from subprocess_ownership import run_owned_capture
 
 REPO=Path(__file__).resolve().parents[2]
 
 
+def write_captured_stderr(stderr,*,preserve_error=False):
+    try:
+        if stderr:
+            sys.stderr.write(stderr.decode(errors='replace') if isinstance(stderr, bytes) else stderr)
+    except Exception:
+        if not preserve_error:
+            raise
+
+
 class MorningChainTests(unittest.TestCase):
     def git(self,*args):
-        return subprocess.check_output(['git','-C',str(self.root),*args],text=True).strip()
+        try:
+            result=run_owned_capture(['git','-C',str(self.root),*args],text=True,timeout=15)
+        except subprocess.TimeoutExpired as error:
+            write_captured_stderr(error.stderr,preserve_error=True)
+            raise
+        write_captured_stderr(result.stderr,preserve_error=result.returncode!=0)
+        result.check_returncode()
+        return result.stdout.strip()
 
     def setUp(self):
         temp=tempfile.TemporaryDirectory(prefix='morning chain ');self.addCleanup(temp.cleanup);self.root=Path(temp.name)
@@ -48,7 +69,157 @@ raise SystemExit(7 if mode=='fail_full' else 0)
         path=self.root/relative;path.write_text(source);path.chmod(0o755)
 
     def run_chain(self,**env):
-        return subprocess.run(['bash',str(self.root/'run_chains/morning_20260818.sh')],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=15)
+        return run_owned_capture(['bash',str(self.root/'run_chains/morning_20260818.sh')],cwd=self.root.parent,env=dict(self.env,**env),text=True,timeout=15)
+
+    def write_late_git_writer(self):
+        actual_git=shutil.which('git')
+        (self.root/'late-writer.py').write_text('''import json,os,subprocess,sys,time
+from pathlib import Path
+root=Path(__file__).parent
+birth=Path('/proc/self/stat').read_text().rsplit(')',1)[1].split()[19]
+(root/'late-writer.json').write_text(json.dumps({'pid':os.getpid(),'birth':birth}))
+time.sleep(1)
+subprocess.run([sys.argv[1],'-C',str(root),'hash-object','-w','--stdin'],input=b'late fixture object',stdout=subprocess.DEVNULL,check=True,timeout=2)
+(root/'late-write-done').write_text('finished')
+''')
+        (self.root/'late-launcher.py').write_text('''import subprocess,sys,time
+from pathlib import Path
+root=Path(__file__).parent
+subprocess.Popen([sys.executable,str(root/'late-writer.py'),sys.argv[1]],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+deadline=time.monotonic()+2
+while not (root/'late-writer.json').exists():
+ if time.monotonic()>deadline:raise RuntimeError('writer did not start')
+ time.sleep(.01)
+print('fixture stdout');print('fixture stderr',file=sys.stderr)
+''')
+        command='#!/bin/sh\nexec '+shlex.quote(sys.executable)+' '+shlex.quote(str(self.root/'late-launcher.py'))+' '+shlex.quote(actual_git)+'\n'
+        self.write('bin/git',command)
+        self.write('run_chains/morning_20260818.sh',command)
+
+    def ensure_late_writer_stopped(self):
+        # Also retire the deliberate old-code counterexample before rmtree.
+        import select
+        import signal
+        from subprocess_ownership import ensure_pidfd_support
+        record=self.root/'late-writer.json'
+        if not record.exists():
+            return
+        identity=json.loads(record.read_text());pidfds=ensure_pidfd_support();descriptor=None
+        try:
+            path=Path('/proc',str(identity['pid']),'stat')
+            self.assertEqual(identity['birth'],path.read_text().rsplit(')',1)[1].split()[19])
+            descriptor=pidfds.pidfd_open(identity['pid'],0)
+            self.assertEqual(identity['birth'],path.read_text().rsplit(')',1)[1].split()[19])
+            if not select.select([descriptor],[],[],5)[0]:
+                pidfds.pidfd_send_signal(descriptor,signal.SIGKILL,None,0)
+                self.assertTrue(select.select([descriptor],[],[],5)[0])
+        except (FileNotFoundError,ProcessLookupError):
+            pass
+        finally:
+            if descriptor is not None:os.close(descriptor)
+
+    def assert_late_writer_finished(self):
+        self.assertTrue((self.root/'late-write-done').exists(),
+                        'capture returned before redirected Git writer finished')
+        identity=json.loads((self.root/'late-writer.json').read_text())
+        self.assertFalse(Path('/proc',str(identity['pid'])).exists(),'owned writer was not reaped')
+        content=self.root/'late-content';content.write_bytes(b'late fixture object')
+        digest=self.git('hash-object',str(content))
+        self.assertTrue((self.root/'.git/objects'/digest[:2]/digest[2:]).is_file())
+
+    def test_chain_capture_waits_for_redirected_late_git_writer(self):
+        self.write_late_git_writer()
+        try:
+            result=self.run_chain()
+            self.assertEqual((0,'fixture stdout\n','fixture stderr\n'),
+                             (result.returncode,result.stdout,result.stderr))
+            # Use the real Git again for object verification.
+            (self.root/'bin/git').unlink()
+            self.assert_late_writer_finished()
+        finally:
+            self.ensure_late_writer_stopped()
+
+    def test_git_capture_waits_for_redirected_late_git_writer(self):
+        self.write_late_git_writer();diagnostic=io.StringIO()
+        try:
+            with patch.dict(os.environ,PATH=str(self.root/'bin')+os.pathsep+os.environ['PATH']):
+                with contextlib.redirect_stderr(diagnostic):
+                    self.assertEqual('fixture stdout',self.git('status'))
+            self.assertEqual('fixture stderr\n',diagnostic.getvalue())
+            self.assert_late_writer_finished()
+        finally:
+            self.ensure_late_writer_stopped()
+
+    def test_git_replays_decoded_stderr_on_success_and_before_nonzero_error(self):
+        for code in (0,7):
+            with self.subTest(code=code):
+                self.write('bin/git',"#!/bin/sh\nprintf 'fixture output\\n'; printf 'fixture diagnostic\\n' >&2; exit "+str(code)+'\n')
+                diagnostic=io.StringIO()
+                with patch.dict(os.environ,PATH=str(self.root/'bin')+os.pathsep+os.environ['PATH']):
+                    with contextlib.redirect_stderr(diagnostic):
+                        if code:
+                            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                                self.git('status')
+                            self.assertEqual((7,'fixture output\n','fixture diagnostic\n'),
+                                             (caught.exception.returncode,caught.exception.stdout,caught.exception.stderr))
+                        else:
+                            self.assertEqual('fixture output',self.git('status'))
+                self.assertEqual('fixture diagnostic\n',diagnostic.getvalue())
+
+    def test_stderr_replay_failure_preserves_original_git_error_or_timeout(self):
+        class BrokenSink(io.StringIO):
+            def write(self,value):raise OSError('secondary diagnostic failure')
+        timeout=subprocess.TimeoutExpired(['git'],15,stderr=b'partial diagnostic')
+        for result in (subprocess.CompletedProcess(['git'],7,'output','diagnostic'),timeout):
+            with self.subTest(result=type(result).__name__):
+                kwargs={'side_effect':result} if isinstance(result,Exception) else {'return_value':result}
+                with patch(__name__+'.run_owned_capture',**kwargs):
+                    with patch.object(sys,'stderr',BrokenSink()):
+                        with self.assertRaises((subprocess.CalledProcessError,subprocess.TimeoutExpired)) as caught:
+                            self.git('status')
+                if isinstance(result,Exception):self.assertIs(timeout,caught.exception)
+                else:self.assertEqual((7,'output','diagnostic'),
+                                      (caught.exception.returncode,caught.exception.stdout,caught.exception.stderr))
+
+    def test_stderr_replay_failure_after_success_remains_an_error(self):
+        class BrokenSink(io.StringIO):
+            def write(self,value):raise OSError('diagnostic failure')
+        with patch(__name__+'.run_owned_capture',return_value=subprocess.CompletedProcess(['git'],0,'output','diagnostic')):
+            with patch.object(sys,'stderr',BrokenSink()):
+                with self.assertRaisesRegex(OSError,'diagnostic failure'):self.git('status')
+
+    def test_chain_preserves_cwd_env_nonzero_and_completed_process(self):
+        self.write('run_chains/morning_20260818.sh',
+                   '#!/bin/sh\nprintf "%s\\n" "$FIXTURE_CHECK"; pwd; printf "diagnostic\\n" >&2; exit 7\n')
+        result=self.run_chain(FIXTURE_CHECK='explicit environment')
+        self.assertIsInstance(result,subprocess.CompletedProcess)
+        self.assertEqual((7,'explicit environment\n'+str(self.root.parent)+'\n','diagnostic\n'),
+                         (result.returncode,result.stdout,result.stderr))
+
+    def test_git_and_chain_keep_fifteen_second_bound_and_retire_on_timeout(self):
+        for name in ('git','chain'):
+            with self.subTest(name=name):
+                self.write_late_git_writer()
+                real_capture=run_owned_capture
+                def bounded_capture(command,*,timeout,**kwargs):
+                    self.assertEqual(15,timeout)
+                    return real_capture(command,timeout=.5,**kwargs)
+                diagnostic=io.StringIO()
+                try:
+                    with patch(__name__+'.run_owned_capture',side_effect=bounded_capture):
+                        with contextlib.redirect_stderr(diagnostic):
+                            if name=='git':
+                                with patch.dict(os.environ,PATH=str(self.root/'bin')+os.pathsep+os.environ['PATH']):
+                                    with self.assertRaises(subprocess.TimeoutExpired):self.git('status')
+                            else:
+                                with self.assertRaises(subprocess.TimeoutExpired):self.run_chain()
+                    identity=json.loads((self.root/'late-writer.json').read_text())
+                    self.assertFalse(Path('/proc',str(identity['pid'])).exists())
+                    self.assertFalse((self.root/'late-write-done').exists())
+                    if name=='git':self.assertEqual('fixture stderr\n',diagnostic.getvalue())
+                finally:
+                    self.ensure_late_writer_stopped()
+                (self.root/'late-writer.json').unlink()
 
     def test_success_commits_only_each_generated_output_preserving_other_sessions_index_and_work(self):
         head=self.git('rev-parse','HEAD');index=self.git('diff','--cached');result=self.run_chain()
