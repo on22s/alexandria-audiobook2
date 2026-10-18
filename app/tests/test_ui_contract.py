@@ -38,7 +38,10 @@ class UIContractTests(unittest.TestCase):
 
     def test_reset_preserves_numbered_prompt_presets(self):
         script = (STATIC / "js" / "app-core.js").read_text(encoding="utf-8")
-        reset = script[script.index("window.resetPrompts"):script.index("// Toggle chevron")]
+        start = script.index("window.resetPrompts =")
+        end = script.index("function buildConfigPayload(", start)
+        self.assertGreater(end, start)
+        reset = script[start:end]
         self.assertIn("renderPassPromptPresets('pass1', passPromptPresets.pass1, 'default')", reset)
         self.assertIn("renderPassPromptPresets('pass3', passPromptPresets.pass3, 'default')", reset)
         self.assertNotIn("renderPassPromptPresets('pass1', [], 'default')", reset)

@@ -742,7 +742,7 @@ for (const previous of ['local','remote']) {
         function element(id) {
             if (!elements[id]) {
                 let value = '';
-                elements[id] = {style:{display:'original'}, innerHTML:'previous result', focus(){this.focused=true;}, scrollIntoView(){}};
+                elements[id] = {style:{display:'original'}, innerHTML:'previous result', closest(){return null;}, focus(){this.focused=true;}, scrollIntoView(){}};
                 Object.defineProperty(elements[id], 'value', {get() { return value; }, set(v) { value = String(v); }});
             }
             return elements[id];
