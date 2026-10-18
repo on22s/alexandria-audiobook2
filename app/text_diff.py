@@ -5,6 +5,7 @@ says *where*. Both sides use the same word boundaries before lowercasing and
 stripping punctuation, so dialogue split into entries compares like its source.
 """
 import bisect
+import re
 from rapidfuzz.distance import Levenshtein
 
 from dialogue_spans import PAIRED
@@ -15,6 +16,7 @@ CONTEXT_WORDS = 3
 _WORD_BOUNDARIES = str.maketrans({
     mark: " " for mark in "".join(opening + closing for opening, closing in PAIRED) + "–—"
 })
+_EN_DASH_BETWEEN_WORDS = re.compile(r'(?<=[^\W_])–(?=[^\W_])')
 
 
 def get_comparison_words(text):
@@ -22,8 +24,11 @@ def get_comparison_words(text):
 
     Removing an unspaced closing quote/dash joins words in the whole source,
     while separate script entries still have two words. Apostrophes and ASCII
-    hyphens retain normalize_text's existing within-word treatment.
+    hyphens retain normalize_text's existing within-word treatment. An en dash
+    directly between two alphanumeric characters is treated like a hyphen and
+    removed; every other en dash and every em dash remains a word boundary.
     """
+    text = _EN_DASH_BETWEEN_WORDS.sub("", text)
     return normalize_text(text.translate(_WORD_BOUNDARIES)).split()
 
 

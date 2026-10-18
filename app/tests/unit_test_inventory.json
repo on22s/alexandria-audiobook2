@@ -8695,12 +8695,17 @@
   ],
   "test_text_diff": [
     "tests.test_text_diff.WordDiff.test_boundary_adjacent_change_keeps_owner_chunk_and_word_offsets",
+    "tests.test_text_diff.WordDiff.test_closing_quote_alone_keeps_word_boundary",
     "tests.test_text_diff.WordDiff.test_comparison_tokens_have_independent_known_answers",
     "tests.test_text_diff.WordDiff.test_dropped_and_expanded_text_are_located",
+    "tests.test_text_diff.WordDiff.test_em_dash_between_words_is_still_a_boundary",
+    "tests.test_text_diff.WordDiff.test_en_dash_compound_matches_hyphen_compound",
     "tests.test_text_diff.WordDiff.test_identical_text_has_no_hunks_whatever_the_punctuation",
     "tests.test_text_diff.WordDiff.test_last_entry_deletion_after_quote_boundary_keeps_previous_owner",
     "tests.test_text_diff.WordDiff.test_native_quotes_and_typographic_dashes_keep_literal_word_boundaries",
+    "tests.test_text_diff.WordDiff.test_real_change_next_to_en_dash_compound_has_hunk",
     "tests.test_text_diff.WordDiff.test_real_word_changes_and_harmful_splits_still_have_hunks",
+    "tests.test_text_diff.WordDiff.test_spaced_en_dash_is_still_a_boundary",
     "tests.test_text_diff.WordDiff.test_unspaced_dialogue_boundaries_do_not_invent_word_changes"
   ],
   "test_text_diff_large_books": [

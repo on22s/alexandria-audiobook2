@@ -31,6 +31,48 @@ class WordDiff(unittest.TestCase):
                     self.assertEqual(3, result["totals"]["source_words"])
                     self.assertEqual(3, result["totals"]["script_words"])
 
+    def test_en_dash_compound_matches_hyphen_compound(self):
+        cases = [
+            ('well–being matters', [{'text': 'well-being matters'}]),
+            ('well-being matters', [{'text': 'well–being matters'}]),
+            ('1990–1995 was quiet', [{'text': '1990-1995 was quiet'}]),
+            ('1990-1995 was quiet', [{'text': '1990–1995 was quiet'}]),
+        ]
+        for source, entries in cases:
+            with self.subTest(source=source):
+                result = word_diff(source, entries)
+                self.assertEqual([], result["hunks"])
+                self.assertEqual(0, result["totals"]["deleted"])
+                self.assertEqual(0, result["totals"]["inserted"])
+                self.assertEqual(0, result["totals"]["replaced"])
+
+    def test_em_dash_between_words_is_still_a_boundary(self):
+        result = word_diff('Hello—after',
+                           [{'text': 'Hello'}, {'text': 'after'}])
+        self.assertEqual([], result["hunks"])
+        self.assertEqual(2, result["totals"]["source_words"])
+        self.assertEqual(2, result["totals"]["script_words"])
+
+    def test_spaced_en_dash_is_still_a_boundary(self):
+        result = word_diff('a – b', [{'text': 'a'}, {'text': 'b'}])
+        self.assertEqual([], result["hunks"])
+        self.assertEqual(2, result["totals"]["source_words"])
+        self.assertEqual(2, result["totals"]["script_words"])
+
+    def test_closing_quote_alone_keeps_word_boundary(self):
+        entries = [{'text': 'Before'}, {'text': 'Hello'},
+                   {'text': 'after'}]
+        result = word_diff('Before“Hello”after', entries)
+        self.assertEqual([], result["hunks"])
+        self.assertEqual(3, result["totals"]["source_words"])
+        self.assertEqual(3, result["totals"]["script_words"])
+
+    def test_real_change_next_to_en_dash_compound_has_hunk(self):
+        result = word_diff('well–being matters',
+                           [{'text': 'well-being changes'}])
+        self.assertTrue(result["hunks"])
+        self.assertGreater(result["totals"]["replaced"], 0)
+
     def test_comparison_tokens_have_independent_known_answers(self):
         from text_diff import get_comparison_words
         cases = [
