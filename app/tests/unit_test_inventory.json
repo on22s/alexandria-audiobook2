@@ -624,6 +624,15 @@
     "tests.test_attribution_voting.VotedAttributionTest.test_majority_across_samples",
     "tests.test_attribution_voting.VotedAttributionTest.test_single_vote_delegates_to_greedy"
   ],
+  "test_audio_mastering": [
+    "tests.test_audio_mastering.AudioMasteringTests.test_chapter_options_invalidate_reuse_and_failed_mastering_rolls_back",
+    "tests.test_audio_mastering.AudioMasteringTests.test_m4b_preserves_chapters_and_metadata_with_final_encoded_measurements",
+    "tests.test_audio_mastering.AudioMasteringTests.test_native_cancel_and_timeout_reap_started_owned_processes",
+    "tests.test_audio_mastering.AudioMasteringTests.test_real_wav_and_mp3_measure_final_file_without_mutating_source",
+    "tests.test_audio_mastering.AudioMasteringTests.test_rejects_bad_measurements_and_unbounded_targets",
+    "tests.test_audio_mastering.AudioMasteringTests.test_report_endpoint_refuses_stale_bytes_books_paths_and_active_tasks",
+    "tests.test_audio_mastering.AudioMasteringTests.test_silence_failure_and_cancellation_preserve_previous_export"
+  ],
   "test_audio_publication_admission": [
     "tests.test_audio_publication_admission.AudioPublicationAdmissionTests.test_absent_output_and_broken_symlink_are_cleared_without_following_target",
     "tests.test_audio_publication_admission.AudioPublicationAdmissionTests.test_cancellation_is_rechecked_after_waiting_for_publication_admission",
@@ -5350,11 +5359,13 @@
   "test_managed_server_chain": [
     "tests.test_managed_server_chain.ManagedServerChainTests.test_duplicate_launch_is_refused_without_overwriting_owned_pid",
     "tests.test_managed_server_chain.ManagedServerChainTests.test_early_exit_is_not_readiness_and_remains_reaped",
+    "tests.test_managed_server_chain.ManagedServerChainTests.test_healthy_fixture_waits_for_delayed_child_lease_check",
     "tests.test_managed_server_chain.ManagedServerChainTests.test_healthy_fixture_waits_for_delayed_http_start_without_relaxing_owner_checks",
     "tests.test_managed_server_chain.ManagedServerChainTests.test_healthy_owned_listener_admits_requests_then_stops_and_reaps",
     "tests.test_managed_server_chain.ManagedServerChainTests.test_never_ready_term_ignoring_child_is_killed_and_reaped",
     "tests.test_managed_server_chain.ManagedServerChainTests.test_shared_start_refuses_unowned_claim_before_launching_child",
-    "tests.test_managed_server_chain.ManagedServerChainTests.test_signals_stop_and_reap_healthy_child_with_signal_status"
+    "tests.test_managed_server_chain.ManagedServerChainTests.test_signals_stop_and_reap_healthy_child_with_signal_status",
+    "tests.test_managed_server_chain.ManagedServerChainTests.test_slow_startup_still_ignores_term_before_cleanup"
   ],
   "test_manual_activity_js": [
     "tests.test_manual_activity_js.ManualActivityTests.test_paused_task_hides_model_wait_and_eta_until_resumed",
@@ -5392,6 +5403,10 @@
   "test_manual_persona_ui": [
     "tests.test_manual_persona_ui.ManualPersonaUITests.test_persona_actions_renderer_and_reload",
     "tests.test_manual_persona_ui.ManualPersonaUITests.test_shared_panel_is_outside_hidden_tab_bodies"
+  ],
+  "test_mastering_js": [
+    "tests.test_mastering_js.MasteringJsTests.test_failed_terminal_export_also_invalidates_report_epoch",
+    "tests.test_mastering_js.MasteringJsTests.test_off_bounds_and_export_start_invalidate_old_and_pending_measurements"
   ],
   "test_measure_pauses_arms": [
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_a_term_missing_from_one_arm_is_dropped_not_half_counted",
@@ -8848,6 +8863,12 @@
     "tests.test_task_claim_ownership.TaskClaimOwnershipTests.test_shutdown_preserves_started_callback_even_if_legacy_flag_clears_early",
     "tests.test_task_claim_ownership.TaskClaimOwnershipTests.test_stale_claim_cannot_release_new_owner_or_run_queued_callback",
     "tests.test_task_claim_ownership.TaskClaimOwnershipTests.test_thread_start_observation_failure_keeps_already_alive_worker_admitted"
+  ],
+  "test_task_guides": [
+    "tests.test_task_guides.TaskGuideTests.test_every_guide_target_and_illustration_is_bundled",
+    "tests.test_task_guides.TaskGuideTests.test_merge_navigation_preserves_keyboard_action_and_pending_return",
+    "tests.test_task_guides.TaskGuideTests.test_navigation_return_steps_and_unknown_target_are_read_only",
+    "tests.test_task_guides.TaskGuideTests.test_pending_editor_edits_block_navigation_without_saving_or_discarding"
   ],
   "test_task_outcomes_js": [
     "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_all_three_recovery_callers_reject_zero_failure_and_negated_summaries",

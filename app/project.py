@@ -99,6 +99,11 @@ def get_chapter_reuse_duration(plan, old, wanted, changed_only, out_dir):
         return None
     if duration < 0 or not os.path.isfile(os.path.join(out_dir, old["file"])):
         return None
+    if plan.get('mastering_settings') is not None and plan['index'] in wanted and changed_only:
+        from audio_mastering import get_audio_sha256
+        report = old.get('mastering_report') or {}
+        if report.get('sha256') != get_audio_sha256(os.path.join(out_dir, old['file'])):
+            return None
     if plan["index"] not in wanted or (changed_only and
             old.get("fingerprint") == plan["fingerprint"] and old.get("file") == plan["file"]):
         return duration
@@ -540,7 +545,7 @@ def _load_audio_segment(path, **kwargs):
 def _export_audio_segment(segment, path, format_name, cancel_check=None, **kwargs):
     """Export audio with an explicitly owned output handle."""
     from audio_export import export_audio_segment, is_easy_wav_export
-    if cancel_check is not None or not is_easy_wav_export(format_name, kwargs):
+    if cancel_check is not None or kwargs.get("mastering") is not None or not is_easy_wav_export(format_name, kwargs):
         return export_audio_segment(segment, path, format_name, cancel_check, **kwargs)
     with open(path, "wb+") as target:
         segment.export(target, format=format_name, **kwargs)
@@ -1297,7 +1302,7 @@ class ProjectManager:
             del segment
         return result, skipped
 
-    def merge_audio(self, cancel_check=None, progress_callback=None, chunks=None):
+    def merge_audio(self, cancel_check=None, progress_callback=None, chunks=None, mastering=None, mastering_callback=None):
         """progress_callback(message) reports loading progress; cancel_check()
         returning True aborts before the merge is written."""
         try:
@@ -1324,10 +1329,12 @@ class ProjectManager:
                 audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides,
                 cancel_check=cancel_check)
             ensure_audio_export_active(cancel_check)
-            _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE,
-                                  cancel_check=cancel_check)
+            mastering_report = _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE,
+                                  cancel_check=cancel_check, **({"mastering": mastering} if mastering is not None else {}))
             ensure_audio_export_active(cancel_check)
             os.replace(pending_output, output_path)
+            if mastering_report and mastering_callback:
+                mastering_callback({**mastering_report, "file": output_filename})
         except ExportCancelled:
             return False, "Merge cancelled"
         finally:
@@ -1470,7 +1477,8 @@ class ProjectManager:
         except ExportCancelled:
             return False, "Export cancelled"
 
-    def merge_m4b(self, per_chunk_chapters=False, metadata=None, cancel_check=None, progress_callback=None):
+    def merge_m4b(self, per_chunk_chapters=False, metadata=None, cancel_check=None, progress_callback=None,
+                  mastering=None, mastering_callback=None):
         """Merge audio chunks into an M4B audiobook with chapter markers.
 
         Args:
@@ -1567,6 +1575,14 @@ class ProjectManager:
             if has_cover:
                 # Map cover as attached picture
                 cmd += ["-map", "1:v", "-c:v", "copy", "-disposition:v:0", "attached_pic"]
+            mastering_before = None
+            if mastering is not None:
+                from audio_mastering import get_loudness_measurements, get_mastering_filter
+                mastering_before = get_loudness_measurements(['-i', temp_wav], mastering, cancel_check)
+                import soundfile
+                info = soundfile.info(temp_wav)
+                cmd += ['-af', get_mastering_filter(mastering, mastering_before),
+                        '-ar', str(info.samplerate), '-ac', str(info.channels)]
             cmd += [
                 "-c:a", "aac",
                 "-b:a", "128k",
@@ -1581,8 +1597,14 @@ class ProjectManager:
                     progress_callback("FFmpeg stderr: " + stderr[-500:])
                 print(f"FFmpeg stderr: {stderr[-500:]}")
                 return False, f"FFmpeg failed (exit {result})"
+            mastering_report = None
+            if mastering_before is not None:
+                from audio_mastering import get_mastering_report
+                mastering_report = get_mastering_report(pending_output, mastering, mastering_before, stderr, cancel_check)
             ensure_audio_export_active(cancel_check)
             os.replace(pending_output, output_path)
+            if mastering_report and mastering_callback:
+                mastering_callback({**mastering_report, 'file': 'audiobook.m4b'})
 
         except ExportCancelled:
             return False, "Export cancelled"
@@ -1685,11 +1707,17 @@ class ProjectManager:
             groups, options["template"], options["format"], padding=options["padding"],
             book_name=options["book_name"], series_name=options["series_name"],
             volume_number=options["volume_number"])
-        return [{"index": index, "number": index + 1, "title": title,
+        plans = [{"index": index, "number": index + 1, "title": title,
                  "file": filenames[index], "chunks": [first, last],
                  "fingerprint": self._chapter_fingerprint(
                      chunks[first:last + 1], pause_defaults)}
                 for index, (title, first, last) in enumerate(groups)]
+        if options.get('mastering') is not None:
+            for plan in plans:
+                plan['fingerprint'] = hashlib.sha256(json.dumps(
+                    [plan['fingerprint'], options['mastering']], sort_keys=True).encode()).hexdigest()[:16]
+                plan['mastering_settings'] = options['mastering']
+        return plans
 
     def _apply_chapter_export_plans(self, plans, chunks, options, pause_defaults,
                                     previous, chapters, changed_only, get_pairs,
@@ -1788,13 +1816,16 @@ class ProjectManager:
                         progress_callback(
                             f"Writing chapter {index + 1}/{len(plans)}: {plan['title'][:60]}")
                     kwargs = {"bitrate": MP3_BITRATE} if options["format"] == "mp3" else {}
-                    _export_audio_segment(
+                    mastering_report = _export_audio_segment(
                         piece, os.path.join(staging_dir, plan["file"]), options["format"],
-                        cancel_check=cancel_check, **kwargs)
+                        cancel_check=cancel_check, **kwargs,
+                        **({"mastering": options["mastering"]} if options.get("mastering") is not None else {}))
                 except ExportCancelled:
                     return False, "Export cancelled"
                 del piece
                 row = dict(plan)
+                if mastering_report:
+                    row["mastering_report"] = mastering_report
                 written += 1
             else:
                 if durations is None:
@@ -1860,11 +1891,21 @@ class ProjectManager:
             plans, chunks, options, pause_defaults, previous, chapters, True,
             get_pairs, progress_callback=progress_callback, cancel_check=cancel_check)
 
-    def export_chapters(self, fmt="mp3", per_chunk_chapters=False,
+    def export_chapters(self, *args, mastering=None, mastering_callback=None, **kwargs):
+        result = self._export_chapters(*args, **kwargs, mastering=mastering)
+        if result and result[0] and mastering_callback:
+            manifest = safe_load_json(os.path.join(self.root_dir, CHAPTER_EXPORT_DIR, 'manifest.json'), {})
+            for row in get_chapter_export_rows(manifest):
+                report = row.get('mastering_report')
+                if report:
+                    mastering_callback({**report, 'file': CHAPTER_EXPORT_DIR + '/' + row['file']})
+        return result
+
+    def _export_chapters(self, fmt="mp3", per_chunk_chapters=False,
                         template=DEFAULT_CHAPTER_TEMPLATE, padding=2,
                         book_name="", series_name="", volume_number="",
                         chapters=None, changed_only=False,
-                        progress_callback=None, cancel_check=None):
+                        progress_callback=None, cancel_check=None, mastering=None):
         """Write selected chapter files and shared source/timing metadata.
 
         Changed-only exports decode only changed groups when the prior manifest
@@ -1876,6 +1917,9 @@ class ProjectManager:
                    "per_chunk_chapters": per_chunk_chapters, "book_name": book_name,
                    "series_name": series_name, "volume_number": volume_number,
                    "chapter_plan_version": 1}
+        if mastering is not None:
+            from audio_mastering import get_mastering_options
+            options["mastering"] = get_mastering_options(mastering)
         if changed_only:
             try:
                 incremental = self._export_changed_chapters(
@@ -1933,13 +1977,16 @@ class ProjectManager:
     def preview_chapter_filenames(self, fmt="mp3", per_chunk_chapters=False,
                                   template=DEFAULT_CHAPTER_TEMPLATE, padding=2,
                                   book_name="", series_name="", volume_number="",
-                                  chapters=None, changed_only=False):
+                                  chapters=None, changed_only=False, mastering=None):
         """Preview selected chapter files that export would write, excluding reuse."""
         chunks = [chunk for chunk in self.load_chunks()
                   if self.get_chunk_audio_segment(chunk) is not None]
         options = {"format": fmt, "per_chunk_chapters": per_chunk_chapters,
                    "template": template, "padding": padding, "book_name": book_name,
                    "series_name": series_name, "volume_number": volume_number}
+        if mastering is not None:
+            from audio_mastering import get_mastering_options
+            options["mastering"] = get_mastering_options(mastering)
         plans = self._get_chapter_export_plans(chunks, options, self._load_pause_defaults()) if chunks else []
         wanted = set(range(len(plans))) if chapters is None else set(get_index_selection(chapters, len(plans)))
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)

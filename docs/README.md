@@ -25,3 +25,5 @@ most often need. Supporting guides and reference material are grouped here.
 - [`../.github/CONTRIBUTING.md`](../.github/CONTRIBUTING.md) covers contributions. `CLAUDE.md` contains repository-agent workflow rules.
 
 Pinokio launcher files remain at the root because Pinokio expects them there.
+
+Task guides are available on **Home → What would you like to finish?** inside the app. They cover first-book generation, character repair, dataset preparation and export, with explicit navigation and listening checkpoints. Guide content lives in `app/static/js/app-guides.js`.

@@ -160,6 +160,9 @@
             'chk-drift-only': {what: 'Show only chunks the drift check flagged as sounding unlike their speaker’s reference voice.'},
 
             // Result tab
+            'export-mastering-enabled': {what: 'Opt in to measured loudness and true-peak processing for the next assembled export. Does not alter source clips or start a job.'},
+            'export-mastering-loudness': {what: 'Target integrated loudness, from -24 to -14 LUFS. Check the measured final file; a target alone does not establish compliance.'},
+            'export-mastering-peak': {what: 'Target true-peak ceiling, from -9 to -1 dBTP. Lossy encoding may change the achieved peak; compare final measurements.'},
             'pronunciation-line': {what: 'Choose a current script line whose assigned voice, narrator context and voice timeline will be used for disposable pronunciation auditions.'},
             'pronunciation-audition-original': {what: 'Short original spelling to audition literally, without applying saved pronunciation substitutions. Generates temporary audio only.'},
             'pronunciation-audition-spoken': {what: 'Short proposed spoken replacement, applied to the original spelling through normal speech preparation with the selected line voice. Listening decides whether the replacement helps.'},
