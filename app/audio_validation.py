@@ -12,6 +12,18 @@ class GeneratedAudioError(RuntimeError):
     """Generated output is missing, empty, undecodable, or incomplete."""
 
 
+def is_audio_file_present(path, resolve_path):
+    """Read nonempty file presence through the project's confined-path resolver.
+
+    This is a UI fact, not decoding or generated-audio validation.
+    """
+    try:
+        file = Path(resolve_path(path))
+        return file.is_file() and file.stat().st_size > 0
+    except (OSError, ValueError, TypeError):
+        return False
+
+
 def validate_finite_audio_values(values, context="audio measurement"):
     """Reject non-finite PCM or metrics without substituting plausible values."""
     import numpy as np

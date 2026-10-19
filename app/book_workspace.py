@@ -6,6 +6,7 @@ chunks, repair corrupt data, generate audio or certify unbound output files.
 import json
 from pathlib import Path
 
+from audio_validation import is_audio_file_present
 from book_state_transaction import get_book_operation_token, get_book_snapshot
 from chunk_status_journal import ChunkStatusJournal
 
@@ -36,11 +37,7 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path):
                 failed += status == 'error'
                 generating += status == 'generating'
                 if status == 'done':
-                    try:
-                        path = Path(get_audio_path(row.get('audio_path')))
-                        available = path.is_file() and path.stat().st_size > 0
-                    except (OSError, ValueError, TypeError):
-                        available = False
+                    available = is_audio_file_present(row.get('audio_path'), get_audio_path)
                     present += available
                     missing += not available
             total = len(chunks)
