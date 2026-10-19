@@ -25,12 +25,14 @@ class ManagedServerChainTests(unittest.TestCase):
             with socket.socket() as sock:
                 sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
             server=root/'server.py';server.write_text('''import http.server,os,pathlib,signal,subprocess,sys,time
+mode=os.environ['FIXTURE_MODE']
+# Install the behavior under test before publishing the PID or checking the
+# lease: startup cleanup can send TERM while that subprocess is still running.
+if mode=='ignore':signal.signal(signal.SIGTERM,signal.SIG_IGN)
 root=pathlib.Path(os.environ['FIXTURE_ROOT']);(root/'server.pid').write_text(str(os.getpid()))
 subprocess.run(['bash',str(root/'gpu_job.sh'),'--check-lock-owner',os.environ['ALEXANDRIA_GPU_LOCK_PID']],check=True)
 time.sleep(float(os.environ.get('FIXTURE_STARTUP_DELAY','0')))
-mode=os.environ['FIXTURE_MODE']
 if mode=='exit':raise SystemExit(7)
-if mode=='ignore':signal.signal(signal.SIGTERM,signal.SIG_IGN)
 class Handler(http.server.BaseHTTPRequestHandler):
  def do_GET(self):
   self.send_response(503 if mode=='ignore' else 200);self.end_headers();self.wfile.write(b'healthy fixture')
@@ -55,6 +57,7 @@ http.server.HTTPServer(('127.0.0.1',int(sys.argv[1])),Handler).serve_forever()
                 self.assertIsNotNone(pid,result.stdout+result.stderr)
                 expected={'INT':130,'TERM':143,'HUP':129}.get(sent_signal,1 if duplicate or mode!='healthy' else 0)
                 self.assertEqual(expected,result.returncode,result.stdout+result.stderr)
+                self.assertNotIn('cannot verify inherited GPU lock',result.stderr)
                 if duplicate:
                     self.assertIn('already has a captured child',result.stderr)
                     self.assertFalse((root/'duplicate-launched').exists())
@@ -69,6 +72,9 @@ http.server.HTTPServer(('127.0.0.1',int(sys.argv[1])),Handler).serve_forever()
     def test_healthy_owned_listener_admits_requests_then_stops_and_reaps(self):self.execute('healthy')
     def test_early_exit_is_not_readiness_and_remains_reaped(self):self.execute('exit')
     def test_never_ready_term_ignoring_child_is_killed_and_reaped(self):self.execute('ignore')
+
+    def test_slow_startup_still_ignores_term_before_cleanup(self):
+        self.execute('ignore', startup_delay=2)
 
     def test_signals_stop_and_reap_healthy_child_with_signal_status(self):
         for sent_signal in ('INT','TERM','HUP'):
