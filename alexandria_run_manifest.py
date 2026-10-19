@@ -107,6 +107,8 @@ def get_run_identity(args):
     options = {name: value for name, value in vars(args).items()
                if name not in {'phase', 'resume', 'hf_token', 'audio', 'source'}
                and (name not in {'alignment_report', 'summary_output'} or value is not None)}
+    if options.get('audio_channel') == 'mix':
+        options.pop('audio_channel')
     return {
         'audio': get_file_identity(args.audio),
         'source': get_file_identity(args.source) if args.source else None,

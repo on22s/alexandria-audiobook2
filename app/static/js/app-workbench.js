@@ -1226,6 +1226,7 @@
             const files = document.getElementById('prep-batch-files').files;
             const tbody = document.getElementById('prep-batch-queue-body');
             tbody.innerHTML = '';
+            prepBatchQueue.forEach(task => { task.picker?.dispose(); });
             prepBatchQueue = [];
 
             if (!files.length) {
@@ -1241,7 +1242,10 @@
                     <td id="prep-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
                 `;
                 tbody.appendChild(row);
-                prepBatchQueue.push({ audio: file });
+                const pickerArea = document.createElement('div');
+                row.firstElementChild.appendChild(pickerArea);
+                const picker = window.createAudioChannelPicker(pickerArea, file, 'preparer');
+                prepBatchQueue.push({ audio: file, picker });
             });
         };
 
@@ -1286,11 +1290,14 @@
             const audioFile = document.getElementById('prep-audio-file').files[0];
             if (!audioFile) { showToast('Audio file required', 'error'); return; }
 
+            const channelSelection = window.preparerChannelPicker ? window.preparerChannelPicker.getSelection() : {channel: 'mix', token: null};
+            if (channelSelection.pending) { channelSelection.token = await channelSelection.pending; }
             const sourceFile = document.getElementById('prep-source-file').files[0];
             const diarizationMode = document.getElementById('prep-diarization-mode').value;
 
             const config = {
                 audio_filename: audioFile.name,
+                audio_channel: channelSelection.channel,
                 output_filename: document.getElementById('prep-output').value,
                 lang:            document.getElementById('prep-lang').value,
                 min_confidence:  getNumFieldValue('prep-confidence', 0.85),
@@ -1321,7 +1328,8 @@
 
             const fd = new FormData();
             fd.append('config_json', JSON.stringify(config));
-            fd.append('audio_file', audioFile);
+            if (channelSelection.token) { fd.append('preview_token', channelSelection.token); }
+            else { fd.append('audio_file', audioFile); }
             if (sourceFile) { fd.append('source_file', sourceFile); }
 
             return _submitPreparer('preparer', fd);
@@ -1336,7 +1344,13 @@
             if (!prepBatchQueue.length) { showToast('No files selected', 'warning'); return; }
 
             const files = prepBatchQueue.map(t => t.audio);
-            const tasks = files.map(file => ({
+            const selections = await Promise.all(prepBatchQueue.map(async task => {
+                const selected = task.picker.getSelection();
+                return {...selected, token: selected.pending ? await selected.pending : selected.token};
+            }));
+            const tasks = files.map((file, index) => ({
+                audio_channel: selections[index].channel,
+                preview_token: selections[index].token || "",
                 audio_filename:  file.name,
                 output_filename: `voice_dataset_${file.name.replace(/\.[^.]+$/, '')}.zip`,
             }));
@@ -1353,7 +1367,7 @@
 
             const fd = new FormData();
             fd.append('config_json', JSON.stringify(body));
-            files.forEach(file => { fd.append('audio_files', file); });
+            files.forEach((file, index) => { if (!selections[index].token) { fd.append('audio_files', file); } });
             return _submitPreparer('batch_preparer', fd);
         }
 

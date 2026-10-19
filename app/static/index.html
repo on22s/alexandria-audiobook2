@@ -2401,6 +2401,7 @@
                             <div class="col-md-6">
                                 <label class="form-label" for="prep-audio-file">Select Audio File (WAV/MP3)</label>
                                 <input type="file" class="form-control" id="prep-audio-file" accept=".wav,.mp3">
+                                <div id="prep-channel-picker" class="mt-2"></div>
                             </div>
                         </div>
 
@@ -3441,6 +3442,7 @@
                 <div class="modal-body fs-6">
                     <div class="small text-muted mb-2" id="clone-import-filename"></div>
                     <fieldset id="clone-import-fields" aria-label="Reference clip details">
+                    <div id="clone-channel-picker" class="mb-2"></div>
                     <label class="form-label mb-1" for="clone-import-ref-text">Exact transcript of the clip <span class="text-danger">*</span></label>
                     <textarea class="form-control form-control-sm mb-2" id="clone-import-ref-text" rows="2" placeholder="Word for word, including punctuation."></textarea>
                     <label class="form-label mb-1" for="clone-import-source-title">Source title</label>
@@ -3536,6 +3538,7 @@
     <script src="/static/js/app-training.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-tts-capabilities.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-guides.js?v=__APP_BUILD__"></script>
+<script src="/static/js/app-audio-channels.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workspace.js?v=__APP_BUILD__"></script>

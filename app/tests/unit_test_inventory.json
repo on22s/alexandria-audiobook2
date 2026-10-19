@@ -624,6 +624,23 @@
     "tests.test_attribution_voting.VotedAttributionTest.test_majority_across_samples",
     "tests.test_attribution_voting.VotedAttributionTest.test_single_vote_delegates_to_greedy"
   ],
+  "test_audio_channels": [
+    "tests.test_audio_channels.AudioChannelTests.test_actual_preview_import_and_asr_stream_select_same_channel",
+    "tests.test_audio_channels.AudioChannelTests.test_batch_http_consumes_previews_once_and_dispatches_selected_channel",
+    "tests.test_audio_channels.AudioChannelTests.test_cancelled_preview_stops_owned_child_before_returning",
+    "tests.test_audio_channels.AudioChannelTests.test_mono_default_parity_missing_right_and_unknown_selection",
+    "tests.test_audio_channels.AudioChannelTests.test_move_is_single_use_and_failed_copy_does_not_delete_source",
+    "tests.test_audio_channels.AudioChannelTests.test_opposite_phase_mixing_does_not_silently_replace_selected_channel",
+    "tests.test_audio_channels.AudioChannelTests.test_preview_prefix_is_bounded_and_slots_are_released_after_failure",
+    "tests.test_audio_channels.AudioChannelTests.test_real_cancelled_child_is_reaped",
+    "tests.test_audio_channels.AudioChannelTests.test_selection_changes_identity_but_default_mix_keeps_old_identity",
+    "tests.test_audio_channels.AudioChannelTests.test_stage_preview_and_clone_import_use_same_bytes_and_keep_provenance",
+    "tests.test_audio_channels.AudioChannelTests.test_staging_reuses_original_expires_and_refuses_foreign_handles"
+  ],
+  "test_audio_channels_js": [
+    "tests.test_audio_channels_js.AudioChannelsJsTests.test_closed_or_changed_picker_discards_late_audio_and_cleans_late_upload",
+    "tests.test_audio_channels_js.AudioChannelsJsTests.test_preview_reuses_stage_and_selection_is_explicit_then_dispose_revokes"
+  ],
   "test_audio_mastering": [
     "tests.test_audio_mastering.AudioMasteringTests.test_chapter_options_invalidate_reuse_and_failed_mastering_rolls_back",
     "tests.test_audio_mastering.AudioMasteringTests.test_m4b_preserves_chapters_and_metadata_with_final_encoded_measurements",

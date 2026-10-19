@@ -12,7 +12,8 @@ const prepStart=source.indexOf('let prepBatchQueue ='),prepEnd=source.indexOf('/
 run(source.slice(prepStart,prepEnd));
 const {File}=require('buffer');context.FormData=FormData;
 context.getNumFieldValue=(_id,fallback)=>fallback;
-context.document.createElement=()=>({innerHTML:'',textContent:''});
+context.document.createElement=()=>({innerHTML:'',textContent:'',firstElementChild:{appendChild(){}}});
+context.createAudioChannelPicker=()=>({getSelection:()=>({channel:'mix',token:null}),dispose(){}});
 elements['prep-batch-queue-body']={innerHTML:'',appendChild(){}};
 elements['preparer-logs']={style:{},innerText:'',scrollTop:0,clientHeight:0,appendChild(node){this.innerText+=node.textContent;},scrollHeight:0};
 elements['prep-audio-file']={files:[new File(['single bytes'],'single.wav')]};

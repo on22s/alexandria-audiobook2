@@ -270,6 +270,16 @@
       },
       "BatchPreparerRequest": {
         "properties": {
+          "audio_channel": {
+            "default": "mix",
+            "enum": [
+              "mix",
+              "left",
+              "right"
+            ],
+            "title": "Audio Channel",
+            "type": "string"
+          },
           "auto_detect_speakers": {
             "default": false,
             "title": "Auto Detect Speakers",
@@ -325,12 +335,33 @@
       },
       "BatchPreparerTask": {
         "properties": {
+          "audio_channel": {
+            "anyOf": [
+              {
+                "enum": [
+                  "mix",
+                  "left",
+                  "right"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Channel"
+          },
           "audio_filename": {
             "title": "Audio Filename",
             "type": "string"
           },
           "output_filename": {
             "title": "Output Filename",
+            "type": "string"
+          },
+          "preview_token": {
+            "default": "",
+            "title": "Preview Token",
             "type": "string"
           }
         },
@@ -484,9 +515,26 @@
       },
       "Body_clone_voices_upload_api_clone_voices_upload_post": {
         "properties": {
+          "audio_channel": {
+            "default": "mix",
+            "title": "Audio Channel",
+            "type": "string"
+          },
           "file": {
-            "contentMediaType": "application/octet-stream",
-            "title": "File",
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "preview_token": {
+            "default": "",
+            "title": "Preview Token",
             "type": "string"
           },
           "ref_text": {
@@ -515,9 +563,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "file"
-        ],
         "title": "Body_clone_voices_upload_api_clone_voices_upload_post",
         "type": "object"
       },
@@ -538,12 +583,19 @@
       "Body_preparer_batch_upload_start_api_preparer_batch_upload_start_post": {
         "properties": {
           "audio_files": {
-            "items": {
-              "contentMediaType": "application/octet-stream",
-              "type": "string"
-            },
-            "title": "Audio Files",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "contentMediaType": "application/octet-stream",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Files"
           },
           "config_json": {
             "title": "Config Json",
@@ -551,8 +603,7 @@
           }
         },
         "required": [
-          "config_json",
-          "audio_files"
+          "config_json"
         ],
         "title": "Body_preparer_batch_upload_start_api_preparer_batch_upload_start_post",
         "type": "object"
@@ -560,12 +611,24 @@
       "Body_preparer_start_api_preparer_start_post": {
         "properties": {
           "audio_file": {
-            "contentMediaType": "application/octet-stream",
-            "title": "Audio File",
-            "type": "string"
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio File"
           },
           "config_json": {
             "title": "Config Json",
+            "type": "string"
+          },
+          "preview_token": {
+            "default": "",
+            "title": "Preview Token",
             "type": "string"
           },
           "source_file": {
@@ -582,10 +645,28 @@
           }
         },
         "required": [
-          "config_json",
-          "audio_file"
+          "config_json"
         ],
         "title": "Body_preparer_start_api_preparer_start_post",
+        "type": "object"
+      },
+      "Body_stage_audio_channels_api_audio_channels_stage_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "purpose": {
+            "default": "clone",
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_stage_audio_channels_api_audio_channels_stage_post",
         "type": "object"
       },
       "Body_upload_file_api_upload_post": {
@@ -4716,6 +4797,126 @@
         "summary": "Get Audio Estimate"
       }
     },
+    "/api/audio_channels/preview": {
+      "get": {
+        "operationId": "preview_audio_channel_api_audio_channels_preview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "default": "mix",
+              "title": "Channel",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Audio Channel"
+      }
+    },
+    "/api/audio_channels/stage": {
+      "post": {
+        "operationId": "stage_audio_channels_api_audio_channels_stage_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_stage_audio_channels_api_audio_channels_stage_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stage Audio Channels"
+      }
+    },
+    "/api/audio_channels/stage/{token}": {
+      "delete": {
+        "operationId": "delete_audio_channel_stage_api_audio_channels_stage__token__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Audio Channel Stage"
+      }
+    },
     "/api/audiobook": {
       "get": {
         "operationId": "get_audiobook_api_audiobook_get",
@@ -5738,8 +5939,7 @@
                 "$ref": "#/components/schemas/Body_clone_voices_upload_api_clone_voices_upload_post"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
