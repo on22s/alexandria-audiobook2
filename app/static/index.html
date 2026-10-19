@@ -919,6 +919,13 @@
         .tooltip-inner { max-width: 340px; text-align: left; }
         .help-tooltip { pointer-events: auto; }
         .help-tooltip:not(.show) { pointer-events: none; }
+        .settings-preview { background: var(--bg-card-header); overflow-wrap: anywhere; }
+        #llm-active-mode-badge { white-space: normal; text-align: left; line-height: 1.4; }
+        .settings-preview-row { border-bottom: 1px solid var(--border-input); padding: .75rem 0; }
+        .settings-preview-values { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 1rem; margin-top: .4rem; }
+        .settings-preview-defaults { max-height: 22rem; overflow-y: auto; }
+        .settings-preview :is(button,summary):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+        @media (max-width:575px) { .settings-preview-values { grid-template-columns: minmax(0,1fr); gap: .4rem; } }
     </style>
     <script>
         /* Anti-flash: apply saved theme before first paint */
@@ -1044,9 +1051,28 @@
                     <form id="config-form">
                         <div class="config-save-bar d-flex flex-wrap align-items-center gap-2 mb-3 p-2 border rounded">
                             <button id="config-save-button-top" data-config-save-action type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save Configuration</button>
+                            <button type="button" id="config-preview-button" data-config-save-action class="btn btn-outline-secondary" onclick="previewSetupChanges()">Preview changes</button>
                             <span class="small text-muted">Save applies edits across every category.</span>
                             <span id="config-save-status" class="small" role="status" aria-live="polite"></span>
                         </div>
+<section id="setup-preview-panel" class="settings-preview border rounded p-3 mb-3" aria-labelledby="setup-preview-title" hidden>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h5 id="setup-preview-title" tabindex="-1" class="m-0">Settings change preview</h5>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="closeSetupPreview()">Close preview</button>
+    </div>
+    <p id="setup-preview-status" role="status" aria-live="polite" class="mt-2"></p>
+    <div id="setup-preview-results" hidden>
+        <p id="setup-preview-active"></p>
+        <p id="setup-preview-notice" class="small"></p>
+        <p id="setup-preview-timing" class="small"></p>
+        <p id="setup-preview-unmanaged" class="small"></p>
+        <div id="setup-preview-changes"></div>
+        <details id="setup-preview-default-details" class="mt-3">
+            <summary id="setup-preview-default-summary">Default values</summary>
+            <div id="setup-preview-defaults" class="settings-preview-defaults mt-2"></div>
+        </details>
+    </div>
+</section>
 <section id="settings-llm" class="settings-section" data-settings-section="Connection" aria-labelledby="settings-llm-heading">
 <h5 id="settings-llm-heading" tabindex="-1">Connection</h5>
 <p class="settings-intro">Connect the language model that reads your book and identifies speakers. Each location keeps its own profile.</p>

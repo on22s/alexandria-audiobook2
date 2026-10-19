@@ -257,6 +257,8 @@
         };
 
         const ACTION_HELP = {
+            'previewSetupChanges': 'Compare the current form with normalized saved settings. Preview does not save, reset the engine or contact a model. Credentials and prompt contents are hidden.',
+            'closeSetupPreview': 'Close the settings preview without saving or changing form values.',
             'openSetupSettingsSection': 'Display this settings category while keeping edits in every category. Jump to this Setup section without changing or saving settings.',
             'openSetupSetting': 'Open the matching setting and move keyboard focus to its original control. Does not change its value.',
             'clearSetupSettingsSearch': 'Clear the settings search and its results without changing your configuration.',

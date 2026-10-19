@@ -5541,6 +5541,43 @@
         "summary": "Save Config"
       }
     },
+    "/api/config/preview": {
+      "post": {
+        "description": "Compare supported saved settings with the normalized Save proposal.",
+        "operationId": "preview_config_api_config_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Proposed"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Config"
+      }
+    },
     "/api/dataset_builder/cancel": {
       "post": {
         "description": "Cancel the requested project's worker; unnamed callers target the active job.",

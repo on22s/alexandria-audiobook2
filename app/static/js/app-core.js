@@ -1250,6 +1250,7 @@
         }
 
         function applyPassPromptPreset(pass, index) {
+            window.invalidateSetupPreview?.();
             const preset = passPromptPresets[pass][index];
             const defaults = passPromptDefaults[pass];
             const fields = passPromptFields(pass);
@@ -1379,6 +1380,7 @@
         }
 
         function applyPromptPreset(index) {
+            window.invalidateSetupPreview?.();
             const preset = promptPresets[index];
             if (!preset) { return; }
             activePromptPreset = preset.name;
@@ -1421,6 +1423,7 @@
 
         async function saveConfigPayload(payload, onSaved = null) {
             if (configSavePending) { throw new Error('Wait for the current configuration save to finish.'); }
+            window.invalidateSetupPreview?.();
             configSavePending = true;
             const controls = Array.from(document.getElementById('config-form')?.querySelectorAll?.('[data-config-save-action]') || [])
                 .map(button => ({button, disabled: button.disabled}));
@@ -1617,6 +1620,7 @@
         }
 
         function populateLlmInputs(mode) {
+            window.invalidateSetupPreview?.();
             const p = llmProfiles[mode] || {};
             document.getElementById('llm-url').value = p.base_url || '';
             document.getElementById('llm-context-length').value = p.context_length ?? '';
@@ -1795,6 +1799,7 @@
             'tp-delivery-direction': 'three_pass_delivery_direction',
         };
         function applyGenerationSettings(g) {
+            window.invalidateSetupPreview?.();
             document.getElementById('max-input-tokens').value = g.max_input_tokens ?? '';
             document.getElementById('tp-instruct-context-chars').value = g.three_pass_instruct_context_chars ?? 0;
             if (g.chunk_size != null) { legacyChunkSize = g.chunk_size; }
@@ -1858,6 +1863,7 @@
             status.textContent = 'Loading default prompts… Your current edits will be kept.';
             try {
                 const defaults = await API.get('/api/default_prompts');
+                window.invalidateSetupPreview?.();
                 const required = Object.entries(fields).filter(([id]) => id !== 'persona-advanced-prompt' && (!before[id] || id.startsWith('pass')));
                 if (!defaults || required.some(([, key]) => typeof defaults[key] !== 'string' || !defaults[key].trim())) {
                     throw new Error('Default prompt response is incomplete');
@@ -2075,6 +2081,16 @@
 
         // The whole payload in one place, so a bad field (a non-numeric rescue
         // window, malformed JSON) throws here and is shown, not swallowed.
+        function getParallelWorkersInput() {
+            return Math.max(1, parseInt(document.getElementById('parallel-workers').value) || 2);
+        }
+
+        function getConfigPreviewProposal() {
+            const active = getEditedLlmProfile();
+            const payload = buildConfigPayload(getParallelWorkersInput());
+            return JSON.parse(JSON.stringify({...payload, llm: active, ['llm_' + currentLlmMode]: active}));
+        }
+
         function buildConfigPayload(parallelWorkers) {
             const presetPayload = promptPresetPayload();
             const pass1Payload = getPassPromptPresetPayload('pass1');
@@ -2168,8 +2184,7 @@
             if (configSavePending) { return; }
 
             // Validate parallel workers
-            let parallelWorkers = parseInt(document.getElementById('parallel-workers').value) || 2;
-            parallelWorkers = Math.max(1, parallelWorkers);
+            let parallelWorkers = getParallelWorkersInput();
         document.getElementById('parallel-workers').value = parallelWorkers;
 
             // Persist whatever's currently shown into the active profile first,

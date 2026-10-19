@@ -748,7 +748,7 @@ for (const previous of ['local','remote']) {
             return elements[id];
         }
         const notifications = [];
-        const context = {currentLlmMode:previous, savedLlmMode:previous,
+        const context = {window:{}, currentLlmMode:previous, savedLlmMode:previous,
             llmProfiles:{local:{base_url:'local-url',model_name:'local-model'}, remote:{base_url:'remote-url',model_name:'remote-model'}},
             document:{getElementById:element}, showToast:(message,level) => notifications.push({message,level})};
         vm.runInNewContext(code, context);

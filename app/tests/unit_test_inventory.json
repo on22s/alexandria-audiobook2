@@ -1886,6 +1886,15 @@
     "tests.test_config_backup_resume.ConfigBackupResumeTests.test_stale_backup_restored_before_capture_normal_exit_and_new_user_edit_survive_next_run",
     "tests.test_config_backup_resume.ConfigRestorePublicationTests.test_failed_rename_preserves_both_files_then_retry_publishes_exact_backup"
   ],
+  "test_config_change_preview": [
+    "tests.test_config_change_preview.ConfigChangePreviewTests.test_actual_preview_matches_normalized_save_and_changes_no_file_or_engine",
+    "tests.test_config_change_preview.ConfigChangePreviewTests.test_credentials_headers_bodies_urls_prompts_and_unknown_keys_do_not_escape",
+    "tests.test_config_change_preview.ConfigChangePreviewTests.test_get_form_mode_switch_previews_and_saves_each_bound_key_in_both_directions",
+    "tests.test_config_change_preview.ConfigChangePreviewTests.test_invalid_proposals_and_endpoint_sentinel_refusals_return_no_input_details",
+    "tests.test_config_change_preview.ConfigChangePreviewTests.test_legacy_local_and_remote_changes_have_correct_scope_and_no_inherited_cap",
+    "tests.test_config_change_preview.ConfigChangePreviewTests.test_missing_and_damaged_baselines_are_explicit_without_backup_or_creation",
+    "tests.test_config_change_preview.ConfigChangePreviewTests.test_unsent_fields_and_preset_models_are_preserved_and_presenter_does_not_mutate"
+  ],
   "test_config_engine_reset": [
     "tests.test_config_engine_reset.ConfigEngineResetTests.test_failed_write_keeps_engine_and_cached_config",
     "tests.test_config_engine_reset.ConfigEngineResetTests.test_overlapping_saves_complete_without_deadlock_and_engine_matches_disk",
@@ -8018,6 +8027,15 @@
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_native_validation_reveals_first_invalid_only",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_plain_text_bounded_results_clear_and_escape",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_search_outside_save_form_and_classic_script_order"
+  ],
+  "test_settings_preview_js": [
+    "tests.test_settings_preview_js.SettingsPreviewJsTests.test_edits_close_and_save_invalidation_refuse_pending_results",
+    "tests.test_settings_preview_js.SettingsPreviewJsTests.test_invalid_proposal_and_bad_or_failed_reply_clear_old_comparison",
+    "tests.test_settings_preview_js.SettingsPreviewJsTests.test_missing_damaged_and_defaults_are_never_called_unchanged",
+    "tests.test_settings_preview_js.SettingsPreviewJsTests.test_newest_request_is_serialized_and_direct_state_changes_are_rechecked",
+    "tests.test_settings_preview_js.SettingsPreviewJsTests.test_preview_is_a_post_to_preview_only_and_renders_text_not_html",
+    "tests.test_settings_preview_js.SettingsPreviewJsTests.test_programmatic_generation_and_preset_writers_invalidate_previews",
+    "tests.test_settings_preview_js.SettingsPreviewJsTests.test_real_payload_builder_captures_active_and_inactive_profiles_without_mutation"
   ],
   "test_shared_duplicate_gates": [
     "tests.test_shared_duplicate_gates.SharedDuplicateGateTests.test_zero_one_and_two_source_occurrences_have_matching_verdicts"
