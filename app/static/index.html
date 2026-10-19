@@ -952,6 +952,13 @@
         html:is([data-theme="night"], [data-theme="super-night"]) :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible,
         html:is([data-theme="night"], [data-theme="super-night"]) .navbar .nav-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
+
+        .task-guide-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:.75rem; }
+        .task-guide-card { display:flex; flex-direction:column; gap:.4rem; text-align:left; padding:1rem; border:1px solid var(--border-input); border-radius:var(--radius-md); background:var(--bg-card); color:var(--text-primary); }
+        .task-guide-card:hover, .task-guide-card:focus-visible { outline:2px solid var(--bs-info); outline-offset:2px; }
+        .task-guide-card span { font-size:.9rem; }
+        #task-guide-detail { scroll-margin-top:5rem; }
+        #task-guide-return { position:fixed; bottom:1rem; right:1rem; z-index:1030; max-width:calc(100vw - 2rem); }
         /* Field help (app-help.js): a small ⓘ after a control's label. */
         .help-tip { border: 0; background: none; padding: 0 0 0 .3rem; font-size: .85em; line-height: 1;
                     color: var(--bs-secondary-color); cursor: help; vertical-align: baseline; }
@@ -1058,6 +1065,24 @@
 
         <!-- Book workspace: viewing and Continue never start a task. -->
         <div id="home-tab" class="tab-content" style="display:none;">
+            <section class="card mb-3" aria-labelledby="task-guides-heading">
+                <div class="card-body">
+                    <h4 id="task-guides-heading">What would you like to finish?</h4>
+                    <p class="text-muted">Short guides with listening checkpoints. Opening one never starts a job.</p>
+                    <div id="task-guide-cards" class="task-guide-cards"></div>
+                    <section id="task-guide-detail" class="border rounded p-3 mt-3" aria-labelledby="task-guide-title" hidden>
+                        <div class="d-flex justify-content-between gap-2"><h5 id="task-guide-title"></h5><button type="button" class="btn btn-outline-secondary btn-sm" onclick="closeTaskGuide()" title="Close this guide without changing your book">Close guide</button></div>
+                        <img id="task-guide-image" class="img-fluid mb-3" width="640" height="140" alt="">
+                        <h6 id="task-guide-step-title" tabindex="-1"></h6>
+                        <p id="task-guide-instruction"></p>
+                        <p><strong>Look for:</strong> <span id="task-guide-expected"></span></p>
+                        <p class="small"><strong>Time and resources:</strong> <span id="task-guide-cost"></span></p>
+                        <div class="d-flex flex-wrap gap-2"><button id="task-guide-prev" type="button" class="btn btn-outline-secondary" onclick="onTaskGuideStep(-1)" title="Read the previous checklist step">Previous</button><button type="button" class="btn btn-primary" onclick="openTaskGuideTarget()" title="Navigate to existing controls without starting work">Open this screen</button><button id="task-guide-next" type="button" class="btn btn-outline-secondary" onclick="onTaskGuideStep(1)" title="Read the next checklist step; does not mark app work complete">Next step</button></div>
+                        <p id="task-guide-feedback" class="small mt-2 mb-0" role="status" aria-live="polite"></p>
+                    </section>
+                </div>
+            </section>
+
             <div class="card">
                 <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <h4 class="m-0">Book workspace</h4>
@@ -3468,12 +3493,14 @@
     <script src="/static/vendor/bootstrap-5.3.0/bootstrap.bundle.min.js" integrity="sha384-ONWp+8Lk6Ptrwq4R/Ntd1LG+8lzGbwWO2UUjJ/yiGNLXZqzu/v1pP7ZQj47+ae8S" crossorigin="anonymous"></script>
     <script src="/static/vendor/marked-12.0.2/marked.umd.min.js" integrity="sha384-dtN1dfjaRWzuK+5SU9280jRAmCKbalJTmz/Zu9zpdLNKf4I06Zkfd6mni3BT4vYC" crossorigin="anonymous"></script>
     <script src="/static/vendor/dompurify-3.4.16/purify.min.js" integrity="sha384-a/Pq38xPj+MNDC/q6/2UZz/s1EDeRyzrih4ysqlpUMh7hELW35bKynyicZxfyRcJ" crossorigin="anonymous"></script>
+    <button id="task-guide-return" type="button" class="btn btn-secondary shadow" onclick="returnToTaskGuide()" title="Return to the same guide step without changing your selected book" hidden>Return to guide</button>
     <script src="/static/js/app-core.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-scripts.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-speaker-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-repair.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-training.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-guides.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workspace.js?v=__APP_BUILD__"></script>

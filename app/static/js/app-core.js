@@ -6536,7 +6536,7 @@
         async function refreshEditorIntegrity() {
             const badge = document.getElementById('editor-integrity-badge');
             if (!badge) { return; }
-            if (pendingChunkEdits.size || failedChunkEdits.size) {
+            if (isEditorEditPending()) {
                 invalidateEditorIntegrity('Save edits before checking source');
                 return;
             }
@@ -7481,6 +7481,10 @@
                 void refreshEditorIntegrity();
             }).catch(() => {});
             return request;
+        }
+
+        function isEditorEditPending() {
+            return pendingChunkEdits.size > 0 || failedChunkEdits.size > 0;
         }
 
         async function flushChunkEdits() {
