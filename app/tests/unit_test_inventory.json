@@ -5470,6 +5470,17 @@
     "tests.test_morning_chain.MorningChainTests.test_stderr_replay_failure_preserves_original_git_error_or_timeout",
     "tests.test_morning_chain.MorningChainTests.test_success_commits_only_each_generated_output_preserving_other_sessions_index_and_work"
   ],
+  "test_mp3_backpressure": [
+    "tests.test_mp3_backpressure.Mp3BackpressureTests.test_custom_sources_keep_legacy_compatibility_path",
+    "tests.test_mp3_backpressure.Mp3BackpressureTests.test_mastering_uses_final_encoded_file_and_preserves_old_file_on_failure",
+    "tests.test_mp3_backpressure.Mp3BackpressureTests.test_mp3_cancel_reaps_real_encoder_tree_and_preserves_previous_output",
+    "tests.test_mp3_backpressure.Mp3BackpressureTests.test_pcm_artifact_matches_native_promotion_trimming_and_pause_rules",
+    "tests.test_mp3_backpressure.Mp3BackpressureTests.test_primary_stage_write_fault_survives_close_failure_and_old_file_is_kept",
+    "tests.test_mp3_backpressure.Mp3BackpressureTests.test_producer_does_not_pull_next_block_while_consumer_is_blocked",
+    "tests.test_mp3_backpressure.Mp3BackpressureTests.test_project_ordinary_merge_never_calls_full_book_builder",
+    "tests.test_mp3_backpressure.Mp3BackpressureTests.test_real_encoded_output_matches_native_export_audio",
+    "tests.test_mp3_backpressure.Mp3BackpressureTests.test_short_producer_write_is_refused"
+  ],
   "test_mp3_bitrate": [
     "tests.test_mp3_bitrate.Mp3BitrateTests.test_chunk_export_is_at_least_96_kbps"
   ],

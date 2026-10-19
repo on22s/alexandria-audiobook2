@@ -93,6 +93,7 @@ class TtsReviewRegressions(unittest.TestCase):
     def test_late_merge_cancellation_preserves_previous_export(self):
         from pydub import AudioSegment
         import project
+        import audio_export
         for phase in ('load', 'export'):
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as folder:
                 manager = ProjectManager(folder)
@@ -103,11 +104,17 @@ class TtsReviewRegressions(unittest.TestCase):
                     cancelled[0] = phase == 'load'
                     return [({'speaker': 'A', 'text': 'words'}, AudioSegment.silent(duration=300))], 0
                 original_export = project._export_audio_segment
+                original_pcm_export = audio_export.export_pcm_mp3
                 def export(*args, **kwargs):
                     original_export(*args, **kwargs)
                     cancelled[0] = True
+                def export_pcm(*args, **kwargs):
+                    result = original_pcm_export(*args, **kwargs)
+                    cancelled[0] = True
+                    return result
                 with patch.object(manager, '_load_chunks_with_audio', side_effect=load), \
-                     patch('project._export_audio_segment', side_effect=export):
+                     patch('project._export_audio_segment', side_effect=export), \
+                     patch('audio_export.export_pcm_mp3', side_effect=export_pcm):
                     self.assertEqual((False, 'Merge cancelled'),
                                      manager.merge_audio(cancel_check=lambda: cancelled[0]))
                 self.assertEqual(b'previous export', output.read_bytes())
