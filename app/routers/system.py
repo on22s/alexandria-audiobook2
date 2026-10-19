@@ -70,6 +70,13 @@ logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
 
 
+@router.get("/api/tts/diagnostics")
+def get_tts_diagnostics():
+    """Read bounded operational observations without initializing a model."""
+    from tts_diagnostics import get_tts_diagnostics_bundle
+    return get_tts_diagnostics_bundle()
+
+
 def _builtin_prompt_presets() -> list[dict]:
     """One per attribution prompt variant, carrying the text the variant
     actually sends (attribution_prompt_variants.builtin_presets)."""

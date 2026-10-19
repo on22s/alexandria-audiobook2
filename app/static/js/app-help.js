@@ -335,6 +335,8 @@
             'pauseResumeVoicelab': 'Pause or resume the Voice Lab pipeline.',
             'cancelVoicelab': 'Request cancellation of the Voice Lab pipeline.',
             'copyVoicelabDiagnostics': 'Copy a sanitized pipeline diagnostics summary for troubleshooting.',
+            'refreshTtsDiagnostics': 'Read recent measured TTS operations without loading a model or starting a task.',
+            'downloadTtsDiagnostics': 'Download the displayed bounded support report; it excludes book text, speaker names, paths, URLs and raw errors.',
             'downloadVoicelabDiagnostics': 'Download a sanitized pipeline diagnostics summary as JSON.',
             'uploadLoraDataset': 'Upload the selected dataset ZIP so it can be used for adapter training.',
             'loadLoraDatasets': 'Refresh the uploaded training-dataset list.',

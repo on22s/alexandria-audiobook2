@@ -21,6 +21,8 @@ import numpy as np
 import soundfile as sf
 
 import device_utils
+from tts_diagnostics import (capture_tts_operation, measure_tts_stage, record_tts_audio,
+                             record_tts_cache, record_tts_failure, measure_tts_stage_time)
 from adapter_checkpoint_transaction import (ensure_adapter_generation_snapshot, get_adapter_generation_sha256,
                                             get_adapter_serving_metadata)
 from lora_evidence import get_file_sha256, get_tts_model_settings
@@ -65,8 +67,6 @@ _TTS_FAILURES = ContextVar("tts_generation_failures", default=None)
 def apply_tts_failure(error, category=None, next_action=None):
     """Record a terminal failure only for the current structured render call."""
     failures = _TTS_FAILURES.get()
-    if failures is None:
-        return
     if category is None:
         if isinstance(error, UnsupportedVoiceBackendError):
             category = "unsupported_backend"
@@ -86,6 +86,9 @@ def apply_tts_failure(error, category=None, next_action=None):
             next_action = "Check the TTS server and its logs before retrying."
         else:
             category = "generation_error"
+    record_tts_failure(category)
+    if failures is None:
+        return
     from diagnostics import redact_text
     detail = redact_text(str(error) or type(error).__name__)
     failures.append(TTSFailure(category, detail,
@@ -1171,6 +1174,7 @@ class TTSEngine:
         self._clear_gpu_cache()
 
     @ensure_local_tts_serialized
+    @measure_tts_stage("model_preparation")
     def _init_local_custom(self):
         """Load Qwen3-TTS CustomVoice model on demand."""
         if self._local_custom_model is not None:
@@ -1206,6 +1210,7 @@ class TTSEngine:
             return self._local_custom_model
 
     @ensure_local_tts_serialized
+    @measure_tts_stage("model_preparation")
     def _init_local_clone(self):
         """Load Qwen3-TTS Base model (for voice cloning) on demand."""
         if self._local_clone_model is not None:
@@ -1238,6 +1243,7 @@ class TTSEngine:
             return self._local_clone_model
 
     @ensure_local_tts_serialized
+    @measure_tts_stage("model_preparation")
     def _init_local_design(self):
         """Load Qwen3-TTS VoiceDesign model on demand."""
         if self._local_design_model is not None:
@@ -1270,6 +1276,7 @@ class TTSEngine:
             return self._local_design_model
 
     @ensure_local_tts_serialized
+    @measure_tts_stage("model_preparation")
     def _init_local_lora(self, adapter_path, generation_sha256=None, source_adapter_path=None):
         """Load Qwen3-TTS Base model with a LoRA adapter on demand.
 
@@ -1384,6 +1391,7 @@ class TTSEngine:
     # ── Clone prompt cache (local mode) ──────────────────────────
 
     @ensure_local_tts_serialized
+    @measure_tts_stage("reference_preparation")
     def _get_clone_prompt(self, speaker, voice_config):
         """Get or create a cached voice clone prompt for a speaker."""
         voice_data = voice_config.get(speaker, {})
@@ -1402,6 +1410,7 @@ class TTSEngine:
         if speaker in self._clone_prompt_cache:
             cached_key, cached_prompt = self._clone_prompt_cache[speaker]
             if cached_key == reference_key:
+                record_tts_cache(True)
                 return cached_prompt
             print(f"Voice changed for '{speaker}', rebuilding clone prompt...")
 
@@ -1414,6 +1423,7 @@ class TTSEngine:
             audio_array = audio_array.mean(axis=1)
 
         print(f"Creating clone prompt for '{speaker}'...")
+        record_tts_cache(False)
         prompt = model.create_voice_clone_prompt(
             ref_audio=(audio_array, sample_rate),
             ref_text=ref_text,
@@ -1482,6 +1492,7 @@ class TTSEngine:
             pass
         return False
 
+    @capture_tts_operation("generate_custom_voice")
     def generate_custom_voice(self, text, instruct_text, speaker, voice_config, output_path):
         """Generate audio using CustomVoice model. Returns True on success."""
         prepared = get_speech_preparation(text, instruct_text)
@@ -1498,6 +1509,7 @@ class TTSEngine:
                     text, instruct_text, speaker, voice_config, staged, cancelled=cancelled),
                 output_path)
 
+    @capture_tts_operation("generate_clone_voice")
     def generate_clone_voice(self, text, speaker, voice_config, output_path):
         """Generate audio using voice cloning. Returns True on success."""
         return self._generate_clone_voice_prepared(
@@ -1513,6 +1525,7 @@ class TTSEngine:
                     text, speaker, voice_config, staged, cancelled=cancelled),
                 output_path)
 
+    @capture_tts_operation("generate_voice_result")
     def generate_voice_result(self, text, instruct_text, speaker, voice_config, output_path):
         """Return call-local diagnostics without changing legacy boolean methods."""
         failures = []
@@ -1529,6 +1542,7 @@ class TTSEngine:
         finally:
             _TTS_FAILURES.reset(token)
 
+    @capture_tts_operation("generate_voice")
     def generate_voice(self, text, instruct_text, speaker, voice_config, output_path):
         """Generate audio using the appropriate method based on voice type config."""
         prepared = get_speech_preparation(text, instruct_text)
@@ -1573,6 +1587,7 @@ class TTSEngine:
             # Preserve historical override input and preparation semantics.
             return render(text, instruct_text, speaker, voice_config, output_path)
 
+    @capture_tts_operation("generate_ensemble_voice")
     def generate_ensemble_voice(self, text, instruct_text, voice_data, voice_config,
                                 output_path):
         """Render one line as several characters speaking at once.
@@ -1618,6 +1633,7 @@ class TTSEngine:
     # ── Voice design generation ──────────────────────────────────
 
     @ensure_local_tts_serialized
+    @capture_tts_operation("generate_voice_design")
     def generate_voice_design(self, description, sample_text, language=None, seed=-1):
         """Generate a voice from a text description using the VoiceDesign model.
 
@@ -1647,13 +1663,14 @@ class TTSEngine:
             torch.manual_seed(seed)
 
         t_start = time.time()
-        wavs, sr = model.generate_voice_design(
-            text=sample_text,
-            instruct=description,
-            language=lang,
-            non_streaming_mode=True,
-            max_new_tokens=self._max_new_tokens,
-        )
+        with measure_tts_stage_time("inference_decode"):
+            wavs, sr = model.generate_voice_design(
+                text=sample_text,
+                instruct=description,
+                language=lang,
+                non_streaming_mode=True,
+                max_new_tokens=self._max_new_tokens,
+            )
         gen_time = time.time() - t_start
 
         if wavs is None or len(wavs) == 0:
@@ -1674,6 +1691,7 @@ class TTSEngine:
 
         return wav_path, sr
 
+    @capture_tts_operation("generate_design_voice")
     def generate_design_voice(self, text, instruct_text, voice_data, output_path):
         """Generate audio using VoiceDesign model with combined description + instruct.
 
@@ -1725,6 +1743,7 @@ class TTSEngine:
     # ── LoRA voice generation ────────────────────────────────────
 
     @ensure_local_tts_serialized
+    @capture_tts_operation("generate_lora_voice")
     def generate_lora_voice(self, text, instruct_text, voice_data, output_path):
         """Generate audio using a LoRA-finetuned Base model.
 
@@ -1807,14 +1826,15 @@ class TTSEngine:
                 torch.manual_seed(seed)
 
             t_start = time.time()
-            wavs, sr = model.generate_voice_clone(
-                text=text,
-                language=self._language,
-                voice_clone_prompt=prompt,
-                non_streaming_mode=True,
-                max_new_tokens=self._max_new_tokens,
-                **gen_extra,
-            )
+            with measure_tts_stage_time("inference_decode"):
+                wavs, sr = model.generate_voice_clone(
+                    text=text,
+                    language=self._language,
+                    voice_clone_prompt=prompt,
+                    non_streaming_mode=True,
+                    max_new_tokens=self._max_new_tokens,
+                    **gen_extra,
+                )
             gen_time = time.time() - t_start
 
             if wavs is None or len(wavs) == 0:
@@ -1855,6 +1875,7 @@ class TTSEngine:
             return model, prompt
 
     @ensure_local_tts_serialized
+    @measure_tts_stage("reference_preparation")
     def _ensure_lora_prompt(self, adapter_path, model, ref_text, generation_sha256=None, source_adapter_path=None):
         """Build and cache the clone prompt used by LoRA inference."""
         source_adapter_path = source_adapter_path or adapter_path
@@ -1862,6 +1883,7 @@ class TTSEngine:
             with ensure_adapter_generation_snapshot(adapter_path) as (snapshot, generation):
                 return self._ensure_lora_prompt(snapshot, model, ref_text, generation, source_adapter_path)
         cache_key = (source_adapter_path, generation_sha256)
+        record_tts_cache(cache_key in self._lora_prompt_cache)
         if cache_key not in self._lora_prompt_cache:
             audio_array, sample_rate = sf.read(os.path.join(adapter_path, "ref_sample.wav"))
             if audio_array.ndim > 1:
@@ -1878,6 +1900,7 @@ class TTSEngine:
 
     # ── Batch generation ─────────────────────────────────────────
 
+    @capture_tts_operation("generate_batch")
     def generate_batch(self, chunks, voice_config, output_dir, batch_seed=-1):
         """Generate multiple audio files.
 
@@ -2036,10 +2059,12 @@ class TTSEngine:
         """Set the sub-batch size for benchmarking. Public wrapper for _sub_batch_max_items."""
         self._sub_batch_max_items = max_items
 
+    @capture_tts_operation("run_benchmark_batch")
     def run_benchmark_batch(self, chunks, voice_config, output_dir, batch_seed=-1):
         """Run a benchmark batch generation. Public wrapper for _local_batch_custom."""
         return self._local_batch_custom(chunks, voice_config, output_dir, batch_seed)
 
+    @capture_tts_operation("run_clone_benchmark_batch")
     def run_clone_benchmark_batch(self, chunks, voice_config, output_dir,
                                   batch_seed=-1):
         """Run a benchmark batch through the production clone implementation."""
@@ -2083,14 +2108,15 @@ class TTSEngine:
                 torch.manual_seed(seed)
 
             t_start = time.time()
-            wavs, sr = model.generate_custom_voice(
-                text=text,
-                language=self._language,
-                speaker=voice,
-                instruct=instruct,
-                non_streaming_mode=True,
-                max_new_tokens=self._max_new_tokens,
-            )
+            with measure_tts_stage_time("inference_decode"):
+                wavs, sr = model.generate_custom_voice(
+                    text=text,
+                    language=self._language,
+                    speaker=voice,
+                    instruct=instruct,
+                    non_streaming_mode=True,
+                    max_new_tokens=self._max_new_tokens,
+                )
             gen_time = time.time() - t_start
 
             if wavs is None or len(wavs) == 0:
@@ -2139,13 +2165,14 @@ class TTSEngine:
                 torch.manual_seed(seed)
 
             t_start = time.time()
-            wavs, sr = model.generate_voice_clone(
-                text=text,
-                language=self._language,
-                voice_clone_prompt=prompt,
-                non_streaming_mode=True,
-                max_new_tokens=self._max_new_tokens,
-            )
+            with measure_tts_stage_time("inference_decode"):
+                wavs, sr = model.generate_voice_clone(
+                    text=text,
+                    language=self._language,
+                    voice_clone_prompt=prompt,
+                    non_streaming_mode=True,
+                    max_new_tokens=self._max_new_tokens,
+                )
             gen_time = time.time() - t_start
 
             if wavs is None or len(wavs) == 0:
@@ -2275,14 +2302,15 @@ class TTSEngine:
                 if measure_gpu_peak:
                     torch.cuda.reset_peak_memory_stats(self.get_memory_device(model))
                 t_start = time.time()
-                wavs_list, sr = model.generate_custom_voice(
-                    text=sb_texts,
-                    language=[self._language] * len(sb_texts),
-                    speaker=sb_speakers,
-                    instruct=sb_instructs,
-                    non_streaming_mode=True,
-                    max_new_tokens=self._max_new_tokens,
-                )
+                with measure_tts_stage_time("inference_decode"):
+                    wavs_list, sr = model.generate_custom_voice(
+                        text=sb_texts,
+                        language=[self._language] * len(sb_texts),
+                        speaker=sb_speakers,
+                        instruct=sb_instructs,
+                        non_streaming_mode=True,
+                        max_new_tokens=self._max_new_tokens,
+                    )
                 gen_time = time.time() - t_start
                 if measure_gpu_peak:
                     peak_gb = torch.cuda.max_memory_allocated(self.get_memory_device(model)) / 1e9
@@ -2399,13 +2427,14 @@ class TTSEngine:
                     if measure_gpu_peak:
                         torch.cuda.reset_peak_memory_stats(self.get_memory_device(model))
                     t_start = time.time()
-                    wavs_list, sr = model.generate_voice_clone(
-                        text=sb_texts,
-                        language=self._language,
-                        voice_clone_prompt=prompt,
-                        non_streaming_mode=True,
-                        max_new_tokens=self._max_new_tokens,
-                    )
+                    with measure_tts_stage_time("inference_decode"):
+                        wavs_list, sr = model.generate_voice_clone(
+                            text=sb_texts,
+                            language=self._language,
+                            voice_clone_prompt=prompt,
+                            non_streaming_mode=True,
+                            max_new_tokens=self._max_new_tokens,
+                        )
                     gen_time = time.time() - t_start
                     if measure_gpu_peak:
                         peak_gb = torch.cuda.max_memory_allocated(self.get_memory_device(model)) / 1e9
@@ -2574,14 +2603,15 @@ class TTSEngine:
                         gen_extra["instruct_ids"] = instruct_ids
 
                     t_start = time.time()
-                    wavs_list, sr = model.generate_voice_clone(
-                        text=sb_texts,
-                        language=self._language,
-                        voice_clone_prompt=prompt,
-                        non_streaming_mode=True,
-                        max_new_tokens=self._max_new_tokens,
-                        **gen_extra,
-                    )
+                    with measure_tts_stage_time("inference_decode"):
+                        wavs_list, sr = model.generate_voice_clone(
+                            text=sb_texts,
+                            language=self._language,
+                            voice_clone_prompt=prompt,
+                            non_streaming_mode=True,
+                            max_new_tokens=self._max_new_tokens,
+                            **gen_extra,
+                        )
                     gen_time = time.time() - t_start
 
                     if wavs_list is None:
@@ -2616,6 +2646,7 @@ class TTSEngine:
     # ── External backend methods ─────────────────────────────────
 
     @staticmethod
+    @measure_tts_stage("audio_validation_save")
     def _save_external_audio(source_path, output_path, cancelled=None):
         """Validate the copied response before replacing a published render."""
         from audio_validation import validate_generated_audio
@@ -2625,7 +2656,10 @@ class TTSEngine:
             validate_generated_audio(staging_path, "external TTS")
             if cancelled and cancelled.is_set():
                 return False
-            return publish_audio_output(staging_path, output_path, cancelled)
+            published = publish_audio_output(staging_path, output_path, cancelled)
+            if published:
+                record_tts_audio(output_path)
+            return published
         finally:
             if os.path.exists(staging_path):
                 os.remove(staging_path)
@@ -2654,15 +2688,16 @@ class TTSEngine:
             with lock:
                 if cancelled and cancelled.is_set():
                     return False
-                result = client.predict(
-                    text=text,
-                    language=self._language,
-                    speaker=voice,
-                    instruct=instruct,
-                    model_size="1.7B",
-                    seed=seed,
-                    api_name="/generate_custom_voice"
-                )
+                with measure_tts_stage_time("external_request"):
+                    result = client.predict(
+                        text=text,
+                        language=self._language,
+                        speaker=voice,
+                        instruct=instruct,
+                        model_size="1.7B",
+                        seed=seed,
+                        api_name="/generate_custom_voice"
+                    )
 
             generated_audio_filepath = result[0]
             if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
@@ -2727,18 +2762,19 @@ class TTSEngine:
             with lock:
                 if cancelled and cancelled.is_set():
                     return False
-                result = client.predict(
-                    handle_file(ref_audio),
-                    ref_text,
-                    text,
-                    self._language,
-                    False,       # use_xvector_only
-                    "1.7B",
-                    200,         # max_chunk_chars
-                    0,           # chunk_gap
-                    seed,
-                    api_name="/generate_voice_clone"
-                )
+                with measure_tts_stage_time("external_request"):
+                    result = client.predict(
+                        handle_file(ref_audio),
+                        ref_text,
+                        text,
+                        self._language,
+                        False,       # use_xvector_only
+                        "1.7B",
+                        200,         # max_chunk_chars
+                        0,           # chunk_gap
+                        seed,
+                        api_name="/generate_voice_clone"
+                    )
 
             generated_audio_filepath = result[0]
             if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
@@ -2838,7 +2874,7 @@ class TTSEngine:
             staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
             cancelled = threading.Event()
             deadline = time.monotonic() + self._external_timeout
-            future = executor.submit(render_to_staging, chunk, staging_path,
+            future = executor.submit(copy_context().run, render_to_staging, chunk, staging_path,
                                      self._next_external_url(), cancelled)
             futures[idx] = (future, cancelled, staging_path, output_path, deadline)
         for idx, (future, cancelled, staging_path, output_path, deadline) in futures.items():
@@ -2875,6 +2911,7 @@ class TTSEngine:
     # ── Utility ──────────────────────────────────────────────────
 
     @staticmethod
+    @measure_tts_stage("audio_validation_save")
     def _save_wav(audio_array, sample_rate, output_path):
         """Save a numpy audio array as a WAV file, and verify it is one.
 
@@ -2899,8 +2936,10 @@ class TTSEngine:
         experiment harnesses ignored.
         """
         from audio_validation import save_generated_wav
-        return save_generated_wav(audio_array, sample_rate, output_path,
-                                  f"TTS generation to {os.path.basename(output_path)}")
+        result = save_generated_wav(audio_array, sample_rate, output_path,
+                                    f"TTS generation to {os.path.basename(output_path)}")
+        record_tts_audio(output_path)
+        return result
 
 
 # Capture native wrappers once so class/instance replacements take the fallback.

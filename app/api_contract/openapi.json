@@ -9995,6 +9995,23 @@
         "summary": "Get System Stats"
       }
     },
+    "/api/tts/diagnostics": {
+      "get": {
+        "description": "Read bounded operational observations without initializing a model.",
+        "operationId": "get_tts_diagnostics_api_tts_diagnostics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Tts Diagnostics"
+      }
+    },
     "/api/upload": {
       "post": {
         "operationId": "upload_file_api_upload_post",

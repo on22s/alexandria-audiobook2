@@ -9505,6 +9505,18 @@
     "tests.test_tts_clip_view.RowsOf.test_the_asked_text_comes_from_source",
     "tests.test_tts_clip_view.RowsOf.test_wer_is_errors_over_words"
   ],
+  "test_tts_diagnostics": [
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_batch_counts_and_record_bounds_do_not_retain_failed_text",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_endpoint_reads_no_observations_without_loading_engine",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_legacy_boolean_failure_still_records_a_safe_failure_category",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_measured_stage_clock_and_exception_do_not_change_the_failure",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_native_clone_cache_hits_misses_and_save_failure_are_observed",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_native_render_retains_audio_and_excludes_every_caller_field",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_parallel_calls_isolate_outcomes_and_late_updates_are_ignored"
+  ],
+  "test_tts_diagnostics_js": [
+    "tests.test_tts_diagnostics_js.TtsDiagnosticsJsTests.test_out_of_order_reads_and_failure_invalidate_the_download"
+  ],
   "test_tts_external_pool": [
     "tests.test_tts_external_pool.ExternalPoolTests.test_a_hung_endpoint_is_reported_as_a_timeout_not_waited_for",
     "tests.test_tts_external_pool.ExternalPoolTests.test_bad_external_audio_is_rejected_and_prior_output_is_preserved",
