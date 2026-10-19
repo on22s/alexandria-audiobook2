@@ -44,6 +44,7 @@ from core import (
 from generation_checkpoint_deltas import load_generation_checkpoint_document
 from generation_checkpoint_shards import get_generation_checkpoint_artifacts
 from editor_poll_snapshot import EditorPollSnapshots, get_snapshot_digest
+from editor_review_facts import get_editor_review_facts
 from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection,
@@ -194,6 +195,23 @@ def _ensure_chunk_status_snapshot(revision):
 def get_editor_book_identity(root):
     """Caller holds the book transaction lock across reading and using identity."""
     return get_book_operation_identity(root)
+
+
+@router.get("/api/chunks/quality")
+async def get_editor_quality(expected_book_token: Annotated[str, Query(pattern=r"^[0-9a-f]{64}$")]):
+    return await asyncio.to_thread(_get_editor_quality_sync, expected_book_token)
+
+
+def _get_editor_quality_sync(expected_book_token):
+    root = os.path.dirname(SCRIPT_PATH)
+    with ensure_book_state(root):
+        identity = get_editor_book_identity(root)
+        if get_snapshot_digest(identity) != expected_book_token:
+            raise HTTPException(status_code=409, detail="The selected book changed. Refresh Editor before reviewing its lines.")
+        chunks = _ensure_editor_chunks()
+        snapshot = _editor_poll_snapshots.ensure_snapshot(chunks, identity, None)
+        return {'book_token': snapshot['book_token'], 'revision': snapshot['revision'],
+                'rows': get_editor_review_facts(chunks, project_manager.get_chunk_audio_path)}
 
 
 _deleted_chunk_receipts = {}

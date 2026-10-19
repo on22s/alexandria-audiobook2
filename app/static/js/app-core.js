@@ -1809,6 +1809,7 @@
         let currentBookFilename = '';
         function applyCurrentBookFilename(filename) {
             currentBookFilename = typeof filename === 'string' ? filename : '';
+            window.resetEditorReview?.();
             // A reloaded script can change even when its filename stays the same.
             window.resetSpeakerLabelReview?.();
             window.invalidateBookWorkspace?.();
@@ -6930,10 +6931,12 @@
                 if (status) { status.innerHTML = ''; }
                 void refreshEditorIntegrity();
                 void refreshRuntimeEstimate();
+                window.refreshEditorReview?.();
                 await refreshDeliveryReview();
                 return chunks;
             } catch (e) {
                 console.error("Error loading chunks:", e);
+                window.markEditorReviewStale?.();
                 const status = document.getElementById('chunk-load-status');
                 if (status) {
                     status.innerHTML = '<span class="text-warning">Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadChunks(true)">Retry chunks</button>';
@@ -7092,7 +7095,7 @@
                     return `
                         <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" class="chunk-row">
                             <td class="text-center align-middle" style="white-space:nowrap;">
-                                <button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="Voice changes here: from this line on, this character sounds different (time skip, older)"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="Different take: render this line again with a new seed"><i class="fas fa-dice"></i></button>` : ''}
+                                <button type="button" class="chunk-action-btn" onclick="selectEditorReviewLineById(${chunk.id})" title="Inspect line ${chunk.id + 1}" aria-label="Inspect line ${chunk.id + 1}"><i class="fas fa-magnifying-glass"></i></button><button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="Voice changes here: from this line on, this character sounds different (time skip, older)"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="Different take: render this line again with a new seed"><i class="fas fa-dice"></i></button>` : ''}
                             </td>
                             <td>${buildSpeakerSelect(chunk)}</td>
                             <td><textarea class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>
@@ -7443,6 +7446,7 @@
             const captured = JSON.parse(JSON.stringify(data));
             chunkEditsRevision++;
             invalidateEditorIntegrity('Edits awaiting save');
+            window.markEditorReviewStale?.();
             const request = (async () => {
                 if (previous) { await previous.catch(() => {}); }
                 try {

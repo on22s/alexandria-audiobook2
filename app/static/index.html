@@ -401,6 +401,24 @@
         .step-active { background-color: var(--accent); color: white; }
         .voice-card { border-left: 4px solid var(--accent); }
 
+        #editor-tab .editor-toolbar { position: sticky; top: 0; z-index: 5; background: var(--bg-card-header); }
+        .editor-whole-book { position: relative; }
+        .editor-whole-book[open] { max-width: 28rem; }
+        .editor-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 23rem); gap: 1rem; align-items: start; }
+        .editor-review-main { min-width: 0; }
+        .editor-review-main table { min-width: 64rem; table-layout: fixed; }
+        .editor-review-main .chunk-row td:first-child { white-space: normal !important; }
+        .editor-review-main .chunk-actions { flex-wrap: wrap; }
+        .editor-review-main .chunk-audio { max-width: 100%; }
+        .editor-review-panel { padding: 1rem; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--bg-card-header); overflow-wrap: anywhere; }
+        .editor-line-inspector { scroll-margin-top: 8rem; position: sticky; top: 7rem; max-height: calc(100vh - 8rem); overflow-y: auto; }
+        .editor-line-text { white-space: pre-wrap; }
+        .editor-quality-row { padding: .6rem 0; border-bottom: 1px solid var(--border-input); }
+        #editor-tab .editor-review-panel .text-muted { color: var(--text-primary) !important; }
+        #editor-tab .editor-review-panel :is(button, select, summary):focus-visible, #editor-tab .editor-toolbar :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+        #editor-tab tr.editor-selected-line { outline: 2px solid var(--accent); outline-offset: -2px; }
+        @media (max-width: 1199px) { .editor-review-layout { grid-template-columns: minmax(0, 1fr); } .editor-line-inspector { position: static; max-height: none; grid-row: 1; } }
+        @media (prefers-reduced-motion: reduce) { #editor-tab { scroll-behavior: auto; } }
         /* Editor row expand/collapse */
         .chunk-action-btn {
             border: none;
@@ -2813,29 +2831,21 @@
         <!-- Editor Tab -->
         <div id="editor-tab" class="tab-content" style="display:none;">
             <div class="card">
-                <div class="card-header d-flex flex-column flex-lg-row justify-content-between align-items-start gap-3">
-                    <h4 class="m-0"><span class="step-indicator step-active">4</span>Audio Editor</h4>
-                    <div class="d-flex flex-wrap gap-2" role="group" aria-label="Audio Editor actions">
-                        <div class="text-center" style="flex:0 1 10rem;">
-                            <button class="btn btn-primary btn-sm w-100" id="btn-play-seq" onclick="playSequence()"><i class="fas fa-play me-1"></i>Play Sequence</button>
-                            <div class="text-muted mt-1" style="font-size:0.7rem;">Preview generated audio</div>
-                        </div>
-                        <div class="text-center" style="flex:0 1 10rem;">
-                            <button class="btn btn-success btn-sm w-100" id="btn-batch-fast" onclick="startRender(false)"><i class="fas fa-bolt me-1"></i>Render Pending</button>
-                            <div class="text-muted mt-1" style="font-size:0.7rem;">Generate audio for all unrendered chunks</div>
-                        </div>
-                        <div class="text-center" style="flex:0 1 10rem;">
-                            <button class="btn btn-outline-success btn-sm w-100" id="btn-regen-all" onclick="startRender(true)"><i class="fas fa-redo me-1"></i>Regenerate All</button>
-                            <div class="text-muted mt-1" style="font-size:0.7rem;">Re-render everything from scratch</div>
-                        </div>
-                        <button class="btn btn-danger btn-sm" id="btn-cancel-render" onclick="cancelRender()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
-                        <div class="text-center" style="flex:0 1 10rem;">
-                            <button class="btn btn-outline-secondary btn-sm w-100" id="btn-drift-check" onclick="runDriftCheck()" title="Score every rendered chunk against its speaker's reference voice and flag the ones that drifted"><i class="fas fa-fingerprint me-1"></i>Check Voices</button>
-                            <div class="form-check form-check-inline mt-1 mb-0 small"><input class="form-check-input" type="checkbox" id="chk-drift-only" onchange="applyDriftFilter()"><label class="form-check-label" for="chk-drift-only">flagged only</label></div>
-                        </div>
-                        <div class="text-center" style="flex:0 1 10rem;">
-                            <button class="btn btn-warning btn-sm w-100" id="btn-merge"><i class="fas fa-file-audio me-1"></i>Merge All</button>
-                            <div class="text-muted mt-1" style="font-size:0.7rem;">Combine all chunks into final audiobook</div>
+                <div class="card-header editor-toolbar">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <h4 class="m-0"><span class="step-indicator step-active">4</span>Audio Editor</h4>
+                        <div class="d-flex flex-wrap gap-2" role="group" aria-label="Audio Editor actions">
+                            <button class="btn btn-primary btn-sm" id="btn-play-seq" onclick="playSequence()"><i class="fas fa-play me-1"></i>Play Sequence</button>
+                            <button class="btn btn-success btn-sm" id="btn-batch-fast" onclick="startRender(false)"><i class="fas fa-bolt me-1"></i>Render Pending</button>
+                            <button class="btn btn-danger btn-sm" id="btn-cancel-render" onclick="cancelRender()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
+                            <details class="editor-whole-book">
+                                <summary>Whole-book actions</summary>
+                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                    <button class="btn btn-outline-success btn-sm" id="btn-regen-all" onclick="startRender(true)"><i class="fas fa-redo me-1"></i>Regenerate All</button>
+                                    <button class="btn btn-warning btn-sm" id="btn-merge"><i class="fas fa-file-audio me-1"></i>Merge All</button>
+                                </div>
+                                <p class="small mt-2 mb-0">Regenerate All replaces generated audio. Merge All combines the book after its existing checks.</p>
+                            </details>
                         </div>
                     </div>
                 </div>
@@ -2844,7 +2854,7 @@
                      <div class="progress mb-3" style="height: 25px;">
                          <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" style="width: 0%">0%</div>
                      </div>
-                     <div class="d-flex align-items-center gap-2 mb-2">
+                     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                          <button class="btn btn-outline-secondary btn-sm" id="btn-text-diff" onclick="openTextDiff()" title="Where the script's words differ from the source"><i class="fas fa-code-compare me-1"></i>Text integrity</button>
                          <span id="editor-integrity-badge" class="badge bg-secondary">Source check pending</span>
                          <span id="text-diff-summary" class="small text-muted"></span>
@@ -2854,22 +2864,67 @@
                      <div id="delivery-review-panel" class="alert alert-warning mb-3" style="display:none;"></div>
                      <div id="chunk-load-status" class="small mb-2" role="status" aria-live="polite"></div>
 
+                     <div class="editor-review-layout">
+                       <div class="editor-review-main">
+                         <section class="editor-review-panel mb-3" aria-labelledby="editor-quality-title">
+                             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                 <h5 id="editor-quality-title" class="m-0">Quality inbox</h5>
+                                 <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadChunks(false)">Refresh review</button>
+                             </div>
+                             <p class="small mt-2 mb-2">Saved flags to inspect, not a quality certificate. Opening a finding does not run a check or change the line.</p>
+                             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                 <label for="editor-quality-filter">Show</label>
+                                 <select id="editor-quality-filter" class="form-select form-select-sm" style="width:auto;" onchange="renderEditorQualityInbox(true)">
+                                     <option value="all">All findings</option><option value="unknown">Unknown speakers</option><option value="failed">Failed renders</option><option value="missing">Missing audio files</option><option value="drift">Voice drift</option>
+                                 </select>
+                                 <button class="btn btn-outline-secondary btn-sm" id="btn-drift-check" onclick="runDriftCheck()" title="Run the existing voice check against saved reference voices">Check Voices</button>
+                                 <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="chk-drift-only" onchange="applyDriftFilter()"><label class="form-check-label" for="chk-drift-only">Show only drift in table</label></div>
+                             </div>
+                             <p id="editor-quality-status" role="status" aria-live="polite" class="small mb-2">Review facts have not been loaded.</p>
+                             <div id="editor-quality-list"></div>
+                             <button type="button" id="editor-quality-more" class="btn btn-outline-secondary btn-sm mt-2" onclick="showMoreEditorFindings()" hidden>Show 50 more</button>
+                         </section>
                      <div class="table-responsive">
                          <table class="table table-bordered table-hover">
                              <thead>
                                  <tr>
-                                     <th width="3%"></th>
-                                     <th width="9%">Speaker</th>
-                                     <th width="40%">Text</th>
-                                     <th width="14%">Delivery</th>
-                                     <th width="7%">Status</th>
-                                     <th width="27%">Audio / Actions</th>
+                                     <th width="8%"></th>
+                                     <th width="12%">Speaker</th>
+                                     <th width="35%">Text</th>
+                                     <th width="17%">Delivery</th>
+                                     <th width="8%">Status</th>
+                                     <th width="20%">Audio / Actions</th>
                                  </tr>
                              </thead>
                              <tbody id="chunks-table-body">
                                  <!-- Rows will be injected here -->
                              </tbody>
                          </table>
+                     </div>
+                       </div>
+                       <aside class="editor-review-panel editor-line-inspector" aria-label="Selected line inspector">
+                           <details id="editor-line-details" open>
+                               <summary><strong>Selected line</strong></summary>
+                               <p id="editor-line-empty" class="small mt-2 mb-0">Choose Inspect on a line, focus one of its fields, or open a finding.</p>
+                               <div id="editor-line-content" hidden>
+                                   <h5 id="editor-line-title" class="mt-3" tabindex="-1"></h5>
+                                   <p id="editor-line-state" class="small" role="status" aria-live="polite"></p>
+                                   <div class="editor-line-actions d-flex flex-wrap gap-2 mb-3">
+                                       <button type="button" class="btn btn-outline-primary btn-sm" id="editor-line-play" onclick="playEditorReviewLine()">Play line</button>
+                                       <button type="button" class="btn btn-outline-success btn-sm" id="editor-line-generate" onclick="generateEditorReviewLine()">Generate line…</button>
+                                   </div>
+                                   <dl class="mb-0">
+                                       <dt>Speaker <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('speaker')">Edit speaker</button></dt><dd id="editor-line-speaker"></dd>
+                                       <dt>Text <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('text')">Edit text</button></dt><dd id="editor-line-text" class="editor-line-text"></dd>
+                                       <dt>Delivery <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('instruct')">Edit delivery</button></dt><dd id="editor-line-instruct" class="editor-line-text"></dd>
+                                       <dt>Pause after <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('pause_after')">Edit pause</button></dt><dd id="editor-line-pause"></dd>
+                                       <dt>Render error</dt><dd id="editor-line-error" class="small editor-line-text"></dd>
+                                       <dt>Audio and voice check</dt><dd id="editor-line-quality" class="small"></dd><dd id="editor-line-drift-detail" class="small"></dd>
+                                       <dt>Source entries</dt><dd id="editor-line-source" class="small"></dd>
+                                   </dl>
+                               </div>
+                           </details>
+                       </aside>
                      </div>
                 </div>
             </div>
@@ -3223,6 +3278,7 @@
     <script src="/static/js/app-core.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-scripts.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-speaker-review.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-editor-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-training.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>

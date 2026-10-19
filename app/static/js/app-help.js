@@ -152,6 +152,7 @@
             'cast-select': {what: 'The saved cast (character → voice mapping) applied to this book.'},
 
             // Editor tab
+            'editor-quality-filter': {what: 'Filter saved unknown-speaker, failed-render, missing-file and voice-drift findings. No check is started.'},
             'chk-drift-only': {what: 'Show only chunks the drift check flagged as sounding unlike their speaker’s reference voice.'},
 
             // Result tab
@@ -406,6 +407,12 @@
             'scrollToChunkRow': 'Jump to the script line referenced by this comparison result.',
             'retryDeliveryInstructions': 'Retry generation of delivery instructions using the retained recovery state.',
             'cancelDeliveryInstructions': 'Request cancellation of delivery-instruction generation.',
+            'renderEditorQualityInbox': 'Filter saved unresolved-speaker, render-failure, missing-file and voice-drift findings. This does not start a quality check.',
+            'showMoreEditorFindings': 'Show the next 50 matching saved findings.',
+            'focusEditorReviewField': 'Focus the original selected-line field in the Editor table. Edits use its existing save controls.',
+            'playEditorReviewLine': 'Play the selected line with its existing audio player, stopping sequence playback first.',
+            'generateEditorReviewLine': 'Generate the selected line through the existing save, book-identity and GPU checks.',
+            'selectEditorReviewLineById': 'Inspect this line without changing it or starting work.',
             'loadChunks': 'Refresh the chunk editor from the current book’s saved chunks.',
             'generateChunk': 'Generate audio for this script line using its current speaker and delivery settings.',
             'toggleChunkExpand': 'Show or hide this line’s expanded editing controls.',
