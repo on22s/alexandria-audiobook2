@@ -3188,6 +3188,15 @@
                             <i class="fas fa-file-archive me-2"></i>Download All (zip)
                         </a>
                         <div class="w-100 mt-3">
+                            <details id="export-mastering-options" class="workflow-disclosure mt-3 text-start">
+                                <summary title="Optional processing applied to assembled exports, with measured output results">Optional export mastering</summary>
+                                <p class="small mt-2">Applies to the next merged MP3, MP3/WAV chapters or M4B. Source clips and Audacity tracks stay unchanged. Analysis and encoding use CPU and extra disk/time. These targets do not certify distribution compliance.</p>
+                                <label class="form-check"><input type="checkbox" id="export-mastering-enabled" class="form-check-input" onchange="resetExportMasteringView()"><span class="form-check-label">Enable mastering for the next export</span></label>
+                                <div class="row g-2 mt-1"><div class="col-sm-6"><label class="form-label" for="export-mastering-loudness">Integrated loudness (LUFS)</label><input id="export-mastering-loudness" type="number" class="form-control" value="-18" min="-24" max="-14" step="0.5" oninput="resetExportMasteringView()"></div><div class="col-sm-6"><label class="form-label" for="export-mastering-peak">True-peak ceiling (dBTP)</label><input id="export-mastering-peak" type="number" class="form-control" value="-2" min="-9" max="-1" step="0.5" oninput="resetExportMasteringView()"></div></div>
+                                <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="loadExportMasteringReports()" title="Verify output file identity and show measured results for this book">Show verified export measurements</button>
+                                <p id="export-mastering-status" role="status" aria-live="polite" class="small mt-2">Off by default. Export explicitly, then check the measured results.</p>
+                                <div id="export-mastering-reports" class="small"></div>
+                            </details>
                             <a class="text-decoration-none" data-bs-toggle="collapse" href="#m4b-options" role="button" aria-expanded="false">
                                 <i class="fas fa-book-reader me-1"></i>M4B Export Options <i class="fas fa-chevron-down fa-xs ms-1"></i>
                             </a>
@@ -3520,6 +3529,7 @@
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workspace.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-mastering.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-reports.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-help.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-settings.js?v=__APP_BUILD__"></script>

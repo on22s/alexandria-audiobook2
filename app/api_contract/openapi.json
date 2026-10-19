@@ -710,6 +710,16 @@
             "title": "Format",
             "type": "string"
           },
+          "mastering": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MasteringOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "padding": {
             "default": 2,
             "maximum": 6.0,
@@ -2340,6 +2350,16 @@
             "title": "Description",
             "type": "string"
           },
+          "mastering": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MasteringOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "narrator": {
             "default": "",
             "title": "Narrator",
@@ -2388,6 +2408,27 @@
         "title": "ManualReply",
         "type": "object"
       },
+      "MasteringOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "loudness": {
+            "default": -18,
+            "maximum": -14.0,
+            "minimum": -24.0,
+            "title": "Loudness",
+            "type": "number"
+          },
+          "true_peak": {
+            "default": -2,
+            "maximum": -1.0,
+            "minimum": -9.0,
+            "title": "True Peak",
+            "type": "number"
+          }
+        },
+        "title": "MasteringOptions",
+        "type": "object"
+      },
       "MergeRequest": {
         "properties": {
           "integrity_confirmation": {
@@ -2403,6 +2444,16 @@
               }
             ],
             "title": "Integrity Confirmation"
+          },
+          "mastering": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MasteringOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "MergeRequest",
@@ -6458,6 +6509,23 @@
               "title": "Require Ready",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "mastering",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mastering"
+            }
           }
         ],
         "responses": {
@@ -6481,6 +6549,44 @@
           }
         },
         "summary": "Preview Chapter Filenames"
+      }
+    },
+    "/api/export_mastering": {
+      "get": {
+        "operationId": "get_export_mastering_api_export_mastering_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Export Mastering"
       }
     },
     "/api/export_zip": {

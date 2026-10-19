@@ -24,6 +24,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field, StrictInt, field_validator
 from config_settings import load_app_config
+from audio_mastering import MasteringOptions, get_audio_sha256
 
 from core import (
     AUDIOBOOK_PATH,
@@ -525,6 +526,7 @@ async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks,
         return {"status": "started"}
 
 class MergeRequest(BaseModel):
+    mastering: Optional[MasteringOptions] = None
     integrity_confirmation: Optional[str] = Field(None, min_length=64, max_length=64,
                                                   pattern="^[0-9a-f]{64}$")
 
@@ -549,6 +551,61 @@ def _ensure_editor_integrity():
 @router.get("/api/editor/integrity")
 async def get_editor_integrity():
     return await asyncio.to_thread(_ensure_editor_integrity)
+
+
+def ensure_export_mastering_context(request, state):
+    """Initialize measurements only after this worker owns its task slot."""
+    state['mastering_reports'] = []
+    if request is None or request.mastering is None:
+        return {}
+    with ensure_book_state(DATA_DIR):
+        token = get_snapshot_digest(get_editor_book_identity(DATA_DIR))
+    def publish(report):
+        state['mastering_reports'].append({**report, 'book_token': token})
+    return {'mastering': request.mastering.model_dump(), 'mastering_callback': publish}
+
+
+@router.get('/api/export_mastering')
+async def get_export_mastering(expected_book_token: Annotated[str, Query(pattern=r'^[0-9a-f]{64}$')]):
+    return await asyncio.to_thread(_get_export_mastering_sync, expected_book_token)
+
+
+def _get_export_mastering_sync(token):
+    with ensure_book_state(DATA_DIR):
+        check_chunk_identity(0, token)
+        captured = [(name, copy.deepcopy(state.get('mastering_reports', [])))
+                    for name in ('audio', 'm4b_export', 'chapter_export')
+                    if not (state := process_state[name]).get('running')]
+    reports, unavailable = [], 0
+    for name, candidates in captured:
+        for report in candidates:
+            if report.get('book_token') != token:
+                continue
+            path = os.path.join(DATA_DIR, report['file'])
+            if not is_path_inside(path, DATA_DIR):
+                unavailable += 1
+                continue
+            try:
+                stat = os.stat(path)
+                before = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+                digest = get_audio_sha256(path)
+                stat = os.stat(path)
+                after = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+                if digest != report['sha256'] or before != after:
+                    unavailable += 1
+                    continue
+            except OSError:
+                unavailable += 1
+                continue
+            # A newly admitted export invalidates an older measurement snapshot.
+            state = process_state[name]
+            if state.get('running') or report not in state.get('mastering_reports', []):
+                unavailable += 1
+                continue
+            reports.append(report)
+    with ensure_book_state(DATA_DIR):
+        check_chunk_identity(0, token)
+    return {'book_token': token, 'reports': reports, 'unavailable': unavailable}
 
 
 @router.post("/api/merge")
@@ -576,7 +633,7 @@ def _start_merge_audio(background_tasks, request):
                 success, msg = project_manager.merge_audio(
                     cancel_check=lambda: process_state["audio"]["cancel"],
                     progress_callback=lambda m: process_state["audio"]["logs"].append(m),
-                    chunks=chunks)
+                    chunks=chunks, **ensure_export_mastering_context(request, process_state["audio"]))
                 if success:
                     process_state["audio"]["logs"].append(f"Merge complete: {msg}")
                 elif msg == "Merge cancelled":
@@ -693,6 +750,7 @@ async def validate_export_readiness(require_ready):
 
 
 class M4bExportRequest(BaseModel):
+    mastering: Optional[MasteringOptions] = None
     per_chunk_chapters: bool = False
     title: str = ""
     author: str = ""
@@ -721,7 +779,8 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
             success, msg = project_manager.merge_m4b(
                 per_chunk_chapters=request.per_chunk_chapters, metadata=meta,
                 cancel_check=lambda: process_state["m4b_export"].get("cancel", False),
-                progress_callback=lambda message: process_state["m4b_export"]["logs"].append(message))
+                progress_callback=lambda message: process_state["m4b_export"]["logs"].append(message),
+                **ensure_export_mastering_context(request, process_state["m4b_export"]))
             process_state["m4b_export"]["result"] = get_export_task_result(success, msg)
             if success:
                 process_state["m4b_export"]["logs"].append(f"Export complete: {msg}")
@@ -747,6 +806,7 @@ async def cancel_m4b_export():
 
 
 class ChapterExportRequest(BaseModel):
+    mastering: Optional[MasteringOptions] = None
     format: str = "mp3"
     per_chunk_chapters: bool = False
     template: str = DEFAULT_CHAPTER_TEMPLATE
@@ -793,7 +853,7 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
                 volume_number=request.volume_number, chapters=chapters,
                 changed_only=request.changed_only,
                 progress_callback=lambda m: state["logs"].append(m),
-                cancel_check=lambda: state["cancel"])
+                cancel_check=lambda: state["cancel"], **ensure_export_mastering_context(request, state))
             state["result"] = get_export_task_result(success, msg)
             state["logs"].append(f"Export complete: {msg}" if success else f"Export failed: {msg}")
         except Exception as e:
@@ -822,7 +882,8 @@ async def preview_chapter_filenames(format: str = "mp3", per_chunk_chapters: boo
                                     template: str = DEFAULT_CHAPTER_TEMPLATE, padding: int = 2,
                                     book_name: str = "", series_name: str = "",
                                     volume_number: str = "", chapters: Annotated[Optional[List[int]], Query()] = None,
-                                    changed_only: bool = False, require_ready: bool = False):
+                                    changed_only: bool = False, require_ready: bool = False,
+                                    mastering: Annotated[Optional[str], Query(max_length=512)] = None):
     """The selected filenames an export would write after existing-file reuse."""
     if format not in ("mp3", "wav"):
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
@@ -830,11 +891,16 @@ async def preview_chapter_filenames(format: str = "mp3", per_chunk_chapters: boo
         raise HTTPException(status_code=400, detail="padding must be 0-6 digits")
     await validate_export_readiness(require_ready)
     try:
+        mastering_options = MasteringOptions.model_validate_json(mastering).model_dump() if mastering is not None else None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail='Invalid mastering options.') from exc
+    try:
         rows = await asyncio.to_thread(project_manager.preview_chapter_filenames,
             fmt=format, per_chunk_chapters=per_chunk_chapters, template=template,
             padding=padding, book_name=book_name,
             series_name=series_name, volume_number=volume_number,
-            chapters=chapters, changed_only=changed_only)
+            chapters=chapters, changed_only=changed_only,
+            **({"mastering": mastering_options} if mastering_options is not None else {}))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"fields": list(CHAPTER_TEMPLATE_FIELDS), "chapters": rows}
