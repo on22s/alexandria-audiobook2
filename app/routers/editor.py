@@ -50,7 +50,7 @@ from editor_review_facts import get_editor_review_facts
 from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection,
-                     get_chunk_generation_requests)
+                     get_chunk_generation_requests, get_speaker)
 from runtime_estimate import get_book_runtime_estimate
 from routers.voices import get_script_speaker
 from tts import voice_config_for_chunk, resolve_narrator_voice_config, voice_category
@@ -101,7 +101,7 @@ class AudioRepairSelection(BaseModel):
     expected_options_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
     expected_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
     chapter: Optional[Annotated[StrictInt, Field(ge=0)]] = None
-    speakers: List[Annotated[str, Field(min_length=1, max_length=500)]] = Field(min_length=1, max_length=10000)
+    speakers: List[Annotated[str, Field(max_length=500)]] = Field(min_length=1, max_length=10000)
 
 
 def get_audio_repair_revision(chunks):
@@ -122,7 +122,7 @@ def get_audio_repair_options(chunks):
     groups = project_manager._chapter_groups(chunks, False) if chunks else []
     return {"chapters": [{"index": i, "title": title, "first": first, "last": last}
                          for i, (title, first, last) in enumerate(groups)],
-            "speakers": sorted({get_script_speaker(chunk) for chunk in chunks
+            "speakers": sorted({get_speaker(chunk) for chunk in chunks
                                 if chunk.get("text", "").strip()}),
             "grouping_note": "Uses export chapter detection; without headings, each line is a chapter."}
 
@@ -161,7 +161,7 @@ def _get_audio_repair_preview_sync(request):
         if not set(request.speakers).issubset(options["speakers"]):
             raise HTTPException(status_code=409, detail="Speaker selection changed; refresh repair options.")
         selected = [chunk for i, chunk in enumerate(chunks) if first <= i <= last
-                    and chunk.get("text", "").strip() and get_script_speaker(chunk) in request.speakers]
+                    and chunk.get("text", "").strip() and get_speaker(chunk) in request.speakers]
         return {"book_token": request.expected_book_token,
                 "repair_revision": get_audio_repair_revision(chunks), "rows": selected,
                 "rendered_count": sum(bool(chunk.get("audio_path")) for chunk in selected)}

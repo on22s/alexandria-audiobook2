@@ -105,3 +105,15 @@ class EditorAudioRepairTests(unittest.TestCase):
         chunks = self.pm.load_chunks(); chunks.reverse(); self.pm.save_chunks(chunks)
         with self.assertRaises(editor.HTTPException):
             editor.ensure_audio_generation_requests([2], self.token, [preview['rows'][0]['uid']], preview['repair_revision'])
+
+    def test_unknown_and_whitespace_distinct_speakers_round_trip_exactly(self):
+        rows = [{'id': i, 'uid': f'speaker-{i}', 'text': 'Hello.', 'speaker': label}
+                for i, label in enumerate(['', 'Hero', ' Hero '])]
+        self.pm.save_chunks(rows)
+        response = self.client.get('/api/chunks/repair_options', params={'expected_book_token': self.token})
+        self.assertEqual(['', ' Hero ', 'Hero'], response.json()['speakers'])
+        for index, speaker in enumerate(['', 'Hero', ' Hero ']):
+            with self.subTest(speaker=speaker):
+                preview = self.preview(speakers=[speaker])
+                self.assertEqual(200, preview.status_code, preview.text)
+                self.assertEqual([index], [row['id'] for row in preview.json()['rows']])

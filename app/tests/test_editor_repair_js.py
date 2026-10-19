@@ -60,3 +60,19 @@ a.context.showConfirm=async()=>{if(mode==='edit'){a.controls.text='Changed durin
 await a.context[button](true,preview);assert.equal(a.batches.length,mode==='success'?1:0);if(mode==='success'){assert.deepEqual(a.batches[0].data.indices,[7]);assert.equal(a.batches[0].data.expected_repair_revision,'e'.repeat(64));}if(mode==='edit'){assert(a.errors.some(e=>e.includes('selected line changed')));}
 }}finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
+
+    def test_terminal_subset_polling_counts_and_cancellation_reset(self):
+        self.run_render(r'''
+(async()=>{for(const button of ['renderAll','renderBatchFast']){for(const terminal of ['done','failed','cancelled','missing']){
+const a=client();a.setHold(false);const rows=await a.context.ensureEditorRenderSnapshot();const filters={chapter:null,speakers:['NEW SPEAKER']};a.context.getEditorRepairFilters=()=>filters;vm.runInContext(helper,a.context);
+vm.runInContext(source.slice(source.indexOf('function getBatchOutcome('),source.indexOf('function pollReviewBatch(')),a.context);
+vm.runInContext(source.slice(source.indexOf('window.cancelRender ='),source.indexOf('window.startRender =')),a.context);
+let poll,fetchState;const drifts=[];a.context._startPolling=(name,fetch,options)=>{assert.equal(name,'render_batch');fetchState=fetch;poll=options;};a.context.runDriftCheck=ids=>drifts.push(Array.from(ids));
+const originalGet=a.context.API.get;a.context.API.get=async url=>url==='/api/status/audio'?{running:false}:originalGet(url);
+a.context.ensureChunkRefresh=async()=>[...(terminal==='missing'?[]:[{...rows[0],status:terminal}]),{id:8,uid:'unselected',status:'done'},{id:7,uid:'replacement-uid',status:'done'}];
+const preview={book_token:'book-token',repair_revision:'e'.repeat(64),filters,rows};await a.context[button](true,preview);assert(poll);assert.equal(vm.runInContext('isRenderingAll',a.context),true);
+const updated=await fetchState();assert(poll.doneCheck(updated));await poll.onDone(updated);assert.equal(vm.runInContext('isRenderingAll',a.context),false);
+const expected=terminal==='done'?'1 succeeded, 0 failed, 0 cancelled, 0 unfinished':terminal==='failed'?'0 succeeded, 1 failed, 0 cancelled, 0 unfinished':terminal==='cancelled'?'0 succeeded, 0 failed, 1 cancelled, 0 unfinished':'0 succeeded, 0 failed, 0 cancelled, 1 unfinished';
+assert(a.errors.some(message=>message.includes(expected)),a.errors);assert.deepEqual(drifts,terminal==='done'?[[7]]:[]);
+}}finished=true;})().catch(error=>{console.error(error);process.exitCode=1;});
+''')

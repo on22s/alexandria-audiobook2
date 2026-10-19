@@ -2943,6 +2943,7 @@
     "tests.test_editor_audio_repair.EditorAudioRepairTests.test_empty_no_heading_and_invalid_filters",
     "tests.test_editor_audio_repair.EditorAudioRepairTests.test_options_revision_rejects_changed_chapter_roster",
     "tests.test_editor_audio_repair.EditorAudioRepairTests.test_shared_chapter_detection_and_literal_speaker_filter",
+    "tests.test_editor_audio_repair.EditorAudioRepairTests.test_unknown_and_whitespace_distinct_speakers_round_trip_exactly",
     "tests.test_editor_audio_repair.EditorAudioRepairTests.test_voice_settings_row_and_book_changes_invalidate_admission"
   ],
   "test_editor_book_identity": [
@@ -2973,7 +2974,8 @@
   "test_editor_repair_js": [
     "tests.test_editor_repair_js.EditorRepairJsTests.test_batch_selection_confirmation_cancellation_and_change",
     "tests.test_editor_repair_js.EditorRepairJsTests.test_empty_selection_late_book_and_changed_filters_cannot_start",
-    "tests.test_editor_repair_js.EditorRepairJsTests.test_preview_no_job_safe_text_and_exact_selected_start"
+    "tests.test_editor_repair_js.EditorRepairJsTests.test_preview_no_job_safe_text_and_exact_selected_start",
+    "tests.test_editor_repair_js.EditorRepairJsTests.test_terminal_subset_polling_counts_and_cancellation_reset"
   ],
   "test_editor_report_cover_boundary": [
     "tests.test_editor_report_cover_boundary.EditorReportCoverBoundaryTests.test_cover_response_uses_leaf_and_published_image_is_unchanged",

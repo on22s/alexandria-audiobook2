@@ -80,9 +80,10 @@ function getEditorRepairSelection(chunks, preview) {
             || JSON.stringify(preview.filters) !== JSON.stringify(getEditorRepairFilters())) {
         throw new Error('Repair selection changed. Preview again.');
     }
+    const rowsById = new Map(chunks.map(chunk => [chunk.id, chunk]));
     return preview.rows.map(selected => {
-        const row = chunks.find(chunk => chunk.id === selected.id && chunk.uid === selected.uid);
-        if (!row || ['text', 'speaker', 'instruct', 'pause_after'].some(key => row[key] !== selected[key])) {
+        const row = rowsById.get(selected.id);
+        if (!row || row.uid !== selected.uid || ['text', 'speaker', 'instruct', 'pause_after'].some(key => row[key] !== selected[key])) {
             throw new Error('A selected line changed. Preview again.');
         }
         return row;
