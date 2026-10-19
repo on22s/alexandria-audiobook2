@@ -212,3 +212,34 @@ class AudioChannelTests(unittest.TestCase):
             self.assertEqual(200, client.delete('/api/audio_channels/stage/' + token).status_code)
             self.assertEqual(400, client.get('/api/audio_channels/preview', params={'token': token}).status_code)
             self.assertEqual([], [p for p in voices.iterdir() if p.name.startswith('.upload_')])
+
+    def test_metadata_wait_does_not_block_async_request_loop(self):
+        import asyncio
+        import threading
+        from routers import voice_design
+        from fastapi import HTTPException
+        store = AudioChannelStaging(self.root)
+        token, path = store.create_stage('stereo.wav', 'clone')
+        path.write_bytes(self.path.read_bytes())
+        entered = threading.Event(); release = threading.Event()
+        real_metadata = store.get_metadata
+        def delayed(*args):
+            entered.set()
+            if not release.wait(2):
+                raise AssertionError('event loop did not reach release')
+            return real_metadata(*args)
+        async def run():
+            task = asyncio.create_task(voice_design.clone_voices_upload(None, preview_token=token,
+                ref_text='', rights_confirmed=False))
+            for _ in range(100):
+                if entered.is_set():
+                    break
+                await asyncio.sleep(.01)
+            self.assertTrue(entered.is_set())
+            release.set()
+            with self.assertRaises(HTTPException) as error:
+                await task
+            self.assertEqual(400, error.exception.status_code)
+        with patch.object(voice_design, 'get_audio_channel_staging', return_value=store), \
+                patch.object(store, 'get_metadata', side_effect=delayed):
+            asyncio.run(run())

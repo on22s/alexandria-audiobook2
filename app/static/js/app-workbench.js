@@ -1264,6 +1264,10 @@
             document.getElementById('btn-prep-start').disabled = submitting || taskName !== null;
             document.getElementById('btn-prep-cancel').style.display = taskName ? 'inline-block' : 'none';
             document.getElementById('prep-batch-files').disabled = submitting || taskName === 'batch_preparer';
+            document.getElementById('prep-audio-file').disabled = submitting || taskName === 'preparer';
+            document.getElementById('prep-source-file').disabled = submitting || taskName === 'preparer';
+            window.preparerChannelPicker?.setDisabled?.(submitting || taskName === 'preparer');
+            prepBatchQueue.forEach(task => { task.picker?.setDisabled?.(submitting || taskName === 'batch_preparer'); });
         }
 
         async function _submitPreparer(taskName, formData) {
@@ -1283,6 +1287,20 @@
             }
         }
 
+        async function _submitPreparerAfterSelection(taskName, buildForm) {
+            if (prepSubmitting || prepActiveTask) { return; }
+            _applyPreparerControls(null, true);
+            try {
+                const form = await buildForm();
+                // Transfer the UI reservation synchronously to the existing request owner.
+                prepSubmitting = false;
+                return _submitPreparer(taskName, form);
+            } catch (error) {
+                _applyPreparerControls(null);
+                showActionError('Could not prepare selected audio', error, 'Your files are retained. Select an expired or changed preview again before starting.');
+            }
+        }
+
         window.startPreparer = async () => {
             const isBatch = document.getElementById('prep-batch-mode').checked;
             if (isBatch) { return _startBatchPreparer(); }
@@ -1291,7 +1309,6 @@
             if (!audioFile) { showToast('Audio file required', 'error'); return; }
 
             const channelSelection = window.preparerChannelPicker ? window.preparerChannelPicker.getSelection() : {channel: 'mix', token: null};
-            if (channelSelection.pending) { channelSelection.token = await channelSelection.pending; }
             const sourceFile = document.getElementById('prep-source-file').files[0];
             const diarizationMode = document.getElementById('prep-diarization-mode').value;
 
@@ -1326,13 +1343,17 @@
                 hf_token:                   document.getElementById('prep-hf-token').value || null,
             };
 
-            const fd = new FormData();
-            fd.append('config_json', JSON.stringify(config));
-            if (channelSelection.token) { fd.append('preview_token', channelSelection.token); }
-            else { fd.append('audio_file', audioFile); }
-            if (sourceFile) { fd.append('source_file', sourceFile); }
+            return _submitPreparerAfterSelection('preparer', async () => {
+                if (channelSelection.pending) { channelSelection.token = await channelSelection.pending; }
+                if (document.getElementById('prep-audio-file').files[0] !== audioFile) { throw new Error('Audio selection changed. Start again with the current file.'); }
+                const fd = new FormData();
+                fd.append('config_json', JSON.stringify(config));
+                if (channelSelection.token) { fd.append('preview_token', channelSelection.token); }
+                else { fd.append('audio_file', audioFile); }
+                if (sourceFile) { fd.append('source_file', sourceFile); }
 
-            return _submitPreparer('preparer', fd);
+                return fd;
+            });
         };
 
         window.cancelPreparer = () => {
@@ -1344,31 +1365,33 @@
             if (!prepBatchQueue.length) { showToast('No files selected', 'warning'); return; }
 
             const files = prepBatchQueue.map(t => t.audio);
-            const selections = await Promise.all(prepBatchQueue.map(async task => {
-                const selected = task.picker.getSelection();
-                return {...selected, token: selected.pending ? await selected.pending : selected.token};
-            }));
-            const tasks = files.map((file, index) => ({
-                audio_channel: selections[index].channel,
-                preview_token: selections[index].token || "",
-                audio_filename:  file.name,
-                output_filename: `voice_dataset_${file.name.replace(/\.[^.]+$/, '')}.zip`,
-            }));
-            const diarizationMode = document.getElementById('prep-diarization-mode').value;
-            const body = {
-                tasks,
-                lang:           document.getElementById('prep-lang').value,
-                min_confidence: getNumFieldValue('prep-confidence', 0.85),
-                min_snr:        getNumFieldValue('prep-snr', 25, true),
-                diarize:        diarizationMode === 'full',
-                auto_detect_speakers: diarizationMode === 'auto',
-                hf_token:       document.getElementById('prep-hf-token').value || null,
-            };
+            return _submitPreparerAfterSelection('batch_preparer', async () => {
+                const selections = await Promise.all(prepBatchQueue.map(async task => {
+                    const selected = task.picker.getSelection();
+                    return {...selected, token: selected.pending ? await selected.pending : selected.token};
+                }));
+                const tasks = files.map((file, index) => ({
+                    audio_channel: selections[index].channel,
+                    preview_token: selections[index].token || "",
+                    audio_filename:  file.name,
+                    output_filename: `voice_dataset_${file.name.replace(/\.[^.]+$/, '')}.zip`,
+                }));
+                const diarizationMode = document.getElementById('prep-diarization-mode').value;
+                const body = {
+                    tasks,
+                    lang:           document.getElementById('prep-lang').value,
+                    min_confidence: getNumFieldValue('prep-confidence', 0.85),
+                    min_snr:        getNumFieldValue('prep-snr', 25, true),
+                    diarize:        diarizationMode === 'full',
+                    auto_detect_speakers: diarizationMode === 'auto',
+                    hf_token:       document.getElementById('prep-hf-token').value || null,
+                };
 
-            const fd = new FormData();
-            fd.append('config_json', JSON.stringify(body));
-            files.forEach((file, index) => { if (!selections[index].token) { fd.append('audio_files', file); } });
-            return _submitPreparer('batch_preparer', fd);
+                const fd = new FormData();
+                fd.append('config_json', JSON.stringify(body));
+                files.forEach((file, index) => { if (!selections[index].token) { fd.append('audio_files', file); } });
+                return fd;
+            });
         }
 
         function _pollPreparerLogs(taskName) {

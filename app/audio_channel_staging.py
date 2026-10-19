@@ -66,6 +66,10 @@ class AudioChannelStaging:
                 raise ValueError('Audio upload has not completed.')
             yield path, metadata
 
+    def get_metadata(self, token, purpose):
+        with self.open_stage(token, purpose) as (_, metadata):
+            return dict(metadata)
+
     def copy_stage(self, token, destination, purpose):
         with self.open_stage(token, purpose) as (path, metadata):
             shutil.copyfile(path, destination)

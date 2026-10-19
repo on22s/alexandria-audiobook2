@@ -628,6 +628,7 @@
     "tests.test_audio_channels.AudioChannelTests.test_actual_preview_import_and_asr_stream_select_same_channel",
     "tests.test_audio_channels.AudioChannelTests.test_batch_http_consumes_previews_once_and_dispatches_selected_channel",
     "tests.test_audio_channels.AudioChannelTests.test_cancelled_preview_stops_owned_child_before_returning",
+    "tests.test_audio_channels.AudioChannelTests.test_metadata_wait_does_not_block_async_request_loop",
     "tests.test_audio_channels.AudioChannelTests.test_mono_default_parity_missing_right_and_unknown_selection",
     "tests.test_audio_channels.AudioChannelTests.test_move_is_single_use_and_failed_copy_does_not_delete_source",
     "tests.test_audio_channels.AudioChannelTests.test_opposite_phase_mixing_does_not_silently_replace_selected_channel",
@@ -639,7 +640,8 @@
   ],
   "test_audio_channels_js": [
     "tests.test_audio_channels_js.AudioChannelsJsTests.test_closed_or_changed_picker_discards_late_audio_and_cleans_late_upload",
-    "tests.test_audio_channels_js.AudioChannelsJsTests.test_preview_reuses_stage_and_selection_is_explicit_then_dispose_revokes"
+    "tests.test_audio_channels_js.AudioChannelsJsTests.test_preview_reuses_stage_and_selection_is_explicit_then_dispose_revokes",
+    "tests.test_audio_channels_js.AudioChannelsJsTests.test_submission_lock_survives_late_preview_completion"
   ],
   "test_audio_mastering": [
     "tests.test_audio_mastering.AudioMasteringTests.test_chapter_options_invalidate_reuse_and_failed_mastering_rolls_back",
@@ -6240,6 +6242,7 @@
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_logs_keep_reader_position_and_show_rotating_ring",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_older_poll_completion_cannot_clear_new_task_controls",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_pending_and_accepted_runs_cancel_the_captured_mode",
+    "tests.test_preparer_controls_js.PreparerControlsJsTests.test_pending_channel_upload_keeps_batch_selection_owned_until_request_starts",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_running_batch_owns_picker_and_queue_until_completion",
     "tests.test_preparer_controls_js.PreparerControlsJsTests.test_status_markup_is_escaped_and_colors_are_constrained"
   ],

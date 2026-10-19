@@ -32,6 +32,8 @@ window.createAudioChannelPicker = (container, file, purpose) => {
     let token = null;
     let staging = null;
     let closed = false;
+    let disabled = false;
+    let previewActive = false;
     let sequence = 0;
     let objectUrl = null;
     let controller = null;
@@ -65,9 +67,11 @@ window.createAudioChannelPicker = (container, file, purpose) => {
         }
         return staging;
     };
-    select.onchange = () => { stop(); button.disabled = false; status.textContent = 'Channel changed. Preview again before continuing.'; };
+    select.onchange = () => { stop(); previewActive = false; button.disabled = disabled; status.textContent = 'Channel changed. Preview again before continuing.'; };
     button.onclick = async () => {
+        if (disabled) { return; }
         stop();
+        previewActive = true;
         const expected = sequence;
         const channel = select.value;
         controller = new AbortController();
@@ -88,7 +92,7 @@ window.createAudioChannelPicker = (container, file, purpose) => {
         } catch (error) {
             if (!closed && expected === sequence && error.name !== 'AbortError') { status.textContent = error.message || 'Preview failed. Select the file again if it expired.'; }
         } finally {
-            if (!closed && expected === sequence) { button.disabled = false; }
+            if (!closed && expected === sequence) { previewActive = false; button.disabled = disabled; }
         }
     };
     const dispose = () => {
@@ -99,7 +103,11 @@ window.createAudioChannelPicker = (container, file, purpose) => {
         window.removeEventListener('pagehide', dispose);
     };
     window.addEventListener('pagehide', dispose);
-    return {getSelection: () => ({channel: select.value, token, pending: staging}), dispose};
+    return {
+        getSelection: () => ({channel: select.value, token, pending: staging}),
+        setDisabled: value => { disabled = !!value; select.disabled = disabled; button.disabled = disabled || previewActive; },
+        dispose,
+    };
 };
 
 window.addEventListener('DOMContentLoaded', () => {

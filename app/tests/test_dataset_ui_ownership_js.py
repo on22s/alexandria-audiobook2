@@ -410,7 +410,8 @@ const apiStart=core.indexOf('const API = {'),apiEnd=core.indexOf('// --- Setup T
 run(core.slice(apiStart,apiEnd));
 const start=source.indexOf('let prepBatchQueue ='),end=source.indexOf('// List/download the dataset ZIPs',start);
 assert(start>=0 && end>start);run(source.slice(start,end));
-context.document.createElement=()=>({innerHTML:''});
+context.document.createElement=()=>({innerHTML:'',firstElementChild:{appendChild(){}}});
+context.createAudioChannelPicker=()=>({getSelection:()=>({channel:'mix',token:null}),dispose(){}});
 elements['prep-batch-queue-body']={innerHTML:'',appendChild(){}};
 elements['prep-batch-mode']={checked:true};
 elements['prep-batch-files']={files:[new File(['local first bytes'],'first #.wav'),new File(['local second bytes'],'二.wav')]};
@@ -431,8 +432,8 @@ context.fetch=async(url,request)=>{
  assert.deepStrictEqual(files.map(file=>file.name),['first #.wav','二.wav']);
  assert.deepStrictEqual(await Promise.all(files.map(async file=>Buffer.from(await file.arrayBuffer()).toString())),['local first bytes','local second bytes']);
  const config=JSON.parse(request.body.get('config_json'));
- assert.deepStrictEqual(config.tasks,[{audio_filename:'first #.wav',output_filename:'voice_dataset_first #.zip'},
-                                     {audio_filename:'二.wav',output_filename:'voice_dataset_二.zip'}]);
+ assert.deepStrictEqual(config.tasks,[{audio_channel:'mix',preview_token:'',audio_filename:'first #.wav',output_filename:'voice_dataset_first #.zip'},
+                                     {audio_channel:'mix',preview_token:'',audio_filename:'二.wav',output_filename:'voice_dataset_二.zip'}]);
  // Changing the picker after the request was built cannot replace its captured bytes.
  elements['prep-batch-files'].files=[new File(['replacement'],'other.wav')];
  context.onPrepBatchFilesChange();

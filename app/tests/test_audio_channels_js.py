@@ -43,3 +43,8 @@ const second=button.onclick();await flush();assert.equal(requests.length,3);asse
 const pending=button.onclick();picker.dispose();requests[0].resolve(ok);await pending;await flush();assert.equal(requests.length,1);assert.equal(removed.length,1);assert.equal(audio.hidden,true);
 const other=context.createAudioChannelPicker(container,file,'preparer');const b=container.querySelectorAll('button')[0],s=container.querySelectorAll('select')[0],a=container.querySelectorAll('audio')[0];s.value='left';const p=b.onclick();requests[1].resolve(ok);await flush();assert.equal(requests.length,3);s.value='right';s.onchange();requests[2].resolve(ok);await p;assert.equal(a.hidden,true);assert.equal(b.disabled,false);assert.equal(other.getSelection().channel,'right');other.dispose();
 ''')
+
+    def test_submission_lock_survives_late_preview_completion(self):
+        self.run_js(r'''
+const pending=button.onclick();picker.setDisabled(true);assert.equal(select.disabled,true);requests[0].resolve(ok);await flush();requests[1].resolve(ok);await pending;assert.equal(button.disabled,true);assert.equal(select.disabled,true);assert.equal(picker.getSelection().channel,'left');picker.setDisabled(false);assert.equal(button.disabled,false);assert.equal(select.disabled,false);picker.dispose();
+''')

@@ -514,8 +514,9 @@ async def _start_preparer_batch(request, background_tasks, audio_files=None):
             if task.preview_token:
                 from audio_channel_staging import AudioChannelStaging
                 try:
-                    with AudioChannelStaging(UPLOADS_DIR).open_stage(task.preview_token, "preparer") as (_, metadata):
-                        upload_name = metadata["filename"]
+                    metadata = await asyncio.to_thread(AudioChannelStaging(UPLOADS_DIR).get_metadata,
+                                                       task.preview_token, "preparer")
+                    upload_name = metadata["filename"]
                 except ValueError as error:
                     raise HTTPException(status_code=400, detail=str(error)) from error
             else:
