@@ -1684,6 +1684,17 @@
     "tests.test_ci_import_policy.CIImportPolicyTests.test_preexisting_duplicate_finders_are_consolidated",
     "tests.test_ci_import_policy.CIImportPolicyTests.test_repeated_policy_has_one_finder_and_cannot_be_masked_by_loaded_module"
   ],
+  "test_cjk_chunk_limit": [
+    "tests.test_cjk_chunk_limit.GetChunkCharLimitTests.test_chinese_text_reduces_limit",
+    "tests.test_cjk_chunk_limit.GetChunkCharLimitTests.test_hangul_keeps_base",
+    "tests.test_cjk_chunk_limit.GetChunkCharLimitTests.test_japanese_text_reduces_limit",
+    "tests.test_cjk_chunk_limit.GetChunkCharLimitTests.test_latin_text_keeps_base",
+    "tests.test_cjk_chunk_limit.GetChunkCharLimitTests.test_letterless_text_keeps_base",
+    "tests.test_cjk_chunk_limit.GetChunkCharLimitTests.test_mixed_text_uses_letter_majority",
+    "tests.test_cjk_chunk_limit.GroupIntoChunksTests.test_chinese_script_uses_smaller_chunks",
+    "tests.test_cjk_chunk_limit.GroupIntoChunksTests.test_english_script_keeps_base_chunks",
+    "tests.test_cjk_chunk_limit.GroupIntoChunksTests.test_single_long_chinese_entry_splits"
+  ],
   "test_clipboard_fallback_js": [
     "tests.test_clipboard_fallback_js.ClipboardFallbackJsTests.test_manual_copy_preserves_text_and_cleans_up"
   ],

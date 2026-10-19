@@ -12,6 +12,7 @@ import re
 import time
 import logging
 import gc
+import unicodedata
 import uuid
 from script_repair import EXPLICIT_SILENCE_MS
 from speech_policy import (get_spoken_symbol, get_spoken_word_text,
@@ -49,6 +50,12 @@ from audio_streaming import (get_track_wav_plan, write_track_wav, write_combined
                              get_streamable_layout)
 
 MAX_CHUNK_CHARS = 500
+# Measured seconds of speech per character relative to English, Qwen3-TTS,
+# 20 public-domain sentences per language, two built-in voices (issue #1332).
+# Korean (Hangul) was NOT measured, so it keeps MAX_CHUNK_CHARS.
+CJK_SPEECH_RATE_FACTORS = {"ja": 2.09, "zh": 2.72}
+CJK_IDEOGRAPH_NAME_PREFIXES = ("CJK UNIFIED IDEOGRAPH", "CJK COMPATIBILITY IDEOGRAPH")
+KANA_NAME_PREFIXES = ("HIRAGANA", "KATAKANA")
 CHAPTER_HEADING_RE = re.compile(
     r'^(chapter|part|book|volume|prologue|epilogue|introduction|conclusion|act|section)\b',
     re.IGNORECASE
@@ -401,6 +408,33 @@ def get_chunk_text_key(text):
     return re.sub(r"\s+(?=[,;:.!?])", "", get_tts_chunk_text(text or ""))
 
 
+def is_han_or_kana_letter(ch):
+    """True for Han, Hiragana and Katakana characters (issue #1332)."""
+    name = unicodedata.name(ch, "")
+    return name.startswith(CJK_IDEOGRAPH_NAME_PREFIXES + KANA_NAME_PREFIXES)
+
+
+def is_kana_letter(ch):
+    """True for Hiragana and Katakana characters (issue #1332)."""
+    return unicodedata.name(ch, "").startswith(KANA_NAME_PREFIXES)
+
+
+def get_chunk_char_limit(text, base=MAX_CHUNK_CHARS):
+    """Return the TTS chunk character limit, reduced for Chinese and Japanese.
+
+    Chinese and Japanese characters take longer to speak than English ones
+    (issue #1332), so their chunks must be shorter. Latin, Cyrillic, Hangul
+    and letterless text keep the English base limit."""
+    letters = [ch for ch in text if ch.isalpha()]
+    if not letters:
+        return base
+    han_or_kana = sum(1 for ch in letters if is_han_or_kana_letter(ch))
+    if han_or_kana * 2 < len(letters):
+        return base
+    language = "ja" if any(is_kana_letter(ch) for ch in letters) else "zh"
+    return max(1, int(base / CJK_SPEECH_RATE_FACTORS[language]))
+
+
 def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
                       review_sink=None, include_source_indices=False):
     """Group consecutive entries by same speaker into chunks up to max_chars"""
@@ -441,7 +475,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
                 and not _is_structural_text(current_text)
                 and not _is_structural_text(text)):
             combined = current_text + ("" if JOINS_WITHOUT_SPACE.match(text) else " ") + text
-            if len(combined) <= max_chars:
+            if len(combined) <= get_chunk_char_limit(combined, max_chars):
                 current_text = combined
                 if include_source_indices:
                     current_indices = sorted(set(current_indices + entry["_source_entry_indices"]))
@@ -469,11 +503,12 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
     bounded = []
     for chunk in chunks:
         remaining = chunk["text"]
-        while len(remaining) > max_chars:
-            boundaries = list(re.finditer(r"\s+|[.!?。！？]", remaining[:max_chars]))
-            cut = boundaries[-1].end() if boundaries else max_chars
-            if cut < max(1, max_chars // 2):
-                cut = max_chars
+        limit = get_chunk_char_limit(chunk["text"], max_chars)
+        while len(remaining) > limit:
+            boundaries = list(re.finditer(r"\s+|[.!?。！？]", remaining[:limit]))
+            cut = boundaries[-1].end() if boundaries else limit
+            if cut < max(1, limit // 2):
+                cut = limit
             piece = {**chunk, "text": remaining[:cut]}
             piece.pop("pause_after", None)
             bounded.append(piece)
