@@ -1818,6 +1818,7 @@
         function applyCurrentBookFilename(filename) {
             currentBookFilename = typeof filename === 'string' ? filename : '';
             window.resetEditorReview?.();
+            window.resetPronunciationBook?.();
             // A reloaded script can change even when its filename stays the same.
             window.resetSpeakerLabelReview?.();
             window.resetEditorRepairPreview?.();

@@ -160,6 +160,9 @@
             'chk-drift-only': {what: 'Show only chunks the drift check flagged as sounding unlike their speaker’s reference voice.'},
 
             // Result tab
+            'pronunciation-line': {what: 'Choose a current script line whose assigned voice, narrator context and voice timeline will be used for disposable pronunciation auditions.'},
+            'pronunciation-audition-original': {what: 'Short original spelling to audition literally, without applying saved pronunciation substitutions. Generates temporary audio only.'},
+            'pronunciation-audition-spoken': {what: 'Short proposed spoken replacement, applied to the original spelling through normal speech preparation with the selected line voice. Listening decides whether the replacement helps.'},
             'm4b-title': {what: 'Book title written into the M4B metadata.'},
             'm4b-author': {what: 'Author written into the M4B metadata.'},
             'm4b-narrator': {what: 'Narrator credit written into the M4B metadata.'},
