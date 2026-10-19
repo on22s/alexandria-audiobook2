@@ -1821,6 +1821,7 @@
             window.resetPronunciationBook?.();
             // A reloaded script can change even when its filename stays the same.
             window.resetSpeakerLabelReview?.();
+            window.resetExportMasteringView?.();
             window.resetEditorRepairPreview?.();
             window.invalidateBookWorkspace?.();
         }
@@ -6537,7 +6538,7 @@
         async function refreshEditorIntegrity() {
             const badge = document.getElementById('editor-integrity-badge');
             if (!badge) { return; }
-            if (pendingChunkEdits.size || failedChunkEdits.size) {
+            if (isEditorEditPending()) {
                 invalidateEditorIntegrity('Save edits before checking source');
                 return;
             }
@@ -7484,6 +7485,10 @@
             return request;
         }
 
+        function isEditorEditPending() {
+            return pendingChunkEdits.size > 0 || failedChunkEdits.size > 0;
+        }
+
         async function flushChunkEdits() {
             while (pendingChunkEdits.size) {
                 await Promise.allSettled(Array.from(pendingChunkEdits.values()));
@@ -7754,12 +7759,13 @@
              try {
                  const confirmation = await ensureMergeIntegrityApproval();
                  if (confirmation === null) { return; }
-                 await API.post('/api/merge', { integrity_confirmation: confirmation });
+                 window.resetExportMasteringView?.();
+                 await API.post('/api/merge', { integrity_confirmation: confirmation, ...(window.getExportMasteringOptions?.() ? {mastering: window.getExportMasteringOptions()} : {}) });
                  // Switch to Result tab and poll
                  document.querySelector('[data-tab="audio"]').click();
                  const cancelBtn = document.getElementById('btn-cancel-merge');
                  cancelBtn.style.display = '';
-                 pollLogs('audio', 'audio-logs', () => { cancelBtn.style.display = 'none'; });
+                 pollLogs('audio', 'audio-logs', () => { cancelBtn.style.display = 'none'; window.resetExportMasteringView?.(); });
              } catch (e) {
                  showActionError("Merge failed", e, "Check the audio task status and Result output before merging again. Review any source-match refusal below.", "error");
              }
@@ -7797,6 +7803,7 @@
                 },
                 onDone: status => {
                     releaseTaskStart(taskName);
+                    if (taskName === 'm4b_export' || taskName === 'chapter_export') { window.resetExportMasteringView?.(); }
                     if (cancelBtn) { cancelBtn.style.display = 'none'; }
                     const result = status.result;
                     const message = typeof result?.message === 'string' ? result.message : 'Export result unavailable. Check the logs before downloading.';
@@ -8004,7 +8011,8 @@
                 volume_number: document.getElementById('chapter-volume').value.trim(),
                 chapters: parseChapterSelection(document.getElementById('chapter-selection').value),
                 changed_only: document.getElementById('chapter-changed-only').checked,
-                require_ready: document.getElementById('chapter-require-ready').checked
+                require_ready: document.getElementById('chapter-require-ready').checked,
+                ...(window.getExportMasteringOptions?.() ? {mastering: window.getExportMasteringOptions()} : {})
             };
         }
         function renderChapterList(rows, exported) {
@@ -8032,6 +8040,7 @@
             const q = new URLSearchParams({ format: params.format, per_chunk_chapters: params.per_chunk_chapters, template: params.template,
                 padding: params.padding, book_name: params.book_name, series_name: params.series_name, volume_number: params.volume_number,
                 changed_only: params.changed_only, require_ready: params.require_ready });
+            if (params.mastering) { q.set('mastering', JSON.stringify(params.mastering)); }
             if (params.chapters !== null) {
                 params.chapters.forEach(index => q.append('chapters', index));
             }
@@ -8069,6 +8078,7 @@
                     throw new Error('The book or chapter settings changed. Preview the current selection before exporting.');
                 }
                 statusEl.textContent = `Exporting ${preview.chapters.length} chapter(s)${params.changed_only ? ' with Changed only enabled' : ''}…`;
+                window.resetExportMasteringView?.();
                 await API.post('/api/export_chapters', params);
                 pollExport('chapter_export');
             } catch (e) {
@@ -8124,6 +8134,7 @@
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Exporting M4B...</span>';
 
             try {
+                window.resetExportMasteringView?.();
                 await API.post('/api/merge_m4b', {
                     per_chunk_chapters: perChunk,
                     title: document.getElementById('m4b-title').value,
@@ -8131,7 +8142,8 @@
                     narrator: document.getElementById('m4b-narrator').value,
                     year: document.getElementById('m4b-year').value,
                     description: document.getElementById('m4b-description').value,
-                    require_ready: document.getElementById('m4b-require-ready').checked
+                    require_ready: document.getElementById('m4b-require-ready').checked,
+                    ...(window.getExportMasteringOptions?.() ? {mastering: window.getExportMasteringOptions()} : {})
                 });
 
                 pollExport('m4b_export');

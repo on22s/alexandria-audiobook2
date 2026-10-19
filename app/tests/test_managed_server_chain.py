@@ -15,7 +15,7 @@ from tests.test_owned_server_cleanup import ROOT, is_running, cleanup_fixture
 
 
 class ManagedServerChainTests(unittest.TestCase):
-    def execute(self, mode, sent_signal=None, duplicate=False, startup_delay=0):
+    def execute(self, mode, sent_signal=None, duplicate=False, startup_delay=0, lease_delay=0):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);lib=root/'run_chains/lib';lib.mkdir(parents=True);app=root/'app';app.mkdir()
             for name in ('managed_server.sh','server_cleanup.sh','llm_campaign.sh'):
@@ -25,12 +25,15 @@ class ManagedServerChainTests(unittest.TestCase):
             with socket.socket() as sock:
                 sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
             server=root/'server.py';server.write_text('''import http.server,os,pathlib,signal,subprocess,sys,time
+mode=os.environ['FIXTURE_MODE']
+# Install the behavior under test before publishing the PID or checking the
+# lease: startup cleanup can send TERM while that subprocess is still running.
+if mode=='ignore':signal.signal(signal.SIGTERM,signal.SIG_IGN)
 root=pathlib.Path(os.environ['FIXTURE_ROOT']);(root/'server.pid').write_text(str(os.getpid()))
+time.sleep(float(os.environ.get('FIXTURE_LEASE_DELAY','0')))
 subprocess.run(['bash',str(root/'gpu_job.sh'),'--check-lock-owner',os.environ['ALEXANDRIA_GPU_LOCK_PID']],check=True)
 time.sleep(float(os.environ.get('FIXTURE_STARTUP_DELAY','0')))
-mode=os.environ['FIXTURE_MODE']
 if mode=='exit':raise SystemExit(7)
-if mode=='ignore':signal.signal(signal.SIGTERM,signal.SIG_IGN)
 class Handler(http.server.BaseHTTPRequestHandler):
  def do_GET(self):
   self.send_response(503 if mode=='ignore' else 200);self.end_headers();self.wfile.write(b'healthy fixture')
@@ -38,16 +41,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
 http.server.HTTPServer(('127.0.0.1',int(sys.argv[1])),Handler).serve_forever()
 ''')
             attempts=100 if mode=='healthy' else 12
+            # Give a healthy child's lease probe CPU time before spending all
+            # readiness attempts; the owned runner still caps the fixture at 10s.
+            delay='.1' if mode=='healthy' else '.02'
             program=root/'chain.sh';program.write_text('REPO='+shlex.quote(tmp)+'\n'+
                 'source "$REPO/run_chains/lib/managed_server.sh" || exit 1\n'+
                 'ensure_managed_server_lease fixture "$0" || exit 1\n'+
-                'start_managed_server '+str(port)+' "$REPO/server.log" '+str(attempts)+' .02 '+shlex.quote(sys.executable)+' "$REPO/server.py" '+str(port)+' || exit 1\n'+
+                'start_managed_server '+str(port)+' "$REPO/server.log" '+str(attempts)+' '+delay+' '+shlex.quote(sys.executable)+' "$REPO/server.py" '+str(port)+' || exit 1\n'+
                 'bash "$REPO/gpu_job.sh" --check-lock-owner "$ALEXANDRIA_GPU_LOCK_PID" || exit 1\n'+
                 'printf "REQUESTS_ADMITTED\\n"\n'+
                 ('kill -'+sent_signal+' $$\n' if sent_signal else '')+
                 ('start_managed_server '+str(port)+' "$REPO/duplicate.log" 1 .01 touch "$REPO/duplicate-launched" || exit 1\n' if duplicate else ''))
             env=dict(os.environ,FIXTURE_ROOT=tmp,FIXTURE_MODE=mode,MANAGED_SERVER_PYTHON=sys.executable,
-                     MANAGED_SERVER_STOP_GRACE='1', FIXTURE_STARTUP_DELAY=str(startup_delay))
+                     MANAGED_SERVER_STOP_GRACE='1', FIXTURE_STARTUP_DELAY=str(startup_delay),
+                     FIXTURE_LEASE_DELAY=str(lease_delay))
             pid=None
             try:
                 result=run_owned_cpu_chain(['bash',str(program)],root,env=env,capture_output=True,text=True,timeout=10)
@@ -55,6 +62,7 @@ http.server.HTTPServer(('127.0.0.1',int(sys.argv[1])),Handler).serve_forever()
                 self.assertIsNotNone(pid,result.stdout+result.stderr)
                 expected={'INT':130,'TERM':143,'HUP':129}.get(sent_signal,1 if duplicate or mode!='healthy' else 0)
                 self.assertEqual(expected,result.returncode,result.stdout+result.stderr)
+                self.assertNotIn('cannot verify inherited GPU lock',result.stderr)
                 if duplicate:
                     self.assertIn('already has a captured child',result.stderr)
                     self.assertFalse((root/'duplicate-launched').exists())
@@ -69,6 +77,9 @@ http.server.HTTPServer(('127.0.0.1',int(sys.argv[1])),Handler).serve_forever()
     def test_healthy_owned_listener_admits_requests_then_stops_and_reaps(self):self.execute('healthy')
     def test_early_exit_is_not_readiness_and_remains_reaped(self):self.execute('exit')
     def test_never_ready_term_ignoring_child_is_killed_and_reaped(self):self.execute('ignore')
+
+    def test_slow_startup_still_ignores_term_before_cleanup(self):
+        self.execute('ignore', startup_delay=2)
 
     def test_signals_stop_and_reap_healthy_child_with_signal_status(self):
         for sent_signal in ('INT','TERM','HUP'):
@@ -93,3 +104,6 @@ http.server.HTTPServer(('127.0.0.1',int(sys.argv[1])),Handler).serve_forever()
 
     def test_healthy_fixture_waits_for_delayed_http_start_without_relaxing_owner_checks(self):
         self.execute('healthy', startup_delay=2)
+
+    def test_healthy_fixture_waits_for_delayed_child_lease_check(self):
+        self.execute('healthy', sent_signal='TERM', lease_delay=8)
