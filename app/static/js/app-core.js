@@ -1823,6 +1823,7 @@
             window.resetEditorReview?.();
             // A reloaded script can change even when its filename stays the same.
             window.resetSpeakerLabelReview?.();
+            window.resetEditorRepairPreview?.();
             window.invalidateBookWorkspace?.();
         }
         function enqueueBookSelection(request, action) {
@@ -7620,12 +7621,12 @@
             }
         };
 
-        window.startRender = (regenerateAll = false) => {
+        window.startRender = (regenerateAll = false, repairPreview = null) => {
             const mode = document.getElementById('tts-mode').value;
             if (mode === 'external') {
-                renderAll(regenerateAll);
+                return renderAll(regenerateAll, repairPreview);
             } else {
-                renderBatchFast(regenerateAll);
+                return renderBatchFast(regenerateAll, repairPreview);
             }
         };
 
@@ -7633,7 +7634,7 @@
         // and how each one's response describes what it started (the two
         // endpoints return different fields, so that can't be a static
         // template). See FIXED.md F-065.
-        async function _runBatchRender(endpoint, regenerateAll, { label, describeStart }) {
+        async function _runBatchRender(endpoint, regenerateAll, { label, describeStart, repairPreview = null }) {
             const batchBook = currentBookFilename;
             const batchToken = chunkSnapshotBookToken;
             let rowsMarked = false;
@@ -7646,7 +7647,9 @@
                 if (!batchToken || chunkSnapshotBook !== batchBook) { throw new Error('Reload the Editor before rendering.'); }
                 const chunks = await ensureEditorRenderSnapshot();
                 await refreshDeliveryReview();
-                let toProcess = (regenerateAll ? chunks : chunks.filter(c => c.status !== 'done'))
+                const selectRows = rows => repairPreview ? getEditorRepairSelection(rows, repairPreview)
+                    : (regenerateAll ? rows : rows.filter(c => c.status !== 'done'));
+                let toProcess = selectRows(chunks)
                     .filter(c => c.text && c.text.trim());
 
                 if (toProcess.length === 0) {
@@ -7656,7 +7659,7 @@
                 }
 
                 if (regenerateAll) {
-                    if (!await showConfirm(`Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`, {title: 'Replace all rendered audio?', actionLabel: 'Regenerate all', danger: true})) {
+                    if (!await showConfirm(repairPreview ? `Regenerate these ${toProcess.length} selected lines? Existing audio for this selection will be replaced.` : `Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`, {title: repairPreview ? 'Replace selected audio?' : 'Replace all rendered audio?', actionLabel: repairPreview ? 'Regenerate selection' : 'Regenerate all', danger: true})) {
                         cancelRender(true);
                         return;
                     }
@@ -7666,7 +7669,7 @@
                     // finished a chunk). Using the pre-confirm snapshot here
                     // could send indices for chunks that already moved on.
                     const freshChunks = await ensureEditorRenderSnapshot();
-                    toProcess = freshChunks.filter(c => c.text && c.text.trim());
+                    toProcess = selectRows(freshChunks).filter(c => c.text && c.text.trim());
                 }
 
                 if (batchBook !== currentBookFilename || batchToken !== chunkSnapshotBookToken) {
@@ -7690,7 +7693,8 @@
 
                 const response = await API.post(endpoint, {
                     indices, expected_book_token: batchToken,
-                    expected_uids: toProcess.map(chunk => chunk.uid)
+                    expected_uids: toProcess.map(chunk => chunk.uid),
+                    ...(repairPreview ? {expected_repair_revision: repairPreview.repair_revision} : {})
                 });
                 console.log(`${label} started: ${describeStart(response)}`);
 
@@ -7735,13 +7739,13 @@
             }
         }
 
-        window.renderAll = (regenerateAll = false) => _runBatchRender('/api/generate_batch', regenerateAll, {
-            label: 'Batch generation',
+        window.renderAll = (regenerateAll = false, repairPreview = null) => _runBatchRender('/api/generate_batch', regenerateAll, {
+            label: 'Batch generation', repairPreview,
             describeStart: r => `${r.total_chunks} chunks with ${r.workers} workers`
         });
 
-        window.renderBatchFast = (regenerateAll = false) => _runBatchRender('/api/generate_batch_fast', regenerateAll, {
-            label: 'Fast batch',
+        window.renderBatchFast = (regenerateAll = false, repairPreview = null) => _runBatchRender('/api/generate_batch_fast', regenerateAll, {
+            label: 'Fast batch', repairPreview,
             describeStart: r => `${r.total_chunks} chunks (batch_size=${r.batch_size}, seed=${r.batch_seed})`
         });
 

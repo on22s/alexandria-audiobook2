@@ -3043,6 +3043,20 @@
                      <div id="delivery-review-panel" class="alert alert-warning mb-3" style="display:none;"></div>
                      <div id="chunk-load-status" class="small mb-2" role="status" aria-live="polite"></div>
 
+                     <details class="editor-review-panel mb-3" id="editor-repair-panel">
+                         <summary title="Choose a chapter and speakers, preview exact lines, then explicitly replace their audio.">Repair audio by chapter and speaker</summary>
+                         <p class="small mt-2">Preview the exact lines before replacing their audio. Dialogue and speaker labels stay unchanged.</p>
+                         <button title="Load options, preview lines or explicitly regenerate only the reviewed audio selection." type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorRepairOptions()">Load current chapters and speakers</button>
+                         <div class="row g-2 mt-1">
+                             <div class="col-md-6"><label class="form-label" for="editor-repair-chapter">Chapter</label><select title="Choose the chapter or speakers included in the next repair preview." id="editor-repair-chapter" class="form-select" onchange="resetEditorRepairPreview()"><option value="">Entire book</option></select></div>
+                             <div class="col-md-6"><label class="form-label" for="editor-repair-speakers">Speakers (select one or more)</label><select title="Choose the chapter or speakers included in the next repair preview." id="editor-repair-speakers" class="form-select" multiple size="5" onchange="resetEditorRepairPreview()"></select></div>
+                         </div>
+                         <p id="editor-repair-note" class="small mt-2"></p>
+                         <div class="d-flex flex-wrap gap-2 my-2"><button title="Load options, preview lines or explicitly regenerate only the reviewed audio selection." type="button" class="btn btn-outline-primary btn-sm" onclick="previewEditorRepair()">Preview selected lines</button><button title="Load options, preview lines or explicitly regenerate only the reviewed audio selection." type="button" class="btn btn-outline-danger btn-sm" id="editor-repair-start" onclick="generateEditorRepair()" disabled>Regenerate selection…</button></div>
+                         <p id="editor-repair-status" class="small" role="status" aria-live="polite">Load the current book to choose a selection.</p>
+                         <ol id="editor-repair-lines" class="small ps-4" style="max-height: 20rem; overflow: auto; overflow-wrap: anywhere;"></ol>
+                     </details>
+
                      <div class="editor-review-layout">
                        <div class="editor-review-main">
                          <section class="editor-review-panel mb-3" aria-labelledby="editor-quality-title">
@@ -3457,6 +3471,7 @@
     <script src="/static/js/app-core.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-scripts.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-speaker-review.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-editor-repair.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-training.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>

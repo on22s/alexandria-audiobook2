@@ -154,6 +154,8 @@
             'cast-select': {what: 'The saved cast (character → voice mapping) applied to this book.'},
 
             // Editor tab
+            'editor-repair-chapter': {what: 'Choose one detected export chapter, or the entire book, for the audio repair preview. Without headings, each line is a chapter.'},
+            'editor-repair-speakers': {what: 'Select one or more literal speaker labels to include in the repair preview. Preview shows the exact affected lines before audio replacement.'},
             'editor-quality-filter': {what: 'Filter saved unknown-speaker, failed-render, missing-file and voice-drift findings. No check is started.'},
             'chk-drift-only': {what: 'Show only chunks the drift check flagged as sounding unlike their speaker’s reference voice.'},
 
