@@ -1130,6 +1130,14 @@
     "tests.test_benchmark_worker_protocol.WorkerProtocolTests.test_payload_roundtrip_and_last_marker_parser_preserve_diagnostics",
     "tests.test_benchmark_worker_protocol.WorkerProtocolTests.test_stdin_worker_mains_preserve_shapes_cancellation_and_decode_failures"
   ],
+  "test_blind_review_redecide": [
+    "tests.test_blind_review_redecide.BlindScriptTests.test_hides_every_name_and_every_spoken_row_but_keeps_narration",
+    "tests.test_blind_review_redecide.BlindScriptTests.test_no_original_name_survives_in_the_blind_script",
+    "tests.test_blind_review_redecide.RedecideMergeTests.test_a_narration_row_the_model_relabels_is_counted_not_hidden",
+    "tests.test_blind_review_redecide.RedecideMergeTests.test_empty_or_missing_labels_count_as_unknown",
+    "tests.test_blind_review_redecide.RedecideMergeTests.test_refuses_a_changed_row_count_or_text",
+    "tests.test_blind_review_redecide.RedecideMergeTests.test_unknown_keeps_the_original_and_a_name_replaces_it"
+  ],
   "test_blinded_listening": [
     "tests.test_blinded_listening.BlindedListeningTests.test_analyzes_only_complete_explicit_listener_count",
     "tests.test_blinded_listening.BlindedListeningTests.test_builds_eight_unlabeled_sets_and_strictly_revalidates",
@@ -1716,6 +1724,43 @@
     "tests.test_cjk_chunk_limit.GroupIntoChunksTests.test_chinese_script_uses_smaller_chunks",
     "tests.test_cjk_chunk_limit.GroupIntoChunksTests.test_english_script_keeps_base_chunks",
     "tests.test_cjk_chunk_limit.GroupIntoChunksTests.test_single_long_chinese_entry_splits"
+  ],
+  "test_cjk_chunk_quality": [
+    "tests.test_cjk_chunk_quality.PackingTests.test_a_sentence_over_the_limit_is_refused_not_split",
+    "tests.test_cjk_chunk_quality.PackingTests.test_both_arms_cover_identical_text",
+    "tests.test_cjk_chunk_quality.PackingTests.test_limits_are_the_measured_factors",
+    "tests.test_cjk_chunk_quality.PackingTests.test_packing_keeps_every_sentence_in_order_and_under_the_limit",
+    "tests.test_cjk_chunk_quality.PackingTests.test_passage_skips_overlong_sentences_and_stops_at_target",
+    "tests.test_cjk_chunk_quality.ScoringTests.test_summary_weights_error_by_characters",
+    "tests.test_cjk_chunk_quality.ScoringTests.test_truncation_flags_only_clips_far_below_expected_length"
+  ],
+  "test_cjk_speech_rate": [
+    "tests.test_cjk_speech_rate.AozoraFrameTests.test_title_line_and_colophon_are_dropped",
+    "tests.test_cjk_speech_rate.GetCleanTextTests.test_collapses_whitespace",
+    "tests.test_cjk_speech_rate.GetCleanTextTests.test_keeps_ruby_marks_for_chinese",
+    "tests.test_cjk_speech_rate.GetCleanTextTests.test_removes_every_ruby_span",
+    "tests.test_cjk_speech_rate.GetCleanTextTests.test_removes_japanese_ruby_and_notation",
+    "tests.test_cjk_speech_rate.GetRateSummaryTests.test_n_counts_only_usable_rows",
+    "tests.test_cjk_speech_rate.GetRateSummaryTests.test_no_ratio_without_english_rows",
+    "tests.test_cjk_speech_rate.GetRateSummaryTests.test_ratio_is_per_voice_and_pooled",
+    "tests.test_cjk_speech_rate.GetRateSummaryTests.test_rejects_non_positive_rows",
+    "tests.test_cjk_speech_rate.GetRateSummaryTests.test_summary_math_and_ratio",
+    "tests.test_cjk_speech_rate.GetRateSummaryTests.test_voice_missing_from_english_is_not_compared",
+    "tests.test_cjk_speech_rate.GetSpeechSecondsTests.test_empty_audio_is_none",
+    "tests.test_cjk_speech_rate.GetSpeechSecondsTests.test_excludes_tail_more_than_40_db_down",
+    "tests.test_cjk_speech_rate.GetSpeechSecondsTests.test_measures_span_between_silences",
+    "tests.test_cjk_speech_rate.GetSpeechSecondsTests.test_pure_silence_is_none",
+    "tests.test_cjk_speech_rate.GetSpeechSecondsTests.test_rejects_non_positive_sample_rate",
+    "tests.test_cjk_speech_rate.PickSentencesTests.test_chinese_drops_latin_sentences",
+    "tests.test_cjk_speech_rate.PickSentencesTests.test_chinese_keeps_only_sentences_in_range",
+    "tests.test_cjk_speech_rate.PickSentencesTests.test_english_drops_cjk_sentences",
+    "tests.test_cjk_speech_rate.PickSentencesTests.test_english_split_keeps_terminal_marks",
+    "tests.test_cjk_speech_rate.PickSentencesTests.test_even_indices_rejects_empty_ranges",
+    "tests.test_cjk_speech_rate.PickSentencesTests.test_explicit_range_overrides_language_defaults",
+    "tests.test_cjk_speech_rate.PickSentencesTests.test_japanese_split_keeps_terminal_marks",
+    "tests.test_cjk_speech_rate.PickSentencesTests.test_picks_evenly_spaced_deterministically",
+    "tests.test_cjk_speech_rate.PickSentencesTests.test_returns_all_when_fewer_candidates_than_requested",
+    "tests.test_cjk_speech_rate.PickSentencesTests.test_zero_count_returns_empty"
   ],
   "test_clipboard_fallback_js": [
     "tests.test_clipboard_fallback_js.ClipboardFallbackJsTests.test_manual_copy_preserves_text_and_cleans_up"
@@ -7132,6 +7177,10 @@
     "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_reproducible_takes_passes_derived_seed_to_engine",
     "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_same_take_keeps_render",
     "tests.test_reproducible_takes.ReproducibleVoiceConfigTests.test_unpinned_voice_seeds_are_replaced_without_mutation"
+  ],
+  "test_reproducible_takes_check": [
+    "tests.test_reproducible_takes_check.VerdictTests.test_each_failure_is_caught_by_its_own_check",
+    "tests.test_reproducible_takes_check.VerdictTests.test_the_expected_pattern_passes_every_check"
   ],
   "test_request_context_preflight": [
     "tests.test_request_context_preflight.RequestContextPreflightTests.test_actual_process_chunk_uses_the_same_complete_prompt",

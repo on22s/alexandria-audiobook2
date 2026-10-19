@@ -133,3 +133,10 @@ use, modification, and experimentation"; source texts public domain.
 Recorded as availability wording, not a named licence. `austen_emma_*` is
 excluded from every training set because Emma is an evaluation fixture.
 Rebuild: `app/experiments/riqua_trainset.py --riqua ab_test_runtime/corpora/riqua/riqua/merged --out-dir ab_test_runtime/distill/riqua_20260914`.
+
+## zh_pd/ — Chinese, public domain
+
+`luxun_pd.txt`: 狂人日记 (1918) and 孔乙己 (1919) by Lu Xun (died 1936), from
+zh.wikisource.org rendered pages (simplified variant), one paragraph per line.
+Public domain (Wikisource marks them PD). Fetched 2026-10-18 for the #1332 CJK
+speaking-rate measurement.
