@@ -209,26 +209,12 @@ WHISPERX_AVAILABLE = False
 TRANSFORMERS_WHISPER_AVAILABLE = False
 WAV2VEC2_MODEL_REVISION = "f6b48018ad95afcf85637f433dc0fc4f4672ce34"
 
-_WHISPER_CPP_BIN_CANDIDATES = (
-    os.path.join(script_dir, "whisper.cpp", "build", "bin", "whisper-cli"),
-    os.path.join(script_dir, "whisper.cpp", "build", "bin", "Release",
-                 "whisper-cli.exe"),
-    os.path.join(script_dir, "whisper.cpp", "build", "Release",
-                 "whisper-cli.exe"),
-)
-WHISPER_CPP_BIN = os.environ.get("ALEXANDRIA_WHISPER_CPP_BIN") or next(
-    (path for path in _WHISPER_CPP_BIN_CANDIDATES if os.path.isfile(path)),
-    _WHISPER_CPP_BIN_CANDIDATES[0],
-)
-WHISPER_CPP_MODEL = os.environ.get(
-    "ALEXANDRIA_WHISPER_CPP_MODEL",
-    os.path.join(script_dir, "models", "whisper.cpp", "ggml-small.en.bin"),
-)
-WHISPER_CPP_AVAILABLE = (
-    os.path.isfile(WHISPER_CPP_BIN)
-    and os.access(WHISPER_CPP_BIN, os.X_OK)
-    and os.path.isfile(WHISPER_CPP_MODEL)
-)
+sys.path.append(os.path.join(script_dir, "app"))
+from whisper_cpp_runtime import get_whisper_cpp_runtime, get_coalesced_whisper_cpp_segments
+_whisper_runtime = get_whisper_cpp_runtime(script_dir)
+WHISPER_CPP_BIN = _whisper_runtime['binary']
+WHISPER_CPP_MODEL = _whisper_runtime['model']
+WHISPER_CPP_AVAILABLE = _whisper_runtime['available']
 if WHISPER_CPP_AVAILABLE:
     logger.info("✓ whisper.cpp Small.en available")
 else:
@@ -750,64 +736,6 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         logger.debug(traceback.format_exc())
         raise
 
-
-def get_coalesced_whisper_cpp_segments(transcription):
-    """Convert whisper.cpp JSON words without inventing word boundaries.
-
-    whisper.cpp can emit a real word with identical start/end offsets. Keep
-    its text by joining it to the next positive-duration word (or the prior
-    word at EOF). All other malformed values are left for the shared strict
-    validator to reject.
-    """
-    if not isinstance(transcription, list):
-        raise ValueError("whisper.cpp transcription must be a list")
-
-    converted = []
-    pending = []
-    for index, segment in enumerate(transcription):
-        if not isinstance(segment, dict):
-            raise ValueError(
-                f"whisper.cpp transcription segment {index} is not an object")
-        text = segment.get("text", "")
-        if not isinstance(text, str):
-            raise ValueError(
-                f"whisper.cpp transcription segment {index} has non-text data")
-        text = text.strip()
-        if not text:
-            continue
-
-        offsets = segment.get("offsets")
-        if not isinstance(offsets, dict):
-            converted.append({"word": text, "start": None, "end": None})
-            continue
-        start_ms = offsets.get("from")
-        end_ms = offsets.get("to")
-        numeric = (
-            isinstance(start_ms, Real) and not isinstance(start_ms, bool)
-            and isinstance(end_ms, Real) and not isinstance(end_ms, bool)
-        )
-        finite = (
-            numeric and math.isfinite(float(start_ms))
-            and math.isfinite(float(end_ms))
-        )
-        if finite and float(end_ms) == float(start_ms):
-            pending.append(text)
-            continue
-
-        converted.append({
-            "word": " ".join(pending + [text]),
-            "start": float(start_ms) / 1000.0 if numeric else start_ms,
-            "end": float(end_ms) / 1000.0 if numeric else end_ms,
-        })
-        pending = []
-
-    if pending:
-        if not converted:
-            raise ValueError(
-                "whisper.cpp returned only zero-duration word segments")
-        converted[-1] = dict(converted[-1])
-        converted[-1]["word"] += " " + " ".join(pending)
-    return converted
 
 
 def transcribe_with_whisper_cpp(audio_16k: np.ndarray,

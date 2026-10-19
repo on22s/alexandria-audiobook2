@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Query
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field, StrictInt, field_validator
 from config_settings import load_app_config
@@ -32,6 +32,9 @@ from core import (
     DATA_DIR,
     M4B_PATH,
     REPORTS_DIR,
+    ROOT_DIR,
+    run_claimed_task_worker,
+    _validate_voicelab_path,
     SCRIPTS_DIR,
     SCRIPT_PATH,
     _load_voicelab_config, _llm_summarize_report, _is_evidence_bound_summary,
@@ -75,6 +78,83 @@ def build_zip_download(members, filename):
         raise
     return FileResponse(path, filename=filename, media_type="application/zip",
                         background=BackgroundTask(os.unlink, path))
+
+
+class WordTimingRequest(BaseModel):
+    expected_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_uid: str = Field(min_length=1, max_length=128)
+    expected_audio_revision: Optional[str] = Field(default=None, max_length=128)
+
+
+@router.post("/api/chunks/{index}/word_timing")
+async def create_chunk_word_timing(index: int, request: WordTimingRequest):
+    from whisper_cpp_runtime import get_whisper_cpp_runtime
+    from editor_word_timing import publish_word_timing
+    if index < 0:
+        raise HTTPException(status_code=400, detail="Choose a valid Editor line.")
+    runtime = get_whisper_cpp_runtime(ROOT_DIR)
+    if not runtime['available']:
+        raise HTTPException(status_code=400, detail="Word timing needs the already installed whisper.cpp Small.en runtime. No model will be downloaded.")
+    for key in ('binary', 'model'):
+        _validate_voicelab_path(runtime[key], 'Word-timing ' + key)
+    runtime = {**runtime, **{key: str(Path(runtime[key]).resolve()) for key in ('binary', 'model')}}
+    def run():
+        state = process_state['word_timing']
+        state['logs'] = ['Word timing: one selected chunk, cached English provider, CPU only.']
+        try:
+            for key in ('binary', 'model'):
+                _validate_voicelab_path(runtime[key], 'Word-timing ' + key)
+            result = publish_word_timing(project_manager, index, request, runtime,
+                check_chunk_identity, lambda: state.get('cancel', False))
+            state['logs'].append('Timing ready. ASR spans do not certify pronunciation.')
+            return result
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            state['logs'].append('Timing failed: ' + str(error))
+            raise HTTPException(status_code=409, detail=str(error)) from error
+    return await run_claimed_task_worker('word_timing', run)
+
+
+class WordTimingAudioResponse(StreamingResponse):
+    def __init__(self, stream, size, suffix):
+        self.stream = stream
+        def chunks():
+            try:
+                yield from iter(lambda: stream.read(65536), b'')
+            finally:
+                stream.close()
+        import mimetypes
+        media = mimetypes.guess_type('audio' + suffix)[0] or 'application/octet-stream'
+        super().__init__(chunks(), media_type=media,
+            headers={'Content-Length': str(size), 'Cache-Control': 'no-store'})
+
+    async def __call__(self, scope, receive, send):
+        try:
+            return await super().__call__(scope, receive, send)
+        finally:
+            self.stream.close()
+
+
+@router.get("/api/chunks/{index}/word_timing/audio")
+def get_word_timing_audio(index: int,
+    expected_book_token: Annotated[str, Query(pattern=r"^[0-9a-f]{64}$")],
+    expected_uid: Annotated[str, Query(min_length=1, max_length=128)],
+    sha256: Annotated[str, Query(pattern=r"^[0-9a-f]{64}$")],
+    expected_audio_revision: Annotated[Optional[str], Query(max_length=128)] = None):
+    from editor_word_timing import open_verified_word_audio
+    try:
+        stream, size, suffix = open_verified_word_audio(project_manager, index, expected_book_token,
+            expected_uid, expected_audio_revision, sha256, check_chunk_identity)
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return WordTimingAudioResponse(stream, size, suffix)
+
+
+@router.post("/api/word_timing/cancel")
+async def cancel_word_timing():
+    if not process_state['word_timing'].get('running'):
+        raise HTTPException(status_code=400, detail='No word-timing task is running.')
+    process_state['word_timing']['cancel'] = True
+    return {'status': 'cancellation requested'}
 
 
 class ChunkUpdate(BaseModel):

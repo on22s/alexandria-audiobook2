@@ -431,6 +431,8 @@
         #editor-tab .editor-toolbar { position: sticky; top: 0; z-index: 5; background: var(--bg-card-header); }
         .editor-whole-book { position: relative; }
         .editor-whole-book[open] { max-width: 28rem; }
+        .word-timing-active { background: var(--bg-input); color: var(--text-primary) !important; outline: 2px solid var(--accent); font-weight: 700; }
+        .word-timing-span { white-space: normal; color: var(--text-primary); text-decoration: underline; }
         .editor-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 23rem); gap: 1rem; align-items: start; }
         .editor-review-main { min-width: 0; }
         .editor-review-main table { min-width: 64rem; table-layout: fixed; }
@@ -3155,6 +3157,12 @@
                                        <button type="button" class="btn btn-outline-primary btn-sm" id="editor-line-play" onclick="playEditorReviewLine()">Play line</button>
                                        <button type="button" class="btn btn-outline-success btn-sm" id="editor-line-generate" onclick="generateEditorReviewLine()">Generate line…</button>
                                    </div>
+                                   <details class="mb-3"><summary>Word-timed listening (English audio)</summary>
+                                       <p class="small mt-2">Estimated ASR timing mapped to the current spoken-text preparation, including pronunciation rules. Older takes may differ. Untimed words stay plain. Timing does not certify accuracy. Use the existing line controls to edit or regenerate.</p>
+                                       <div class="d-flex flex-wrap gap-2 mb-2"><button type="button" id="editor-word-timing" class="btn btn-outline-primary btn-sm" onclick="createEditorWordTiming()" title="Time only this saved English line with an already installed CPU ASR model.">Time this line</button><button type="button" id="editor-word-cancel" class="btn btn-outline-secondary btn-sm" onclick="cancelEditorWordTiming()" disabled title="Request cancellation and retain the existing audio.">Cancel timing</button></div>
+                                       <p id="editor-word-status" role="status" class="small">No timing requested. No model loads until you choose Time this line.</p>
+                                       <div id="editor-word-spans" class="small editor-line-text"></div>
+                                   </details>
                                    <dl class="mb-0">
                                        <dt>Speaker <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('speaker')">Edit speaker</button></dt><dd id="editor-line-speaker"></dd>
                                        <dt>Text <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('text')">Edit text</button></dt><dd id="editor-line-text" class="editor-line-text"></dd>
@@ -3532,6 +3540,7 @@
     <script src="/static/js/app-speaker-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-repair.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-review.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-word-timing.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-pronunciation.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-training.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-tts-capabilities.js?v=__APP_BUILD__"></script>

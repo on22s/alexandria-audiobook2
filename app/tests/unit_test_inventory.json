@@ -10629,6 +10629,24 @@
     "tests.test_windows_tree_dispatch.WindowsTreeDispatchTests.test_grace_and_force_dispatch_to_entire_owned_tree",
     "tests.test_windows_tree_dispatch.WindowsTreeDispatchTests.test_owned_windows_job_uses_existing_grace_and_force_dispatch"
   ],
+  "test_word_timing": [
+    "tests.test_word_timing.WordTimingTests.test_api_claim_lifetime_and_stale_uid_use_actual_editor_contract",
+    "tests.test_word_timing.WordTimingTests.test_cache_is_bound_to_audio_text_and_model_and_never_rewrites_them",
+    "tests.test_word_timing.WordTimingTests.test_cancel_before_start_does_not_launch_a_child",
+    "tests.test_word_timing.WordTimingTests.test_foreign_audio_and_stale_revision_refused_before_asr",
+    "tests.test_word_timing.WordTimingTests.test_invalid_overlap_saturation_and_nonfinite_timestamps_are_rejected",
+    "tests.test_word_timing.WordTimingTests.test_known_answer_words_and_contractions_keep_real_bounds",
+    "tests.test_word_timing.WordTimingTests.test_mutation_during_asr_is_refused_without_publishing_or_overwriting_cache",
+    "tests.test_word_timing.WordTimingTests.test_native_multiword_groups_retain_group_timing",
+    "tests.test_word_timing.WordTimingTests.test_real_cancelled_child_is_reaped_and_timeout_is_finite",
+    "tests.test_word_timing.WordTimingTests.test_repeated_missing_and_wrong_words_do_not_receive_invented_times",
+    "tests.test_word_timing.WordTimingTests.test_verified_audio_uses_open_captured_inode_and_refuses_changed_bytes"
+  ],
+  "test_word_timing_js": [
+    "tests.test_word_timing_js.WordTimingJsTests.test_failed_snapshot_does_not_start_asr_and_wrong_take_result_is_refused",
+    "tests.test_word_timing_js.WordTimingJsTests.test_late_reply_cannot_paint_another_line_or_override_pending_edits",
+    "tests.test_word_timing_js.WordTimingJsTests.test_unicode_spans_seek_native_player_and_track_playback_without_generation"
+  ],
   "test_workbench_status_js": [
     "tests.test_workbench_status_js.WorkbenchStatusJsTests.test_page_initialization_restores_existing_voicelab_run_and_controls",
     "tests.test_workbench_status_js.WorkbenchStatusJsTests.test_remote_optimize_toggle_tracks_actual_status_after_endpoint_switch"

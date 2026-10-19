@@ -4517,6 +4517,39 @@
         ],
         "title": "VoiceVersionRequest",
         "type": "object"
+      },
+      "WordTimingRequest": {
+        "properties": {
+          "expected_audio_revision": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Audio Revision"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "expected_uid"
+        ],
+        "title": "WordTimingRequest",
+        "type": "object"
       }
     }
   },
@@ -5708,6 +5741,138 @@
           }
         },
         "summary": "Insert Chunk"
+      }
+    },
+    "/api/chunks/{index}/word_timing": {
+      "post": {
+        "operationId": "create_chunk_word_timing_api_chunks__index__word_timing_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WordTimingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Chunk Word Timing"
+      }
+    },
+    "/api/chunks/{index}/word_timing/audio": {
+      "get": {
+        "operationId": "get_word_timing_audio_api_chunks__index__word_timing_audio_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_uid",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Expected Uid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_audio_revision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Audio Revision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Word Timing Audio"
       }
     },
     "/api/clone_voices/list": {
@@ -12063,6 +12228,22 @@
           }
         },
         "summary": "Select Voice Version"
+      }
+    },
+    "/api/word_timing/cancel": {
+      "post": {
+        "operationId": "cancel_word_timing_api_word_timing_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel Word Timing"
       }
     },
     "/api/workspace": {

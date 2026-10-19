@@ -541,6 +541,7 @@ def _revalidate_voicelab_paths(*path_label_pairs: Tuple[Optional[str], str]) -> 
 
 # Global state for process tracking
 process_state = {
+    "word_timing": {"running": False, "logs": [], "cancel": False},
     "script": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "voices": {"running": False, "logs": []},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},

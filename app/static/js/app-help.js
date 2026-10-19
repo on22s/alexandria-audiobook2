@@ -163,6 +163,8 @@
             'export-mastering-enabled': {what: 'Opt in to measured loudness and true-peak processing for the next assembled export. Does not alter source clips or start a job.'},
             'export-mastering-loudness': {what: 'Target integrated loudness, from -24 to -14 LUFS. Check the measured final file; a target alone does not establish compliance.'},
             'export-mastering-peak': {what: 'Target true-peak ceiling, from -9 to -1 dBTP. Lossy encoding may change the achieved peak; compare final measurements.'},
+            'editor-word-timing': {what: 'Estimate word/group times for the saved English line with the installed CPU ASR provider. No model downloads or changes to line audio. Timings do not certify pronunciation.'},
+            'editor-word-cancel': {what: 'Request cancellation of word timing and keep existing generated audio. Ownership remains held until its worker exits.'},
             'pronunciation-line': {what: 'Choose a current script line whose assigned voice, narrator context and voice timeline will be used for disposable pronunciation auditions.'},
             'pronunciation-audition-original': {what: 'Short original spelling to audition literally, without applying saved pronunciation substitutions. Generates temporary audio only.'},
             'pronunciation-audition-spoken': {what: 'Short proposed spoken replacement, applied to the original spelling through normal speech preparation with the selected line voice. Listening decides whether the replacement helps.'},
