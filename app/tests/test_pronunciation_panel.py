@@ -176,3 +176,54 @@ class PronunciationPanelTests(unittest.TestCase):
         finally: release.set()
         self.assertTrue(all(not path.parent.exists() for path in outputs))
         self.assertFalse(core.process_state['audio']['running'])
+
+    def test_flat_reserved_name_and_multiline_entries_round_trip_without_data_loss(self):
+        for existing in ({}, {'A': 'Ay'}, {'names': 'nayms'}):
+            with self.subTest(existing=existing):
+                self.path.write_text(json.dumps(existing))
+                loaded = self.client.get('/api/pronunciation')
+                self.assertEqual(200, loaded.status_code, loaded.text)
+                names = {'names': 'nayms', 'A\r\nB': 'Ay\nBee'}
+                saved = self.client.post('/api/pronunciation/save', json={
+                    'names': names, 'revision': loaded.json()['revision']})
+                self.assertEqual(200, saved.status_code, saved.text)
+                self.assertEqual(names, self.client.get('/api/pronunciation').json()['names'])
+                self.assertEqual(names, json.loads(self.path.read_text())['names'])
+                self.assertEqual('nayms', pronunciation.apply_pronunciation('names')[0])
+
+    @use_private_cpu_fixture_lock()
+    def test_audition_uses_real_dispatch_with_draft_at_production_substitution_stage(self):
+        from tts import TTSEngine
+        captured = []
+        class Engine(TTSEngine):
+            def __init__(inner):
+                pass
+            def get_voice_backend(inner, category):
+                return 'local'
+            def _local_generate_custom(inner, text, instruct, speaker, voices, output):
+                captured.append((text, instruct, speaker))
+                sf.write(output, np.full(800, 0.1), 8000)
+                return True
+        engine = Engine()
+        for replacement in ['Soo~bah~roo', 'Soo...bah...roo', 'Ay Tee & Tee', 'Rohm·Vayl']:
+            with self.subTest(replacement=replacement):
+                self.path.write_text(json.dumps({'names': {'Rom': replacement}}))
+                engine.generate_voice('Rom', 'quiet', 'Hero', {'Hero': {'type': 'custom', 'voice': 'Ryan'}}, str(self.root/'control.wav'))
+                expected = captured[-1]
+                rows = self.pm.load_chunks(); rows[0]['instruct'] = 'quiet'; self.pm.save_chunks(rows)
+                with patch.object(self.pm, 'get_engine', return_value=engine):
+                    response = self.client.post('/api/pronunciation/audition', json={**self.request, 'replacement': replacement})
+                self.assertEqual(200, response.status_code, response.text if response.status_code != 200 else '')
+                self.assertEqual(expected, captured[-1])
+        self.assertFalse(core.process_state['audio']['running'])
+
+    @use_private_cpu_fixture_lock()
+    def test_invalid_voice_config_releases_claim_before_engine_or_output(self):
+        for data in ('{broken', '[]', 'null'):
+            with self.subTest(data=data), patch.object(self.pm, 'get_engine') as engine:
+                (self.root/'voice_config.json').write_text(data)
+                response = self.client.post('/api/pronunciation/audition', json=self.request)
+                self.assertEqual(422, response.status_code, response.text)
+                engine.assert_not_called()
+                self.assertFalse(core.process_state['audio']['running'])
+                self.assertEqual('failed', core.process_state['audio']['status'])

@@ -25,6 +25,7 @@ function onPronunciationAuditionEdit() {
 function resetPronunciationBook() {
     pronunciationEpoch++;
     pronunciationBook = null; pronunciationLines = [];
+    for (const node of document.querySelectorAll('#pronunciation-rows .pronunciation-count')) { node.textContent = 'Preview again'; }
     resetPronunciationAudio();
     document.getElementById('pronunciation-status').textContent = 'Book changed. Shared drafts are retained; preview counts and voices again.';
 }
@@ -43,9 +44,9 @@ function addPronunciationRow(original = '', spoken = '', dirty = true) {
     const row = document.createElement('tr');
     for (const [key, value, max] of [['original', original, 128], ['spoken', spoken, 256]]) {
         const cell = row.insertCell();
-        const input = document.createElement('input'); input.type = 'text'; input.className = `form-control form-control-sm pronunciation-${key}`;
+        const input = document.createElement('textarea'); input.rows = 2; input.className = `form-control form-control-sm pronunciation-${key}`;
         input.title = key === 'original' ? 'Exact case-sensitive spelling to match in future speech generation.' : 'Spoken replacement for this spelling; leave blank to make this entry inactive.';
-        input.value = value; input.maxLength = max; input.setAttribute('aria-label', key === 'original' ? 'Original spelling' : 'Spoken replacement');
+        input.value = value; input.pronunciationLoadedValue = input.value; input.pronunciationRawValue = value; input.maxLength = max; input.setAttribute('aria-label', key === 'original' ? 'Original spelling' : 'Spoken replacement');
         input.addEventListener('input', onPronunciationEdit); cell.appendChild(input);
     }
     const count = row.insertCell(); count.className = 'pronunciation-count'; count.textContent = 'Not measured';
@@ -55,11 +56,15 @@ function addPronunciationRow(original = '', spoken = '', dirty = true) {
     if (dirty) { onPronunciationEdit(); }
 }
 
+function getPronunciationFieldValue(input) {
+    return input.value === input.pronunciationLoadedValue ? input.pronunciationRawValue : input.value;
+}
+
 function getPronunciationNames() {
     const pairs = []; const seen = new Set();
     for (const row of document.getElementById('pronunciation-rows').children) {
-        const original = row.querySelector('.pronunciation-original').value;
-        const spoken = row.querySelector('.pronunciation-spoken').value;
+        const original = getPronunciationFieldValue(row.querySelector('.pronunciation-original'));
+        const spoken = getPronunciationFieldValue(row.querySelector('.pronunciation-spoken'));
         if (!original.trim()) { throw new Error('Each row needs an original spelling. Remove unused rows.'); }
         if (seen.has(original)) { throw new Error('Each original spelling must appear only once.'); }
         seen.add(original); pairs.push([original, spoken]);
@@ -101,7 +106,7 @@ async function previewPronunciationPanel() {
         const select = document.getElementById('pronunciation-line'); select.replaceChildren();
         for (const row of result.lines) { select.add(new Option(`Line ${row.id + 1} · ${row.speaker || 'Unknown speaker'}`, String(row.id))); }
         for (const row of document.getElementById('pronunciation-rows').children) {
-            const original = row.querySelector('.pronunciation-original').value;
+            const original = getPronunciationFieldValue(row.querySelector('.pronunciation-original'));
             row.querySelector('.pronunciation-count').textContent = String(Object.hasOwn(result.counts, original) ? result.counts[original] : 0);
         }
         document.getElementById('pronunciation-status').textContent = `${pronunciationDirty ? 'Unsaved draft' : 'Current rules'}: active substitutions counted in saved script text. Choose a line voice and enter a short spelling below to audition. Counts do not certify pronunciation.`;
@@ -133,17 +138,18 @@ async function auditionPronunciation(kind) {
     try {
         const row = pronunciationLines.find(row => String(row.id) === document.getElementById('pronunciation-line').value);
         if (!row || !book || book !== pronunciationBook) { throw new Error('Preview counts for the current book and choose a line voice first.'); }
-        const text = document.getElementById(kind === 'original' ? 'pronunciation-audition-original' : 'pronunciation-audition-spoken').value;
-        if (!text.trim()) { throw new Error('Enter a short spelling or replacement to audition.'); }
+        const text = document.getElementById('pronunciation-audition-original').value;
+        const replacement = kind === 'spoken' ? document.getElementById('pronunciation-audition-spoken').value : null;
+        if (!text.trim() || (replacement !== null && !replacement.trim())) { throw new Error('Enter a short spelling or replacement to audition.'); }
         resetPronunciationAudio();
         document.getElementById('pronunciation-status').textContent = 'Generating a pronunciation audition. Follow audio progress in Activity; existing book audio is unchanged.';
-        const response = await fetch('/api/pronunciation/audition', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({expected_book_token: book, index: row.id, expected_uid: row.uid, text})});
+        const response = await fetch('/api/pronunciation/audition', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({expected_book_token: book, index: row.id, expected_uid: row.uid, text, replacement})});
         if (!response.ok) { const data = await response.json(); throw new Error(typeof data.detail === 'string' ? data.detail : `Audition refused (${response.status}).`); }
         const blob = await response.blob();
         if (epoch !== pronunciationEpoch || book !== getPronunciationBook()) { return; }
         pronunciationAudioUrl = URL.createObjectURL(blob);
         const player = document.getElementById('pronunciation-player'); player.src = pronunciationAudioUrl; player.hidden = false;
-        document.getElementById('pronunciation-status').textContent = `${kind === 'original' ? 'Original spelling' : 'Replacement'} audition ready. Press Play to listen; audition text is read literally without saved respellings.`;
+        document.getElementById('pronunciation-status').textContent = `${kind === 'original' ? 'Original spelling' : 'Replacement'} audition ready. Press Play to listen; saved respellings are excluded; the proposed rule uses the same speech preparation as rendering.`;
     } catch (error) {
         if (epoch === pronunciationEpoch) {
             document.getElementById('pronunciation-status').textContent = 'Audition failed or was refused. Check audio task status before trying again.';

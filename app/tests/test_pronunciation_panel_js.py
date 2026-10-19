@@ -54,5 +54,20 @@ context.fetch=async()=>({ok:true,blob:async()=>({})});await context.auditionPron
 
     def test_failed_audition_has_explicit_error_and_no_player(self):
         self.run_js(r'''
-await context.loadPronunciationPanel();await context.previewPronunciationPanel();document.getElementById('pronunciation-line').value='0';document.getElementById('pronunciation-audition-spoken').value='Rohm';context.fetch=async()=>({ok:false,status:409,json:async()=>({detail:'Book changed'})});await context.auditionPronunciation('spoken');assert.equal(run('pronunciationAudioUrl'),null);assert.equal(errors.length,1);assert(document.getElementById('pronunciation-status').textContent.includes('refused'));
+await context.loadPronunciationPanel();await context.previewPronunciationPanel();document.getElementById('pronunciation-line').value='0';document.getElementById('pronunciation-audition-original').value='Rom';document.getElementById('pronunciation-audition-spoken').value='Rohm';context.fetch=async()=>({ok:false,status:409,json:async()=>({detail:'Book changed'})});await context.auditionPronunciation('spoken');assert.equal(run('pronunciationAudioUrl'),null);assert.equal(errors.length,1);assert(document.getElementById('pronunciation-status').textContent.includes('refused'));
+''')
+
+    def test_multiline_native_value_normalization_preserves_unedited_raw_rules(self):
+        self.run_js(r'''
+context.API.get=async()=>({names:{'A\r\nB':'Ay\r\nBee'},revision:'a'.repeat(64)});
+await context.loadPronunciationPanel();const row=document.getElementById('pronunciation-rows').children[0];
+for(const field of ['original','spoken']){const input=row.querySelector('.pronunciation-'+field);assert.equal(input.tagName,'TEXTAREA');input.value=input.value.replace(/\r\n/g,'\n');input.pronunciationLoadedValue=input.value;}
+await context.savePronunciationPanel();assert.equal(posts[0].data.names['A\r\nB'],'Ay\r\nBee');
+row.querySelector('.pronunciation-spoken').value='Changed\nName';context.onPronunciationEdit();await context.savePronunciationPanel();assert.equal(posts[1].data.names['A\r\nB'],'Changed\nName');
+''')
+
+    def test_replacement_audition_sends_original_and_draft_rule_together(self):
+        self.run_js(r'''
+await context.loadPronunciationPanel();await context.previewPronunciationPanel();document.getElementById('pronunciation-line').value='0';document.getElementById('pronunciation-audition-original').value='Rom';document.getElementById('pronunciation-audition-spoken').value='Rohm~';let payload;
+context.fetch=async(url,options)=>{payload=JSON.parse(options.body);return{ok:true,blob:async()=>({})};};await context.auditionPronunciation('spoken');assert.equal(payload.text,'Rom');assert.equal(payload.replacement,'Rohm~');
 ''')

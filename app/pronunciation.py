@@ -44,7 +44,7 @@ DEFAULT_PATH = os.path.join(REPO, "pronunciation.json")
 _cache = {"path": None, "fingerprint": None, "entries": {}, "pattern": None}
 _cache_lock = threading.RLock()
 logger = logging.getLogger(__name__)
-_literal_audition = ContextVar("pronunciation_literal_audition", default=False)
+_audition_matcher = ContextVar("pronunciation_audition_matcher", default=None)
 
 
 def _compile(entries):
@@ -112,8 +112,12 @@ def apply_pronunciation(text, path=None):
     put them in an artifact. A silent respelling would be untraceable in the
     audio - the listener hears one thing and the script says another.
     """
-    if not text or (path is None and _literal_audition.get()):
+    if not text:
         return text, []
+    audition = _audition_matcher.get() if path is None else None
+    if audition is not None:
+        entries, pattern = audition
+        return get_pronunciation_result(text, entries, pattern)
     with _cache_lock:
         load_lexicon(path)
         pattern, entries = _cache["pattern"], _cache["entries"]
@@ -122,8 +126,9 @@ def apply_pronunciation(text, path=None):
 
 def get_pronunciation_result(text, entries, pattern=None):
     """Apply one simultaneous, case-sensitive map without changing its inputs."""
-    active = {key: value for key, value in entries.items() if key.strip() and value.strip()}
-    pattern = pattern or _compile(active)
+    active = entries if pattern is not None else {
+        key: value for key, value in entries.items() if key.strip() and value.strip()}
+    pattern = pattern if pattern is not None else _compile(active)
     if not text or not pattern:
         return text, []
     applied = []
@@ -140,11 +145,19 @@ def get_pronunciation_result(text, entries, pattern=None):
 @contextmanager
 def ensure_literal_pronunciation_audition():
     """Read audition spellings literally in this worker; retain normal speech preparation."""
-    token = _literal_audition.set(True)
+    with ensure_pronunciation_audition({}):
+        yield
+
+
+@contextmanager
+def ensure_pronunciation_audition(entries):
+    """Use a private draft map at the normal substitution stage in this worker."""
+    active = {key: value for key, value in entries.items() if key.strip() and value.strip()}
+    token = _audition_matcher.set((active, _compile(active)))
     try:
         yield
     finally:
-        _literal_audition.reset(token)
+        _audition_matcher.reset(token)
 
 
 # ── keeping the name list honest ─────────────────────────────────────────

@@ -2787,6 +2787,19 @@
             "title": "Index",
             "type": "integer"
           },
+          "replacement": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replacement"
+          },
           "text": {
             "maxLength": 256,
             "minLength": 1,

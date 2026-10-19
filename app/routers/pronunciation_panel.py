@@ -18,7 +18,7 @@ from audio_validation import validate_generated_audio
 from book_state_transaction import ensure_book_state
 from core import project_manager, run_claimed_task_worker, process_state
 from routers.editor import check_chunk_identity, SCRIPT_PATH
-from routers.voices import get_script_speaker
+from project import get_speaker
 from tts import (get_resolved_speaker, is_voice_config_present, resolve_narrator_voice_config,
                  voice_config_for_chunk)
 from utils import atomic_json_write, file_lock
@@ -52,6 +52,7 @@ class PronunciationAudition(BaseModel):
     index: StrictInt = Field(ge=0)
     expected_uid: str = Field(min_length=1, max_length=128)
     text: str = Field(min_length=1, max_length=256)
+    replacement: str | None = Field(default=None, min_length=1, max_length=256)
 
 
 def get_pronunciation_document():
@@ -71,7 +72,7 @@ def get_pronunciation_document():
             raise HTTPException(status_code=422, detail='Pronunciation file is invalid; repair it before editing.') from error
     if not isinstance(document, dict):
         raise HTTPException(status_code=422, detail='Pronunciation file must contain an object.')
-    names = document.get('names', document)
+    names = document['names'] if isinstance(document.get('names'), dict) else document
     if not isinstance(names, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in names.items()):
         raise HTTPException(status_code=422, detail='Pronunciation entries must map spellings to strings.')
     try:
@@ -97,7 +98,9 @@ def save_pronunciation_document(request):
         document, current = get_pronunciation_document()
         if request.revision != current['revision']:
             raise HTTPException(status_code=409, detail='Pronunciation rules changed elsewhere. Reload before saving.')
-        updated = {**document, 'names': dict(request.names)} if 'names' in document else dict(request.names)
+        updated = ({**document, 'names': dict(request.names)}
+                   if isinstance(document.get('names'), dict) else
+                   {'names': dict(request.names)} if 'names' in request.names else dict(request.names))
         if len(json.dumps(updated, ensure_ascii=False, indent=2).encode('utf-8')) > MAX_DOCUMENT_BYTES:
             raise HTTPException(status_code=422, detail='Pronunciation file would exceed the 1 MiB editor limit.')
         atomic_json_write(updated, pronunciation.DEFAULT_PATH, allow_nonatomic_fallback=False)
@@ -120,7 +123,7 @@ def _get_pronunciation_preview_sync(request):
             _text, substitutions = pronunciation.get_pronunciation_result(row.get('text', ''), request.names, pattern)
             counts.update(item['name'] for item in substitutions)
         return {'book_token': request.expected_book_token, 'counts': dict(counts),
-                'lines': [{'id': row['id'], 'uid': row['uid'], 'speaker': get_script_speaker(row)}
+                'lines': [{'id': row['id'], 'uid': row['uid'], 'speaker': get_speaker(row)}
                           for row in chunks if row.get('text', '').strip()]}
 
 
@@ -146,12 +149,16 @@ def generate_pronunciation_audition(request):
                 voices = json.loads(Path(project_manager.voice_config_path).read_text(encoding='utf-8'))
             except FileNotFoundError as error:
                 raise HTTPException(status_code=400, detail='Assign a voice to this line before auditioning.') from error
-            speaker = get_resolved_speaker(get_script_speaker(row), voices)
+            except (ValueError, UnicodeError) as error:
+                raise HTTPException(status_code=422, detail='Repair invalid voice configuration before auditioning.') from error
+            if not isinstance(voices, dict):
+                raise HTTPException(status_code=422, detail='Voice configuration must contain an object.')
+            speaker = get_resolved_speaker(get_speaker(row), voices)
             voices = copy.deepcopy(voice_config_for_chunk(
                 resolve_narrator_voice_config(speaker, voices, row), speaker, request.index))
             if not is_voice_config_present(speaker, voices):
                 raise HTTPException(status_code=400, detail='Assign a voice to this line before auditioning.')
-        if not request.text.strip():
+        if not request.text.strip() or (request.replacement is not None and not request.replacement.strip()):
             raise HTTPException(status_code=422, detail='Enter a spelling to audition.')
         if state.get('cancel'):
             raise HTTPException(status_code=409, detail='Pronunciation audition cancelled.')
@@ -160,7 +167,8 @@ def generate_pronunciation_audition(request):
             raise HTTPException(status_code=503, detail='TTS engine is unavailable.')
         with tempfile.TemporaryDirectory(prefix='aa2-pronunciation-') as directory:
             output = os.path.join(directory, 'audition.wav')
-            with pronunciation.ensure_literal_pronunciation_audition():
+            with pronunciation.ensure_pronunciation_audition(
+                    {} if request.replacement is None else {request.text: request.replacement}):
                 success = engine.generate_voice(request.text, row.get('instruct', ''), speaker, voices, output)
             if state.get('cancel'):
                 raise HTTPException(status_code=409, detail='Pronunciation audition cancelled; its temporary audio was discarded.')
