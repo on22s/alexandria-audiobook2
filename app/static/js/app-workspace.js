@@ -2,7 +2,7 @@
 const WORKSPACE_TASK_TABS = {
     script: 'script', batch_script: 'script', review: 'script', batch_review: 'script',
     nicknames: 'script', cast_list: 'script', persona: 'voices', voices: 'voices',
-    audio: 'audio', drift_check: 'editor', book_preflight: 'script',
+    audio: 'audio', drift_check: 'editor', word_timing: 'editor', book_preflight: 'script',
     audacity_export: 'audio', m4b_export: 'audio', chapter_export: 'audio',
     lora_training: 'training', lora_test: 'training', voicelab: 'voicelab',
     preparer: 'preparer', batch_preparer: 'preparer', dataset_builder: 'dataset-builder',

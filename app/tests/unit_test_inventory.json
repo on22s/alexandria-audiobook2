@@ -8894,7 +8894,8 @@
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_request_tasks_disable_until_done_and_dynamic_tasks_receive_fallback",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_shared_script_log_controls_remain_serialized",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_slow_review_hydration_does_not_delay_independent_controls",
-    "tests.test_task_reattachment.TaskReattachmentJsTests.test_training_preparer_audio_benchmark_adapters_and_idle_dispatch"
+    "tests.test_task_reattachment.TaskReattachmentJsTests.test_training_preparer_audio_benchmark_adapters_and_idle_dispatch",
+    "tests.test_task_reattachment.TaskReattachmentJsTests.test_word_timing_reload_restores_editor_activity_and_cancel_until_retirement"
   ],
   "test_task_start_controls_js": [
     "tests.test_task_start_controls_js.TaskStartControlJsTests.test_export_control_ids_are_wired_to_actual_buttons",
@@ -10645,6 +10646,7 @@
   "test_word_timing_js": [
     "tests.test_word_timing_js.WordTimingJsTests.test_failed_snapshot_does_not_start_asr_and_wrong_take_result_is_refused",
     "tests.test_word_timing_js.WordTimingJsTests.test_late_reply_cannot_paint_another_line_or_override_pending_edits",
+    "tests.test_word_timing_js.WordTimingJsTests.test_reattached_timing_prevents_new_start_and_retains_cancel_after_redraw",
     "tests.test_word_timing_js.WordTimingJsTests.test_unicode_spans_seek_native_player_and_track_playback_without_generation"
   ],
   "test_workbench_status_js": [

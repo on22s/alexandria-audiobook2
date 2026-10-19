@@ -53,3 +53,15 @@ selected={...selected,chunk:{...selected.chunk,uid:'u'}};const second=context.cr
 context.ensureEditorRenderSnapshot=async()=>{throw Error('save failed');};await context.createEditorWordTiming();assert.equal(posts.length,0);assert.equal(errors.length,1);
 context.ensureEditorRenderSnapshot=async()=>{};const p=context.createEditorWordTiming();await tick();const wrong=result();wrong.binding.row.audio_revision='other';posts[0].resolve(wrong);await p;assert.equal(document.getElementById('editor-word-spans').children.length,0);assert.equal(errors.length,2);
 ''')
+
+    def test_reattached_timing_prevents_new_start_and_retains_cancel_after_redraw(self):
+        self.run_js(r'''
+context.applyWordTimingTaskActivity(true);context.applyWordTimingInspector();
+assert(document.getElementById('editor-word-timing').disabled);assert(!document.getElementById('editor-word-cancel').disabled);
+await context.createEditorWordTiming();assert.equal(posts.length,0);
+context.applyWordTimingTaskActivity(false);assert(!document.getElementById('editor-word-timing').disabled);assert(document.getElementById('editor-word-cancel').disabled);
+assert(document.getElementById('editor-word-status').textContent.includes('saved result'));
+const own=context.createEditorWordTiming();await tick();posts[0].resolve(result());await own;
+const readyStatus=document.getElementById('editor-word-status').textContent;context.applyWordTimingTaskActivity(true);context.applyWordTimingTaskActivity(false);
+assert.equal(document.getElementById('editor-word-status').textContent,readyStatus);assert(document.getElementById('editor-word-spans').children.length>0);
+''')

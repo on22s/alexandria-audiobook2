@@ -1165,6 +1165,12 @@
                 lmstudio_optimize: () => { reattachTaskActivity('lmstudio_optimize', ['lmstudio-optimize-toggle'], 'lmstudio-status-badge', refreshLmStudioStatus); },
                 voice_design: () => { reattachTaskActivity('voice_design', ['btn-design-preview'], 'design-status', loadDesignedVoices); },
                 lora_test: () => { reattachTaskActivity('lora_test', [], 'lora-test-status'); },
+                word_timing: () => {
+                    if (typeof applyWordTimingTaskActivity === 'function') { applyWordTimingTaskActivity(true); }
+                    reattachTaskActivity('word_timing', ['editor-word-timing'], 'editor-word-status', () => {
+                        if (typeof applyWordTimingTaskActivity === 'function') { applyWordTimingTaskActivity(false); }
+                    });
+                },
                 drift_check: () => { reattachTaskActivity('drift_check', [], null, () => loadChunks(false)); },
             };
             const controlGroups = new Map(logGroups.flatMap(group =>

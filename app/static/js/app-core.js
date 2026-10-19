@@ -515,6 +515,7 @@
         const TASK_LABELS = {
             script: 'Script generation',
             review: 'Script review',
+            word_timing: 'Word timing',
             nicknames: 'Nickname discovery',
             cast_list: 'Cast list',
             persona: 'Persona generation',

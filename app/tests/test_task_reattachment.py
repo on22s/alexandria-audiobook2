@@ -151,3 +151,14 @@ await ctx.poll.fetch();assert(requests.includes('/api/status/report_explanation'
 await ctx.poll.options.onDone({running:false,logs:['Explanation saved.']});
 assert.deepStrictEqual(warnings,[['report explanation is still running.','info'],['Explanation saved.','info']]);
 """)
+
+    def test_word_timing_reload_restores_editor_activity_and_cancel_until_retirement(self):
+        self.run_js(r"""
+const activity=[];ctx.applyWordTimingTaskActivity=running=>{activity.push(running);el('editor-word-cancel').disabled=!running;};
+statuses={word_timing:{running:true}};await ctx.reattachRunningPollers();
+assert.deepStrictEqual(calls,['reattach:word_timing']);assert.deepStrictEqual(activity,[true]);
+assert(el('editor-word-timing').disabled);assert(!el('editor-word-cancel').disabled);
+ctx.poll.options.onTick({running:true,logs:['Timing captured line']});assert.equal(el('editor-word-status').textContent,'Timing captured line');
+await ctx.poll.options.onDone({running:false,logs:['Timing ready']});
+assert.deepStrictEqual(activity,[true,false]);assert(!el('editor-word-timing').disabled);assert(el('editor-word-cancel').disabled);
+""")

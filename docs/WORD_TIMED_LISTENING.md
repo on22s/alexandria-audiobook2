@@ -11,3 +11,5 @@ The displayed prepared text uses current speech normalization and pronunciation 
 Timing records are private flat JSON files under the active data directory's `reports/word_timing`. Eligibility binds the book, row UID, saved text and instruction, prepared text, exact audio hash, take revision and provider file metadata. Editing/regenerating a take or changing the provider invalidates eligibility. Stale replies do not attach to another line. Up to 128 records are retained; per-record output is bounded to 1 MiB. This stores timing, not an extra permanent audio copy. The original audio and script are never rewritten by timing.
 
 Cancel timing with the panel's Cancel button. Child processes are owned and reaped before task ownership retires; a cancelled or failed run does not replace a previously valid timing record.
+
+After a page reload, the workspace opens the timing task in Editor and restores its activity/cancellation controls. When it finishes, request timing for the saved line again to read its bound cache; reload does not reconstruct an in-flight response.

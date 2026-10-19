@@ -2,10 +2,15 @@
 let wordTimingState = null;
 let wordTimingSequence = 0;
 let wordTimingBusy = false;
+let wordTimingReattached = false;
 let wordTimingExpectedIdentity = null;
 let wordTimingAudio = null;
 let wordTimingListener = null;
 let wordTimingErrorListener = null;
+
+function isWordTimingTaskActive() {
+    return wordTimingBusy || wordTimingReattached;
+}
 
 function getWordTimingTargetIdentity(target) {
     return target && JSON.stringify([chunkSnapshotBookToken, target.chunk.uid,
@@ -36,14 +41,23 @@ window.applyWordTimingInspector = () => {
         resetWordTimingListening();
         document.getElementById('editor-word-status').textContent = 'The selected line or take changed. Request timing again.';
     }
-    button.disabled = wordTimingBusy || !target?.chunk.audio_path || isEditorEditPending();
+    button.disabled = isWordTimingTaskActive() || !target?.chunk.audio_path || isEditorEditPending();
 };
 
+function applyWordTimingTaskActivity(running) {
+    wordTimingReattached = running;
+    document.getElementById('editor-word-cancel').disabled = !isWordTimingTaskActive();
+    if (!isWordTimingTaskActive() && !wordTimingState) {
+        document.getElementById('editor-word-status').textContent = 'Timing task finished. Request timing again to load its saved result or inspect any reported failure.';
+    }
+    window.applyWordTimingInspector();
+}
+
 async function createEditorWordTiming() {
-    if (wordTimingBusy) { return; }
+    if (isWordTimingTaskActive()) { return; }
     try { await ensureEditorRenderSnapshot(); }
     catch (error) { showActionError('Editor is not ready for word timing', error, 'Save pending edits and refresh the selected line.'); return; }
-    if (wordTimingBusy) { return; }
+    if (isWordTimingTaskActive()) { return; }
     const target = getEditorReviewTarget();
     if (!target?.chunk.audio_path || isEditorEditPending()) { showToast('Choose a saved line with generated audio.', 'warning'); return; }
     resetWordTimingListening();
@@ -77,7 +91,7 @@ async function createEditorWordTiming() {
     } finally {
         wordTimingBusy = false;
         wordTimingExpectedIdentity = null;
-        document.getElementById('editor-word-cancel').disabled = true;
+        document.getElementById('editor-word-cancel').disabled = !isWordTimingTaskActive();
         window.applyWordTimingInspector();
     }
 }
