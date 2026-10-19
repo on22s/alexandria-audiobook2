@@ -100,7 +100,7 @@ def get_encoder_exception(path, fallback):
     return fallback
 
 
-def export_audio_segment(segment, path, format_name, cancel_check, **kwargs):
+def export_audio_segment(segment, path, format_name, cancel_check, mastering=None, **kwargs):
     from tts import ensure_audio_export_active
     from core import ensure_failed_subprocess_stopped
     ensure_audio_export_active(cancel_check)
@@ -124,6 +124,12 @@ def export_audio_segment(segment, path, format_name, cancel_check, **kwargs):
                     'encoder_temp': str(encoder_temp.resolve())}
         if cancel_check is None:
             settings['exception_path'] = str(Path(directory) / 'encoder-error.json')
+        if mastering is not None:
+            from audio_mastering import export_mastered_pcm
+            report = export_mastered_pcm(raw, output, settings, mastering, cancel_check)
+            ensure_audio_export_active(cancel_check)
+            os.replace(output, destination)
+            return report
         process = None
         with tempfile.TemporaryFile() as errors:
             try:

@@ -158,6 +158,9 @@
             'chk-drift-only': {what: 'Show only chunks the drift check flagged as sounding unlike their speaker’s reference voice.'},
 
             // Result tab
+            'export-mastering-enabled': {what: 'Opt in to measured loudness and true-peak processing for the next assembled export. Does not alter source clips or start a job.'},
+            'export-mastering-loudness': {what: 'Target integrated loudness, from -24 to -14 LUFS. Check the measured final file; a target alone does not establish compliance.'},
+            'export-mastering-peak': {what: 'Target true-peak ceiling, from -9 to -1 dBTP. Lossy encoding may change the achieved peak; compare final measurements.'},
             'm4b-title': {what: 'Book title written into the M4B metadata.'},
             'm4b-author': {what: 'Author written into the M4B metadata.'},
             'm4b-narrator': {what: 'Narrator credit written into the M4B metadata.'},
