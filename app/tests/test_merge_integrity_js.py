@@ -15,6 +15,7 @@ const ctx={document:{getElementById:el,querySelector:()=>({click:()=>events.push
  pendingChunkEdits:new Map(),failedChunkEdits:new Map(),chunkEditsRevision:0,
  ensureEditorRenderSnapshot:async()=>events.push('flush'),showConfirm:async text=>{events.push(text);return decision;},showToast:text=>events.push(text),
  pollLogs:()=>events.push('poll'),escapeHtml:value=>String(value).replaceAll('<','&lt;').replaceAll('>','&gt;')};
+ctx.window=ctx;
 vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),ctx);const run=code=>vm.runInContext(code,ctx);
 run(source.slice(source.indexOf('let editorIntegrityView ='),source.indexOf('async function openTextDiff()')));
 run(source.slice(source.indexOf('function renderTextDiff('),source.indexOf('function scrollToChunkRow(')));
