@@ -9498,6 +9498,14 @@
     "tests.test_tts_benchmark_probe_rate.BenchmarkProbeRateTests.test_default_and_short_requested_intervals_do_not_launch_high_rate_probes",
     "tests.test_tts_benchmark_probe_rate.BenchmarkProbeRateTests.test_generation_exception_stops_waiting_poller_without_a_second_probe"
   ],
+  "test_tts_capability_guidance": [
+    "tests.test_tts_capability_guidance.TtsCapabilityGuidanceTests.test_descriptor_and_native_dispatch_agree_for_every_voice_category",
+    "tests.test_tts_capability_guidance.TtsCapabilityGuidanceTests.test_descriptor_never_initializes_engine_or_contacts_a_server",
+    "tests.test_tts_capability_guidance.TtsCapabilityGuidanceTests.test_fresh_descriptors_cannot_mutate_dispatch_and_unknown_mode_refuses"
+  ],
+  "test_tts_capability_guidance_js": [
+    "tests.test_tts_capability_guidance_js.TtsCapabilityGuidanceJsTests.test_mode_changes_preserve_assignment_fields_and_warn_without_posting"
+  ],
   "test_tts_clip_view": [
     "tests.test_tts_clip_view.Rendering.test_the_page_contains_the_text_and_the_error_pairs",
     "tests.test_tts_clip_view.RowsOf.test_detail_is_never_used_as_the_reference_string",

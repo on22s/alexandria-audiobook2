@@ -978,10 +978,7 @@
         // --- Setup Tab ---
 
         function toggleTTSMode() {
-            const mode = document.getElementById('tts-mode').value;
-            document.getElementById('tts-url-group').style.display = mode === 'external' ? '' : 'none';
-            document.getElementById('tts-device-group').style.display = mode === 'local' ? '' : 'none';
-            document.getElementById('tts-local-options').style.display = mode === 'local' ? '' : 'none';
+            window.applyTtsCapabilityGuidance?.();
         }
 
         function toggleSubBatchFields() {
@@ -1921,6 +1918,7 @@
                 document.getElementById('max-tokens').value = 4096;
                 renderConfigWarnings(config);
                 applyPauseSupport(config.capabilities);
+                window.setTtsCapabilityModes?.(config.capabilities?.tts_modes);
                 // Local/Remote LLM profiles: keep both in memory, show the active one.
                 llmProfiles.local = config.llm_local || config.llm || {base_url:'', api_key:'local', model_name:''};
                 llmProfiles.remote = config.llm_remote || {base_url:'', api_key:'local', model_name:''};
@@ -4621,6 +4619,7 @@
             card.querySelector('.lora-opts').style.display = radio.value === 'lora' ? 'block' : 'none';
             card.querySelector('.design-opts').style.display = radio.value === 'design' ? 'block' : 'none';
             card.querySelector('.ensemble-opts').style.display = radio.value === 'ensemble' ? 'block' : 'none';
+            window.applyTtsCapabilityGuidance?.();
             saveVoicesDebounced();
         };
 
@@ -4792,6 +4791,7 @@
                     return {refreshedResources, failedResources};
                 }
                 container.innerHTML = getVoiceSeedRepairMarkup(_voiceSaveSnapshot) + getStateVoiceCardsMarkup(voices);
+                window.applyTtsCapabilityGuidance?.();
                 _voiceCardsRevision = _voiceSaveSnapshot.revision;
                 _voiceCardsBookToken = _voiceSaveSnapshot.book_token;
                 if (typeof renderPersonaRecoveryTargets === 'function') { renderPersonaRecoveryTargets(); }

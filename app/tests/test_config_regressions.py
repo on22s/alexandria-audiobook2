@@ -444,7 +444,8 @@ class ConfigTests(unittest.TestCase):
             with patch.object(system_module, "CONFIG_PATH", str(config_path)):
                 with patch.object(system_module, "pause_resume_supported", return_value=False):
                     config = asyncio.run(system_module.get_config())
-                self.assertEqual({"pause_resume": False}, config["capabilities"])
+                from tts_capabilities import get_tts_capability_modes
+                self.assertEqual({"pause_resume": False, "tts_modes": get_tts_capability_modes()}, config["capabilities"])
                 config = asyncio.run(system_module.get_config())
                 self.assertIs(True, config["capabilities"]["pause_resume"])
                 profile = system_module.LLMConfig(
@@ -453,7 +454,7 @@ class ConfigTests(unittest.TestCase):
                     llm=profile, llm_mode="local", llm_local=profile,
                     tts=system_module.TTSConfig(), generation=system_module.GenerationConfig(),
                 ).model_dump(mode="json")
-                payload["capabilities"] = {"pause_resume": False}
+                payload["capabilities"] = {"pause_resume": False, "tts_modes": get_tts_capability_modes()}
                 with TestClient(app_module.app) as client:
                     response = client.post("/api/config", json=payload)
                 self.assertEqual(200, response.status_code, response.text)

@@ -806,7 +806,9 @@ async def get_config():
     config["config_needs_backup"] = load_result.needs_backup
     # What this host can do, for the page to grey out rather than fail on
     # click. Not a config field: AppConfig has no such key, so a save drops it.
-    config["capabilities"] = {"pause_resume": pause_resume_supported()}
+    from tts_capabilities import get_tts_capability_modes
+    config["capabilities"] = {"pause_resume": pause_resume_supported(),
+                              "tts_modes": get_tts_capability_modes()}
 
     safe = _redact_config_secrets(config)
     # The public local placeholder was synthesized, not loaded from storage;

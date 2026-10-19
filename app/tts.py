@@ -610,10 +610,7 @@ class UnsupportedVoiceBackendError(ValueError):
     """The selected backend cannot serve this voice category."""
 
 
-_TTS_BACKEND_CAPABILITIES = {
-    "local": frozenset({"custom", "clone", "lora", "design", "ensemble"}),
-    "external": frozenset({"custom", "clone", "ensemble"}),
-}
+from tts_capabilities import get_tts_backend_capabilities
 
 
 def get_memory_bounded_codec_decode(decode):
@@ -1424,10 +1421,11 @@ class TTSEngine:
 
     def get_voice_backend(self, category):
         """Return the selected backend or reject unsupported local-model fallback."""
-        capabilities = _TTS_BACKEND_CAPABILITIES.get(self._mode)
-        if capabilities is None:
-            raise UnsupportedVoiceBackendError(f"Unknown TTS mode: {self._mode}")
-        if category not in capabilities:
+        try:
+            capabilities = get_tts_backend_capabilities(self._mode)
+        except ValueError as error:
+            raise UnsupportedVoiceBackendError(str(error)) from error
+        if category not in capabilities['voice_categories']:
             raise UnsupportedVoiceBackendError(
                 f"{category} voices require local TTS mode; external TTS supports custom and clone voices.")
         return self._mode
