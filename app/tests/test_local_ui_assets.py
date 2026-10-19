@@ -50,6 +50,7 @@ class LocalUiAssetTests(unittest.TestCase):
         }
         feature_assets = {'/static/js/app-settings.js?v=__APP_BUILD__',
                           '/static/js/app-workspace.js?v=__APP_BUILD__',
+                          '/static/js/app-pronunciation.js?v=__APP_BUILD__',
                           '/static/js/app-editor-review.js?v=__APP_BUILD__'}
         urls = [url for url, _ in resources]
         self.assertEqual(len(urls), len(set(urls)))

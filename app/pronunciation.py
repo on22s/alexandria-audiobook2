@@ -1,4 +1,4 @@
-"""A per-book pronunciation lexicon for names the TTS cannot guess.
+"""A shared pronunciation lexicon for names the TTS cannot guess.
 
 46% of the active book's lines contain a Latinized Japanese proper noun -
 `Subaru` alone in 811 of 2,609 - and an English-trained model has no way to
@@ -30,6 +30,8 @@ an ASR comparison that normalises the name on both sides. Optimising it against
 raw WER would select for names that are easy to transcribe rather than right.
 """
 from collections import Counter
+from contextlib import contextmanager
+from contextvars import ContextVar
 import json
 import logging
 import os
@@ -42,6 +44,7 @@ DEFAULT_PATH = os.path.join(REPO, "pronunciation.json")
 _cache = {"path": None, "fingerprint": None, "entries": {}, "pattern": None}
 _cache_lock = threading.RLock()
 logger = logging.getLogger(__name__)
+_literal_audition = ContextVar("pronunciation_literal_audition", default=False)
 
 
 def _compile(entries):
@@ -109,22 +112,39 @@ def apply_pronunciation(text, path=None):
     put them in an artifact. A silent respelling would be untraceable in the
     audio - the listener hears one thing and the script says another.
     """
-    if not text:
+    if not text or (path is None and _literal_audition.get()):
         return text, []
     with _cache_lock:
         load_lexicon(path)
         pattern, entries = _cache["pattern"], _cache["entries"]
-    if not pattern:
+    return get_pronunciation_result(text, entries, pattern)
+
+
+def get_pronunciation_result(text, entries, pattern=None):
+    """Apply one simultaneous, case-sensitive map without changing its inputs."""
+    active = {key: value for key, value in entries.items() if key.strip() and value.strip()}
+    pattern = pattern or _compile(active)
+    if not text or not pattern:
         return text, []
     applied = []
 
     def swap(match):
         name = match.group(1)
-        spoken = entries[name]
+        spoken = active[name]
         applied.append({"name": name, "spoken": spoken})
         return spoken
 
     return pattern.sub(swap, text), applied
+
+
+@contextmanager
+def ensure_literal_pronunciation_audition():
+    """Read audition spellings literally in this worker; retain normal speech preparation."""
+    token = _literal_audition.set(True)
+    try:
+        yield
+    finally:
+        _literal_audition.reset(token)
 
 
 # ── keeping the name list honest ─────────────────────────────────────────
