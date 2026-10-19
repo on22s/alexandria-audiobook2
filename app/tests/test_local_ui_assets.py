@@ -49,6 +49,7 @@ class LocalUiAssetTests(unittest.TestCase):
             '/static/vendor/marked-12.0.2/marked.umd.min.js',
         }
         feature_assets = {'/static/js/app-settings.js?v=__APP_BUILD__',
+                          '/static/js/app-editor-repair.js?v=__APP_BUILD__',
                           '/static/js/app-workspace.js?v=__APP_BUILD__',
                           '/static/js/app-pronunciation.js?v=__APP_BUILD__',
                           '/static/js/app-editor-review.js?v=__APP_BUILD__'}

@@ -5,6 +5,8 @@ from book_state_transaction import ensure_book_state, get_book_operation_identit
 from task_ownership import ensure_startup_recovery
 import asyncio
 import copy
+import hashlib
+import pronunciation
 import logging
 import json
 import os
@@ -48,7 +50,7 @@ from editor_review_facts import get_editor_review_facts
 from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection,
-                     get_chunk_generation_requests)
+                     get_chunk_generation_requests, get_speaker)
 from runtime_estimate import get_book_runtime_estimate
 from routers.voices import get_script_speaker
 from tts import voice_config_for_chunk, resolve_narrator_voice_config, voice_category
@@ -92,6 +94,77 @@ class BatchGenerateRequest(BaseModel):
     indices: List[StrictInt] = Field(min_length=1)
     expected_book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     expected_uids: Optional[List[Annotated[str, Field(min_length=1, max_length=128)]]] = None
+    expected_repair_revision: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
+class AudioRepairSelection(BaseModel):
+    expected_options_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+    chapter: Optional[Annotated[StrictInt, Field(ge=0)]] = None
+    speakers: List[Annotated[str, Field(max_length=500)]] = Field(min_length=1, max_length=10000)
+
+
+def get_audio_repair_revision(chunks):
+    """Bind a preview to rows and the voice/settings inputs generation will read."""
+    files = []
+    for path in (project_manager.voice_config_path,
+                 os.path.join(project_manager.root_dir, "character_aliases.json"), CONFIG_PATH,
+                 pronunciation.DEFAULT_PATH):
+        try:
+            value = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        except FileNotFoundError:
+            value = None
+        files.append(value)
+    return get_snapshot_digest([chunks, files])
+
+
+def get_audio_repair_options(chunks):
+    groups = project_manager._chapter_groups(chunks, False) if chunks else []
+    return {"chapters": [{"index": i, "title": title, "first": first, "last": last}
+                         for i, (title, first, last) in enumerate(groups)],
+            "speakers": sorted({get_speaker(chunk) for chunk in chunks
+                                if chunk.get("text", "").strip()}),
+            "grouping_note": "Uses export chapter detection; without headings, each line is a chapter."}
+
+
+@router.get("/api/chunks/repair_options")
+async def get_audio_repair_options_endpoint(expected_book_token: Annotated[str, Query(pattern=r"^[0-9a-f]{64}$")]):
+    return await asyncio.to_thread(_get_audio_repair_options_sync, expected_book_token)
+
+
+def _get_audio_repair_options_sync(expected_book_token):
+    with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
+        check_chunk_identity(0, expected_book_token)
+        chunks = _ensure_editor_chunks()
+        return {"book_token": expected_book_token, "options_revision": get_snapshot_digest(chunks),
+                **get_audio_repair_options(chunks)}
+
+
+@router.post("/api/chunks/repair_preview")
+async def get_audio_repair_preview_endpoint(request: AudioRepairSelection):
+    return await asyncio.to_thread(_get_audio_repair_preview_sync, request)
+
+
+def _get_audio_repair_preview_sync(request):
+    with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
+        check_chunk_identity(0, request.expected_book_token)
+        chunks = _ensure_editor_chunks()
+        if request.expected_options_revision != get_snapshot_digest(chunks):
+            raise HTTPException(status_code=409, detail="Chapter options are stale. Load current chapters and speakers again.")
+        options = get_audio_repair_options(chunks)
+        first, last = 0, len(chunks) - 1
+        if request.chapter is not None:
+            if request.chapter >= len(options["chapters"]):
+                raise HTTPException(status_code=409, detail="Chapter selection changed; refresh repair options.")
+            chapter = options["chapters"][request.chapter]
+            first, last = chapter["first"], chapter["last"]
+        if not set(request.speakers).issubset(options["speakers"]):
+            raise HTTPException(status_code=409, detail="Speaker selection changed; refresh repair options.")
+        selected = [chunk for i, chunk in enumerate(chunks) if first <= i <= last
+                    and chunk.get("text", "").strip() and get_speaker(chunk) in request.speakers]
+        return {"book_token": request.expected_book_token,
+                "repair_revision": get_audio_repair_revision(chunks), "rows": selected,
+                "rendered_count": sum(bool(chunk.get("audio_path")) for chunk in selected)}
 
 
 class DriftCheckRequest(BaseModel):
@@ -240,7 +313,8 @@ def ensure_audio_generation_claim():
         raise
 
 
-def ensure_audio_generation_requests(indices, expected_book_token=None, expected_uids=None):
+def ensure_audio_generation_requests(indices, expected_book_token=None, expected_uids=None,
+                                     expected_repair_revision=None):
     """Read and bind selection once while its caller owns the audio reservation."""
     root = os.path.dirname(SCRIPT_PATH)
     with ensure_book_state(root):
@@ -250,6 +324,10 @@ def ensure_audio_generation_requests(indices, expected_book_token=None, expected
         chunks = project_manager.load_chunks()
         if get_snapshot_digest(get_editor_book_identity(root)) != identity:
             raise HTTPException(status_code=409, detail="Active book changed; reload before rendering")
+        if expected_repair_revision is not None:
+            if (expected_book_token is None or expected_uids is None
+                    or expected_repair_revision != get_audio_repair_revision(chunks)):
+                raise HTTPException(status_code=409, detail="Repair preview changed; preview the selection again.")
         selected = get_index_selection(indices, len(chunks))
         if expected_uids is not None:
             if len(expected_uids) != len(indices):
@@ -906,7 +984,7 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
         try:
             indices, requested = await asyncio.to_thread(
                 ensure_audio_generation_requests, request.indices,
-                request.expected_book_token, request.expected_uids)
+                request.expected_book_token, request.expected_uids, request.expected_repair_revision)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         total = len(indices)
@@ -977,7 +1055,7 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
         try:
             indices, requested = await asyncio.to_thread(
                 ensure_audio_generation_requests, request.indices,
-                request.expected_book_token, request.expected_uids)
+                request.expected_book_token, request.expected_uids, request.expected_repair_revision)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         total = len(indices)

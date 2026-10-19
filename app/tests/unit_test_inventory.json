@@ -2938,6 +2938,14 @@
     "tests.test_ecapa_portable_cache.EcapaPortableCacheTests.test_reference_cache_tracks_the_actual_worker_model_assets",
     "tests.test_ecapa_portable_cache.EcapaPortableCacheTests.test_worker_copies_yaml_without_using_checkout_placeholder_or_symlinks"
   ],
+  "test_editor_audio_repair": [
+    "tests.test_editor_audio_repair.EditorAudioRepairTests.test_both_batch_routes_admit_exact_selection_and_reject_stale_without_worker",
+    "tests.test_editor_audio_repair.EditorAudioRepairTests.test_empty_no_heading_and_invalid_filters",
+    "tests.test_editor_audio_repair.EditorAudioRepairTests.test_options_revision_rejects_changed_chapter_roster",
+    "tests.test_editor_audio_repair.EditorAudioRepairTests.test_shared_chapter_detection_and_literal_speaker_filter",
+    "tests.test_editor_audio_repair.EditorAudioRepairTests.test_unknown_and_whitespace_distinct_speakers_round_trip_exactly",
+    "tests.test_editor_audio_repair.EditorAudioRepairTests.test_voice_settings_row_and_book_changes_invalidate_admission"
+  ],
   "test_editor_book_identity": [
     "tests.test_editor_book_identity.EditorBookIdentityTests.test_cast_match_book_generation_and_source_fence_current_apply",
     "tests.test_editor_book_identity.EditorBookIdentityTests.test_stale_draft_after_delete_or_book_switch_preserves_all_chunks"
@@ -2962,6 +2970,12 @@
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_failed_row_save_aborts_render_and_successful_retry_uses_latest_artifact",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_queued_edits_keep_captured_row_and_book_identity",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_unchanged_controls_do_not_overwrite_other_client_and_pending_revert_is_saved"
+  ],
+  "test_editor_repair_js": [
+    "tests.test_editor_repair_js.EditorRepairJsTests.test_batch_selection_confirmation_cancellation_and_change",
+    "tests.test_editor_repair_js.EditorRepairJsTests.test_empty_selection_late_book_and_changed_filters_cannot_start",
+    "tests.test_editor_repair_js.EditorRepairJsTests.test_preview_no_job_safe_text_and_exact_selected_start",
+    "tests.test_editor_repair_js.EditorRepairJsTests.test_terminal_subset_polling_counts_and_cancellation_reset"
   ],
   "test_editor_report_cover_boundary": [
     "tests.test_editor_report_cover_boundary.EditorReportCoverBoundaryTests.test_cover_response_uses_leaf_and_published_image_is_unchanged",

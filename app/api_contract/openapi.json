@@ -168,6 +168,49 @@
         "title": "AttributionPreviewRequest",
         "type": "object"
       },
+      "AudioRepairSelection": {
+        "properties": {
+          "chapter": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_options_revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Options Revision",
+            "type": "string"
+          },
+          "speakers": {
+            "items": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Speakers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_options_revision",
+          "expected_book_token",
+          "speakers"
+        ],
+        "title": "AudioRepairSelection",
+        "type": "object"
+      },
       "BatchGenerateRequest": {
         "properties": {
           "expected_book_token": {
@@ -181,6 +224,18 @@
               }
             ],
             "title": "Expected Book Token"
+          },
+          "expected_repair_revision": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Repair Revision"
           },
           "expected_uids": {
             "anyOf": [
@@ -5160,6 +5215,80 @@
           }
         },
         "summary": "Get Editor Quality"
+      }
+    },
+    "/api/chunks/repair_options": {
+      "get": {
+        "operationId": "get_audio_repair_options_endpoint_api_chunks_repair_options_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Audio Repair Options Endpoint"
+      }
+    },
+    "/api/chunks/repair_preview": {
+      "post": {
+        "operationId": "get_audio_repair_preview_endpoint_api_chunks_repair_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AudioRepairSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Audio Repair Preview Endpoint"
       }
     },
     "/api/chunks/restore": {
