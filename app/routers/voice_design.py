@@ -2,15 +2,21 @@ import asyncio
 import filecmp
 import logging
 import os
+from pathlib import Path
 import shutil
 import time
+import threading
+import subprocess
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from core import (
     CLONE_VOICES_DIR,
+    UPLOADS_DIR,
+    check_disk_space,
     DESIGNED_VOICES_DIR,
     _load_manifest,
     _require_safe_filename,
@@ -23,6 +29,10 @@ from core import (
 )
 from utils import file_lock, get_unique_id
 from voice_reference_import import import_reference_audio
+from audio_channel_staging import AudioChannelStaging
+from audio_channel_preview import render_audio_channel_preview
+from audio_channels import get_audio_channel_filter, get_audio_channel_count
+from subprocess_ownership import run_owned_capture
 from tts import UnsupportedVoiceBackendError
 
 
@@ -200,18 +210,78 @@ async def voice_design_delete(voice_id: str):
 CLONE_VOICES_MANIFEST = os.path.join(CLONE_VOICES_DIR, "manifest.json")
 ALLOWED_AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg"}
 
+def get_audio_channel_staging():
+    return AudioChannelStaging(UPLOADS_DIR)
+
+
+@router.post("/api/audio_channels/stage")
+async def stage_audio_channels(file: UploadFile = File(...), purpose: str = Form("clone")):
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in ALLOWED_AUDIO_EXTS:
+        raise HTTPException(status_code=400, detail="Choose WAV, MP3, FLAC or OGG audio.")
+    if not check_disk_space(UPLOADS_DIR, 2.0)[0]:
+        raise HTTPException(status_code=400, detail="At least 2 GB free space is required.")
+    staging = get_audio_channel_staging()
+    try:
+        token, path = await asyncio.to_thread(staging.create_stage, file.filename, purpose)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    try:
+        await _save_upload_limited(file, str(path), (512 * 1024**2 if purpose == "clone" else 20 * 1024**3))
+    except BaseException:
+        await asyncio.to_thread(staging.remove_stage, token)
+        raise
+    return {"token": token, "expires_in": 1800, "preview_seconds": 10}
+
+
+@router.get("/api/audio_channels/preview")
+async def preview_audio_channel(request: Request, token: str, channel: str = "mix"):
+    cancelled = threading.Event()
+    def render():
+        with get_audio_channel_staging().open_stage(token) as (path, metadata):
+            return render_audio_channel_preview(path, channel, cancelled.is_set)
+    async def watch_disconnect():
+        while not cancelled.is_set():
+            if await request.is_disconnected():
+                cancelled.set()
+                return
+            await asyncio.sleep(.1)
+    watcher = asyncio.create_task(watch_disconnect())
+    try:
+        audio, channels = await asyncio.to_thread(render)
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
+        raise HTTPException(status_code=400, detail="Audio preview failed: " + (
+            str(error) if isinstance(error, ValueError) else "could not decode the selected channel.")) from error
+    finally:
+        cancelled.set()
+        watcher.cancel()
+    return Response(audio, media_type="audio/wav", headers={
+        "Cache-Control": "no-store", "X-Audio-Channels": str(channels)})
+
+
+@router.delete("/api/audio_channels/stage/{token}")
+async def delete_audio_channel_stage(token: str):
+    try:
+        await asyncio.to_thread(get_audio_channel_staging().remove_stage, token)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return {"status": "removed"}
+
+
 @router.get("/api/clone_voices/list")
 async def clone_voices_list():
     """List all uploaded clone voices."""
     return _load_manifest(CLONE_VOICES_MANIFEST)
 
 @router.post("/api/clone_voices/upload")
-async def clone_voices_upload(file: UploadFile = File(...),
+async def clone_voices_upload(file: Optional[UploadFile] = File(None),
                               ref_text: str = Form(""),
                               source_title: str = Form(""),
                               source_url: str = Form(""),
                               rights_basis: str = Form(""),
-                              rights_confirmed: bool = Form(False)):
+                              rights_confirmed: bool = Form(False),
+                              preview_token: str = Form(""),
+                              audio_channel: str = Form("mix")):
     """Import a reference clip for voice cloning.
 
     The clip is decoded, normalised to what the engine reads (24 kHz mono
@@ -219,7 +289,20 @@ async def clone_voices_upload(file: UploadFile = File(...),
     (see voice_reference_import). The exact transcript and a rights
     confirmation are required; source title/URL/basis are recorded when given.
     Every import is a new immutable id - a changed reference is a new voice."""
-    ext = os.path.splitext(file.filename)[1].lower()
+    preview_token = preview_token if isinstance(preview_token, str) else ""
+    audio_channel = audio_channel if isinstance(audio_channel, str) else "mix"
+    try:
+        get_audio_channel_filter(audio_channel)
+        if preview_token:
+            metadata = await asyncio.to_thread(get_audio_channel_staging().get_metadata, preview_token, "clone")
+            filename = metadata["filename"]
+        elif file is not None:
+            filename = file.filename
+        else:
+            raise ValueError("Select an audio file.")
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    ext = os.path.splitext(filename)[1].lower()
     if ext not in ALLOWED_AUDIO_EXTS:
         raise HTTPException(status_code=400, detail=f"Unsupported format. Use: {', '.join(ALLOWED_AUDIO_EXTS)}")
     # Called directly (tests) the Form defaults arrive as Form objects, not values.
@@ -232,7 +315,7 @@ async def clone_voices_upload(file: UploadFile = File(...),
     if rights_confirmed is not True:
         raise HTTPException(status_code=400, detail="Confirm you have the right to use this voice (rights_confirmed).")
 
-    base_name = os.path.splitext(file.filename)[0]
+    base_name = os.path.splitext(filename)[0]
     safe_name = _require_safe_filename(base_name, "Invalid filename")
 
     voice_id = get_unique_id(safe_name)
@@ -240,10 +323,30 @@ async def clone_voices_upload(file: UploadFile = File(...),
     dest_path = os.path.join(CLONE_VOICES_DIR, dest_filename)
     upload_path = os.path.join(CLONE_VOICES_DIR, f".upload_{voice_id}{ext}")
 
-    await _save_upload_limited(file, upload_path, 512 * 1024**2)
+    if preview_token:
+        try:
+            await asyncio.to_thread(get_audio_channel_staging().copy_stage, preview_token, upload_path, "clone")
+        except BaseException:
+            if os.path.exists(upload_path):
+                os.remove(upload_path)
+            raise
+    else:
+        await _save_upload_limited(file, upload_path, 512 * 1024**2)
     def _import():
         try:
-            measures, problems = import_reference_audio(upload_path, dest_path)
+            measures, problems = import_reference_audio(upload_path, dest_path, **(
+                {"channel": audio_channel} if audio_channel != "mix" else {}))
+            source_channels = None
+            if not problems:
+                try:
+                    import soundfile as sf
+                    source_channels = int(sf.info(upload_path).channels)
+                except (RuntimeError, OSError):
+                    source_channels = get_audio_channel_count(upload_path, run_owned_capture)
+        except BaseException:
+            if os.path.exists(dest_path):
+                os.remove(dest_path)
+            raise
         finally:
             if os.path.exists(upload_path):
                 os.remove(upload_path)
@@ -258,6 +361,8 @@ async def clone_voices_upload(file: UploadFile = File(...),
                 "name": base_name,
                 "filename": dest_filename,
                 "ref_text": ref_text,
+                "audio_channel": audio_channel,
+                "source_channels": source_channels,
                 "source_title": source_title,
                 "source_url": source_url,
                 "rights_basis": rights_basis,

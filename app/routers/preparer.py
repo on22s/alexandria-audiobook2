@@ -1,9 +1,10 @@
 import json
+import asyncio
 import logging
 import os
 import signal
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -97,6 +98,7 @@ PREPARER_ENV_PYTHON = os.path.join(
 
 
 class PreparerQualityConfig(BaseModel):
+    audio_channel: Literal["mix", "left", "right"] = "mix"
     min_confidence: float = 0.85
     min_snr: int = 25
 
@@ -144,6 +146,8 @@ class PreparerConfig(PreparerQualityConfig):
     min_chunk_duration: float = 2.0
 
 class BatchPreparerTask(BaseModel):
+    audio_channel: Optional[Literal["mix", "left", "right"]] = None
+    preview_token: str = ""
     audio_filename: str
     output_filename: str
 
@@ -221,8 +225,9 @@ def ensure_preparer_diarization_token(diarize: bool,
 async def preparer_start(
     background_tasks: BackgroundTasks,
     config_json: str = Form(...),
-    audio_file: UploadFile = File(...),
+    audio_file: Optional[UploadFile] = File(None),
     source_file: Optional[UploadFile] = File(None),
+    preview_token: str = Form(""),
 ):
     """Upload audio (and optionally a source EPUB/TXT) and run the preparer
     to generate a voice training dataset."""
@@ -272,7 +277,17 @@ async def preparer_start(
     staged = {audio_path: f"{audio_path}.upload.{uuid.uuid4().hex}"}
     claim_id = reserve_background_task("preparer")
     try:
-        await _save_upload_limited(audio_file, staged[audio_path], 20 * 1024**3)
+        if isinstance(preview_token, str) and preview_token:
+            from audio_channel_staging import AudioChannelStaging
+            try:
+                await asyncio.to_thread(AudioChannelStaging(UPLOADS_DIR).move_stage,
+                                        preview_token, staged[audio_path], "preparer")
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=str(error)) from error
+        elif audio_file is not None:
+            await _save_upload_limited(audio_file, staged[audio_path], 20 * 1024**3)
+        else:
+            raise HTTPException(status_code=400, detail="Select an audio file.")
         if source_file is not None:
             staged[source_path] = f"{source_path}.upload.{uuid.uuid4().hex}"
             await _save_upload_limited(source_file, staged[source_path], 512 * 1024**2)
@@ -321,6 +336,8 @@ async def preparer_start(
                "--chunk-size", str(config.chunk_size),
                "--min-chunk-duration", str(config.min_chunk_duration),
                "--batch-size", str(config.batch_size)]
+        if config.audio_channel != "mix":
+            cmd.extend(["--audio-channel", config.audio_channel])
         if config.resume:
             cmd.append("--resume")
         if config.model:
@@ -464,14 +481,14 @@ async def preparer_batch_start(request: BatchPreparerRequest, background_tasks: 
 async def preparer_batch_upload_start(
     background_tasks: BackgroundTasks,
     config_json: str = Form(...),
-    audio_files: List[UploadFile] = File(...),
+    audio_files: Optional[List[UploadFile]] = File(None),
 ):
     """Reserve the batch before staging and publishing selected files."""
     try:
         request = BatchPreparerRequest(**json.loads(config_json))
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"Invalid config: {exc}") from exc
-    return await _start_preparer_batch(request, background_tasks, audio_files)
+    return await _start_preparer_batch(request, background_tasks, audio_files or [])
 
 
 async def _start_preparer_batch(request, background_tasks, audio_files=None):
@@ -486,25 +503,47 @@ async def _start_preparer_batch(request, background_tasks, audio_files=None):
         raise HTTPException(status_code=400, detail=f"Insufficient disk space ({free_gb} GB free, 5 GB recommended).")
 
     staged = {}
-    if audio_files is not None:
-        if len(audio_files) != len(request.tasks):
+    stage_sources = audio_files is not None or any(task.preview_token for task in request.tasks)
+    upload_tasks = [task for task in request.tasks if not task.preview_token]
+    if stage_sources:
+        if len(audio_files or []) != len(upload_tasks):
             raise HTTPException(status_code=400, detail="Each batch task requires one audio upload.")
         names = set()
-        for task, upload in zip(request.tasks, audio_files):
+        uploads = iter(audio_files or [])
+        for task in request.tasks:
+            if task.preview_token:
+                from audio_channel_staging import AudioChannelStaging
+                try:
+                    metadata = await asyncio.to_thread(AudioChannelStaging(UPLOADS_DIR).get_metadata,
+                                                       task.preview_token, "preparer")
+                    upload_name = metadata["filename"]
+                except ValueError as error:
+                    raise HTTPException(status_code=400, detail=str(error)) from error
+            else:
+                upload_name = next(uploads).filename
             filename = secure_filename(task.audio_filename)
-            if not filename or filename != secure_filename(upload.filename):
+            if not filename or filename != secure_filename(upload_name):
                 raise HTTPException(status_code=400, detail="Batch task and audio upload filenames must match.")
             key = os.path.normcase(filename)
             if key in names:
                 raise HTTPException(status_code=400, detail="Batch audio uploads must use distinct filenames.")
             names.add(key)
     claim_id = reserve_background_task("batch_preparer")
-    if audio_files is not None:
+    if stage_sources:
         try:
-            for task, upload in zip(request.tasks, audio_files):
+            uploads = iter(audio_files or [])
+            for task in request.tasks:
                 path = os.path.join(UPLOADS_DIR, secure_filename(task.audio_filename))
                 staged[path] = f"{path}.upload.{uuid.uuid4().hex}"
-                await _save_upload_limited(upload, staged[path], 20 * 1024**3)
+                if task.preview_token:
+                    from audio_channel_staging import AudioChannelStaging
+                    try:
+                        await asyncio.to_thread(AudioChannelStaging(UPLOADS_DIR).move_stage,
+                                                task.preview_token, staged[path], "preparer")
+                    except ValueError as error:
+                        raise HTTPException(status_code=400, detail=str(error)) from error
+                else:
+                    await _save_upload_limited(next(uploads), staged[path], 20 * 1024**3)
         except BaseException:
             try:
                 for tmp_path in staged.values():
@@ -586,6 +625,9 @@ async def _start_preparer_batch(request, background_tasks, audio_files=None):
                    "--lang", request.lang,
                    "--min-confidence", str(request.min_confidence),
                    "--min-snr", str(request.min_snr)]
+            channel = task.audio_channel if task.audio_channel is not None else request.audio_channel
+            if channel != "mix":
+                cmd.extend(["--audio-channel", channel])
             cmd.extend(get_preparer_diarization_args(
                 request.diarize, request.auto_detect_speakers))
 

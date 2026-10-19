@@ -47,7 +47,7 @@ from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
 from audio_pcm_producer import PCMSourceStore
 from audio_streaming import (get_track_wav_plan, write_track_wav, write_combined_wav,
-                             get_streamable_layout)
+                             get_streamable_layout, write_combined_pcm)
 
 MAX_CHUNK_CHARS = 500
 # Measured seconds of speech per character relative to English, Qwen3-TTS,
@@ -1303,34 +1303,42 @@ class ProjectManager:
         return result, skipped
 
     def merge_audio(self, cancel_check=None, progress_callback=None, chunks=None, mastering=None, mastering_callback=None):
-        """progress_callback(message) reports loading progress; cancel_check()
-        returning True aborts before the merge is written."""
-        try:
-            chunks_with_audio, skipped = self._load_chunks_with_audio(
-                cancel_check=cancel_check,
-                progress_callback=_loading_progress(progress_callback), chunks=chunks)
-        except ExportCancelled:
-            return False, "Merge cancelled"
-        if not chunks_with_audio:
-            return False, "No audio segments found"
-
+        """Spool ordinary PCM instead of retaining every decoded source and the whole book."""
         output_filename = "cloned_audiobook.mp3"
         output_path = os.path.join(self.root_dir, output_filename)
         pending_output = output_path + f".pending.{uuid.uuid4().hex}"
         try:
-            ensure_audio_export_active(cancel_check)
-            pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
-            timeline = compute_timeline(chunks_with_audio, pause_ms, same_speaker_pause_ms,
-                                        cancel_check=cancel_check)
-            audio_segments = [seg for _, seg, _ in timeline]
-            speakers = [chunk["speaker"] for chunk, _, _ in timeline]
-            pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
-            final_audio = combine_audio_with_pauses(
-                audio_segments, speakers, pause_ms, same_speaker_pause_ms, pause_overrides,
-                cancel_check=cancel_check)
-            ensure_audio_export_active(cancel_check)
-            mastering_report = _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE,
-                                  cancel_check=cancel_check, **({"mastering": mastering} if mastering is not None else {}))
+            with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
+                chunks_with_audio, skipped = self._load_chunks_with_audio(
+                    cancel_check=cancel_check, progress_callback=_loading_progress(progress_callback),
+                    chunks=chunks, segment_transform=sources.save_segment)
+                if not chunks_with_audio:
+                    return False, "No audio segments found"
+                pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+                decoded = ((chunk, sources.load_segment(segment)) for chunk, segment in chunks_with_audio)
+                timeline = []
+                for chunk, segment, start_ms in iter_timeline(
+                        decoded, pause_ms, same_speaker_pause_ms, cancel_check=cancel_check):
+                    timeline.append((chunk, sources.save_segment(segment), start_ms))
+                    del segment
+                audio_segments = [seg for _, seg, _ in timeline]
+                speakers = [chunk["speaker"] for chunk, _, _ in timeline]
+                pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
+                with tempfile.TemporaryDirectory(prefix='.mp3-merge-', dir=self.root_dir) as directory:
+                    raw = os.path.join(directory, 'combined.pcm')
+                    settings = (write_combined_pcm(audio_segments, speakers, raw, pause_ms,
+                                same_speaker_pause_ms, pause_overrides, cancel_check, source_store=sources)
+                                if os.path.basename(AudioSegment.converter).lower() in ('ffmpeg', 'ffmpeg.exe') else None)
+                    if settings is None:
+                        legacy_segments = [sources.load_segment(segment) for segment in audio_segments]
+                        final_audio = combine_audio_with_pauses(legacy_segments, speakers, pause_ms,
+                            same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check)
+                        mastering_report = _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE,
+                            cancel_check=cancel_check, **({"mastering": mastering} if mastering is not None else {}))
+                    else:
+                        from audio_export import export_pcm_mp3
+                        mastering_report = export_pcm_mp3(raw, pending_output, settings, cancel_check,
+                                                          mastering=mastering, bitrate=MP3_BITRATE)
             ensure_audio_export_active(cancel_check)
             os.replace(pending_output, output_path)
             if mastering_report and mastering_callback:
@@ -1339,7 +1347,6 @@ class ProjectManager:
             return False, "Merge cancelled"
         finally:
             self._remove_temp_file(pending_output)
-
         if skipped:
             return True, f"{output_filename} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, output_filename

@@ -691,9 +691,12 @@
             f.submit.disabled = _cloneImportPendingGeneration === _cloneImportGeneration || !(f.refText.value.trim() && f.rightsConfirmed.checked);
         }
 
+        let _cloneChannelPicker = null;
         let _cloneImportGeneration = 0;
         let _cloneImportPendingGeneration = null;
         function _openCloneImportModal(file) {
+            _cloneChannelPicker?.dispose();
+            _cloneChannelPicker = window.createAudioChannelPicker(document.getElementById('clone-channel-picker'), file, 'clone');
             const generation = ++_cloneImportGeneration;
             const f = _cloneImportFields();
             document.getElementById('clone-import-filename').textContent = file.name;
@@ -714,6 +717,8 @@
                 if (generation !== _cloneImportGeneration) { return; }
                 f.fields.disabled = false;
                 _cloneImportGeneration++;
+                _cloneChannelPicker?.dispose();
+                _cloneChannelPicker = null;
                 f.submit.onclick = null;
             }, { once: true });
             f.submit.onclick = async () => {
@@ -728,7 +733,7 @@
                 f.submit.textContent = 'Importing…';
                 document.getElementById('clone-import-status').textContent = `Uploading and checking "${file.name}"…`;
                 try {
-                    const ok = await _submitCloneImport(file);
+                    const ok = await _submitCloneImport(file, _cloneChannelPicker);
                     if (generation !== _cloneImportGeneration) { return; }
                     document.getElementById('clone-import-status').textContent = ok ? `Imported "${file.name}".` : 'Import did not complete. Review the error, then retry.';
                     if (ok) {
@@ -749,10 +754,11 @@
             modal.show();
         }
 
-        async function _submitCloneImport(file) {
+        async function _submitCloneImport(file, picker = _cloneChannelPicker) {
             const f = _cloneImportFields();
             const formData = new FormData();
-            formData.append('file', file);
+            const selection = picker ? picker.getSelection() : {channel: 'mix', token: null};
+            formData.append('audio_channel', selection.channel);
             formData.append('ref_text', f.refText.value.trim());
             formData.append('source_title', f.sourceTitle.value.trim());
             formData.append('source_url', f.sourceUrl.value.trim());
@@ -760,6 +766,9 @@
             formData.append('rights_confirmed', f.rightsConfirmed.checked ? 'true' : 'false');
             let imported = false;
             try {
+                if (selection.pending) { selection.token = await selection.pending; }
+                if (selection.token) { formData.append('preview_token', selection.token); }
+                else { formData.append('file', file); }
                 const res = await fetch('/api/clone_voices/upload', { method: 'POST', body: formData });
                 if (!res.ok) {
                     const err = await res.json();

@@ -193,3 +193,38 @@ if __name__ == '__main__':
             except (OSError, ValueError, TypeError):
                 pass  # Keep the encoder error if its report cannot be written.
         raise
+
+
+def export_pcm_mp3(raw_path, output_path, settings, cancel_check, mastering=None, bitrate='192k'):
+    """Encode already-spooled PCM without decoding it into another AudioSegment."""
+    from audio_ffmpeg import run_audio_ffmpeg
+    from pydub import AudioSegment
+    from tts import ensure_audio_export_active
+    width, rate, channels = (settings[key] for key in ('sample_width', 'frame_rate', 'channels'))
+    if (width not in (1, 2, 4) or any(type(v) is not int or v <= 0 for v in (width, rate, channels))
+            or Path(raw_path).stat().st_size != settings['frames'] * width * channels):
+        raise ValueError('Invalid staged PCM layout or size.')
+    destination = Path(output_path)
+    with tempfile.TemporaryDirectory(prefix='.pcm-encode-', dir=destination.parent) as directory:
+        output = Path(directory) / 'output.mp3'
+        encoder_temp = Path(directory) / 'encoder-temp'; encoder_temp.mkdir()
+        environment = dict(os.environ)
+        for key in ('TMPDIR', 'TEMP', 'TMP'):
+            environment[key] = str(encoder_temp.resolve())
+        if mastering is not None:
+            from audio_mastering import export_mastered_pcm
+            report = export_mastered_pcm(raw_path, output,
+                {**settings, 'format': 'mp3', 'options': {'bitrate': bitrate}}, mastering, cancel_check)
+        else:
+            formats = {1: 's8', 2: 's16le', 4: 's32le'}
+            # Preserve the legacy MP3 encoder's cancellation-driven lifetime.
+            run_audio_ffmpeg(['-f', formats[width], '-ar', str(rate), '-ac', str(channels),
+                              '-i', str(raw_path), '-b:a', bitrate, '-id3v2_version', '3',
+                              '-f', 'mp3', str(output)], cancel_check,
+                             timeout=None, environment=environment, executable=AudioSegment.converter)
+            report = None
+        ensure_audio_export_active(cancel_check)
+        if not output.is_file() or not output.stat().st_size:
+            raise OSError('Encoder did not produce an MP3 file.')
+        os.replace(output, destination)
+        return report

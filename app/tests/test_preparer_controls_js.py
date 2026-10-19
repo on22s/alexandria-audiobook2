@@ -12,7 +12,8 @@ const prepStart=source.indexOf('let prepBatchQueue ='),prepEnd=source.indexOf('/
 run(source.slice(prepStart,prepEnd));
 const {File}=require('buffer');context.FormData=FormData;
 context.getNumFieldValue=(_id,fallback)=>fallback;
-context.document.createElement=()=>({innerHTML:'',textContent:''});
+context.document.createElement=()=>({innerHTML:'',textContent:'',firstElementChild:{appendChild(){}}});
+context.createAudioChannelPicker=()=>({getSelection:()=>({channel:'mix',token:null}),dispose(){}});
 elements['prep-batch-queue-body']={innerHTML:'',appendChild(){}};
 elements['preparer-logs']={style:{},innerText:'',scrollTop:0,clientHeight:0,appendChild(node){this.innerText+=node.textContent;},scrollHeight:0};
 elements['prep-audio-file']={files:[new File(['single bytes'],'single.wav')]};
@@ -148,3 +149,13 @@ elements['prep-batch-mode'].checked=false;context.cancelPreparer();assert.strict
 current.options.onDone({running:false,status:'done',logs:[]});assert.deepStrictEqual(done,['batch_preparer']);
 assert.strictEqual(elements['btn-prep-start'].disabled,false);
 """)
+
+    def test_pending_channel_upload_keeps_batch_selection_owned_until_request_starts(self):
+        self.run_scenario(SETUP + r'''
+const staged=deferred();context.createAudioChannelPicker=()=>({getSelection:()=>({channel:'right',token:null,pending:staged.promise}),setDisabled(){},dispose(){}});
+elements['prep-batch-mode'].checked=true;context.onPrepBatchFilesChange();const selected=run('prepBatchQueue[0].audio');let request;
+context.fetch=async(url,options)=>{request=options.body;return new Response('{}',{status:200});};
+const pending=context.startPreparer();await flush();assert.equal(elements['prep-batch-files'].disabled,true);assert.equal(elements['btn-prep-start'].disabled,true);
+elements['prep-batch-files'].files=[new File(['replacement'],'changed.wav')];context.onPrepBatchFilesChange();assert.strictEqual(run('prepBatchQueue[0].audio'),selected);
+staged.resolve('d'.repeat(32));await pending;const body=JSON.parse(request.get('config_json'));assert.equal(body.tasks[0].audio_filename,'batch.wav');assert.equal(body.tasks[0].audio_channel,'right');assert.equal(body.tasks[0].preview_token,'d'.repeat(32));assert.equal(request.getAll('audio_files').length,0);assert.equal(polls.length,1);
+''')

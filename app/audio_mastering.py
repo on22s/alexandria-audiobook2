@@ -9,7 +9,6 @@ import tempfile
 import time
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
-from subprocess_ownership import start_owned_subprocess
 from tts import ensure_audio_export_active
 
 
@@ -47,41 +46,10 @@ def get_loudnorm_record(stderr):
 
 
 def run_mastering_ffmpeg(arguments, cancel_check=None, timeout=600):
-    from core import ensure_failed_subprocess_stopped
-    command = ['ffmpeg', '-nostdin', '-hide_banner', '-nostats', '-xerror',
-               '-threads', '1', '-filter_threads', '1', '-y'] + list(arguments)
-    process = None
-    started = time.monotonic()
-    with tempfile.TemporaryFile() as errors:
-        try:
-            ensure_audio_export_active(cancel_check)
-            process = start_owned_subprocess(command, stdout=subprocess.DEVNULL,
-                                             stderr=errors, start_new_session=True)
-            while True:
-                ensure_audio_export_active(cancel_check)
-                remaining = timeout - (time.monotonic() - started)
-                if remaining <= 0:
-                    raise subprocess.TimeoutExpired(command, timeout)
-                try:
-                    result = process.wait(timeout=min(.1, remaining))
-                    break
-                except subprocess.TimeoutExpired:
-                    continue
-            ensure_audio_export_active(cancel_check)
-            errors.seek(0, 2); size = errors.tell(); errors.seek(max(0, size - 65536))
-            stderr = errors.read(65536).decode('utf-8', errors='replace')
-            if result:
-                raise RuntimeError('Mastering/measurement failed: ' + stderr[-2048:])
-            return stderr
-        finally:
-            if process is not None:
-                try:
-                    if process.poll() is None:
-                        ensure_failed_subprocess_stopped(process, {})
-                finally:
-                    control = getattr(process, '_alexandria_control', None)
-                    if control is not None:
-                        control.close()
+    from audio_ffmpeg import run_audio_ffmpeg
+    if timeout is None:
+        raise ValueError('Mastering requires a finite timeout.')
+    return run_audio_ffmpeg(arguments, cancel_check, timeout=timeout)
 
 
 def get_mastering_filter(options, measured=None):

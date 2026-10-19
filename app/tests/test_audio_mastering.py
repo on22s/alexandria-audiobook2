@@ -10,6 +10,7 @@ from unittest.mock import patch
 from pydub import AudioSegment
 from pydub.generators import Sine
 import audio_mastering as mastering
+import audio_ffmpeg
 from audio_export import export_audio_segment
 from project import ProjectManager, CHAPTER_EXPORT_DIR
 from tts import ExportCancelled
@@ -90,11 +91,11 @@ class AudioMasteringTests(unittest.TestCase):
         import time
         for mode in ('cancel','timeout'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
-                marker=Path(tmp)/'started.json';processes=[];start=mastering.start_owned_subprocess
+                marker=Path(tmp)/'started.json';processes=[];start=audio_ffmpeg.start_owned_subprocess
                 script="import os,sys,json,time,subprocess;child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);open(sys.argv[1],'w').write(json.dumps([os.getpid(),child.pid]));time.sleep(60)"
                 def launch(command,**kwargs):
                     process=start([sys.executable,'-c',script,str(marker)],**kwargs);processes.append(process);return process
-                with patch.object(mastering,'start_owned_subprocess',side_effect=launch):
+                with patch.object(audio_ffmpeg,'start_owned_subprocess',side_effect=launch):
                     if mode=='cancel':
                         with self.assertRaises(ExportCancelled):mastering.run_mastering_ffmpeg(['ignored'],marker.exists,timeout=5)
                     else:

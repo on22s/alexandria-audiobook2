@@ -1,5 +1,6 @@
 """Bounded PCM WAV writers; unsupported layouts retain the existing builder."""
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import struct
 import tempfile
@@ -133,14 +134,7 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
     if len(speakers) != len(segments):
         return None
     ordinary_pcm = is_plain_pcm_sequence(segments)
-    trimmed_segments = []
-    for segment in segments:
-        loaded = source_store.load_segment(segment) if source_store is not None else segment
-        trimmed = trim_edge_silence(loaded, cancel_check=cancel_check)
-        trimmed_segments.append(source_store.save_segment(trimmed)
-                                if source_store is not None else trimmed)
-        del segment, loaded, trimmed
-    segments = trimmed_segments
+    segments = save_trimmed_pcm_sources(segments, cancel_check, source_store)
     ordinary_pcm = ordinary_pcm and is_plain_pcm_sequence(segments)
     shape = get_pcm_shape(segments[0]) if segments else None
     frames = shape[1] if shape is not None else 0
@@ -329,29 +323,82 @@ def write_producer_wav(stream, producer, plan, cancel_check=None):
     ensure_audio_export_active(cancel_check)
 
 
+@contextmanager
+def ensure_combined_pcm(segments, speakers, directory, pause_ms,
+                        same_speaker_pause_ms, pause_overrides, cancel_check):
+    """Produce the existing (gap + segment) promotion order, one block per write."""
+    check = lambda: ensure_audio_export_active(cancel_check)
+    with PCMProducer(directory, check) as producer:
+        first = segments[0]
+        producer.append(iter_raw_pcm(first), (first.channels, first.frame_rate, first.sample_width))
+        for index, segment in enumerate(segments[1:], 1):
+            override = pause_overrides[index - 1] if pause_overrides else None
+            duration = get_pause_duration_ms(
+                {'speaker': speakers[index - 1], 'pause_after': override},
+                {'speaker': speakers[index]}, pause_ms, same_speaker_pause_ms)
+            with PCMProducer(directory, check) as piece:
+                piece.append(iter_default_silence_pcm(duration), (1, 11025, 2))
+                piece.append(iter_raw_pcm(segment), (segment.channels, segment.frame_rate, segment.sample_width))
+                producer.append(piece.read(), piece.layout)
+        yield producer
+
+
 def write_spooled_combined_wav(segments, speakers, path, pause_ms,
                               same_speaker_pause_ms, pause_overrides, cancel_check):
     destination = Path(path)
-    check = lambda: ensure_audio_export_active(cancel_check)
     with tempfile.TemporaryDirectory(prefix='.stream-wave-', dir=destination.parent) as directory:
         staged = Path(directory) / 'output.wav'
-        with PCMProducer(directory, check) as producer:
-            first = segments[0]
-            producer.append(iter_raw_pcm(first), (first.channels, first.frame_rate, first.sample_width))
-            for index, segment in enumerate(segments[1:], 1):
-                override = pause_overrides[index - 1] if pause_overrides else None
-                duration = get_pause_duration_ms(
-                    {'speaker': speakers[index - 1], 'pause_after': override},
-                    {'speaker': speakers[index]}, pause_ms, same_speaker_pause_ms)
-                # Preserve (gap + segment) before promoting the accumulated prefix.
-                with PCMProducer(directory, check) as piece:
-                    piece.append(iter_default_silence_pcm(duration), (1, 11025, 2))
-                    piece.append(iter_raw_pcm(segment), (segment.channels, segment.frame_rate, segment.sample_width))
-                    producer.append(piece.read(), piece.layout)
+        with ensure_combined_pcm(segments, speakers, directory, pause_ms,
+                                 same_speaker_pause_ms, pause_overrides, cancel_check) as producer:
             frames = producer.get_frame_count()
             layout = producer.layout
             write_producer_wav(str(staged), producer, (layout, frames), cancel_check)
-        # All spool/WAV handles must close successfully before publication.
-        check()
+        ensure_audio_export_active(cancel_check)
         os.replace(staged, destination)
     return round(1000 * (frames / layout[1]))
+
+
+def save_trimmed_pcm_sources(segments, cancel_check, source_store):
+    trimmed_sources = []
+    for segment in segments:
+        ensure_audio_export_active(cancel_check)
+        loaded = source_store.load_segment(segment) if source_store is not None else segment
+        trimmed = trim_edge_silence(loaded, cancel_check=cancel_check)
+        trimmed_sources.append(source_store.save_segment(trimmed) if source_store is not None else trimmed)
+        del segment, loaded, trimmed
+    return trimmed_sources
+
+
+def write_combined_pcm(segments, speakers, path, pause_ms, same_speaker_pause_ms,
+                       pause_overrides=None, cancel_check=None, source_store=None):
+    """Write a bounded raw PCM stage or return None for the native compatibility path."""
+    ensure_audio_export_active(cancel_check)
+    if len(speakers) != len(segments) or not is_bounded_pcm_supported(segments):
+        return None
+    segments = save_trimmed_pcm_sources(segments, cancel_check, source_store)
+    if not is_bounded_pcm_supported(segments):
+        return None
+    destination = Path(path)
+    with tempfile.TemporaryDirectory(prefix='.stream-pcm-', dir=destination.parent) as directory:
+        staged = Path(directory) / 'output.pcm'
+        with ensure_combined_pcm(segments, speakers, directory, pause_ms,
+                                 same_speaker_pause_ms, pause_overrides, cancel_check) as producer:
+            layout, frames = producer.layout, producer.get_frame_count()
+            ensure_pcm_wav_header(layout, ordinary_pcm=True)
+            stream = staged.open('wb')
+            try:
+                for data in producer.read():
+                    ensure_audio_export_active(cancel_check)
+                    if stream.write(data) != len(data):
+                        raise OSError('Incomplete PCM staging write')
+            except BaseException:
+                try:
+                    stream.close()
+                except BaseException:
+                    pass
+                raise
+            else:
+                stream.close()
+        ensure_audio_export_active(cancel_check)
+        os.replace(staged, destination)
+    return {'sample_width': layout[2], 'frame_rate': layout[1], 'channels': layout[0], 'frames': frames}

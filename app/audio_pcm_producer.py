@@ -315,7 +315,8 @@ class PCMProducer:
             replacement = tempfile.TemporaryFile(dir=self.directory)
             try:
                 for data in iter_converted_pcm(self.read(), self.layout, target, self.cancel_check):
-                    replacement.write(data)
+                    if replacement.write(data) != len(data):
+                        raise OSError('Incomplete promoted PCM write')
             except BaseException:
                 try:
                     replacement.close()
@@ -332,7 +333,8 @@ class PCMProducer:
                 raise
             self.stream = replacement
         for data in iter_converted_pcm(pieces, layout, target, self.cancel_check):
-            self.stream.write(data)
+            if self.stream.write(data) != len(data):
+                raise OSError('Incomplete producer PCM write')
         self.layout = target
         self.byte_count = self.stream.tell()
 

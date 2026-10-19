@@ -26,6 +26,9 @@ import subprocess
 import numpy as np
 import soundfile as sf
 
+from audio_channels import get_validated_audio_channel_filter
+from subprocess_ownership import run_owned_capture
+
 TARGET_RATE = 24000          # what tts.py writes and reads; see _save_wav
 MIN_SECONDS = 3.0
 MAX_SECONDS = 30.0
@@ -34,7 +37,7 @@ MAX_SILENCE_RATIO = 0.5
 MIN_PEAK = 0.05
 
 
-def normalize_reference_audio(src, dst):
+def normalize_reference_audio(src, dst, channel="mix"):
     """Decode any container (pydub/ffmpeg) and write 24 kHz mono 16-bit WAV.
 
     Raises ValueError when decoding, normalising, or exporting fails."""
@@ -43,9 +46,10 @@ def normalize_reference_audio(src, dst):
         # Bound the decoder output itself, including WAV inputs (pydub's WAV
         # fast path ignores duration). Normalize before buffering so channels
         # and input sample rate cannot multiply the PCM allocation.
+        channel_args = get_validated_audio_channel_filter(src, channel, run_owned_capture)
         decoded = subprocess.run([
             AudioSegment.converter, "-nostdin", "-v", "error", "-i", os.path.abspath(src),
-            "-map", "0:a:0", "-vn", "-t", str(MAX_SECONDS + 1),
+            "-map", "0:a:0", "-vn", "-t", str(MAX_SECONDS + 1), *channel_args,
             "-ac", "1", "-ar", str(TARGET_RATE), "-f", "s16le", "pipe:1",
         ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
         audio = AudioSegment.from_raw(io.BytesIO(decoded.stdout),
@@ -119,11 +123,14 @@ def check_reference_audio(measures):
     return problems
 
 
-def import_reference_audio(src, dst):
+def import_reference_audio(src, dst, channel="mix"):
     """Normalise src into dst, measure, and return (measures, problems).
     On a decode or normalisation failure returns ({}, [reason]) and removes dst."""
     try:
-        normalize_reference_audio(src, dst)
+        if channel == "mix":
+            normalize_reference_audio(src, dst)
+        else:
+            normalize_reference_audio(src, dst, channel)
     except ValueError as exc:
         if os.path.exists(dst):
             os.remove(dst)
