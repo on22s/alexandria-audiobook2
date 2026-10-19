@@ -6701,6 +6701,26 @@
     "tests.test_pronunciation_concurrency.PronunciationConcurrencyTests.test_concurrent_valid_missing_and_malformed_books_keep_results_distinct",
     "tests.test_pronunciation_concurrency.PronunciationConcurrencyTests.test_other_book_loading_between_load_and_snapshot_cannot_change_output"
   ],
+  "test_pronunciation_panel": [
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_atomic_failure_preserves_file_and_preview_uses_production_matching",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_audition_produces_playable_audio_without_rewriting_script_or_lexicon",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_audition_uses_real_dispatch_with_draft_at_production_substitution_stage",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_empty_missing_flat_and_invalid_documents",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_failed_engine_stale_row_and_busy_task_never_publish_audio",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_flat_reserved_name_and_multiline_entries_round_trip_without_data_loss",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_invalid_voice_config_releases_claim_before_engine_or_output",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_literal_context_is_nested_thread_local_and_resets_after_error",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_request_cancellation_retains_claim_until_worker_exits_and_cleans_files",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_save_preserves_metadata_and_refuses_stale_or_malformed_file"
+  ],
+  "test_pronunciation_panel_js": [
+    "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_duplicate_names_confirmation_edits_and_load_keep_unsaved_draft",
+    "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_failed_audition_has_explicit_error_and_no_player",
+    "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_late_count_reply_and_audition_edits_book_switch_cannot_publish",
+    "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_literal_keys_counts_no_auto_generation_and_explicit_shared_save",
+    "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_multiline_native_value_normalization_preserves_unedited_raw_rules",
+    "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_replacement_audition_sends_original_and_draft_rule_together"
+  ],
   "test_prune_chain": [
     "tests.test_prune_chain.PruneChainTests.test_cached_report_without_metadata_fails_package_and_blocks_training",
     "tests.test_prune_chain.PruneChainTests.test_control_copy_failure_blocks_training_even_when_pruned_package_succeeds",
