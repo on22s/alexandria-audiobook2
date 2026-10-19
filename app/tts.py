@@ -12,7 +12,7 @@ import sys
 import threading
 from contextvars import ContextVar, copy_context
 from dataclasses import dataclass
-from functools import wraps
+from functools import partial, wraps
 from types import MethodType
 import shutil
 import uuid
@@ -2874,7 +2874,7 @@ class TTSEngine:
             staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
             cancelled = threading.Event()
             deadline = time.monotonic() + self._external_timeout
-            future = executor.submit(copy_context().run, render_to_staging, chunk, staging_path,
+            future = executor.submit(partial(copy_context().run, render_to_staging), chunk, staging_path,
                                      self._next_external_url(), cancelled)
             futures[idx] = (future, cancelled, staging_path, output_path, deadline)
         for idx, (future, cancelled, staging_path, output_path, deadline) in futures.items():

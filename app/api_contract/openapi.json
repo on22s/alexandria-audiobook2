@@ -2824,6 +2824,99 @@
         "title": "PromptPreset",
         "type": "object"
       },
+      "PronunciationAudition": {
+        "properties": {
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          },
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "replacement": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replacement"
+          },
+          "text": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "index",
+          "expected_uid",
+          "text"
+        ],
+        "title": "PronunciationAudition",
+        "type": "object"
+      },
+      "PronunciationPreview": {
+        "properties": {
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "names": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "maxProperties": 2000,
+            "title": "Names",
+            "type": "object"
+          }
+        },
+        "required": [
+          "names",
+          "expected_book_token"
+        ],
+        "title": "PronunciationPreview",
+        "type": "object"
+      },
+      "PronunciationSave": {
+        "properties": {
+          "names": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "maxProperties": 2000,
+            "title": "Names",
+            "type": "object"
+          },
+          "revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "names",
+          "revision"
+        ],
+        "title": "PronunciationSave",
+        "type": "object"
+      },
       "ReportExplanationCancelRequest": {
         "properties": {
           "run_id": {
@@ -8627,6 +8720,130 @@
           }
         },
         "summary": "Attribution Preview"
+      }
+    },
+    "/api/pronunciation": {
+      "get": {
+        "operationId": "get_pronunciation_endpoint_api_pronunciation_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Pronunciation Endpoint"
+      }
+    },
+    "/api/pronunciation/audition": {
+      "post": {
+        "operationId": "generate_pronunciation_audition_endpoint_api_pronunciation_audition_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PronunciationAudition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Pronunciation Audition Endpoint"
+      }
+    },
+    "/api/pronunciation/preview": {
+      "post": {
+        "operationId": "get_pronunciation_preview_endpoint_api_pronunciation_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PronunciationPreview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Pronunciation Preview Endpoint"
+      }
+    },
+    "/api/pronunciation/save": {
+      "post": {
+        "operationId": "save_pronunciation_endpoint_api_pronunciation_save_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PronunciationSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Pronunciation Endpoint"
       }
     },
     "/api/reports": {
