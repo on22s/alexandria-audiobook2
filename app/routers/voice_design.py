@@ -294,7 +294,7 @@ async def clone_voices_upload(file: Optional[UploadFile] = File(None),
     try:
         get_audio_channel_filter(audio_channel)
         if preview_token:
-            metadata = await asyncio.to_thread(get_audio_channel_staging().get_metadata, preview_token, "clone")
+            metadata = await asyncio.to_thread(get_audio_channel_staging().ensure_stage_metadata, preview_token, "clone")
             filename = metadata["filename"]
         elif file is not None:
             filename = file.filename

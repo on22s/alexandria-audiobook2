@@ -66,7 +66,7 @@ class AudioChannelStaging:
                 raise ValueError('Audio upload has not completed.')
             yield path, metadata
 
-    def get_metadata(self, token, purpose):
+    def ensure_stage_metadata(self, token, purpose):
         with self.open_stage(token, purpose) as (_, metadata):
             return dict(metadata)
 

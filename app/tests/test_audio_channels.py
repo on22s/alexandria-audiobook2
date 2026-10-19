@@ -222,7 +222,7 @@ class AudioChannelTests(unittest.TestCase):
         token, path = store.create_stage('stereo.wav', 'clone')
         path.write_bytes(self.path.read_bytes())
         entered = threading.Event(); release = threading.Event()
-        real_metadata = store.get_metadata
+        real_metadata = store.ensure_stage_metadata
         def delayed(*args):
             entered.set()
             if not release.wait(2):
@@ -241,5 +241,5 @@ class AudioChannelTests(unittest.TestCase):
                 await task
             self.assertEqual(400, error.exception.status_code)
         with patch.object(voice_design, 'get_audio_channel_staging', return_value=store), \
-                patch.object(store, 'get_metadata', side_effect=delayed):
+                patch.object(store, 'ensure_stage_metadata', side_effect=delayed):
             asyncio.run(run())
