@@ -10,6 +10,27 @@
     <link href="/static/vendor/bootstrap-5.3.0/bootstrap.min.css" rel="stylesheet">
     <link href="/static/vendor/font-awesome-6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        /* Shared workflow layout: preserve the original controls and actions. */
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) .card-header { flex-wrap: wrap; gap: .75rem; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) :is(.card-header > .d-flex, .card-body > .d-flex) { flex-wrap: wrap; max-width: 100%; gap: .75rem; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) :is(.input-group, .form-select, .form-control) { max-width: 100%; min-width: 0; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) :is(button, summary) { min-height: 2.25rem; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) :is(button, summary, input, select, textarea, a):focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) .btn-link { color: var(--text-primary); text-decoration: underline; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) .accordion-button { background: var(--bg-card-header); color: var(--text-primary); }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) .log-window { max-width: 100%; overflow: auto; }
+        .workflow-disclosure { border: 1px solid var(--border-input); border-radius: var(--radius-md); padding: 1rem; background: var(--bg-card-header); }
+        .workflow-disclosure > summary { cursor: pointer; font-weight: 600; color: var(--text-primary); }
+        .workflow-disclosure :is(label.form-label, .form-text, p) { color: var(--text-primary); }
+        #series-cast-card { padding: 0; }
+        #series-cast-card > summary::after { content: 'Show / hide'; font-size: .8rem; font-weight: 400; margin-left: auto; }
+        .navbar .nav-link:not(.active) { color: #c4dcff; }
+        html #theme-toggle, html[data-theme] body #theme-toggle { color: #edf4ff; border-color: #a5b4c8; }
+        @media (max-width: 575px) {
+            :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) .card-header > .d-flex { flex-basis: 100%; }
+            :is(#voices-tab, #training-tab, #voicelab-tab) .input-group { flex-wrap: wrap; }
+            :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) :is(.card-header, .card-body) { overflow-wrap: anywhere; }
+        }
         #home-tab .text-muted { color: var(--text-primary) !important; }
         #home-tab :is(button, summary):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
         .workspace-stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
@@ -2070,11 +2091,11 @@
             </div>
 
             <!-- Series Cast: reuse character voices across books -->
-            <div class="card mb-3" id="series-cast-card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+            <details class="card mb-3 workflow-disclosure" id="series-cast-card">
+                <summary class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="m-0"><i class="fas fa-users me-2"></i>Series Cast</h5>
                     <span id="cast-status" class="text-muted small" role="status" aria-live="polite" aria-atomic="true"></span>
-                </div>
+                </summary>
                 <div class="card-body">
                     <p class="small text-muted mb-2">Save character voices to a named cast and reuse them across books in a series, so recurring characters sound the same. The <strong>narrator is shared across the whole series</strong> unless a cast saves its own.</p>
                     <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -2089,7 +2110,7 @@
                     </div>
                     <div id="cast-panel"></div>
                 </div>
-            </div>
+            </details>
 
              <div class="card">
                 <div class="card-header">Voice Parsing Logs</div>
@@ -2482,7 +2503,7 @@
                             <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-name" value="name" checked><label class="form-check-label small" for="vl-stage-name"><strong>Name</strong> — descriptive slug + rename adapters</label></div>
                         </div>
                         <div class="col-md-7">
-                            <div class="fw-bold small mb-1">Parameters</div>
+                            <details id="voicelab-tuning" class="workflow-disclosure mb-2"><summary>Training &amp; evaluation tuning</summary><p class="small mt-2">These values apply to the selected stages even when collapsed.</p>
                             <div class="row g-2">
                                 <div class="col-6 col-lg-3">
                                     <label class="form-label small mb-0" for="vl-device">Device</label>
@@ -2508,6 +2529,7 @@
                                     <input type="number" class="form-control form-control-sm" id="vl-candidate-checkpoints" value="2" min="0" max="2">
                                 </div>
                             </div>
+                            </details>
                             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="vl-name-apply" checked><label class="form-check-label small" for="vl-name-apply">Name stage: actually rename (uncheck for a dry-run preview)</label></div>
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="vl-name-overwrite"><label class="form-check-label small" for="vl-name-overwrite">Re-name adapters that already have a descriptive name</label></div>
                         </div>
@@ -2599,28 +2621,6 @@
                             <input type="number" class="form-control" id="lora-epochs" value="5" min="1">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label" for="lora-lr">Learning Rate</label>
-                            <input type="text" class="form-control" id="lora-lr" value="1e-6">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label" for="lora-batch-size">Batch Size</label>
-                            <input type="number" class="form-control" id="lora-batch-size" value="1" min="1">
-                        </div>
-                    </div>
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-2">
-                            <label class="form-label" for="lora-rank">LoRA Rank</label>
-                            <input type="number" class="form-control" id="lora-rank" value="32" min="1">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label" for="lora-alpha">LoRA Alpha</label>
-                            <input type="number" class="form-control" id="lora-alpha" value="128" min="1">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label" for="lora-grad-accum">Grad Accum Steps</label>
-                            <input type="number" class="form-control" id="lora-grad-accum" value="8" min="1">
-                        </div>
-                        <div class="col-md-2">
                             <label class="form-label" for="lora-language">Language</label>
                             <select class="form-select" id="lora-language">
                                 <option value="english" selected>English</option>
@@ -2635,7 +2635,34 @@
                                 <option value="russian">Russian</option>
                             </select>
                         </div>
-                        <div class="col-md-6 d-flex align-items-end">
+                    </div>
+                    <details id="training-tuning" class="workflow-disclosure mb-3">
+                        <summary>Training tuning</summary>
+                        <p class="small mt-2">These values still apply when this section is collapsed. Check them before starting a run.</p>
+                        <div class="row g-3">
+                        <div class="col-md-2">
+                            <label class="form-label" for="lora-lr">Learning Rate</label>
+                            <input type="text" class="form-control" id="lora-lr" value="1e-6">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label" for="lora-batch-size">Batch Size</label>
+                            <input type="number" class="form-control" id="lora-batch-size" value="1" min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label" for="lora-rank">LoRA Rank</label>
+                            <input type="number" class="form-control" id="lora-rank" value="32" min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label" for="lora-alpha">LoRA Alpha</label>
+                            <input type="number" class="form-control" id="lora-alpha" value="128" min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label" for="lora-grad-accum">Grad Accum Steps</label>
+                            <input type="number" class="form-control" id="lora-grad-accum" value="8" min="1">
+                        </div>
+                        </div>
+                    </details>
+                    <div class="workflow-actions d-flex align-items-center gap-2 flex-wrap mb-3">
                             <button class="btn btn-success btn-lg" id="btn-lora-train" onclick="startLoraTraining()">
                                 <i class="fas fa-dumbbell me-1"></i>Start Training
                             </button>
@@ -2643,7 +2670,6 @@
                                 <i class="fas fa-stop me-1"></i>Cancel
                             </button>
                             <span id="lora-train-status" class="ms-3 text-muted"></span>
-                        </div>
                     </div>
 
                     <!-- Settings Info Panel -->

@@ -10469,6 +10469,12 @@
     "tests.test_workbench_status_js.WorkbenchStatusJsTests.test_page_initialization_restores_existing_voicelab_run_and_controls",
     "tests.test_workbench_status_js.WorkbenchStatusJsTests.test_remote_optimize_toggle_tracks_actual_status_after_endpoint_switch"
   ],
+  "test_workflow_disclosures": [
+    "tests.test_workflow_disclosures.WorkflowDisclosureTests.test_cast_and_recovery_keep_native_disclosures_and_live_targets",
+    "tests.test_workflow_disclosures.WorkflowDisclosureTests.test_optional_tuning_has_one_original_control_and_run_actions_stay_outside",
+    "tests.test_workflow_disclosures.WorkflowDisclosureTests.test_real_training_builder_reads_nondefault_tuning_without_visibility_checks",
+    "tests.test_workflow_disclosures.WorkflowDisclosureTests.test_tab_boundaries_keep_voice_logs_and_training_controls_in_their_screen"
+  ],
   "test_worktree_gpu_lock": [
     "tests.test_worktree_gpu_lock.WorktreeGpuLockTests.test_linked_worktree_and_primary_share_actual_kernel_lock",
     "tests.test_worktree_gpu_lock.WorktreeGpuLockTests.test_stage4_loads_without_preexisting_app_pythonpath"
