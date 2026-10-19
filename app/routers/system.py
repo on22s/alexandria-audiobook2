@@ -6,12 +6,12 @@ import os
 import time
 import traceback
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig, PromptVariant,
                              TTSConfig, backup_damaged_app_config, load_app_config,
@@ -888,52 +888,90 @@ def keep_unsent_fields(config: AppConfig, existing: dict) -> AppConfig:
     return merged
 
 
+def get_config_to_save(config: AppConfig, existing: dict) -> AppConfig:
+    """Return the exact validated Save proposal without writing or resetting.
+
+    Callers hold the config lock while reading and using existing settings.
+    """
+    normalized_config = config.model_copy(deep=True)
+    if normalized_config.tts.design_text_min_chars > normalized_config.tts.design_text_max_chars:
+        raise HTTPException(status_code=400, detail=(
+            "Voice Design text length: the minimum is larger than the maximum."))
+
+    # Normalize/validate whichever profiles were sent. The local/remote profiles
+    # are persisted side-by-side so toggling never loses the other one's settings.
+    if normalized_config.llm_local is not None and normalized_config.llm_local.base_url.strip():
+        normalized_config.llm_local = _normalize_and_validate_llm(normalized_config.llm_local)
+    if normalized_config.llm_remote is not None and normalized_config.llm_remote.base_url.strip():
+        normalized_config.llm_remote = _normalize_and_validate_llm(normalized_config.llm_remote)
+
+    # Pick the active profile from the toggle, then mirror it into `llm` - the
+    # section every consumer (review/generate/personas/nicknames) reads.
+    active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
+              else normalized_config.llm_local)
+    if active is None:
+        raise HTTPException(status_code=400, detail=(
+            f"llm_mode is '{normalized_config.llm_mode}' but no llm_{normalized_config.llm_mode} "
+            f"profile was provided - refusing to save a config where llm_mode "
+            f"and the active llm profile would disagree."))
+    # The form mirrors the newly selected profile into llm. Its stored key
+    # belongs to that named profile, not to the previously active mirror.
+    normalized_config.llm = active.model_copy(deep=True)
+    saved_active = existing.get('llm_remote') if normalized_config.llm_mode == 'remote' else get_config_local_profile(existing)
+    normalized_config = _restore_redacted_secrets(
+        normalized_config, {**existing, 'llm': saved_active})
+    active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
+              else normalized_config.llm_local)
+    normalized_config.llm = _normalize_and_validate_llm(active)
+    normalized_config = keep_unsent_fields(normalized_config, existing)
+    # The active attribution preset decides the variant the run uses;
+    # derive the generation key from it (after the merge, so a preset the
+    # client did not resend is still found) so the CLI agrees with Setup,
+    # and refuse a preset whose template lost its placeholders.
+    from attribution_prompt_variants import resolve_attribution_preset, validate_preset_texts
+    try:
+        variant, texts, _ = resolve_attribution_preset(normalized_config.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    problem = validate_preset_texts(variant, texts)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+    generation = normalized_config.generation or GenerationConfig()
+    normalized_config.generation = generation.model_copy(
+        update={"three_pass_attribute_prompt_variant": variant})
+    return normalized_config
+
+
+@router.post("/api/config/preview")
+async def preview_config(proposed: Any = Body(...)):
+    """Compare supported saved settings with the normalized Save proposal."""
+    if not isinstance(proposed, dict):
+        raise HTTPException(status_code=400, detail="Preview requires a settings object.")
+    try:
+        config = AppConfig.model_validate(proposed)
+        return await asyncio.to_thread(_get_config_preview_sync, config)
+    except (ValidationError, HTTPException) as error:
+        # Validation errors can include submitted credentials or URL text.
+        raise HTTPException(status_code=400, detail=(
+            "Settings preview did not pass Save validation. Check the model profiles, "
+            "prompt presets, number ranges and JSON fields; no settings were applied.")) from error
+
+
+def _get_config_preview_sync(config):
+    from config_change_preview import get_config_change_preview
+    with file_lock(CONFIG_PATH):
+        existing = load_app_config_result(CONFIG_PATH)
+        proposal = get_config_to_save(config, existing.data)
+        return get_config_change_preview(existing, proposal, get_config_local_profile,
+                                         exists=os.path.isfile(CONFIG_PATH))
+
+
 @router.post("/api/config")
 async def save_config(config: AppConfig):
     def _save():
-        normalized_config = config.model_copy(deep=True)
-        if normalized_config.tts.design_text_min_chars > normalized_config.tts.design_text_max_chars:
-            raise HTTPException(status_code=400, detail=(
-                "Voice Design text length: the minimum is larger than the maximum."))
-
-        # Normalize/validate whichever profiles were sent. The local/remote profiles
-        # are persisted side-by-side so toggling never loses the other one's settings.
-        if normalized_config.llm_local is not None and normalized_config.llm_local.base_url.strip():
-            normalized_config.llm_local = _normalize_and_validate_llm(normalized_config.llm_local)
-        if normalized_config.llm_remote is not None and normalized_config.llm_remote.base_url.strip():
-            normalized_config.llm_remote = _normalize_and_validate_llm(normalized_config.llm_remote)
-
-        # Pick the active profile from the toggle, then mirror it into `llm` - the
-        # section every consumer (review/generate/personas/nicknames) reads.
-        active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
-                  else normalized_config.llm_local)
-        if active is None:
-            raise HTTPException(status_code=400, detail=(
-                f"llm_mode is '{normalized_config.llm_mode}' but no llm_{normalized_config.llm_mode} "
-                f"profile was provided - refusing to save a config where llm_mode "
-                f"and the active llm profile would disagree."))
         with file_lock(CONFIG_PATH):
             existing = load_app_config_result(CONFIG_PATH)
-            normalized_config = _restore_redacted_secrets(normalized_config, existing.data)
-            active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
-                      else normalized_config.llm_local)
-            normalized_config.llm = _normalize_and_validate_llm(active)
-            normalized_config = keep_unsent_fields(normalized_config, existing.data)
-            # The active attribution preset decides the variant the run uses;
-            # derive the generation key from it (after the merge, so a preset the
-            # client did not resend is still found) so the CLI agrees with Setup,
-            # and refuse a preset whose template lost its placeholders.
-            from attribution_prompt_variants import resolve_attribution_preset, validate_preset_texts
-            try:
-                variant, texts, _ = resolve_attribution_preset(normalized_config.model_dump())
-            except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-            problem = validate_preset_texts(variant, texts)
-            if problem:
-                raise HTTPException(status_code=400, detail=problem)
-            generation = normalized_config.generation or GenerationConfig()
-            normalized_config.generation = generation.model_copy(
-                update={"three_pass_attribute_prompt_variant": variant})
+            normalized_config = get_config_to_save(config, existing.data)
             if existing.needs_backup:
                 try:
                     backup_damaged_app_config(CONFIG_PATH)
