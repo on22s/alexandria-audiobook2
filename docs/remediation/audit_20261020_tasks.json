@@ -179,7 +179,8 @@
       "confidence": "confirmed",
       "test_gap_ids": [],
       "status": "in_progress",
-      "validation_status": "238 combined targeted tests passed; full quick release and exact-head CI pending"
+      "validation_status": "238 targeted tests and local quick release passed:8546 unit tests,72 API passes,12 expected full-mode exclusions; exact-head/native CI pending",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426"
     },
     {
       "task_id": "F002",
@@ -194,7 +195,8 @@
       "confidence": "confirmed",
       "test_gap_ids": [],
       "status": "in_progress",
-      "validation_status": "238 combined targeted tests passed; full quick release and exact-head CI pending"
+      "validation_status": "238 targeted tests and local quick release passed:8546 unit tests,72 API passes,12 expected full-mode exclusions; exact-head/native CI pending",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426"
     },
     {
       "task_id": "F003",
@@ -209,7 +211,8 @@
       "confidence": "confirmed",
       "test_gap_ids": [],
       "status": "in_progress",
-      "validation_status": "238 combined targeted tests passed; full quick release and exact-head CI pending"
+      "validation_status": "238 targeted tests and local quick release passed:8546 unit tests,72 API passes,12 expected full-mode exclusions; exact-head/native CI pending",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426"
     },
     {
       "task_id": "F031",
@@ -224,8 +227,9 @@
       "confidence": "plausible",
       "test_gap_ids": [],
       "status": "in_progress",
-      "validation_status": "238 combined targeted tests passed; full quick release and exact-head CI pending",
-      "reproduction_status": "Confirmed by the two-process forward-A/review-B/queued-backward-A regression; original review confidence retained."
+      "validation_status": "238 targeted tests and local quick release passed:8546 unit tests,72 API passes,12 expected full-mode exclusions; exact-head/native CI pending",
+      "reproduction_status": "Confirmed by the two-process forward-A/review-B/queued-backward-A regression; original review confidence retained.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426"
     },
     {
       "task_id": "F004",

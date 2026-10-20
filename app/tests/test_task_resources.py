@@ -128,7 +128,8 @@ class TaskResourceTests(unittest.TestCase):
             lease.seek(0)
             raw = lease.read()
             self.assertEqual(b'\0', raw[:1])
-            self.assertEqual([os.path.normcase(str(self.first))], json.loads(raw[1:])['resources'])
+            self.assertEqual([os.path.normcase(os.path.realpath(self.first))],
+                             json.loads(raw[1:])['resources'])
             with self.assertRaises(TaskOwnershipBusy), ensure_task_resources_available(
                     self.root, ['dataset_builder'], [self.first]):
                 self.fail('canonical scope alias was bypassed')

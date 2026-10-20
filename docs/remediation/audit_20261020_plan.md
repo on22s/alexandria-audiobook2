@@ -22,7 +22,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 01: Protect saved data and voice publication
 
-**Dependencies:** none; start here. **Tasks:** 4. **Status:** fixes prepared; release verification pending. **PR:** not opened.
+**Dependencies:** none; start here. **Tasks:** 4. **Status:** local quick-release passed; exact-head CI pending. **PR:** [#1426](https://github.com/on22s/alexandria-audiobook2/pull/1426).
 
 **Batch acceptance:** Prove malformed-library byte preservation, conflicting two-process dataset mutation refusal, unchanged unrelated saved names, and affected-only audio invalidation. Investigate F031 with A queued for a backward pass while the foreign worker reviews B; do not mistake its existing active-file lock for the missing whole-batch reservation.
 
@@ -159,8 +159,10 @@ forward pass complete while the foreign batch reviews Book B; A's file lock is
 explicitly free at the attempted overwrite. The original review's confidence
 classification remains preserved in the task manifest.
 
-Full quick-release verification and exact-head CI, including the added native
-Windows resource tests, are pending. No execution task is accepted or closed.
+Local `./ready.sh` quick verification passed: 8,546 unit tests, 72 API passes
+and 12 expected full-mode exclusions. Exact-head CI, including the added native
+Windows resource tests, is pending in PR #1426. No execution task is accepted
+or closed.
 GPU/model/listening qualification is unrun; CPU fixtures do not establish it.
 
 ## Completion gate
