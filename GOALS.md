@@ -7,7 +7,7 @@ target is a commitment. Where there is no baseline yet, the goal is *to take
 the measurement*, and it says so — an unmeasured target is a wish, and this
 document does not contain wishes.
 
-**Last updated:** 2026-10-10 (current guidance reconciled; measurements retain their recorded dates)
+**Last updated:** 2026-10-20 (added source-review remediation goal 3.5; measurements retain their recorded dates)
 
 ## How to read this
 
@@ -2706,6 +2706,49 @@ Evidence: `ab_test_runtime/experiments/time_split__warm_baritone_30s_m_1_generat
 `prosody_second_english__*.json` (eight files), `second_english__*_generate.json`;
 `run_chains/hifitts_9017_20260913.sh`; corpus provenance in
 `ab_test_runtime/corpora/PROVENANCE.md`.
+
+---
+
+## 3. Reliability — does a run finish and produce the right thing
+
+### 3.5 Finish the 2026-10-20 source-review remediation
+
+> **What this is.** Resolve the retained bugs, improvements and test gaps from
+> the repository-owner-requested source review in small, testable batches.
+>
+> **Why it matters.** The reviewed paths can lose saved data, keep obsolete
+> audio marked current, fail recovery, or report unreliable experiment results.
+>
+> **Why this is reachable.** The findings have concrete source/caller evidence
+> and isolated reproductions or clearly stated investigation preconditions.
+> The work is divided into ten scoped batches, preserving the app's existing
+> safety mechanisms rather than requiring a rewrite.
+
+**Metric** — accepted disposition of each of the 58 execution tasks, with all
+41 findings, 16 enhancement observations and 13 test gaps accounted for.
+A bug needs a merged fix and its regression evidence, or a concrete
+refutation/duplicate/obsolete disposition; filing or closing an issue alone
+is not a successful result. The one plausible claim is an investigation.
+
+**Probe** — [tracker #1366](https://github.com/on22s/alexandria-audiobook2/issues/1366), linked batch PRs and
+exact tested commits, reconciled against the
+[ten-batch task plan](docs/remediation/audit_20261020_plan.md).
+
+**Current — OPEN, 2026-10-20.** Review of main
+`4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d` retained 40 confirmed findings, one
+plausible finding, 16 enhancement observations and 13 test gaps. All are mapped
+to 58 child issues; **0/58 execution tasks are complete** at plan creation.
+The 192 passing targeted review tests do not establish a complete release,
+GPU/model, native-platform or listening pass.
+
+**Target — OPEN.** Zero undisposed execution tasks, with the required
+regressions and platform/model checks recorded on the exact merged revisions.
+Work in Batches 01–10: data/ownership first; LLM recovery and audio correctness
+next; experiment identity, metrics and diagnostics after that; performance,
+test hardening and historical-runner boundaries last. Each batch has its own
+issue checklist, dependencies and acceptance gate. Preserve GPU locks, VRAM
+checks, atomic publication, retries, cancellation and fidelity guards. A blocked
+required validation keeps its task open. Unverified model flags are excluded.
 
 ---
 

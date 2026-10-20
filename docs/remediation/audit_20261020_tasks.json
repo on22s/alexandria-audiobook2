@@ -1,0 +1,1019 @@
+{
+  "schema_version": 1,
+  "goal": "3.5",
+  "date": "2026-10-20",
+  "tracker": "https://github.com/on22s/alexandria-audiobook2/issues/1366",
+  "review_commit": "4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d",
+  "review_counts": {
+    "findings": 41,
+    "confirmed": 40,
+    "plausible": 1,
+    "enhancement_observations": 16,
+    "test_gaps": 13
+  },
+  "batches": [
+    {
+      "id": "01",
+      "title": "Protect saved data and voice publication",
+      "tasks": [
+        "F001",
+        "F002",
+        "F003",
+        "F031"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "02",
+      "title": "Repair LLM configuration and resumable generation",
+      "tasks": [
+        "F004",
+        "F017",
+        "F019",
+        "F020",
+        "F021",
+        "F022",
+        "F023"
+      ],
+      "depends_on": [
+        "01"
+      ]
+    },
+    {
+      "id": "03",
+      "title": "Preserve rendered text, voice identity, and timing",
+      "tasks": [
+        "F024",
+        "F025",
+        "F026",
+        "F027",
+        "F028",
+        "F029",
+        "F030"
+      ],
+      "depends_on": [
+        "01",
+        "02"
+      ]
+    },
+    {
+      "id": "04",
+      "title": "Repair preparation and frontend recovery",
+      "tasks": [
+        "F018",
+        "F038",
+        "F039",
+        "F040",
+        "E07"
+      ],
+      "depends_on": [
+        "01"
+      ]
+    },
+    {
+      "id": "05",
+      "title": "Bind experiment resume and caches to their inputs",
+      "tasks": [
+        "F006",
+        "F011",
+        "F012",
+        "F014",
+        "F016"
+      ],
+      "depends_on": [
+        "02"
+      ]
+    },
+    {
+      "id": "06",
+      "title": "Make training data and measurement gates trustworthy",
+      "tasks": [
+        "F005",
+        "F008",
+        "F009",
+        "F010",
+        "F013",
+        "F015",
+        "E09",
+        "E17"
+      ],
+      "depends_on": [
+        "05"
+      ]
+    },
+    {
+      "id": "07",
+      "title": "Restore diagnostic CLI and provenance contracts",
+      "tasks": [
+        "F007",
+        "F033",
+        "F034",
+        "F035",
+        "F036",
+        "F037",
+        "F041"
+      ],
+      "depends_on": [
+        "02",
+        "06"
+      ]
+    },
+    {
+      "id": "08",
+      "title": "Improve API and export responsiveness",
+      "tasks": [
+        "E01",
+        "E02",
+        "E05",
+        "E06",
+        "E10"
+      ],
+      "depends_on": [
+        "01",
+        "03",
+        "04"
+      ]
+    },
+    {
+      "id": "09",
+      "title": "Harden diagnostics and regression tests",
+      "tasks": [
+        "F032",
+        "E04",
+        "E08",
+        "E11",
+        "E12",
+        "E13",
+        "E16"
+      ],
+      "depends_on": [
+        "05",
+        "06"
+      ]
+    },
+    {
+      "id": "10",
+      "title": "Document and isolate historical drivers",
+      "tasks": [
+        "E03",
+        "E14",
+        "E15"
+      ],
+      "depends_on": [
+        "07",
+        "09"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "F001",
+      "batch": "01",
+      "issue_number": 1367,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1367",
+      "title": "[Bug]: Dataset project mutation guards ignore generation owned by another server process",
+      "kind": "bug",
+      "source_file": "app/routers/dataset_builder.py",
+      "source_line": 87,
+      "severity": "high",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F002",
+      "batch": "01",
+      "issue_number": 1368,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1368",
+      "title": "[Bug]: A routine voice-library mutation permanently replaces an unreadable existing library with an empty one",
+      "kind": "bug",
+      "source_file": "app/routers/voice_library.py",
+      "source_line": 96,
+      "severity": "high",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F003",
+      "batch": "01",
+      "issue_number": 1369,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1369",
+      "title": "[Bug]: Applying suggested voices leaves completed chunks attached to audio from the previous voice",
+      "kind": "bug",
+      "source_file": "app/routers/voices.py",
+      "source_line": 1920,
+      "severity": "high",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F031",
+      "batch": "01",
+      "issue_number": 1370,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1370",
+      "title": "[Bug investigation]: Saved-book overwrite protection does not notice batch review in another worker",
+      "kind": "bug",
+      "source_file": "app/core.py",
+      "source_line": 679,
+      "severity": "medium",
+      "confidence": "plausible",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F004",
+      "batch": "02",
+      "issue_number": 1371,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1371",
+      "title": "[Bug]: Malformed field types enter validated single-pass checkpoints and permanently block resume",
+      "kind": "bug",
+      "source_file": "app/chunk_quality.py",
+      "source_line": 61,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F017",
+      "batch": "02",
+      "issue_number": 1372,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1372",
+      "title": "[Bug]: Cancelling a report explanation cannot stop a manual-transport request",
+      "kind": "bug",
+      "source_file": "app/routers/editor.py",
+      "source_line": 1355,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F019",
+      "batch": "02",
+      "issue_number": 1373,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1373",
+      "title": "[Bug]: Saving unrelated Setup settings resets a saved structured-output opt-out",
+      "kind": "bug",
+      "source_file": "app/routers/system.py",
+      "source_line": 882,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F020",
+      "batch": "02",
+      "issue_number": 1374,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1374",
+      "title": "[Bug]: The Remote profile cannot save or test the hosted providers advertised by Setup documentation",
+      "kind": "bug",
+      "source_file": "app/routers/system.py",
+      "source_line": 915,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F021",
+      "batch": "02",
+      "issue_number": 1375,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1375",
+      "title": "[Bug]: Changing the profile reasoning-effort setting silently reuses generation checkpoints from the old setting",
+      "kind": "bug",
+      "source_file": "app/three_pass_generate.py",
+      "source_line": 258,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F022",
+      "batch": "02",
+      "issue_number": 1376,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1376",
+      "title": "[Bug]: Interrupted default three-pass runs resume with a different attribution-roster order than uninterrupted runs.",
+      "kind": "bug",
+      "source_file": "app/three_pass_generate.py",
+      "source_line": 3133,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F023",
+      "batch": "02",
+      "issue_number": 1377,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1377",
+      "title": "[Bug]: Diagnostic instruction failures are never retried when resuming the same run",
+      "kind": "bug",
+      "source_file": "app/three_pass_generate.py",
+      "source_line": 3195,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F024",
+      "batch": "03",
+      "issue_number": 1378,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1378",
+      "title": "[Bug]: Different take reuses the original seed for normally assigned voices",
+      "kind": "bug",
+      "source_file": "app/tts.py",
+      "source_line": 286,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [
+        "T01"
+      ],
+      "status": "open"
+    },
+    {
+      "task_id": "F025",
+      "batch": "03",
+      "issue_number": 1379,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1379",
+      "title": "[Bug]: Timeline rounding accumulates drift against the encoded PCM",
+      "kind": "bug",
+      "source_file": "app/tts.py",
+      "source_line": 606,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F026",
+      "batch": "03",
+      "issue_number": 1380,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1380",
+      "title": "[Bug]: LoRA and design rendering apply pronunciation substitutions more than once",
+      "kind": "bug",
+      "source_file": "app/tts.py",
+      "source_line": 1755,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [
+        "T06"
+      ],
+      "status": "open"
+    },
+    {
+      "task_id": "F027",
+      "batch": "03",
+      "issue_number": 1381,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1381",
+      "title": "[Bug]: External clone rendering loses references after adapter rename",
+      "kind": "bug",
+      "source_file": "app/tts.py",
+      "source_line": 2752,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [
+        "T03"
+      ],
+      "status": "open"
+    },
+    {
+      "task_id": "F028",
+      "batch": "03",
+      "issue_number": 1382,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1382",
+      "title": "[Bug]: Timed-out external batches retain unbounded executor threads",
+      "kind": "bug",
+      "source_file": "app/tts.py",
+      "source_line": 2906,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [
+        "T02"
+      ],
+      "status": "open"
+    },
+    {
+      "task_id": "F029",
+      "batch": "03",
+      "issue_number": 1383,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1383",
+      "title": "[Bug]: Renamed adapters lose voice-drift measurements despite valid serving aliases",
+      "kind": "bug",
+      "source_file": "app/voice_drift.py",
+      "source_line": 72,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [
+        "T04"
+      ],
+      "status": "open"
+    },
+    {
+      "task_id": "F030",
+      "batch": "03",
+      "issue_number": 1384,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1384",
+      "title": "[Bug]: Relocated runtime data makes every built-in voice reference fail drift admission",
+      "kind": "bug",
+      "source_file": "app/voice_drift.py",
+      "source_line": 224,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F018",
+      "batch": "04",
+      "issue_number": 1385,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1385",
+      "title": "[Bug]: Starting preparation consumes its preview token, so retrying or resuming the unchanged file fails",
+      "kind": "bug",
+      "source_file": "app/routers/preparer.py",
+      "source_line": 284,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F038",
+      "batch": "04",
+      "issue_number": 1386,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1386",
+      "title": "[Bug]: Pronunciation preview crashes for saved chunks missing an ID instead of returning the Editor recovery message",
+      "kind": "bug",
+      "source_file": "app/routers/pronunciation_panel.py",
+      "source_line": 126,
+      "severity": "low",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F039",
+      "batch": "04",
+      "issue_number": 1387,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1387",
+      "title": "[Bug]: Batch upload failures leave the status spinner claiming upload is still running",
+      "kind": "bug",
+      "source_file": "app/static/js/app-core.js",
+      "source_line": 3126,
+      "severity": "low",
+      "confidence": "confirmed",
+      "test_gap_ids": [
+        "T05"
+      ],
+      "status": "open"
+    },
+    {
+      "task_id": "F040",
+      "batch": "04",
+      "issue_number": 1388,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1388",
+      "title": "[Bug]: Reattached training announces an undefined epoch total to screen readers",
+      "kind": "bug",
+      "source_file": "app/static/js/app-training.js",
+      "source_line": 169,
+      "severity": "low",
+      "confidence": "confirmed",
+      "test_gap_ids": [
+        "T07"
+      ],
+      "status": "open"
+    },
+    {
+      "task_id": "E07",
+      "batch": "04",
+      "issue_number": 1389,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1389",
+      "title": "[Enhancement]: LoRA uploads duplicate error parsing instead of using the shared HTTP parser",
+      "kind": "enhancement",
+      "source_file": "app/static/js/app-training.js",
+      "source_line": 70,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F006",
+      "batch": "05",
+      "issue_number": 1390,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1390",
+      "title": "[Bug]: Cascade phase resume binds cheap answers to mutable numeric segment positions without verifying the input identity.",
+      "kind": "bug",
+      "source_file": "app/experiments/cascade.py",
+      "source_line": 227,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F011",
+      "batch": "05",
+      "issue_number": 1391,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1391",
+      "title": "[Bug]: A temporary attribution transport failure permanently poisons the narrator-prior checkpoint.",
+      "kind": "bug",
+      "source_file": "app/experiments/pdnc_narrator_prior.py",
+      "source_line": 156,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F012",
+      "batch": "05",
+      "issue_number": 1392,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1392",
+      "title": "[Bug]: Reference-intervention reruns can train stale cached datasets while evaluating a changed source ZIP.",
+      "kind": "bug",
+      "source_file": "app/experiments/reference_intervention.py",
+      "source_line": 112,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F014",
+      "batch": "05",
+      "issue_number": 1393,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1393",
+      "title": "[Bug]: Shipping readiness silently pools base/LoRA results from incompatible runs and model stacks.",
+      "kind": "bug",
+      "source_file": "app/experiments/shipping_readiness.py",
+      "source_line": 54,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F016",
+      "batch": "05",
+      "issue_number": 1394,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1394",
+      "title": "[Bug]: Voice-drift runs reuse cached audio across changed seeds, source text, and adapter weights while reporting the new run settings.",
+      "kind": "bug",
+      "source_file": "app/experiments/voice_drift.py",
+      "source_line": 139,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F005",
+      "batch": "06",
+      "issue_number": 1395,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1395",
+      "title": "[Bug]: The tight-dataset experiment writes the first selected clip as reference instead of the promised within-arm centroid representative.",
+      "kind": "bug",
+      "source_file": "app/experiments/build_tight_dataset.py",
+      "source_line": 134,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F008",
+      "batch": "06",
+      "issue_number": 1396,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1396",
+      "title": "[Bug]: The documented --no-scale base-only mode still reports two identical served-model runs as an adapter comparison.",
+      "kind": "bug",
+      "source_file": "app/experiments/chinese_attribution.py",
+      "source_line": 135,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F009",
+      "batch": "06",
+      "issue_number": 1397,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1397",
+      "title": "[Bug]: LUAR overrides discard fixture aliases while retaining alias-aware baseline scores, undercounting correct repairs.",
+      "kind": "bug",
+      "source_file": "app/experiments/luar_character_selector.py",
+      "source_line": 85,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F010",
+      "batch": "06",
+      "issue_number": 1398,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1398",
+      "title": "[Bug]: Both PDNC training builders teach corpus pseudo-speakers as real attribution labels.",
+      "kind": "bug",
+      "source_file": "app/experiments/pdnc_balanced_trainset.py",
+      "source_line": 33,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F013",
+      "batch": "06",
+      "issue_number": 1399,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1399",
+      "title": "[Bug]: The exact sign test overflows on supported corpus-sized discordant counts.",
+      "kind": "bug",
+      "source_file": "app/experiments/roster_order_bias.py",
+      "source_line": 53,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F015",
+      "batch": "06",
+      "issue_number": 1400,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1400",
+      "title": "[Bug]: The adapter stop gate can pass an adapter after most requested generations fail.",
+      "kind": "bug",
+      "source_file": "app/experiments/verify_adapter_stops.py",
+      "source_line": 98,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E09",
+      "batch": "06",
+      "issue_number": 1401,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1401",
+      "title": "[Enhancement]: Current candidates with a legitimately empty plain_already_works list are described as missing the third state.",
+      "kind": "enhancement",
+      "source_file": "app/experiments/shipped_book_lexicon_coverage.py",
+      "source_line": 184,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E17",
+      "batch": "06",
+      "issue_number": 1402,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1402",
+      "title": "[Enhancement]: Preserve paired-row coverage and transport failures in experiment reports",
+      "kind": "enhancement",
+      "source_file": "app/experiments/pair_pdnc_pilots.py",
+      "source_line": 64,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [
+        "T08",
+        "T09"
+      ],
+      "status": "open"
+    },
+    {
+      "task_id": "F007",
+      "batch": "07",
+      "issue_number": 1403,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1403",
+      "title": "[Bug]: The per-line character-traits experiment installs a callback with an obsolete signature and crashes on accepted attribution.",
+      "kind": "bug",
+      "source_file": "app/experiments/character_traits.py",
+      "source_line": 138,
+      "severity": "medium",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F033",
+      "batch": "07",
+      "issue_number": 1404,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1404",
+      "title": "[Bug]: Requesting one pitch-separation adapter divides by zero when the manifest has multiple adapters",
+      "kind": "bug",
+      "source_file": "app/experiments/pitch_separation.py",
+      "source_line": 64,
+      "severity": "low",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F034",
+      "batch": "07",
+      "issue_number": 1405,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1405",
+      "title": "[Bug]: Respelling-selectivity reports crash when all valid paired terms fall in one stratum.",
+      "kind": "bug",
+      "source_file": "app/experiments/respelling_selectivity.py",
+      "source_line": 85,
+      "severity": "low",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F035",
+      "batch": "07",
+      "issue_number": 1406,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1406",
+      "title": "[Bug]: A valid perfect-attribution result crashes the roster-order CLI while printing its summary.",
+      "kind": "bug",
+      "source_file": "app/experiments/roster_order_bias.py",
+      "source_line": 173,
+      "severity": "low",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F036",
+      "batch": "07",
+      "issue_number": 1407,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1407",
+      "title": "[Bug]: Two optional three-pass diagnostics still use the removed presegment_quotes constructor argument",
+      "kind": "bug",
+      "source_file": "app/experiments/three_pass_chunk_probe.py",
+      "source_line": 39,
+      "severity": "low",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F037",
+      "batch": "07",
+      "issue_number": 1408,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1408",
+      "title": "[Bug]: The two-by-two attribution experiment crashes before loading inputs because REPO is assigned after its first use",
+      "kind": "bug",
+      "source_file": "app/experiments/two_by_two.py",
+      "source_line": 27,
+      "severity": "low",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F041",
+      "batch": "07",
+      "issue_number": 1409,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1409",
+      "title": "[Bug]: Dirty-run provenance reports a saved reproduction patch even when git diff fails",
+      "kind": "bug",
+      "source_file": "gpu_job.sh",
+      "source_line": 533,
+      "severity": "low",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E01",
+      "batch": "08",
+      "issue_number": 1410,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1410",
+      "title": "[Enhancement]: Voice design save/delete acquire blocking file locks and copy complete audio files on the API event loop",
+      "kind": "enhancement",
+      "source_file": "app/routers/voice_design.py",
+      "source_line": 113,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E02",
+      "batch": "08",
+      "issue_number": 1411,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1411",
+      "title": "[Enhancement]: Word timing advertised as CPU-only reserves the global GPU task slot",
+      "kind": "enhancement",
+      "source_file": "app/routers/editor.py",
+      "source_line": 118,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E05",
+      "batch": "08",
+      "issue_number": 1412,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1412",
+      "title": "[Enhancement]: Filename previews decode every complete audio file",
+      "kind": "enhancement",
+      "source_file": "app/project.py",
+      "source_line": 1989,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E06",
+      "batch": "08",
+      "issue_number": 1413,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1413",
+      "title": "[Enhancement]: Cold chapter export retains the entire book PCM even for one selected chapter",
+      "kind": "enhancement",
+      "source_file": "app/project.py",
+      "source_line": 1939,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E10",
+      "batch": "08",
+      "issue_number": 1414,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1414",
+      "title": "[Enhancement]: Separate complete retention maintenance from the UI listing cap",
+      "kind": "enhancement",
+      "source_file": "app/run_history.py",
+      "source_line": 245,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "F032",
+      "batch": "09",
+      "issue_number": 1415,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1415",
+      "title": "[Bug]: The artifact-loss guard reports success when a measured artifact is deleted entirely.",
+      "kind": "bug",
+      "source_file": "app/experiments/check_artifact_shrinkage.py",
+      "source_line": 84,
+      "severity": "low",
+      "confidence": "confirmed",
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E04",
+      "batch": "09",
+      "issue_number": 1416,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1416",
+      "title": "[Enhancement]: Unexpected convention-detector errors are labelled as ordinary no-convention telemetry.",
+      "kind": "enhancement",
+      "source_file": "app/pass_quality.py",
+      "source_line": 325,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E08",
+      "batch": "09",
+      "issue_number": 1417,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1417",
+      "title": "[Enhancement]: Per-adapter extracted WAV temporary directories persist after analysis.",
+      "kind": "enhancement",
+      "source_file": "app/experiments/ref_clip_match.py",
+      "source_line": 122,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E11",
+      "batch": "09",
+      "issue_number": 1418,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1418",
+      "title": "[Enhancement]: Use a consistent completed-attempt denominator for batch ETA",
+      "kind": "enhancement",
+      "source_file": "alexandria_batch_processor.py",
+      "source_line": 606,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E12",
+      "batch": "09",
+      "issue_number": 1419,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1419",
+      "title": "[Enhancement]: Remove unused mtime cache state",
+      "kind": "enhancement",
+      "source_file": "app/prompt_loader.py",
+      "source_line": 50,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E13",
+      "batch": "09",
+      "issue_number": 1420,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1420",
+      "title": "[Enhancement]: Distinguish post-purge verification errors from mutation-free refusal",
+      "kind": "enhancement",
+      "source_file": "tools/hf_purge_batch.py",
+      "source_line": 127,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E16",
+      "batch": "09",
+      "issue_number": 1421,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1421",
+      "title": "[Enhancement]: Move unittest.main guards below all test classes for complete direct module runs.",
+      "kind": "enhancement",
+      "source_file": "app/tests/test_lora_training_benchmark.py",
+      "source_line": 288,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [
+        "T10",
+        "T11",
+        "T12",
+        "T13"
+      ],
+      "status": "open"
+    },
+    {
+      "task_id": "E03",
+      "batch": "10",
+      "issue_number": 1422,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1422",
+      "title": "[Enhancement]: The historical probe launcher repeats readiness probing but lacks an explicit readiness failure branch.",
+      "kind": "enhancement",
+      "source_file": "ab_test_runtime/experiments/three_pass_grimgar25_20260815/run.sh",
+      "source_line": 13,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E14",
+      "batch": "10",
+      "issue_number": 1423,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1423",
+      "title": "[Enhancement]: Keep dated experimental drivers visibly historical and migrate them before reuse",
+      "kind": "enhancement",
+      "source_file": "app/tests/test_chain_failure_guards.py",
+      "source_line": 8,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    },
+    {
+      "task_id": "E15",
+      "batch": "10",
+      "issue_number": 1424,
+      "issue_url": "https://github.com/on22s/alexandria-audiobook2/issues/1424",
+      "title": "[Enhancement]: Update the frozen identity verifier cache path before rerunning it against current scoring code",
+      "kind": "enhancement",
+      "source_file": "ab_test_runtime/evidence/thunder_results_20260930/verify_identity.py",
+      "source_line": 109,
+      "severity": null,
+      "confidence": null,
+      "test_gap_ids": [],
+      "status": "open"
+    }
+  ],
+  "test_gap_owners": {
+    "T01": "F024",
+    "T06": "F026",
+    "T03": "F027",
+    "T02": "F028",
+    "T04": "F029",
+    "T05": "F039",
+    "T07": "F040",
+    "T10": "E16",
+    "T11": "E16",
+    "T12": "E16",
+    "T13": "E16",
+    "T08": "E17",
+    "T09": "E17"
+  }
+}
