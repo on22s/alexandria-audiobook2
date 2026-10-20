@@ -3558,6 +3558,10 @@
     "tests.test_external_comparability.RecordShapeTest.test_a_number_without_a_protocol_is_rejected",
     "tests.test_external_comparability.RecordShapeTest.test_every_entry_carries_every_required_field"
   ],
+  "test_external_finite_audio": [
+    "tests.test_external_finite_audio.ExternalFiniteSampleTests.test_finite_float_response_is_published_without_reencoding",
+    "tests.test_external_finite_audio.ExternalFiniteSampleTests.test_nonfinite_samples_in_later_block_preserve_prior_take_and_clean_staging"
+  ],
   "test_external_tts_client_process": [
     "tests.test_external_tts_client_process.ExternalClientProcessTests.test_abrupt_native_parent_death_reaps_blocked_sdk_worker",
     "tests.test_external_tts_client_process.ExternalClientProcessTests.test_cached_client_and_private_output_survive_subsequent_sdk_overwrites",

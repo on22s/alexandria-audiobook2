@@ -92,7 +92,8 @@ def get_training_reference_path(data_dir, entries):
 
 def get_training_dataset_preflight(data_dir):
     """Validate metadata and native audio without allocating a model."""
-    from audio_validation import validate_generated_audio, validate_finite_audio_values
+    from audio_validation import (GeneratedAudioError, validate_generated_audio,
+                                  validate_finite_audio_values)
     from utils import is_path_inside
     import soundfile as sf
     entries, used_split = get_training_metadata(data_dir)
@@ -105,7 +106,10 @@ def get_training_dataset_preflight(data_dir):
             raise ValueError(f"Training audio escapes the dataset directory: {relative}")
         paths.add(path)
     for path in sorted(paths):
-        validate_generated_audio(path, "training preflight")
+        try:
+            validate_generated_audio(path, "training preflight")
+        except GeneratedAudioError as error:
+            raise ValueError(str(error)) from error
         with sf.SoundFile(path) as audio:
             for block in audio.blocks(blocksize=65536, dtype="float32"):
                 validate_finite_audio_values(block, "training preflight")

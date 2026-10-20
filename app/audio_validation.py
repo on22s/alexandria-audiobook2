@@ -113,6 +113,7 @@ def validate_generated_audio(path, context="audio generation"):
                 block = audio.read(65536)
                 if not len(block):
                     break
+                validate_finite_audio_values(block, context)
                 decoded_frames += len(block)
     except Exception as exc:  # noqa: BLE001
         raise GeneratedAudioError(
