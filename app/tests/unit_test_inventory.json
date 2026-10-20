@@ -1314,6 +1314,10 @@
     "tests.test_candidate_scoring.ScoreTest.test_no_visible_candidate_declines_rather_than_picking",
     "tests.test_candidate_scoring.ScoreTest.test_the_best_scoring_candidate_wins"
   ],
+  "test_cascade_input_identity": [
+    "tests.test_cascade_input_identity.CascadeInputIdentityTests.test_expensive_phase_refuses_changed_inputs_before_inference_or_publication",
+    "tests.test_cascade_input_identity.CascadeInputIdentityTests.test_matching_width_and_batch_phases_publish_the_bound_gold_rows"
+  ],
   "test_cast_apply_context_js": [
     "tests.test_cast_apply_context_js.CastApplyContextJsTests.test_stale_matches_and_old_panel_submission_are_refused"
   ],
@@ -3422,6 +3426,10 @@
     "tests.test_experiment_manifest.StrictSharedSummaryTest.test_only_two_arm_long_schema_artifacts_get_a_strict_block",
     "tests.test_experiment_manifest.UntrackedHarnessTest.test_a_fully_tracked_harness_reports_none",
     "tests.test_experiment_manifest.UntrackedHarnessTest.test_an_untracked_harness_marks_the_tree_dirty"
+  ],
+  "test_experiment_narrator_resume": [
+    "tests.test_experiment_narrator_resume.NarratorResumeTests.test_checkpoint_retry_policy_is_opt_in_and_retains_nonempty_wrong_predictions",
+    "tests.test_experiment_narrator_resume.NarratorResumeTests.test_failed_block_retries_after_transport_recovers_and_wrong_answers_stay_cached"
   ],
   "test_experiment_provenance": [
     "tests.test_experiment_provenance.ReproducibleHarnessTests.test_clean_run_must_match_its_recorded_commit",
@@ -6959,6 +6967,11 @@
     "tests.test_reference_cache_contention.ReferenceCacheContentionTests.test_cached_hit_finishes_while_worker_lock_is_held",
     "tests.test_reference_cache_contention.ReferenceCacheContentionTests.test_changed_bytes_cannot_use_cached_hit_while_worker_busy"
   ],
+  "test_reference_intervention_cache": [
+    "tests.test_reference_intervention_cache.ReferenceInterventionCacheTests.test_changed_zip_refuses_base_and_arm_reuse_without_training_or_mutation",
+    "tests.test_reference_intervention_cache.ReferenceInterventionCacheTests.test_failed_extraction_and_arm_copy_publish_no_partial_cache_and_allow_retry",
+    "tests.test_reference_intervention_cache.ReferenceInterventionCacheTests.test_legacy_and_mutated_cache_refuse_without_replacing_bytes"
+  ],
   "test_reference_key_hashing": [
     "tests.test_reference_key_hashing.ReferenceKeyHashingTests.test_changed_clip_and_unreadable_endpoint_still_invalidate_identity",
     "tests.test_reference_key_hashing.ReferenceKeyHashingTests.test_twelve_clips_are_read_once_and_ordered_pair_hashes_are_unchanged"
@@ -8284,6 +8297,11 @@
     "tests.test_shipped_coverage_third_state.ThirdState.test_an_old_candidates_file_yields_an_empty_third_state",
     "tests.test_shipped_coverage_third_state.ThirdState.test_plain_already_works_is_loaded_as_its_own_state",
     "tests.test_shipped_coverage_third_state.ThirdState.test_the_producer_emits_the_list_not_only_the_count"
+  ],
+  "test_shipping_readiness_cohort": [
+    "tests.test_shipping_readiness_cohort.ShippingCohortTests.test_conflicting_complete_and_partial_runs_require_explicit_artifact",
+    "tests.test_shipping_readiness_cohort.ShippingCohortTests.test_incomplete_duplicate_or_unmatched_rows_refuse_without_overwriting_output",
+    "tests.test_shipping_readiness_cohort.ShippingCohortTests.test_one_complete_run_remains_usable_without_selector"
   ],
   "test_simd_benchmark": [
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_scalar_and_numpy_audio_metrics_match",
@@ -10289,6 +10307,11 @@
     "tests.test_voice_drift_boundaries.VoiceDriftBoundaryTests.test_configured_and_fallback_references_cannot_decode_outside_root",
     "tests.test_voice_drift_boundaries.VoiceDriftBoundaryTests.test_disappeared_uid_is_reported_and_remaining_results_are_persisted",
     "tests.test_voice_drift_boundaries.VoiceDriftBoundaryTests.test_endpoint_logs_incomplete_persistence_without_success_summary"
+  ],
+  "test_voice_drift_cache_identity": [
+    "tests.test_voice_drift_cache_identity.VoiceDriftCacheIdentityTests.test_adapter_change_during_scoring_refuses_publication_of_cached_audio",
+    "tests.test_voice_drift_cache_identity.VoiceDriftCacheIdentityTests.test_changed_or_unreceipted_wav_regenerates_only_that_line",
+    "tests.test_voice_drift_cache_identity.VoiceDriftCacheIdentityTests.test_seed_source_adapter_and_settings_changes_refuse_old_pcm_before_scoring"
   ],
   "test_voice_feature_benchmark": [
     "tests.test_voice_feature_benchmark.BenchmarkDeviceProvenanceTests.test_cli_reports_the_device_requested_for_the_measurements",

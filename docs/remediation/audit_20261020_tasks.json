@@ -61,7 +61,9 @@
       "depends_on": [
         "01",
         "02"
-      ]
+      ],
+      "status": "in_progress",
+      "validation_status": "Six audio fixes have 240 targeted CPU regressions passed; integrated release and CI pending. F028 worker lifetime remains open for a separate shared-layer PR."
     },
     {
       "id": "04",
@@ -76,7 +78,10 @@
       "depends_on": [
         "01"
       ],
-      "status": "in_progress"
+      "status": "accepted",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1429",
+      "merge_commit": "0dd5e8465c4d96a31cd526f5ba3cc2b195a36927",
+      "validation_status": "Accepted: all eight exact-head CI checks passed"
     },
     {
       "id": "05",
@@ -90,7 +95,9 @@
       ],
       "depends_on": [
         "02"
-      ]
+      ],
+      "status": "in_progress",
+      "validation_status": "206 targeted CPU regressions and4 goal-navigation tests passed; required ./ready.sh quick passed8,583 unit tests without unit skips,72 API passes with12 explicit full-mode exclusions,all8 release gates. Exact-head CI/merge pending; not accepted. GPU/model/listening and full native-platform qualification unrun."
     },
     {
       "id": "06",
@@ -405,7 +412,9 @@
       "test_gap_ids": [
         "T01"
       ],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete failure reproduced against the accepted Batch02 baseline before fix; integrated onto accepted Batch04.",
+      "validation_status": "288 distinct targeted CPU tests passed across six audio fixes, using real dispatch, valid PCM and CPU model/provider callbacks. Integrated ./ready.sh and exact-head CI/merge pending; not accepted. F028 remains open separately."
     },
     {
       "task_id": "F025",
@@ -419,7 +428,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete failure reproduced against the accepted Batch02 baseline before fix; integrated onto accepted Batch04.",
+      "validation_status": "288 distinct targeted CPU tests passed across six audio fixes, using real dispatch, valid PCM and CPU model/provider callbacks. Integrated ./ready.sh and exact-head CI/merge pending; not accepted. F028 remains open separately."
     },
     {
       "task_id": "F026",
@@ -435,7 +446,9 @@
       "test_gap_ids": [
         "T06"
       ],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete failure reproduced against the accepted Batch02 baseline before fix; integrated onto accepted Batch04.",
+      "validation_status": "288 distinct targeted CPU tests passed across six audio fixes, using real dispatch, valid PCM and CPU model/provider callbacks. Integrated ./ready.sh and exact-head CI/merge pending; not accepted. F028 remains open separately."
     },
     {
       "task_id": "F027",
@@ -451,7 +464,9 @@
       "test_gap_ids": [
         "T03"
       ],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete failure reproduced against the accepted Batch02 baseline before fix; integrated onto accepted Batch04.",
+      "validation_status": "288 distinct targeted CPU tests passed across six audio fixes, using real dispatch, valid PCM and CPU model/provider callbacks. Integrated ./ready.sh and exact-head CI/merge pending; not accepted. F028 remains open separately."
     },
     {
       "task_id": "F028",
@@ -483,7 +498,9 @@
       "test_gap_ids": [
         "T04"
       ],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete failure reproduced against the accepted Batch02 baseline before fix; integrated onto accepted Batch04.",
+      "validation_status": "288 distinct targeted CPU tests passed across six audio fixes, using real dispatch, valid PCM and CPU model/provider callbacks. Integrated ./ready.sh and exact-head CI/merge pending; not accepted. F028 remains open separately."
     },
     {
       "task_id": "F030",
@@ -497,7 +514,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete failure reproduced against the accepted Batch02 baseline before fix; integrated onto accepted Batch04.",
+      "validation_status": "288 distinct targeted CPU tests passed across six audio fixes, using real dispatch, valid PCM and CPU model/provider callbacks. Integrated ./ready.sh and exact-head CI/merge pending; not accepted. F028 remains open separately."
     },
     {
       "task_id": "F018",
@@ -511,9 +530,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh accepted Batch01 baseline before fix",
-      "validation_status": "115 distinct targeted checks passed. Required local ./ready.sh quick against accepted Batch02 base passed8570 unit tests without skips,72 API checks without failures,12 explicit full-mode exclusions,and all compile/inventory/evidence/results/API-contract gates. Exact-head CI and merge pending; not accepted."
+      "validation_status": "Accepted: 115 targeted CPU/Node regressions;8570 unit tests with no unit skips;72 API passes,12 explicit full-mode exclusions;all eight exact-head CI checks passed. Full native-platform/GPU/model/listening qualifications unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1429",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "0dd5e8465c4d96a31cd526f5ba3cc2b195a36927",
+      "tested_commit": "08c140e61ad6bf0d16160ff48b160e07d5c0f079"
     },
     {
       "task_id": "F038",
@@ -527,9 +550,13 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh accepted Batch01 baseline before fix",
-      "validation_status": "115 distinct targeted checks passed. Required local ./ready.sh quick against accepted Batch02 base passed8570 unit tests without skips,72 API checks without failures,12 explicit full-mode exclusions,and all compile/inventory/evidence/results/API-contract gates. Exact-head CI and merge pending; not accepted."
+      "validation_status": "Accepted: 115 targeted CPU/Node regressions;8570 unit tests with no unit skips;72 API passes,12 explicit full-mode exclusions;all eight exact-head CI checks passed. Full native-platform/GPU/model/listening qualifications unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1429",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "0dd5e8465c4d96a31cd526f5ba3cc2b195a36927",
+      "tested_commit": "08c140e61ad6bf0d16160ff48b160e07d5c0f079"
     },
     {
       "task_id": "F039",
@@ -545,9 +572,13 @@
       "test_gap_ids": [
         "T05"
       ],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh accepted Batch01 baseline before fix",
-      "validation_status": "115 distinct targeted checks passed. Required local ./ready.sh quick against accepted Batch02 base passed8570 unit tests without skips,72 API checks without failures,12 explicit full-mode exclusions,and all compile/inventory/evidence/results/API-contract gates. Exact-head CI and merge pending; not accepted."
+      "validation_status": "Accepted: 115 targeted CPU/Node regressions;8570 unit tests with no unit skips;72 API passes,12 explicit full-mode exclusions;all eight exact-head CI checks passed. Full native-platform/GPU/model/listening qualifications unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1429",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "0dd5e8465c4d96a31cd526f5ba3cc2b195a36927",
+      "tested_commit": "08c140e61ad6bf0d16160ff48b160e07d5c0f079"
     },
     {
       "task_id": "F040",
@@ -563,9 +594,13 @@
       "test_gap_ids": [
         "T07"
       ],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh accepted Batch01 baseline before fix",
-      "validation_status": "115 distinct targeted checks passed. Required local ./ready.sh quick against accepted Batch02 base passed8570 unit tests without skips,72 API checks without failures,12 explicit full-mode exclusions,and all compile/inventory/evidence/results/API-contract gates. Exact-head CI and merge pending; not accepted."
+      "validation_status": "Accepted: 115 targeted CPU/Node regressions;8570 unit tests with no unit skips;72 API passes,12 explicit full-mode exclusions;all eight exact-head CI checks passed. Full native-platform/GPU/model/listening qualifications unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1429",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "0dd5e8465c4d96a31cd526f5ba3cc2b195a36927",
+      "tested_commit": "08c140e61ad6bf0d16160ff48b160e07d5c0f079"
     },
     {
       "task_id": "E07",
@@ -579,9 +614,13 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh accepted Batch01 baseline before fix",
-      "validation_status": "115 distinct targeted checks passed. Required local ./ready.sh quick against accepted Batch02 base passed8570 unit tests without skips,72 API checks without failures,12 explicit full-mode exclusions,and all compile/inventory/evidence/results/API-contract gates. Exact-head CI and merge pending; not accepted."
+      "validation_status": "Accepted: 115 targeted CPU/Node regressions;8570 unit tests with no unit skips;72 API passes,12 explicit full-mode exclusions;all eight exact-head CI checks passed. Full native-platform/GPU/model/listening qualifications unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1429",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "0dd5e8465c4d96a31cd526f5ba3cc2b195a36927",
+      "tested_commit": "08c140e61ad6bf0d16160ff48b160e07d5c0f079"
     },
     {
       "task_id": "F006",
@@ -595,7 +634,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete stale-input/recovery failure reproduced before fix on accepted Batch04 main.",
+      "validation_status": "206 targeted CPU regressions and4 goal-navigation tests passed; required ./ready.sh quick passed8,583 unit tests without unit skips,72 API passes with12 explicit full-mode exclusions,all8 release gates. Exact-head CI/merge pending; not accepted. GPU/model/listening and full native-platform qualification unrun."
     },
     {
       "task_id": "F011",
@@ -609,7 +650,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete stale-input/recovery failure reproduced before fix on accepted Batch04 main.",
+      "validation_status": "206 targeted CPU regressions and4 goal-navigation tests passed; required ./ready.sh quick passed8,583 unit tests without unit skips,72 API passes with12 explicit full-mode exclusions,all8 release gates. Exact-head CI/merge pending; not accepted. GPU/model/listening and full native-platform qualification unrun."
     },
     {
       "task_id": "F012",
@@ -623,7 +666,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete stale-input/recovery failure reproduced before fix on accepted Batch04 main.",
+      "validation_status": "206 targeted CPU regressions and4 goal-navigation tests passed; required ./ready.sh quick passed8,583 unit tests without unit skips,72 API passes with12 explicit full-mode exclusions,all8 release gates. Exact-head CI/merge pending; not accepted. GPU/model/listening and full native-platform qualification unrun."
     },
     {
       "task_id": "F014",
@@ -637,7 +682,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete stale-input/recovery failure reproduced before fix on accepted Batch04 main.",
+      "validation_status": "206 targeted CPU regressions and4 goal-navigation tests passed; required ./ready.sh quick passed8,583 unit tests without unit skips,72 API passes with12 explicit full-mode exclusions,all8 release gates. Exact-head CI/merge pending; not accepted. GPU/model/listening and full native-platform qualification unrun."
     },
     {
       "task_id": "F016",
@@ -651,7 +698,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Concrete stale-input/recovery failure reproduced before fix on accepted Batch04 main.",
+      "validation_status": "206 targeted CPU regressions and4 goal-navigation tests passed; required ./ready.sh quick passed8,583 unit tests without unit skips,72 API passes with12 explicit full-mode exclusions,all8 release gates. Exact-head CI/merge pending; not accepted. GPU/model/listening and full native-platform qualification unrun."
     },
     {
       "task_id": "F005",

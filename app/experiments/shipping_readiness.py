@@ -5,8 +5,8 @@ listener would notice immediately: a book that gets worse, or a specific
 character whose lines start going to someone else. +5.4 pooled is not a reason
 to ship if one lead character collapses.
 
-This is the check before the decision, over the shippable stack only (Q4 base,
-f16 LoRA, llama.cpp - the configuration a user would actually run):
+This is the check before the decision, over one complete paired serving run.
+Select a run whose recorded model and settings match the intended deployment:
 
   per book        paired McNemar, so a book that improves by luck is visible
   per character   every lead, with the count of lines that changed direction
@@ -21,6 +21,7 @@ small share of what is heard, and the noise on a handful of lines is larger
 than the effect.
 """
 import argparse, collections, glob, json, os, sys
+import hashlib
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -45,24 +46,64 @@ def leads_for(book):
             if c / total >= LEAD_SHARE and s not in SPECIAL}
 
 
+def get_paired_serving_run(path):
+    """Read one complete paired measurement, never merge arms across runs."""
+    with open(path, "rb") as handle:
+        raw = handle.read()
+    doc = json.loads(raw)
+    meta = doc.get("meta") or {}
+    if (meta.get("experiment") != "lora_serving_eval" or not meta.get("model")
+            or meta.get("validation") != "ok"
+            or set((meta.get("decoding") or {}).get("arms") or []) != {"base", "lora"}):
+        raise ValueError("artifact must identify a validated paired lora_serving_eval run")
+    arms = {"base": {}, "lora": {}}
+    for row in doc.get("rows") or []:
+        if (not isinstance(row, dict) or row.get("arm") not in arms
+                or not isinstance(row.get("id"), str) or not row["id"]
+                or type(row.get("correct")) is not bool
+                or not isinstance(row.get("predicted"), str) or not row["predicted"].strip()
+                or not isinstance(row.get("line"), str) or not row["line"]
+                or not isinstance(row.get("expected"), str) or not row["expected"].strip()):
+            raise ValueError("paired artifact has an invalid or unanswered row")
+        target = arms[row["arm"]]
+        if row["id"] in target:
+            raise ValueError("paired artifact has duplicate arm/id rows")
+        target[row["id"]] = row
+    if not arms["base"] or set(arms["base"]) != set(arms["lora"]):
+        raise ValueError("artifact must contain both arms for exactly the same nonempty row set")
+    for row_id, base in arms["base"].items():
+        lora = arms["lora"][row_id]
+        if any(base.get(key) != lora.get(key) for key in ("line", "expected", "prompt_sha256")):
+            raise ValueError("paired rows disagree on text, gold or prompt identity")
+    source = {"path": os.path.abspath(path), "sha256": hashlib.sha256(raw).hexdigest(),
+              "model": meta["model"], "endpoint": meta.get("endpoint"),
+              "decoding": meta["decoding"], "gold_files": meta.get("gold_files"),
+              "read_inputs": meta.get("read_inputs")}
+    return arms, source
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=LEDGER + "/shipping_readiness.json")
+    ap.add_argument("--artifact", help="one complete paired lora_serving_eval JSON; required when the ledger has multiple runs")
     args = ap.parse_args()
 
-    base, lora, expected = {}, {}, {}
-    for path in sorted(glob.glob(LEDGER + "/lora_serving_eval__*.json")):
-        doc = json.load(open(path))
-        for row in doc["rows"]:
-            target = base if row["arm"] == "base" else lora
-            target[row["id"]] = bool(row.get("correct"))
-            expected[row["id"]] = (row.get("expected") or "").upper()
+    paths = [args.artifact] if args.artifact else sorted(glob.glob(LEDGER + "/lora_serving_eval__*.json"))
+    if len(paths) != 1:
+        ap.error("choose one complete paired run with --artifact; refusing to pool ledger artifacts")
+    try:
+        arms, source = get_paired_serving_run(paths[0])
+    except (OSError, ValueError, TypeError, AttributeError) as error:
+        ap.error(str(error))
+    base = {key: row["correct"] for key, row in arms["base"].items()}
+    lora = {key: row["correct"] for key, row in arms["lora"].items()}
+    expected = {key: row["expected"].upper() for key, row in arms["base"].items()}
     shared = sorted(set(base) & set(lora))
     if not shared:
         print("no shippable-stack artifact with both arms yet")
         return
 
-    print(f"Shippable stack (Q4 base + f16 LoRA via llama.cpp), "
+    print(f"Paired serving run ({source['model']}), "
           f"{len(shared)} rows\n")
     print(f"  {'book':18}{'base':>8}{'lora':>8}{'delta':>8}"
           f"{'gained':>8}{'lost':>7}{'p':>10}")
@@ -117,16 +158,15 @@ def main():
 
     print("\n  VERDICT")
     if not blockers:
-        print("    No book and no lead character regresses. The gain is broad "
-              "rather than\n    carried by one book, so making the adapter the "
-              "default is supported by\n    this evidence.")
+        print("    No measured book or measured lead character regresses in this paired run. "
+              "The result covers the paired rows in " + os.path.basename(source["path"]) + ".")
     else:
         print("    Regressions found - these are what a listener would notice:")
         for b in blockers:
             print(f"      {b}")
         print("    A pooled gain does not settle it; decide against these.")
 
-    json.dump({"per_book": per_book, "per_character": per_char,
+    json.dump({"source_artifact": source, "per_book": per_book, "per_character": per_char,
                "pooled": {"base": total_b / len(shared),
                           "lora": total_l / len(shared),
                           "gained": gained, "lost": lost, "p": p},

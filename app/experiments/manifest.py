@@ -477,7 +477,7 @@ class ExperimentRecord:
     # settings all match. Anything else and the stale file is moved aside and
     # the run starts clean, loudly.
 
-    def enable_checkpoint(self, path, save_every=25):
+    def enable_checkpoint(self, path, save_every=25, *, retry_unanswered=False):
         """Resume from `path` if it matches this run exactly; else start fresh."""
         self._ckpt_path = path
         self._ckpt_every = save_every
@@ -506,6 +506,10 @@ class ExperimentRecord:
                   flush=True)
             return
         self.rows = saved.get("rows") or []
+        if retry_unanswered:
+            restored_count = len(self.rows)
+            self.rows = self.get_answered_rows(self.rows)
+            self.meta["checkpoint"]["unanswered_retried"] = restored_count - len(self.rows)
         self._ckpt_done = {(r["arm"], r["id"]) for r in self.rows}
         self.meta["checkpoint"].update({"resumed": True,
                                         "rows_restored": len(self.rows)})
@@ -548,6 +552,12 @@ class ExperimentRecord:
     # ---- end TEMPORARY -------------------------------------------------
 
     @staticmethod
+    def get_answered_rows(rows):
+        """Retain actual answers, including incorrect ones, as completed work."""
+        return [row for row in rows if row.get("predicted") is not None
+                and str(row["predicted"]).strip()]
+
+    @staticmethod
     def _answered(rows):
         """-> {arm: rows that produced a prediction}.
 
@@ -565,10 +575,8 @@ class ExperimentRecord:
         an artifact looks like.
         """
         out = collections.Counter()
-        for row in rows:
-            predicted = row.get("predicted")
-            if predicted is not None and str(predicted).strip():
-                out[row["arm"]] += 1
+        for row in ExperimentRecord.get_answered_rows(rows):
+            out[row["arm"]] += 1
         return out
 
     def summary(self):

@@ -114,7 +114,7 @@ def main():
     checkpoint = os.path.join(
         REPO, "ab_test_runtime", "experiments",
         f"pdnc_narrator_prior__{args.tag}.json.ckpt")
-    record.enable_checkpoint(checkpoint)
+    record.enable_checkpoint(checkpoint, retry_unanswered=True)
 
     summary = {}
     for book, fixture in fixtures.items():

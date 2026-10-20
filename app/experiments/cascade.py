@@ -37,15 +37,17 @@ showed w4's answers are worse than w1's on both books, so the cascade keeps w1's
 answer wherever the two agree and never keeps a w4 answer at all.
 """
 import collections
+import hashlib
 import json, os, re, sys, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from openai import OpenAI
 from experiments.manifest import ExperimentRecord
-from experiments.provenance import provenance
+from experiments.provenance import provenance, file_sha256
 from experiments.stats import clopper_pearson, exact_mcnemar, paired
 from generate_script import LLMGenParams
 from three_pass_generate import (attribute_batch, build_roster,
-                                 get_deterministic_named_entry)
+                                 get_deterministic_named_entry, build_attribute_request,
+                                 three_pass_fingerprint)
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -85,11 +87,15 @@ TRIGGER = os.environ.get("EXPERIMENT_TRIGGER", "width")   # width | batch
 STATE = os.path.join(REPO, "ab_test_runtime", "experiments",
                      f"cascade_state__{BOOK}__{TAG}.json")
 
-gold = json.load(open(GOLD_PATH))
-src = open(M + f"inputs/{BOOK}.txt", encoding="utf-8").read()
+SOURCE_PATH = M + f"inputs/{BOOK}.txt"
+CHECKPOINT_PATH = M + INPUT_RUN + f"/{BOOK}/result.json.threepass_checkpoint.json"
+with open(GOLD_PATH, encoding="utf-8") as handle:
+    gold = json.load(handle)
+with open(SOURCE_PATH, encoding="utf-8") as handle:
+    src = handle.read()
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
 
-cp = load_generation_delta_checkpoint(M + INPUT_RUN + f"/{BOOK}/result.json.threepass_checkpoint.json")
+cp = load_generation_delta_checkpoint(CHECKPOINT_PATH)
 seg = cp["segmented"]
 roster = build_roster([e for e in (cp.get("named") or []) if e], src)
 AL = [{n.upper() for n in g} for g in gold.get("aliases", [])]
@@ -111,6 +117,28 @@ client = OpenAI(base_url=BASE_URL, api_key="local")
 params = LLMGenParams(max_tokens=12000, context_length=32768, temperature=0.0,
                       attribute_temperature=0.0, top_p=0.8,
                       reasoning_effort="none")
+
+
+def get_input_hash(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
+                                      separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+# Bind the decoded checkpoint, not just its header: delta-backed snapshots can
+# change segmentation without changing the header file's bytes.
+input_identity = {
+    "version": 1,
+    "source": get_input_hash(src),
+    "gold": get_input_hash(gold),
+    "checkpoint": get_input_hash(cp),
+    "roster": get_input_hash(roster),
+    "question": get_input_hash([three_pass_fingerprint(
+                                    src, MODEL, BATCH, params=params, endpoint=BASE_URL,
+                                    attribute_batch_size=BATCH),
+                                build_attribute_request([], params, roster),
+                                TRIGGER, BATCH, MODEL, BIG_MODEL, BASE_URL]),
+    "harness": file_sha256(__file__),
+}
 
 
 def neighbours(index, width):
@@ -194,6 +222,7 @@ if PHASE == "cheap":
     route = [i for i in scoreable
              if (w1.get(i) or "").upper() != (w4.get(i) or "").upper()]
     state = {"book": BOOK, "cheap_model": MODEL, "endpoint": BASE_URL,
+             "input_identity": input_identity,
              "elapsed_s": round(time.time() - started, 1),
              "w1": {str(i): w1.get(i) for i in scoreable},
              "w4": {str(i): w4.get(i) for i in scoreable},
@@ -226,6 +255,9 @@ with open(STATE, encoding="utf-8") as fh:
     state = json.load(fh)
 if state["book"] != BOOK:
     raise SystemExit(f"state file is for {state['book']}, not {BOOK}")
+if state.get("input_identity") != input_identity:
+    raise SystemExit("REFUSING cascade input identity mismatch or legacy unbound state; "
+                     "rerun the cheap phase with the current inputs and configuration.")
 route = [int(i) for i in state["route"]]
 w1 = {int(k): v for k, v in state["w1"].items()}
 print(f"  routing {len(route)} rows decided by the cheap phase "
@@ -242,7 +274,9 @@ record = ExperimentRecord(
     environment=json.loads(_env) if _env else None,
     notes="Live end-to-end cascade. Offline pricing predicted 78.0% grimgar03 "
           "and 65.5% mushoku16, against 79.2%/66.9% for the big model on every "
-          "row. Routing is decided only from answers produced in this run.")
+          "row. Routing is decided only from answers produced in this run.",
+    inputs=[SOURCE_PATH, CHECKPOINT_PATH])
+record.meta["cascade_input_identity"] = input_identity
 
 routed = set(route)
 for i in scoreable:

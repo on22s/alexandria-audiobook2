@@ -40,12 +40,58 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from pathlib import Path
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
 sys.path.insert(0, os.path.join(APP, "experiments"))
+from experiments.provenance import file_sha256
+from utils import atomic_json_write, file_lock
+
+
+def ensure_reference_data_cache(zip_path, destination, source_directory=None):
+    """Reuse only a complete extraction/copy bound to this source archive."""
+    from retrain_honest import extract
+    destination = Path(destination)
+    receipt_name = ".source_identity.json"
+    archive_hash = file_sha256(zip_path)
+    def get_identity(directory):
+        return {"version": 1, "source_zip_sha256": archive_hash,
+                "files": {str(path.relative_to(directory)): file_sha256(path)
+                          for path in sorted(directory.rglob("*")) if path.is_file()
+                          and path != directory / receipt_name
+                          and not (source_directory is not None and path == directory / "ref.wav")}}
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with file_lock(str(destination) + ".source"):
+        receipt = destination / receipt_name
+        if destination.exists():
+            try:
+                stored = json.loads(receipt.read_text())
+            except (OSError, ValueError):
+                stored = None
+            if stored != get_identity(destination):
+                sys.exit("Dataset cache input identity mismatch or legacy unbound cache; use a fresh --work directory.")
+        else:
+            with tempfile.TemporaryDirectory(prefix=".reference-data-", dir=destination.parent) as temporary:
+                staged = Path(temporary) / "data"
+                if source_directory is None:
+                    extract(zip_path, str(staged))
+                else:
+                    source_receipt = json.loads((Path(source_directory) / receipt_name).read_text())
+                    if source_receipt.get("source_zip_sha256") != archive_hash:
+                        sys.exit("Source dataset identity changed before arm preparation; use a fresh --work directory.")
+                    shutil.copytree(source_directory, staged)
+                    expected = {name: digest for name, digest in source_receipt["files"].items()
+                                if name != "ref.wav"}
+                    if get_identity(staged)["files"] != expected:
+                        sys.exit("Source dataset identity changed during arm preparation; use a fresh --work directory.")
+                if file_sha256(zip_path) != archive_hash:
+                    sys.exit("Source ZIP identity changed during extraction; use a fresh --work directory.")
+                atomic_json_write(get_identity(staged), str(staged / receipt_name))
+                os.replace(staged, destination)
+    return archive_hash
 
 
 def rank_clips(paths, dataset_root):
@@ -100,7 +146,7 @@ def main():
         REPO, "ab_test_runtime", "experiments", "reference_intervention.json"))
     args = ap.parse_args()
 
-    from retrain_honest import dataset_of, find_zip, extract
+    from retrain_honest import dataset_of, find_zip
     from library_voice_fidelity import extract_val, ecapa_pairs
 
     dataset, _ = dataset_of(args.adapter, args.models)
@@ -109,13 +155,13 @@ def main():
         sys.exit(f"no source zip for {args.adapter}")
     base = os.path.join(args.work, args.adapter)
     ddir = os.path.join(base, "data")
-    if not os.path.exists(os.path.join(ddir, "metadata.jsonl")):
-        extract(zp, ddir)
+    source_identity = ensure_reference_data_cache(zp, ddir)
 
     meta_p = os.path.join(ddir, "train", "metadata.jsonl")
     if not os.path.exists(meta_p):
         meta_p = os.path.join(ddir, "metadata.jsonl")
-    rows = [json.loads(l) for l in open(meta_p, encoding="utf-8") if l.strip()]
+    with open(meta_p, encoding="utf-8") as handle:
+        rows = [json.loads(l) for l in handle if l.strip()]
     candidates = [os.path.join(ddir, r["audio_filepath"])
                   for r in rows[:args.rank_clips]
                   if os.path.exists(os.path.join(ddir, r["audio_filepath"]))]
@@ -134,6 +180,8 @@ def main():
         os.path.join(os.path.dirname(REPO), "alexandria-audiobook.git",
                      "app", "env", "bin", "python"))
     clips = extract_val(zp, os.path.join(base, "val"), args.eval_lines)
+    if file_sha256(zp) != source_identity:
+        sys.exit("Source ZIP identity changed while preparing validation; use a fresh --work directory.")
     results = []
 
     # A third arm from ANOTHER narrator, when asked for. This is the condition
@@ -169,8 +217,7 @@ def main():
         # one directory and swapping the file would make the two runs depend on
         # execution order.
         adir = os.path.join(base, f"data_{arm}")
-        if not os.path.exists(os.path.join(adir, "metadata.jsonl")):
-            shutil.copytree(ddir, adir)
+        ensure_reference_data_cache(zp, adir, source_directory=ddir)
         shutil.copy2(ref_path, os.path.join(adir, "ref.wav"))
         odir = os.path.join(base, f"adapter_{arm}")
         log = os.path.join(REPO, "ab_test_runtime", "logs",
@@ -262,7 +309,10 @@ def main():
                     f"library actually exhibited")
     print(f"  VERDICT: {verdict}")
 
+    if file_sha256(zp) != source_identity:
+        sys.exit("Source ZIP identity changed during the experiment; refusing publication.")
     doc = {"adapter": args.adapter, "dataset": dataset, "seed": args.seed,
+           "source_zip_sha256": source_identity,
            "epochs": args.epochs, "verdict": verdict, "results": results}
     try:
         from experiments.provenance import provenance

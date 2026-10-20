@@ -2760,14 +2760,33 @@ skips and 72 API checks with 12 explicit full-mode exclusions; development
 validation included 387 distinct targeted regressions. No GPU/model/listening
 or full native-platform qualification is inferred from these CPU checks.
 
-**Batch 04 progress — 2026-10-20.** Five preparation/UI recovery fixes are
-implemented independently of Batch 02, depending only on accepted Batch 01.
-The 115 distinct targeted CPU/Node checks cover real picker/start lifecycles,
-native upload retries and preservation of progress/audio, including failure
-recovery and accessible training progress. Required quick verification against
-the accepted Batch 02 base passed 8,570 unit tests without skips and 72 API
-checks with 12 explicit full-mode exclusions. Exact-head CI and merge are
-pending. These five tasks remain open; **11/58 accepted, 47 remain**.
+**Accepted — Batch 04, 2026-10-20.** [PR #1429](https://github.com/on22s/alexandria-audiobook2/pull/1429)
+merged as `0dd5e8465c4d96a31cd526f5ba3cc2b195a36927`, tested head
+`08c140e61ad6bf0d16160ff48b160e07d5c0f079`; the trees are identical.
+**16/58 tasks accepted; 42 remain.** All eight exact-head CI checks passed:
+three unit shards, the complete-inventory aggregate, native Windows ownership
+and three OS reports-checkJs candidates. Local quick release passed 8,570
+unit tests without unit skips and 72 API checks with 12 explicit full-mode
+exclusions, plus 115 distinct targeted CPU/Node checks. Full native-platform,
+GPU/model and listening qualifications are unrun.
+
+**Batch 03 progress — 2026-10-20.** Six audio fixes have passed 288 distinct
+targeted CPU checks covering take seeds, once-only pronunciation, immutable
+clone references, renamed/relocated drift references, and frame-based export
+positions. They are integrated onto accepted Batch 04; full release/CI/merge
+are pending. F028/T02 stays open for its own shared worker-lifetime PR under
+the plan's split rule. No task is removed from the active goal. The accepted
+count stays **16/58; 42 remain** until further merged evidence.
+
+**Batch 05 progress — 2026-10-20.** Five experiment recovery/input-identity
+fixes have passed 206 targeted CPU checks. Real CLI fixtures cover cross-phase
+cascade refusal, unanswered-only checkpoint recovery, ZIP-bound extraction and
+arm caches, an explicitly selected paired serving run, and seed/source/adapter/
+synthesis-bound drift audio with per-WAV integrity receipts. Required quick
+release passed 8,583 unit tests without unit skips, 72 API checks without
+failures and 12 explicit full-mode exclusions, plus all eight release gates.
+Exact-head CI and merge are pending. No model/training/listening quality is
+inferred from the CPU callbacks. **16/58 accepted; 42 remain.**
 
 **Target — OPEN.** Zero undisposed execution tasks, with the required
 regressions and platform/model checks recorded on the exact merged revisions.

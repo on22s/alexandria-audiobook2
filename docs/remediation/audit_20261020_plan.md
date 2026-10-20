@@ -47,7 +47,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 03: Preserve rendered text, voice identity, and timing
 
-**Dependencies:** Batch 01, Batch 02. **Tasks:** 7. **Status:** not started. **PR:** not opened.
+**Dependencies:** Batch 01, Batch 02 (accepted). **Tasks:** 7. **Status:** six fixes in integrated qualification; F028 worker lifetime remains open for a separate shared-layer PR. **PR:** not opened.
 
 **Batch acceptance:** Exercise single/native/external/design/clone dispatch using deterministic CPU callbacks and valid synthetic PCM; preserve once-only pronunciation and reference alias policy. Check effective take behavior, complete-sample timing, and repeated stalled-request resource lifetime. Queue any required real-model/audio confirmation separately.
 
@@ -61,19 +61,19 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 04: Repair preparation and frontend recovery
 
-**Dependencies:** Batch 01 (accepted). **Tasks:** 5. **Status:** integrated local quick release passed; exact-head CI and merge pending. **PR:** not opened.
+**Dependencies:** Batch 01 (accepted). **Tasks:** 5. **Status:** accepted and merged. **PR:** [#1429](https://github.com/on22s/alexandria-audiobook2/pull/1429).
 
 **Batch acceptance:** Exercise unchanged-file retry/resume after consuming the preparation token, malformed-ID repair guidance, failed upload state recovery and parameterless training reattachment. Keep unrelated/newer selections and cancellation state intact.
 
-- [ ] **F018** [#1385](https://github.com/on22s/alexandria-audiobook2/issues/1385) — Starting preparation consumes its preview token, so retrying or resuming the unchanged file fails
-- [ ] **F038** [#1386](https://github.com/on22s/alexandria-audiobook2/issues/1386) — Pronunciation preview crashes for saved chunks missing an ID instead of returning the Editor recovery message
-- [ ] **F039** [#1387](https://github.com/on22s/alexandria-audiobook2/issues/1387) — Batch upload failures leave the status spinner claiming upload is still running Includes T05.
-- [ ] **F040** [#1388](https://github.com/on22s/alexandria-audiobook2/issues/1388) — Reattached training announces an undefined epoch total to screen readers Includes T07.
-- [ ] **E07** [#1389](https://github.com/on22s/alexandria-audiobook2/issues/1389) — LoRA uploads duplicate error parsing instead of using the shared HTTP parser
+- [x] **F018** [#1385](https://github.com/on22s/alexandria-audiobook2/issues/1385) — Starting preparation consumes its preview token, so retrying or resuming the unchanged file fails
+- [x] **F038** [#1386](https://github.com/on22s/alexandria-audiobook2/issues/1386) — Pronunciation preview crashes for saved chunks missing an ID instead of returning the Editor recovery message
+- [x] **F039** [#1387](https://github.com/on22s/alexandria-audiobook2/issues/1387) — Batch upload failures leave the status spinner claiming upload is still running Includes T05.
+- [x] **F040** [#1388](https://github.com/on22s/alexandria-audiobook2/issues/1388) — Reattached training announces an undefined epoch total to screen readers Includes T07.
+- [x] **E07** [#1389](https://github.com/on22s/alexandria-audiobook2/issues/1389) — LoRA uploads duplicate error parsing instead of using the shared HTTP parser
 
 ### Batch 05: Bind experiment resume and caches to their inputs
 
-**Dependencies:** Batch 02. **Tasks:** 5. **Status:** not started. **PR:** not opened.
+**Dependencies:** Batch 02 (accepted). **Tasks:** 5. **Status:** all five fixes implemented; local quick release passed, exact-head CI/merge pending. **PR:** not opened.
 
 **Batch acceptance:** Change seed, source bytes, segmentation, adapter bytes and corpus identity independently. Require the correct cache invalidation or a clear refusal; transport failures must remain retryable and cannot become completed records.
 
@@ -201,7 +201,7 @@ complete-inventory aggregate. PR #1428 merged as
 **11/58 accepted, 47 remain.** GPU/model/listening and full native-platform
 qualifications are unrun; macOS prerequisites alone do not establish them.
 
-## Batch 04 verification progress
+## Batch 04 accepted verification
 
 This independent batch depends only on accepted Batch 01. All five preparation
 and UI recovery tasks have fixes, with 115 distinct CPU/Node targeted checks
@@ -223,10 +223,72 @@ files, HTTP status and control recovery.
 Required `./ready.sh` quick verification against the accepted Batch 02 base
 passed 8,570 unit tests without unit skips, 72 API checks without failures and
 12 explicit full-mode exclusions, plus all compile/inventory/evidence/results/
-API-contract gates. Exact published-head CI and merge remain pending; these
-five tasks stay open. **11/58 accepted; 47 remain.** GPU/model/listening and
-full native-platform qualifications are unrun and are not inferred from these
-control-plane fixtures.
+API-contract gates. PR #1429 merged as
+`0dd5e8465c4d96a31cd526f5ba3cc2b195a36927`, tested head
+`08c140e61ad6bf0d16160ff48b160e07d5c0f079`; the trees are identical. All eight
+exact-head CI checks passed: three unit shards, the complete-inventory
+aggregate, native Windows ownership and three OS reports-checkJs candidates.
+**16/58 accepted; 42 remain.** GPU/model/listening and full native-platform
+qualifications are unrun and are not inferred from these control-plane checks.
+
+## Batch 03 verification progress
+
+Six fixes (F024–F027, F029, F030) have 288 distinct targeted CPU tests passed.
+The real Editor generation path retains the configured original seed while
+numbered takes use stable distinct offsets. Actual local and external model
+boundaries receive a single simultaneous pronunciation substitution, including
+overlapping/self-containing rules, direct calls, ensembles and dynamic
+narrators. Direct wrappers, public overrides, seeded inference and LoRA lock
+serialization remain covered.
+
+A 1,000-clip native export fixture checks every Audacity label, complete
+speaker-track PCM and M4B metadata against WAV frame positions. Pauses and
+legacy/mixed-rate promotion controls preserve combined PCM while removing
+accumulated annotation/track drift. Clone upload uses captured private reference
+bytes across rename/replacement; drift measurements resolve durable aliases
+and admit installed built-ins after runtime relocation while refusing symlink
+escapes. Provider/model score callbacks are synthetic CPU fixtures.
+
+These six fixes are integrated onto accepted Batch 04. Full release, exact-head
+CI and merge are pending; none is accepted yet. F028/T02 stays open for a
+separate shared-layer PR because SDK-owned worker shutdown needs its own owned
+lifetime proof. This is the working contract's permitted split, not removal or
+deferral of a task. Batch 03 is complete only when all seven tasks are accepted.
+**16/58 accepted; 42 remain.**
+
+## Batch 05 verification progress
+
+All five failures were reproduced before their fixes. Development validation
+passed 206 targeted CPU regression methods, using real experiment CLI phases,
+checkpoint records, dataset archives and valid PCM with bounded inference,
+training and score callbacks. Unchanged-input reuse and refusal byte preservation
+remain explicit controls.
+
+Cascade state binds decoded checkpoint/source/gold/roster identities, effective
+shared prompt/config policy and harness bytes; legacy or mismatched state refuses
+before expensive inference. Narrator-prior checkpoint recovery opts into retrying
+only unanswered rows while preserving actual wrong answers and the default
+checkpoint policy for other experiments.
+
+Reference-intervention caches retain source-ZIP and extracted-file hashes, stage
+new extraction/arm copies atomically, and refuse legacy, changed or partially
+copied inputs before training. Shipping readiness requires one complete paired
+serving artifact with matching row/text/gold/prompt identities; ambiguous ledgers
+require an explicit selector. Its output records the exact source hash and model
+and limits conclusions to the measured run.
+
+Drift WAV reuse binds source text, seed, adapter serving generation, synthesis
+settings, pronunciation and generation code. Adapter admission and generation
+pins retain serving ownership safeguards. A locked working directory plus
+per-WAV receipts preserve unchanged valid audio and regenerate changed or
+unreceipted clips individually. Adapter/source mutation during measurement
+refuses publication. No model/training/listening qualification is inferred from
+these callback-driven fixtures.
+
+Required local quick release passed 8,583 unit tests without unit skips, 72 API
+checks without failures and 12 explicit full-mode exclusions, plus all eight
+release gates. Exact published-head CI and merge are pending; none of these
+five tasks is accepted yet. **16/58 accepted; 42 remain.**
 
 ## Completion gate
 

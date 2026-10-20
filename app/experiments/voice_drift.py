@@ -38,11 +38,17 @@ import os
 import statistics
 import subprocess
 import sys
+import hashlib
+from pathlib import Path
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 APP = os.path.join(REPO, "app")
 sys.path.insert(0, APP)
+from utils import atomic_json_write, file_lock
+from experiments.provenance import file_sha256
+from adapter_checkpoint_transaction import ensure_adapter_checkpoint
+from lora_evidence import get_adapter_generation_sha256
 
 SIBLING_PY = os.environ.get(
     "ALEXANDRIA_SIBLING_PYTHON",
@@ -106,6 +112,13 @@ def main():
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
+    os.makedirs(args.work, exist_ok=True)
+    name = os.path.basename(args.adapter.rstrip("/"))
+    with file_lock(os.path.join(args.work, name) + ".drift"):
+        run_drift(args)
+
+
+def run_drift(args):
     name = os.path.basename(args.adapter.rstrip("/"))
     out_path = args.out or os.path.join(
         REPO, "ab_test_runtime", "experiments", f"voice_drift__{name}.json")
@@ -117,26 +130,58 @@ def main():
         sys.exit(f"only {len(lines)} usable lines in {args.source}")
     print(f"{name}: {len(lines)} lines from {os.path.basename(args.source)}\n")
 
+    from tts import TTSEngine, _resolve_asset_path
+    from audio_validation import validate_generated_audio
+    import pronunciation
+    with open(os.path.join(APP, "config.json"), encoding="utf-8") as handle:
+        config = json.load(handle)
+    adapter_path = _resolve_asset_path(os.path.join("lora_models", name))
+    with ensure_adapter_checkpoint(adapter_path) as adapter:
+        generation = get_adapter_generation_sha256(adapter)
+    identity = {"version": 1, "seed": args.seed, "lines_requested": args.lines,
+                "lines": lines, "source_sha256": file_sha256(args.source),
+                "adapter_generation_sha256": generation, "tts": config.get("tts") or {},
+                "pronunciation": pronunciation.load_lexicon(),
+                "harness_sha256": file_sha256(__file__),
+                "generation_code": {name: file_sha256(Path(__file__).parents[1] / name)
+                                    for name in ("tts.py", "speech_text.py", "experiments/generation.py")}}
+    identity_hash = hashlib.sha256(json.dumps(identity, sort_keys=True, ensure_ascii=False,
+                                             separators=(",", ":")).encode("utf-8")).hexdigest()
+    receipt_path = Path(wdir) / "input_identity.json"
+    if receipt_path.exists():
+        try:
+            receipt = json.loads(receipt_path.read_text())
+        except (OSError, ValueError):
+            receipt = None
+        if (not isinstance(receipt, dict) or receipt.get("input_sha256") != identity_hash
+                or not isinstance(receipt.get("outputs"), dict)):
+            sys.exit("Drift cache input identity mismatch; use a fresh --work directory.")
+    else:
+        if list(Path(wdir).glob("line_*.wav")):
+            sys.exit("Drift cache has no input identity; use a fresh --work directory.")
+        receipt = {"input_sha256": identity_hash, "outputs": {}}
+        atomic_json_write(receipt, str(receipt_path))
+
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "vcv", os.path.join(APP, "experiments", "voice_compare_view.py"))
     vcv = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(vcv)
 
-    from tts import TTSEngine
     from experiments.generation import render, GenerationFailed
     import soundfile as sf
-    engine = TTSEngine(json.load(open(os.path.join(APP, "config.json"),
-                                      encoding="utf-8")))
+    engine = TTSEngine(config)
     entry = {"type": "lora",
-             "adapter_path": os.path.relpath(
-                 os.path.join(REPO, "lora_models", name), REPO),
+             "adapter_path": adapter_path,
+             "adapter_generation_sha256": generation,
              "seed": str(args.seed)}
 
     rows, failures = [], 0
     for i, text in enumerate(lines):
         wav = os.path.join(wdir, f"line_{i:05d}.wav")
-        if not os.path.exists(wav):
+        cache_key = os.path.basename(wav)
+        if (not os.path.exists(wav)
+                or receipt["outputs"].get(cache_key) != file_sha256(wav)):
             try:
                 render(engine, text, "", "SPEAKER", {"SPEAKER": entry},
                        entry, wav)
@@ -144,6 +189,10 @@ def main():
                 failures += 1
                 rows.append({"i": i, "error": str(exc)[:90]})
                 continue
+            receipt["outputs"][cache_key] = file_sha256(wav)
+            atomic_json_write(receipt, str(receipt_path))
+        else:
+            validate_generated_audio(wav, "cached drift audio")
         info = sf.info(wav)
         rec = {"i": i, "wav": os.path.relpath(wav, REPO),
                "seconds": round(info.frames / info.samplerate, 3),
@@ -188,6 +237,9 @@ def main():
             r["ecapa_vs_anchor"] = c
 
     doc = {"adapter": name, "source": os.path.relpath(args.source, REPO),
+           "source_sha256": identity["source_sha256"],
+           "input_identity_sha256": identity_hash,
+           "adapter_generation_sha256": generation,
            "lines_requested": args.lines, "generated": len(ok),
            "failed": failures, "anchor_lines": args.anchor_lines,
            "seed": args.seed, "ecapa_error": err, "rows": rows}
@@ -224,6 +276,11 @@ def main():
                 doc["drift"][f"{key}_last_third"] = round(b, 3)
                 print(f"  {key:10} {a:8.2f} -> {b:8.2f}  ({(b-a)/a*100:+.1f}%)")
 
+    with ensure_adapter_checkpoint(adapter_path) as adapter:
+        if get_adapter_generation_sha256(adapter) != generation:
+            sys.exit("Adapter generation identity changed during drift measurement; refusing publication.")
+    if file_sha256(args.source) != identity["source_sha256"]:
+        sys.exit("Source input identity changed during drift measurement; refusing publication.")
     try:
         from experiments.provenance import provenance
         doc["provenance"] = provenance(__file__, args)
