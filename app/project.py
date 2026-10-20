@@ -129,6 +129,14 @@ def get_narrator_generation_context(entry):
             if field in entry}
 
 
+def get_chunk_context(entry):
+    """Copy voice selection and explicit structural intent for chunk rebuilding."""
+    context = get_narrator_generation_context(entry)
+    if "spoken" in entry:
+        context["spoken"] = copy.deepcopy(entry["spoken"])
+    return context
+
+
 def get_chunk_generation_requests(chunks, indices, admitted_requests=None):
     """Freeze each requested row once, retaining source indices for engine results."""
     if admitted_requests is not None:
@@ -468,13 +476,13 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
     current_instruct = script_entries[0].get("instruct", "")
     current_pause_after = script_entries[0].get("pause_after")
     current_indices = script_entries[0].get("_source_entry_indices") if include_source_indices else None
-    current_context = get_narrator_generation_context(script_entries[0])
+    current_context = get_chunk_context(script_entries[0])
 
     for entry in script_entries[1:]:
         speaker = get_speaker(entry)
         text = entry.get("text", "")
         instruct = entry.get("instruct", "")
-        narrator_context = get_narrator_generation_context(entry)
+        narrator_context = get_chunk_context(entry)
 
         # Don't merge structural text (titles, chapter headings, dedications),
         # and never merge past a pending pause: pause_after belongs to the
@@ -1686,6 +1694,7 @@ class ProjectManager:
             # Preserve explicit headings and unquoted narrator titles, while
             # keeping short dialogue and complete sentences in their chapter.
             if (get_speaker(chunk).upper() == "NARRATOR" and text
+                    and chunk.get("spoken") is not True
                     and '"' not in text
                     and (numbered_heading or _is_structural_text(text, max_length=None if heading else 80))):
                 heading_indices.append(i)

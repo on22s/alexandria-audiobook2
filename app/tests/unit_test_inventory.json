@@ -8794,6 +8794,15 @@
     "tests.test_split_quote_repair.SpanTest.test_a_single_part_quotation_is_its_own_envelope",
     "tests.test_split_quote_repair.SpanTest.test_the_envelope_spans_first_start_to_last_end"
   ],
+  "test_spoken_heading_intent": [
+    "tests.test_spoken_heading_intent.SpokenHeadingIntentTests.test_bounded_splits_keep_explicit_spoken_intent",
+    "tests.test_spoken_heading_intent.SpokenHeadingIntentTests.test_embedded_and_quoted_spoken_labels_keep_source_text_context_and_pause",
+    "tests.test_spoken_heading_intent.SpokenHeadingIntentTests.test_legacy_and_explicit_structural_headings_keep_their_chapter_boundaries",
+    "tests.test_spoken_heading_intent.SpokenHeadingIntentTests.test_legacy_delivery_retry_does_not_treat_spoken_intent_as_a_voice_override",
+    "tests.test_spoken_heading_intent.SpokenHeadingIntentTests.test_merge_keeps_same_spoken_context_and_does_not_swallow_context_changes",
+    "tests.test_spoken_heading_intent.SpokenHeadingIntentTests.test_preview_wav_export_and_m4b_metadata_share_spoken_chapter_boundaries",
+    "tests.test_spoken_heading_intent.SpokenHeadingIntentTests.test_spoken_chapter_names_remain_in_their_real_chapter"
+  ],
   "test_spoken_only_attribution": [
     "tests.test_spoken_only_attribution.SpokenOnlyTests.test_all_narration_requires_no_model",
     "tests.test_spoken_only_attribution.SpokenOnlyTests.test_duplicate_missing_outside_and_narration_indexes_are_rejected",
