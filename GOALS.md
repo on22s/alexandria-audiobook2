@@ -2773,10 +2773,15 @@ GPU/model and listening qualifications are unrun.
 **Batch 03 progress — 2026-10-20.** Six audio fixes have passed 288 distinct
 targeted CPU checks covering take seeds, once-only pronunciation, immutable
 clone references, renamed/relocated drift references, and frame-based export
-positions. They are integrated onto accepted Batch 04; full release/CI/merge
-are pending. F028/T02 stays open for its own shared worker-lifetime PR under
+positions. They are integrated onto accepted Batch 04. The final acceptance tree passed
+8,581 unit tests without unit skips and 72 API checks without failures, with
+12 explicit full-mode exclusions; all eight release gates passed. Native CPU
+RNG and strict absolute-clone acceptance checks pass. The original published-head CI passed. The combined Batch 03/05 quick
+release then passed 8,594 unit tests without unit skips, 72 API checks without
+failures and 12 explicit full-mode exclusions, plus all eight gates. Exact
+integrated published-head CI and merge are pending. F028/T02 stays open for its own shared worker-lifetime PR under
 the plan's split rule. No task is removed from the active goal. The accepted
-count stays **16/58; 42 remain** until further merged evidence.
+count stays **21/58; 37 remain** until further merged evidence.
 
 **Batch 05 progress — 2026-10-20.** Five experiment recovery/input-identity
 fixes have passed 206 targeted CPU checks. Real CLI fixtures cover cross-phase
@@ -2785,8 +2790,10 @@ arm caches, an explicitly selected paired serving run, and seed/source/adapter/
 synthesis-bound drift audio with per-WAV integrity receipts. Required quick
 release passed 8,583 unit tests without unit skips, 72 API checks without
 failures and 12 explicit full-mode exclusions, plus all eight release gates.
-Exact-head CI and merge are pending. No model/training/listening quality is
-inferred from the CPU callbacks. **16/58 accepted; 42 remain.**
+All five exact-head CI gates passed. PR #1430 merged as
+`3a4a0dde477d0daaa38962c20f3284b858f4a3d4`; its tree matches tested head
+`5ccc085c460c23d1ad7749b8c4e1d5dd6ca70d9a`. No model/training/listening
+quality is inferred from CPU callbacks. **21/58 accepted; 37 remain.**
 
 **Target — OPEN.** Zero undisposed execution tasks, with the required
 regressions and platform/model checks recorded on the exact merged revisions.

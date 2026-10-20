@@ -270,7 +270,10 @@ class ScenBreakPauseSurvivesGroupingTest(unittest.TestCase):
                                    sample_width=2, frame_rate=16000, channels=1)
             timeline = compute_timeline([(chunk, segment) for chunk in chunks],
                                         same_speaker_pause_ms=900)
-            self.assertEqual([0, 100, 550], [start for _, _, start in timeline])
+            self.assertEqual([0, 100], [start for _, _, start in timeline[:2]])
+            # The 350-ms override is quantized at 11025 Hz before promotion.
+            gap = AudioSegment.silent(duration=350).set_frame_rate(16000)
+            self.assertEqual(200 + gap.duration_seconds * 1000, timeline[2][2])
         self.assertEqual(original, entries)
 
     def test_entries_without_a_pause_still_merge(self):

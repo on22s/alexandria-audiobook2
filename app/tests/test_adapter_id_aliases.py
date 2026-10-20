@@ -556,6 +556,43 @@ class AdapterIdAliasTests(unittest.TestCase):
             _path,snapshot=get_adapter_asset_snapshot(config['ANN']['ref_audio'])
             self.assertEqual(reference,snapshot)
 
+    def test_external_clone_uploads_captured_old_id_reference_and_removes_private_copy(self):
+        import tempfile,sys,threading
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        import tts
+        from tests.test_adapter_naming_transaction import NamingTransactionTests,_invoke
+        from tests.test_lora_generation_cache import _write
+        from voice_manifest import get_adapter_asset_snapshot
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);models,_=NamingTransactionTests().fixture(root);_write(models/'raw_a')
+            old=models/'raw_a'/'ref_sample.wav';reference=old.read_bytes()
+            config={'ANN':{'ref_audio':str(old),'ref_text':'reference generation 1','seed':12345}}
+            before=copy.deepcopy(config);self.assertEqual(0,_invoke(models,'--apply'))
+            current,_=get_adapter_asset_snapshot(str(old));result=root/'result.wav';result.write_bytes(reference)
+            uploaded=[]
+            def predict(*args,**kwargs):
+                path=Path(args[0]);uploaded.append((path,path.read_bytes()))
+                self.assertNotEqual(Path(current),path)
+                if fail:
+                    raise RuntimeError('fixture provider failed after reading reference')
+                return (str(result),)
+            def endpoint(*args):
+                # The source may change while the provider connection is made.
+                Path(current).write_bytes(b'replaced after snapshot')
+                return SimpleNamespace(predict=predict),threading.Lock()
+            engine=tts.TTSEngine({'tts':{'mode':'external'}})
+            with patch.dict(sys.modules,{'gradio_client':SimpleNamespace(handle_file=lambda path:path)}), \
+                 patch.object(engine,'_external_endpoint',side_effect=endpoint):
+                for fail in (False,True):
+                    Path(current).write_bytes(reference)
+                    self.assertEqual(not fail,engine._external_generate_clone('Hello.','ANN',config,str(root/'output.wav')))
+                    self.assertFalse(uploaded[-1][0].exists())
+            self.assertEqual([reference,reference],[data for path,data in uploaded])
+            self.assertTrue(all(not path.exists() for path,data in uploaded))
+            self.assertEqual(before,config)
+
     def test_management_promote_rollback_and_backup_deletion_resolve_native_renamed_id(self):
         import json
         from pathlib import Path

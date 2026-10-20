@@ -47,7 +47,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 03: Preserve rendered text, voice identity, and timing
 
-**Dependencies:** Batch 01, Batch 02 (accepted). **Tasks:** 7. **Status:** six fixes in integrated qualification; F028 worker lifetime remains open for a separate shared-layer PR. **PR:** not opened.
+**Dependencies:** Batch 01, Batch 02 (accepted). **Tasks:** 7. **Status:** six fixes in integrated qualification; F028 worker lifetime remains open for a separate shared-layer PR. **PR:** [#1431](https://github.com/on22s/alexandria-audiobook2/pull/1431).
 
 **Batch acceptance:** Exercise single/native/external/design/clone dispatch using deterministic CPU callbacks and valid synthetic PCM; preserve once-only pronunciation and reference alias policy. Check effective take behavior, complete-sample timing, and repeated stalled-request resource lifetime. Queue any required real-model/audio confirmation separately.
 
@@ -73,15 +73,15 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 05: Bind experiment resume and caches to their inputs
 
-**Dependencies:** Batch 02 (accepted). **Tasks:** 5. **Status:** all five fixes implemented; local quick release passed, exact-head CI/merge pending. **PR:** not opened.
+**Dependencies:** Batch 02. **Tasks:** 5. **Status:** accepted. **PR:** [#1430](https://github.com/on22s/alexandria-audiobook2/pull/1430).
 
 **Batch acceptance:** Change seed, source bytes, segmentation, adapter bytes and corpus identity independently. Require the correct cache invalidation or a clear refusal; transport failures must remain retryable and cannot become completed records.
 
-- [ ] **F006** [#1390](https://github.com/on22s/alexandria-audiobook2/issues/1390) — Cascade phase resume binds cheap answers to mutable numeric segment positions without verifying the input identity.
-- [ ] **F011** [#1391](https://github.com/on22s/alexandria-audiobook2/issues/1391) — A temporary attribution transport failure permanently poisons the narrator-prior checkpoint.
-- [ ] **F012** [#1392](https://github.com/on22s/alexandria-audiobook2/issues/1392) — Reference-intervention reruns can train stale cached datasets while evaluating a changed source ZIP.
-- [ ] **F014** [#1393](https://github.com/on22s/alexandria-audiobook2/issues/1393) — Shipping readiness silently pools base/LoRA results from incompatible runs and model stacks.
-- [ ] **F016** [#1394](https://github.com/on22s/alexandria-audiobook2/issues/1394) — Voice-drift runs reuse cached audio across changed seeds, source text, and adapter weights while reporting the new run settings.
+- [x] **F006** [#1390](https://github.com/on22s/alexandria-audiobook2/issues/1390) — Cascade phase resume binds cheap answers to mutable numeric segment positions without verifying the input identity.
+- [x] **F011** [#1391](https://github.com/on22s/alexandria-audiobook2/issues/1391) — A temporary attribution transport failure permanently poisons the narrator-prior checkpoint.
+- [x] **F012** [#1392](https://github.com/on22s/alexandria-audiobook2/issues/1392) — Reference-intervention reruns can train stale cached datasets while evaluating a changed source ZIP.
+- [x] **F014** [#1393](https://github.com/on22s/alexandria-audiobook2/issues/1393) — Shipping readiness silently pools base/LoRA results from incompatible runs and model stacks.
+- [x] **F016** [#1394](https://github.com/on22s/alexandria-audiobook2/issues/1394) — Voice-drift runs reuse cached audio across changed seeds, source text, and adapter weights while reporting the new run settings.
 
 ### Batch 06: Make training data and measurement gates trustworthy
 
@@ -228,7 +228,7 @@ API-contract gates. PR #1429 merged as
 `08c140e61ad6bf0d16160ff48b160e07d5c0f079`; the trees are identical. All eight
 exact-head CI checks passed: three unit shards, the complete-inventory
 aggregate, native Windows ownership and three OS reports-checkJs candidates.
-**16/58 accepted; 42 remain.** GPU/model/listening and full native-platform
+**21/58 accepted; 37 remain.** GPU/model/listening and full native-platform
 qualifications are unrun and are not inferred from these control-plane checks.
 
 ## Batch 03 verification progress
@@ -249,12 +249,21 @@ bytes across rename/replacement; drift measurements resolve durable aliases
 and admit installed built-ins after runtime relocation while refusing symlink
 escapes. Provider/model score callbacks are synthetic CPU fixtures.
 
-These six fixes are integrated onto accepted Batch 04. Full release, exact-head
-CI and merge are pending; none is accepted yet. F028/T02 stays open for a
-separate shared-layer PR because SDK-owned worker shutdown needs its own owned
-lifetime proof. This is the working contract's permitted split, not removal or
-deferral of a task. Batch 03 is complete only when all seven tasks are accepted.
-**16/58 accepted; 42 remain.**
+These six fixes are integrated onto accepted Batch 04. The final acceptance
+tree passed all eight quick release gates: 8,581 unit tests without unit skips,
+72 API checks without failures and 12 explicit full-mode exclusions. Native
+CPU RNG-state/draw comparisons use the actual Editor seed configurations;
+strict absolute-clone scoring/refusal and exact reference-byte checks pass.
+The original published-head CI passed. Integration with accepted Batch 05
+passed all eight quick release gates: 8,594 unit tests without unit skips,
+72 API checks without failures and 12 explicit full-mode exclusions. Exact
+integrated published-head CI and merge are pending; none of these six tasks is
+accepted yet.
+
+F028/T02 stays open for a separate shared-layer PR because SDK-owned worker
+shutdown needs its own lifetime proof. This is the working contract's permitted
+split; all seven tasks remain required for Batch 03 completion.
+**21/58 accepted; 37 remain.**
 
 ## Batch 05 verification progress
 
@@ -287,8 +296,11 @@ these callback-driven fixtures.
 
 Required local quick release passed 8,583 unit tests without unit skips, 72 API
 checks without failures and 12 explicit full-mode exclusions, plus all eight
-release gates. Exact published-head CI and merge are pending; none of these
-five tasks is accepted yet. **16/58 accepted; 42 remain.**
+release gates. All five exact-head CI gates passed, including the complete
+inventory aggregate and native Windows ownership. PR #1430 merged as
+`3a4a0dde477d0daaa38962c20f3284b858f4a3d4`; its tree is identical to tested
+head `5ccc085c460c23d1ad7749b8c4e1d5dd6ca70d9a`. All five child issues have
+merged acceptance evidence. **21/58 accepted; 37 remain.**
 
 ## Completion gate
 

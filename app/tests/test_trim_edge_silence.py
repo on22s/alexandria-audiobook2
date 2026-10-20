@@ -58,10 +58,13 @@ class NullSpeakerTimelineTests(unittest.TestCase):
                 segments = [Sine(220 + i * 20).to_audio_segment(duration=200) for i in range(3)]
                 chunks = [{'speaker': speaker, 'pause_after': pause} for speaker, pause in zip(speakers, overrides)]
                 timeline = tts.compute_timeline(list(zip(chunks, segments)))
-                self.assertEqual(expected, [start for _, _, start in timeline])
+                # Pydub's default 11025-Hz pause is quantized before promotion.
+                for nominal, (_, _, start) in zip(expected, timeline):
+                    self.assertAlmostEqual(nominal, start, delta=.5)
                 combined = tts.combine_audio_with_pauses(segments, speakers, pause_overrides=overrides)
                 output = Path(tmp) / 'combined.wav'
                 combined.export(output, format='wav')
                 validate_generated_audio(str(output), 'timeline fixture')
                 decoded = AudioSegment.from_wav(output)
-                self.assertEqual(timeline[-1][2] + len(timeline[-1][1]), len(decoded))
+                self.assertAlmostEqual(timeline[-1][2] + tts.get_audio_duration_ms(timeline[-1][1]),
+                                       tts.get_audio_duration_ms(decoded), delta=1000 / decoded.frame_rate)

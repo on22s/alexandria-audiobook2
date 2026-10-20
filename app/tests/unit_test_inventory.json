@@ -73,6 +73,7 @@
     "tests.test_adapter_id_aliases.AdapterIdAliasTests.test_deleted_alias_target_cannot_be_reused_by_another_voice",
     "tests.test_adapter_id_aliases.AdapterIdAliasTests.test_existing_batch_output_cannot_resurrect_historical_alias_before_extraction",
     "tests.test_adapter_id_aliases.AdapterIdAliasTests.test_existing_blind_session_streams_same_nested_probe_after_native_rename",
+    "tests.test_adapter_id_aliases.AdapterIdAliasTests.test_external_clone_uploads_captured_old_id_reference_and_removes_private_copy",
     "tests.test_adapter_id_aliases.AdapterIdAliasTests.test_gated_promotion_and_later_rollback_follow_alias_destinations_not_source_names",
     "tests.test_adapter_id_aliases.AdapterIdAliasTests.test_historical_static_urls_redirect_to_exact_nested_bytes_and_keep_native_head",
     "tests.test_adapter_id_aliases.AdapterIdAliasTests.test_http_test_and_preview_publish_to_current_id_when_native_rename_happens_during_generation",
@@ -2914,6 +2915,10 @@
     "tests.test_dracor_prose.Frames.test_target_line_and_label_never_change"
   ],
   "test_dracor_trainset": [],
+  "test_drift_reference_assets": [
+    "tests.test_drift_reference_assets.DriftReferenceAssetTests.test_native_renamed_adapter_reaches_scoring_without_rewriting_saved_config",
+    "tests.test_drift_reference_assets.DriftReferenceAssetTests.test_relocated_builtin_reference_is_scored_but_reference_symlink_escape_is_not"
+  ],
   "test_drift_voice_states": [
     "tests.test_drift_voice_states.DriftVoiceStateTests.test_alias_and_dynamic_narrator_use_same_effective_inputs_as_generation",
     "tests.test_drift_voice_states.DriftVoiceStateTests.test_clone_and_lora_timeline_states_choose_their_own_configured_reference",
@@ -3463,6 +3468,11 @@
     "tests.test_export_benchmark.ExportBenchmarkHashTests.test_large_real_audacity_artifact_uses_bounded_reads_and_exact_metrics",
     "tests.test_export_benchmark.ExportBenchmarkSourceHashTests.test_changed_or_unverified_selected_audio_refuses_before_export",
     "tests.test_export_benchmark.ExportBenchmarkSourceHashTests.test_verified_copy_remains_valid_when_original_changes_after_copy"
+  ],
+  "test_export_frame_timeline": [
+    "tests.test_export_frame_timeline.ExportFrameTimelineTests.test_mixed_rate_timeline_preserves_incremental_resampling",
+    "tests.test_export_frame_timeline.ExportFrameTimelineTests.test_pause_rounding_and_layout_promotion_follow_actual_pcm",
+    "tests.test_export_frame_timeline.ExportFrameTimelineTests.test_thousand_clips_keep_native_labels_chapters_and_speaker_tracks_aligned"
   ],
   "test_export_readiness_shapes": [
     "tests.test_export_readiness_shapes.ExportReadinessShapeTests.test_both_routes_refuse_unusable_json_before_any_task",
@@ -6791,6 +6801,11 @@
     "tests.test_pronunciation_concurrency.PronunciationConcurrencyTests.test_concurrent_valid_missing_and_malformed_books_keep_results_distinct",
     "tests.test_pronunciation_concurrency.PronunciationConcurrencyTests.test_other_book_loading_between_load_and_snapshot_cannot_change_output"
   ],
+  "test_pronunciation_dispatch": [
+    "tests.test_pronunciation_dispatch.PronunciationDispatchTests.test_all_native_single_direct_and_batch_paths_match_preview",
+    "tests.test_pronunciation_dispatch.PronunciationDispatchTests.test_dynamic_narrator_uses_prepared_input_and_preserves_public_overrides",
+    "tests.test_pronunciation_dispatch.PronunciationDispatchTests.test_external_single_batch_and_ensemble_send_once_prepared_text"
+  ],
   "test_pronunciation_panel": [
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_atomic_failure_preserves_file_and_preview_uses_production_matching",
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_audition_produces_playable_audio_without_rewriting_script_or_lexicon",
@@ -7305,9 +7320,11 @@
     "tests.test_reproducible_takes.ChunkSeedTests.test_seed_is_stable_and_whitespace_normalized",
     "tests.test_reproducible_takes.ChunkSeedTests.test_take_changes_seed_and_stays_in_range",
     "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_changing_take_marks_chunk_stale",
+    "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_editor_numbered_take_offsets_a_positive_character_seed_and_repeats_stably",
     "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_reproducible_takes_off_keeps_voice_seed",
     "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_reproducible_takes_passes_derived_seed_to_engine",
     "tests.test_reproducible_takes.ProjectReproducibleTakeTests.test_same_take_keeps_render",
+    "tests.test_reproducible_takes.ReproducibleVoiceConfigTests.test_numbered_takes_offset_positive_and_zero_bases_without_changing_originals",
     "tests.test_reproducible_takes.ReproducibleVoiceConfigTests.test_unpinned_voice_seeds_are_replaced_without_mutation"
   ],
   "test_reproducible_takes_check": [

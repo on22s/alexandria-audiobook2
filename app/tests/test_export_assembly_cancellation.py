@@ -38,7 +38,10 @@ class ExportAssemblyCancellationTests(unittest.TestCase):
         combined=tts.combine_audio_with_pauses(segments,['A','B'],pause_ms=80,cancel_check=lambda:False)
         self.assertEqual(baseline.raw_data,combined.raw_data)
         rows=[({'speaker':'A'},segments[0]),({'speaker':'B'},segments[1])]
-        self.assertEqual([0,180],[entry[2] for entry in tts.compute_timeline(rows,pause_ms=80,cancel_check=lambda:False)])
+        timeline=tts.compute_timeline(rows,pause_ms=80,cancel_check=lambda:False)
+        self.assertEqual(0,timeline[0][2])
+        prefix=segments[0]+AudioSegment.silent(duration=80)
+        self.assertAlmostEqual(tts.get_audio_duration_ms(prefix),timeline[1][2],delta=1e-9)
 
     def test_chapter_export_cancellation_inside_timeline_returns_cancelled(self):
         with tempfile.TemporaryDirectory() as tmp:

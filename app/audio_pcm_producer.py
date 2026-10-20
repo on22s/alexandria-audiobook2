@@ -63,6 +63,42 @@ def get_pcm_source_shape(segment):
     return layout, get_pcm_source_byte_count(segment) // (layout[0] * layout[2])
 
 
+def get_promoted_pcm_shape(shape, layout, *, reject_impossible_channels=False):
+    source, frames = shape
+    if source[0] != layout[0] and source[0] != 1:
+        # Pydub cannot promote a multichannel source to more channels.
+        if reject_impossible_channels:
+            raise ValueError('AudioSegment.set_channels only supports mono-to-multi channel and multi-to-mono channel conversion')
+        return None
+    if frames and source[1] != layout[1]:
+        frames = ((frames - 1) * layout[1]) // source[1] + 1
+    return layout, frames
+
+
+def get_joined_pcm_shape(left, right, *, reject_impossible_channels=False):
+    """Mirror builder/Pydub promotion, including fresh-state ratecv rounding."""
+    if left is None or right is None:
+        return None
+    layout = tuple(max(a, b) for a, b in zip(left[0], right[0]))
+    left = get_promoted_pcm_shape(left, layout, reject_impossible_channels=reject_impossible_channels)
+    right = get_promoted_pcm_shape(right, layout, reject_impossible_channels=reject_impossible_channels)
+    if left is None or right is None:
+        return None
+    return layout, left[1] + right[1]
+
+
+def get_silence_pcm_shape(duration_ms):
+    # AudioSegment.silent() defaults; zero/negative pauses produce empty PCM.
+    return (1, 11025, 2), max(0, int(11025 * (duration_ms / 1000.0)))
+
+
+
+def get_audio_duration_ms(segment):
+    """Return PCM duration without rounding each clip to a millisecond."""
+    shape = get_pcm_source_shape(segment)
+    return 1000 * shape[1] / shape[0][1] if shape is not None else len(segment)
+
+
 def is_plain_pcm_source(segment):
     return type(segment) in (AudioSegment, PCMSourceRange)
 

@@ -41,13 +41,13 @@ TTS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 # normal until someone listens to a whole chapter.
 #
 # NOTE the layering, which the first draft of this file got wrong. Public
-# `generate_clone_voice` and `generate_custom_voice` prepare raw input and
+# `generate_clone_voice`, `generate_custom_voice` and `generate_lora_voice` prepare raw input and
 # delegate through prepared dispatchers; they hold no seed logic and must
 # not be asserted to. The generation lives one level down, in the `_local_*`
 # implementations. Asserting against the wrapper produced four confident
 # failures against correct code.
 SEEDED_METHODS = [
-    "generate_lora_voice",
+    "_generate_lora_voice_prepared",
     "generate_voice_design",
     "_local_generate_custom",
     "_local_generate_clone",

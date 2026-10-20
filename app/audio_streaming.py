@@ -11,7 +11,9 @@ from pydub.audio_segment import audioop
 
 from audio_pcm_producer import (PCMProducer, is_bounded_pcm_supported,
                                 iter_raw_pcm, iter_default_silence_pcm, iter_converted_pcm,
-                                get_pcm_source_shape, get_pcm_source_byte_count, is_plain_pcm_source)
+                                get_pcm_source_shape, get_pcm_source_byte_count, is_plain_pcm_source,
+                                get_promoted_pcm_shape, get_joined_pcm_shape, get_silence_pcm_shape,
+                                get_audio_duration_ms)
 
 from tts import (ensure_audio_export_active, get_pause_duration_ms,
                  trim_edge_silence)
@@ -39,34 +41,6 @@ def is_plain_pcm_sequence(segments):
     return all(is_plain_pcm_source(segment) and get_pcm_shape(segment) is not None
                for segment in segments)
 
-
-def get_promoted_pcm_shape(shape, layout, *, reject_impossible_channels=False):
-    source, frames = shape
-    if source[0] != layout[0] and source[0] != 1:
-        # Pydub cannot promote a multichannel source to more channels.
-        if reject_impossible_channels:
-            raise ValueError('AudioSegment.set_channels only supports mono-to-multi channel and multi-to-mono channel conversion')
-        return None
-    if frames and source[1] != layout[1]:
-        frames = ((frames - 1) * layout[1]) // source[1] + 1
-    return layout, frames
-
-
-def get_joined_pcm_shape(left, right, *, reject_impossible_channels=False):
-    """Mirror builder/Pydub promotion, including fresh-state ratecv rounding."""
-    if left is None or right is None:
-        return None
-    layout = tuple(max(a, b) for a, b in zip(left[0], right[0]))
-    left = get_promoted_pcm_shape(left, layout, reject_impossible_channels=reject_impossible_channels)
-    right = get_promoted_pcm_shape(right, layout, reject_impossible_channels=reject_impossible_channels)
-    if left is None or right is None:
-        return None
-    return layout, left[1] + right[1]
-
-
-def get_silence_pcm_shape(duration_ms):
-    # AudioSegment.silent() defaults; zero/negative pauses produce empty PCM.
-    return (1, 11025, 2), max(0, int(11025 * (duration_ms / 1000.0)))
 
 
 def ensure_pcm_shape_fits_riff(shape):
@@ -204,14 +178,44 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
 
 def iter_track_pieces(entries, total_duration_ms, cancel_check=None):
     cursor = 0
+    shape = get_pcm_shape(AudioSegment.empty())
     for segment, start_ms in entries:
         ensure_audio_export_active(cancel_check)
         if start_ms > cursor:
-            yield 'silence', start_ms - cursor
+            gap = start_ms - cursor
+            yield 'silence', gap
+            shape = get_joined_pcm_shape(shape, get_silence_pcm_shape(gap))
         yield 'audio', segment
-        cursor = start_ms + len(segment)
+        shape = get_joined_pcm_shape(shape, get_pcm_shape(segment))
+        cursor = (1000 * shape[1] / shape[0][1]
+                  if shape is not None else start_ms + get_audio_duration_ms(segment))
     if total_duration_ms > cursor:
         yield 'silence', total_duration_ms - cursor
+
+
+def iter_track_frame_pieces(entries, total_duration_ms, layout, cancel_check=None):
+    """Align uniform PCM directly to the shared frame clock, without ratecv gaps."""
+    cursor = 0
+    for segment, start_ms in entries:
+        ensure_audio_export_active(cancel_check)
+        start = round(start_ms * layout[1] / 1000)
+        if start > cursor:
+            yield 'silence', start - cursor
+            cursor = start
+        yield 'audio', segment
+        cursor += get_pcm_source_byte_count(segment) // (layout[0] * layout[2])
+    remaining = round(total_duration_ms * layout[1] / 1000) - cursor
+    if remaining > 0:
+        yield 'silence', remaining
+
+
+def iter_frame_silence_pcm(frames, layout, cancel_check=None):
+    frame_width = layout[0] * layout[2]
+    while frames > 0:
+        ensure_audio_export_active(cancel_check)
+        count = min(frames, 16384)
+        yield b'\0' * (count * frame_width)
+        frames -= count
 
 
 def get_silence_frame_count(duration_ms, frame_rate):
@@ -243,11 +247,11 @@ def get_track_wav_plan(entries, total_duration_ms, cancel_check=None):
             return shape
         return None
     data_bytes = 0
-    for kind, value in iter_track_pieces(entries, total_duration_ms, cancel_check):
+    for kind, value in iter_track_frame_pieces(entries, total_duration_ms, layout, cancel_check):
         if kind == 'audio':
             data_bytes += get_pcm_source_byte_count(value)
         else:
-            data_bytes += get_silence_frame_count(value, layout[1]) * layout[0] * layout[2]
+            data_bytes += value * layout[0] * layout[2]
     ensure_audio_export_active(cancel_check)
     ensure_riff_pcm_size(data_bytes)
     ensure_pcm_wav_header(layout, ordinary_pcm=ordinary_pcm)
@@ -278,9 +282,9 @@ def write_track_wav(stream, entries, total_duration_ms, plan, cancel_check=None,
         wav.setframerate(frame_rate)
         wav.setsampwidth(sample_width)
         wav.setnframes(frames)
-        for kind, value in iter_track_pieces(entries, total_duration_ms, cancel_check):
+        for kind, value in iter_track_frame_pieces(entries, total_duration_ms, layout, cancel_check):
             pieces = (iter_segment_pcm(value, cancel_check) if kind == 'audio'
-                      else iter_silence_pcm(value, layout, cancel_check))
+                      else iter_frame_silence_pcm(value, layout, cancel_check))
             for data in pieces:
                 ensure_audio_export_active(cancel_check)
                 wav.writeframesraw(data)

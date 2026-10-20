@@ -12,6 +12,7 @@ import re
 import time
 import logging
 import gc
+import math
 import unicodedata
 import uuid
 from script_repair import EXPLICIT_SILENCE_MS
@@ -45,9 +46,9 @@ from tts import (
                  get_chunk_voice_inputs)
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
-from audio_pcm_producer import PCMSourceStore
+from audio_pcm_producer import PCMSourceStore, get_audio_duration_ms
 from audio_streaming import (get_track_wav_plan, write_track_wav, write_combined_wav,
-                             get_streamable_layout, write_combined_pcm)
+                             get_streamable_layout, write_combined_pcm, iter_track_pieces)
 
 MAX_CHUNK_CHARS = 500
 # Measured seconds of speech per character relative to English, Qwen3-TTS,
@@ -94,10 +95,11 @@ def get_chapter_reuse_duration(plan, old, wanted, changed_only, out_dir):
     if not old:
         return None
     try:
-        duration = int(old["end_ms"]) - int(old["start_ms"])
+        duration = (float(old["duration_ms"]) if "duration_ms" in old
+                    else float(old["end_ms"]) - float(old["start_ms"]))
     except (KeyError, TypeError, ValueError):
         return None
-    if duration < 0 or not os.path.isfile(os.path.join(out_dir, old["file"])):
+    if not math.isfinite(duration) or duration < 0 or not os.path.isfile(os.path.join(out_dir, old["file"])):
         return None
     if plan.get('mastering_settings') is not None and plan['index'] in wanted and changed_only:
         from audio_mastering import get_audio_sha256
@@ -1197,7 +1199,8 @@ class ProjectManager:
                 speaker_to_use, index)
             if self._load_tts_config().get("reproducible_takes") is True:
                 chunk_voice_config = get_reproducible_voice_config(
-                    chunk_voice_config, get_chunk_seed(text, chunk.get("take", 0)))
+                    chunk_voice_config, get_chunk_seed(text, chunk.get("take", 0)),
+                    take=chunk.get("take", 0))
             generation_args = (text, instruct, speaker_to_use, chunk_voice_config, temp_path)
             failure = None
             if callable(getattr(engine, "generate_voice_result", None)):
@@ -1377,7 +1380,7 @@ class ProjectManager:
 
                 # Total duration = last chunk's start + its length
                 _, last_seg, last_start = timeline[-1]
-                total_duration_ms = last_start + len(last_seg)
+                total_duration_ms = last_start + get_audio_duration_ms(last_seg)
 
                 # Phase 2 — Group once, retaining only the already-loaded segments.
                 speaker_chunks = {}
@@ -1406,7 +1409,7 @@ class ProjectManager:
                 label_lines = []
                 for chunk, segment, start_ms in timeline:
                     start_sec = start_ms / 1000.0
-                    end_sec = (start_ms + len(segment)) / 1000.0
+                    end_sec = (start_ms + get_audio_duration_ms(segment)) / 1000.0
                     text_preview = chunk.get("text", "")[:80]
                     label = f"[{chunk['speaker']}] {text_preview}"
                     # Audacity labels are tab-separated, one per line - a tab or newline
@@ -1445,19 +1448,13 @@ class ProjectManager:
                                     else:
                                         write_track_wav(stream, entries, total_duration_ms, plan, cancel_check)
                                 continue
-                            track_cursor = 0
                             track_builder = AudioSegmentBuilder(AudioSegment.empty())
-                            for segment, start_ms in speaker_chunks[speaker]:
+                            for kind, value in iter_track_pieces(entries, total_duration_ms, cancel_check):
                                 ensure_audio_export_active(cancel_check)
-                                segment = sources.load_segment(segment)
-                                gap = start_ms - track_cursor
-                                if gap > 0:
-                                    track_builder.append(AudioSegment.silent(duration=gap))
-                                track_builder.append(segment)
-                                track_cursor = start_ms + len(segment)
-                            remaining = total_duration_ms - track_cursor
-                            if remaining > 0:
-                                track_builder.append(AudioSegment.silent(duration=remaining))
+                                if kind == 'silence':
+                                    track_builder.append(AudioSegment.silent(duration=value))
+                                else:
+                                    track_builder.append(sources.load_segment(value))
 
                             track = track_builder.finish()
                             del track_builder
@@ -1561,8 +1558,8 @@ class ProjectManager:
                 safe_title = self._escape_ffmeta(title)
                 meta_lines.append("[CHAPTER]")
                 meta_lines.append("TIMEBASE=1/1000")
-                meta_lines.append(f"START={start_ms}")
-                meta_lines.append(f"END={end_ms}")
+                meta_lines.append(f"START={round(start_ms)}")
+                meta_lines.append(f"END={round(end_ms)}")
                 meta_lines.append(f"title={safe_title}")
                 meta_lines.append("")
 
@@ -1693,7 +1690,7 @@ class ProjectManager:
         chapters = []
         for title, first, last in self._chapter_groups(chunks, per_chunk_chapters):
             start_ms = timeline[first][2]
-            end_ms = timeline[last][2] + len(timeline[last][1])
+            end_ms = timeline[last][2] + get_audio_duration_ms(timeline[last][1])
             chapters.append((title, start_ms, end_ms))
         return chapters
 
@@ -1817,7 +1814,7 @@ class ProjectManager:
                 try:
                     chapter_timeline = compute_timeline(
                         pairs, *pause_defaults, cancel_check=cancel_check)
-                    duration = chapter_timeline[-1][2] + len(chapter_timeline[-1][1])
+                    duration = chapter_timeline[-1][2] + get_audio_duration_ms(chapter_timeline[-1][1])
                     piece = self.get_chapter_audio(pairs, pause_defaults, cancel_check)
                     if progress_callback:
                         progress_callback(
@@ -1839,6 +1836,7 @@ class ProjectManager:
                     return None
                 row, duration = None, durations[index]
             if row is not None:
+                row["duration_ms"] = duration
                 row["start_ms"], row["end_ms"] = cursor, cursor + duration
                 rows.append(row)
             cursor += duration
@@ -1953,7 +1951,7 @@ class ProjectManager:
         os.makedirs(out_dir, exist_ok=True)
         manifest = safe_load_json(os.path.join(out_dir, "manifest.json"), {})
         previous = {row["index"]: row for row in get_chapter_export_rows(manifest)}
-        durations = [timeline[last][2] + len(timeline[last][1]) - timeline[first][2]
+        durations = [timeline[last][2] + get_audio_duration_ms(timeline[last][1]) - timeline[first][2]
                      for first, last in (plan["chunks"] for plan in plans)]
         result = self._apply_chapter_export_plans(
             plans, chunks, options, pause_defaults, previous, chapters,
@@ -1970,7 +1968,7 @@ class ProjectManager:
         which is what changed-only export relies on."""
         if pause_defaults is None:
             pause_defaults = self._load_pause_defaults()
-        parts = [json.dumps(pause_defaults)]
+        parts = ["pcm-timeline-v2", json.dumps(pause_defaults)]
         for c in chunks:
             path = c.get("audio_path") or ""
             full = self.get_chunk_audio_path(path) if path else ""

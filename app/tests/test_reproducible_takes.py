@@ -24,6 +24,19 @@ class ChunkSeedTests(unittest.TestCase):
 
 
 class ReproducibleVoiceConfigTests(unittest.TestCase):
+    def test_numbered_takes_offset_positive_and_zero_bases_without_changing_originals(self):
+        for base in (0,7,2**31-1):
+            with self.subTest(base=base):
+                voices={'Alice':{'seed':base,'style':['calm']}}
+                original=copy.deepcopy(voices)
+                self.assertEqual(base,tts.get_reproducible_voice_config(voices,123)['Alice']['seed'])
+                chosen=tts.get_reproducible_voice_config(voices,123,take=1)['Alice']['seed']
+                self.assertNotEqual(base,chosen)
+                self.assertEqual(chosen,tts.get_reproducible_voice_config(voices,123,take=1)['Alice']['seed'])
+                self.assertNotEqual(chosen,tts.get_reproducible_voice_config(voices,123,take=2)['Alice']['seed'])
+                self.assertTrue(0 <= chosen < 2**31)
+                self.assertEqual(original,voices)
+
     def test_unpinned_voice_seeds_are_replaced_without_mutation(self):
         resolved = {
             "alice": {"seed": -1, "style": ["calm"]},
@@ -128,6 +141,52 @@ class ProjectReproducibleTakeTests(unittest.TestCase):
         self.assertFalse(success)
         self.assertIsNotNone(engine.args)
         self.assertEqual(engine.args[3]["alice"]["seed"], -1)
+
+    def test_editor_numbered_take_offsets_a_positive_character_seed_and_repeats_stably(self):
+        from pathlib import Path
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import editor
+        from tests.test_support import use_private_cpu_fixture_lock
+        manager = project.ProjectManager(self.tempdir.name)
+        manager.save_chunks([{'id':0,'uid':'take-row','speaker':'Alice','text':'Hello world.',
+                              'instruct':'neutral','take':0,'status':'pending'}])
+        voice_path = Path(manager.voice_config_path)
+        voice_path.write_text(json.dumps({'Alice':{'type':'custom','voice':'Ryan','seed':12345}}))
+        original_voices = voice_path.read_bytes()
+        engine = CapturingEngine(success=False)
+        manager.get_engine = lambda: engine
+        manager._load_tts_config = lambda: {'reproducible_takes':True}
+        api = FastAPI();api.include_router(editor.router)
+        seeds = []
+        with use_private_cpu_fixture_lock(), mock.patch.object(editor,'project_manager',manager), \
+             mock.patch.object(editor,'SCRIPT_PATH',str(Path(self.tempdir.name,'annotated_script.json'))), \
+             TestClient(api) as client:
+            for take in (0,1,1):
+                snapshot = client.get('/api/chunks/status').json()
+                changed = client.post('/api/chunks/0',params={
+                    'expected_book_token':snapshot['book_token'],'expected_uid':'take-row'},json={'take':take})
+                self.assertEqual(200,changed.status_code,changed.text)
+                self.assertEqual(take,manager.load_chunks()[0]['take'])
+                # The real single-render path supplies the model's random state;
+                # this CPU engine deliberately stops before audio publication.
+                success,_ = manager.generate_chunk_audio(0)
+                self.assertFalse(success)
+                seeds.append(engine.args[3]['Alice']['seed'])
+        self.assertEqual(12345,seeds[0],'the original pinned take retains its base seed')
+        self.assertNotEqual(seeds[0],seeds[1],'Different take must change a positively seeded voice')
+        self.assertEqual(seeds[1],seeds[2],'rerendering the same numbered take is deterministic')
+        import torch
+        states, draws = [], []
+        for seed in seeds:
+            generator = torch.Generator(device='cpu').manual_seed(seed)
+            states.append(generator.get_state())
+            draws.append(torch.rand(32, generator=generator))
+        self.assertFalse(torch.equal(states[0], states[1]))
+        self.assertTrue(torch.equal(states[1], states[2]))
+        self.assertFalse(torch.equal(draws[0], draws[1]))
+        self.assertTrue(torch.equal(draws[1], draws[2]))
+        self.assertEqual(original_voices,voice_path.read_bytes())
 
     def test_changing_take_marks_chunk_stale(self):
         manager = object.__new__(project.ProjectManager)

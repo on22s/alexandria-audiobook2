@@ -199,7 +199,9 @@ class ScriptPreflightTests(unittest.TestCase):
                                    frame_rate=24000, channels=1)
             timeline = compute_timeline([(entry, segment) for entry in saved],
                                         pause_ms=777, same_speaker_pause_ms=111)
-            self.assertEqual(500, timeline[2][2] - (timeline[1][2] + len(timeline[1][1])))
+            gap = AudioSegment.silent(duration=500).set_frame_rate(24000)
+            self.assertAlmostEqual(gap.duration_seconds * 1000,
+                timeline[2][2] - (timeline[1][2] + timeline[1][1].duration_seconds * 1000))
 
     def test_saved_repair_refuses_untransferable_empty_metadata_without_rewriting(self):
         entries = [_entry("Spoken line."), {**_entry(""), "chapter": "Part Two"}]

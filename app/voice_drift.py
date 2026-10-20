@@ -21,7 +21,8 @@ import time
 
 from experiments.library_voice_fidelity import ecapa_pairs
 from utils import is_path_inside
-from tts import get_chunk_voice_inputs, get_resolved_speaker
+from tts import get_chunk_voice_inputs, get_resolved_speaker, _resolve_asset_path
+from voice_manifest import get_resolved_adapter_path
 
 # Same rationale as verify_adapter_identity.py: working adapters score
 # 0.65-0.74 against their human reference, failures 0.027-0.404, and the
@@ -67,9 +68,14 @@ def get_reference_for_speaker(speaker, voice_config, chunks, resolve_alias,
     cfg = (effective_inputs if effective_inputs is not None else voice_config).get(canonical) or {}
     kind = cfg.get("type")
     if kind == "clone" and cfg.get("ref_audio"):
-        return resolve_asset_path(cfg["ref_audio"]), f"clone:{canonical}"
+        reference = cfg["ref_audio"]
+        return (reference if os.path.isabs(reference) else resolve_asset_path(reference)), f"clone:{canonical}"
     if kind in ("lora", "builtin_lora") and cfg.get("adapter_path"):
-        adapter_path = resolve_asset_path(cfg["adapter_path"])
+        adapter_path = cfg["adapter_path"]
+        if not os.path.isabs(adapter_path):
+            adapter_path = resolve_asset_path(adapter_path)
+        if adapter_path:
+            adapter_path = get_resolved_adapter_path(adapter_path)
         path = os.path.join(adapter_path, "ref_sample.wav") if adapter_path else None
         return path, f"lora:{canonical}"
     for chunk in chunks:
@@ -175,7 +181,7 @@ def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, thresho
     """
     from pydub.exceptions import CouldntDecodeError
 
-    resolve_asset_path = resolve_asset_path or (lambda p: p)
+    resolve_asset_path = resolve_asset_path or (lambda p: os.path.join(root_dir, p))
     if not python_bin:
         return {"results": [], "error": "not measured: no speechbrain interpreter "
                                         "(set Voice Lab's rocm_python or ALEXANDRIA_SIBLING_PYTHON)"}
@@ -221,7 +227,14 @@ def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, thresho
                 ref_path = os.path.join(root_dir, ref_chunk["audio_path"]) if ref_chunk else None
             if ref_path:
                 ref_path = os.path.join(root_dir, ref_path)
-                if not is_path_inside(ref_path, root_dir):
+                admitted = is_path_inside(ref_path, root_dir)
+                if not admitted and label.startswith("lora:"):
+                    try:
+                        admitted = is_path_inside(ref_path, _resolve_asset_path("builtin_lora"))
+                    except ValueError:
+                        # An escaped/symlinked installation root is not trusted.
+                        pass
+                if not admitted:
                     results.append({"index": index, "uid": chunk.get("uid"), "score": None,
                                     "flagged": False, "reference": label,
                                     "error": "reference audio path is outside project"})

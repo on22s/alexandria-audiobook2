@@ -30,6 +30,8 @@ from audio_validation import GeneratedAudioError, publish_audio_output
 from speech_text import normalize_for_speech, get_speech_preparation
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
+from audio_pcm_producer import (get_pcm_source_shape, get_audio_duration_ms,
+                                get_joined_pcm_shape, get_promoted_pcm_shape, get_silence_pcm_shape)
 from voice_manifest import get_resolved_adapter_path, get_adapter_asset_snapshot
 
 try:
@@ -271,8 +273,8 @@ def get_chunk_seed(text, take=0):
     return (zlib.crc32(normalized.encode("utf-8")) + int(take) * CHUNK_SEED_PRIME) % 2**31
 
 
-def get_reproducible_voice_config(resolved, seed):
-    """Copy resolved voices, seeding every voice that does not pin a seed."""
+def get_reproducible_voice_config(resolved, seed, *, take=0):
+    """Copy voices, retaining pinned originals and offsetting numbered takes."""
     reproducible = {}
     for name, data in resolved.items():
         if not isinstance(data, dict):
@@ -285,6 +287,8 @@ def get_reproducible_voice_config(resolved, seed):
             current_seed = -1
         if current_seed < 0:
             entry["seed"] = seed
+        elif int(take) > 0:
+            entry["seed"] = (current_seed + int(take) * CHUNK_SEED_PRIME) % 2**31
         reproducible[name] = entry
     return reproducible
 
@@ -593,17 +597,32 @@ def iter_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
                   same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS, cancel_check=None):
     """Yield the existing trimmed timeline without retaining preceding audio."""
     cursor_ms = 0
+    prefix_shape = None
     prev_chunk = None
 
     for chunk, segment in chunks_with_audio:
         ensure_audio_export_active(cancel_check)
         segment = trim_edge_silence(segment, cancel_check=cancel_check)   # same cut the combined audio gets
+        segment_shape = get_pcm_source_shape(segment)
         if prev_chunk is not None:
-            cursor_ms += get_pause_duration_ms(
+            pause = get_pause_duration_ms(
                 prev_chunk, chunk, pause_ms, same_speaker_pause_ms)
+            # Mirror combine's (gap + segment), then prefix promotion. The
+            # integer PCM clock retains fractional milliseconds across a book.
+            piece = get_joined_pcm_shape(get_silence_pcm_shape(pause), segment_shape)
+            joined = get_joined_pcm_shape(prefix_shape, piece)
+            if joined is not None:
+                promoted = get_promoted_pcm_shape(segment_shape, joined[0])
+                cursor_ms = 1000 * (joined[1] - promoted[1]) / joined[0][1]
+            else:
+                cursor_ms += pause
+            prefix_shape = joined
+        else:
+            prefix_shape = segment_shape
 
         yield chunk, segment, cursor_ms
-        cursor_ms += len(segment)
+        cursor_ms = (1000 * prefix_shape[1] / prefix_shape[0][1]
+                     if prefix_shape is not None else cursor_ms + get_audio_duration_ms(segment))
         prev_chunk = chunk
         del segment
 
@@ -1544,7 +1563,19 @@ class TTSEngine:
     def generate_voice(self, text, instruct_text, speaker, voice_config, output_path):
         """Generate audio using the appropriate method based on voice type config."""
         prepared = get_speech_preparation(text, instruct_text)
-        text, instruct_text = prepared["text"], prepared["instruct"]
+        return self._generate_voice_prepared(
+            prepared["text"], prepared["instruct"], speaker, voice_config, output_path)
+
+    def _dispatch_prepared_voice(self, text, instruct_text, speaker, voice_config, output_path):
+        """Retain public dispatcher overrides without re-preparing native input."""
+        render = self.generate_voice
+        if (isinstance(render, MethodType) and render.__self__ is self
+                and render.__func__ is _RAW_GENERATE_VOICE):
+            return self._generate_voice_prepared(text, instruct_text, speaker, voice_config, output_path)
+        return render(text, instruct_text, speaker, voice_config, output_path)
+
+    def _generate_voice_prepared(self, text, instruct_text, speaker, voice_config, output_path):
+        """Dispatch input whose simultaneous speech preparation has already run."""
         speaker = get_resolved_speaker(speaker, voice_config)
         voice_config = resolve_narrator_voice_config(speaker, voice_config)
         voice_data = voice_config.get(speaker)
@@ -1570,12 +1601,23 @@ class TTSEngine:
             # Preserve historical override input and preparation semantics.
             return render(text, speaker, voice_config, output_path)
         elif category == "lora":
-            return self.generate_lora_voice(text, instruct_text, voice_data, output_path)
+            render = self.generate_lora_voice
+            if (isinstance(render, MethodType) and render.__self__ is self
+                    and render.__func__ is _RAW_LORA_VOICE):
+                return self._generate_lora_voice_prepared(text, instruct_text, voice_data, output_path)
+            return render(text, instruct_text, voice_data, output_path)
         elif category == "design":
-            return self.generate_design_voice(text, instruct_text, voice_data, output_path)
+            render = self.generate_design_voice
+            if (isinstance(render, MethodType) and render.__self__ is self
+                    and render.__func__ is _RAW_DESIGN_VOICE):
+                return self._generate_design_voice_prepared(text, instruct_text, voice_data, output_path)
+            return render(text, instruct_text, voice_data, output_path)
         elif category == "ensemble":
-            return self.generate_ensemble_voice(text, instruct_text, voice_data,
-                                                voice_config, output_path)
+            render = self.generate_ensemble_voice
+            if (isinstance(render, MethodType) and render.__self__ is self
+                    and render.__func__ is _RAW_ENSEMBLE_VOICE):
+                return self._generate_ensemble_voice_prepared(text, instruct_text, voice_data, voice_config, output_path)
+            return render(text, instruct_text, voice_data, voice_config, output_path)
         else:
             render = self.generate_custom_voice
             if (isinstance(render, MethodType) and render.__self__ is self
@@ -1595,6 +1637,11 @@ class TTSEngine:
         assigned keeps that LoRA. The clips are then aligned and mixed by
         mix_to_unison.
         """
+        prepared = get_speech_preparation(text, instruct_text)
+        return self._generate_ensemble_voice_prepared(
+            prepared["text"], prepared["instruct"], voice_data, voice_config, output_path)
+
+    def _generate_ensemble_voice_prepared(self, text, instruct_text, voice_data, voice_config, output_path):
         members = voice_data.get("members") or []
         if not members:
             raise ValueError("Ensemble voice has no members configured.")
@@ -1617,8 +1664,8 @@ class TTSEngine:
             member_paths = []
             for i, member in enumerate(resolved_members):
                 member_path = os.path.join(temp_dir, f"member_{i}.wav")
-                if not self.generate_voice(text, instruct_text, member,
-                                           voice_config, member_path):
+                if not self._dispatch_prepared_voice(text, instruct_text, member,
+                                                    voice_config, member_path):
                     raise RuntimeError(
                         f"Ensemble member '{member}' failed to generate.")
                 member_paths.append(member_path)
@@ -1696,9 +1743,12 @@ class TTSEngine:
         The voice_data 'description' field provides the base voice identity,
         and the per-line instruct_text is appended for delivery/emotion direction.
         """
-        self.get_voice_backend("design")
         prepared = get_speech_preparation(text, instruct_text)
-        text, instruct_text = prepared["text"], prepared["instruct"]
+        return self._generate_design_voice_prepared(
+            prepared["text"], prepared["instruct"], voice_data, output_path)
+
+    def _generate_design_voice_prepared(self, text, instruct_text, voice_data, output_path):
+        self.get_voice_backend("design")
         import shutil
 
         base_desc = (voice_data.get("description") or "").strip()
@@ -1740,7 +1790,6 @@ class TTSEngine:
 
     # ── LoRA voice generation ────────────────────────────────────
 
-    @ensure_local_tts_serialized
     @capture_tts_operation("generate_lora_voice")
     def generate_lora_voice(self, text, instruct_text, voice_data, output_path):
         """Generate audio using a LoRA-finetuned Base model.
@@ -1753,7 +1802,11 @@ class TTSEngine:
         The LoRA weights refine voice identity beyond what the reference alone provides.
         """
         prepared = get_speech_preparation(text, instruct_text)
-        text, instruct_text = prepared["text"], prepared["instruct"]
+        return self._generate_lora_voice_prepared(
+            prepared["text"], prepared["instruct"], voice_data, output_path)
+
+    @ensure_local_tts_serialized
+    def _generate_lora_voice_prepared(self, text, instruct_text, voice_data, output_path):
         try:
             self.get_voice_backend("lora")
             import time
@@ -1955,7 +2008,7 @@ class TTSEngine:
                 output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
                 resolved = get_batch_voice_config(resolved, chunk.get("speaker"), idx, batch_seed)
                 try:
-                    if self.generate_voice(chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path):
+                    if self._dispatch_prepared_voice(chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path):
                         results["completed"].append(idx)
                     else:
                         results["failed"].append((idx, "Narrator voice generation failed"))
@@ -2036,11 +2089,13 @@ class TTSEngine:
                 speaker = chunk.get("speaker")
                 voice_data = get_batch_voice_config(voice_config, speaker, idx, batch_seed).get(speaker, {})
                 try:
-                    success = self.generate_design_voice(
-                        text=chunk["text"],
-                        instruct_text=chunk.get("instruct", ""),
-                        voice_data=voice_data,
-                        output_path=output_path,
+                    render = self.generate_design_voice
+                    if (isinstance(render, MethodType) and render.__self__ is self
+                            and render.__func__ is _RAW_DESIGN_VOICE):
+                        render = self._generate_design_voice_prepared
+                    success = render(
+                        text=chunk["text"], instruct_text=chunk.get("instruct", ""),
+                        voice_data=voice_data, output_path=output_path,
                     )
                     if success:
                         results["completed"].append(idx)
@@ -2749,7 +2804,9 @@ class TTSEngine:
             if not os.path.isabs(ref_audio):
                 ref_audio = _resolve_asset_path(ref_audio)
 
-            if not os.path.exists(ref_audio):
+            try:
+                ref_audio, reference_bytes = get_adapter_asset_snapshot(ref_audio)
+            except FileNotFoundError:
                 print(f"Warning: Reference audio not found for '{speaker}': {ref_audio}")
                 apply_tts_failure(f"Reference audio not found for '{speaker}': {ref_audio}", "missing_asset",
                                   "Restore the clone reference audio before retrying.")
@@ -2757,22 +2814,30 @@ class TTSEngine:
 
             client, lock = self._external_endpoint(endpoint)
 
+            # Gradio uploads lazily. Keep captured bytes private until predict
+            # exits, so renaming or replacing the source cannot change input.
             with lock:
                 if cancelled and cancelled.is_set():
                     return False
-                with measure_tts_stage_time("external_request"):
-                    result = client.predict(
-                        handle_file(ref_audio),
-                        ref_text,
-                        text,
-                        self._language,
-                        False,       # use_xvector_only
-                        "1.7B",
-                        200,         # max_chunk_chars
-                        0,           # chunk_gap
-                        seed,
-                        api_name="/generate_voice_clone"
-                    )
+                with tempfile.TemporaryDirectory(prefix="external_clone_ref_") as directory:
+                    reference_path = os.path.join(directory, os.path.basename(ref_audio))
+                    with open(reference_path, "wb") as handle:
+                        handle.write(reference_bytes)
+                    if cancelled and cancelled.is_set():
+                        return False
+                    with measure_tts_stage_time("external_request"):
+                        result = client.predict(
+                            handle_file(reference_path),
+                            ref_text,
+                            text,
+                            self._language,
+                            False,       # use_xvector_only
+                            "1.7B",
+                            200,         # max_chunk_chars
+                            0,           # chunk_gap
+                            seed,
+                            api_name="/generate_voice_clone"
+                        )
 
             generated_audio_filepath = result[0]
             if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
@@ -2806,7 +2871,7 @@ class TTSEngine:
             idx = chunk["index"]
             output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
             try:
-                success = self.generate_voice(
+                success = self._dispatch_prepared_voice(
                     chunk.get("text", ""),
                     chunk.get("instruct", ""),
                     chunk.get("speaker"),
@@ -2943,3 +3008,7 @@ class TTSEngine:
 # Capture native wrappers once so class/instance replacements take the fallback.
 _RAW_CUSTOM_VOICE = TTSEngine.generate_custom_voice
 _RAW_CLONE_VOICE = TTSEngine.generate_clone_voice
+_RAW_LORA_VOICE = TTSEngine.generate_lora_voice
+_RAW_DESIGN_VOICE = TTSEngine.generate_design_voice
+_RAW_ENSEMBLE_VOICE = TTSEngine.generate_ensemble_voice
+_RAW_GENERATE_VOICE = TTSEngine.generate_voice
