@@ -3219,6 +3219,18 @@
   "test_embedded_api_logging": [
     "tests.test_embedded_api_logging.EmbeddedApiLoggingTests.test_server_creation_does_not_close_a_foreign_log_after_directory_cleanup"
   ],
+  "test_embedded_chapter_headings": [
+    "tests.test_embedded_chapter_headings.EmbeddedStructuralHeadingTests.test_original_labels_keep_literal_words_context_limits_scene_and_final_pauses",
+    "tests.test_embedded_chapter_headings.EmbeddedStructuralHeadingTests.test_quoted_new_label_does_not_disable_an_existing_numbered_boundary",
+    "tests.test_embedded_chapter_headings.EmbeddedStructuralHeadingTests.test_quoted_parenthesized_spoken_and_nonparagraph_labels_are_not_split",
+    "tests.test_embedded_chapter_headings.EmbeddedStructuralHeadingTests.test_real_label_is_independent_of_an_unrelated_synthetic_label",
+    "tests.test_embedded_chapter_headings.EmbeddedStructuralHeadingTests.test_removed_aside_scene_and_cue_edges_do_not_invent_unnumbered_headings",
+    "tests.test_embedded_chapter_headings.EmbeddedStructuralHeadingTests.test_repeated_genuine_labels_remain_separate_structural_boundaries",
+    "tests.test_embedded_chapter_headings.EmbeddedStructuralHeadingTests.test_same_label_ambiguity_defers_new_splits_without_disabling_numbered_heads",
+    "tests.test_embedded_chapter_headings.EmbeddedStructuralHeadingTests.test_saved_legacy_chunks_and_audio_are_not_silently_rebuilt",
+    "tests.test_embedded_chapter_headings.EmbeddedStructuralHeadingTests.test_structural_paragraphs_preserve_mapping_metadata_and_final_pause",
+    "tests.test_embedded_chapter_headings.EmbeddedStructuralHeadingTests.test_sung_and_elongation_scopes_cover_every_original_fragment_child"
+  ],
   "test_empty_arm_is_not_zero": [
     "tests.test_empty_arm_is_not_zero.AnsweredNothingIsNotZero.test_a_healthy_stored_artifact_is_not_flagged",
     "tests.test_empty_arm_is_not_zero.AnsweredNothingIsNotZero.test_a_stored_artifact_is_reported_not_refused",

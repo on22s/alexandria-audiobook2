@@ -1,5 +1,6 @@
 import os
 import copy
+from collections import Counter
 import tempfile
 import hashlib
 import json
@@ -64,6 +65,8 @@ CHAPTER_HEADING_RE = re.compile(
     re.IGNORECASE
 )
 NUMBERED_HEADING_SUFFIX_RE = re.compile(r'\s+(?:[0-9]+|[ivxlcdm]+)[.!?。！？]?$', re.IGNORECASE)
+UNNUMBERED_CHAPTER_HEADINGS = frozenset({
+    "prelude", "prologue", "epilogue", "introduction", "conclusion"})
 CHAPTER_CONTEXT_PAIRS = {
     '(': ')', '[': ']', '{': '}', '<': '>',
     '“': '”', '‘': '’', '«': '»', '「': '」', '『': '』',
@@ -197,6 +200,26 @@ def is_numbered_heading(text):
     return bool(heading and NUMBERED_HEADING_SUFFIX_RE.fullmatch(text[heading.end():]))
 
 
+def get_chapter_heading_offsets(text, unnumbered_labels=UNNUMBERED_CHAPTER_HEADINGS):
+    """Map eligible heading offsets to labels, keeping paragraph context intact."""
+    lines = text.splitlines(keepends=True)
+    offsets, offset = {}, 0
+    for index, line in enumerate(lines):
+        label = line.strip()
+        standalone = (index == 0 or not lines[index - 1].strip()) and (
+            index + 1 == len(lines) or not lines[index + 1].strip())
+        if is_numbered_heading(label) or (standalone and label.casefold() in unnumbered_labels):
+            offsets[offset] = label.casefold()
+        offset += len(line)
+    return offsets
+
+
+def get_unnumbered_chapter_counts(text):
+    """Count candidates using the same paragraph rules as actual heading splits."""
+    return Counter(label for label in get_chapter_heading_offsets(text).values()
+                   if label in UNNUMBERED_CHAPTER_HEADINGS)
+
+
 def is_apostrophe(text, position, stack):
     """True for a ' or ’ that is an apostrophe, not a quote: an elision before a
     digit ("the '90s") or a word-final possessive ("James'", "dogs’") that has no
@@ -213,12 +236,13 @@ def is_apostrophe(text, position, stack):
     return before_is_word and not after_is_word and not (stack and stack[-1] == char)
 
 
-def is_chapter_line_context_unambiguous(text):
+def is_chapter_line_context_unambiguous(text, unnumbered_labels=()):
     """Defer rows with enclosed headings or unbalanced delimiter context."""
     stack = []
     offset = 0
+    headings = get_chapter_heading_offsets(text, unnumbered_labels)
     for line in text.splitlines(keepends=True):
-        if is_numbered_heading(line.strip()) and stack:
+        if offset in headings and stack:
             return False
         for position, char in enumerate(line, offset):
             if is_apostrophe(text, position, stack):
@@ -304,7 +328,7 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
             current.append(char)
     segments.append("".join(current))
 
-    parts = []
+    parts, plain_indices = [], set()
     for index, segment in enumerate(segments):
         segment_parts = []
         # A bracketed span is delivered differently from the prose around it,
@@ -314,23 +338,18 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
             cleaned, hints = extract_delivery_cues(fragment)
             if set_apart:
                 hints = hints + [SET_APART_HINT]
-            text_parts = (get_chapter_text_parts(cleaned)
-                          if split_chapters and not set_apart else [cleaned])
-            for part_index, text_part in enumerate(text_parts):
-                cleaned_part = " ".join(text_part.split()) if text_part.strip() else ""
-                if has_renderings:
-                    cleaned_part, _ = get_spoken_text_spacing(cleaned_part)
-                if not cleaned_part:
-                    continue
-                part = dict(entry)
-                # The entry's own pause_after is the silence after the whole entry,
-                # so only its last part carries it (added below), not every part.
-                part.pop("pause_after", None)
-                part["text"] = cleaned_part
-                if hints:
-                    existing = str(part.get("instruct") or "").strip()
-                    part["instruct"] = " ".join(filter(None, [existing] + hints))
-                segment_parts.append(part)
+            if not cleaned.strip():
+                continue
+            part = dict(entry)
+            # Keep paragraph boundaries until original heading intent is checked.
+            part.pop("pause_after", None)
+            part["text"] = cleaned
+            if hints:
+                existing = str(part.get("instruct") or "").strip()
+                part["instruct"] = " ".join(filter(None, [existing] + hints))
+            segment_parts.append(part)
+            if not set_apart:
+                plain_indices.add(len(parts) + len(segment_parts) - 1)
 
         if not segment_parts:
             # A scene break with nothing before it has no audio anchor to
@@ -350,7 +369,35 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
     if parts and entry.get("pause_after") is not None:
         parts[-1]["pause_after"] = max(int(parts[-1].get("pause_after") or 0),
                                        int(entry["pause_after"]))
-    return parts, review
+    allowed_labels = set()
+    if split_chapters and is_chapter_line_context_unambiguous(
+            original_text, UNNUMBERED_CHAPTER_HEADINGS):
+        original_counts = get_unnumbered_chapter_counts(original_text)
+        prepared_counts = Counter()
+        for index, part in enumerate(parts):
+            if index in plain_indices:
+                prepared_counts.update(get_unnumbered_chapter_counts(part["text"]))
+        # Current preparation preserves label letters, but removing a cue or
+        # aside can create a new paragraph edge. Defer ambiguous repeated labels.
+        allowed_labels = {label for label, count in original_counts.items()
+                          if prepared_counts[label] == count}
+
+    prepared = []
+    for index, part in enumerate(parts):
+        text_parts = (get_chapter_text_parts(part["text"], allowed_labels)
+                      if split_chapters and index in plain_indices else [part["text"]])
+        for part_index, text_part in enumerate(text_parts):
+            cleaned_part = " ".join(text_part.split()) if text_part.strip() else ""
+            if has_renderings:
+                cleaned_part, _ = get_spoken_text_spacing(cleaned_part)
+            if not cleaned_part:
+                continue
+            child = dict(part)
+            child["text"] = cleaned_part
+            if part_index < len(text_parts) - 1:
+                child.pop("pause_after", None)
+            prepared.append(child)
+    return prepared, review
 
 
 def log_review_characters(review):
@@ -372,12 +419,13 @@ def log_review_characters(review):
         "Unmapped symbols left in TTS text and needing review: %s", summary)
 
 
-def get_chapter_text_parts(text):
+def get_chapter_text_parts(text, unnumbered_labels=UNNUMBERED_CHAPTER_HEADINGS):
     """Keep prepared heading lines without isolating nonverbal-only pieces."""
     parts = []
     offset = start = 0
+    headings = get_chapter_heading_offsets(text, unnumbered_labels)
     for line in text.splitlines(keepends=True):
-        if is_numbered_heading(line.strip()):
+        if offset in headings:
             if text[start:offset].strip():
                 parts.append(text[start:offset])
             parts.append(line)
