@@ -2956,6 +2956,12 @@ required validation keeps its task open. Unverified model flags are excluded.
 
 ---
 
+
+**Current publication-path integration.** The archival PR now includes accepted main22b0de7f85caccf6ebd8fae55e6df9c41ab3d3a3 through a normal pending merge. PR1462 changes chunk publication to retain prior audio when metadata persistence fails and adds nine test methods,bringing the inventory to8,681. The previously qualified/published5a2e3d03 head and its five successful CI checks remain preserved as prior-main evidence. All38historical preservation files remain byte-identical. Fresh combined publication/journal/UI/stage/queue/ECAPA/audio controls passed119distinct tests in30.928s with zero skips. The new full release and merged-head CI are pending;55/58tasks remain accepted. Actual model/API validation is being repeated against the current publication path;no live checkout or existing GPU job is changed.
+
+
+**Qualified publication-source archival candidate.** Current publication-source ./ready.sh passed all eight gates in 886.198s: 8,681 exact inventoried unit tests with zero skips and 72 API passes with zero failures and 12 explicit full-inference exclusions. Validated tree: bf0faa82918deefde56d8f2ba293f8fbb3472f7f. The 119 combined publication, journal, UI, stage, queue, ECAPA, audio and metadata checks passed in 30.928s without skips. All 38 historical preservation hashes remain exact; both CPU-only characterizations were rerun against accepted main 22b0de7f85caccf6ebd8fae55e6df9c41ab3d3a3. The archival change adds no application or queue behavior and changes no dated producer, verification output or guard exemption. Exact updated-head CI and merge remain pending; 55/58 tasks are accepted and three archival tasks remain in progress. Actual ROCm validation on the same application source preserved all 263 ordered words, completed 9 speech chunks and verified MP3, M4B and Audacity exports. The full API report remains 82 passes, zero failures and two prerequisite skips; those two original functions passed separately with a selected source and an owned local LLM. CPU ASR recovered 261/263 words (99.24%) and rejected silence. Native SDK ownership passed 20 tests without skips on each of Linux, Windows and macOS at the accepted publication source. Listening is unverified; no whole-book quality or separate #1090 performance result is claimed.
+
 ## 4. Speed and cost
 
 ### 4.1 Faster than real time
