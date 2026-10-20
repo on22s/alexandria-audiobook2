@@ -98,6 +98,10 @@ def _generate_voice_design_preview(request):
 @router.post("/api/voice_design/save")
 async def voice_design_save(request: VoiceDesignSaveRequest):
     """Save a preview voice as a permanent designed voice."""
+    return await asyncio.to_thread(_save_voice_design, request)
+
+
+def _save_voice_design(request):
     previews_dir = os.path.join(DESIGNED_VOICES_DIR, "previews")
     # Constrain to the previews dir so preview_file can't traverse out and copy
     # an arbitrary host file (e.g. ../../etc/passwd) into the web-served dir.
@@ -191,6 +195,10 @@ def get_voice_asset_path(base_dir, entry):
 @router.delete("/api/voice_design/{voice_id}")
 async def voice_design_delete(voice_id: str):
     """Delete a saved designed voice."""
+    return await asyncio.to_thread(_delete_voice_design, voice_id)
+
+
+def _delete_voice_design(voice_id):
     with file_lock(DESIGNED_VOICES_MANIFEST):
         manifest = _load_manifest(DESIGNED_VOICES_MANIFEST, for_update=True)
         entry = next((v for v in manifest if v["id"] == voice_id), None)

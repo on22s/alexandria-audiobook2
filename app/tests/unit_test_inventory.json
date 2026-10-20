@@ -758,6 +758,9 @@
     "tests.test_batch07_diagnostic_boundaries.DiagnosticBoundariesTests.test_single_adapter_cli_publishes_native_pcm_provider_results",
     "tests.test_batch07_diagnostic_boundaries.DiagnosticBoundariesTests.test_single_adapter_selection_preserves_even_range_controls"
   ],
+  "test_batch08_retention": [
+    "tests.test_batch08_retention.CompleteRetentionTests.test_retention_visits_old_rows_beyond_listing_cap_and_preserves_protected_bytes"
+  ],
   "test_batch_alias_registry": [
     "tests.test_batch_alias_registry.BatchAliasRegistryTests.test_corrected_and_removed_aliases_govern_single_and_bidirectional_batches"
   ],
@@ -1484,6 +1487,9 @@
     "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_detector_fires_on_the_chain_that_failed",
     "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_remedy_is_present_in_the_shared_runner"
   ],
+  "test_chapter_cold_memory": [
+    "tests.test_chapter_cold_memory.ColdChapterMemoryTests.test_selected_cold_chapter_releases_prior_decoded_pcm_and_preserves_samples_offsets_sources"
+  ],
   "test_chapter_cuts": [
     "tests.test_chapter_cuts.Headings.test_control_has_same_count_and_avoids_headings",
     "tests.test_chapter_cuts.Headings.test_grimgar_needs_the_volume_line_then_a_numbered_title",
@@ -1549,6 +1555,9 @@
     "tests.test_chapter_plan_offsets.ChapterPlanOffsetTests.test_first_subset_uses_the_same_nominal_timeline_as_full_export",
     "tests.test_chapter_plan_offsets.ChapterPlanOffsetTests.test_legacy_manifest_rebuilds_before_changed_only_reuse"
   ],
+  "test_chapter_preview_metadata": [
+    "tests.test_chapter_preview_metadata.ChapterPreviewMetadataTests.test_cold_and_warm_previews_match_decoded_names_without_loading_pcm"
+  ],
   "test_chapter_preview_parity": [
     "tests.test_chapter_preview_parity.ChapterPreviewParityTests.test_actual_frontend_preview_serializes_all_export_filters",
     "tests.test_chapter_preview_parity.ChapterPreviewParityTests.test_native_readiness_errors_match_export_and_selected_changed_only_preview_matches_files"
@@ -1562,6 +1571,17 @@
     "tests.test_chapter_render_memory.ChapterRenderMemoryTests.test_full_and_changed_only_render_the_same_changed_chapter_bytes",
     "tests.test_chapter_render_memory.ChapterRenderMemoryTests.test_full_export_combines_only_one_chapter_and_releases_previous_render",
     "tests.test_chapter_render_memory.ChapterRenderMemoryTests.test_subset_does_not_render_unrequested_chapters"
+  ],
+  "test_chapter_timing_cache": [
+    "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_cancelled_index_preserves_prior_publication_and_does_not_publish_partial_facts",
+    "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_changed_only_checks_content_identity_before_reusing_a_selected_chapter",
+    "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_changed_unselected_waveform_with_restored_size_and_mtime_invalidates_its_timing_fact",
+    "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_corrupted_facts_and_changed_trim_policy_require_fresh_indexing",
+    "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_encoded_input_hashing_is_bounded_and_matches_exact_bytes",
+    "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_missing_corrupt_and_repaired_inputs_keep_legacy_admission_and_refresh_negative_facts",
+    "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_mp3_legacy_index_once_then_cold_selected_export_decodes_only_selected_audio",
+    "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_source_edit_during_staging_refuses_publication_and_preserves_prior_files",
+    "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_transient_decoder_failure_is_retried_without_changing_source_bytes"
   ],
   "test_character_distinctiveness": [
     "tests.test_character_distinctiveness.ManifestTest.test_a_blank_speaker_is_bucketed_not_discarded",
@@ -2753,6 +2773,9 @@
     "tests.test_designed_voice_alias_js.DesignedVoiceAliasJsTests.test_saved_alias_targets_character_names_with_css_metacharacters",
     "tests.test_designed_voice_alias_js.DesignedVoiceSaveGuardJsTests.test_invalid_name_or_missing_preview_does_not_block_later_valid_save",
     "tests.test_designed_voice_alias_js.DesignedVoiceSaveGuardJsTests.test_pending_save_blocks_duplicates_and_failure_allows_retry"
+  ],
+  "test_designer_mutation_workers": [
+    "tests.test_designer_mutation_workers.DesignerMutationWorkerTests.test_copy_and_contended_manifest_lock_allow_other_requests_until_atomic_completion"
   ],
   "test_designer_resource_identity_js": [
     "tests.test_designer_resource_identity_js.DesignerResourceIdentityJsTests.test_actual_packets_update_one_native_artifact_then_create_without_overwriting_collision",
@@ -10867,6 +10890,10 @@
     "tests.test_word_timing.WordTimingTests.test_real_cancelled_child_is_reaped_and_timeout_is_finite",
     "tests.test_word_timing.WordTimingTests.test_repeated_missing_and_wrong_words_do_not_receive_invented_times",
     "tests.test_word_timing.WordTimingTests.test_verified_audio_uses_open_captured_inode_and_refuses_changed_bytes"
+  ],
+  "test_word_timing_cpu_admission": [
+    "tests.test_word_timing_cpu_admission.WordTimingCPUAdmissionTests.test_real_decoder_and_provider_command_keep_cpu_only_bounded_contract",
+    "tests.test_word_timing_cpu_admission.WordTimingCPUAdmissionTests.test_word_timing_owns_cpu_slot_during_gpu_work_and_cancellation_until_worker_exits"
   ],
   "test_word_timing_js": [
     "tests.test_word_timing_js.WordTimingJsTests.test_failed_snapshot_does_not_start_asr_and_wrong_take_result_is_refused",

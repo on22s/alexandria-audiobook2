@@ -107,7 +107,9 @@ def get_chapter_reuse_duration(plan, old, wanted, changed_only, out_dir):
         if report.get('sha256') != get_audio_sha256(os.path.join(out_dir, old['file'])):
             return None
     if plan["index"] not in wanted or (changed_only and
-            old.get("fingerprint") == plan["fingerprint"] and old.get("file") == plan["file"]):
+            old.get("fingerprint") == plan["fingerprint"] and old.get("file") == plan["file"] and
+            ('source_fingerprint' not in plan or
+             old.get('source_fingerprint') == plan['source_fingerprint'])):
         return duration
     return None
 
@@ -1283,7 +1285,7 @@ class ProjectManager:
             return None
 
     def _load_chunks_with_audio(self, cancel_check=None, progress_callback=None, chunks=None,
-                                segment_transform=None):
+                                segment_transform=None, audio_provider=None):
         """Load chunks and pair each with its AudioSegment.
 
         Returns (result, skipped_count): result is the list of (chunk, segment)
@@ -1301,7 +1303,7 @@ class ProjectManager:
                 raise ExportCancelled()
             if progress_callback and position and position % 50 == 0:
                 progress_callback(position, len(chunks))
-            segment = self.get_chunk_audio_segment(chunk)
+            segment = (audio_provider or self.get_chunk_audio_segment)(chunk)
             if segment is not None:
                 result.append((chunk, segment_transform(segment) if segment_transform else segment))
             else:
@@ -1708,7 +1710,8 @@ class ProjectManager:
             [chunk.get("pause_after") for chunk, _ in pairs],
             cancel_check=cancel_check)
 
-    def _get_chapter_export_plans(self, chunks, options, pause_defaults):
+    def _get_chapter_export_plans(self, chunks, options, pause_defaults,
+                                  get_source_fingerprint=None):
         """Plan shared names, source ranges and fingerprints without publication."""
         groups = self._chapter_groups(chunks, options["per_chunk_chapters"])
         filenames = build_chapter_filenames(
@@ -1720,6 +1723,10 @@ class ProjectManager:
                  "fingerprint": self._chapter_fingerprint(
                      chunks[first:last + 1], pause_defaults)}
                 for index, (title, first, last) in enumerate(groups)]
+        if get_source_fingerprint is not None:
+            for plan in plans:
+                first, last = plan['chunks']
+                plan['source_fingerprint'] = get_source_fingerprint(chunks[first:last + 1])
         if options.get('mastering') is not None:
             for plan in plans:
                 plan['fingerprint'] = hashlib.sha256(json.dumps(
@@ -1730,7 +1737,7 @@ class ProjectManager:
     def _apply_chapter_export_plans(self, plans, chunks, options, pause_defaults,
                                     previous, chapters, changed_only, get_pairs,
                                     durations=None, progress_callback=None,
-                                    cancel_check=None):
+                                    cancel_check=None, source_check=None):
         """Stage the selected set, then publish it with rollback on failure."""
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         os.makedirs(out_dir, exist_ok=True)
@@ -1744,6 +1751,8 @@ class ProjectManager:
                     cancel_check, staging_dir)
                 if not result or not result[0]:
                     return result
+                if source_check is not None:
+                    source_check()
                 ensure_audio_export_active(cancel_check)
                 backup_dir = os.path.join(staging_dir, "old")
                 os.mkdir(backup_dir)
@@ -1929,41 +1938,97 @@ class ProjectManager:
         if mastering is not None:
             from audio_mastering import get_mastering_options
             options["mastering"] = get_mastering_options(mastering)
-        if changed_only:
+        with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
             try:
-                incremental = self._export_changed_chapters(
-                    options, chapters, progress_callback, cancel_check)
+                from chapter_timing_cache import ensure_chapter_timing_facts
+                indexed = ensure_chapter_timing_facts(
+                    self.root_dir, self.load_chunks(), self.get_chunk_audio_path,
+                    self.get_chunk_audio_segment, sources.save_segment, cancel_check,
+                    self._get_chapter_decoder_codes(),
+                    _loading_progress(progress_callback))
+                if indexed is not None:
+                    return self._export_indexed_chapters(
+                        indexed, sources, options, chapters, changed_only,
+                        progress_callback, cancel_check)
+                if changed_only:
+                    incremental = self._export_changed_chapters(
+                        options, chapters, progress_callback, cancel_check)
+                    if incremental is not None:
+                        return incremental
+                pairs, skipped = self._load_chunks_with_audio(
+                    cancel_check=cancel_check,
+                    progress_callback=_loading_progress(progress_callback),
+                    segment_transform=sources.save_segment)
+                if not pairs:
+                    return False, "No audio segments found"
+                pause_defaults = self._load_pause_defaults()
+                decoded = ((chunk, sources.load_segment(segment)) for chunk, segment in pairs)
+                timeline = []
+                for chunk, segment, start in iter_timeline(
+                        decoded, *pause_defaults, cancel_check=cancel_check):
+                    timeline.append((chunk, sources.save_segment(segment), start))
+                    del segment
+                chunks = [chunk for chunk, _, _ in timeline]
+                plans = self._get_chapter_export_plans(chunks, options, pause_defaults)
             except ExportCancelled:
                 return False, "Export cancelled"
-            if incremental is not None:
-                return incremental
-        try:
-            pairs, skipped = self._load_chunks_with_audio(
-                cancel_check=cancel_check,
-                progress_callback=_loading_progress(progress_callback))
-            if not pairs:
-                return False, "No audio segments found"
-            pause_defaults = self._load_pause_defaults()
-            timeline = compute_timeline(pairs, *pause_defaults, cancel_check=cancel_check)
-            chunks = [chunk for chunk, _, _ in timeline]
-            plans = self._get_chapter_export_plans(chunks, options, pause_defaults)
-        except ExportCancelled:
-            return False, "Export cancelled"
-        except ValueError as exc:
-            return False, str(exc)
+            except ValueError as exc:
+                return False, str(exc)
+            out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
+            os.makedirs(out_dir, exist_ok=True)
+            manifest = safe_load_json(os.path.join(out_dir, "manifest.json"), {})
+            previous = {row["index"]: row for row in get_chapter_export_rows(manifest)}
+            durations = [timeline[last][2] + get_audio_duration_ms(timeline[last][1]) - timeline[first][2]
+                         for first, last in (plan["chunks"] for plan in plans)]
+            result = self._apply_chapter_export_plans(
+                plans, chunks, options, pause_defaults, previous, chapters,
+                changed_only and manifest.get("chapter_plan_version") == 1,
+                lambda first, last: ([(chunk, sources.load_segment(segment))
+                                      for chunk, segment in pairs[first:last + 1]], 0), durations,
+                progress_callback, cancel_check)
+            if result and result[0] and skipped:
+                return True, result[1] + f" ({skipped} chunk(s) skipped - missing/corrupt audio)"
+            return result
+
+    def _export_indexed_chapters(self, indexed, sources, options, chapters,
+                                  changed_only, progress_callback, cancel_check):
+        """Use verified trimmed shapes for offsets, decoding selected groups only."""
+        from chapter_timing_cache import read_source_identity
+        if not indexed.pairs:
+            return False, "No audio segments found"
+        pause_defaults = self._load_pause_defaults()
+        timeline = list(iter_timeline(indexed.pairs, *pause_defaults,
+                                      cancel_check=cancel_check, already_trimmed=True))
+        chunks = [chunk for chunk, _, _ in timeline]
+        plans = self._get_chapter_export_plans(
+            chunks, options, pause_defaults,
+            lambda selected: indexed.get_source_fingerprint(selected, self.get_chunk_audio_path))
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
-        os.makedirs(out_dir, exist_ok=True)
         manifest = safe_load_json(os.path.join(out_dir, "manifest.json"), {})
         previous = {row["index"]: row for row in get_chapter_export_rows(manifest)}
         durations = [timeline[last][2] + get_audio_duration_ms(timeline[last][1]) - timeline[first][2]
                      for first, last in (plan["chunks"] for plan in plans)]
+
+        def get_audio(chunk):
+            path = self.get_chunk_audio_path(chunk['audio_path'])
+            if read_source_identity(path, cancel_check) != indexed.identities[path]:
+                raise ValueError('Audio changed after chapter timing was indexed. Retry the export.')
+            source = indexed.fresh_sources.get(path)
+            return sources.load_segment(source) if source is not None else self.get_chunk_audio_segment(chunk)
+
+        def get_pairs(first, last):
+            return self._load_chunks_with_audio(
+                cancel_check=cancel_check, chunks=chunks[first:last + 1], audio_provider=get_audio)
+
         result = self._apply_chapter_export_plans(
             plans, chunks, options, pause_defaults, previous, chapters,
-            changed_only and manifest.get("chapter_plan_version") == 1,
-            lambda first, last: (pairs[first:last + 1], 0), durations,
-            progress_callback, cancel_check)
-        if result and result[0] and skipped:
-            return True, result[1] + f" ({skipped} chunk(s) skipped - missing/corrupt audio)"
+            changed_only and manifest.get('chapter_plan_version') == 1,
+            get_pairs, durations, progress_callback, cancel_check,
+            source_check=indexed.verify_sources)
+        if result is None:
+            return False, 'Selected chapter audio could not be decoded; retry the export.'
+        if result[0] and indexed.skipped:
+            return True, result[1] + f" ({indexed.skipped} chunk(s) skipped - missing/corrupt audio)"
         return result
 
     def _chapter_fingerprint(self, chunks, pause_defaults=None):
@@ -1983,20 +2048,53 @@ class ProjectManager:
                 parts.append(f"{path}|missing|{c.get('pause_after')}")
         return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:16]
 
+    def _get_chapter_decoder_codes(self):
+        return (getattr(ProjectManager.get_chunk_audio_segment, '__code__', None),
+                getattr(_load_audio_segment, '__code__', None))
+
+    def is_chunk_audio_available(self, chunk):
+        """Probe preview candidates without decoding or retaining their PCM.
+
+        Export still decodes each input; a filename preview is not an audio
+        integrity certificate. Use ffprobe for formats libsndfile cannot read.
+        """
+        path = chunk.get("audio_path")
+        if not path:
+            return False
+        try:
+            full_path = self.get_chunk_audio_path(path)
+            if not os.path.isfile(full_path):
+                return False
+            import soundfile
+            try:
+                info = soundfile.info(full_path)
+                return info.channels > 0 and info.samplerate > 0
+            except (RuntimeError, OSError):
+                from audio_channels import get_audio_channel_count
+                return get_audio_channel_count(full_path) > 0
+        except (ValueError, OSError, RuntimeError, subprocess.SubprocessError, KeyError, TypeError):
+            return False
+
     def preview_chapter_filenames(self, fmt="mp3", per_chunk_chapters=False,
                                   template=DEFAULT_CHAPTER_TEMPLATE, padding=2,
                                   book_name="", series_name="", volume_number="",
                                   chapters=None, changed_only=False, mastering=None):
         """Preview selected chapter files that export would write, excluding reuse."""
         chunks = [chunk for chunk in self.load_chunks()
-                  if self.get_chunk_audio_segment(chunk) is not None]
+                  if self.is_chunk_audio_available(chunk)]
         options = {"format": fmt, "per_chunk_chapters": per_chunk_chapters,
                    "template": template, "padding": padding, "book_name": book_name,
                    "series_name": series_name, "volume_number": volume_number}
         if mastering is not None:
             from audio_mastering import get_mastering_options
             options["mastering"] = get_mastering_options(mastering)
-        plans = self._get_chapter_export_plans(chunks, options, self._load_pause_defaults()) if chunks else []
+        get_source_fingerprint = None
+        if changed_only:
+            from chapter_timing_cache import get_chapter_source_fingerprinter
+            get_source_fingerprint = get_chapter_source_fingerprinter(
+                chunks, self.get_chunk_audio_path, None, self._get_chapter_decoder_codes())
+        plans = self._get_chapter_export_plans(
+            chunks, options, self._load_pause_defaults(), get_source_fingerprint) if chunks else []
         wanted = set(range(len(plans))) if chapters is None else set(get_index_selection(chapters, len(plans)))
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         manifest = safe_load_json(os.path.join(out_dir, "manifest.json"), {})

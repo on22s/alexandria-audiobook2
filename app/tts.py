@@ -624,7 +624,8 @@ def compute_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
 
 
 def iter_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
-                  same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS, cancel_check=None):
+                  same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS, cancel_check=None,
+                  already_trimmed=False):
     """Yield the existing trimmed timeline without retaining preceding audio."""
     cursor_ms = 0
     prefix_shape = None
@@ -632,7 +633,8 @@ def iter_timeline(chunks_with_audio, pause_ms=DEFAULT_PAUSE_MS,
 
     for chunk, segment in chunks_with_audio:
         ensure_audio_export_active(cancel_check)
-        segment = trim_edge_silence(segment, cancel_check=cancel_check)   # same cut the combined audio gets
+        if not already_trimmed:
+            segment = trim_edge_silence(segment, cancel_check=cancel_check)   # same cut the combined audio gets
         segment_shape = get_pcm_source_shape(segment)
         if prev_chunk is not None:
             pause = get_pause_duration_ms(

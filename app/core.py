@@ -881,9 +881,10 @@ def schedule_claimed_background_task(background_tasks, task_name, callback, *arg
     return register_claimed_background_task(background_tasks, task_name, claim_id, callback, *args, **kwargs)
 
 
-async def run_claimed_task_worker(task_name, callback, *args, **kwargs):
+async def run_claimed_task_worker(task_name, callback, *args, cpu_only=False, **kwargs):
     """Keep a started thread's exact claim until its callback exits after cancellation."""
-    claim_id = reserve_background_task(task_name)
+    claim_id = (reserve_background_task(task_name, cpu_only=True) if cpu_only
+                else reserve_background_task(task_name))
     try:
         return await asyncio.to_thread(_run_owned_background_task, task_name, claim_id,
                                        functools.partial(callback, *args, **kwargs))

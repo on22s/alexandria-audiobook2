@@ -154,7 +154,9 @@
         "01",
         "03",
         "04"
-      ]
+      ],
+      "status": "in_progress",
+      "validation_status": "Batch08 is integrated with accepted main 08312868514f11986e28aff57534a3421ed80219. The required ./ready.sh quick release passed all eight gates in 852.390s: 8,670 unit tests with zero unit skips, 72 API passes, zero API failures and 12 explicit full-inference exclusions. The validated tree is 8e56d12a56a4679bcb0a702df346d874b2a1f415. The combined targeted suite passed 428 distinct tests in 56.080s without skips; 15 new methods remain inventoried. The owner-approved legacy indexing scan, selected-only decoding of valid indexed clips, exact offsets and waveform bytes, transient decoder recovery, strong source hashes, atomic staging and cancellation are covered. A content-hash mutation is rejected even when all filesystem version fields are held unchanged.\n\nNative MP3 cost measurement uses 24 fixed clips: the first bounded scan decodes 24 while retaining one source at a time; a later cold-output selection decodes one in 40.653ms versus 24 in 696.350ms. Output and input bytes and book-wide offsets are identical. A separate 40-minute native WAV fixture measured peak resident memory of 171412KiB for accepted main versus 56108KiB for the candidate. Its initial latency increases from 45.114ms to 332.875ms because identity hashing costs time. This is a measured memory improvement, not a universal latency claim. RSS and Python allocations are recorded separately. Designer copy/lock transactions preserve rollback while unrelated pings respond in 1.196/0.628ms versus 53.878/51.377ms in the fixed cold/warm workload; the transaction still takes about 51ms. Complete retention maintenance is independent of the 500-row UI cap.\n\nThe actual cached Small.en CPU ASR passed through the integrated word-timing route in 4.842960s; cache hit 0.003258s, concurrent ping 0.000723s and 7 mapped spans. The CPU task lease, zero GPU-lock acquisitions and immediate fresh/cache-hit input-byte preservation are verified. The unrelated GPU-running flag is simulated; actual GPU concurrency, TTS/LLM inference, listening and complete product-native qualification are not established by these fixtures. New exact-head CI and merge are pending. No Batch08 task is accepted yet: 50/58 accepted, eight remain."
     },
     {
       "id": "09",
@@ -172,8 +174,11 @@
         "05",
         "06"
       ],
-      "status": "in_progress",
-      "validation_status": "PR1453 combined candidate includes a native /proc exit-race probe repair:ENOENT/ESRCH report an exited process,while permission errors still raise and actual live PID remains live. The first exact-head CI failure and its passing base report are preserved;the same helper was present on the base. Deterministic before/after controls reproduce the observed race.267 distinct targeted checks passed48.279s without skips,including real signal-tree/lease controls;12 focused ownership checks passed24.720s. Five mutation controls and direct13/16/10 inventory parity remain covered;95 relocated guards preserve expected AST bodies. Fresh ./ready.sh quick passed8655 unit tests without skips,72API passes/zero failures/12explicit full-mode exclusions and all8gates in851.436s. Validated treed2220060a98e34c2b8bde49a607c4c6c9b54b1b1. Only bookkeeping changes follow this gate;new published-head CI and merge pending.43/58accepted15remain;no Batch09 task accepted. Full product-native/GPU/model/listening qualification unrun. Private ROCm-runtime quick API preflight separately passed72/0/12;not a full-inference pass."
+      "status": "accepted",
+      "validation_status": "Accepted via PR1453,merged as 08312868514f11986e28aff57534a3421ed80219,tree-identical to tested headc0eea53488624440826538aaa6243cba1ecbe03a. All5 exact-head CI checks passed. Fresh repaired quick release8655units/zero skips,72APIpasses/zero failures/12explicit full-inference exclusions;all8gates851.436s.267distincttargeted checks passed48.279s,12focused native ownership checks passed24.720s,4navigation checks after bookkeeping. Initial native /proc exit-race failure and its passing base report preserved;deterministic ESRCH/ENOENT/permission/live-PID controls now pass. Five mutation controls/direct13/16/10inventoryparity/95guard relocations retained. Seven child issues1415–1421 acceptance bodies/checklists verified CLOSED.50/58accepted;8remain. Full GPU/TTS/LLM/listening and complete product-native qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1453",
+      "merge_commit": "08312868514f11986e28aff57534a3421ed80219",
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a"
     },
     {
       "id": "10",
@@ -1061,7 +1066,8 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "Batch08 is integrated with accepted main 08312868514f11986e28aff57534a3421ed80219. The required ./ready.sh quick release passed all eight gates in 852.390s: 8,670 unit tests with zero unit skips, 72 API passes, zero API failures and 12 explicit full-inference exclusions. The validated tree is 8e56d12a56a4679bcb0a702df346d874b2a1f415. The combined targeted suite passed 428 distinct tests in 56.080s without skips; 15 new methods remain inventoried. The owner-approved legacy indexing scan, selected-only decoding of valid indexed clips, exact offsets and waveform bytes, transient decoder recovery, strong source hashes, atomic staging and cancellation are covered. A content-hash mutation is rejected even when all filesystem version fields are held unchanged.\n\nNative MP3 cost measurement uses 24 fixed clips: the first bounded scan decodes 24 while retaining one source at a time; a later cold-output selection decodes one in 40.653ms versus 24 in 696.350ms. Output and input bytes and book-wide offsets are identical. A separate 40-minute native WAV fixture measured peak resident memory of 171412KiB for accepted main versus 56108KiB for the candidate. Its initial latency increases from 45.114ms to 332.875ms because identity hashing costs time. This is a measured memory improvement, not a universal latency claim. RSS and Python allocations are recorded separately. Designer copy/lock transactions preserve rollback while unrelated pings respond in 1.196/0.628ms versus 53.878/51.377ms in the fixed cold/warm workload; the transaction still takes about 51ms. Complete retention maintenance is independent of the 500-row UI cap.\n\nThe actual cached Small.en CPU ASR passed through the integrated word-timing route in 4.842960s; cache hit 0.003258s, concurrent ping 0.000723s and 7 mapped spans. The CPU task lease, zero GPU-lock acquisitions and immediate fresh/cache-hit input-byte preservation are verified. The unrelated GPU-running flag is simulated; actual GPU concurrency, TTS/LLM inference, listening and complete product-native qualification are not established by these fixtures. New exact-head CI and merge are pending. No Batch08 task is accepted yet: 50/58 accepted, eight remain."
     },
     {
       "task_id": "E02",
@@ -1075,7 +1081,8 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "Batch08 is integrated with accepted main 08312868514f11986e28aff57534a3421ed80219. The required ./ready.sh quick release passed all eight gates in 852.390s: 8,670 unit tests with zero unit skips, 72 API passes, zero API failures and 12 explicit full-inference exclusions. The validated tree is 8e56d12a56a4679bcb0a702df346d874b2a1f415. The combined targeted suite passed 428 distinct tests in 56.080s without skips; 15 new methods remain inventoried. The owner-approved legacy indexing scan, selected-only decoding of valid indexed clips, exact offsets and waveform bytes, transient decoder recovery, strong source hashes, atomic staging and cancellation are covered. A content-hash mutation is rejected even when all filesystem version fields are held unchanged.\n\nNative MP3 cost measurement uses 24 fixed clips: the first bounded scan decodes 24 while retaining one source at a time; a later cold-output selection decodes one in 40.653ms versus 24 in 696.350ms. Output and input bytes and book-wide offsets are identical. A separate 40-minute native WAV fixture measured peak resident memory of 171412KiB for accepted main versus 56108KiB for the candidate. Its initial latency increases from 45.114ms to 332.875ms because identity hashing costs time. This is a measured memory improvement, not a universal latency claim. RSS and Python allocations are recorded separately. Designer copy/lock transactions preserve rollback while unrelated pings respond in 1.196/0.628ms versus 53.878/51.377ms in the fixed cold/warm workload; the transaction still takes about 51ms. Complete retention maintenance is independent of the 500-row UI cap.\n\nThe actual cached Small.en CPU ASR passed through the integrated word-timing route in 4.842960s; cache hit 0.003258s, concurrent ping 0.000723s and 7 mapped spans. The CPU task lease, zero GPU-lock acquisitions and immediate fresh/cache-hit input-byte preservation are verified. The unrelated GPU-running flag is simulated; actual GPU concurrency, TTS/LLM inference, listening and complete product-native qualification are not established by these fixtures. New exact-head CI and merge are pending. No Batch08 task is accepted yet: 50/58 accepted, eight remain."
     },
     {
       "task_id": "E05",
@@ -1089,7 +1096,8 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "Batch08 is integrated with accepted main 08312868514f11986e28aff57534a3421ed80219. The required ./ready.sh quick release passed all eight gates in 852.390s: 8,670 unit tests with zero unit skips, 72 API passes, zero API failures and 12 explicit full-inference exclusions. The validated tree is 8e56d12a56a4679bcb0a702df346d874b2a1f415. The combined targeted suite passed 428 distinct tests in 56.080s without skips; 15 new methods remain inventoried. The owner-approved legacy indexing scan, selected-only decoding of valid indexed clips, exact offsets and waveform bytes, transient decoder recovery, strong source hashes, atomic staging and cancellation are covered. A content-hash mutation is rejected even when all filesystem version fields are held unchanged.\n\nNative MP3 cost measurement uses 24 fixed clips: the first bounded scan decodes 24 while retaining one source at a time; a later cold-output selection decodes one in 40.653ms versus 24 in 696.350ms. Output and input bytes and book-wide offsets are identical. A separate 40-minute native WAV fixture measured peak resident memory of 171412KiB for accepted main versus 56108KiB for the candidate. Its initial latency increases from 45.114ms to 332.875ms because identity hashing costs time. This is a measured memory improvement, not a universal latency claim. RSS and Python allocations are recorded separately. Designer copy/lock transactions preserve rollback while unrelated pings respond in 1.196/0.628ms versus 53.878/51.377ms in the fixed cold/warm workload; the transaction still takes about 51ms. Complete retention maintenance is independent of the 500-row UI cap.\n\nThe actual cached Small.en CPU ASR passed through the integrated word-timing route in 4.842960s; cache hit 0.003258s, concurrent ping 0.000723s and 7 mapped spans. The CPU task lease, zero GPU-lock acquisitions and immediate fresh/cache-hit input-byte preservation are verified. The unrelated GPU-running flag is simulated; actual GPU concurrency, TTS/LLM inference, listening and complete product-native qualification are not established by these fixtures. New exact-head CI and merge are pending. No Batch08 task is accepted yet: 50/58 accepted, eight remain."
     },
     {
       "task_id": "E06",
@@ -1103,7 +1111,8 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "Batch08 is integrated with accepted main 08312868514f11986e28aff57534a3421ed80219. The required ./ready.sh quick release passed all eight gates in 852.390s: 8,670 unit tests with zero unit skips, 72 API passes, zero API failures and 12 explicit full-inference exclusions. The validated tree is 8e56d12a56a4679bcb0a702df346d874b2a1f415. The combined targeted suite passed 428 distinct tests in 56.080s without skips; 15 new methods remain inventoried. The owner-approved legacy indexing scan, selected-only decoding of valid indexed clips, exact offsets and waveform bytes, transient decoder recovery, strong source hashes, atomic staging and cancellation are covered. A content-hash mutation is rejected even when all filesystem version fields are held unchanged.\n\nNative MP3 cost measurement uses 24 fixed clips: the first bounded scan decodes 24 while retaining one source at a time; a later cold-output selection decodes one in 40.653ms versus 24 in 696.350ms. Output and input bytes and book-wide offsets are identical. A separate 40-minute native WAV fixture measured peak resident memory of 171412KiB for accepted main versus 56108KiB for the candidate. Its initial latency increases from 45.114ms to 332.875ms because identity hashing costs time. This is a measured memory improvement, not a universal latency claim. RSS and Python allocations are recorded separately. Designer copy/lock transactions preserve rollback while unrelated pings respond in 1.196/0.628ms versus 53.878/51.377ms in the fixed cold/warm workload; the transaction still takes about 51ms. Complete retention maintenance is independent of the 500-row UI cap.\n\nThe actual cached Small.en CPU ASR passed through the integrated word-timing route in 4.842960s; cache hit 0.003258s, concurrent ping 0.000723s and 7 mapped spans. The CPU task lease, zero GPU-lock acquisitions and immediate fresh/cache-hit input-byte preservation are verified. The unrelated GPU-running flag is simulated; actual GPU concurrency, TTS/LLM inference, listening and complete product-native qualification are not established by these fixtures. New exact-head CI and merge are pending. No Batch08 task is accepted yet: 50/58 accepted, eight remain."
     },
     {
       "task_id": "E10",
@@ -1117,7 +1126,8 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "Batch08 is integrated with accepted main 08312868514f11986e28aff57534a3421ed80219. The required ./ready.sh quick release passed all eight gates in 852.390s: 8,670 unit tests with zero unit skips, 72 API passes, zero API failures and 12 explicit full-inference exclusions. The validated tree is 8e56d12a56a4679bcb0a702df346d874b2a1f415. The combined targeted suite passed 428 distinct tests in 56.080s without skips; 15 new methods remain inventoried. The owner-approved legacy indexing scan, selected-only decoding of valid indexed clips, exact offsets and waveform bytes, transient decoder recovery, strong source hashes, atomic staging and cancellation are covered. A content-hash mutation is rejected even when all filesystem version fields are held unchanged.\n\nNative MP3 cost measurement uses 24 fixed clips: the first bounded scan decodes 24 while retaining one source at a time; a later cold-output selection decodes one in 40.653ms versus 24 in 696.350ms. Output and input bytes and book-wide offsets are identical. A separate 40-minute native WAV fixture measured peak resident memory of 171412KiB for accepted main versus 56108KiB for the candidate. Its initial latency increases from 45.114ms to 332.875ms because identity hashing costs time. This is a measured memory improvement, not a universal latency claim. RSS and Python allocations are recorded separately. Designer copy/lock transactions preserve rollback while unrelated pings respond in 1.196/0.628ms versus 53.878/51.377ms in the fixed cold/warm workload; the transaction still takes about 51ms. Complete retention maintenance is independent of the 500-row UI cap.\n\nThe actual cached Small.en CPU ASR passed through the integrated word-timing route in 4.842960s; cache hit 0.003258s, concurrent ping 0.000723s and 7 mapped spans. The CPU task lease, zero GPU-lock acquisitions and immediate fresh/cache-hit input-byte preservation are verified. The unrelated GPU-running flag is simulated; actual GPU concurrency, TTS/LLM inference, listening and complete product-native qualification are not established by these fixtures. New exact-head CI and merge are pending. No Batch08 task is accepted yet: 50/58 accepted, eight remain."
     },
     {
       "task_id": "F032",
@@ -1131,8 +1141,11 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR1453 combined candidate includes a native /proc exit-race probe repair:ENOENT/ESRCH report an exited process,while permission errors still raise and actual live PID remains live. The first exact-head CI failure and its passing base report are preserved;the same helper was present on the base. Deterministic before/after controls reproduce the observed race.267 distinct targeted checks passed48.279s without skips,including real signal-tree/lease controls;12 focused ownership checks passed24.720s. Five mutation controls and direct13/16/10 inventory parity remain covered;95 relocated guards preserve expected AST bodies. Fresh ./ready.sh quick passed8655 unit tests without skips,72API passes/zero failures/12explicit full-mode exclusions and all8gates in851.436s. Validated treed2220060a98e34c2b8bde49a607c4c6c9b54b1b1. Only bookkeeping changes follow this gate;new published-head CI and merge pending.43/58accepted15remain;no Batch09 task accepted. Full product-native/GPU/model/listening qualification unrun. Private ROCm-runtime quick API preflight separately passed72/0/12;not a full-inference pass."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1453,merged as 08312868514f11986e28aff57534a3421ed80219,tree-identical to tested headc0eea53488624440826538aaa6243cba1ecbe03a. All5 exact-head CI checks passed. Fresh repaired quick release8655units/zero skips,72APIpasses/zero failures/12explicit full-inference exclusions;all8gates851.436s.267distincttargeted checks passed48.279s,12focused native ownership checks passed24.720s,4navigation checks after bookkeeping. Initial native /proc exit-race failure and its passing base report preserved;deterministic ESRCH/ENOENT/permission/live-PID controls now pass. Five mutation controls/direct13/16/10inventoryparity/95guard relocations retained. Seven child issues1415–1421 acceptance bodies/checklists verified CLOSED.50/58accepted;8remain. Full GPU/TTS/LLM/listening and complete product-native qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1453",
+      "merge_commit": "08312868514f11986e28aff57534a3421ed80219",
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a"
     },
     {
       "task_id": "E04",
@@ -1146,8 +1159,11 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR1453 combined candidate includes a native /proc exit-race probe repair:ENOENT/ESRCH report an exited process,while permission errors still raise and actual live PID remains live. The first exact-head CI failure and its passing base report are preserved;the same helper was present on the base. Deterministic before/after controls reproduce the observed race.267 distinct targeted checks passed48.279s without skips,including real signal-tree/lease controls;12 focused ownership checks passed24.720s. Five mutation controls and direct13/16/10 inventory parity remain covered;95 relocated guards preserve expected AST bodies. Fresh ./ready.sh quick passed8655 unit tests without skips,72API passes/zero failures/12explicit full-mode exclusions and all8gates in851.436s. Validated treed2220060a98e34c2b8bde49a607c4c6c9b54b1b1. Only bookkeeping changes follow this gate;new published-head CI and merge pending.43/58accepted15remain;no Batch09 task accepted. Full product-native/GPU/model/listening qualification unrun. Private ROCm-runtime quick API preflight separately passed72/0/12;not a full-inference pass."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1453,merged as 08312868514f11986e28aff57534a3421ed80219,tree-identical to tested headc0eea53488624440826538aaa6243cba1ecbe03a. All5 exact-head CI checks passed. Fresh repaired quick release8655units/zero skips,72APIpasses/zero failures/12explicit full-inference exclusions;all8gates851.436s.267distincttargeted checks passed48.279s,12focused native ownership checks passed24.720s,4navigation checks after bookkeeping. Initial native /proc exit-race failure and its passing base report preserved;deterministic ESRCH/ENOENT/permission/live-PID controls now pass. Five mutation controls/direct13/16/10inventoryparity/95guard relocations retained. Seven child issues1415–1421 acceptance bodies/checklists verified CLOSED.50/58accepted;8remain. Full GPU/TTS/LLM/listening and complete product-native qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1453",
+      "merge_commit": "08312868514f11986e28aff57534a3421ed80219",
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a"
     },
     {
       "task_id": "E08",
@@ -1161,8 +1177,11 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR1453 combined candidate includes a native /proc exit-race probe repair:ENOENT/ESRCH report an exited process,while permission errors still raise and actual live PID remains live. The first exact-head CI failure and its passing base report are preserved;the same helper was present on the base. Deterministic before/after controls reproduce the observed race.267 distinct targeted checks passed48.279s without skips,including real signal-tree/lease controls;12 focused ownership checks passed24.720s. Five mutation controls and direct13/16/10 inventory parity remain covered;95 relocated guards preserve expected AST bodies. Fresh ./ready.sh quick passed8655 unit tests without skips,72API passes/zero failures/12explicit full-mode exclusions and all8gates in851.436s. Validated treed2220060a98e34c2b8bde49a607c4c6c9b54b1b1. Only bookkeeping changes follow this gate;new published-head CI and merge pending.43/58accepted15remain;no Batch09 task accepted. Full product-native/GPU/model/listening qualification unrun. Private ROCm-runtime quick API preflight separately passed72/0/12;not a full-inference pass."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1453,merged as 08312868514f11986e28aff57534a3421ed80219,tree-identical to tested headc0eea53488624440826538aaa6243cba1ecbe03a. All5 exact-head CI checks passed. Fresh repaired quick release8655units/zero skips,72APIpasses/zero failures/12explicit full-inference exclusions;all8gates851.436s.267distincttargeted checks passed48.279s,12focused native ownership checks passed24.720s,4navigation checks after bookkeeping. Initial native /proc exit-race failure and its passing base report preserved;deterministic ESRCH/ENOENT/permission/live-PID controls now pass. Five mutation controls/direct13/16/10inventoryparity/95guard relocations retained. Seven child issues1415–1421 acceptance bodies/checklists verified CLOSED.50/58accepted;8remain. Full GPU/TTS/LLM/listening and complete product-native qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1453",
+      "merge_commit": "08312868514f11986e28aff57534a3421ed80219",
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a"
     },
     {
       "task_id": "E11",
@@ -1176,8 +1195,11 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR1453 combined candidate includes a native /proc exit-race probe repair:ENOENT/ESRCH report an exited process,while permission errors still raise and actual live PID remains live. The first exact-head CI failure and its passing base report are preserved;the same helper was present on the base. Deterministic before/after controls reproduce the observed race.267 distinct targeted checks passed48.279s without skips,including real signal-tree/lease controls;12 focused ownership checks passed24.720s. Five mutation controls and direct13/16/10 inventory parity remain covered;95 relocated guards preserve expected AST bodies. Fresh ./ready.sh quick passed8655 unit tests without skips,72API passes/zero failures/12explicit full-mode exclusions and all8gates in851.436s. Validated treed2220060a98e34c2b8bde49a607c4c6c9b54b1b1. Only bookkeeping changes follow this gate;new published-head CI and merge pending.43/58accepted15remain;no Batch09 task accepted. Full product-native/GPU/model/listening qualification unrun. Private ROCm-runtime quick API preflight separately passed72/0/12;not a full-inference pass."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1453,merged as 08312868514f11986e28aff57534a3421ed80219,tree-identical to tested headc0eea53488624440826538aaa6243cba1ecbe03a. All5 exact-head CI checks passed. Fresh repaired quick release8655units/zero skips,72APIpasses/zero failures/12explicit full-inference exclusions;all8gates851.436s.267distincttargeted checks passed48.279s,12focused native ownership checks passed24.720s,4navigation checks after bookkeeping. Initial native /proc exit-race failure and its passing base report preserved;deterministic ESRCH/ENOENT/permission/live-PID controls now pass. Five mutation controls/direct13/16/10inventoryparity/95guard relocations retained. Seven child issues1415–1421 acceptance bodies/checklists verified CLOSED.50/58accepted;8remain. Full GPU/TTS/LLM/listening and complete product-native qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1453",
+      "merge_commit": "08312868514f11986e28aff57534a3421ed80219",
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a"
     },
     {
       "task_id": "E12",
@@ -1191,8 +1213,11 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR1453 combined candidate includes a native /proc exit-race probe repair:ENOENT/ESRCH report an exited process,while permission errors still raise and actual live PID remains live. The first exact-head CI failure and its passing base report are preserved;the same helper was present on the base. Deterministic before/after controls reproduce the observed race.267 distinct targeted checks passed48.279s without skips,including real signal-tree/lease controls;12 focused ownership checks passed24.720s. Five mutation controls and direct13/16/10 inventory parity remain covered;95 relocated guards preserve expected AST bodies. Fresh ./ready.sh quick passed8655 unit tests without skips,72API passes/zero failures/12explicit full-mode exclusions and all8gates in851.436s. Validated treed2220060a98e34c2b8bde49a607c4c6c9b54b1b1. Only bookkeeping changes follow this gate;new published-head CI and merge pending.43/58accepted15remain;no Batch09 task accepted. Full product-native/GPU/model/listening qualification unrun. Private ROCm-runtime quick API preflight separately passed72/0/12;not a full-inference pass."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1453,merged as 08312868514f11986e28aff57534a3421ed80219,tree-identical to tested headc0eea53488624440826538aaa6243cba1ecbe03a. All5 exact-head CI checks passed. Fresh repaired quick release8655units/zero skips,72APIpasses/zero failures/12explicit full-inference exclusions;all8gates851.436s.267distincttargeted checks passed48.279s,12focused native ownership checks passed24.720s,4navigation checks after bookkeeping. Initial native /proc exit-race failure and its passing base report preserved;deterministic ESRCH/ENOENT/permission/live-PID controls now pass. Five mutation controls/direct13/16/10inventoryparity/95guard relocations retained. Seven child issues1415–1421 acceptance bodies/checklists verified CLOSED.50/58accepted;8remain. Full GPU/TTS/LLM/listening and complete product-native qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1453",
+      "merge_commit": "08312868514f11986e28aff57534a3421ed80219",
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a"
     },
     {
       "task_id": "E13",
@@ -1206,8 +1231,11 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR1453 combined candidate includes a native /proc exit-race probe repair:ENOENT/ESRCH report an exited process,while permission errors still raise and actual live PID remains live. The first exact-head CI failure and its passing base report are preserved;the same helper was present on the base. Deterministic before/after controls reproduce the observed race.267 distinct targeted checks passed48.279s without skips,including real signal-tree/lease controls;12 focused ownership checks passed24.720s. Five mutation controls and direct13/16/10 inventory parity remain covered;95 relocated guards preserve expected AST bodies. Fresh ./ready.sh quick passed8655 unit tests without skips,72API passes/zero failures/12explicit full-mode exclusions and all8gates in851.436s. Validated treed2220060a98e34c2b8bde49a607c4c6c9b54b1b1. Only bookkeeping changes follow this gate;new published-head CI and merge pending.43/58accepted15remain;no Batch09 task accepted. Full product-native/GPU/model/listening qualification unrun. Private ROCm-runtime quick API preflight separately passed72/0/12;not a full-inference pass."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1453,merged as 08312868514f11986e28aff57534a3421ed80219,tree-identical to tested headc0eea53488624440826538aaa6243cba1ecbe03a. All5 exact-head CI checks passed. Fresh repaired quick release8655units/zero skips,72APIpasses/zero failures/12explicit full-inference exclusions;all8gates851.436s.267distincttargeted checks passed48.279s,12focused native ownership checks passed24.720s,4navigation checks after bookkeeping. Initial native /proc exit-race failure and its passing base report preserved;deterministic ESRCH/ENOENT/permission/live-PID controls now pass. Five mutation controls/direct13/16/10inventoryparity/95guard relocations retained. Seven child issues1415–1421 acceptance bodies/checklists verified CLOSED.50/58accepted;8remain. Full GPU/TTS/LLM/listening and complete product-native qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1453",
+      "merge_commit": "08312868514f11986e28aff57534a3421ed80219",
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a"
     },
     {
       "task_id": "E16",
@@ -1226,8 +1254,11 @@
         "T12",
         "T13"
       ],
-      "status": "in_progress",
-      "validation_status": "PR1453 combined candidate includes a native /proc exit-race probe repair:ENOENT/ESRCH report an exited process,while permission errors still raise and actual live PID remains live. The first exact-head CI failure and its passing base report are preserved;the same helper was present on the base. Deterministic before/after controls reproduce the observed race.267 distinct targeted checks passed48.279s without skips,including real signal-tree/lease controls;12 focused ownership checks passed24.720s. Five mutation controls and direct13/16/10 inventory parity remain covered;95 relocated guards preserve expected AST bodies. Fresh ./ready.sh quick passed8655 unit tests without skips,72API passes/zero failures/12explicit full-mode exclusions and all8gates in851.436s. Validated treed2220060a98e34c2b8bde49a607c4c6c9b54b1b1. Only bookkeeping changes follow this gate;new published-head CI and merge pending.43/58accepted15remain;no Batch09 task accepted. Full product-native/GPU/model/listening qualification unrun. Private ROCm-runtime quick API preflight separately passed72/0/12;not a full-inference pass."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1453,merged as 08312868514f11986e28aff57534a3421ed80219,tree-identical to tested headc0eea53488624440826538aaa6243cba1ecbe03a. All5 exact-head CI checks passed. Fresh repaired quick release8655units/zero skips,72APIpasses/zero failures/12explicit full-inference exclusions;all8gates851.436s.267distincttargeted checks passed48.279s,12focused native ownership checks passed24.720s,4navigation checks after bookkeeping. Initial native /proc exit-race failure and its passing base report preserved;deterministic ESRCH/ENOENT/permission/live-PID controls now pass. Five mutation controls/direct13/16/10inventoryparity/95guard relocations retained. Seven child issues1415–1421 acceptance bodies/checklists verified CLOSED.50/58accepted;8remain. Full GPU/TTS/LLM/listening and complete product-native qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1453",
+      "merge_commit": "08312868514f11986e28aff57534a3421ed80219",
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a"
     },
     {
       "task_id": "E03",

@@ -242,7 +242,9 @@ def mark_interrupted_runs(history_dir):
 
 def prune_runs(history_dir, max_count=200, max_age_days=90):
     """Delete expired/excess records while preserving active and newest failed runs."""
-    records = list_runs(history_dir, limit=500)
+    records = sorted(({key: record[key] for key in ("id", "status", "started_at")
+                       if key in record} for record in _iter_run_records(history_dir)),
+                     key=lambda record: record.get("started_at", ""), reverse=True)
     newest_failed = next((item["id"] for item in records
                           if item.get("status") in ("failed", "interrupted")), None)
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=max_age_days)

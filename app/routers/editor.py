@@ -111,7 +111,9 @@ async def create_chunk_word_timing(index: int, request: WordTimingRequest):
         except (ValueError, OSError, KeyError, TypeError) as error:
             state['logs'].append('Timing failed: ' + str(error))
             raise HTTPException(status_code=409, detail=str(error)) from error
-    return await run_claimed_task_worker('word_timing', run)
+    # Both the bounded ffmpeg decode and whisper.cpp --no-gpu provider are CPU
+    # work. Keep the per-task lease and cancellation ownership through cleanup.
+    return await run_claimed_task_worker('word_timing', run, cpu_only=True)
 
 
 class WordTimingAudioResponse(StreamingResponse):

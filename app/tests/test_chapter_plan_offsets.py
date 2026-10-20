@@ -97,7 +97,8 @@ class ChapterPlanOffsetTests(unittest.TestCase):
                 ok, message = manager.export_chapters(fmt='wav', changed_only=True)
             self.assertTrue(ok, message)
             self.assertIn('2 chapter file(s) written', message)
-            self.assertEqual([None], loads)
+            self.assertEqual([['row0', 'row1', 'row2'], ['row3', 'row4', 'row5']],
+                             [[row['uid'] for row in group] for group in loads])
             self.assertEqual(1, self.get_manifest(root)['chapter_plan_version'])
             with patch.object(manager, '_load_chunks_with_audio', side_effect=AssertionError('unexpected decode')):
                 ok, message = manager.export_chapters(fmt='wav', changed_only=True)
