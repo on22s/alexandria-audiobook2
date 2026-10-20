@@ -40,7 +40,9 @@
       ],
       "depends_on": [
         "01"
-      ]
+      ],
+      "status": "in_progress",
+      "validation_status": "local quick release passed; exact-head CI and merge pending"
     },
     {
       "id": "03",
@@ -258,7 +260,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
+      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F017",
@@ -272,7 +276,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
+      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F019",
@@ -286,7 +292,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
+      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F020",
@@ -300,7 +308,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
+      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F021",
@@ -314,7 +324,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
+      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F022",
@@ -328,7 +340,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
+      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F023",
@@ -342,7 +356,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
+      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F024",

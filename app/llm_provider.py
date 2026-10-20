@@ -16,10 +16,11 @@ from types import SimpleNamespace
 
 import httpx2
 from openai import OpenAI
+from manual_llm_context import (ManualRequestCancelled, apply_manual_cancellation,
+                                ensure_manual_request_active)
 
 
 _ENV_REF = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
-
 
 def is_api_key_reference(configured):
     """True for `env:NAME` / `${NAME}` - a pointer, not a secret, so the setup
@@ -605,7 +606,9 @@ class ManualClient:
             # the short file lock only while claiming it; human replies can take
             # hours, so the lock must not span the wait.
             while True:
+                ensure_manual_request_active()
                 with file_lock(self.pending_path):
+                    ensure_manual_request_active()
                     pending = safe_load_json(self.pending_path, None)
                     if os.path.exists(self.pending_path) and (
                             not isinstance(pending, dict) or not pending.get("id") or
@@ -620,6 +623,7 @@ class ManualClient:
                         break
                 time.sleep(self.POLL_SECONDS)
             while True:
+                ensure_manual_request_active()
                 try:
                     with open(self.response_path, "r", encoding="utf-8") as handle:
                         response = json.load(handle)

@@ -5,7 +5,8 @@ import unicodedata
 from difflib import SequenceMatcher
 
 from recall_core import tokens as _tokens, ngrams as _ngrams, counter_recall as _counter_recall
-from script_preflight import find_adjacent_duplicate_blocks, find_contained_source_duplicates
+from script_preflight import (find_adjacent_duplicate_blocks, find_contained_source_duplicates,
+                              get_invalid_entry_fields)
 
 
 MIN_SOURCE_TOKEN_RECALL = 0.90
@@ -34,25 +35,13 @@ def get_unsupported_cyrillic_characters(source_text, output_text):
                   if char.casefold() not in source_folded)
 
 
-def validate_chunk_quality(source_text, entries, *, literal_source_preserving=False):
-    """Return deterministic metrics and findings without mutating inputs."""
-    if type(literal_source_preserving) is not bool:
-        raise ValueError("literal_source_preserving must be a boolean")
+def get_chunk_schema_findings(entries):
+    """Check the entry contract for both fresh responses and stored checkpoints."""
     findings = []
-    literal = None
-    if literal_source_preserving:
-        from literal_fidelity import audit_literal_words
-        literal = audit_literal_words(source_text, entries)
-        if not literal["passed"]:
-            findings.append({"code": "literal_source_word_mismatch",
-                             "message": "Literal annotation changed ordered source words; retry or review, never reconstruct.",
-                             "details": literal})
     if not isinstance(entries, list) or not entries:
-        return _report(0, 0, 0.0, 0.0, 0.0, [{
+        return [{
             "code": "missing_entries", "message": "Response contains no entries."
-        }])
-
-    output_parts = []
+        }]
     for number, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
             findings.append({"code": "invalid_entry", "entry_number": number,
@@ -62,11 +51,36 @@ def validate_chunk_quality(source_text, entries, *, literal_source_preserving=Fa
         if missing:
             findings.append({"code": "missing_fields", "entry_number": number,
                              "fields": missing, "message": "Entry is missing required fields."})
-        text = str(entry.get("text") or "")
-        if not text.strip():
+        for field in get_invalid_entry_fields(entry):
+            findings.append({"code": "invalid_field_type", "entry_number": number,
+                             "field": field, "message": f"Entry {field} must be a string."})
+        if not isinstance(entry.get("text"), str) or not entry["text"].strip():
             findings.append({"code": "empty_text", "entry_number": number,
                              "message": "Entry contains no speakable text."})
-        output_parts.append(text)
+        if not isinstance(entry.get("speaker"), str) or not entry["speaker"].strip():
+            findings.append({"code": "missing_speaker", "entry_number": number,
+                             "message": "Entry has no speaker."})
+    return findings
+
+
+def validate_chunk_quality(source_text, entries, *, literal_source_preserving=False):
+    """Return deterministic metrics and findings without mutating inputs."""
+    if type(literal_source_preserving) is not bool:
+        raise ValueError("literal_source_preserving must be a boolean")
+    findings = get_chunk_schema_findings(entries)
+    if not isinstance(entries, list) or not entries:
+        return _report(0, 0, 0.0, 0.0, 0.0, findings)
+    literal = None
+    if literal_source_preserving:
+        from literal_fidelity import audit_literal_words
+        literal = audit_literal_words(source_text, entries)
+        if not literal["passed"]:
+            findings.append({"code": "literal_source_word_mismatch",
+                             "message": "Literal annotation changed ordered source words; retry or review, never reconstruct.",
+                             "details": literal})
+
+    output_parts = [entry["text"] if isinstance(entry.get("text"), str) else ""
+                    for entry in entries if isinstance(entry, dict)]
 
     source_tokens = _tokens(source_text)
     output_text = " ".join(output_parts)

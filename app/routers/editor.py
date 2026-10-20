@@ -1346,21 +1346,25 @@ async def explain_report(filename: str, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=409, detail="Incomplete reviews retain their deterministic summary")
 
     def run():
+        from manual_llm_context import ManualRequestCancelled, apply_manual_cancellation
         state = process_state["report_explanation"]
         state.update(status="running", filename=filename, error=None, logs=[])
         try:
             if state.get("cancel"):
                 state["status"] = "cancelled"
                 return
-            candidate = _llm_summarize_report(info["content"])
-            if not candidate or not _is_evidence_bound_summary(candidate):
-                raise ValueError("Explanation unavailable or unsupported; the original report was retained")
+            with apply_manual_cancellation(lambda: state.get("cancel")):
+                candidate = _llm_summarize_report(info["content"])
             if state.get("cancel"):
                 state["status"] = "cancelled"
                 return
+            if not candidate or not _is_evidence_bound_summary(candidate):
+                raise ValueError("Explanation unavailable or unsupported; the original report was retained")
             apply_review_report_explanation(filepath, info["sha256"], candidate)
             state["status"] = "done"
             state["logs"].append("Report explanation saved")
+        except ManualRequestCancelled:
+            state["status"] = "cancelled"
         except Exception as exc:
             state["status"] = "failed"
             state["error"] = str(exc)

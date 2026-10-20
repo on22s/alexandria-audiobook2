@@ -33,7 +33,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 02: Repair LLM configuration and resumable generation
 
-**Dependencies:** Batch 01. **Tasks:** 7. **Status:** not started. **PR:** not opened.
+**Dependencies:** Batch 01 (accepted). **Tasks:** 7. **Status:** local quick release passed; exact-head CI and merge pending. **PR:** not opened.
 
 **Batch acceptance:** Exercise failure → checkpoint → corrected retry, profile-setting changes, stable resume prompts, cancellation while waiting for a manual reply, and structured-output opt-out preservation. For documented hosted providers, align the supported contract without relaxing arbitrary-host or credential safety policy.
 
@@ -165,6 +165,37 @@ forward-reviewed while the foreign batch reviews B and A's file lock is free;
 its original plausible review classification remains preserved historically.
 GPU/model/listening and complete native macOS qualification are unrun and are
 not inferred from these control-plane regression checks.
+
+## Batch 02 verification progress
+
+All seven failures were reproduced before their fixes. Fresh response acceptance
+and checkpoint loading now share strict entry-schema checks; a poisoned older
+checkpoint retains its valid prefix and regenerates its damaged suffix. Report
+explanation cancellation interrupts both manual-client waits, preserves foreign
+queue files and releases the task claim only after its worker exits. The
+cancellation context has no optional provider dependencies.
+
+An unrelated Setup save retains each named profile's hidden structured-output
+opt-out, including during mode switches; explicit edits and profile-bound
+credentials keep their existing policy. The documented DeepSeek, OpenAI and
+OpenRouter HTTPS API origins pass Save, Preview and diagnostics while lookalike,
+userinfo, arbitrary-host and private-network refusals remain covered. Synthetic
+HTTP fixtures exercise the real SDK; no production credential or inference was
+used. Generation fingerprints now include effective profile reasoning options,
+respecting custom-body and explicit CLI precedence.
+
+Duplicate-colored attribution requests use source-order rosters under every
+exhaustion policy, matching resumed prompts. Diagnostic instruction resume
+retries only failed rows, retains accepted work, and clears resolved fallback
+markers and failure records. Repeated failures remain visibly incomplete.
+
+Development checks passed 387 distinct CPU/Node regression methods across the
+combined and follow-up runs, including actual CLI recovery and fingerprint
+artifacts. Required `./ready.sh` quick verification passed: 8,564 unit tests with no unit
+skips, 72 API checks with no failures and 12 explicit full-mode exclusions, and
+all compile/inventory/evidence/results/API-contract gates. Exact published-head
+CI and merge remain pending. The seven tasks remain open; **4/58 accepted, 54 remain**. GPU/model/listening and full
+native-platform qualifications are unrun and are not inferred from these tests.
 
 ## Completion gate
 

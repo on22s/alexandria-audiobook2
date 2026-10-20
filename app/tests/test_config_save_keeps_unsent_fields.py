@@ -65,6 +65,55 @@ class KeepUnsentFieldsTests(unittest.TestCase):
         self.assertEqual(33, merged.generation.top_k)
         self.assertFalse(hasattr(merged.generation, "not_a_field"))
 
+    def test_form_save_preserves_hidden_llm_options_and_profile_identity(self):
+        import copy
+        from generate_script import get_generation_fingerprint, LLMGenParams
+        from lmstudio_settings import get_active_llm_config
+        def fingerprint(doc):
+            profile = get_active_llm_config(doc)
+            params = LLMGenParams('system','{chunk}',structured_output=profile['structured_output'])
+            return get_generation_fingerprint('source',['source'],profile['model_name'],
+                                              profile['base_url'],params,3000)
+        for mode in ('local','remote'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                local = {'base_url':'http://localhost:1234/v1','model_name':'local-model',
+                         'api_key':'local-key','structured_output':'off'}
+                remote = {'base_url':'https://fixture.thundercompute.net/v1','model_name':'remote-model',
+                          'api_key':'remote-key','structured_output':'off'}
+                existing = {'llm_mode':mode,'llm_local':local,'llm_remote':remote,
+                            'llm':copy.deepcopy(remote if mode == 'remote' else local),'tts':{'mode':'local'}}
+                with open(os.path.join(tmp,'config.json'),'w') as handle:json.dump(existing,handle)
+                payload = copy.deepcopy(existing)
+                for section in ('llm','llm_local','llm_remote'):
+                    payload[section].pop('structured_output');payload[section]['api_key']=system_module._REDACTED_SECRET
+                payload['tts']['pause_same_speaker_ms'] = 321
+                saved = self._save(tmp,payload)
+                for section in ('llm','llm_local','llm_remote'):
+                    self.assertEqual('off',saved[section]['structured_output'])
+                    self.assertEqual(existing[section]['api_key'],saved[section]['api_key'])
+                self.assertEqual(321,saved['tts']['pause_same_speaker_ms'])
+                self.assertEqual(fingerprint(existing),fingerprint(saved))
+                # An explicitly sent default is an edit, including after a mode switch.
+                other = 'remote' if mode == 'local' else 'local'
+                payload['llm_mode'] = other
+                payload['llm_'+other]['structured_output'] = 'auto'
+                switched = self._save(tmp,payload)
+                self.assertEqual('auto',switched['llm']['structured_output'])
+                self.assertEqual(other+'-key',switched['llm']['api_key'])
+                self.assertEqual('off',switched['llm_'+mode]['structured_output'])
+
+    def test_hidden_option_preservation_does_not_copy_headers_to_an_edited_endpoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = {'base_url':'http://localhost:1234/v1','api_key':'old','model_name':'m',
+                       'structured_output':'off','provider_headers':{'Authorization':'old-header'}}
+            existing = {'llm_mode':'local','llm':profile,'llm_local':profile,'tts':{'mode':'local'}}
+            with open(os.path.join(tmp,'config.json'),'w') as handle:json.dump(existing,handle)
+            new = {'base_url':'http://localhost:4321/v1','api_key':'new','model_name':'m'}
+            saved = self._save(tmp,{'llm_mode':'local','llm':new,'llm_local':new,'tts':{'mode':'local'}})
+            self.assertEqual('off',saved['llm']['structured_output'])
+            self.assertEqual({},saved['llm']['provider_headers'])
+            self.assertEqual('new',saved['llm']['api_key'])
+
 
 if __name__ == "__main__":
     unittest.main()

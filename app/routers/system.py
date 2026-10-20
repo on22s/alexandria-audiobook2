@@ -881,13 +881,19 @@ def keep_unsent_fields(config: AppConfig, existing: dict) -> AppConfig:
     the merge is decided by the request, not by whether a value happens to
     equal its default."""
     merged = config
-    for section in ("tts", "generation", "prompts"):
+    for section in ("tts", "generation", "prompts", "llm_local", "llm_remote"):
         sent = getattr(config, section)
-        saved = (existing or {}).get(section)
+        saved = (get_config_local_profile(existing or {}) if section == "llm_local"
+                 else (existing or {}).get(section))
         if sent is None or not isinstance(saved, dict):
             continue
+        # This hidden response-format option is absent from the Setup form.
+        # Other profile options (especially credential-bearing headers) remain
+        # explicit inputs, rather than following an edit to another endpoint.
+        preserved_fields = ({"structured_output"} if section.startswith("llm_")
+                            else type(sent).model_fields)
         keep = {key: value for key, value in saved.items()
-                if key not in sent.model_fields_set and key in type(sent).model_fields}
+                if key not in sent.model_fields_set and key in preserved_fields}
         if keep:
             merged = merged.model_copy(update={section: sent.model_copy(update=keep)}, deep=False)
     if "prompt_presets" not in config.model_fields_set:
@@ -902,7 +908,9 @@ def get_config_to_save(config: AppConfig, existing: dict) -> AppConfig:
 
     Callers hold the config lock while reading and using existing settings.
     """
-    normalized_config = config.model_copy(deep=True)
+    # Preserve hidden settings in each named profile before deriving the active
+    # mirror. The old `llm` mirror may belong to the other mode after a switch.
+    normalized_config = keep_unsent_fields(config.model_copy(deep=True), existing)
     if normalized_config.tts.design_text_min_chars > normalized_config.tts.design_text_max_chars:
         raise HTTPException(status_code=400, detail=(
             "Voice Design text length: the minimum is larger than the maximum."))
@@ -932,7 +940,6 @@ def get_config_to_save(config: AppConfig, existing: dict) -> AppConfig:
     active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
               else normalized_config.llm_local)
     normalized_config.llm = _normalize_and_validate_llm(active)
-    normalized_config = keep_unsent_fields(normalized_config, existing)
     # The active attribution preset decides the variant the run uses;
     # derive the generation key from it (after the merge, so a preset the
     # client did not resend is still found) so the CLI agrees with Setup,

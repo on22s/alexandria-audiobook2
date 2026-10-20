@@ -14,10 +14,10 @@ from dataclasses import dataclass, field, replace
 from core import AUTO_PAUSE_MARKER, llm_timeout_seconds
 from generation_completion import get_file_sha256, get_generation_input
 from config_settings import load_app_config, get_generation_config
-from llm_provider import make_llm_client, make_run_client, merge_provider_extra_body
+from llm_provider import make_llm_client, make_run_client, merge_provider_extra_body, get_provider_extra_body
 from llm_provider import classify_llm_error, get_retry_delay, get_run_model_binding, get_run_fingerprint_identity
 from llm_provider import FailoverClient, RunProfileChanged, RunRequestAdmissionError
-from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss
+from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss, get_chunk_schema_findings
 from validation_reporting import format_validation_findings
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from dialogue_spans import apply_dialogue_map
@@ -308,6 +308,11 @@ def load_generation_checkpoint(output_path, fingerprint):
         if (not isinstance(item, dict) or not isinstance(item.get("entries"), list)
                 or item.get("source_sha256") != fingerprint["chunk_sha256"][index]):
             return []
+        if get_chunk_schema_findings(item["entries"]):
+            # Resume consumes a gapless prefix. Keep validated earlier work,
+            # then regenerate this chunk and everything after it, even if an
+            # older writer stamped the malformed entries as quality.passed.
+            return accepted[:index]
         quality = item.get("quality")
         if not isinstance(quality, dict):
             return []
@@ -2438,7 +2443,7 @@ def main():
         banned_tokens=banned_tokens,
         context_length=limits["context_length"],
         output_format=args.output_format,
-        provider_extra_body=llm_config.get("provider_extra_body"),
+        provider_extra_body=(get_provider_extra_body(llm_config) or llm_config.get("provider_extra_body")),
         structured_output=llm_config.get("structured_output", "auto"),
         api_retry_limit=llm_config.get("api_retry_limit"),
         retry_initial_delay_seconds=llm_config.get("retry_initial_delay_seconds", 1),

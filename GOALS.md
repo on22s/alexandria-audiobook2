@@ -2750,6 +2750,14 @@ unit tests and 72 API checks with 12 expected full-mode exclusions; the combined
 targeted run passed 238 tests. GPU/model/listening and complete native macOS
 qualification are unrun and are not claimed by these control-plane regressions.
 
+**Batch 02 progress — 2026-10-20.** Seven configuration/recovery fixes are
+implemented on the accepted Batch 01 baseline. Development checks passed 387
+distinct CPU/Node regression methods, including actual CLI/checkpoint recovery,
+manual cancellation and real-SDK synthetic HTTP requests. Required local quick
+release passed 8,564 unit tests (no skips) and 72 API checks (12 explicit
+full-mode exclusions). Exact-head CI and merge are pending; these seven tasks
+remain open. The accepted count stays **4/58; 54 remain**. See the linked batch plan for validation scope.
+
 **Target — OPEN.** Zero undisposed execution tasks, with the required
 regressions and platform/model checks recorded on the exact merged revisions.
 Work in Batches 01–10: data/ownership first; LLM recovery and audio correctness

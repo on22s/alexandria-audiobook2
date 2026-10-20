@@ -40,6 +40,20 @@ def _answer_when_pending(client, content, mismatch_first=False):
 
 class ManualClientTests(unittest.TestCase):
 
+    def test_cancelled_call_does_not_bind_cancellation_to_a_reused_client(self):
+        from llm_provider import apply_manual_cancellation, ManualRequestCancelled
+        with tempfile.TemporaryDirectory() as tmp:
+            client = ManualClient(tmp);client.POLL_SECONDS = .01
+            with apply_manual_cancellation(lambda: True):
+                with self.assertRaises(ManualRequestCancelled):
+                    client.create(model='fixture',messages=[])
+            self.assertFalse(os.path.exists(client.pending_path))
+            answer = _answer_when_pending(client, 'fresh response')
+            response = client.create(model='fixture',messages=[])
+            answer.join(2);self.assertFalse(answer.is_alive())
+            self.assertEqual('fresh response',response.choices[0].message.content)
+            self.assertFalse(os.path.exists(client.pending_path))
+
     def test_exception_releases_owned_request_and_thread_ident_reuse_cannot_revive_it(self):
         from pathlib import Path
         from types import SimpleNamespace

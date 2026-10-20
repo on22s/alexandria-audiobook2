@@ -18,7 +18,8 @@ from types import MappingProxyType
 
 from core import llm_timeout_seconds
 from source_encoding import read_source_text, get_normalized_source_newlines
-from llm_provider import make_llm_client, make_run_client, get_run_model_binding, get_run_fingerprint_identity
+from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
+                          get_run_fingerprint_identity, get_provider_extra_body)
 from llm_request_budget import get_prompt_token_estimate
 
 from judge_reason_log import record_judge_run
@@ -256,7 +257,7 @@ def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generati
         quoted_must_be_spoken=generation_settings["quoted_must_be_spoken"],
         unquoted_must_be_narrator=generation_settings["unquoted_must_be_narrator"],
         reasoning_effort=reasoning_effort,
-        provider_extra_body=llm.get("provider_extra_body"),
+        provider_extra_body=(get_provider_extra_body(llm) or llm.get("provider_extra_body")),
         structured_output=llm.get("structured_output", "auto"),
         api_retry_limit=llm.get("api_retry_limit"),
         retry_initial_delay_seconds=llm.get("retry_initial_delay_seconds", 1),
@@ -2727,6 +2728,21 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         # A new attempt retries unresolved attribution while keeping accepted rows.
         diagnostic_failures = [failure for failure in diagnostic_failures
                                if failure.get("pass") != "attribute"]
+        retry_instructions = {index for index, entry in enumerate(annotated)
+                              if isinstance(entry, dict)
+                              and entry.get("instruct_unchecked") is True}
+        # Older diagnostic writers recorded the failed index without marking
+        # the fallback row. Those rows also remain pending on resume.
+        retry_instructions.update(failure["entry"] for failure in diagnostic_failures
+                                  if failure.get("pass") == "instruct"
+                                  and type(failure.get("entry")) is int
+                                  and 0 <= failure["entry"] < len(annotated))
+        for index in retry_instructions:
+            annotated[index] = None
+        diagnostic_failures = [failure for failure in diagnostic_failures
+                               if not (failure.get("pass") == "instruct"
+                                       and type(failure.get("entry")) is int
+                                       and failure.get("entry") in retry_instructions)]
     diagnostic_segment_resume = None
     if any(failure.get("pass") == "segment" for failure in diagnostic_failures):
         resume = state.get("diagnostic_segment_resume")
@@ -2982,7 +2998,6 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         return current
 
     roster = get_attribution_roster()
-    roster_seen = set(roster)
     attr_start = time.time()
     attr_base = elapsed_s.get("attribute", 0)
     # The batch in flight, so a fail-fast can record exactly what failed for
@@ -3118,22 +3133,16 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                     # Narration was sent as context only; its speaker is known
                     # without asking, so the model's answer never overwrites it.
                     named[index] = deterministic.get(index, entry)
-                if on_exhaustion == "fallback":
-                    admitted = set(attested_new_speakers(
-                        (named[index] for index, _ in current), set(), source_text))
-                    for index, _ in current:
-                        speaker = (named[index].get("speaker") or "").strip().upper()
-                        if speaker in admitted and not named[index].get("attribution_unchecked"):
-                            roster_positions[speaker] = min(index, roster_positions.get(speaker, index))
-                    roster = get_attribution_roster()
-                    roster_seen = set(roster)
-                else:
-                    # Same admission gate as build_roster above, applied
-                    # incrementally so a batch does not rescan every prior entry.
-                    for speaker in attested_new_speakers(
-                            new_named, roster_seen, source_text):
-                        roster_seen.add(speaker)
-                        roster.append(speaker)
+                # Coloring/subdivision accepts entries out of source order.
+                # Use the same earliest-source-position order as resume, for
+                # every exhaustion policy, without rescanning the named prefix.
+                admitted = set(attested_new_speakers(
+                    (named[index] for index, _ in current), set(), source_text))
+                for index, _ in current:
+                    speaker = (named[index].get("speaker") or "").strip().upper()
+                    if speaker in admitted and not named[index].get("attribution_unchecked"):
+                        roster_positions[speaker] = min(index, roster_positions.get(speaker, index))
+                roster = get_attribution_roster()
                 elapsed_s["attribute"] = attr_base + time.time() - attr_start
                 # Each accepted subdivision is durable; a later single-entry
                 # failure resumes after this work instead of replaying the batch.

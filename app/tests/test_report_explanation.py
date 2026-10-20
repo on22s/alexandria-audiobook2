@@ -7,6 +7,15 @@ import core
 from routers import script
 
 class ReportCreationTests(unittest.TestCase):
+    def test_missing_optional_provider_dependency_keeps_best_effort_summary_contract(self):
+        import builtins
+        original = builtins.__import__
+        def import_without_provider(name,*args,**kwargs):
+            if name == 'llm_provider':raise ModuleNotFoundError('fixture optional provider unavailable')
+            return original(name,*args,**kwargs)
+        with patch('builtins.__import__',side_effect=import_without_provider):
+            self.assertIsNone(core._llm_summarize_report('Review counts.'))
+
     def test_both_report_writers_publish_without_calling_llm(self):
         stats=core._new_review_totals();stats.update(entries_before=2,entries_after=2,total_changes=0)
         state={'tasks':[{'name':'book','status':'done','stats_fwd':stats}], 'totals_fwd':stats}
@@ -163,6 +172,72 @@ class ReportExplanationApiTests(unittest.TestCase):
         self.assertEqual(before,self.path.read_bytes())
         self.assertEqual('cancelled',self.state['report_explanation']['status'])
         self.assertEqual({},core._task_claims)
+
+    def test_manual_wait_cancels_without_a_reply_and_preserves_foreign_slot(self):
+        import json
+        import threading
+        import time
+        import llm_provider
+        from llm_provider import ManualClient
+        from utils import atomic_json_write
+        for foreign in (False, True):
+            with self.subTest(foreign=foreign), tempfile.TemporaryDirectory() as directory:
+                manual = ManualClient(directory);manual.POLL_SECONDS = .01
+                pending = Path(manual.pending_path);response_path = Path(manual.response_path)
+                pending.parent.mkdir(parents=True, exist_ok=True)
+                if foreign:
+                    atomic_json_write({'id':'foreign-request'}, str(pending))
+                    atomic_json_write({'id':'foreign-request','content':'unrelated'}, str(response_path))
+                    foreign_bytes = (pending.read_bytes(), response_path.read_bytes())
+                entered = threading.Event();responses = [];errors = []
+                def make_client(**kwargs):
+                    entered.set()
+                    return manual, 'manual-fixture'
+                def post():
+                    try:responses.append(self.client.post('/api/reports/review_fixture.md/explain'))
+                    except Exception as exc:errors.append(exc)
+                before = self.path.read_bytes()
+                with patch.object(core, '_make_llm_client', side_effect=make_client), \
+                     patch.object(core, 'load_app_config', return_value={'llm':{}}), \
+                     patch.object(core, 'get_current_status', return_value={}), \
+                     patch.object(llm_provider, 'is_manual_request_owner_alive', return_value=True):
+                    worker = threading.Thread(target=post, daemon=True);worker.start()
+                    try:
+                        self.assertTrue(entered.wait(2))
+                        deadline = time.monotonic() + 2
+                        while not llm_provider._manual_request_owners and time.monotonic() < deadline:
+                            time.sleep(.01)
+                        if not foreign:
+                            while not pending.exists() and time.monotonic() < deadline:time.sleep(.01)
+                        owner = core._task_claims['report_explanation']['id']
+                        wrong = self.client.post('/api/reports/explanation/cancel',json={'run_id':'wrong'})
+                        self.assertEqual(409, wrong.status_code)
+                        self.assertTrue(worker.is_alive())
+                        cancelled = self.client.post('/api/reports/explanation/cancel',json={'run_id':owner})
+                        self.assertEqual(200, cancelled.status_code, cancelled.text)
+                        worker.join(2)
+                        self.assertFalse(worker.is_alive(), 'Cancel must end a manual wait without a reply')
+                        self.assertEqual([], errors)
+                        self.assertEqual(200, responses[0].status_code)
+                        self.assertEqual('cancelled', self.state['report_explanation']['status'])
+                        self.assertEqual(before, self.path.read_bytes())
+                        self.assertEqual({}, core._task_claims)
+                        self.assertEqual({}, llm_provider._manual_request_owners)
+                        if foreign:
+                            self.assertEqual(foreign_bytes, (pending.read_bytes(), response_path.read_bytes()))
+                        else:
+                            self.assertFalse(pending.exists());self.assertFalse(response_path.exists())
+                    finally:
+                        # Bounded cleanup makes the pre-fix regression terminate.
+                        # A successful cancellation never needs or reaches this reply.
+                        if worker.is_alive():
+                            if foreign:pending.unlink(missing_ok=True)
+                            deadline = time.monotonic() + 2
+                            while not pending.exists() and time.monotonic() < deadline:time.sleep(.01)
+                            if pending.exists():
+                                request = json.loads(pending.read_text())
+                                atomic_json_write({'id':request['id'],'content':'Inspect recorded changes.'}, str(response_path))
+                            worker.join(2)
 
     def test_failed_unsupported_cancelled_or_stale_explanation_preserves_report(self):
         from review_report import save_review_report

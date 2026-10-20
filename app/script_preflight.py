@@ -527,6 +527,12 @@ def find_adjacent_near_duplicate_entries(texts, source_text, minimum_ratio=0.90,
     return findings
 
 
+def get_invalid_entry_fields(entry):
+    """Return present script fields that cannot be consumed as strings."""
+    return [field for field in ("text", "speaker", "instruct")
+            if field in entry and not isinstance(entry[field], str)]
+
+
 def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
     """Return deterministic findings without modifying ``entries``."""
     findings = []
@@ -546,12 +552,10 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
         raw_text = entry.get("text")
         raw_speaker = entry.get("speaker")
         raw_instruct = entry.get("instruct")
-        for field, value in (("text", raw_text), ("speaker", raw_speaker),
-                             ("instruct", raw_instruct)):
-            if value is not None and not isinstance(value, str):
-                findings.append(_finding("blocking", "invalid_field_type",
-                                         f"Entry {field} must be a string.", [index],
-                                         field=field))
+        for field in get_invalid_entry_fields(entry):
+            findings.append(_finding("blocking", "invalid_field_type",
+                                     f"Entry {field} must be a string.", [index],
+                                     field=field))
         text = raw_text.strip() if isinstance(raw_text, str) else ""
         speaker = raw_speaker.strip() if isinstance(raw_speaker, str) else ""
         instruct = raw_instruct.strip() if isinstance(raw_instruct, str) else ""

@@ -1967,19 +1967,32 @@ def _validate_local_llm_base_url(base_url: str) -> None:
     """Raise LLMConfigError if base_url is set but doesn't point to a local/trusted host.
 
     Enforced both when an LLM client is constructed (_make_llm_client) and when
-    config is saved (save_config), so config.json can never persist a non-local
-    endpoint and every consumer of the `llm` config section is protected.
+    config is saved (save_config). Hosted providers use their documented HTTPS
+    API origins; arbitrary public and private-network endpoints remain refused.
     """
     if not base_url:
         return
     if is_local_llm_endpoint(base_url):
         return
     from urllib.parse import urlparse
-    hostname = (urlparse(base_url).hostname or "").lower()
+    parsed = urlparse(base_url)
+    hostname = (parsed.hostname or "").lower()
     # Thunder Compute forwards instance ports via *.thundercompute.net, so allow
     # that trusted remote host for running LM Studio on a Thunder GPU instance.
     if hostname == "thundercompute.net" or hostname.endswith(".thundercompute.net"):
         return
+    hosted_paths = {"api.deepseek.com": ("", "/v1"), "api.openai.com": ("/v1",),
+                    "openrouter.ai": ("/api/v1",)}
+    if hostname in hosted_paths:
+        try:
+            port = parsed.port
+        except ValueError:
+            port = -1
+        if (parsed.scheme == "https" and port in (None, 443)
+                and parsed.username is None and parsed.password is None
+                and not parsed.query and not parsed.fragment
+                and parsed.path.rstrip("/") in hosted_paths[hostname]):
+            return
     raise LLMConfigError(f"LLM base_url '{base_url}' is not local. Only local/trusted LLM endpoints are permitted.")
 
 
@@ -2064,6 +2077,7 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
     Best-effort: returns None (and the caller falls back to the plain-language
     report on its own) if the LLM is unavailable or the request fails.
     Validates that the configured base_url is local/trusted before sending data."""
+    from manual_llm_context import ManualRequestCancelled
     try:
         client, model_name = _make_llm_client(timeout=60)
 
@@ -2086,6 +2100,8 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
         )
         text = (response.choices[0].message.content or "").strip()
         return text or None
+    except ManualRequestCancelled:
+        raise
     except Exception as e:
         logger.warning(f"LLM report summary failed, continuing without it: {e}")
         return None

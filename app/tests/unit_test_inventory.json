@@ -566,6 +566,9 @@
     "tests.test_attribution_prompt_variants.RepeatedNarrationContextTests.test_separate_equal_narration_survives_but_shared_boundary_is_once",
     "tests.test_attribution_prompt_variants.VariantProviderKeepsNarrationTests.test_aliases_request_is_the_canonical_request_with_contexts"
   ],
+  "test_attribution_resume_roster": [
+    "tests.test_attribution_resume_roster.AttributionResumeRosterTests.test_next_prompt_matches_after_each_colored_batch_under_all_policies"
+  ],
   "test_attribution_shift_feedback": [
     "tests.test_attribution_shift_feedback.FeedbackNativeTests.test_default_false_requests_reports_and_results_match_and_enabled_first_is_exact",
     "tests.test_attribution_shift_feedback.FeedbackNativeTests.test_every_builtin_provider_preserves_first_request_and_schema",
@@ -2069,7 +2072,9 @@
     "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_builtins_and_preview",
     "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_variant_is_derived_from_the_active_preset",
     "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_a_field_sent_at_its_default_value_is_applied_not_kept",
+    "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_form_save_preserves_hidden_llm_options_and_profile_identity",
     "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_hand_set_three_pass_and_rescue_values_survive_a_save_that_omits_them",
+    "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_hidden_option_preservation_does_not_copy_headers_to_an_edited_endpoint",
     "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_keep_unsent_fields_ignores_unknown_saved_keys"
   ],
   "test_config_schema_boundary": [
@@ -3806,6 +3811,13 @@
     "tests.test_generation_dispatch.GenerationDispatchTests.test_reasoning_effort_is_passed_to_three_pass_when_set",
     "tests.test_generation_dispatch.GenerationDispatchTests.test_single_generation_uses_production_three_pass_recovery"
   ],
+  "test_generation_entry_schema": [
+    "tests.test_generation_entry_schema.GenerationEntrySchemaTests.test_actual_cli_regenerates_a_preexisting_poisoned_checkpoint",
+    "tests.test_generation_entry_schema.GenerationEntrySchemaTests.test_checkpoint_preserves_good_prefix_and_regenerates_poisoned_suffix",
+    "tests.test_generation_entry_schema.GenerationEntrySchemaTests.test_missing_required_fields_and_empty_checkpoint_entries_are_rejected",
+    "tests.test_generation_entry_schema.GenerationEntrySchemaTests.test_numeric_text_is_not_accepted_merely_because_its_string_matches_the_source",
+    "tests.test_generation_entry_schema.GenerationEntrySchemaTests.test_response_retries_malformed_fields_without_mutating_them"
+  ],
   "test_generation_failure_experiments": [
     "tests.test_generation_failure_experiments.GenerationFailureExperimentTests.test_floor_splitter_binds_each_arm_independently",
     "tests.test_generation_failure_experiments.GenerationFailureExperimentTests.test_missing_passage_is_empty_for_complete_conversion",
@@ -3867,6 +3879,11 @@
     "tests.test_generation_path_agreement.SourcePreprocessingAgreementTest.test_publisher_matter_is_not_left_to_a_flag",
     "tests.test_generation_path_agreement.SourceRepairStructuralAcceptanceTests.test_cli_rejected_repairs_are_not_published_by_shared_preflight",
     "tests.test_generation_path_agreement.SourceRepairStructuralAcceptanceTests.test_sound_repairs_and_healthy_sources_keep_existing_behavior"
+  ],
+  "test_generation_reasoning_identity": [
+    "tests.test_generation_reasoning_identity.GenerationReasoningIdentityTests.test_actual_single_pass_cli_publishes_distinct_effort_fingerprints",
+    "tests.test_generation_reasoning_identity.GenerationReasoningIdentityTests.test_custom_body_precedence_and_explicit_cli_override_are_preserved",
+    "tests.test_generation_reasoning_identity.GenerationReasoningIdentityTests.test_profile_effort_changes_wire_and_both_checkpoint_identities"
   ],
   "test_generation_required_adapter": [
     "tests.test_generation_required_adapter.RequiredGenerationAdapterTests.test_optional_refusals_still_warn_and_proceed",
@@ -4284,6 +4301,10 @@
     "tests.test_homograph_probe.HomographSetTests.test_every_word_forces_two_different_pronunciations",
     "tests.test_homograph_probe.HomographSetTests.test_the_two_sentences_of_a_pair_are_different"
   ],
+  "test_hosted_llm_endpoints": [
+    "tests.test_hosted_llm_endpoints.HostedLlmEndpointTests.test_lookalikes_insecure_origins_and_untrusted_networks_remain_blocked",
+    "tests.test_hosted_llm_endpoints.HostedLlmEndpointTests.test_save_preview_diagnostics_and_cached_client_accept_official_origins"
+  ],
   "test_ideal_settings_endpoint": [
     "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_llama_cpp_endpoint_is_left_alone",
     "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_real_lm_studio_endpoint_still_gets_configured",
@@ -4394,6 +4415,10 @@
     "tests.test_instruct_listening.CharacterInstructionTests.test_configured_character_style_wins",
     "tests.test_instruct_listening.CharacterInstructionTests.test_missing_style_uses_the_shared_character_constant",
     "tests.test_instruct_listening.CharacterInstructionTests.test_unknown_speaker_still_gets_a_nonempty_arm"
+  ],
+  "test_instruction_diagnostic_resume": [
+    "tests.test_instruction_diagnostic_resume.InstructionDiagnosticResumeTests.test_legacy_record_only_and_marker_only_checkpoints_retry_the_failed_row",
+    "tests.test_instruction_diagnostic_resume.InstructionDiagnosticResumeTests.test_resume_retries_only_failed_instruction_and_clears_diagnostics"
   ],
   "test_instrument_null_test": [
     "tests.test_instrument_null_test.BandsMatchGoalsTest.test_goals_still_states_those_bands",
@@ -5406,6 +5431,7 @@
   "test_manual_llm": [
     "tests.test_manual_llm.ManualClientTests.test_a_manual_profile_is_never_on_this_gpu",
     "tests.test_manual_llm.ManualClientTests.test_a_reply_to_another_request_is_ignored",
+    "tests.test_manual_llm.ManualClientTests.test_cancelled_call_does_not_bind_cancellation_to_a_reused_client",
     "tests.test_manual_llm.ManualClientTests.test_dead_request_owner_is_replaced_when_a_new_request_starts",
     "tests.test_manual_llm.ManualClientTests.test_dispatch_returns_the_manual_client_only_for_that_transport",
     "tests.test_manual_llm.ManualClientTests.test_exception_releases_owned_request_and_thread_ident_reuse_cannot_revive_it",
@@ -7233,9 +7259,11 @@
   ],
   "test_report_explanation": [
     "tests.test_report_explanation.ReportCreationTests.test_both_report_writers_publish_without_calling_llm",
+    "tests.test_report_explanation.ReportCreationTests.test_missing_optional_provider_dependency_keeps_best_effort_summary_contract",
     "tests.test_report_explanation.ReportExplanationApiTests.test_explicit_action_publishes_and_releases_claim",
     "tests.test_report_explanation.ReportExplanationApiTests.test_failed_unsupported_cancelled_or_stale_explanation_preserves_report",
     "tests.test_report_explanation.ReportExplanationApiTests.test_incomplete_or_busy_refuses_before_provider_or_new_claim",
+    "tests.test_report_explanation.ReportExplanationApiTests.test_manual_wait_cancels_without_a_reply_and_preserves_foreign_slot",
     "tests.test_report_explanation.ReportExplanationApiTests.test_queued_cancel_is_run_bound_and_never_calls_provider",
     "tests.test_report_explanation.ReportExplanationApiTests.test_real_list_route_reports_native_writer_eligibility",
     "tests.test_report_explanation.ReportPublicationTests.test_changed_incomplete_and_unsupported_metadata_refuse_without_writes",
