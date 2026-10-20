@@ -105,6 +105,12 @@ window.createAudioChannelPicker = (container, file, purpose) => {
     window.addEventListener('pagehide', dispose);
     return {
         getSelection: () => ({channel: select.value, token, pending: staging}),
+        consumeStage: value => {
+            if (value && token === value) {
+                token = null;
+                void removeToken(value).catch(() => {});
+            }
+        },
         setDisabled: value => { disabled = !!value; select.disabled = disabled; button.disabled = disabled || previewActive; },
         dispose,
     };

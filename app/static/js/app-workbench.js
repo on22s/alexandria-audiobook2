@@ -1276,7 +1276,7 @@
             prepBatchQueue.forEach(task => { task.picker?.setDisabled?.(submitting || taskName === 'batch_preparer'); });
         }
 
-        async function _submitPreparer(taskName, formData) {
+        async function _submitPreparer(taskName, formData, onAccepted) {
             if (prepSubmitting || prepActiveTask) { return; }
             const task = PREPARER_TASKS[taskName];
             _applyPreparerControls(null, true);
@@ -1290,17 +1290,20 @@
             } catch (e) {
                 _applyPreparerControls(null);
                 showActionError(taskName === 'batch_preparer' ? 'Batch preparer start is unconfirmed' : 'Preparer start is unconfirmed', e, 'Check preparer task status and output files before starting again. Review any input or configuration refusal below.');
+                return false;
             }
+            onAccepted?.();
+            return true;
         }
 
-        async function _submitPreparerAfterSelection(taskName, buildForm) {
+        async function _submitPreparerAfterSelection(taskName, buildForm, onAccepted) {
             if (prepSubmitting || prepActiveTask) { return; }
             _applyPreparerControls(null, true);
             try {
                 const form = await buildForm();
                 // Transfer the UI reservation synchronously to the existing request owner.
                 prepSubmitting = false;
-                return _submitPreparer(taskName, form);
+                return _submitPreparer(taskName, form, onAccepted);
             } catch (error) {
                 _applyPreparerControls(null);
                 showActionError('Could not prepare selected audio', error, 'Your files are retained. Select an expired or changed preview again before starting.');
@@ -1314,7 +1317,8 @@
             const audioFile = document.getElementById('prep-audio-file').files[0];
             if (!audioFile) { showToast('Audio file required', 'error'); return; }
 
-            const channelSelection = window.preparerChannelPicker ? window.preparerChannelPicker.getSelection() : {channel: 'mix', token: null};
+            const picker = window.preparerChannelPicker;
+            const channelSelection = picker ? picker.getSelection() : {channel: 'mix', token: null};
             const sourceFile = document.getElementById('prep-source-file').files[0];
             const diarizationMode = document.getElementById('prep-diarization-mode').value;
 
@@ -1359,7 +1363,7 @@
                 if (sourceFile) { fd.append('source_file', sourceFile); }
 
                 return fd;
-            });
+            }, () => picker?.consumeStage?.(channelSelection.token));
         };
 
         window.cancelPreparer = () => {
@@ -1371,9 +1375,11 @@
             if (!prepBatchQueue.length) { showToast('No files selected', 'warning'); return; }
 
             const files = prepBatchQueue.map(t => t.audio);
+            const pickers = prepBatchQueue.map(t => t.picker);
+            let selections;
             return _submitPreparerAfterSelection('batch_preparer', async () => {
-                const selections = await Promise.all(prepBatchQueue.map(async task => {
-                    const selected = task.picker.getSelection();
+                selections = await Promise.all(pickers.map(async picker => {
+                    const selected = picker.getSelection();
                     return {...selected, token: selected.pending ? await selected.pending : selected.token};
                 }));
                 const tasks = files.map((file, index) => ({
@@ -1397,7 +1403,7 @@
                 fd.append('config_json', JSON.stringify(body));
                 files.forEach((file, index) => { if (!selections[index].token) { fd.append('audio_files', file); } });
                 return fd;
-            });
+            }, () => pickers.forEach((picker, index) => picker.consumeStage?.(selections[index].token)));
         }
 
         function _pollPreparerLogs(taskName) {

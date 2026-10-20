@@ -68,10 +68,7 @@
             try {
                 const res = await fetch('/api/lora/upload_dataset', { method: 'POST', body: formData });
                 if (!res.ok) {
-                    const err = await res.json();
-                    status.textContent = 'Upload refused. Keep the ZIP and review the archive validation details before trying again.';
-                    showActionError('Dataset upload refused', {message: err.detail || 'Upload failed.', status: res.status}, 'Keep the selected ZIP. Review the archive validation details and correct the dataset before uploading again.');
-                    return;
+                    await API._handleError(res);
                 }
                 const result = await res.json();
                 showToast(`Dataset "${result.dataset_id}" uploaded (${result.sample_count} samples).`, 'success');
@@ -85,8 +82,12 @@
                     status.textContent = `Dataset "${result.dataset_id}" uploaded. Review the dataset list and select it when you are ready to train.`;
                 }
             } catch (e) {
-                status.textContent = 'Upload was not confirmed. Keep the ZIP and check the dataset list before uploading again.';
-                showActionError("Upload error", e, "Keep the ZIP file. Check the dataset list before uploading again, and review any archive validation details.");
+                const refused = Number.isInteger(e.status);
+                status.textContent = refused
+                    ? `Upload refused (HTTP ${e.status}). Keep the ZIP and review the archive validation details before trying again.`
+                    : 'Upload was not confirmed. Keep the ZIP and check the dataset list before uploading again.';
+                showActionError(refused ? 'Dataset upload refused' : 'Upload error', e,
+                    'Keep the ZIP file. Check the dataset list before uploading again, and review any archive validation details.');
             } finally {
                 loraDatasetUploadPending = false;
                 button.disabled = false;
@@ -147,7 +148,8 @@
             progressBar.ariaValueMin = '0';
             progressBar.ariaValueMax = '100';
             progressBar.ariaValueNow = String(percentage);
-            progressBar.ariaValueText = `Epoch ${epoch} of ${maxEpoch}`;
+            progressBar.ariaValueText = Number.isFinite(maxEpoch) && maxEpoch > 0
+                ? `Epoch ${epoch} of ${maxEpoch}` : 'Epoch progress has not been reported yet.';
         }
 
         function applyLoraProgressState(progressBar, outcome) {
@@ -158,7 +160,7 @@
             else { progressBar.classList.remove('progress-bar-animated'); }
         }
 
-        function pollLoraTraining(totalEpochs) {
+        function pollLoraTraining(totalEpochs = null) {
             const logsEl = document.getElementById('lora-train-logs');
             const progressBar = document.getElementById('lora-progress-bar');
             const epochDisplay = document.getElementById('lora-epoch-display');

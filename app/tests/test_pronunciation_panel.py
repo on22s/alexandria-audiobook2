@@ -56,12 +56,28 @@ class PronunciationPanelTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 panel.save_pronunciation_document(panel.PronunciationSave(names={}, revision=loaded['revision']))
         self.assertEqual(before, self.path.read_bytes())
+
         response = self.client.post('/api/pronunciation/preview', json={'names': self.document['names'], 'expected_book_token': self.token})
         self.assertEqual(200, response.status_code, response.text)
         self.assertEqual({'Rom Vale': 1, 'Rom': 1}, response.json()['counts'])
         self.assertEqual('Hero', response.json()['lines'][0]['speaker'])
         self.assertEqual(409, self.client.post('/api/pronunciation/preview', json={'names': {}, 'expected_book_token': 'f'*64}).status_code)
         self.assertEqual(before, self.path.read_bytes())
+
+    def test_preview_refuses_invalid_chunk_ids_with_repair_guidance_without_rewriting_progress(self):
+        chunk_path = Path(self.pm.chunks_path)
+        audio_path = self.root/'retained.wav';audio_path.write_bytes(b'retained audio bytes')
+        for row in ({'uid':'a','speaker':'Hero','text':'Rom'},
+                    {'id':-1,'uid':'a','speaker':'Hero','text':'Rom'}):
+            with self.subTest(row=row):
+                chunk_path.write_text(json.dumps([row]))
+                token = editor.get_snapshot_digest(editor.get_editor_book_identity(self.tmp.name))
+                before = {path:path.read_bytes() for path in (chunk_path,audio_path,self.path)}
+                response = self.client.post('/api/pronunciation/preview',json={
+                    'names':{'Rom':'Rohm'},'expected_book_token':token})
+                self.assertEqual(409,response.status_code,response.text)
+                self.assertIn('Repair chunks.json',response.json()['detail'])
+                self.assertEqual(before,{path:path.read_bytes() for path in before})
 
     def test_empty_missing_flat_and_invalid_documents(self):
         for doc in ([], {'names': []}, {'names': {'a': 1}}, {'names': {'': 'x'}}):

@@ -41,8 +41,10 @@
       "depends_on": [
         "01"
       ],
-      "status": "in_progress",
-      "validation_status": "local quick release passed; exact-head CI and merge pending"
+      "status": "accepted",
+      "validation_status": "accepted: all six exact-head CI checks passed",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1428",
+      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c"
     },
     {
       "id": "03",
@@ -73,7 +75,8 @@
       ],
       "depends_on": [
         "01"
-      ]
+      ],
+      "status": "in_progress"
     },
     {
       "id": "05",
@@ -260,9 +263,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
-      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
+      "validation_status": "Accepted:387 targeted checks;8564 unit tests without skips;72 API passes,12 explicit full-mode exclusions;all six exact-head CI checks including full-inventory aggregate, Windows ownership and macOS prerequisites passed. GPU/model/listening and full native-platform qualification unrun.",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c",
+      "tested_commit": "46ad293ba91f735c703cebefd155dbdeeb9884dd",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1428"
     },
     {
       "task_id": "F017",
@@ -276,9 +283,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
-      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
+      "validation_status": "Accepted:387 targeted checks;8564 unit tests without skips;72 API passes,12 explicit full-mode exclusions;all six exact-head CI checks including full-inventory aggregate, Windows ownership and macOS prerequisites passed. GPU/model/listening and full native-platform qualification unrun.",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c",
+      "tested_commit": "46ad293ba91f735c703cebefd155dbdeeb9884dd",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1428"
     },
     {
       "task_id": "F019",
@@ -292,9 +303,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
-      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
+      "validation_status": "Accepted:387 targeted checks;8564 unit tests without skips;72 API passes,12 explicit full-mode exclusions;all six exact-head CI checks including full-inventory aggregate, Windows ownership and macOS prerequisites passed. GPU/model/listening and full native-platform qualification unrun.",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c",
+      "tested_commit": "46ad293ba91f735c703cebefd155dbdeeb9884dd",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1428"
     },
     {
       "task_id": "F020",
@@ -308,9 +323,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
-      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
+      "validation_status": "Accepted:387 targeted checks;8564 unit tests without skips;72 API passes,12 explicit full-mode exclusions;all six exact-head CI checks including full-inventory aggregate, Windows ownership and macOS prerequisites passed. GPU/model/listening and full native-platform qualification unrun.",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c",
+      "tested_commit": "46ad293ba91f735c703cebefd155dbdeeb9884dd",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1428"
     },
     {
       "task_id": "F021",
@@ -324,9 +343,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
-      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
+      "validation_status": "Accepted:387 targeted checks;8564 unit tests without skips;72 API passes,12 explicit full-mode exclusions;all six exact-head CI checks including full-inventory aggregate, Windows ownership and macOS prerequisites passed. GPU/model/listening and full native-platform qualification unrun.",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c",
+      "tested_commit": "46ad293ba91f735c703cebefd155dbdeeb9884dd",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1428"
     },
     {
       "task_id": "F022",
@@ -340,9 +363,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
-      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
+      "validation_status": "Accepted:387 targeted checks;8564 unit tests without skips;72 API passes,12 explicit full-mode exclusions;all six exact-head CI checks including full-inventory aggregate, Windows ownership and macOS prerequisites passed. GPU/model/listening and full native-platform qualification unrun.",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c",
+      "tested_commit": "46ad293ba91f735c703cebefd155dbdeeb9884dd",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1428"
     },
     {
       "task_id": "F023",
@@ -356,9 +383,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "confirmed on fresh Batch01 merged baseline before fix",
-      "validation_status": "Local ./ready.sh quick passed 8,564 unit tests (0 skips), 72 API checks (0 failures, 12 explicit full-mode exclusions), and all compile/inventory/evidence/results/API-contract gates. 387 targeted regressions and 4 goal-navigation checks passed. Exact published-head CI and merge pending; not accepted."
+      "validation_status": "Accepted:387 targeted checks;8564 unit tests without skips;72 API passes,12 explicit full-mode exclusions;all six exact-head CI checks including full-inventory aggregate, Windows ownership and macOS prerequisites passed. GPU/model/listening and full native-platform qualification unrun.",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c",
+      "tested_commit": "46ad293ba91f735c703cebefd155dbdeeb9884dd",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1428"
     },
     {
       "task_id": "F024",
@@ -480,7 +511,9 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh accepted Batch01 baseline before fix",
+      "validation_status": "115 distinct targeted checks passed. Required local ./ready.sh quick against accepted Batch02 base passed8570 unit tests without skips,72 API checks without failures,12 explicit full-mode exclusions,and all compile/inventory/evidence/results/API-contract gates. Exact-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F038",
@@ -494,7 +527,9 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh accepted Batch01 baseline before fix",
+      "validation_status": "115 distinct targeted checks passed. Required local ./ready.sh quick against accepted Batch02 base passed8570 unit tests without skips,72 API checks without failures,12 explicit full-mode exclusions,and all compile/inventory/evidence/results/API-contract gates. Exact-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F039",
@@ -510,7 +545,9 @@
       "test_gap_ids": [
         "T05"
       ],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh accepted Batch01 baseline before fix",
+      "validation_status": "115 distinct targeted checks passed. Required local ./ready.sh quick against accepted Batch02 base passed8570 unit tests without skips,72 API checks without failures,12 explicit full-mode exclusions,and all compile/inventory/evidence/results/API-contract gates. Exact-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F040",
@@ -526,7 +563,9 @@
       "test_gap_ids": [
         "T07"
       ],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh accepted Batch01 baseline before fix",
+      "validation_status": "115 distinct targeted checks passed. Required local ./ready.sh quick against accepted Batch02 base passed8570 unit tests without skips,72 API checks without failures,12 explicit full-mode exclusions,and all compile/inventory/evidence/results/API-contract gates. Exact-head CI and merge pending; not accepted."
     },
     {
       "task_id": "E07",
@@ -540,7 +579,9 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "confirmed on fresh accepted Batch01 baseline before fix",
+      "validation_status": "115 distinct targeted checks passed. Required local ./ready.sh quick against accepted Batch02 base passed8570 unit tests without skips,72 API checks without failures,12 explicit full-mode exclusions,and all compile/inventory/evidence/results/API-contract gates. Exact-head CI and merge pending; not accepted."
     },
     {
       "task_id": "F006",

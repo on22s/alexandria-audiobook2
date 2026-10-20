@@ -5,6 +5,25 @@ from tests import test_training_ui_contract as ui
 class TrainingListRecoveryJsTests(unittest.TestCase):
     run_js = ui.TrainingUiContractTests.run_js
 
+    def test_non_json_upload_refusals_keep_http_details_and_selected_zip(self):
+        self.run_js(r'''
+ctx.FormData=class{append(){}};const api=vm.runInContext('API',ctx),handler=api._handleError;let handled=0;
+api._handleError=async response=>{handled++;return handler(response);};
+const input=element('lora-dataset-file'),button=element('btn-lora-upload'),select=element('lora-dataset-select');
+const file={name:'retained.zip'};button.innerHTML='Upload ZIP';
+for(const [status,statusText,body] of [[413,'Payload Too Large','<html>proxy size refusal</html>'],[503,'Service Unavailable','proxy unavailable']]){
+ input.files=[file];input.value='retained.zip';select.value='existing';
+ ctx.fetch=async()=>new Response(body,{status,statusText});
+ await ctx.uploadLoraDataset();
+ assert.match(element('lora-upload-status').textContent,/Upload refused/);
+ assert(toasts.at(-1)[0].includes(statusText));assert(element('lora-upload-status').textContent.includes(String(status)));
+ assert.strictEqual(input.value,'retained.zip');assert.strictEqual(input.files[0],file);
+ assert.strictEqual(select.value,'existing');assert.strictEqual(button.disabled,false);
+ assert.strictEqual(button.innerHTML,'Upload ZIP');
+}
+assert.strictEqual(handled,2);
+''')
+
     def test_upload_pending_selection_changes_and_failures_follow_native_lifecycle(self):
         self.run_js(r"""
 let finished=false;process.on('beforeExit',()=>assert(finished,'upload assertions must finish'));

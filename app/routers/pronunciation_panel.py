@@ -17,7 +17,7 @@ import pronunciation
 from audio_validation import validate_generated_audio
 from book_state_transaction import ensure_book_state
 from core import project_manager, run_claimed_task_worker, process_state
-from routers.editor import check_chunk_identity, SCRIPT_PATH
+from routers.editor import check_chunk_identity, SCRIPT_PATH, _ensure_editor_chunks
 from project import get_speaker
 from tts import (get_resolved_speaker, is_voice_config_present, resolve_narrator_voice_config,
                  voice_config_for_chunk)
@@ -116,7 +116,7 @@ async def get_pronunciation_preview_endpoint(request: PronunciationPreview):
 def _get_pronunciation_preview_sync(request):
     with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
         check_chunk_identity(0, request.expected_book_token)
-        chunks = project_manager.load_chunks()
+        chunks = _ensure_editor_chunks()
         counts = Counter()
         pattern = pronunciation._compile({key: value for key, value in request.names.items() if value.strip()})
         for row in chunks:

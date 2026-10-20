@@ -166,6 +166,36 @@ class AudioChannelTests(unittest.TestCase):
             self.assertEqual(['right', 'left'], [cmd[cmd.index('--audio-channel') + 1] for _, _, cmd in captures])
             self.assertFalse(source.exists())
             self.assertEqual(['done', 'done'], [t['status'] for t in state['batch_preparer']['tasks']])
+            config['tasks'][0]['preview_token'] = ''
+            retried = client.post('/api/preparer/batch/upload_start',
+                data={'config_json': json.dumps(config)}, files=[
+                    ('audio_files', ('one.wav', self.path.read_bytes(), 'audio/wav')),
+                    ('audio_files', ('two.wav', b'second selected upload', 'audio/wav'))])
+            self.assertEqual(200, retried.status_code, retried.text)
+            self.assertEqual([row[1] for row in captures[:2]], [row[1] for row in captures[2:]])
+            self.assertEqual(['done', 'done'], [t['status'] for t in state['batch_preparer']['tasks']])
+
+    def test_single_http_retries_same_audio_after_preview_source_has_moved(self):
+        from contextlib import ExitStack
+        from tests.test_preparer_batch_uploads import PreparerBatchUploadTests
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            client, uploads, captures, state, _, _ = PreparerBatchUploadTests().setup_api(Path(tmp), stack)
+            state['preparer'] = {'running': False, 'cancel': False, 'logs': []}
+            store = AudioChannelStaging(uploads)
+            token, staged = store.create_stage('one.wav', 'preparer')
+            staged.write_bytes(self.path.read_bytes())
+            config = {'audio_filename': 'one.wav', 'output_filename': 'one.zip', 'audio_channel': 'right'}
+            first = client.post('/api/preparer/start', data={
+                'config_json': json.dumps(config), 'preview_token': token})
+            self.assertEqual(200, first.status_code, first.text)
+            self.assertFalse(staged.exists())
+            config['resume'] = True
+            second = client.post('/api/preparer/start', data={'config_json': json.dumps(config)},
+                files={'audio_file': ('one.wav', self.path.read_bytes(), 'audio/wav')})
+            self.assertEqual(200, second.status_code, second.text)
+            self.assertEqual([self.path.read_bytes()] * 2, [row[1] for row in captures])
+            self.assertIn('--resume', captures[1][2])
+            self.assertEqual('done', state['preparer']['status'])
 
     def test_real_cancelled_child_is_reaped(self):
         import os

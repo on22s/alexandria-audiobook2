@@ -3123,7 +3123,10 @@
                         _pollScriptBatchLogs();
                         if (operation.cancelled) { await cancelBatchScript(); }
                     }
-                } else if (!operation.cancelled) { showActionError("Failed to start batch", e, "Check the batch task state, selected books and Test Connection in Setup before starting another batch."); }
+                } else if (!operation.cancelled) {
+                    statusMsg.innerHTML = '<span class="text-danger">Batch preparation failed before generation started. Review the error and try again.</span>';
+                    showActionError("Failed to start batch", e, "Check the batch task state, selected books and Test Connection in Setup before starting another batch.");
+                }
             } finally {
                 if (scriptBatchStartOperation === operation) { scriptBatchStartOperation = null; }
                 if (!started && !startUnconfirmed) {

@@ -74,6 +74,21 @@ for(const line of ['[DONE]','[ERROR]','cancelled']){const before=stopped;ctx.pol
 assert.strictEqual(bar.ariaValueNow,'100');assert.strictEqual(bar.ariaValueText,'Epoch 8 of 8');
 """)
 
+    def test_parameterless_reattachment_keeps_loading_progress_meaningful_until_metrics(self):
+        self.run_js(r"""
+ctx._startPolling=(key,fetch,options)=>ctx.poll={key,fetch,options};
+ctx.document.createTextNode=text=>({text});element('lora-train-logs').appendChild=node=>{element('lora-train-logs').innerText+=node.text;};
+ctx.pollLoraTraining();const bar=element('lora-progress-bar');
+assert.strictEqual(bar.ariaValueNow,'0');assert.match(bar.ariaValueText,/not.*reported/i);
+ctx.poll.options.onTick({run_id:'restored',logs:['Loading model','Preparing dataset']});
+assert(!bar.ariaValueText.includes('undefined'));assert(!bar.ariaValueText.includes('null'));
+assert.match(bar.ariaValueText,/not.*reported/i);
+ctx.poll.options.onTick({run_id:'restored',logs:['Loading model','Preparing dataset','[TRAIN] epoch=1/6 step=1/5 loss=0.5']});
+assert.strictEqual(bar.ariaValueText,'Epoch 1 of 6');
+ctx.poll.options.onTick({run_id:'restored',logs:['[EPOCH] 3/6 avg_loss=0.4']});
+assert.strictEqual(bar.ariaValueNow,'50');assert.strictEqual(bar.ariaValueText,'Epoch 3 of 6');
+""")
+
     def test_completion_error_and_stop_controls_remain_distinct(self):
         self.run_js(r"""
 ctx._startPolling=(key,fetch,options)=>ctx.poll={key,fetch,options};let notifications=0,loads=0;

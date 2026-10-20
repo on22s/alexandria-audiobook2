@@ -33,17 +33,17 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 02: Repair LLM configuration and resumable generation
 
-**Dependencies:** Batch 01 (accepted). **Tasks:** 7. **Status:** local quick release passed; exact-head CI and merge pending. **PR:** not opened.
+**Dependencies:** Batch 01 (accepted). **Tasks:** 7. **Status:** accepted and merged. **PR:** [#1428](https://github.com/on22s/alexandria-audiobook2/pull/1428).
 
 **Batch acceptance:** Exercise failure → checkpoint → corrected retry, profile-setting changes, stable resume prompts, cancellation while waiting for a manual reply, and structured-output opt-out preservation. For documented hosted providers, align the supported contract without relaxing arbitrary-host or credential safety policy.
 
-- [ ] **F004** [#1371](https://github.com/on22s/alexandria-audiobook2/issues/1371) — Malformed field types enter validated single-pass checkpoints and permanently block resume
-- [ ] **F017** [#1372](https://github.com/on22s/alexandria-audiobook2/issues/1372) — Cancelling a report explanation cannot stop a manual-transport request
-- [ ] **F019** [#1373](https://github.com/on22s/alexandria-audiobook2/issues/1373) — Saving unrelated Setup settings resets a saved structured-output opt-out
-- [ ] **F020** [#1374](https://github.com/on22s/alexandria-audiobook2/issues/1374) — The Remote profile cannot save or test the hosted providers advertised by Setup documentation
-- [ ] **F021** [#1375](https://github.com/on22s/alexandria-audiobook2/issues/1375) — Changing the profile reasoning-effort setting silently reuses generation checkpoints from the old setting
-- [ ] **F022** [#1376](https://github.com/on22s/alexandria-audiobook2/issues/1376) — Interrupted default three-pass runs resume with a different attribution-roster order than uninterrupted runs.
-- [ ] **F023** [#1377](https://github.com/on22s/alexandria-audiobook2/issues/1377) — Diagnostic instruction failures are never retried when resuming the same run
+- [x] **F004** [#1371](https://github.com/on22s/alexandria-audiobook2/issues/1371) — Malformed field types enter validated single-pass checkpoints and permanently block resume
+- [x] **F017** [#1372](https://github.com/on22s/alexandria-audiobook2/issues/1372) — Cancelling a report explanation cannot stop a manual-transport request
+- [x] **F019** [#1373](https://github.com/on22s/alexandria-audiobook2/issues/1373) — Saving unrelated Setup settings resets a saved structured-output opt-out
+- [x] **F020** [#1374](https://github.com/on22s/alexandria-audiobook2/issues/1374) — The Remote profile cannot save or test the hosted providers advertised by Setup documentation
+- [x] **F021** [#1375](https://github.com/on22s/alexandria-audiobook2/issues/1375) — Changing the profile reasoning-effort setting silently reuses generation checkpoints from the old setting
+- [x] **F022** [#1376](https://github.com/on22s/alexandria-audiobook2/issues/1376) — Interrupted default three-pass runs resume with a different attribution-roster order than uninterrupted runs.
+- [x] **F023** [#1377](https://github.com/on22s/alexandria-audiobook2/issues/1377) — Diagnostic instruction failures are never retried when resuming the same run
 
 ### Batch 03: Preserve rendered text, voice identity, and timing
 
@@ -61,7 +61,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 04: Repair preparation and frontend recovery
 
-**Dependencies:** Batch 01. **Tasks:** 5. **Status:** not started. **PR:** not opened.
+**Dependencies:** Batch 01 (accepted). **Tasks:** 5. **Status:** integrated local quick release passed; exact-head CI and merge pending. **PR:** not opened.
 
 **Batch acceptance:** Exercise unchanged-file retry/resume after consuming the preparation token, malformed-ID repair guidance, failed upload state recovery and parameterless training reattachment. Keep unrelated/newer selections and cancellation state intact.
 
@@ -166,7 +166,7 @@ its original plausible review classification remains preserved historically.
 GPU/model/listening and complete native macOS qualification are unrun and are
 not inferred from these control-plane regression checks.
 
-## Batch 02 verification progress
+## Batch 02 accepted verification
 
 All seven failures were reproduced before their fixes. Fresh response acceptance
 and checkpoint loading now share strict entry-schema checks; a poisoned older
@@ -193,9 +193,40 @@ Development checks passed 387 distinct CPU/Node regression methods across the
 combined and follow-up runs, including actual CLI recovery and fingerprint
 artifacts. Required `./ready.sh` quick verification passed: 8,564 unit tests with no unit
 skips, 72 API checks with no failures and 12 explicit full-mode exclusions, and
-all compile/inventory/evidence/results/API-contract gates. Exact published-head
-CI and merge remain pending. The seven tasks remain open; **4/58 accepted, 54 remain**. GPU/model/listening and full
-native-platform qualifications are unrun and are not inferred from these tests.
+all compile/inventory/evidence/results/API-contract gates. All six exact-head CI
+checks passed, including native Windows ownership, macOS prerequisites and the
+complete-inventory aggregate. PR #1428 merged as
+`33d3111ab87245c0e75937d31eada4e5e391280c`, tested head
+`46ad293ba91f735c703cebefd155dbdeeb9884dd`; the trees are identical.
+**11/58 accepted, 47 remain.** GPU/model/listening and full native-platform
+qualifications are unrun; macOS prerequisites alone do not establish them.
+
+## Batch 04 verification progress
+
+This independent batch depends only on accepted Batch 01. All five preparation
+and UI recovery tasks have fixes, with 115 distinct CPU/Node targeted checks
+passed. The real channel picker and single/batch Start handlers retain a preview
+after refusal, consume its token after an accepted start, and reuse the same
+File and channel selection on retry. Fresh previews receive new tokens, and
+stale acknowledgements cannot clear those tokens. Native single and batch HTTP
+fixtures confirm selected bytes reach repeated admission; single resume retains
+its flag. Model execution is replaced by bounded CPU fixtures.
+
+Pronunciation preview shares the Editor's chunk-ID validation and returns repair
+guidance without replacing progress, audio or lexicon bytes. Ordinary upload and
+preflight failures replace the batch spinner without starting a worker or
+poller. Training reattachment presents meaningful accessible progress before
+metrics arrive, then recovers the epoch total. Dataset upload refusals use the
+shared parser for JSON, HTML and plaintext responses while retaining selected
+files, HTTP status and control recovery.
+
+Required `./ready.sh` quick verification against the accepted Batch 02 base
+passed 8,570 unit tests without unit skips, 72 API checks without failures and
+12 explicit full-mode exclusions, plus all compile/inventory/evidence/results/
+API-contract gates. Exact published-head CI and merge remain pending; these
+five tasks stay open. **11/58 accepted; 47 remain.** GPU/model/listening and
+full native-platform qualifications are unrun and are not inferred from these
+control-plane fixtures.
 
 ## Completion gate
 

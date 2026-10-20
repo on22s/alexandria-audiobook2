@@ -638,11 +638,13 @@
     "tests.test_audio_channels.AudioChannelTests.test_preview_prefix_is_bounded_and_slots_are_released_after_failure",
     "tests.test_audio_channels.AudioChannelTests.test_real_cancelled_child_is_reaped",
     "tests.test_audio_channels.AudioChannelTests.test_selection_changes_identity_but_default_mix_keeps_old_identity",
+    "tests.test_audio_channels.AudioChannelTests.test_single_http_retries_same_audio_after_preview_source_has_moved",
     "tests.test_audio_channels.AudioChannelTests.test_stage_preview_and_clone_import_use_same_bytes_and_keep_provenance",
     "tests.test_audio_channels.AudioChannelTests.test_staging_reuses_original_expires_and_refuses_foreign_handles"
   ],
   "test_audio_channels_js": [
     "tests.test_audio_channels_js.AudioChannelsJsTests.test_closed_or_changed_picker_discards_late_audio_and_cleans_late_upload",
+    "tests.test_audio_channels_js.AudioChannelsJsTests.test_preparer_start_consumes_preview_once_and_same_file_can_start_again",
     "tests.test_audio_channels_js.AudioChannelsJsTests.test_preview_reuses_stage_and_selection_is_explicit_then_dispose_revokes",
     "tests.test_audio_channels_js.AudioChannelsJsTests.test_submission_lock_survives_late_preview_completion"
   ],
@@ -834,7 +836,8 @@
     "tests.test_batch_script_cancel_js.BatchScriptCancelJsTests.test_cancel_while_start_post_is_pending_waits_for_ack_then_cancels_worker",
     "tests.test_batch_script_cancel_js.BatchScriptCancelJsTests.test_cancelled_upload_failure_is_cancellation_and_normal_failure_releases_start",
     "tests.test_batch_script_cancel_js.BatchScriptCancelJsTests.test_cost_admission_blocks_duplicate_batch_starts_and_recovers_decline",
-    "tests.test_batch_script_cancel_js.BatchScriptCancelJsTests.test_lost_start_ack_keeps_monitoring_and_cancels_registered_worker"
+    "tests.test_batch_script_cancel_js.BatchScriptCancelJsTests.test_lost_start_ack_keeps_monitoring_and_cancels_registered_worker",
+    "tests.test_batch_script_cancel_js.BatchScriptCancelJsTests.test_upload_and_preflight_failures_replace_spinner_without_starting_a_worker"
   ],
   "test_batch_script_concurrency": [
     "tests.test_batch_script_concurrency.BatchScriptConcurrencyTests.test_batch_source_accepts_attested_narrator",
@@ -6789,6 +6792,7 @@
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_flat_reserved_name_and_multiline_entries_round_trip_without_data_loss",
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_invalid_voice_config_releases_claim_before_engine_or_output",
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_literal_context_is_nested_thread_local_and_resets_after_error",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_preview_refuses_invalid_chunk_ids_with_repair_guidance_without_rewriting_progress",
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_request_cancellation_retains_claim_until_worker_exits_and_cleans_files",
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_save_preserves_metadata_and_refuses_stale_or_malformed_file"
   ],
@@ -9475,6 +9479,7 @@
   ],
   "test_training_list_recovery_js": [
     "tests.test_training_list_recovery_js.TrainingListRecoveryJsTests.test_failures_malformed_and_stale_replies_keep_lists_and_selections",
+    "tests.test_training_list_recovery_js.TrainingListRecoveryJsTests.test_non_json_upload_refusals_keep_http_details_and_selected_zip",
     "tests.test_training_list_recovery_js.TrainingListRecoveryJsTests.test_upload_pending_selection_changes_and_failures_follow_native_lifecycle"
   ],
   "test_training_log_render_js": [
@@ -9482,6 +9487,7 @@
     "tests.test_training_log_render_js.TrainingLogRenderTests.test_appended_and_corrected_logs_preserve_reader_position_and_follow_tail",
     "tests.test_training_log_render_js.TrainingLogRenderTests.test_completion_error_and_stop_controls_remain_distinct",
     "tests.test_training_log_render_js.TrainingLogRenderTests.test_corrections_truncation_new_run_and_reattach_reset_metrics",
+    "tests.test_training_log_render_js.TrainingLogRenderTests.test_parameterless_reattachment_keeps_loading_progress_meaningful_until_metrics",
     "tests.test_training_log_render_js.TrainingLogRenderTests.test_progress_styles_reset_after_failure_and_success_for_every_run",
     "tests.test_training_log_render_js.TrainingLogRenderTests.test_unchanged_and_appended_logs_avoid_full_dom_and_metric_work"
   ],

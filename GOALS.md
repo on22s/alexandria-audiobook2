@@ -2750,13 +2750,24 @@ unit tests and 72 API checks with 12 expected full-mode exclusions; the combined
 targeted run passed 238 tests. GPU/model/listening and complete native macOS
 qualification are unrun and are not claimed by these control-plane regressions.
 
-**Batch 02 progress — 2026-10-20.** Seven configuration/recovery fixes are
-implemented on the accepted Batch 01 baseline. Development checks passed 387
-distinct CPU/Node regression methods, including actual CLI/checkpoint recovery,
-manual cancellation and real-SDK synthetic HTTP requests. Required local quick
-release passed 8,564 unit tests (no skips) and 72 API checks (12 explicit
-full-mode exclusions). Exact-head CI and merge are pending; these seven tasks
-remain open. The accepted count stays **4/58; 54 remain**. See the linked batch plan for validation scope.
+**Accepted — Batch 02, 2026-10-20.** [PR #1428](https://github.com/on22s/alexandria-audiobook2/pull/1428)
+merged as `33d3111ab87245c0e75937d31eada4e5e391280c`, tested head
+`46ad293ba91f735c703cebefd155dbdeeb9884dd`; the trees are identical.
+**11/58 tasks accepted; 47 remain.** All six exact-head CI checks passed,
+including complete unit-inventory aggregation, native Windows ownership and
+macOS prerequisites. Local quick release passed 8,564 unit tests without unit
+skips and 72 API checks with 12 explicit full-mode exclusions; development
+validation included 387 distinct targeted regressions. No GPU/model/listening
+or full native-platform qualification is inferred from these CPU checks.
+
+**Batch 04 progress — 2026-10-20.** Five preparation/UI recovery fixes are
+implemented independently of Batch 02, depending only on accepted Batch 01.
+The 115 distinct targeted CPU/Node checks cover real picker/start lifecycles,
+native upload retries and preservation of progress/audio, including failure
+recovery and accessible training progress. Required quick verification against
+the accepted Batch 02 base passed 8,570 unit tests without skips and 72 API
+checks with 12 explicit full-mode exclusions. Exact-head CI and merge are
+pending. These five tasks remain open; **11/58 accepted, 47 remain**.
 
 **Target — OPEN.** Zero undisposed execution tasks, with the required
 regressions and platform/model checks recorded on the exact merged revisions.

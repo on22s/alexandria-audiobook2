@@ -87,3 +87,19 @@ const c=client('upload');let starting=c.ctx._startBatchScript();await turn();awa
 c.setPhase('none');c.ctx.API.upload=async()=>{throw Error('upload unavailable');};await c.ctx._startBatchScript();assert(c.toasts.at(-1).message.startsWith('Failed to start batch.'));assert(c.toasts.at(-1).message.includes('Test Connection in Setup'));assert(c.toasts.at(-1).message.includes('upload unavailable'));assert.strictEqual(c.el('btn-gen-script').disabled,false);
 c.ctx.API.upload=async()=>({stored_filename:'one.txt'});await c.ctx._startBatchScript();assert.strictEqual(c.getPolls(),1);assert.strictEqual(c.requests.at(-1).data.strip_front_matter,true);
 ''')
+
+    def test_upload_and_preflight_failures_replace_spinner_without_starting_a_worker(self):
+        self.run_js(r'''
+for(const phase of ['upload','preflight']){
+ const c=client(phase),starting=c.ctx._startBatchScript();await turn();
+ assert.match(c.el('script-batch-status-msg').innerHTML,/Uploading files/);
+ c.gate.reject(Error('fixture '+phase+' refused'));await starting;
+ const status=c.el('script-batch-status-msg').innerHTML;
+ assert.match(status,/preparation failed before generation started/i);
+ assert(!status.includes('fa-spinner'));assert(!status.includes('Uploading files'));
+ assert.strictEqual(c.el('btn-gen-script').disabled,false);
+ assert.strictEqual(c.el('btn-cancel-batch-script').style.display,'none');
+ assert.strictEqual(c.getPolls(),0);
+ assert.strictEqual(c.requests.filter(row=>row.url.endsWith('/start')).length,0);
+}
+''')
