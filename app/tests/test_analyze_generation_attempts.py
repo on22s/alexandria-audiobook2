@@ -225,8 +225,6 @@ class DefaultScriptsDirTests(unittest.TestCase):
         self.assertNotIn(os.path.join("app", "scripts"), path)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class InvalidUtf8ManifestIsolationTests(unittest.TestCase):
@@ -257,3 +255,7 @@ class InvalidUtf8ManifestIsolationTests(unittest.TestCase):
             self.assertIn(invalid.name, report["warnings"][0])
             for path in (invalid, valid):
                 self.assertEqual(before[path.name], path.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -95,8 +95,6 @@ class Pipeline(unittest.TestCase):
         self.assertEqual(self._text(HEALTHY), HEALTHY)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CliticAuditEvidenceTests(unittest.TestCase):
@@ -131,3 +129,7 @@ class CliticAuditEvidenceTests(unittest.TestCase):
     def test_healthy_clitics_and_hyphenated_words_remain_unchanged(self):
         raw = "I'm here and we're ready. once re-entered."
         self.assertEqual((raw, []), restore_stripped_apostrophes(raw))
+
+
+if __name__ == "__main__":
+    unittest.main()

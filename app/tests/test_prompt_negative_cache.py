@@ -54,11 +54,12 @@ class PromptNegativeCacheTests(unittest.TestCase):
             cache={}
             prompt_loader.load_prompts_file(path,2,'missing','malformed',cache)
             old=dict(cache)
+            old_mtime=path.stat().st_mtime
             path.write_text('bad')
-            os.utime(path,(old['mtime']+2,old['mtime']+2))
+            os.utime(path,(old_mtime+2,old_mtime+2))
             with self.assertRaisesRegex(RuntimeError,'malformed'):
                 prompt_loader.load_prompts_file(path,2,'missing','malformed',cache)
-            self.assertEqual(old['mtime'],cache['mtime'])
+            self.assertEqual(old['file_version'],cache['file_version'])
             self.assertEqual(old['prompts'],cache['prompts'])
             with patch.object(prompt_loader,'open',side_effect=AssertionError('unchanged bad file should not reread'),create=True):
                 with self.assertRaisesRegex(RuntimeError,'new caller message'):

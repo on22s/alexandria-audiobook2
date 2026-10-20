@@ -68,8 +68,6 @@ class VoiceFeatureBenchmarkTests(unittest.TestCase):
         self.assertTrue(all(seconds >= 0 for seconds in timings.values()))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class BenchmarkDeviceProvenanceTests(unittest.TestCase):
@@ -125,3 +123,7 @@ class ProductionOperationParityTests(unittest.TestCase):
         self.assertTrue(np.isnan(f0).all())
         # The displaced algorithm invents pitch on this known rejection case.
         self.assertTrue(np.isfinite(librosa.yin(silence, fmin=50, fmax=400, sr=22050)).all())
+
+
+if __name__ == "__main__":
+    unittest.main()

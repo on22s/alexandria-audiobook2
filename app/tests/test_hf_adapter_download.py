@@ -55,8 +55,6 @@ class BuiltinAdapterDownloadTests(unittest.TestCase):
                              (adapter / "adapter_model.safetensors").read_bytes())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class PackageBatchAdapterTests(unittest.TestCase):
@@ -187,3 +185,7 @@ class BuiltinManifestConsumerTests(unittest.TestCase):
                 self.assertEqual(payload, source.read_text(encoding='utf-8'))
                 if not remote:
                     self.assertEqual(payload, manifest.read_text(encoding='utf-8'))
+
+
+if __name__ == "__main__":
+    unittest.main()

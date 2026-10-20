@@ -116,8 +116,6 @@ class BatchVoiceContractTests(unittest.TestCase):
         self.assertEqual('Aiden', engine.generate_voice.call_args.args[3]['NARRATOR']['voice'])
 
 
-if __name__ == '__main__':
-    unittest.main()
 
 
 class CpuBatchPeakTelemetryTests(unittest.TestCase):
@@ -187,3 +185,7 @@ class CpuBatchPeakTelemetryTests(unittest.TestCase):
                     self.assertEqual(available,'Peak VRAM' in logs.getvalue())
                     self.assertEqual(before,(chunks,config))
                     self.assertEqual(reference_before,reference.read_bytes())
+
+
+if __name__ == '__main__':
+    unittest.main()

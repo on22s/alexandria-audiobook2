@@ -261,8 +261,6 @@ class InstallerTest(unittest.TestCase):
                       (REPO / "ready.sh").read_text(encoding="utf-8"))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 
@@ -673,3 +671,7 @@ class ActualDerivedPathSafetyTests(unittest.TestCase):
                     self.assertEqual('',git('diff','--cached','--name-only'))
                 self.assertEqual('edited local',local.read_text())
                 self.assertEqual('untracked local',untracked.read_text())
+
+
+if __name__ == "__main__":
+    unittest.main()

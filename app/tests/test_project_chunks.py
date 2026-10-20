@@ -158,8 +158,6 @@ class UnspeakablePassthroughTest(unittest.TestCase):
         self.assertIn("\u25a0", entries[0]["text"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ReviewFlagTest(unittest.TestCase):
@@ -648,3 +646,7 @@ class InvalidExportAudioPathTests(unittest.TestCase):
             self.assertEqual(b"existing export", output.read_bytes())
             for path, data in before.items():
                 self.assertEqual(data, path.read_bytes(), str(path))
+
+
+if __name__ == "__main__":
+    unittest.main()

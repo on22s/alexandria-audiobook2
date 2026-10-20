@@ -108,8 +108,6 @@ class NeighbourContextTest(unittest.TestCase):
         self.assertIn("Rudeus looked up, startled by her tone.", row["context_after"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ScoringSheetArtifactTests(unittest.TestCase):
@@ -230,3 +228,7 @@ class ScoringSheetCandidateValidationTests(unittest.TestCase):
                     self.assertEqual('Hello.', data['rows'][0]['text'])
                     self.assertEqual([], data['rows'][0]['context_before'])
                     self.assertEqual([], data['rows'][0]['context_after'])
+
+
+if __name__ == "__main__":
+    unittest.main()

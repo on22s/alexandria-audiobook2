@@ -109,8 +109,6 @@ class RefusalTest(unittest.TestCase):
         self.assertNotIn("PARTIAL", r.stdout)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SharedCompletenessTest(unittest.TestCase):
@@ -147,3 +145,7 @@ class SharedCompletenessTest(unittest.TestCase):
         self.assertEqual("unknown", by_name["listy.json"]["completeness"])
         self.assertEqual("partial", by_name["part.json"]["completeness"])
         self.assertTrue(all(r.get("completeness") for r in rows))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -11,7 +11,8 @@ Spec (JSON)::
      "purge": ["<folder>/adapter_model.safetensors", ...],
      "expect_bytes": 6690000000}
 
-Every check that only reads runs before the first write, so a refusal changes nothing:
+Preflight refusals change nothing. Once a write is attempted, verification errors
+report completed API steps and accounting uncertainty instead of claiming refusal:
 
 1. the repo is private, and every purge path exists at HEAD;
 2. no OTHER path at HEAD of this repo holds one of the purge objects (same sha256) --
@@ -32,7 +33,23 @@ FREED_TOLERANCE_BYTES = 50_000_000
 
 
 class PurgeRefused(Exception):
+    """A preflight refusal before any write was attempted."""
     pass
+
+
+class PurgeVerificationError(Exception):
+    """Writes were attempted; completed steps cannot be undone by a failed check."""
+
+    def __init__(self, message, *, stage, completed_steps, pending_operation,
+                 expected_bytes, observed_freed_bytes):
+        self.report = {
+            'stage': stage, 'completed_steps': list(completed_steps),
+            'pending_operation': pending_operation,
+            'expected_bytes': expected_bytes, 'observed_freed_bytes': observed_freed_bytes,
+            'accounting_status': 'unverified',
+        }
+        super().__init__(f'post-mutation verification failed: {message}; '
+                         f'write/accounting evidence: {json.dumps(self.report, sort_keys=True)}')
 
 
 def get_head_sha_by_path(api, repo, repo_type='model'):
@@ -99,35 +116,62 @@ def run_batch(spec, api, log=print):
     target_bytes = sum(stored[sha] for sha in target)
     if abs(target_bytes - expected) >= FREED_TOLERANCE_BYTES:
         raise PurgeRefused(f'expected {expected} bytes, target objects total {target_bytes}')
-    if lessons:
-        api.create_commit(repo, operations=[CommitOperationAdd(path_in_repo=k, path_or_fileobj=v)
-                                            for k, v in lessons.items()],
-                          commit_message=f"LESSONS before purge: {spec['label']}")
-        for k, v in lessons.items():
-            with open(api.hf_hub_download(repo, k, force_download=True), 'rb') as got, open(v, 'rb') as want:
-                if got.read() != want.read():
-                    raise PurgeRefused(f'lesson read back differs: {k}')
-        log(f'lessons read back identical: {len(lessons)}')
+    completed_steps, pending_operation, freed = [], None, None
+    stage = 'commit_lessons'
+    try:
+        if lessons:
+            pending_operation = 'create_lessons_commit'
+            api.create_commit(repo, operations=[CommitOperationAdd(path_in_repo=k, path_or_fileobj=v)
+                                                for k, v in lessons.items()],
+                              commit_message=f"LESSONS before purge: {spec['label']}")
+            completed_steps.append('lessons_committed')
+            pending_operation = None
+            stage = 'verify_lessons'
+            for k, v in lessons.items():
+                with open(api.hf_hub_download(repo, k, force_download=True), 'rb') as got, open(v, 'rb') as want:
+                    if got.read() != want.read():
+                        raise RuntimeError(f'lesson read back differs: {k}')
+            log(f'lessons read back identical: {len(lessons)}')
 
-    before = sum(f.size for f in api.list_lfs_files(repo))
-    api.create_commit(repo, operations=[CommitOperationDelete(path_in_repo=p) for p in sorted(purge)],
-                      commit_message=f"Remove {len(purge)} weight files; lessons kept: {spec['label']}")
-    shared = get_shared_paths(get_head_sha_by_path(api, repo), target, purge)
-    if shared:
-        raise PurgeRefused(f'after delete, another path uses a purge object: {shared}')
+        stage = 'storage_before'
+        before = sum(f.size for f in api.list_lfs_files(repo))
+        stage = 'delete_paths'
+        pending_operation = 'create_delete_commit'
+        api.create_commit(repo, operations=[CommitOperationDelete(path_in_repo=p) for p in sorted(purge)],
+                          commit_message=f"Remove {len(purge)} weight files; lessons kept: {spec['label']}")
+        completed_steps.append('paths_deleted')
+        pending_operation = None
+        stage = 'verify_deleted_paths'
+        shared = get_shared_paths(get_head_sha_by_path(api, repo), target, purge)
+        if shared:
+            raise RuntimeError(f'after delete, another path uses a purge object: {shared}')
 
-    objs = [f for f in api.list_lfs_files(repo) if f.file_oid in target]
-    if {f.file_oid for f in objs} != target:
-        raise PurgeRefused('LFS objects do not match the purge sha256s')
-    api.permanently_delete_lfs_files(repo, objs)
-    after = sum(f.size for f in api.list_lfs_files(repo))
-    freed = before - after
-    log(f"purged {len(objs)} objects; stored {before / 1e9:.2f} -> {after / 1e9:.2f} GB "
-        f"(freed {freed / 1e9:.2f}, expected {spec['expect_bytes'] / 1e9:.2f})")
-    if any(f.file_oid in target for f in api.list_lfs_files(repo)):
-        raise PurgeRefused('purged objects are still listed')
-    if abs(freed - spec['expect_bytes']) >= FREED_TOLERANCE_BYTES:
-        raise PurgeRefused(f"freed {freed} bytes, expected {spec['expect_bytes']}")
+        stage = 'select_purge_objects'
+        objs = [f for f in api.list_lfs_files(repo) if f.file_oid in target]
+        if {f.file_oid for f in objs} != target:
+            raise RuntimeError('LFS objects do not match the purge sha256s')
+        stage = 'permanent_delete'
+        pending_operation = 'permanently_delete_lfs_files'
+        api.permanently_delete_lfs_files(repo, objs)
+        completed_steps.append('permanent_delete_returned')
+        pending_operation = None
+        stage = 'verify_storage'
+        after = sum(f.size for f in api.list_lfs_files(repo))
+        freed = before - after
+        stage = 'verify_remaining_objects'
+        if any(f.file_oid in target for f in api.list_lfs_files(repo)):
+            raise RuntimeError('purged objects are still listed')
+        stage = 'verify_freed_bytes'
+        if abs(freed - spec['expect_bytes']) >= FREED_TOLERANCE_BYTES:
+            raise RuntimeError(f"freed {freed} bytes, expected {spec['expect_bytes']}")
+        log(f"purged {len(objs)} objects; stored {before / 1e9:.2f} -> {after / 1e9:.2f} GB "
+            f"(freed {freed / 1e9:.2f}, expected {spec['expect_bytes'] / 1e9:.2f})")
+    except Exception as exc:
+        if not completed_steps and pending_operation is None:
+            raise
+        raise PurgeVerificationError(str(exc), stage=stage, completed_steps=completed_steps,
+                                     pending_operation=pending_operation, expected_bytes=expected,
+                                     observed_freed_bytes=freed) from exc
     return freed
 
 

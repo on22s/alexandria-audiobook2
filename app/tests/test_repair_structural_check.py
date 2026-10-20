@@ -267,8 +267,6 @@ class SourceHealthCheckTest(unittest.TestCase):
                 self.assertIn("detail", finding)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CurlyQuoteAvailabilityTests(unittest.TestCase):
@@ -280,3 +278,7 @@ class CurlyQuoteAvailabilityTests(unittest.TestCase):
         for text in ('“One.” And “two.”', '“One."', '"One.”', '“One" and “two"', 'Plain narration.'):
             with self.subTest(text=text):
                 self.assertEqual(0, quote_balance(text)[0])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -64,8 +64,6 @@ class VoteSeedTest(unittest.TestCase):
         self.assertNotIn("seed", build_extra_body(LLMGenParams()))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class VotedAttributionTest(unittest.TestCase):
@@ -181,3 +179,7 @@ class VotedAttributionTest(unittest.TestCase):
             entries, conf = attribute_batch_voted(
                 None, "m", self.BATCH, P(), roster=[], votes=3)
         self.assertEqual([e["speaker"] for e in entries], ["ROXY", "RUDI"])
+
+
+if __name__ == "__main__":
+    unittest.main()

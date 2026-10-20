@@ -241,8 +241,6 @@ process.stdout.write(JSON.stringify([
         self.assertEqual("", none)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class StickyRosterTest(unittest.TestCase):
@@ -270,3 +268,6 @@ class StickyRosterTest(unittest.TestCase):
                                    max_retries=0, entries_provider=provider, roster_traits=traits)
         self.assertEqual([{"ROXY": "female, teen"}, None], seen)
 
+
+if __name__ == "__main__":
+    unittest.main()

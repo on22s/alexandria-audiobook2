@@ -380,8 +380,6 @@ class BenchmarkRunnerTests(unittest.TestCase):
             run_worker.assert_called_once()
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RemoteProfilingHashOutputTests(unittest.TestCase):
@@ -670,3 +668,7 @@ class RemoteTrainingCleanupTests(unittest.TestCase):
                  patch.object(benchmark_runner.subprocess,'run') as cleanup:
                 with self.assertRaises(ValueError):benchmark_runner._run_lora_training_worker(fixture,'thunder',{'remote_root':'/remote','remote_python':'python3'},'/fixture','fixture-host')
                 cleanup.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

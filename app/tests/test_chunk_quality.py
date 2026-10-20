@@ -699,8 +699,6 @@ class TrigramNearMissAcceptanceTests(unittest.TestCase):
         self.assertEqual([], entries)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class NearMissAcrossSplitTests(unittest.TestCase):
@@ -905,3 +903,7 @@ class AcceptedNearMissResumeTests(unittest.TestCase):
                     before = checkpoint.read_bytes()
                     self.assertEqual([], generate_script.load_generation_checkpoint(output, fingerprint))
                     self.assertEqual(before, checkpoint.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

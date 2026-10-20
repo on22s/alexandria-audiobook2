@@ -117,8 +117,6 @@ class SpeakerIdentityTests(unittest.TestCase):
         self.assertEqual("MR. SMITH", resolve_speaker_label("mr smith", list(reversed(labels))))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SplitNameSpellingTest(unittest.TestCase):
@@ -203,3 +201,7 @@ class FinishedScriptRepairTest(unittest.TestCase):
             {"speaker": "R UDEUS", "text": "Rudeus said so himself."},
         ])
         self.assertIn("speaker_split_repair", {c["type"] for c in out["changes"]})
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -60,8 +60,6 @@ class VoiceClusteringTests(unittest.TestCase):
                              load_cluster_overrides(path, "Different"))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SimilarityMatrixValidationTests(unittest.TestCase):
@@ -95,3 +93,7 @@ class SimilarityMatrixValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "conflict"):
             cluster_voices(labels, matrix, .45,
                 {"merge": [["a", "b"]], "split": [["a", "b"]]})
+
+
+if __name__ == "__main__":
+    unittest.main()

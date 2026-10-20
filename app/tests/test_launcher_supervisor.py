@@ -287,8 +287,6 @@ for (const line of JSON.parse(process.argv[2])) {
         self.assertIsNone(self.failure_re.search(url_line))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 _RESET_ARTIFACT_FIXTURE = r"""
@@ -343,3 +341,7 @@ class LauncherResetArtifactTests(unittest.TestCase):
         self.assertIn("character_aliases.json", artifact["activeFilesRemoved"])
         self.assertTrue(artifact["savedBookPreserved"])
         self.assertTrue(artifact["castPreserved"])
+
+
+if __name__ == "__main__":
+    unittest.main()

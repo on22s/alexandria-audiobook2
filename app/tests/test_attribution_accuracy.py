@@ -83,8 +83,6 @@ class ScoringTest(unittest.TestCase):
         self.assertEqual(normalize_speaker(None), "")
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class GoldFixtureIntegrityTest(unittest.TestCase):
@@ -186,3 +184,7 @@ class RestrictedCandidates(unittest.TestCase):
         kept = self._restrict({"prev_context": "The room was quiet.",
                                "line": "“Oh!”", "next_context": ""})
         self.assertEqual(self.ROSTER, kept)
+
+
+if __name__ == "__main__":
+    unittest.main()

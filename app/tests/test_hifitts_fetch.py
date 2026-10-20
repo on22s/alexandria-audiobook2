@@ -93,8 +93,6 @@ class PrepareIdentityTest(unittest.TestCase):
                               "sample_rate_native": 44100}, got)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class PerBookCapTest(unittest.TestCase):
@@ -136,3 +134,7 @@ class ResumeTest(unittest.TestCase):
             lines = Path(tmp, "metadata.csv").read_text(encoding="utf-8").splitlines()
             self.assertEqual(4, len(lines))
             self.assertEqual(4, len(set(l.split("|")[0] for l in lines)))
+
+
+if __name__ == "__main__":
+    unittest.main()

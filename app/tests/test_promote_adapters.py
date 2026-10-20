@@ -477,8 +477,6 @@ class RollbackRevertsManifestTests(unittest.TestCase):
             self.assertEqual("live", Path(models, "voice", "weights").read_text())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class EcapaPairPathTest(unittest.TestCase):
@@ -684,3 +682,7 @@ class RollbackMissingMetadataTests(unittest.TestCase):
                 self.assertEqual(untouched, entries[1])
                 self.assertEqual(prior_metadata, metadata.read_bytes())
                 self.assertEqual(prior_receipt, receipt.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

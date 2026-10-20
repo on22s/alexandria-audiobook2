@@ -175,8 +175,6 @@ class VoiceDatasetMergeTests(unittest.TestCase):
                 merge_voice_datasets([bad], output)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class MergeArtifactRecoveryTests(unittest.TestCase):
@@ -226,3 +224,7 @@ class MergeArtifactRecoveryTests(unittest.TestCase):
                     fingerprint = get_file_fingerprint(source)
                 self.assertEqual({'size': expected_stat.st_size, 'mtime_ns': expected_stat.st_mtime_ns,
                     'sha256': hashlib.sha256(expected_bytes).hexdigest()}, fingerprint)
+
+
+if __name__ == "__main__":
+    unittest.main()

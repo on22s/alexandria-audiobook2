@@ -357,8 +357,6 @@ class Stage4CheckpointRunnerTest(unittest.TestCase):
                 self.assertEqual(original, Path(path).read_bytes())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class Stage4PilotAdmissionTests(unittest.TestCase):
@@ -414,3 +412,7 @@ class Stage4PilotAdmissionTests(unittest.TestCase):
                 gpu.assert_not_called();run.assert_not_called()
                 self.assertEqual(before,Path(path).read_bytes())
                 self.assertEqual(not bool(change),"pilot validated strictly" in output.getvalue())
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -203,8 +203,6 @@ class AgreementTest(unittest.TestCase):
         self.assertEqual((0, []), (agreed, differ))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SupportClassificationTest(unittest.TestCase):
@@ -390,3 +388,7 @@ class GoldAliasEquivalenceTests(unittest.TestCase):
         self.assertEqual([['A', 'B', 'C', 'D']], get_normalized_gold_alias_groups(groups))
         self.assertEqual([['A', 'B', 'C', 'D']], get_normalized_gold_alias_groups(list(reversed(groups))))
         self.assertEqual([], get_normalized_gold_alias_groups(None))
+
+
+if __name__ == "__main__":
+    unittest.main()

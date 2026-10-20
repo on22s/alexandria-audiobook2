@@ -450,8 +450,6 @@ class ScriptPreflightTests(unittest.TestCase):
             self.assertTrue((scripts / result["backup"]).exists())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class NearDuplicateNormalizationTests(unittest.TestCase):
@@ -531,3 +529,7 @@ class MixedSourceRepairRouteTests(unittest.TestCase):
                         self.assertEqual(409, refused.exception.status_code)
                         self.assertEqual(before, book.read_bytes())
                 self.assertEqual(source_before, source.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

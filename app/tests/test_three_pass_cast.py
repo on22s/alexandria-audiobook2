@@ -173,8 +173,6 @@ class CastTests(unittest.TestCase):
             parse_cast('{"name": "X"}')
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 def _reply(content, finish):
@@ -225,3 +223,7 @@ class RequestCastTests(unittest.TestCase):
         # opaque JSON error, which is the failure this change replaces.
         with self.assertRaises(ValueError):
             parse_cast(_LOOP)
+
+
+if __name__ == "__main__":
+    unittest.main()

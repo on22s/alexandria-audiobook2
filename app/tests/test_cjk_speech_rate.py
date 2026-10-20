@@ -214,8 +214,6 @@ class GetRateSummaryTests(unittest.TestCase):
         self.assertEqual(summary["languages"]["zh"]["n"], 1)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class AozoraFrameTests(unittest.TestCase):
@@ -223,3 +221,6 @@ class AozoraFrameTests(unittest.TestCase):
         text = "作者 題名\n\n\n　ある日の暮方の事である。雨が降る。\n\n底本：「全集」出版社\n入力：誰か\n"
         self.assertEqual("ある日の暮方の事である。雨が降る。", cjk_speech_rate.get_clean_text(text, "ja"))
 
+
+if __name__ == "__main__":
+    unittest.main()

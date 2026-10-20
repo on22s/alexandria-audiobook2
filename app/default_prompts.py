@@ -3,13 +3,13 @@ import os
 from prompt_loader import load_prompts_file
 
 _PROMPTS_FILE = os.path.join(os.path.dirname(__file__), "..", "default_prompts.txt")
-_prompt_cache = {"mtime": None, "prompts": None}
+_prompt_cache = {"prompts": None}
 
 
 def load_default_prompts():
     """Read default_prompts.txt from disk and return (system_prompt, user_prompt).
 
-    Uses an mtime-based cache to pick up edits without restarting the app,
+    Uses a file-version cache to pick up edits without restarting the app,
     avoiding redundant disk reads when the file hasn't changed.
     """
     return load_prompts_file(
@@ -40,9 +40,9 @@ except RuntimeError:
 _SEGMENT_FILE = os.path.join(os.path.dirname(__file__), "default_prompts_segment.txt")
 _ATTRIBUTE_FILE = os.path.join(os.path.dirname(__file__), "default_prompts_attribute.txt")
 _INSTRUCT_FILE = os.path.join(os.path.dirname(__file__), "default_prompts_instruct.txt")
-_segment_cache = {"mtime": None, "prompts": None}
-_attribute_cache = {"mtime": None, "prompts": None}
-_instruct_cache = {"mtime": None, "prompts": None}
+_segment_cache = {"prompts": None}
+_attribute_cache = {"prompts": None}
+_instruct_cache = {"prompts": None}
 # Pass 3 prompts for the delivery-direction modes (#1258). "off" is the file above;
 # action_only shares the directed prompt and differs only in what is composed from it.
 _DIRECTION_FILES = {
@@ -50,7 +50,7 @@ _DIRECTION_FILES = {
     "directed": "default_prompts_instruct_directed.txt",
     "action_only": "default_prompts_instruct_directed.txt",
 }
-_direction_caches = {name: {"mtime": None, "prompts": None} for name in set(_DIRECTION_FILES.values())}
+_direction_caches = {name: {"prompts": None} for name in set(_DIRECTION_FILES.values())}
 
 
 def _load_pair(path, cache, name):

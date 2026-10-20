@@ -132,8 +132,6 @@ class GoalsEvidence(unittest.TestCase):
                            "has probably stopped matching" % len(relevant))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CheckoutIndependence(unittest.TestCase):
@@ -170,3 +168,7 @@ class CheckoutIndependence(unittest.TestCase):
             self.assertTrue(case._satisfied("logs/responses/"))
         else:
             self.skipTest("logs/ is not ignored in this checkout")
+
+
+if __name__ == "__main__":
+    unittest.main()

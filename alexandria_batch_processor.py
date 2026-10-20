@@ -603,7 +603,8 @@ class BatchProcessor:
 
         # Show overall batch ETA based on completed files
         if file_index > 1 and len(self.results["succeeded"]) > 0:
-            avg_time = self.total_time / len(self.results["succeeded"])
+            avg_time = (sum(item["time_seconds"] for item in self.results["succeeded"])
+                        / len(self.results["succeeded"]))
             remaining_files = total_files - file_index + 1
             eta_secs = avg_time * remaining_files
             logger.info(f"  └─ Batch ETA: ~{format_duration(eta_secs)} ({remaining_files} files remaining)")

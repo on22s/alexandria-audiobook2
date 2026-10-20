@@ -87,8 +87,6 @@ class ParseAliasResponseTests(unittest.TestCase):
         self.assertNotIn("[near-miss]", buffer.getvalue())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ConcurrentAliasPublicationTests(unittest.TestCase):
@@ -172,3 +170,7 @@ class ConcurrentAliasPublicationTests(unittest.TestCase):
             self.assertEqual(expected, json.loads(path.read_text()))
             assert_file_lock_released(str(path))
             self.assertEqual(original_inputs, (manual_input, discovered))
+
+
+if __name__ == "__main__":
+    unittest.main()

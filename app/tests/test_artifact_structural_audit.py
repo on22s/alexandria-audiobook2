@@ -123,8 +123,6 @@ class IndexableArtifactTests(unittest.TestCase):
                 audit.indexable_artifacts(self.tmp.name)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RowCountTest(unittest.TestCase):
@@ -172,3 +170,7 @@ class RowCountTest(unittest.TestCase):
                                             "provenance": {}}))
         self.assertIsNone(row["row_count"])
         self.assertFalse(row["has_rows"])
+
+
+if __name__ == "__main__":
+    unittest.main()

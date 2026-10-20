@@ -262,8 +262,6 @@ class SafetyTests(unittest.TestCase):
             self.assertFalse(os.path.exists(er._session_path(d, fresh["session_id"])))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SessionTimezonePruningTests(unittest.TestCase):
@@ -446,3 +444,7 @@ class ReviewConsumptionFailureTests(unittest.TestCase):
                     duplicate = client.post(endpoint, json={"choice": "tie", "rating": 4})
                     self.assertEqual(409, duplicate.status_code)
                     self.assertEqual(committed, store.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

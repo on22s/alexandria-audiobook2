@@ -298,8 +298,6 @@ class EngineInitializationTests(unittest.TestCase):
                 self.assertEqual(2, construct.call_count)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class DeclaredAudioFrameTests(unittest.TestCase):
@@ -358,3 +356,7 @@ class DeclaredAudioFrameTests(unittest.TestCase):
                     self.assertEqual(channels, decoded.shape[1])
                     self.assertGreater(float(np.max(np.abs(decoded))), 0.1)
                     self.assertEqual(str(path), validate_generated_audio(str(path), "test"))
+
+
+if __name__ == "__main__":
+    unittest.main()

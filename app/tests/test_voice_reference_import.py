@@ -133,8 +133,6 @@ class UploadRouteTests(unittest.TestCase):
             self.assertEqual([], os.listdir(tmp))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ReferenceImportFailureAndBoundaryTests(unittest.TestCase):
@@ -245,3 +243,7 @@ class ReferenceImportFailureAndBoundaryTests(unittest.TestCase):
                     self.assertEqual(frames/rate, manifest[0]['duration_s'])
                     self.assertEqual(result['measures'], vri.measure_reference_audio(
                         str(Path(tmp, manifest[0]['filename']))))
+
+
+if __name__ == "__main__":
+    unittest.main()

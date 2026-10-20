@@ -189,8 +189,6 @@ class StageRunnerTest(unittest.TestCase):
         self.assertEqual(0, second.returncode)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class StageDependencyAccountingTests(unittest.TestCase):
@@ -225,3 +223,7 @@ stage_summary dependency_probe
                 for name in ('child', 'grandchild', 'unexpected_probe', 'unexpected_kill'):
                     self.assertFalse((root / name).exists())
                 self.assertEqual(['independent.log'], sorted(p.name for p in (root / 'logs').iterdir()))
+
+
+if __name__ == "__main__":
+    unittest.main()

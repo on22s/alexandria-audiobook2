@@ -191,8 +191,6 @@ class VoiceDriftPersistenceTests(unittest.TestCase):
             core_module.check_global_gpu_lock("drift_check")  # must not raise
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class DriftCheckRouteTests(unittest.TestCase):
@@ -304,3 +302,7 @@ class DriftFailureArtifactTests(unittest.TestCase):
         self.assertIsNone(saved[0]["drift"]["score"])
         self.assertEqual(0.7, saved[1]["drift"]["score"])
         self.assertTrue(saved[2]["drift"]["flagged"])
+
+
+if __name__ == "__main__":
+    unittest.main()

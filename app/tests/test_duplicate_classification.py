@@ -153,8 +153,6 @@ class DuplicateRepairTest(unittest.TestCase):
             phrase + " " + phrase, phrase))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ShortSourceOccurrenceTests(unittest.TestCase):
@@ -201,3 +199,7 @@ class ShortSourceOccurrenceTests(unittest.TestCase):
         self.assertEqual(before, result["entries"])
         self.assertTrue(result["unresolved"])
         self.assertEqual(before, entries)
+
+
+if __name__ == "__main__":
+    unittest.main()

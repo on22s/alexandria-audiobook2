@@ -160,8 +160,6 @@ class RescoreTests(unittest.TestCase):
         self.assertEqual(1, stats["legacy_helps_where_word_never_appeared"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ArtifactCompletenessTest(unittest.TestCase):
@@ -279,3 +277,7 @@ class DefaultRowTest(unittest.TestCase):
         self.assertEqual("tah-nah-kah", measure.respell("タナカ"))
         self.assertEqual(measure.respell("タナカ", measure.e_row("eh")),
                          measure.respell("タナカ"))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -266,8 +266,6 @@ class ResolveBatchOutputPathTests(unittest.TestCase):
             self.assertEqual("backup", action)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class OutputCeilingRefusalTests(OwnedScriptTestCase):
@@ -447,3 +445,7 @@ class OutputCeilingRefusalTests(OwnedScriptTestCase):
         self.assertEqual(400, ctx.exception.status_code)
         self.assertIn("write back in one reply", ctx.exception.detail)
         claim.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

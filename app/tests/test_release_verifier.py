@@ -436,8 +436,6 @@ class ReleaseVerifierTests(unittest.TestCase):
         self.assertEqual("failed", report["gates"][0]["status"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class UnexpectedGateFailureReportTests(unittest.TestCase):
@@ -544,3 +542,7 @@ class CompileArtifactIsolationTests(unittest.TestCase):
             self.assertEqual(2, len(outputs))
             self.assertTrue(all(not output.exists() for output in outputs))
             self.assertEqual({'good.py', 'bad.py'}, {path.name for path in repo.iterdir()})
+
+
+if __name__ == "__main__":
+    unittest.main()

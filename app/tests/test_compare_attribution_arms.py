@@ -87,8 +87,6 @@ class TextAlignmentTest(unittest.TestCase):
         self.assertGreater(coverage, 0.0)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ComparisonArtifactSafetyTests(unittest.TestCase):
@@ -160,3 +158,7 @@ class ComparisonArtifactSafetyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 sample_disagreements(rows, -1)
         self.assertEqual([], sample_disagreements([{'index': 1}], 0))
+
+
+if __name__ == "__main__":
+    unittest.main()

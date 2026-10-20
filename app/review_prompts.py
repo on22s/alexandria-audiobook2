@@ -3,13 +3,13 @@ import os
 from prompt_loader import load_prompts_file
 
 _PROMPTS_FILE = os.path.join(os.path.dirname(__file__), "..", "review_prompts.txt")
-_prompt_cache = {"mtime": None, "prompts": None}
+_prompt_cache = {"prompts": None}
 
 
 def load_review_prompts():
     """Read review_prompts.txt from disk and return (system_prompt, user_prompt).
 
-    Uses an mtime-based cache to pick up edits without restarting the app,
+    Uses a file-version cache to pick up edits without restarting the app,
     avoiding redundant disk reads when the file hasn't changed.
     """
     return load_prompts_file(

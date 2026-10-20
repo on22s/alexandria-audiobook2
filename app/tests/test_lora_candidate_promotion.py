@@ -502,8 +502,6 @@ class LoraCheckpointSwapRouteClaimTests(unittest.TestCase):
         self.assertFalse(process_state["lora_training"]["running"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class AlteredComparisonSpecTests(unittest.TestCase):
@@ -641,3 +639,7 @@ class NativeCheckpointHttpArtifactTests(unittest.TestCase):
             self.assertTrue(backup.is_dir());self.assertEqual(entries,json.loads(manifest.read_text()))
             self.assertFalse((adapter/lora.CHECKPOINT_SWAP_JOURNAL).exists())
             self.assertFalse(checkpoint_transaction.get_adapter_checkpoint_journal(adapter).exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

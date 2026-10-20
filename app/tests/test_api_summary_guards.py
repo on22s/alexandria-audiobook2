@@ -52,6 +52,14 @@ class ApiSummaryGuards(unittest.TestCase):
             verify_release.validate_api_summary(
                 _summary(tests=dup, counts={"passed": 2, "failed": 0,
                                             "skipped": 0, "total": 2}), False)
+        for fields in ({"name": ""}, {}, {"name": None}):
+            with self.subTest(fields=fields):
+                tests = [{"name": "valid", "status": "passed", "requires_full": False},
+                         {"status": "passed", "requires_full": False, **fields}]
+                with self.assertRaisesRegex(ValueError, "non-empty and unique"):
+                    verify_release.validate_api_summary(
+                        _summary(tests=tests, counts={"passed": 2, "failed": 0,
+                                                    "skipped": 0, "total": 2}), False)
 
     def test_requires_full_must_be_a_bool(self):
         t = [{"name": "t1", "status": "passed", "requires_full": "no"}]
@@ -74,8 +82,6 @@ class ApiSummaryGuards(unittest.TestCase):
                                           "skipped": 0, "total": 1}), False)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class EmptyAndMalformedApiSummaryTests(unittest.TestCase):
@@ -90,3 +96,7 @@ class EmptyAndMalformedApiSummaryTests(unittest.TestCase):
         for summary in ([], None, 'summary', True, 7):
             with self.subTest(summary=summary), self.assertRaisesRegex(ValueError, 'object'):
                 verify_release.validate_api_summary(summary, False)
+
+
+if __name__ == "__main__":
+    unittest.main()

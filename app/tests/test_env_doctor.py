@@ -177,8 +177,6 @@ class EvaluateEnvTests(unittest.TestCase):
         self.assertEqual("", rows[0]["note"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class InterpreterImportHealthTests(unittest.TestCase):
@@ -303,3 +301,7 @@ class QwenRuntimeRequirementTests(unittest.TestCase):
                 self.assertEqual('0.1.1' if healthy else None, qwen['found'])
                 self.assertEqual(before, {p.relative_to(root): p.read_bytes()
                                          for p in root.rglob('*') if p.is_file()})
+
+
+if __name__ == "__main__":
+    unittest.main()

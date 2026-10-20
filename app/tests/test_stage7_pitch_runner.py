@@ -29,8 +29,6 @@ class Stage7PitchRunnerTests(unittest.TestCase):
         validate.assert_called_once_with(runner.FULL, expected_count=1350)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class PilotReportingTests(unittest.TestCase):
@@ -231,3 +229,7 @@ class Stage7CheckpointResumeTests(unittest.TestCase):
                 runner.ensure_pilot('fixture-adapter')
                 self.assertEqual(2, dispatch.call_count)
                 self.assertEqual(3, len(calls))
+
+
+if __name__ == "__main__":
+    unittest.main()

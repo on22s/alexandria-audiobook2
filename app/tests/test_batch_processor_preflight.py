@@ -389,6 +389,29 @@ class BatchProcessorPreflightTests(unittest.TestCase):
             os.utime(audio, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
             self.assertEqual([str(audio)], processor.validate_files([str(audio)]))
 
+    def test_eta_uses_only_the_matching_successful_time_population(self):
+        audio = self.root / "book.wav"
+        audio.touch()
+        for successful_times, failed_time in (([20, 40], 80), ([20], 0), ([], 80)):
+            with self.subTest(successful_times=successful_times, failed_time=failed_time):
+                processor = batch.BatchProcessor(str(self.model), skip_disk_check=True)
+                processor.results["succeeded"] = [{"time_seconds": value} for value in successful_times]
+                processor.results["failed"] = [{"time": "failure"}] if failed_time else []
+                processor.total_time = sum(successful_times) + failed_time
+                with patch.object(processor, "ensure_disk_space", return_value=True), \
+                     patch.object(batch, "get_output_name", side_effect=RuntimeError("stop after ETA")), \
+                     patch.object(batch.logger, "info") as log:
+                    with self.assertRaisesRegex(RuntimeError, "stop after ETA"):
+                        processor.process_file(str(audio), 3, 5)
+                lines = [call.args[0] for call in log.call_args_list if "Batch ETA:" in call.args[0]]
+                self.assertEqual(1, len(lines))
+                if successful_times:
+                    expected = sum(successful_times) / len(successful_times) * 3
+                    self.assertIn("~" + batch.format_duration(expected), lines[0])
+                    self.assertIn("3 files remaining", lines[0])
+                else:
+                    self.assertIn("calculating after first file completes", lines[0])
+
     def test_failed_rerun_invalidates_previous_completion_marker(self):
         audio = self.root / "book.wav"
         audio.touch()

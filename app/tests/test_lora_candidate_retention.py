@@ -59,8 +59,6 @@ class LoraCandidateRetentionTests(unittest.TestCase):
             self.assertFalse((output / "candidates" / "epoch_003").exists())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TrainingReferenceTranscriptTests(unittest.TestCase):
@@ -165,3 +163,7 @@ class TrainingCandidatePublicationSafetyTests(unittest.TestCase):
                     train_lora.save_training_checkpoint(None,str(output),str(reference),'reference words',{},[record],2,1,4.5,finalize=True)
                 self.assertEqual(before,{str(path.relative_to(output)):path.read_bytes() for path in output.rglob('*') if path.is_file()})
                 self.assertEqual('reference words',validate_adapter_checkpoint_generation(output)['ref_sample_text'])
+
+
+if __name__ == "__main__":
+    unittest.main()

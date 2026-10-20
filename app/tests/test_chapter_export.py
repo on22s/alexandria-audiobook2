@@ -462,8 +462,6 @@ class RouteTests(unittest.TestCase):
                 asyncio.run(editor_module.download_chapter("stray.mp3".replace("stray", "missing")))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class DeferredExportCancelTests(unittest.TestCase):
@@ -643,3 +641,7 @@ class MalformedChapterManifestTests(unittest.TestCase):
                 self.assertEqual(["02 - Chapter 2.wav"], archive.namelist())
                 self.assertEqual((output / "02 - Chapter 2.wav").read_bytes(), archive.read("02 - Chapter 2.wav"))
             self.assertEqual(before, path.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

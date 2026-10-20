@@ -113,8 +113,6 @@ class UnseenBooksReportingTest(unittest.TestCase):
         self.assertNotIn("INCOMPLETE", result.stdout)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class UnseenTimeoutBackstopTests(unittest.TestCase):
@@ -338,3 +336,7 @@ print('Got 60 entries')
                         self.assertEqual(60, len(entries))
                         self.assertEqual({book}, {row['book'] for row in entries})
                     self.assertIn('rc=' + str(statuses[book]), result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()

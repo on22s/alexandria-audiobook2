@@ -214,8 +214,6 @@ class ProviderRequestSettingsTest(unittest.TestCase):
         self.assertGreaterEqual(second - first, 0.02)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ReasoningModelRequestShapeTests(unittest.TestCase):
@@ -337,3 +335,7 @@ class ApiKeyReferenceTests(unittest.TestCase):
         self.assertEqual("env:MY_KEY", safe["llm"]["api_key"])
         self.assertEqual(_REDACTED_SECRET, safe["llm_remote"]["api_key"])
         self.assertTrue(safe["llm"]["api_key_configured"])
+
+
+if __name__ == "__main__":
+    unittest.main()

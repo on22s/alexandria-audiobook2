@@ -2874,6 +2874,33 @@ remain unrun. **36/58 accepted;22 remain.**
 
 **Batch07 integrated qualification — 2026-10-20.** PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain.
 
+**Batch06 accepted reconciliation — 2026-10-20.** PR #1432 merged by the
+repository owner as `d74e11bff8ab3d2116c004f349e56d0be271babd`, with a tree
+identical to tested head `8e7e8b6bd849cef806fbdaaea197a6566c58d86b`. All five
+exact-head CI checks passed. Local quick release passed8,606 unit tests without
+unit skips,72 API passes and12 explicit full-mode exclusions; all8 gates passed
+in867.009s.80 targeted CPU checks plus4 navigation checks passed. All eight
+child checklists have verified merged evidence. GPU/model/training/listening and
+full product-native qualifications remain unrun. **35/58 accepted;23 remain.**
+
+**Batch09 verification progress — 2026-10-20.** All seven Batch09 tasks have
+development fixes on freshly fetched accepted main d74e11bf.218 distinct
+targeted CPU tests plus4 navigation tests passed with zero skips.11 new methods
+cover deletion guards, detector-error telemetry, native ZIP/PCM cleanup, ETA and
+post-write purge outcomes. Five scoped mutations remained false-green under the
+old tests, are rejected by the hardened tests and pass again after
+restoration.95 unittest.main guards moved to file end; non-guard AST bodies
+unchanged; direct module execution matches inventoried IDs (13 training
+benchmark/16 production audio/10 API-summary tests). Required release/exact-head
+CI/merge pending; no task accepted. GPU/model/listening/full native-platform
+qualification unrun.
+
+**Batch07 accepted reconciliation — 2026-10-20.** Accepted via PR1447,merged as b48669b18ed9f4f026311a947f9f88158832e1c3,tree-identical to tested headf3fb0a9b98d7be7be6ec17381435cbc098f05862. All5 exact-head CI checks passed. Combined quick8643unit0skip/72API0failed12explicitfull-modeexclusions/all8gates859.861s. 234distincttargetedchecks(230CPU+4navigation),plus4navigationafterbookkeeping. Seven child acceptance checklists verified CLOSED. GPU/model/listening/full product-native qualification unrun.43/58accepted;15remain.
+
+**Batch09 integration qualification — 2026-10-20.** All seven Batch09 tasks have development fixes on freshly fetched accepted main d74e11bf.218 distinct targeted CPU tests plus4 navigation tests passed with zero skips.11 new methods cover deletion guards, detector-error telemetry, native ZIP/PCM cleanup, ETA and post-write purge outcomes. Five scoped mutations remained false-green under the old tests, are rejected by the hardened tests and pass again after restoration.95 unittest.main guards moved to file end; non-guard AST bodies unchanged; direct module execution matches inventoried IDs (13 training benchmark/16 production audio/10 API-summary tests). Required release/exact-head CI/merge pending; no task accepted. GPU/model/listening/full native-platform qualification unrun. Original d74-based quick release subsequently passed8617 unit0skip/72API0failed12explicitexclusions/all8gates856.810s. Now integrated against accepted F028+Batch07 main b48669b18ed9f4f026311a947f9f88158832e1c3;code applied cleanly and two shared tracking conflicts reconciled. Combined259 distinct targeted checks passed with zero skips in23.692s,including the accepted external SDK/engine lifetime and Batch07 regressions. Five scoped mutations again stayed false-green under the old tests,were rejected by hardened tests,and passed after restoration. All95 guard placements preserve the expected non-guard AST bodies;direct13/16/10 test modules again match exact inventory IDs. New combined release/exact-head CI/merge pending;no Batch09 task accepted.
+
+**Batch09 combined release qualification — 2026-10-20.** All seven Batch09 failures/test gaps were reproduced before repair on accepted d74e11bf. Integrated against accepted main b48669b18ed9f4f026311a947f9f88158832e1c3. 259 distinct targeted checks passed23.692s/zero skips,including accepted external SDK/engine and Batch07 controls. Five scoped mutations stayed false-green under old tests,were rejected by hardened tests,and passed after restoration. 95 unittest.main guards are at file end with the expected non-guard AST bodies preserved;direct13/16/10 benchmark/production-audio/API modules exactly match inventory IDs. Fresh combined ./ready.sh quick passed8654 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed888.126s. Exact published-head CI and merge pending;no Batch09 task accepted.43/58accepted;15remain. GPU/model/listening/full product-native qualification unrun. No real Hub assets modified.
+
 **Target — OPEN.** Zero undisposed execution tasks, with the required
 regressions and platform/model checks recorded on the exact merged revisions.
 Work in Batches 01–10: data/ownership first; LLM recovery and audio correctness

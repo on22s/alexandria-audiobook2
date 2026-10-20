@@ -134,8 +134,6 @@ class DeterministicRetryTest(unittest.TestCase):
         self.assertNotEqual(seen[0], seen[1])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class BudgetEscalationIsNotARepeatTest(DeterministicRetryTest):
@@ -174,3 +172,7 @@ class BudgetEscalationIsNotARepeatTest(DeterministicRetryTest):
         temperature 0 is sent once."""
         prompts = self._run(temperature=0.0)
         self.assertEqual(1, len(prompts))
+
+
+if __name__ == "__main__":
+    unittest.main()

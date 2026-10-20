@@ -189,8 +189,6 @@ class TestSpeechEvidence(unittest.TestCase):
             self.assertIn("url", get_speech_risks(text), text)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SpeechControlAndRiskTests(unittest.TestCase):
@@ -265,3 +263,7 @@ class SpeechEvidenceRegressionTests(unittest.TestCase):
                 self.assertEqual(expected, result['text'])
                 if '©' in source and 'Copyright' in source:
                     self.assertIn('dropped_redundant_symbol', {row['type'] for row in result['transformations']})
+
+
+if __name__ == "__main__":
+    unittest.main()

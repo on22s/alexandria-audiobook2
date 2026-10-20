@@ -275,8 +275,6 @@ class NicknameRegressionTests(unittest.TestCase):
                     find_nicknames.main()
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class NicknameResponseShapeTests(unittest.TestCase):
@@ -510,3 +508,7 @@ class NicknameAliasGraphSafetyTests(unittest.TestCase):
             self.assertEqual(human_bytes,path.read_bytes())
             self.assertEqual({},existing)
             assert_file_lock_released(str(path))
+
+
+if __name__ == "__main__":
+    unittest.main()

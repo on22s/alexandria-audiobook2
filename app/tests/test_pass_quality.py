@@ -507,8 +507,6 @@ class AttributionRejectsTypeAsSpeakerTest(unittest.TestCase):
         self.assertTrue(report["passed"], report["findings"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class GateParityAndMessagesTests(unittest.TestCase):
@@ -605,3 +603,7 @@ class ConcurrentQuoteTelemetryTests(unittest.TestCase):
                 self.assertEqual(expected, saved_second['quote_gate'])
                 self.assertTrue(saved_first['passed'], saved_first['findings'])
                 self.assertTrue(saved_second['passed'], saved_second['findings'])
+
+
+if __name__ == "__main__":
+    unittest.main()

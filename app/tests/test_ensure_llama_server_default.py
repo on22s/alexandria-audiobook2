@@ -98,8 +98,6 @@ class DefaultModelTest(unittest.TestCase):
         self.assertNotEqual(first, second)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ServerLogPreflightTests(unittest.TestCase):
@@ -180,3 +178,7 @@ class ServerLogPreflightTests(unittest.TestCase):
                     else:
                         self.assertTrue(log.is_dir())
                 self.assertEqual(b"model stand-in", model.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

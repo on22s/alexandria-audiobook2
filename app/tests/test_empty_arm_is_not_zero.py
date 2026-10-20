@@ -91,8 +91,6 @@ class EmptyArmHasNoAccuracy(unittest.TestCase):
         self.assertIsNone(new)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class AnsweredNothingIsNotZero(unittest.TestCase):
@@ -193,3 +191,7 @@ class AnsweredNothingIsNotZero(unittest.TestCase):
                          "predicted": "BOB"}]}
         self.assertEqual(validate_stored_summary(doc), [])
         self.assertEqual(unanswered_arms(doc), {})
+
+
+if __name__ == "__main__":
+    unittest.main()

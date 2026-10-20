@@ -28,12 +28,12 @@ class TrainingAudioAdmissionTests(unittest.TestCase):
         (root / 'metadata.jsonl').write_text(json.dumps({'audio': 'clip.wav', 'text': 'Whole sample words.'}) + '\n')
         return root
 
-    def prepare(self, root, limit=.25, decoder=None):
+    def prepare(self, root, limit=.25, decoder=None, mel_provider=None):
         encoder = Mock(return_value=torch.ones(1, 4))
         codec = Mock(return_value=SimpleNamespace(audio_codes=[torch.zeros(2, 16, dtype=torch.long)]))
         hf = SimpleNamespace(speaker_encoder=encoder, speech_tokenizer=SimpleNamespace(encode=codec))
         processor = Mock(return_value={'input_ids': torch.tensor([[1, 2, 3]])})
-        mel = Mock(return_value=torch.ones(1, 128, 4))
+        mel = mel_provider if mel_provider is not None else Mock(return_value=torch.ones(1, 128, 4))
         original_load = librosa.load
         with apply_test_module_providers({'qwen_tts.core.models.modeling_qwen3_tts': SimpleNamespace(mel_spectrogram=mel)}), \
                 patch.object(librosa, 'load', wraps=original_load) as load, contextlib.redirect_stdout(io.StringIO()):
@@ -212,13 +212,26 @@ with patch.object(librosa, '__getattr__', side_effect=reject_decoder_resolution)
             class UnsupportedSoundFile:
                 def __init__(self, *args, **kwargs):
                     raise sf.SoundFileRuntimeError('unsupported fixture codec')
+            mel = Mock(return_value=torch.ones(1, 128, 4))
             with patch.object(sf, 'info', side_effect=sf.SoundFileRuntimeError('unsupported fixture codec')), \
                     patch.object(sf, 'SoundFile', UnsupportedSoundFile), \
                     patch.object(audioread, 'audio_open', side_effect=open_reader):
-                (samples, _), load, _, _ = self.prepare(root)
+                (samples, _), load, _, codec = self.prepare(root, mel_provider=mel)
             self.assertEqual(['ref.wav', 'ref.wav', 'clip.wav', 'clip.wav'], opened)
             self.assertEqual(.25, samples[0]['duration'])
             self.assertTrue(all(call.kwargs.get('duration') == 1.25 for call in load.call_args_list))
+            codec.assert_called_once()
+            self.assertEqual((2000,), codec.call_args.args[0].shape)
+            np.testing.assert_array_equal(codec.call_args.args[0], np.full(2000, 1000 / 32768, dtype=np.float32))
+            self.assertEqual(8000, codec.call_args.kwargs['sr'])
+            mel.assert_called_once()
+            reference_pcm = mel.call_args.args[0].detach().cpu().numpy()
+            expected = librosa.resample(np.full(800, 1000 / 32768, dtype=np.float32),
+                                        orig_sr=8000, target_sr=24000)
+            self.assertEqual((1, 2400), reference_pcm.shape)
+            self.assertTrue(np.all(reference_pcm > 0))
+            np.testing.assert_allclose(reference_pcm[0], expected, rtol=1e-6, atol=1e-7)
+            self.assertEqual(24000, mel.call_args.kwargs['sampling_rate'])
 
     def test_stereo_reference_publishes_matching_mono_production_and_candidate(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -276,8 +276,6 @@ class AlignmentCliRegressionTests(unittest.TestCase):
             self.assertEqual('{"text":"edited"}\n', output.read_text())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SourceDiacriticCleanupTests(unittest.TestCase):
@@ -358,3 +356,7 @@ class SkippedEntryCursorTests(unittest.TestCase):
                 record=next(row for row in records if row['entry_idx']==0)
                 self.assertEqual('one',record['original'])
                 self.assertGreater(record['ratio'],.99)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -115,8 +115,6 @@ class KeepUnsentFieldsTests(unittest.TestCase):
             self.assertEqual('new',saved['llm']['api_key'])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class AttributionPresetSaveTests(unittest.TestCase):
@@ -187,3 +185,7 @@ class AttributionPresetSaveTests(unittest.TestCase):
         with self.assertRaises(HTTPException):
             asyncio.run(system_module.attribution_preview(
                 system_module.AttributionPreviewRequest(variant="default", user_prompt="no placeholders")))
+
+
+if __name__ == "__main__":
+    unittest.main()

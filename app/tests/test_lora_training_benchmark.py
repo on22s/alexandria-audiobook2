@@ -285,8 +285,6 @@ class LoraTrainingBenchmarkTests(unittest.TestCase):
         self.assertEqual(0, metrics["oom_skips"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TrainingHashCoverageTests(unittest.TestCase):
@@ -309,3 +307,7 @@ class TrainingHashCoverageTests(unittest.TestCase):
                         execute_fixture(fixture, 'python', 'train.py', str(Path(tmp, 'out')))
                 run.assert_not_called()
                 self.assertEqual(before, {p: p.read_bytes() for p in Path(tmp).rglob('*') if p.is_file()})
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -119,8 +119,6 @@ class FaithfulDuplicateBlockTest(unittest.TestCase):
         self.assertFalse(title == long_title)  # guards the fixture itself
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class PreflightSeverityTest(unittest.TestCase):
@@ -158,3 +156,7 @@ class PreflightSeverityTest(unittest.TestCase):
         self.assertEqual("blocking", findings[0]["severity"],
                          "a duplicate the source does not support must still "
                          "block")
+
+
+if __name__ == "__main__":
+    unittest.main()

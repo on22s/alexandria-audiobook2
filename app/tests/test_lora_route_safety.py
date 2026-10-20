@@ -255,8 +255,6 @@ class LoraRouteSafetyTests(unittest.TestCase):
             self.assertFalse(state['lora_test']['running'])
 
 
-if __name__ == '__main__':
-    unittest.main()
 
 
 class BuiltinLoraDispatchEquivalenceTests(unittest.TestCase):
@@ -379,3 +377,7 @@ class LoraTestAudioPublicationTests(unittest.TestCase):
                     self.assertTrue(response.json()['audio_url'].endswith(published.name))
                 else:self.assertEqual(500,response.status_code,response.text);self.assertNotIn('audio_url',response.json());self.assertFalse(paths[0].exists())
                 self.assertNotEqual(old,paths[0])
+
+
+if __name__ == '__main__':
+    unittest.main()

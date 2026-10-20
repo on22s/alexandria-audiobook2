@@ -369,8 +369,6 @@ class TestRepairPersistence(unittest.TestCase):
                 self.assertEqual(original, json.load(source))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RepairAliasShapeTests(unittest.TestCase):
@@ -471,3 +469,7 @@ class SharedRepairIdentityTests(unittest.TestCase):
             self.assertEqual(1, len(backups))
             self.assertEqual(before, backups[0].read_bytes())
             self.assertEqual('{}', aliases.read_text())
+
+
+if __name__ == "__main__":
+    unittest.main()

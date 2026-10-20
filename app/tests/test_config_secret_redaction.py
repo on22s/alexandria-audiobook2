@@ -36,8 +36,6 @@ class ConfigSecretRedactionTests(unittest.TestCase):
         self.assertEqual("saved-local", restored.llm_local.api_key)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RedactedKeyResolutionTests(unittest.TestCase):
@@ -68,3 +66,7 @@ class RedactionKeepsNonJsonObjects(unittest.TestCase):
         safe = _redact_config_secrets(config)
         self.assertIs(type(safe["three_pass"]["profiles"]["x"]), ThreePassModelProfile)
         self.assertEqual("[REDACTED]", safe["llm"]["api_key"])
+
+
+if __name__ == "__main__":
+    unittest.main()

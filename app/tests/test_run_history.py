@@ -202,8 +202,6 @@ class RunHistoryTests(unittest.TestCase):
             self.assertTrue(os.path.exists(outside))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RunTimestampPruningTests(unittest.TestCase):
@@ -231,3 +229,7 @@ class RunTimestampPruningTests(unittest.TestCase):
             for key, raw in preserved.items():
                 self.assertEqual(raw, (root / f"{key}.json").read_bytes())
             self.assertEqual(set(preserved), {r["id"] for r in list_runs(tmp)})
+
+
+if __name__ == "__main__":
+    unittest.main()

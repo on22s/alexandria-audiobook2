@@ -300,8 +300,6 @@ class RealRosterShapeTest(unittest.TestCase):
         self.assertFalse(honorifics_are_distinguishing(names))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class PersonaInternationalInputTests(unittest.TestCase):
@@ -1029,3 +1027,7 @@ class PersonaReferenceGenerationOwnershipTests(unittest.TestCase):
                 self.assertEqual(expected, ref.read_bytes())
             for config in configs:
                 self.assertEqual(source.read_bytes(), (root / config["ALICE"]["ref_audio"]).read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

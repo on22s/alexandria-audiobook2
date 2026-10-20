@@ -244,8 +244,6 @@ class MedoidSelectionTest(unittest.TestCase):
                 paths, reference_rank=3))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class WeakMedoidTest(unittest.TestCase):
@@ -378,3 +376,7 @@ class ConfiguredReferenceWorkerTests(unittest.TestCase):
             resolve.assert_not_called()
             run.assert_not_called()
             self.assertEqual(before, config.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

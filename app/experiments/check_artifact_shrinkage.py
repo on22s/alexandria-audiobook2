@@ -75,27 +75,35 @@ def committed_version(path, ref, repo):
 
 def scan(repo, ref):
     """-> (silent_shrinks, explained_shrinks) as lists of dicts."""
-    listing = subprocess.run(
-        ["git", "-C", repo, "ls-files", os.path.join(EXPERIMENTS, "*.json")],
-        capture_output=True, text=True, check=True).stdout.split()
+    baseline = subprocess.run(
+        ["git", "-C", repo, "ls-tree", "-r", "--name-only", "-z", ref, "--", EXPERIMENTS],
+        capture_output=True, text=True, check=True).stdout.split("\0")
+    indexed = subprocess.run(
+        ["git", "-C", repo, "ls-files", "-z", os.path.join(EXPERIMENTS, "*.json")],
+        capture_output=True, text=True, check=True).stdout.split("\0")
+    listing = sorted({path for path in baseline + indexed if path.endswith(".json")})
     silent, explained_rows = [], []
     for path in listing:
         full = os.path.join(repo, path)
-        if not os.path.exists(full):
-            continue
-        try:
-            with open(full, encoding="utf-8") as handle:
-                current = json.load(handle)
-        except (OSError, ValueError):
-            continue
         before = committed_version(path, ref, repo)
         if before is None:
             continue
+        deleted = not os.path.exists(full)
+        if deleted:
+            current = {"rows": []}
+        else:
+            try:
+                with open(full, encoding="utf-8") as handle:
+                    current = json.load(handle)
+            except (OSError, ValueError):
+                continue
         old, new = row_count(before), row_count(current)
         if old is None or new is None or new >= old:
             continue
         record = {"artifact": os.path.basename(path), "was": old, "now": new,
                   "explained": explained(current)}
+        if deleted:
+            record["deleted"] = True
         (explained_rows if record["explained"] else silent).append(record)
     return silent, explained_rows
 
@@ -116,7 +124,8 @@ def main():
         return
     print("\nARTIFACTS LOST ROWS WITH NO EXPLANATION:")
     for row in silent:
-        print("  %s: %d -> %d rows" % (row["artifact"], row["was"], row["now"]))
+        print("  %s: %d -> %d rows%s" % (row["artifact"], row["was"], row["now"],
+                                        " (deleted)" if row.get("deleted") else ""))
     raise SystemExit(
         "\nA run that measured less than the one before it either failed or "
         "changed what it measures, and the artifact has to say which.\nRecord "

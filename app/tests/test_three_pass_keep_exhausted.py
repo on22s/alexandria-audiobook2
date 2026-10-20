@@ -139,8 +139,6 @@ class KeepExhaustedAnswerTests(unittest.TestCase):
         self.assertEqual(1, manifest["passes"]["attribute"]["unchecked_entries"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 # A three-line batch from The Invisible Man: Mr. Hall is attested, Silas Durgan
@@ -216,3 +214,6 @@ class BatchKeepScopeTests(unittest.TestCase):
             self.assertEqual("line", tp.resolve_three_pass_generation_settings(
                 {"generation": generation})["keep_scope"])
 
+
+if __name__ == "__main__":
+    unittest.main()

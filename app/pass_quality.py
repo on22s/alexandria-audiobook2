@@ -322,8 +322,8 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
         try:
             from dialogue_spans import detect_convention
             convention = detect_convention(source_text)
-        except Exception:                                   # noqa: BLE001
-            convention = None
+        except Exception as exc:                            # noqa: BLE001
+            return [], "skipped:error:" + type(exc).__name__
         return [], "skipped:" + (convention or "none_detected")
     if quote_analysis:
         source_regions = quote_analysis["regions"]

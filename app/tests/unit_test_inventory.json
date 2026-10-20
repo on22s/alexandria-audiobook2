@@ -400,6 +400,8 @@
     "tests.test_artifact_shrinkage.ScanTest.test_a_silent_emptying_is_reported",
     "tests.test_artifact_shrinkage.ScanTest.test_an_explained_emptying_is_allowed",
     "tests.test_artifact_shrinkage.ScanTest.test_an_unchanged_artifact_is_not_reported",
+    "tests.test_artifact_shrinkage.ScanTest.test_deleted_measured_artifact_is_reported_unstaged_and_staged",
+    "tests.test_artifact_shrinkage.ScanTest.test_deleting_an_empty_or_unmeasured_artifact_does_not_invent_loss",
     "tests.test_artifact_shrinkage.ScanTest.test_growth_is_not_a_shrink"
   ],
   "test_artifact_structural_audit": [
@@ -817,6 +819,7 @@
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_batch_main_holds_gpu_lease_through_run",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_batch_summary_writes_a_complete_final_receipt",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_changed_text_during_worker_cannot_publish_completion_receipt",
+    "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_eta_uses_only_the_matching_successful_time_population",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_failed_rerun_invalidates_previous_completion_marker",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_folder_discovery_ignores_audio_named_directory",
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_fuzzy_source_tie_requires_explicit_choice",
@@ -2197,6 +2200,9 @@
     "tests.test_contract_snapshot_pair.ContractSnapshotPairTests.test_native_killed_writer_leaves_pending_pair_rejected_then_recovered",
     "tests.test_contract_snapshot_pair.ContractSnapshotPairTests.test_reader_waits_for_pair_publication_and_observes_complete_generation"
   ],
+  "test_convention_error_telemetry": [
+    "tests.test_convention_error_telemetry.ConventionErrorTelemetryTests.test_detector_error_is_distinct_from_normal_no_convention"
+  ],
   "test_core_dom_inputs_js": [
     "tests.test_core_dom_inputs_js.CoreDomInputTests.test_actual_config_loader_displays_filenames_as_text",
     "tests.test_core_dom_inputs_js.CoreDomInputTests.test_collapsed_nav_closes_through_the_actual_large_breakpoint",
@@ -3374,6 +3380,10 @@
     "tests.test_exit_code_is_not_destroyed.ExitCodeSurvives.test_the_correct_form_is_not_flagged"
   ],
   "test_expected_prosody_fusion": [],
+  "test_experiment_audio_cleanup": [
+    "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_dataset_consistency_cleanup_on_success_missing_metadata_metric_error_and_exception",
+    "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_reference_match_cleanup_on_success_missing_metadata_metric_error_and_exception"
+  ],
   "test_experiment_conventions": [
     "tests.test_experiment_conventions.ChainArmGuardTests.test_every_looped_arm_is_named_in_the_guard",
     "tests.test_experiment_conventions.FixtureIntegrityTests.test_attribution_fixtures_have_entries_with_the_expected_keys",
@@ -4350,6 +4360,13 @@
     "tests.test_hf_purge_guards.PurgeGuardTests.test_refuses_when_another_path_in_the_repo_holds_the_same_object",
     "tests.test_hf_purge_guards.PurgeGuardTests.test_refuses_when_the_object_is_published_in_another_repo",
     "tests.test_hf_purge_guards.PurgeGuardTests.test_space_reference_blocks_purge"
+  ],
+  "test_hf_purge_outcomes": [
+    "tests.test_hf_purge_outcomes.PurgeOutcomeTests.test_acknowledged_purge_with_objects_still_listed_records_completed_steps",
+    "tests.test_hf_purge_outcomes.PurgeOutcomeTests.test_delete_api_exception_reports_attempt_uncertainty_and_never_retries",
+    "tests.test_hf_purge_outcomes.PurgeOutcomeTests.test_post_delete_shared_object_guard_stops_before_permanent_purge",
+    "tests.test_hf_purge_outcomes.PurgeOutcomeTests.test_storage_read_error_after_actual_deletion_reports_accounting_uncertainty",
+    "tests.test_hf_purge_outcomes.PurgeOutcomeTests.test_wrong_post_purge_accounting_keeps_the_completed_deletion_visible"
   ],
   "test_hifitts_completion": [
     "tests.test_hifitts_completion.HiFiTTSCompletionTests.test_actual_prepare_and_build_producers_publish_artifacts_accepted_by_validator",

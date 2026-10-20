@@ -180,8 +180,6 @@ class BenchmarkApiTests(unittest.TestCase):
         claim.assert_not_called()
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class BenchmarkSelectedRuntimeTests(unittest.TestCase):
@@ -209,3 +207,7 @@ class BenchmarkSelectedRuntimeTests(unittest.TestCase):
                         remote_root='/worker checkout',remote_python='/selected python')
                     cpu.assert_not_called()
                 self.assertEqual('ready',result['benchmark_state'])
+
+
+if __name__ == "__main__":
+    unittest.main()

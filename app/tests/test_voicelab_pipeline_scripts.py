@@ -617,8 +617,6 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                         "--candidate_checkpoints") + 1])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ProfilerEmptyResponseTests(unittest.TestCase):
@@ -960,3 +958,7 @@ class ProfilerEpubNavigationTests(unittest.TestCase):
                 before = path.read_bytes()
                 self.assertEqual("", voice_profiler.extract_epub_passage(str(path)))
                 self.assertEqual(before, path.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

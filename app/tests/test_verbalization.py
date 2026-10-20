@@ -130,8 +130,6 @@ class BracketedSpanTest(unittest.TestCase):
         self.assertFalse(parts[0][1])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class EmojiDividerTest(unittest.TestCase):
@@ -186,3 +184,7 @@ class EmojiDividerSplitTest(unittest.TestCase):
         parts, review = split_on_unspeakable(entry, 700)
         self.assertEqual(["\U0001F409"], review)
         self.assertEqual(1, len(parts))
+
+
+if __name__ == "__main__":
+    unittest.main()

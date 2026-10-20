@@ -121,8 +121,6 @@ class ChainFailureGuardTest(unittest.TestCase):
                          "LEGACY_UNGUARDED")
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 # Chains that skip work when an artifact already exists. The n1200 respelling
@@ -1046,3 +1044,7 @@ class IndependentChainSummaryTests(unittest.TestCase):
                     else:
                         self.assertEqual("ran", marker.read_text())
                         marker.unlink()
+
+
+if __name__ == "__main__":
+    unittest.main()

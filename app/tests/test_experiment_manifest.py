@@ -148,8 +148,6 @@ class ManifestTest(unittest.TestCase):
             lmstudio_state("definitely-not-a-loaded-model")
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ArtifactValidationTest(unittest.TestCase):
@@ -562,3 +560,7 @@ class StrictSharedSummaryTest(unittest.TestCase):
         self.assertIsNone(strict_shared_summary([self._row("base", "a", "X", True)]))
         three = [self._row(a, "a", "X", True) for a in ("base", "lora", "other")]
         self.assertIsNone(strict_shared_summary(three))
+
+
+if __name__ == "__main__":
+    unittest.main()

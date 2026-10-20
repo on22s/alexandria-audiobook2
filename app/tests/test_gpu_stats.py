@@ -43,8 +43,6 @@ class GpuStatsTests(unittest.TestCase):
             self.assertIsNone(gpu_stats.sample_gpu_utilization())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RocmJsonOutputTests(unittest.TestCase):
@@ -82,3 +80,7 @@ class RocmJsonOutputTests(unittest.TestCase):
             with patch.object(gpu_stats.subprocess, "run", side_effect=subprocess.TimeoutExpired("CPU fixture", .1)) as run:
                 self.assertIsNone(gpu_stats.run_rocm_smi_json(["--showuse"], str(executable), timeout=.1))
             self.assertEqual(.1, run.call_args.kwargs["timeout"])
+
+
+if __name__ == "__main__":
+    unittest.main()

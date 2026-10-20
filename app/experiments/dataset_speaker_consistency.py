@@ -155,8 +155,8 @@ def main():
         if not zp:
             rows.append({"adapter": name, "dataset": ds, "error": "no zip"})
             continue
-        work = tempfile.mkdtemp(prefix="cons_")
-        cons, n, err = consistency(zp, args.clips, rng, work)
+        with tempfile.TemporaryDirectory(prefix="cons_") as work:
+            cons, n, err = consistency(zp, args.clips, rng, work)
         a = rec.get("ecapa")
         verdict = "unknown"
         if cons is not None and a is not None:

@@ -137,8 +137,8 @@
         "02",
         "06"
       ],
-      "status": "in_progress",
-      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
+      "status": "accepted",
+      "validation_status": "Accepted via PR1447,merged as b48669b18ed9f4f026311a947f9f88158832e1c3,tree-identical to tested headf3fb0a9b98d7be7be6ec17381435cbc098f05862. All5 exact-head CI checks passed. Combined quick8643unit0skip/72API0failed12explicitfull-modeexclusions/all8gates859.861s. 234distincttargetedchecks(230CPU+4navigation),plus4navigationafterbookkeeping. Seven child acceptance checklists verified CLOSED. GPU/model/listening/full product-native qualification unrun.43/58accepted;15remain."
     },
     {
       "id": "08",
@@ -171,7 +171,9 @@
       "depends_on": [
         "05",
         "06"
-      ]
+      ],
+      "status": "in_progress",
+      "validation_status": "All seven Batch09 failures/test gaps were reproduced before repair on accepted d74e11bf. Integrated against accepted main b48669b18ed9f4f026311a947f9f88158832e1c3. 259 distinct targeted checks passed23.692s/zero skips,including accepted external SDK/engine and Batch07 controls. Five scoped mutations stayed false-green under old tests,were rejected by hardened tests,and passed after restoration. 95 unittest.main guards are at file end with the expected non-guard AST bodies preserved;direct13/16/10 benchmark/production-audio/API modules exactly match inventory IDs. Fresh combined ./ready.sh quick passed8654 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed888.126s. Exact published-head CI and merge pending;no Batch09 task accepted.43/58accepted;15remain. GPU/model/listening/full product-native qualification unrun. No real Hub assets modified."
     },
     {
       "id": "10",
@@ -933,8 +935,11 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1447,merged as b48669b18ed9f4f026311a947f9f88158832e1c3,tree-identical to tested headf3fb0a9b98d7be7be6ec17381435cbc098f05862. All5 exact-head CI checks passed. Combined quick8643unit0skip/72API0failed12explicitfull-modeexclusions/all8gates859.861s. 234distincttargetedchecks(230CPU+4navigation),plus4navigationafterbookkeeping. Seven child acceptance checklists verified CLOSED. GPU/model/listening/full product-native qualification unrun.43/58accepted;15remain.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1447",
+      "merge_commit": "b48669b18ed9f4f026311a947f9f88158832e1c3",
+      "tested_commit": "f3fb0a9b98d7be7be6ec17381435cbc098f05862"
     },
     {
       "task_id": "F033",
@@ -948,8 +953,11 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1447,merged as b48669b18ed9f4f026311a947f9f88158832e1c3,tree-identical to tested headf3fb0a9b98d7be7be6ec17381435cbc098f05862. All5 exact-head CI checks passed. Combined quick8643unit0skip/72API0failed12explicitfull-modeexclusions/all8gates859.861s. 234distincttargetedchecks(230CPU+4navigation),plus4navigationafterbookkeeping. Seven child acceptance checklists verified CLOSED. GPU/model/listening/full product-native qualification unrun.43/58accepted;15remain.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1447",
+      "merge_commit": "b48669b18ed9f4f026311a947f9f88158832e1c3",
+      "tested_commit": "f3fb0a9b98d7be7be6ec17381435cbc098f05862"
     },
     {
       "task_id": "F034",
@@ -963,8 +971,11 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1447,merged as b48669b18ed9f4f026311a947f9f88158832e1c3,tree-identical to tested headf3fb0a9b98d7be7be6ec17381435cbc098f05862. All5 exact-head CI checks passed. Combined quick8643unit0skip/72API0failed12explicitfull-modeexclusions/all8gates859.861s. 234distincttargetedchecks(230CPU+4navigation),plus4navigationafterbookkeeping. Seven child acceptance checklists verified CLOSED. GPU/model/listening/full product-native qualification unrun.43/58accepted;15remain.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1447",
+      "merge_commit": "b48669b18ed9f4f026311a947f9f88158832e1c3",
+      "tested_commit": "f3fb0a9b98d7be7be6ec17381435cbc098f05862"
     },
     {
       "task_id": "F035",
@@ -978,8 +989,11 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1447,merged as b48669b18ed9f4f026311a947f9f88158832e1c3,tree-identical to tested headf3fb0a9b98d7be7be6ec17381435cbc098f05862. All5 exact-head CI checks passed. Combined quick8643unit0skip/72API0failed12explicitfull-modeexclusions/all8gates859.861s. 234distincttargetedchecks(230CPU+4navigation),plus4navigationafterbookkeeping. Seven child acceptance checklists verified CLOSED. GPU/model/listening/full product-native qualification unrun.43/58accepted;15remain.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1447",
+      "merge_commit": "b48669b18ed9f4f026311a947f9f88158832e1c3",
+      "tested_commit": "f3fb0a9b98d7be7be6ec17381435cbc098f05862"
     },
     {
       "task_id": "F036",
@@ -993,8 +1007,11 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1447,merged as b48669b18ed9f4f026311a947f9f88158832e1c3,tree-identical to tested headf3fb0a9b98d7be7be6ec17381435cbc098f05862. All5 exact-head CI checks passed. Combined quick8643unit0skip/72API0failed12explicitfull-modeexclusions/all8gates859.861s. 234distincttargetedchecks(230CPU+4navigation),plus4navigationafterbookkeeping. Seven child acceptance checklists verified CLOSED. GPU/model/listening/full product-native qualification unrun.43/58accepted;15remain.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1447",
+      "merge_commit": "b48669b18ed9f4f026311a947f9f88158832e1c3",
+      "tested_commit": "f3fb0a9b98d7be7be6ec17381435cbc098f05862"
     },
     {
       "task_id": "F037",
@@ -1008,8 +1025,11 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1447,merged as b48669b18ed9f4f026311a947f9f88158832e1c3,tree-identical to tested headf3fb0a9b98d7be7be6ec17381435cbc098f05862. All5 exact-head CI checks passed. Combined quick8643unit0skip/72API0failed12explicitfull-modeexclusions/all8gates859.861s. 234distincttargetedchecks(230CPU+4navigation),plus4navigationafterbookkeeping. Seven child acceptance checklists verified CLOSED. GPU/model/listening/full product-native qualification unrun.43/58accepted;15remain.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1447",
+      "merge_commit": "b48669b18ed9f4f026311a947f9f88158832e1c3",
+      "tested_commit": "f3fb0a9b98d7be7be6ec17381435cbc098f05862"
     },
     {
       "task_id": "F041",
@@ -1023,8 +1043,11 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
+      "status": "resolved",
+      "validation_status": "Accepted via PR1447,merged as b48669b18ed9f4f026311a947f9f88158832e1c3,tree-identical to tested headf3fb0a9b98d7be7be6ec17381435cbc098f05862. All5 exact-head CI checks passed. Combined quick8643unit0skip/72API0failed12explicitfull-modeexclusions/all8gates859.861s. 234distincttargetedchecks(230CPU+4navigation),plus4navigationafterbookkeeping. Seven child acceptance checklists verified CLOSED. GPU/model/listening/full product-native qualification unrun.43/58accepted;15remain.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1447",
+      "merge_commit": "b48669b18ed9f4f026311a947f9f88158832e1c3",
+      "tested_commit": "f3fb0a9b98d7be7be6ec17381435cbc098f05862"
     },
     {
       "task_id": "E01",
@@ -1108,7 +1131,8 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "All seven Batch09 failures/test gaps were reproduced before repair on accepted d74e11bf. Integrated against accepted main b48669b18ed9f4f026311a947f9f88158832e1c3. 259 distinct targeted checks passed23.692s/zero skips,including accepted external SDK/engine and Batch07 controls. Five scoped mutations stayed false-green under old tests,were rejected by hardened tests,and passed after restoration. 95 unittest.main guards are at file end with the expected non-guard AST bodies preserved;direct13/16/10 benchmark/production-audio/API modules exactly match inventory IDs. Fresh combined ./ready.sh quick passed8654 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed888.126s. Exact published-head CI and merge pending;no Batch09 task accepted.43/58accepted;15remain. GPU/model/listening/full product-native qualification unrun. No real Hub assets modified."
     },
     {
       "task_id": "E04",
@@ -1122,7 +1146,8 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "All seven Batch09 failures/test gaps were reproduced before repair on accepted d74e11bf. Integrated against accepted main b48669b18ed9f4f026311a947f9f88158832e1c3. 259 distinct targeted checks passed23.692s/zero skips,including accepted external SDK/engine and Batch07 controls. Five scoped mutations stayed false-green under old tests,were rejected by hardened tests,and passed after restoration. 95 unittest.main guards are at file end with the expected non-guard AST bodies preserved;direct13/16/10 benchmark/production-audio/API modules exactly match inventory IDs. Fresh combined ./ready.sh quick passed8654 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed888.126s. Exact published-head CI and merge pending;no Batch09 task accepted.43/58accepted;15remain. GPU/model/listening/full product-native qualification unrun. No real Hub assets modified."
     },
     {
       "task_id": "E08",
@@ -1136,7 +1161,8 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "All seven Batch09 failures/test gaps were reproduced before repair on accepted d74e11bf. Integrated against accepted main b48669b18ed9f4f026311a947f9f88158832e1c3. 259 distinct targeted checks passed23.692s/zero skips,including accepted external SDK/engine and Batch07 controls. Five scoped mutations stayed false-green under old tests,were rejected by hardened tests,and passed after restoration. 95 unittest.main guards are at file end with the expected non-guard AST bodies preserved;direct13/16/10 benchmark/production-audio/API modules exactly match inventory IDs. Fresh combined ./ready.sh quick passed8654 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed888.126s. Exact published-head CI and merge pending;no Batch09 task accepted.43/58accepted;15remain. GPU/model/listening/full product-native qualification unrun. No real Hub assets modified."
     },
     {
       "task_id": "E11",
@@ -1150,7 +1176,8 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "All seven Batch09 failures/test gaps were reproduced before repair on accepted d74e11bf. Integrated against accepted main b48669b18ed9f4f026311a947f9f88158832e1c3. 259 distinct targeted checks passed23.692s/zero skips,including accepted external SDK/engine and Batch07 controls. Five scoped mutations stayed false-green under old tests,were rejected by hardened tests,and passed after restoration. 95 unittest.main guards are at file end with the expected non-guard AST bodies preserved;direct13/16/10 benchmark/production-audio/API modules exactly match inventory IDs. Fresh combined ./ready.sh quick passed8654 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed888.126s. Exact published-head CI and merge pending;no Batch09 task accepted.43/58accepted;15remain. GPU/model/listening/full product-native qualification unrun. No real Hub assets modified."
     },
     {
       "task_id": "E12",
@@ -1164,7 +1191,8 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "All seven Batch09 failures/test gaps were reproduced before repair on accepted d74e11bf. Integrated against accepted main b48669b18ed9f4f026311a947f9f88158832e1c3. 259 distinct targeted checks passed23.692s/zero skips,including accepted external SDK/engine and Batch07 controls. Five scoped mutations stayed false-green under old tests,were rejected by hardened tests,and passed after restoration. 95 unittest.main guards are at file end with the expected non-guard AST bodies preserved;direct13/16/10 benchmark/production-audio/API modules exactly match inventory IDs. Fresh combined ./ready.sh quick passed8654 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed888.126s. Exact published-head CI and merge pending;no Batch09 task accepted.43/58accepted;15remain. GPU/model/listening/full product-native qualification unrun. No real Hub assets modified."
     },
     {
       "task_id": "E13",
@@ -1178,7 +1206,8 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "All seven Batch09 failures/test gaps were reproduced before repair on accepted d74e11bf. Integrated against accepted main b48669b18ed9f4f026311a947f9f88158832e1c3. 259 distinct targeted checks passed23.692s/zero skips,including accepted external SDK/engine and Batch07 controls. Five scoped mutations stayed false-green under old tests,were rejected by hardened tests,and passed after restoration. 95 unittest.main guards are at file end with the expected non-guard AST bodies preserved;direct13/16/10 benchmark/production-audio/API modules exactly match inventory IDs. Fresh combined ./ready.sh quick passed8654 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed888.126s. Exact published-head CI and merge pending;no Batch09 task accepted.43/58accepted;15remain. GPU/model/listening/full product-native qualification unrun. No real Hub assets modified."
     },
     {
       "task_id": "E16",
@@ -1197,7 +1226,8 @@
         "T12",
         "T13"
       ],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "All seven Batch09 failures/test gaps were reproduced before repair on accepted d74e11bf. Integrated against accepted main b48669b18ed9f4f026311a947f9f88158832e1c3. 259 distinct targeted checks passed23.692s/zero skips,including accepted external SDK/engine and Batch07 controls. Five scoped mutations stayed false-green under old tests,were rejected by hardened tests,and passed after restoration. 95 unittest.main guards are at file end with the expected non-guard AST bodies preserved;direct13/16/10 benchmark/production-audio/API modules exactly match inventory IDs. Fresh combined ./ready.sh quick passed8654 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed888.126s. Exact published-head CI and merge pending;no Batch09 task accepted.43/58accepted;15remain. GPU/model/listening/full product-native qualification unrun. No real Hub assets modified."
     },
     {
       "task_id": "E03",

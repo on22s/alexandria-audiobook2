@@ -76,8 +76,6 @@ class MultiProcessStateTests(unittest.TestCase):
         self.assertFalse(core.process_state[self.key]["paused"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class LlmOffGpuLockTests(unittest.TestCase):
@@ -126,3 +124,7 @@ class LlmOffGpuLockTests(unittest.TestCase):
                 self.assertEqual(expected, self.core.llm_is_on_this_gpu(), config)
         with patch.object(self.core, "load_app_config", side_effect=OSError("no config")):
             self.assertTrue(self.core.llm_is_on_this_gpu())
+
+
+if __name__ == "__main__":
+    unittest.main()

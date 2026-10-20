@@ -213,8 +213,6 @@ class ReasoningEffortPlumbingTest(unittest.TestCase):
         self.assertNotIn("reasoning_effort", body)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class NullContentTest(unittest.TestCase):
@@ -247,3 +245,7 @@ class NullContentTest(unittest.TestCase):
         choice = SimpleNamespace(message=SimpleNamespace(content=None),
                                  finish_reason="length")
         self.assertEqual("", (choice.message.content or "").strip())
+
+
+if __name__ == "__main__":
+    unittest.main()

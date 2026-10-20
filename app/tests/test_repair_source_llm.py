@@ -61,8 +61,6 @@ class RepairSourceLLMTests(unittest.TestCase):
             self.assertEqual(1, json.loads(Path(report).read_text(encoding="utf-8"))["runs_resolved"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RepairRuntimeConfigTests(unittest.TestCase):
@@ -132,3 +130,7 @@ class DuplicateRepairDecisionTests(unittest.TestCase):
                 self.assertEqual(1 - resolved, data["replacement_chars_after"])
                 self.assertEqual("caf� and naïve", source.read_text(encoding="utf-8"))
                 self.assertEqual(before, reply)
+
+
+if __name__ == "__main__":
+    unittest.main()

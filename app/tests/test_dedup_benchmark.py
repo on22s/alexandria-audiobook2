@@ -45,8 +45,6 @@ class DedupBenchmarkTests(unittest.TestCase):
         self.assertEqual(hashes[0], hashes[1])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class DedupLegacyOutputHashTests(unittest.TestCase):
@@ -66,3 +64,7 @@ class DedupLegacyOutputHashTests(unittest.TestCase):
                 digest.update(pcm)
                 self.assertEqual((digest.hexdigest(), 1), _hash_dataset_content(path))
                 self.assertEqual(before, path.read_bytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

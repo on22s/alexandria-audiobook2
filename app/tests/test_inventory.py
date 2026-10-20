@@ -276,8 +276,6 @@ class InventoryFixtureIsolationTests(InventoryFixtureTests):
                 child.communicate()
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class InventoryCheckWarningTests(unittest.TestCase):
@@ -365,3 +363,7 @@ class AtomicInventoryWriterTests(unittest.TestCase):
                 self.assertEqual(prior, path.read_bytes())
                 self.assertEqual({"prior": ["retained"]}, json.loads(path.read_bytes()))
                 self.assertEqual([path], list(Path(tmp).iterdir()))
+
+
+if __name__ == "__main__":
+    unittest.main()

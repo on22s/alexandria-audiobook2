@@ -120,27 +120,27 @@ def main():
             rows.append({"adapter": name, "dataset": dataset,
                          "error": "no zip"})
             continue
-        work = tempfile.mkdtemp(prefix="refmatch_")
-        with zipfile.ZipFile(zp) as z:
-            names = set(z.namelist())
-            meta_name = ("train/metadata.jsonl" if "train/metadata.jsonl"
-                         in names else "metadata.jsonl")
-            if meta_name not in names:
-                rows.append({"adapter": name, "error": "no metadata"})
-                continue
-            entries = [json.loads(l) for l in
-                       z.read(meta_name).decode("utf-8").splitlines()
-                       if l.strip()]
-            rng.shuffle(entries)
-            paths = []
-            for e in entries[:args.clips]:
-                fp = e.get("audio_filepath")
-                if fp and fp in names:
-                    dest = os.path.join(work, os.path.basename(fp))
-                    with open(dest, "wb") as fh:
-                        fh.write(z.read(fp))
-                    paths.append(dest)
-        cos, err = ecapa([(ref, p) for p in paths])
+        with tempfile.TemporaryDirectory(prefix="refmatch_") as work:
+            with zipfile.ZipFile(zp) as z:
+                names = set(z.namelist())
+                meta_name = ("train/metadata.jsonl" if "train/metadata.jsonl"
+                             in names else "metadata.jsonl")
+                if meta_name not in names:
+                    rows.append({"adapter": name, "error": "no metadata"})
+                    continue
+                entries = [json.loads(l) for l in
+                           z.read(meta_name).decode("utf-8").splitlines()
+                           if l.strip()]
+                rng.shuffle(entries)
+                paths = []
+                for e in entries[:args.clips]:
+                    fp = e.get("audio_filepath")
+                    if fp and fp in names:
+                        dest = os.path.join(work, os.path.basename(fp))
+                        with open(dest, "wb") as fh:
+                            fh.write(z.read(fp))
+                        paths.append(dest)
+            cos, err = ecapa([(ref, p) for p in paths])
         vals = [c for c in (cos or []) if c is not None]
         match = round(statistics.median(vals), 4) if vals else None
         a = scores.get(name)

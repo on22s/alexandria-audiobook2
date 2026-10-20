@@ -227,8 +227,6 @@ class SameVoiceGuard(unittest.TestCase):
         self.assertIsNone(voice_similarity({}, "a", "b"))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ClipLevelVoiceGuard(unittest.TestCase):
@@ -355,3 +353,7 @@ class ClipLevelVoiceGuard(unittest.TestCase):
     def test_a_full_holdout_records_no_shortfall(self):
         doc = self._build([0.9] * 12, lines=4)
         self.assertEqual(doc["clips_written_short_by"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -219,8 +219,6 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
                     "/repo", "tnr-0", "/remote", "/venv/python")
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class BenchmarkArtifactBoundaryTests(unittest.TestCase):
@@ -393,3 +391,7 @@ class LocalProbeOutputTests(unittest.TestCase):
                  patch.object(benchmark_environment.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout, '')):
                 with self.assertRaisesRegex(ValueError, 'local TTS.*probe.*JSON'):
                     benchmark_environment.collect_local_tts_environment('/fixture', '/fixture/python')
+
+
+if __name__ == "__main__":
+    unittest.main()

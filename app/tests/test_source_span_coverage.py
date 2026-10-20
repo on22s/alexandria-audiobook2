@@ -47,8 +47,6 @@ class SourceSpanCoverageTests(unittest.TestCase):
         self.assertEqual(["S002", "S003"], missing["span_ids"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class QuotedSentenceSpanTests(unittest.TestCase):
@@ -69,3 +67,7 @@ class QuotedSentenceSpanTests(unittest.TestCase):
         raw = 'He called her "friend" and waited.\n\n"Go." Then he left!'
         self.assertEqual(['He called her "friend" and waited.', '"Go."', 'Then he left!'],
                          [span['text'] for span in get_source_spans(raw)])
+
+
+if __name__ == "__main__":
+    unittest.main()

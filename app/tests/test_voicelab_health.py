@@ -149,8 +149,6 @@ class VoiceLabHealthTests(unittest.TestCase):
             self.assertEqual(before_files, sorted(os.listdir(h)))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ProfilerPreflightIdentityTests(unittest.TestCase):
@@ -314,3 +312,7 @@ class VoiceLabMpsProbeTests(unittest.TestCase):
                             self.assertIsNone(report['runtime']['free_vram_gb'])
                 self.assertEqual(backend=='mps', probe.get('mps_available'))
                 self.assertEqual(backend=='cuda', probe.get('cuda_available'))
+
+
+if __name__ == "__main__":
+    unittest.main()

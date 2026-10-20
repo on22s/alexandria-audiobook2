@@ -275,8 +275,6 @@ class NormalizationIntegrationTest(unittest.TestCase):
                               "pattern": None})
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class LexiconFileFingerprintTests(unittest.TestCase):
@@ -395,3 +393,7 @@ class LexiconFailureDiagnosticsTests(unittest.TestCase):
                 result = get_speech_normalization('Synthetic sentence.')
         self.assertEqual('Synthetic sentence.', result['text'])
         self.assertTrue(any('synthetic processing failure' in line for line in captured.output))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -6,7 +6,7 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
     `num_parts` stripped strings.
 
     Shared by default_prompts.py/persona_prompts.py/review_prompts.py, which
-    differ only in path/part-count/messages. Uses an mtime-based cache (the
+    differ only in path/part-count/messages. Uses a file-version cache (the
     caller's own dict, so each prompt file gets its own) to pick up edits
     without restarting the app while avoiding a redundant disk read+split on
     every call within one process - app.py's get_config()/get_default_prompts()
@@ -14,7 +14,6 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
     """
     try:
         stat = os.stat(path)
-        mtime = stat.st_mtime
         file_version = (stat.st_dev, stat.st_ino, stat.st_size,
                         stat.st_mtime_ns, stat.st_ctime_ns)
     except FileNotFoundError:
@@ -47,7 +46,6 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
         cache["malformed_version"] = file_version
         raise RuntimeError(malformed_msg)
     cache.pop("malformed_version", None)
-    cache["mtime"] = mtime
     cache["file_version"] = file_version
     cache["prompts"] = prompts
     return prompts

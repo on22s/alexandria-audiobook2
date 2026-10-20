@@ -1,5 +1,6 @@
 """Exercise lock ownership using real child processes and filesystem artifacts."""
 import os
+import signal
 from pathlib import Path
 import subprocess
 import sys
@@ -29,6 +30,7 @@ class FileLockOwnershipTests(unittest.TestCase):
             with file_lock(target, timeout=0, stale_after=0):
                 self.assertEqual(inode, lock.stat().st_ino)
 
+    @unittest.skipUnless(hasattr(os, "waitid") and hasattr(os, "WNOWAIT"), "requires POSIX waitid without reaping")
     def test_process_death_releases_kernel_ownership_without_reaping(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = str(Path(tmp, "state.json"))
@@ -47,14 +49,20 @@ with file_lock(sys.argv[1]):
                 with self.assertRaises(TimeoutError):
                     with file_lock(target, timeout=0.08, stale_after=0):
                         self.fail("Child owns this lock")
-                child.kill()
-                child.wait(timeout=5)
+                os.kill(child.pid, signal.SIGKILL)
+                observed = os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOWAIT)
+                self.assertEqual(child.pid, observed.si_pid)
+                self.assertEqual(signal.SIGKILL, observed.si_status)
+                self.assertIsNone(child.returncode)
+                os.kill(child.pid, 0)  # Still an unreaped kernel process.
                 with file_lock(target, timeout=1, stale_after=10**9):
                     self.assertEqual(inode, Path(target + ".lock").stat().st_ino)
             finally:
-                if child.poll() is None:
-                    child.kill()
-                    child.wait(timeout=5)
+                try:
+                    os.kill(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                child.wait(timeout=5)
                 child.stdout.close()
                 child.stderr.close()
 

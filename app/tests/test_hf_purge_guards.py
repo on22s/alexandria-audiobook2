@@ -1,7 +1,8 @@
 """tools/hf_purge_batch.py refuses every purge that would lose something still in use.
 
-The purge is irreversible, so each guard is tested by a case it must REFUSE, and each
-refusal is checked to have changed nothing: no commit, no deleted path, no purged object.
+The purge is irreversible, so preflight refusals must change nothing: no commit,
+no deleted path, no purged object. Post-write verification failures report completed
+steps separately and cannot claim mutation-free refusal.
 The fake Hub models the two behaviours the guards exist for: an LFS object is identified
 by its sha256 wherever it is referenced, and deleting a path frees nothing until the
 object is purged.
@@ -149,8 +150,10 @@ class PurgeGuardTests(unittest.TestCase):
 
     def test_refuses_to_delete_when_a_lesson_does_not_read_back(self):
         self.hub.tamper_download = True
-        with self.assertRaisesRegex(tool.PurgeRefused, "read back differs"):
+        with self.assertRaisesRegex(tool.PurgeVerificationError, "read back differs") as caught:
             tool.run_batch(self.spec, self.hub, log=lambda *_: None)
+        self.assertEqual(['lessons_committed'], caught.exception.report['completed_steps'])
+        self.assertEqual('unverified', caught.exception.report['accounting_status'])
         self.assertEqual(len(self.hub.commits), 1)  # the lesson commit only
         self.assertIn("old/adapter_model.safetensors", self.hub.repos[ARCHIVE])
         self.assertIn(hashlib.sha256(b"W" * 1000).hexdigest(), self.hub.lfs[ARCHIVE])

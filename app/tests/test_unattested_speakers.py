@@ -46,8 +46,6 @@ class RejectUnattestedSpeakerTest(unittest.TestCase):
         self.assertTrue(report["passed"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class HonorificSuffixTest(unittest.TestCase):
@@ -101,3 +99,7 @@ class HonorificSuffixTest(unittest.TestCase):
                             "The future-self said nothing.",
                             "Again the future-self was silent.")
         self.assertFalse(is_attested_name("FUTURE-SELF", source))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -76,8 +76,6 @@ class BenchmarkCoreTests(unittest.TestCase):
                     path, _manifest(), _environment(gpu="GPU B"))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class BenchmarkEvidenceValidationTests(unittest.TestCase):
@@ -181,3 +179,7 @@ class BenchmarkEvidenceValidationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 benchmark_core.load_resumable_benchmark_report(
                     str(path), original_manifest, forged_environment)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -281,8 +281,6 @@ class TestDesignPreviewOwnership(unittest.TestCase):
             self.assertEqual(first_bytes, Path(first).read_bytes())
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class EmptyEnsembleMemberTests(unittest.TestCase):
@@ -304,3 +302,7 @@ class EmptyEnsembleMemberTests(unittest.TestCase):
                     self.assertEqual(original, output.read_bytes())
             self.assertEqual(0, sf.info(empty).frames)
             self.assertEqual(2400, sf.info(valid).frames)
+
+
+if __name__ == "__main__":
+    unittest.main()

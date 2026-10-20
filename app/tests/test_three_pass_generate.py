@@ -1022,8 +1022,6 @@ class CheckpointTests(unittest.TestCase):
         self.assertGreaterEqual(checkpoint["elapsed_s"]["attribute"], 4.0)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class FreezeEnforcementTests(unittest.TestCase):
@@ -1778,3 +1776,7 @@ class QuoteContextRescueTests(unittest.TestCase):
              patch.object(tp, "rescue_chunk_with_context", side_effect=rescue):
             with self.assertRaises(ReachedRescue):
                 tp.run_three_pass(None, "m", "".join(chunks), LLMGenParams(segmentation="lexical"), 6000)
+
+
+if __name__ == "__main__":
+    unittest.main()

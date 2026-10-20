@@ -126,8 +126,6 @@ class PromptVariants(unittest.TestCase):
             make_provider("shouty")
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class VariantProviderKeepsNarrationTests(unittest.TestCase):
@@ -396,3 +394,7 @@ class PassageMarkerEscapingTests(unittest.TestCase):
                 self.assertNotIn('[99]', body)
                 self.assertEqual([entry['text'] for entry in frozen], [entry['text'] for entry in result])
         self.assertEqual(original, (frozen, surround))
+
+
+if __name__ == "__main__":
+    unittest.main()

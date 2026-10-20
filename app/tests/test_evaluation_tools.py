@@ -114,8 +114,6 @@ class ArmSpeakerNormalizationTest(unittest.TestCase):
                          find_disagreements(arm_a, arm_b, pairs=pairs))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class AliasScoringTest(unittest.TestCase):
@@ -172,3 +170,7 @@ class AliasScoringTest(unittest.TestCase):
             self.assertNotIn("FUTURE_ME", flat)
             for group in declared:
                 self.assertGreaterEqual(len(group), 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

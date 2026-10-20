@@ -252,8 +252,6 @@ class TTSBenchmarkTests(unittest.TestCase):
         self.assertEqual(0.1, metrics["duration_seconds"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class LoraBenchmarkLoadTimingTests(unittest.TestCase):
@@ -457,3 +455,7 @@ class TTSModelFamilyTimingTests(unittest.TestCase):
         self.assertEqual(4,designs[1]['metrics']['model_load_seconds'])
         self.assertEqual(0,designs[2]['metrics']['model_load_seconds'])
         self.assertEqual(['custom','design','design'],loads)
+
+
+if __name__ == "__main__":
+    unittest.main()

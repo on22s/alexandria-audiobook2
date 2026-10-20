@@ -265,8 +265,6 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(409, ctx.exception.status_code)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class GenerateScriptStateTests(unittest.TestCase):
@@ -399,3 +397,7 @@ class BatchReportPublicationTests(unittest.TestCase):
                 self.assertIsNone(self._write_report(tmp))
             self.assertEqual(original, path.read_bytes())
             self.assertEqual([path.name], sorted(item.name for item in Path(tmp).iterdir()))
+
+
+if __name__ == "__main__":
+    unittest.main()

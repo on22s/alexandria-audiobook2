@@ -249,8 +249,6 @@ class SourceHealthPreflightAgreementTest(unittest.TestCase):
                       "the preflight returns text rather than exiting")
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SourceRepairStructuralAcceptanceTests(unittest.TestCase):
@@ -303,3 +301,7 @@ class SourceRepairStructuralAcceptanceTests(unittest.TestCase):
         self.assertTrue(clean["healthy"])
         self.assertEqual({}, clean["applied"])
         self.assertEqual([], clean["messages"])
+
+
+if __name__ == "__main__":
+    unittest.main()

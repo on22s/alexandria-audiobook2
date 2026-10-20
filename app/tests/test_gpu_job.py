@@ -1426,15 +1426,6 @@ class PauseStatusTest(unittest.TestCase):
         self.assertIn("running job: none", self._status())
 
 
-if __name__ == "__main__":
-    # AT THE END, because it was in the MIDDLE. Everything defined after it -
-    # four of the five test classes here - was invisible to `python
-    # tests/test_gpu_job.py`, which ran the first class and printed OK. Under
-    # `unittest discover` the module is imported, __name__ is not "__main__",
-    # and all five classes register, so this hid only from whoever ran the
-    # file directly to check their work. Same family as the tests/ package
-    # needing __init__.py: a runner that silently tests less than you think.
-    unittest.main()
 
 
 @unittest.skipUnless(os.path.exists(GPU_PAUSE), "gpu_pause.sh not present")
@@ -1491,3 +1482,14 @@ class PauseNowTest(unittest.TestCase):
         self.assertNotIn("OK", terminal, self._log())
         self.assertEqual(1, terminal.count("INTERRUPTED"), self._log())
         self.assertIn("rc=143", self._log(), "the wrapper, not gpu_pause, writes the marker")
+
+
+if __name__ == "__main__":
+    # AT THE END, because it was in the MIDDLE. Everything defined after it -
+    # four of the five test classes here - was invisible to `python
+    # tests/test_gpu_job.py`, which ran the first class and printed OK. Under
+    # `unittest discover` the module is imported, __name__ is not "__main__",
+    # and all five classes register, so this hid only from whoever ran the
+    # file directly to check their work. Same family as the tests/ package
+    # needing __init__.py: a runner that silently tests less than you think.
+    unittest.main()

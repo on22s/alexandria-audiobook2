@@ -81,8 +81,6 @@ class IntegrationCorpusTests(OwnedCorpusFixture):
         self.assertEqual(0, report["summary"]["retry_cases"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class IntegrationRunnerBoundaryTests(OwnedCorpusFixture):
@@ -276,3 +274,7 @@ class CorpusSourceSnapshotTests(unittest.TestCase):
                                  'Parsing must use captured bytes even if the source changes')
                 self.assertNotEqual(original_bytes,source.read_bytes())
                 self.assertEqual([source],list(Path(tmp).iterdir()))
+
+
+if __name__ == "__main__":
+    unittest.main()

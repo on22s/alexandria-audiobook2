@@ -123,6 +123,36 @@ class ScanTest(unittest.TestCase):
         self.write("compare.json", {"pilots": []})
         self.assertEqual(([], []), scan(self.repo, "HEAD"))
 
+    def test_deleted_measured_artifact_is_reported_unstaged_and_staged(self):
+        self.write("measured rows.json", {"results": [{"i": 1}]})
+        self.commit()
+        os.unlink(os.path.join(self.experiments, "measured rows.json"))
+        for staged in (False, True):
+            with self.subTest(staged=staged):
+                if staged:
+                    self.git("add", "-u")
+                silent, ok = scan(self.repo, "HEAD")
+                self.assertEqual([], ok)
+                self.assertEqual(1, len(silent))
+                self.assertEqual(("measured rows.json", 1, 0),
+                                 (silent[0]["artifact"], silent[0]["was"], silent[0]["now"]))
+                self.assertTrue(silent[0]["deleted"])
+                result = subprocess.run([sys.executable,
+                    os.path.join(APP, "experiments", "check_artifact_shrinkage.py"),
+                    "--repo", self.repo], capture_output=True, text=True)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("measured rows.json", result.stdout)
+                self.assertIn("deleted", result.stdout)
+
+    def test_deleting_an_empty_or_unmeasured_artifact_does_not_invent_loss(self):
+        self.write("empty.json", {"rows": []})
+        self.write("unmeasured.json", {"pilots": []})
+        self.commit()
+        for name in ("empty.json", "unmeasured.json"):
+            os.unlink(os.path.join(self.experiments, name))
+        self.git("add", "-u")
+        self.assertEqual(([], []), scan(self.repo, "HEAD"))
+
 
 if __name__ == "__main__":
     unittest.main()

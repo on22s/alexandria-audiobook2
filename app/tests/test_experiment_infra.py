@@ -401,8 +401,6 @@ class AnalysisScriptTest(unittest.TestCase):
                          "so in the docstring: " + ", ".join(missing))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CollectResultsHostProvenanceTests(unittest.TestCase):
@@ -576,3 +574,7 @@ class ResultsSummaryTotalsTests(unittest.TestCase):
             self.assertEqual('0.0', next(r for r in second if r['artifact']=='extra.json')['accuracy_pct'])
             goals.write_text('### 3.4 Different goal\n`plain.json` only.\n', encoding='utf-8')
             generate(3, 1, 5)
+
+
+if __name__ == "__main__":
+    unittest.main()

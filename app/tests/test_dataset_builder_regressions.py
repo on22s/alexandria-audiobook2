@@ -240,8 +240,6 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
         self.assertFalse(dataset_builder.process_state["dataset_builder"]["running"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class DatasetReferenceIndexTests(unittest.TestCase):
@@ -529,3 +527,7 @@ class DatasetAudioRevisionTests(unittest.TestCase):
                 self.assertFalse(dataset_builder.process_state["dataset_builder"]["running"])
         self.assertEqual(4, len(set(urls)), urls)
         self.assertEqual([3] * 4, [call["seed"] for call in calls])
+
+
+if __name__ == "__main__":
+    unittest.main()

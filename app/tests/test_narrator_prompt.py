@@ -29,8 +29,6 @@ class NarratorPromptTests(unittest.TestCase):
         self.assertIn("ALEXIS's own voice", prompt)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class NarratorPriorValidationTests(unittest.TestCase):
@@ -43,3 +41,7 @@ class NarratorPriorValidationTests(unittest.TestCase):
             with self.subTest(narrator=blank):
                 self.assertEqual(base, add_narrator_prior(base, blank))
         self.assertIn('first person by ALEXIS IVANOVITCH', add_narrator_prior(base, ' Alexis  Ivanovitch '))
+
+
+if __name__ == "__main__":
+    unittest.main()

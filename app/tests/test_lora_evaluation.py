@@ -201,8 +201,6 @@ class LoraEvaluationTests(unittest.TestCase):
             self.assertFalse(evaluation.is_complete_evaluation(legacy, tmp))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class EvaluationSpecIntegrityTests(unittest.TestCase):
@@ -582,3 +580,7 @@ class EvaluationCleanupResumeTests(unittest.TestCase):
             self.assertIn("incomplete, preserved:", output.getvalue())
             self.assertIn("EVALUATE voice", output.getvalue())
             self.assertIn("SKIP voice", output.getvalue())
+
+
+if __name__ == "__main__":
+    unittest.main()
