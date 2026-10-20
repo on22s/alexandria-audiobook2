@@ -1,0 +1,25 @@
+{
+  "source_head": "e6b87326180d16e671320a495ab278afdb4ab1f4",
+  "source_path": "ab_test_runtime/experiments/three_pass_grimgar25_20260815/run.sh",
+  "source_sha256": "6fd52da920666bddab915dfb333ff510606fdc5b7a72805718d3d19810847bac",
+  "instrument": "Original readiness-loop/cd/timeout tail only;private curl/sleep/worker fixtures;native Bash and timeout;no original server-start code executed",
+  "observations": [
+    {
+      "app_directory_present": true,
+      "readiness_probe_results": "all60 fail (no HTTP calls);sleep compressed to zero for CPU fixture",
+      "worker_invoked_despite_no_readiness": true,
+      "cd_failure_still_dispatches_relative_worker": false,
+      "worker_nonzero_exit_propagated": true,
+      "exit_code": 7
+    },
+    {
+      "app_directory_present": false,
+      "readiness_probe_results": "all60 fail (no HTTP calls);sleep compressed to zero for CPU fixture",
+      "worker_invoked_despite_no_readiness": true,
+      "cd_failure_still_dispatches_relative_worker": true,
+      "worker_nonzero_exit_propagated": true,
+      "exit_code": 7
+    }
+  ],
+  "disposition": "Archive original driver unchanged;old missing-readiness/cd boundary characterized. A blanket claim that its worker nonzero exit becomes success is refuted. Any fresh runner needs supervised admission/readiness/cwd/child ownership and fresh evidence."
+}

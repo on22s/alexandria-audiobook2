@@ -39,6 +39,18 @@ of the three mistakes `gpu_job.sh`'s own header calls out.
 themselves still carry an absolute `REPO=` line, since they were written to be
 launched by hand rather than to be portable.
 
+## Dated entry points require migration before reuse
+
+The [2026-10-20 historical-driver catalog](../docs/remediation/audit_20261020_historical.md)
+records all 18 retained review observations, including these dated callers and
+those under `ab_test_runtime`. Their original scripts, logs and output artifacts
+are frozen evidence. Old completion messages or cached files do not certify a
+new campaign. Before reuse, create a separately named runner with fresh receipts,
+completion and input-identity checks, the shared stage aggregate and dependencies
+only where data flow requires them. The catalog preserves each concrete boundary
+and the correction from the cited `overnight_20260901.sh` to
+`overnight_20260830b.sh`; it does not add test exemptions.
+
 ## Writing a chain (2026-08-18 onward)
 
 Source `lib/stage.sh` and drive every stage through `run_stage`. It exists

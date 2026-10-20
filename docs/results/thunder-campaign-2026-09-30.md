@@ -130,9 +130,15 @@ prompt hashes. No live cloud scripts or jobs were changed to score this run.
 - [Portable audio verifier](../../ab_test_runtime/evidence/thunder_results_20260930/verify_audio_portable.py).
 - [Identity verifier](../../ab_test_runtime/evidence/thunder_results_20260930/verify_identity.py).
 
-Replay requires privately retained campaign inputs/audio, the project's Python
-environment, the recorded cached ASR model, and an interpreter with
-SpeechBrain for ECAPA. Both verifiers accept explicit paths on their CLI; use
+Replay of this dated snapshot requires privately retained campaign inputs/audio,
+the recorded Python/runtime layout, cached ASR model and a compatible interpreter
+with SpeechBrain for ECAPA. The self-hashed identity verifier is frozen historical
+evidence: its model-hash loop reads `ab_test_runtime/ecapa`, while the current
+worker resolves `cache/ecapa`. Its receipt therefore does not certify the model
+bytes used by a rerun against the current worker. Preserve the original script,
+outputs and hashes; a current verifier requires a separately named producer and
+fresh output tied to the actual helper-returned model directory. See the
+[archival boundary and differing-bytes characterization](../remediation/audit_20261020_historical.md#e15-frozen-identity-verifier). Both verifiers accept explicit paths on their CLI; use
 CPU and offline model settings. Reference content and hypotheses stay in the
 private checkpoint. The initial verifier stopped on a punctuation-only
 reference; its exact source is retained as a gzip capture. The final portable

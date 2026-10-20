@@ -1,6 +1,6 @@
 # 2026-10-20 source-review remediation plan
 
-Goal **3.5** · [Execution tracker #1366](https://github.com/on22s/alexandria-audiobook2/issues/1366) · **OPEN:50/58 accepted;8 remain**
+Goal **3.5** · [Execution tracker #1366](https://github.com/on22s/alexandria-audiobook2/issues/1366) · **OPEN:55/58 accepted;3 remain**
 
 Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 findings (40 confirmed, one evidence-backed investigation), 16 enhancement observations and 13 test gaps. It creates **58 child issues**: 41 bug/investigation tasks and 17 enhancements. The seventeenth enhancement groups the two independent experiment-reporting gaps. The other test gaps belong to their related fix or test-hardening task.
 
@@ -114,15 +114,15 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 08: Improve API and export responsiveness
 
-**Dependencies:** Batch 01, Batch 03, Batch 04. **Tasks:** 5. **Status:** combined release passed; exact-head CI and merge pending. **PR:** not opened.
+**Dependencies:** Batch 01, Batch 03, Batch 04. **Tasks:** 5. **Status:** accepted and merged (five tasks). **PR:** [#1454](https://github.com/on22s/alexandria-audiobook2/pull/1454).
 
 **Batch acceptance:** Measure cold/warm API, preview and selected-chapter behavior on a fixed workload, with event-loop responsiveness and peak PCM/memory observed separately. Preserve output, ownership and cancellation parity. Any GPU-slot change needs proof that the path is CPU-only; do not loosen the safety policy by assumption.
 
-- [ ] **E01** [#1410](https://github.com/on22s/alexandria-audiobook2/issues/1410) — Voice design save/delete acquire blocking file locks and copy complete audio files on the API event loop
-- [ ] **E02** [#1411](https://github.com/on22s/alexandria-audiobook2/issues/1411) — Word timing advertised as CPU-only reserves the global GPU task slot
-- [ ] **E05** [#1412](https://github.com/on22s/alexandria-audiobook2/issues/1412) — Filename previews decode every complete audio file
-- [ ] **E06** [#1413](https://github.com/on22s/alexandria-audiobook2/issues/1413) — Cold chapter export retains the entire book PCM even for one selected chapter
-- [ ] **E10** [#1414](https://github.com/on22s/alexandria-audiobook2/issues/1414) — Separate complete retention maintenance from the UI listing cap
+- [x] **E01** [#1410](https://github.com/on22s/alexandria-audiobook2/issues/1410) — Voice design save/delete acquire blocking file locks and copy complete audio files on the API event loop
+- [x] **E02** [#1411](https://github.com/on22s/alexandria-audiobook2/issues/1411) — Word timing advertised as CPU-only reserves the global GPU task slot
+- [x] **E05** [#1412](https://github.com/on22s/alexandria-audiobook2/issues/1412) — Filename previews decode every complete audio file
+- [x] **E06** [#1413](https://github.com/on22s/alexandria-audiobook2/issues/1413) — Cold chapter export retains the entire book PCM even for one selected chapter
+- [x] **E10** [#1414](https://github.com/on22s/alexandria-audiobook2/issues/1414) — Separate complete retention maintenance from the UI listing cap
 
 ### Batch 09: Harden diagnostics and regression tests
 
@@ -140,7 +140,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 10: Document and isolate historical drivers
 
-**Dependencies:** Batch 07, Batch 09. **Tasks:** 3. **Status:** not started. **PR:** not opened.
+**Dependencies:** Batch 07, Batch 09. **Tasks:** 3. **Status:** archival release passed; exact-head CI and merge pending. **PR:** not opened.
 
 **Batch acceptance:** Keep dated evidence and historical logs intact. Mark historical entry points, record their old runtime/cache assumptions and provide a separately named current runner only when required. Preserve historical artifacts rather than silently treating a modernized rerun as the original measurement.
 
@@ -463,3 +463,40 @@ Batch08 is integrated with accepted main 08312868514f11986e28aff57534a3421ed8021
 Native MP3 cost measurement uses 24 fixed clips: the first bounded scan decodes 24 while retaining one source at a time; a later cold-output selection decodes one in 40.653ms versus 24 in 696.350ms. Output and input bytes and book-wide offsets are identical. A separate 40-minute native WAV fixture measured peak resident memory of 171412KiB for accepted main versus 56108KiB for the candidate. Its initial latency increases from 45.114ms to 332.875ms because identity hashing costs time. This is a measured memory improvement, not a universal latency claim. RSS and Python allocations are recorded separately. Designer copy/lock transactions preserve rollback while unrelated pings respond in 1.196/0.628ms versus 53.878/51.377ms in the fixed cold/warm workload; the transaction still takes about 51ms. Complete retention maintenance is independent of the 500-row UI cap.
 
 The actual cached Small.en CPU ASR passed through the integrated word-timing route in 4.842960s; cache hit 0.003258s, concurrent ping 0.000723s and 7 mapped spans. The CPU task lease, zero GPU-lock acquisitions and immediate fresh/cache-hit input-byte preservation are verified. The unrelated GPU-running flag is simulated; actual GPU concurrency, TTS/LLM inference, listening and complete product-native qualification are not established by these fixtures. New exact-head CI and merge are pending. No Batch08 task is accepted yet: 50/58 accepted, eight remain.
+
+
+## Batch 08 accepted reconciliation
+
+Accepted via PR #1454, merged as f6f97a279305f36536c3dafc80391571379eb272, tree-identical to tested head 95ee2ec192d2745501981b1003e7628053504fd3 (tree 81ca0bfd55c5dfed538f5d65cd07d7926a6eb706). All nine exact-head CI checks passed: three unit shards, the inventory aggregate, Windows ownership, native SDK lifetime on Linux/Windows/macOS and macOS subprocess prerequisites. Native SDK suites each passed 20 tests with zero skips. Local quick release passed 8,670 units with zero skips, 72 API checks with zero failures and 12 explicit full-inference exclusions, and all eight gates in 852.390s. Combined targeted checks passed 428 distinct tests without skips. Normal hooks preserved the committed tree; only three bookkeeping documents changed after the release gate. All five issue acceptance bodies/checklists verified closed. 55/58 accepted; three historical tasks remain. Full GPU/TTS/LLM inference, real GPU concurrency and listening remain unrun global gates; these native ownership/SDK checks do not certify the whole product on every OS.
+
+## Batch 10 archival disposition
+
+Archival disposition implemented against freshly fetched accepted main f6f97a279305f36536c3dafc80391571379eb272; no original producer or dated scientific output is modified. The central catalog accounts for all 18 E14 observations across 17 actual scripts, preserving the 038-13 citation correction. Adjacent notices and the existing Thunder report clarify historical entry points and the frozen ECAPA runtime. A 38-file preservation manifest binds original producers and verifier evidence. CPU-only original-tail readiness/cwd/exit-status and exact frozen AST differing-model-bytes characterizations reran on this main. No server/model/voice campaign was run. Existing shared-stage/queue/cache controls and full Ready/exact-head CI/merge remain to be qualified. No Batch10 task accepted yet; 55/58 remain accepted.
+
+The [historical-driver boundary](audit_20261020_historical.md) and its 18-entry catalog specify what must change before any new campaign. E03 is archived with its readiness/cwd failure and correctly propagated worker exit distinguished. E15 remains a frozen, self-hashed dated consumer; the current helper resolves a directory without creating it, and synthetic different checkpoint bytes demonstrate the consumer mismatch. Neither producer is revived. These are the explicit archival alternatives authorized by this plan, rather than new scientific measurements. Original source/evidence preservation and active shared controls are verified separately from model quality.
+
+
+**Batch10 development verification — 2026-10-20.** Development verification passed 55 existing shared-stage, commit-failure, queue-inspection, ECAPA-helper and navigation tests in 17.336s without skips; 38 preservation hashes and both reproducible characterization receipts match. No new application test or producer is introduced. Full Ready, exact-head CI and merge remain pending.
+
+
+## Batch 10 release qualification
+
+Fresh ./ready.sh quick release passed all eight gates in 861.826s, including 8,670 exact inventoried unit tests with zero skips and 72 API passes, zero failures and 12 explicit full-inference exclusions. Validated tree: f3ac91c9748a5364a1069aeeab51f9bdbd7d3e65. The 55 focused shared-stage/queue/ECAPA/navigation tests passed in 17.336s with zero skips. All 38 preservation hashes and the two rerun CPU-only characterization receipts match accepted main f6f97a279305f36536c3dafc80391571379eb272. There are no changes to application/queue code, original producers, historical verification outputs, the frozen self-hashed verifier or guard exemption lists. Exact published-head CI and merged archival acceptance remain pending. 55/58 tasks are accepted; three Batch10 tasks remain in progress. Real-model runtime validation is recorded separately; this archival gate is not a listening or scientific-result recertification.
+
+
+## Independent runtime qualification progress
+
+Independent runtime qualification against accepted PR1454 source completed actual cached local-Qwen annotation/review and nine CustomVoice speech chunks on a public excerpt. All263ordered source words match script and chunks exactly;all chunks and MP3/M4B/Audacity artifact/media checks pass. The original full API report is82passes/zero failures/two explicit prerequisite skips;the two original skipped cases passed separately with uploaded source and an owned live local LLM. They remain separately recorded rather than relabelled as one84-pass run. CPU whisper.cpp recovered261/263words(99.24%);a silent-audio control recalls0/8words versus8/8for the valid short sample. Human listening observation and final main ledger publication remain pending. This small smoke does not establish whole-book prosody or the separate1090typical performance gate. Native Linux/Windows/macOS SDK ownership evidence is carried only with relevant-source identity. The live checkout and copied adapter source inputs remain unchanged.
+
+
+## Batch10 current-main integration (supersedes prior release qualification)
+
+Current Batch10 candidate is integrated with newly accepted PR1457 main e6b87326180d16e671320a495ab278afdb4ab1f4, which rejects non-finite external-provider PCM and adds two unit methods (inventory8,672). The earlier8670-unit/all8gates861.826s release and unpublished local commit a3145e608c497fa7787e47cdfe562189c8da9c16 remain preserved as prior-main evidence,not current qualification. The13-file archival candidate was preserved by commit/ref and a verified112825-byte binary patch,then reapplied cleanly atop freshly fetched main. All38archival preservation bytes remain identical;both CPU-only characterizations reran on this new accepted source. No dated producer or existing scientific output changed. Fresh combined controls and ./ready.sh/exact-head CI/merge are required again.55/58accepted;three archival tasks remain in progress. Native model/API/fidelity/ASR results on accepted08source remain separately recorded;current-main runtime qualification is pending after the new finite-audio guard. Human listening request remains pending.
+
+
+**Batch10 integrated development controls.** Fresh combined qualification on accepted PR1457 passed96distinct existing shared-stage/queue/ECAPA/navigation/finite-audio/training-metadata checks in18.849s with zero skips. The current unit inventory is8,672. Full Ready and published-head CI/merge remain pending.
+
+
+## Batch 10 release qualification
+
+Fresh ./ready.sh quick release passed all eight gates in 870.999s: 8,672 exact inventoried unit tests with zero skips, and 72 API passes with zero failures and 12 explicit full-inference exclusions. Validated tree: 52d73c202c6fa538288c16ae8b064b9ab8afea44. The 96 focused shared-stage, queue, ECAPA, navigation, finite-audio and metadata tests passed in 18.849s without skips. All 38 preservation hashes and both rerun CPU-only characterizations match accepted main e6b87326180d16e671320a495ab278afdb4ab1f4. Application and queue code, original producers, dated verification outputs, the frozen self-hashed verifier and guard exemptions are unchanged. Published-head CI and merged archival acceptance remain pending; 55/58 tasks are accepted and three Batch10 tasks remain in progress. Independent actual ROCm validation on the same application source preserved all 263 ordered words, completed nine CustomVoice chunks and verified MP3, M4B and Audacity exports. The original full API report remains 82 passes, zero failures and two prerequisite skips. Those two original unmodified functions passed separately with an uploaded source and an owned local LLM, covering 84 distinct API cases across runs. CPU ASR recovered 260/263 words (98.86%) and rejected silent audio. Human listening feedback and final native/ledger reconciliation remain pending. This small excerpt tests functionality; whole-book prosody, the separate #1090 typical performance gate and historical scientific-result recertification are outside this validation.

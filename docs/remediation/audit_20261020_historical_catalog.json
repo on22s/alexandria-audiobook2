@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "source_head": "e6b87326180d16e671320a495ab278afdb4ab1f4",
+  "disposition": "archived; migrate to a separately named current runner before reuse",
+  "observations": 18,
+  "actual_entry_points": 17,
+  "entries": [
+    {
+      "candidate_id": "001-06",
+      "line": 69,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "Build hard failures and clean data refusals both enter the absent-holdout branch, while the dated driver ends ALL DONE without failure aggregation. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "ab_test_runtime/regate_all75_guarded_20260906.sh",
+      "actual_file": "ab_test_runtime/regate_all75_guarded_20260906.sh",
+      "source_sha256": "dfead3441e8527b480ce7bb9ed047e02b856808308a6761d7161b50f0cd0d52f"
+    },
+    {
+      "candidate_id": "001-07",
+      "line": 83,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The dated gate returns0 for missing adapters and after verifier failures, and absent holdouts are skipped; final ALL DONE is not an authoritative success receipt. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "ab_test_runtime/regate_nine_guarded_20260906.sh",
+      "actual_file": "ab_test_runtime/regate_nine_guarded_20260906.sh",
+      "source_sha256": "b2274104c317ad89f3fb29b77f5b6875849cfad3c48ea811bebeb54edcc3bece"
+    },
+    {
+      "candidate_id": "001-08",
+      "line": 69,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "gate explicitly returns0 after capturing/logging the worker status. This is the historical non-aggregated-status pattern. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "ab_test_runtime/rebuild_failing_20260905.sh",
+      "actual_file": "ab_test_runtime/rebuild_failing_20260905.sh",
+      "source_sha256": "c5aeeeb0ad4aa797e2688b6f491e08d579dab46b5877a55d0ed94e750a404184"
+    },
+    {
+      "candidate_id": "001-09",
+      "line": 53,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The driver logs each verifier rc then ends ALL DONE without aggregation. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "ab_test_runtime/half_arm_guarded_20260906.sh",
+      "actual_file": "ab_test_runtime/half_arm_guarded_20260906.sh",
+      "source_sha256": "0be69a7baa52018e2b35724736d419b311eadb2a5a7a0131f075e0f5a84b0005"
+    },
+    {
+      "candidate_id": "001-10",
+      "line": 114,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "Each evaluation rc is echoed and the loop ends ALL DONE regardless of worker failure. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "ab_test_runtime/thinking_effort_sweep_20260906.sh",
+      "actual_file": "ab_test_runtime/thinking_effort_sweep_20260906.sh",
+      "source_sha256": "98c2e57119f8ad3e13648f87e5112e30198b520bb26a8a4facf7dc07619ff9d8"
+    },
+    {
+      "candidate_id": "001-11",
+      "line": 90,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The failing exit/artifact check is consumed by a warning echo, followed by ALL DONE. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "ab_test_runtime/rank_four_book_rerun_20260906.sh",
+      "actual_file": "ab_test_runtime/rank_four_book_rerun_20260906.sh",
+      "source_sha256": "2a7c9f6540a2aa1f1925d018c32f8ac4126b8e867098c6cb30b4a6b6d9c36dec"
+    },
+    {
+      "candidate_id": "001-12",
+      "line": 33,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The final five_terms.complete marker is written regardless of per-verdict worker status. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "ab_test_runtime/measure_five_terms_20260904.sh",
+      "actual_file": "ab_test_runtime/measure_five_terms_20260904.sh",
+      "source_sha256": "9a4e6345036b9b135063e6d7f4fb3e91fa6a2d2d53eaa69b530dfd54f77ddc8c"
+    },
+    {
+      "candidate_id": "001-13",
+      "line": 49,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "Each repeat status is only echoed and the final scorer status is followed by an unconditional scored message. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "ab_test_runtime/pipeline_repeats/pipeline_repeats.sh",
+      "actual_file": "ab_test_runtime/pipeline_repeats/pipeline_repeats.sh",
+      "source_sha256": "de220d077444d37add6fe8518f5d90f74a2577ca50db03282c79d86862056fa9"
+    },
+    {
+      "candidate_id": "001-14",
+      "line": 30,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The dated repeat driver waits on a log phrase forever without a deadline or producer-liveness check. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "ab_test_runtime/pipeline_repeats/pipeline_repeats.sh",
+      "actual_file": "ab_test_runtime/pipeline_repeats/pipeline_repeats.sh",
+      "source_sha256": "de220d077444d37add6fe8518f5d90f74a2577ca50db03282c79d86862056fa9"
+    },
+    {
+      "candidate_id": "001-15",
+      "line": 99,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The A/B collector logs code but does not aggregate or return it at the end. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "ab_test_runtime/run_collect_all_ab.sh",
+      "actual_file": "ab_test_runtime/run_collect_all_ab.sh",
+      "source_sha256": "361f054711dc1cfd1b04838b4d14e6344b0b530b258be3eda91ed5a9917e7367"
+    },
+    {
+      "candidate_id": "038-07",
+      "line": 36,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The dated longref caller uses while chain_running directly, treating queue inspection status2 as clear instead of wait_for_chain refusal. The global GPU lock still serializes actual worker GPU use. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "run_chains/longref_arm_20260826.sh",
+      "actual_file": "run_chains/longref_arm_20260826.sh",
+      "source_sha256": "1912506ecfd2f3bedebf74c5eae663840b0f2f47d9faff6ac28beaa71f59315b"
+    },
+    {
+      "candidate_id": "038-08",
+      "line": 70,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The dated morning driver commits the output path even after recording generation/completion failure. Its stage_summary remains red; partial artifacts are retained historical evidence. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "run_chains/morning_20260818.sh",
+      "actual_file": "run_chains/morning_20260818.sh",
+      "source_sha256": "40bb7b8838231364a68099b6c3b0dad366ba6f9177c63e217d9aee393c49cf30"
+    },
+    {
+      "candidate_id": "038-11",
+      "line": 21,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The dated fidelity driver skips on nonempty file existence; a partial checkpoint artifact can be skipped. Later drivers use completion checks. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "run_chains/overnight_fidelity_replication_20260822.sh",
+      "actual_file": "run_chains/overnight_fidelity_replication_20260822.sh",
+      "source_sha256": "2550c70b14b9d0f1bbaaf8e022b1a1b28c1662707d35d7ca661e33c08f7accf6"
+    },
+    {
+      "candidate_id": "038-13",
+      "line": 47,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The candidate points to overnight_20260830b.sh, whose stage1 status is logged without aggregate ownership and final COMPLETE is unconditional even when stage2 skips; its cited overnight_20260901.sh is not the faulty caller. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "run_chains/overnight_20260901.sh",
+      "actual_file": "run_chains/overnight_20260830b.sh",
+      "source_sha256": "030027b82c6c4db5fd3b700768bcd1d8b3bb65faee8a3f717626b16c02d8393d",
+      "citation_correction": "The cited 20260901 driver already propagates its shared stage summary status; the recorded failure belongs to 20260830b, whose stage1 rc is logged and final COMPLETE is unconditional. Preserve both provenance references."
+    },
+    {
+      "candidate_id": "039-00",
+      "line": 33,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "run_rebuild_retrain.sh only echoes the retrain rc; it is explicitly listed in test_chain_failure_guards.LEGACY_UNGUARDED. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "run_chains/run_rebuild_retrain.sh",
+      "actual_file": "run_chains/run_rebuild_retrain.sh",
+      "source_sha256": "4c67e813d79fa9d0e84e581e76cd420b1cbf3cbf4bdfb72a11308a21682475d7"
+    },
+    {
+      "candidate_id": "039-01",
+      "line": 45,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The dated separator driver scores/commits after generation stages without requires-ok dependencies. It does retain stage failures for the final stage_summary, so this is stale/partial evidence debt, not a demonstrated false overall release green. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "run_chains/separator_allrows_20260820.sh",
+      "actual_file": "run_chains/separator_allrows_20260820.sh",
+      "source_sha256": "9e9683b5ae5e876f67b14b0fbc42889131c4264fe655bdac6d6ff90e88e1f663"
+    },
+    {
+      "candidate_id": "039-05",
+      "line": 21,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The manual known-good/bad gate script checks worker exit codes but not freshly published artifact bytes. Retain as historical gate improvement, not a verified missing current artifact producer. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "run_chains/verify_gate_test.sh",
+      "actual_file": "run_chains/verify_gate_test.sh",
+      "source_sha256": "8861a05ff75e000e783ad5cfd6394f76c76d13c524262b73b87fb55b9867bca6"
+    },
+    {
+      "candidate_id": "039-08",
+      "line": 90,
+      "verdict": "CONFIRMED",
+      "classification": "deferred_historical_cleanup",
+      "reason": "The dated stratification driver exits0 when candidate rows are absent and prints COMPLETE; the source intentionally refuses to report numbers, but its completion marker does not distinguish refusal. Classified separately from active defects per requested historical-driver scope; test_chain_failure_guards.py documents frozen-history exceptions and shared lib/stage.sh is the current aggregation mechanism.",
+      "cited_file": "run_chains/unanswered_stratification_20260830.sh",
+      "actual_file": "run_chains/unanswered_stratification_20260830.sh",
+      "source_sha256": "d7224a1591451baac72edb38e53e8d4f6f17836b15c574a90ccb04986ea3e376"
+    }
+  ],
+  "citation_correction": {
+    "entry": "038-13",
+    "originally_cited": "run_chains/overnight_20260901.sh",
+    "actual": "run_chains/overnight_20260830b.sh",
+    "reason": "The cited60901 already propagates its final stage_summary; the observed unaggregated independent stages belong to60830b."
+  }
+}

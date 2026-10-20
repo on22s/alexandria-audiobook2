@@ -1,0 +1,17 @@
+{
+  "source_head": "e6b87326180d16e671320a495ab278afdb4ab1f4",
+  "frozen_source": "ab_test_runtime/evidence/thunder_results_20260930/verify_identity.py",
+  "frozen_source_sha256": "2322d6b8a96a40bdf5b3fd0e1909ad39b4e50a463aeded6c76fd7d86907655c9",
+  "current_helper": "app/experiments/_ecapa_batch.py",
+  "current_helper_sha256": "9c18e4873f522ffde1cbb4c679ac7d353abbac530f1b52314fadb25136e223f2",
+  "instrument": "Execute only the exact frozen get_sha256/model_root/model_hashes AST nodes against synthetic temporary files;invoke the actual current helper path function. No scorer/model/voice data executed.",
+  "legacy_directory": "ab_test_runtime/ecapa",
+  "actual_current_helper_directory": "cache/ecapa",
+  "different_model_bytes": true,
+  "frozen_report_hash": "bd2b3c66759fdf016532814496c1831a5cf2afec09c26ccf240416076ed6a986",
+  "actual_current_model_hash": "097c647bbe5480ad2d993eaabbb17212b227bb272bf7a8bc0ae6dcadff7295cc",
+  "mismatch_detected": true,
+  "legacy_directory_missing_raises_FileNotFoundError": true,
+  "frozen_source_unchanged": true,
+  "disposition": "Preserve original verifier/evidence as a dated runtime snapshot. Any separately named current consumer must bind actual helper-returned model bytes and reject mismatched legacy/current provenance;this characterization does not revive or recertify the historical verifier."
+}
