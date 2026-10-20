@@ -2734,19 +2734,21 @@ is not a successful result. The one plausible claim is an investigation.
 exact tested commits, reconciled against the
 [ten-batch task plan](docs/remediation/audit_20261020_plan.md).
 
-**Current — OPEN, 2026-10-20.** Review of main
+**Review baseline — 2026-10-20.** Review of main
 `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d` retained 40 confirmed findings, one
 plausible finding, 16 enhancement observations and 13 test gaps. All are mapped
 to 58 child issues; **0/58 execution tasks are complete** at plan creation.
 The 192 passing targeted review tests do not establish a complete release,
 GPU/model, native-platform or listening pass.
 
-**Batch 01 progress — 2026-10-20.** Four fixes prepared; 238 combined targeted
-CPU tests passed. Local quick-release verification passed (8,546 unit tests;
-72 API passes with 12 expected full-mode exclusions). Exact-head/native Windows
-CI remains pending in [PR #1426](https://github.com/on22s/alexandria-audiobook2/pull/1426);
-**0/58 tasks accepted**. This is implementation progress, not a claim
-of merged fixes or live GPU/model/listening qualification.
+**Accepted — Batch 01, 2026-10-20.** [PR #1426](https://github.com/on22s/alexandria-audiobook2/pull/1426)
+merged as `b50f014092dbed90d782747a763bc483362e19b5`, with tested head
+`c9a31073979d9787eaa9aacf13156a62fa622cc5`. **4/58 tasks accepted; 54 remain.**
+All six exact-head CI gates passed, including the complete unit inventory and
+native Windows resource/subprocess checks. Local quick release passed 8,546
+unit tests and 72 API checks with 12 expected full-mode exclusions; the combined
+targeted run passed 238 tests. GPU/model/listening and complete native macOS
+qualification are unrun and are not claimed by these control-plane regressions.
 
 **Target — OPEN.** Zero undisposed execution tasks, with the required
 regressions and platform/model checks recorded on the exact merged revisions.

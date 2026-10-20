@@ -21,7 +21,10 @@
         "F003",
         "F031"
       ],
-      "depends_on": []
+      "depends_on": [],
+      "status": "accepted",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426",
+      "merge_commit": "b50f014092dbed90d782747a763bc483362e19b5"
     },
     {
       "id": "02",
@@ -178,9 +181,12 @@
       "severity": "high",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "238 targeted tests and local quick release passed:8546 unit tests,72 API passes,12 expected full-mode exclusions; exact-head/native CI pending",
-      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426"
+      "status": "resolved",
+      "validation_status": "Accepted:238 targeted checks;8546 unit tests;72 API passes,12 expected full-mode exclusions;all six exact-head CI gates passed, including native Windows9 resource+4 subprocess cases. GPU/model/listening and complete native macOS qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "b50f014092dbed90d782747a763bc483362e19b5",
+      "tested_commit": "c9a31073979d9787eaa9aacf13156a62fa622cc5"
     },
     {
       "task_id": "F002",
@@ -194,9 +200,12 @@
       "severity": "high",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "238 targeted tests and local quick release passed:8546 unit tests,72 API passes,12 expected full-mode exclusions; exact-head/native CI pending",
-      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426"
+      "status": "resolved",
+      "validation_status": "Accepted:238 targeted checks;8546 unit tests;72 API passes,12 expected full-mode exclusions;all six exact-head CI gates passed, including native Windows9 resource+4 subprocess cases. GPU/model/listening and complete native macOS qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "b50f014092dbed90d782747a763bc483362e19b5",
+      "tested_commit": "c9a31073979d9787eaa9aacf13156a62fa622cc5"
     },
     {
       "task_id": "F003",
@@ -210,9 +219,12 @@
       "severity": "high",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "238 targeted tests and local quick release passed:8546 unit tests,72 API passes,12 expected full-mode exclusions; exact-head/native CI pending",
-      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426"
+      "status": "resolved",
+      "validation_status": "Accepted:238 targeted checks;8546 unit tests;72 API passes,12 expected full-mode exclusions;all six exact-head CI gates passed, including native Windows9 resource+4 subprocess cases. GPU/model/listening and complete native macOS qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "b50f014092dbed90d782747a763bc483362e19b5",
+      "tested_commit": "c9a31073979d9787eaa9aacf13156a62fa622cc5"
     },
     {
       "task_id": "F031",
@@ -226,10 +238,13 @@
       "severity": "medium",
       "confidence": "plausible",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "238 targeted tests and local quick release passed:8546 unit tests,72 API passes,12 expected full-mode exclusions; exact-head/native CI pending",
+      "status": "resolved",
+      "validation_status": "Accepted:238 targeted checks;8546 unit tests;72 API passes,12 expected full-mode exclusions;all six exact-head CI gates passed, including native Windows9 resource+4 subprocess cases. GPU/model/listening and complete native macOS qualification unrun.",
       "reproduction_status": "Confirmed by the two-process forward-A/review-B/queued-backward-A regression; original review confidence retained.",
-      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426"
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "b50f014092dbed90d782747a763bc483362e19b5",
+      "tested_commit": "c9a31073979d9787eaa9aacf13156a62fa622cc5"
     },
     {
       "task_id": "F004",

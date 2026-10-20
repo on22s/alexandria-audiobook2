@@ -22,14 +22,14 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 01: Protect saved data and voice publication
 
-**Dependencies:** none; start here. **Tasks:** 4. **Status:** local quick-release passed; exact-head CI pending. **PR:** [#1426](https://github.com/on22s/alexandria-audiobook2/pull/1426).
+**Dependencies:** none; start here. **Tasks:** 4. **Status:** accepted and merged (four tasks). **PR:** [#1426](https://github.com/on22s/alexandria-audiobook2/pull/1426).
 
 **Batch acceptance:** Prove malformed-library byte preservation, conflicting two-process dataset mutation refusal, unchanged unrelated saved names, and affected-only audio invalidation. Investigate F031 with A queued for a backward pass while the foreign worker reviews B; do not mistake its existing active-file lock for the missing whole-batch reservation.
 
-- [ ] **F001** [#1367](https://github.com/on22s/alexandria-audiobook2/issues/1367) — Dataset project mutation guards ignore generation owned by another server process
-- [ ] **F002** [#1368](https://github.com/on22s/alexandria-audiobook2/issues/1368) — A routine voice-library mutation permanently replaces an unreadable existing library with an empty one
-- [ ] **F003** [#1369](https://github.com/on22s/alexandria-audiobook2/issues/1369) — Applying suggested voices leaves completed chunks attached to audio from the previous voice
-- [ ] **F031** [#1370](https://github.com/on22s/alexandria-audiobook2/issues/1370) — Saved-book overwrite protection does not notice batch review in another worker Investigation; not a confirmed active-file overwrite.
+- [x] **F001** [#1367](https://github.com/on22s/alexandria-audiobook2/issues/1367) — Dataset project mutation guards ignore generation owned by another server process
+- [x] **F002** [#1368](https://github.com/on22s/alexandria-audiobook2/issues/1368) — A routine voice-library mutation permanently replaces an unreadable existing library with an empty one
+- [x] **F003** [#1369](https://github.com/on22s/alexandria-audiobook2/issues/1369) — Applying suggested voices leaves completed chunks attached to audio from the previous voice
+- [x] **F031** [#1370](https://github.com/on22s/alexandria-audiobook2/issues/1370) — Saved-book overwrite protection does not notice batch review in another worker Investigation; not a confirmed active-file overwrite.
 
 ### Batch 02: Repair LLM configuration and resumable generation
 
@@ -148,22 +148,23 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 - [ ] **E14** [#1423](https://github.com/on22s/alexandria-audiobook2/issues/1423) — Keep dated experimental drivers visibly historical and migrate them before reuse
 - [ ] **E15** [#1424](https://github.com/on22s/alexandria-audiobook2/issues/1424) — Update the frozen identity verifier cache path before rerunning it against current scoring code
 
-## Batch 01 verification progress
+## Batch 01 accepted evidence
 
-All four fixes are prepared together on the merged planning baseline. A combined
-238-test CPU regression run passed, including exact saved-family preservation,
-foreign generation/mutation exclusion, the reverse admission order, dead-owner
-cleanup, alias-aware audio invalidation, stale in-flight render refusal and paired
-publication rollback. The F031 two-process case is now reproduced with Book A's
-forward pass complete while the foreign batch reviews Book B; A's file lock is
-explicitly free at the attempted overwrite. The original review's confidence
-classification remains preserved in the task manifest.
+[PR #1426](https://github.com/on22s/alexandria-audiobook2/pull/1426) merged on
+2026-10-20 as `b50f014092dbed90d782747a763bc483362e19b5`; tested head
+`c9a31073979d9787eaa9aacf13156a62fa622cc5` has the identical committed tree.
+All six exact-head GitHub gates passed: three unit shards, the aggregate
+inventory verifier, native Windows and macOS prerequisites. Native Windows
+ran nine resource-lock tests and four existing subprocess-ownership cases.
+The local quick release passed 8,546 unit tests and 72 API checks, with
+12 expected full-mode exclusions. The combined targeted run passed 238 tests.
 
-Local `./ready.sh` quick verification passed: 8,546 unit tests, 72 API passes
-and 12 expected full-mode exclusions. Exact-head CI, including the added native
-Windows resource tests, is pending in PR #1426. No execution task is accepted
-or closed.
-GPU/model/listening qualification is unrun; CPU fixtures do not establish it.
+All four child issues are closed with their acceptance checklists and evidence.
+**Progress: 4/58 accepted; 54 remain.** The F031 case was reproduced with Book A
+forward-reviewed while the foreign batch reviews B and A's file lock is free;
+its original plausible review classification remains preserved historically.
+GPU/model/listening and complete native macOS qualification are unrun and are
+not inferred from these control-plane regression checks.
 
 ## Completion gate
 
