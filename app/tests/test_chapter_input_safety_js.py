@@ -48,7 +48,7 @@ let polls=0;ctx.pollExport=()=>polls++;
 const exporting=handlers['chapter-export-btn']();el('chapter-changed-only').checked=false;resolve({chapters:[{file:'three.wav'}]});await exporting;
 assert.strictEqual(requests.filter(r=>typeof r==='object').length,0);assert.strictEqual(polls,0);assert.strictEqual(el('chapter-export-btn').disabled,false);assert.match(el('chapter-status').innerHTML,/settings changed/);
 ctx.API.get=async url=>{requests.push(url);return {chapters:[{file:'three.wav'},{file:'four.wav'}]};};
-let posted;ctx.API.post=async(url,data)=>{posted={url,data};assert.match(el('chapter-status').textContent,/Exporting 2 chapter/);};
+let posted;ctx.API.post=async(url,data)=>{posted={url,data};assert.match(el('chapter-status').textContent,/Checking saved files and exporting selected chapters/);};
 await handlers['chapter-export-btn']();assert.strictEqual(posted.data.changed_only,false);assert.deepStrictEqual(JSON.parse(JSON.stringify(posted.data.chapters)),[2]);assert.strictEqual(polls,1);
 ctx.releaseTaskStart('chapter_export');
 ctx.API.get=async()=>{throw Error('preview refused');};posted=null;await handlers['chapter-export-btn']();assert.strictEqual(posted,null);assert.strictEqual(el('chapter-export-btn').disabled,false);assert.match(el('chapter-status').innerHTML,/preview refused/);

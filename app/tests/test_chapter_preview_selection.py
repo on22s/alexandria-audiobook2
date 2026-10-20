@@ -89,7 +89,7 @@ const context={document:{getElementById:node},chapterExportParams:()=>options,cu
 vm.createContext(context);
 vm.runInContext(source.slice(source.indexOf('function renderChapterList('),source.indexOf('async function loadChapterExports(')),context);
 vm.runInContext(source.slice(start,end),context);
-(async()=>{await handler();assert.deepStrictEqual(seen.searchParams.getAll('chapters'),['0','2']);assert.strictEqual(seen.searchParams.get('changed_only'),'true');assert(node('chapter-list').innerHTML.includes('No chapter files would be written.'));
+(async()=>{await handler();assert.deepStrictEqual(seen.searchParams.getAll('chapters'),['0','2']);assert.strictEqual(seen.searchParams.get('changed_only'),'true');assert(node('chapter-list').innerHTML.includes('No chapter files are currently planned.'));
 options={...options,chapters:null,changed_only:false};await handler();assert.deepStrictEqual(seen.searchParams.getAll('chapters'),[]);assert.strictEqual(seen.searchParams.get('changed_only'),'false');finished=true;})().catch(error=>{console.error(error);process.exitCode=1;});
 """
         result = subprocess.run(['node', '-e', script, str(source)], capture_output=True, text=True, timeout=10)

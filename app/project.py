@@ -94,22 +94,40 @@ def get_index_selection(indices, count):
     return sorted(set(indices))
 
 
+def get_chapter_output_digest(row):
+    """Read consistent recorded byte evidence, including older mastered exports."""
+    digests = [row["output_sha256"]] if "output_sha256" in row else []
+    report = row.get("mastering_report")
+    if isinstance(report, dict) and "sha256" in report:
+        digests.append(report["sha256"])
+    if not digests or any(not isinstance(value, str) or
+                          not re.fullmatch(r"[0-9a-f]{64}", value) for value in digests):
+        return None
+    return digests[0] if len(set(digests)) == 1 else None
+
+
 def get_chapter_reuse_duration(plan, old, wanted, changed_only, out_dir):
-    """Return the duration of an existing chapter that export will retain."""
+    """Return a metadata-valid reuse candidate; actual export verifies its bytes."""
     if not old:
         return None
     try:
         duration = (float(old["duration_ms"]) if "duration_ms" in old
                     else float(old["end_ms"]) - float(old["start_ms"]))
-    except (KeyError, TypeError, ValueError):
-        return None
-    if not math.isfinite(duration) or duration < 0 or not os.path.isfile(os.path.join(out_dir, old["file"])):
-        return None
-    if plan.get('mastering_settings') is not None and plan['index'] in wanted and changed_only:
-        from audio_mastering import get_audio_sha256
-        report = old.get('mastering_report') or {}
-        if report.get('sha256') != get_audio_sha256(os.path.join(out_dir, old['file'])):
+        filename = old["file"]
+        if (not isinstance(filename, str) or not filename or
+                filename != os.path.basename(filename) or "\\" in filename):
             return None
+        path = os.path.join(out_dir, filename)
+        if not is_path_inside(path, out_dir) or not os.path.isfile(path):
+            return None
+        size = os.path.getsize(path)
+    except (KeyError, TypeError, ValueError, OSError):
+        return None
+    if (not math.isfinite(duration) or duration < 0 or size <= 0 or
+            ("output_bytes" in old and (type(old["output_bytes"]) is not int or
+                                        old["output_bytes"] != size)) or
+            get_chapter_output_digest(old) is None):
+        return None
     if plan["index"] not in wanted or (changed_only and
             old.get("fingerprint") == plan["fingerprint"] and old.get("file") == plan["file"] and
             ('source_fingerprint' not in plan or
@@ -1774,6 +1792,18 @@ class ProjectManager:
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         os.makedirs(out_dir, exist_ok=True)
         with file_lock(os.path.join(self.root_dir, ".chapter-export")):
+            if chapters is not None:
+                manifest_path = os.path.join(out_dir, "manifest.json")
+                if os.path.lexists(manifest_path):
+                    manifest = safe_load_json(manifest_path, None)
+                    rows = get_chapter_export_rows(manifest)
+                    if (not isinstance(manifest, dict) or
+                            not isinstance(manifest.get("chapters"), list) or
+                            len(rows) != len(manifest["chapters"])):
+                        return False, ("Chapter export manifest is invalid; export all chapters "
+                                       "without a selection to rebuild it.")
+                    if {row["index"]: row for row in rows} != previous:
+                        return False, "Chapter exports changed while preparing this selection. Retry the export."
             staging_dir = tempfile.mkdtemp(prefix=".chapter-export-", dir=out_dir)
             retain_backup = False
             try:
@@ -1831,6 +1861,7 @@ class ProjectManager:
                                     durations, progress_callback, cancel_check,
                                     staging_dir):
         """Write selected plans and one manifest with shared absolute offsets."""
+        from audio_mastering import get_audio_sha256
         try:
             wanted = set(range(len(plans))) if chapters is None else set(get_index_selection(chapters, len(plans)))
         except ValueError as exc:
@@ -1849,7 +1880,17 @@ class ProjectManager:
             old = previous.get(index)
             old_duration = get_chapter_reuse_duration(plan, old, wanted, changed_only, out_dir)
             if old_duration is not None:
+                try:
+                    path = os.path.join(out_dir, old["file"])
+                    digest = get_audio_sha256(path, cancel_check)
+                    output_bytes = os.path.getsize(path)
+                    if digest != get_chapter_output_digest(old):
+                        old_duration = None
+                except OSError:
+                    old_duration = None
+            if old_duration is not None:
                 row, duration = dict(old), old_duration
+                row.update(output_sha256=digest, output_bytes=output_bytes)
                 if index in wanted:
                     reused += 1
             elif index in wanted:
@@ -1875,8 +1916,14 @@ class ProjectManager:
                 row = dict(plan)
                 if mastering_report:
                     row["mastering_report"] = mastering_report
+                path = os.path.join(staging_dir, plan["file"])
+                row.update(output_sha256=get_audio_sha256(path, cancel_check),
+                           output_bytes=os.path.getsize(path))
                 written += 1
             else:
+                if old is not None:
+                    return False, (f"Chapter {index + 1} has an invalid or unverified retained output; "
+                                   "select it for export or export all chapters.")
                 if durations is None:
                     return None
                 row, duration = None, durations[index]

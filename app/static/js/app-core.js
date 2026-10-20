@@ -8022,7 +8022,7 @@
         function renderChapterList(rows, exported) {
             const el = document.getElementById('chapter-list');
             document.getElementById('chapter-zip-link').style.display = exported && rows.some(r => r.exists) ? '' : 'none';
-            if (!rows.length) { el.innerHTML = `<span class="text-muted">${exported ? 'No exported chapter files found.' : 'No chapter files would be written.'}</span>`; return; }
+            if (!rows.length) { el.innerHTML = `<span class="text-muted">${exported ? 'No exported chapter files found.' : 'No chapter files are currently planned. Export checks saved files before keeping them.'}</span>`; return; }
             el.innerHTML = '<ol class="mb-0 ps-3">' + rows.map(r => {
                 const name = escapeHtml(r.file);
                 if (exported && r.exists) {
@@ -8060,7 +8060,7 @@
                 if (request !== chapterPreviewRequest || book !== currentBookFilename ||
                     JSON.stringify(params) !== JSON.stringify(chapterExportParams())) { return; }
                 renderChapterList(result.chapters, false);
-                document.getElementById('chapter-status').textContent = `${result.chapters.length} chapter(s) would be written${params.changed_only ? ' with Changed only enabled' : ''}.`;
+                document.getElementById('chapter-status').textContent = `${result.chapters.length} chapter(s) planned for export${params.changed_only ? ' with Changed only enabled' : ''}. Saved files are checked during export.`;
             } catch (e) {
                 if (request === chapterPreviewRequest && book === currentBookFilename) {
                     showActionError("Preview failed", e, "Review the chapter range and filename template, then preview the export again.", "error");
@@ -8077,11 +8077,11 @@
             try {
                 const book = currentBookFilename;
                 const params = chapterExportParams();
-                const preview = await getChapterExportPreview(params);
+                await getChapterExportPreview(params);
                 if (book !== currentBookFilename || JSON.stringify(params) !== JSON.stringify(chapterExportParams())) {
                     throw new Error('The book or chapter settings changed. Preview the current selection before exporting.');
                 }
-                statusEl.textContent = `Exporting ${preview.chapters.length} chapter(s)${params.changed_only ? ' with Changed only enabled' : ''}…`;
+                statusEl.textContent = `Checking saved files and exporting selected chapters${params.changed_only ? ' with Changed only enabled' : ''}…`;
                 window.resetExportMasteringView?.();
                 await API.post('/api/export_chapters', params);
                 pollExport('chapter_export');
