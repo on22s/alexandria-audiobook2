@@ -126,7 +126,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 09: Harden diagnostics and regression tests
 
-**Dependencies:** Batch05, Batch06 (accepted). **Tasks:**7. **Status:** combined release passed; exact-head CI and merge pending. **PR:** not opened.
+**Dependencies:** Batch05, Batch06 (accepted). **Tasks:**7. **Status:** combined release passed after native process-probe repair; new exact-head CI/merge pending. **PR:** [#1453](https://github.com/on22s/alexandria-audiobook2/pull/1453).
 
 **Batch acceptance:** Use mutation-sensitive assertions: wrong empty API names, an unreaped dead lock holder, forbidden chunk changes and zeroed decoded speech must make the relevant tests fail. Restore correct behavior afterward. Check deleted-artifact refusal, telemetry distinctions, temporary cleanup, ETA denominators and post-purge failure semantics without deleting real assets.
 
@@ -410,3 +410,13 @@ All seven Batch09 tasks have development fixes on freshly fetched accepted main 
 ## Batch09 combined release qualification — 2026-10-20
 
 All seven Batch09 failures/test gaps were reproduced before repair on accepted d74e11bf. Integrated against accepted main b48669b18ed9f4f026311a947f9f88158832e1c3. 259 distinct targeted checks passed23.692s/zero skips,including accepted external SDK/engine and Batch07 controls. Five scoped mutations stayed false-green under old tests,were rejected by hardened tests,and passed after restoration. 95 unittest.main guards are at file end with the expected non-guard AST bodies preserved;direct13/16/10 benchmark/production-audio/API modules exactly match inventory IDs. Fresh combined ./ready.sh quick passed8654 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed888.126s. Exact published-head CI and merge pending;no Batch09 task accepted.43/58accepted;15remain. GPU/model/listening/full product-native qualification unrun. No real Hub assets modified.
+
+
+## Batch09 native CI probe repair — 2026-10-20
+
+PR1453 first exact-head CI attempt failed one existing Linux process-liveness probe with ProcessLookupError/ESRCH while reading /proc after a real child exited. The helper was unchanged from accepted main; a passing base run does not refute this observed exit race. Deterministic ESRCH reproduction fails before repair. The probe now classifies ESRCH/ENOENT as exited while permission errors still raise and a real current process remains live. Native wrapper signal/lease controls and a fresh full release are being rerun before the next commit;previous8654-unit/888.126s release remains historical,not proof for this added regression. No Batch09 task accepted;43/58accepted15remain.
+
+
+## Batch09 repaired combined release — 2026-10-20
+
+PR1453 combined candidate includes a native /proc exit-race probe repair:ENOENT/ESRCH report an exited process,while permission errors still raise and actual live PID remains live. The first exact-head CI failure and its passing base report are preserved;the same helper was present on the base. Deterministic before/after controls reproduce the observed race.267 distinct targeted checks passed48.279s without skips,including real signal-tree/lease controls;12 focused ownership checks passed24.720s. Five mutation controls and direct13/16/10 inventory parity remain covered;95 relocated guards preserve expected AST bodies. Fresh ./ready.sh quick passed8655 unit tests without skips,72API passes/zero failures/12explicit full-mode exclusions and all8gates in851.436s. Validated treed2220060a98e34c2b8bde49a607c4c6c9b54b1b1. Only bookkeeping changes follow this gate;new published-head CI and merge pending.43/58accepted15remain;no Batch09 task accepted. Full product-native/GPU/model/listening qualification unrun. Private ROCm-runtime quick API preflight separately passed72/0/12;not a full-inference pass.

@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from tests import test_preparer_restart_lock as restart_fixtures
 
 
@@ -14,7 +15,7 @@ def is_live(pid):
     try:
         state=Path(f'/proc/{pid}/stat').read_text().rsplit(')',1)[1].split()[0]
         return state not in ('Z','X')
-    except FileNotFoundError:return False
+    except (FileNotFoundError, ProcessLookupError):return False
 
 
 def prepare_cpu_tree(root):
@@ -40,6 +41,18 @@ while True:time.sleep(.1)
 
 
 class RestartSignalTreeTests(unittest.TestCase):
+    def test_proc_exit_during_read_is_dead_but_unreadable_live_state_is_not_hidden(self):
+        # Linux can return ESRCH after /proc/PID/stat was opened if that PID
+        # exits before read(). This was observed in the native CI signal test.
+        for error in (FileNotFoundError(2, 'gone'), ProcessLookupError(3, 'gone')):
+            with self.subTest(error=type(error).__name__), \
+                    patch.object(Path, 'read_text', side_effect=error):
+                self.assertFalse(is_live(12345))
+        with patch.object(Path, 'read_text', side_effect=PermissionError(13, 'denied')):
+            with self.assertRaises(PermissionError):
+                is_live(12345)
+        self.assertTrue(is_live(os.getpid()), 'a real live process must remain live')
+
     def test_term_and_hup_to_wrapper_stop_owned_descendants_and_keep_other_process(self):
         for sig,expected in ((signal.SIGTERM,143),(signal.SIGHUP,129)):
             with self.subTest(signal=sig),tempfile.TemporaryDirectory() as tmp:
