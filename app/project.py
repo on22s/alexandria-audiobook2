@@ -77,6 +77,8 @@ CHUNK_GENERATION_FIELDS = (
     "text", "speaker", "instruct", "take", *NARRATOR_GENERATION_FIELDS,
     "character_style", "default_style", "style_timeline", "voice_revision", CHUNK_POLICY_KEY)
 GENERATION_INPUTS_CHANGED = "Chunk removed or generation inputs changed during generation"
+CHAPTER_SELECTION_AUDIO_ERROR = (
+    "Some chapter audio could not be decoded. Repair the affected clips before exporting selected chapters.")
 
 
 class ChunkTargetMissingError(LookupError):
@@ -125,6 +127,14 @@ def get_narrator_generation_context(entry):
     """Copy the supported narrator-selection fields for chunk rebuilding."""
     return {field: copy.deepcopy(entry[field]) for field in NARRATOR_GENERATION_FIELDS
             if field in entry}
+
+
+def get_chunk_context(entry):
+    """Copy voice selection and explicit structural intent for chunk rebuilding."""
+    context = get_narrator_generation_context(entry)
+    if "spoken" in entry:
+        context["spoken"] = copy.deepcopy(entry["spoken"])
+    return context
 
 
 def get_chunk_generation_requests(chunks, indices, admitted_requests=None):
@@ -466,13 +476,13 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
     current_instruct = script_entries[0].get("instruct", "")
     current_pause_after = script_entries[0].get("pause_after")
     current_indices = script_entries[0].get("_source_entry_indices") if include_source_indices else None
-    current_context = get_narrator_generation_context(script_entries[0])
+    current_context = get_chunk_context(script_entries[0])
 
     for entry in script_entries[1:]:
         speaker = get_speaker(entry)
         text = entry.get("text", "")
         instruct = entry.get("instruct", "")
-        narrator_context = get_narrator_generation_context(entry)
+        narrator_context = get_chunk_context(entry)
 
         # Don't merge structural text (titles, chapter headings, dedications),
         # and never merge past a pending pause: pause_after belongs to the
@@ -1684,6 +1694,7 @@ class ProjectManager:
             # Preserve explicit headings and unquoted narrator titles, while
             # keeping short dialogue and complete sentences in their chapter.
             if (get_speaker(chunk).upper() == "NARRATOR" and text
+                    and chunk.get("spoken") is not True
                     and '"' not in text
                     and (numbered_heading or _is_structural_text(text, max_length=None if heading else 80))):
                 heading_indices.append(i)
@@ -1888,10 +1899,9 @@ class ProjectManager:
             note += f", {reused} unchanged and kept"
         return True, note
 
-    def _export_changed_chapters(self, options, chapters,
+    def _export_changed_chapters(self, chunks, options, chapters,
                                  progress_callback=None, cancel_check=None):
         """Return None for incomplete/old exports, otherwise decode changed groups only."""
-        chunks = self.load_chunks()
         if not chunks:
             return None
         for chunk in chunks:
@@ -1961,25 +1971,41 @@ class ProjectManager:
             options["mastering"] = get_mastering_options(mastering)
         with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
             try:
+                captured_chunks = self.load_chunks()
+                selected_sources = None
+                if chapters is not None:
+                    # Match preview numbering before a decoder can remove rows.
+                    # Keep order and multiplicity, including legacy rows without UIDs.
+                    selected_sources = []
+                    for chunk in captured_chunks:
+                        ensure_audio_export_active(cancel_check)
+                        if self.is_chunk_audio_available(chunk):
+                            selected_sources.append(chunk)
+                    get_index_selection(chapters, len(self._chapter_groups(
+                        selected_sources, per_chunk_chapters)))
                 from chapter_timing_cache import ensure_chapter_timing_facts
                 indexed = ensure_chapter_timing_facts(
-                    self.root_dir, self.load_chunks(), self.get_chunk_audio_path,
+                    self.root_dir, captured_chunks, self.get_chunk_audio_path,
                     self.get_chunk_audio_segment, sources.save_segment, cancel_check,
                     self._get_chapter_decoder_codes(),
                     _loading_progress(progress_callback))
                 if indexed is not None:
+                    if selected_sources is not None and [row for row, _ in indexed.pairs] != selected_sources:
+                        return False, CHAPTER_SELECTION_AUDIO_ERROR
                     return self._export_indexed_chapters(
                         indexed, sources, options, chapters, changed_only,
                         progress_callback, cancel_check)
-                if changed_only:
+                if changed_only and (selected_sources is None or captured_chunks == selected_sources):
                     incremental = self._export_changed_chapters(
-                        options, chapters, progress_callback, cancel_check)
+                        captured_chunks, options, chapters, progress_callback, cancel_check)
                     if incremental is not None:
                         return incremental
                 pairs, skipped = self._load_chunks_with_audio(
-                    cancel_check=cancel_check,
+                    cancel_check=cancel_check, chunks=captured_chunks,
                     progress_callback=_loading_progress(progress_callback),
                     segment_transform=sources.save_segment)
+                if selected_sources is not None and [row for row, _ in pairs] != selected_sources:
+                    return False, CHAPTER_SELECTION_AUDIO_ERROR
                 if not pairs:
                     return False, "No audio segments found"
                 pause_defaults = self._load_pause_defaults()
