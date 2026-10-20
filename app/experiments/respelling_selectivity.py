@@ -83,10 +83,12 @@ def render(s):
         "",
         "  where plain FAILS  n=%-5d rescued %4d = %4.1f%%  (95%% CI %.1f-%.1f)"
         % (fails["n"], fails["rescued"], fails["rescue_pct"],
-           fails["ci95"][0], fails["ci95"][1]),
+           fails["ci95"][0], fails["ci95"][1]) if fails["n"] else
+        "  where plain FAILS  n=0     rescued    0 = n/a  (95% CI n/a)",
         "  where plain WORKS  n=%-5d broke   %4d = %4.1f%%  (95%% CI %.1f-%.1f)"
         % (works["n"], works["broken"], works["break_pct"],
-           works["ci95"][0], works["ci95"][1]),
+           works["ci95"][0], works["ci95"][1]) if works["n"] else
+        "  where plain WORKS  n=0     broke      0 = n/a  (95% CI n/a)",
         "",
         "  net if applied only where the plain reading fails: %+d words"
         % s["net_if_applied_selectively"],

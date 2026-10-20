@@ -47,7 +47,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 03: Preserve rendered text, voice identity, and timing
 
-**Dependencies:** Batch01, Batch02 (accepted). **Tasks:** 7. **Status:** six accepted; F028 Windows repair/requalification pending. **PR:** [#1431](https://github.com/on22s/alexandria-audiobook2/pull/1431), [#1433](https://github.com/on22s/alexandria-audiobook2/pull/1433).
+**Dependencies:** Batch01, Batch02 (accepted). **Tasks:** 7. **Status:** all seven tasks accepted and merged. **PR:** [#1431](https://github.com/on22s/alexandria-audiobook2/pull/1431), [#1433](https://github.com/on22s/alexandria-audiobook2/pull/1433).
 
 **Batch acceptance:** Exercise single/native/external/design/clone dispatch using deterministic CPU callbacks and valid synthetic PCM; preserve once-only pronunciation and reference alias policy. Check effective take behavior, complete-sample timing, and repeated stalled-request resource lifetime. Queue any required real-model/audio confirmation separately.
 
@@ -55,7 +55,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 - [x] **F025** [#1379](https://github.com/on22s/alexandria-audiobook2/issues/1379) — Timeline rounding accumulates drift against the encoded PCM
 - [x] **F026** [#1380](https://github.com/on22s/alexandria-audiobook2/issues/1380) — LoRA and design rendering apply pronunciation substitutions more than once Includes T06.
 - [x] **F027** [#1381](https://github.com/on22s/alexandria-audiobook2/issues/1381) — External clone rendering loses references after adapter rename Includes T03.
-- [ ] **F028** [#1382](https://github.com/on22s/alexandria-audiobook2/issues/1382) — Timed-out external batches retain unbounded executor threads Includes T02.
+- [x] **F028** [#1382](https://github.com/on22s/alexandria-audiobook2/issues/1382) — Timed-out external batches retain unbounded executor threads Includes T02.
 - [x] **F029** [#1383](https://github.com/on22s/alexandria-audiobook2/issues/1383) — Renamed adapters lose voice-drift measurements despite valid serving aliases Includes T04.
 - [x] **F030** [#1384](https://github.com/on22s/alexandria-audiobook2/issues/1384) — Relocated runtime data makes every built-in voice reference fail drift admission
 
@@ -100,7 +100,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 07: Restore diagnostic CLI and provenance contracts
 
-**Dependencies:** Batch 02, Batch 06. **Tasks:** 7. **Status:** not started. **PR:** not opened.
+**Dependencies:** Batch02, Batch06 (accepted). **Tasks:**7. **Status:** combined release passed; new exact-head CI and merge pending. **PR:** [#1447](https://github.com/on22s/alexandria-audiobook2/pull/1447).
 
 **Batch acceptance:** Run supported CLI initialization and minimal one-item cases without model inference. Verify obsolete callback/constructor signatures, empty strata, perfect-result summaries and failed patch capture. Provenance must distinguish saved, partial and failed evidence; never advertise an empty patch as reproducible code.
 
@@ -369,3 +369,24 @@ merged proof. Required local quick release passed 8,583 unit tests without
 unit skips, 72 API checks without failures and12 explicit full-mode exclusions,
 and all eight gates. GPU/model/training/listening and complete native-platform
 qualification are unrun. **21/58 accepted; 37 remain.**
+
+
+## Batch06 accepted reconciliation — 2026-10-20
+
+PR #1432 merged by the repository owner as `d74e11bff8ab3d2116c004f349e56d0be271babd`, with a tree identical to tested head `8e7e8b6bd849cef806fbdaaea197a6566c58d86b`. All five exact-head CI checks passed. Local quick release passed8,606 unit tests without unit skips,72 API passes and12 explicit full-mode exclusions; all8 gates passed in867.009s.80 targeted CPU checks plus4 navigation checks passed. All eight child checklists have verified merged evidence. GPU/model/training/listening and full product-native qualifications remain unrun. **35/58 accepted;23 remain.**
+
+## Batch07 verification progress — 2026-10-20
+
+All seven failures were reproduced on freshly fetched accepted main `d74e11bf` before repair.210 distinct targeted CPU tests now pass, including17 new regression methods. The trait hook preserves product traits, alias folding and kept-answer flags; single-adapter pitch selection validates counts and empty pools; selectivity and roster reports retain nullable statistics and print n/a for absent denominators. Both optional diagnostics use the current constructor's intended segmentation modes; the two-by-two runner initializes its repository paths before loading inputs. Dirty-run patch capture checks tracked/untracked diffs and producer status, writes a private temporary patch, publishes by rename, and reports UNSAVED on capture/write/publication failures. Native binary and odd-name restoration plus existing queue ownership/VRAM/refusal controls remain covered. Model/provider callbacks are synthetic where stated. Required `./ready.sh` quick passed8,623 unit tests with zero unit skips,72 API passes without failures and12 explicit full-mode exclusions; all8 gates passed in868.979 seconds. Exact published-head CI and merge remain pending; no Batch07 task is accepted. GPU/model/listening and full native-platform qualifications remain unrun.
+
+
+## Batch03 completed — F028 accepted, 2026-10-20
+
+F028 PR #1433 merged by the repository owner as `e37a69e62f0db28e1c2e9fdb9250dc550bb18169`, with a tree identical to tested head `34c858a47be2fe91cdebe712ba38d56d4f400c01`. All eight exact-head CI checks passed, including20 selected SDK/engine lifetime cases on native Windows, macOS and Linux. Local quick release passed8,626 unit tests without unit skips,72 API passes with zero failures and12 explicit full-mode exclusions; all8 gates passed881.726s.119 targeted CPU checks plus4 navigation checks passed. The initial Windows shutdown failure and a macOS runner-capacity cancellation remain recorded; the repaired revision passed before acceptance. All seven Batch03 tasks are now accepted. Remote inference cancellation remains provider-dependent; GPU/model/listening and full product-native qualifications remain unrun. **36/58 accepted;22 remain.**
+
+PR #1447 is being integrated with this accepted main. The seven implementation paths merged cleanly; two tracking-document conflicts were reconciled and the derived unit inventory is rebuilt. The previous8623-unit gate is historical evidence; the combined source needs a fresh release gate and exact published-head CI before Batch07 acceptance.
+
+
+## Batch07 integrated qualification — 2026-10-20
+
+PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain.

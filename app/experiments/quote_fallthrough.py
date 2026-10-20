@@ -15,7 +15,7 @@ METHOD. Take only the chunks whose resolution was repaired or continuation and
 which contain a judged line. Segment each one twice:
 
     presegmented   what shipped: analyze_outer_quote_regions on the chunk
-    model          params.presegment_quotes = False, so pass 1 asks the LLM
+    model          params.segmentation = "llm", so pass 1 asks the LLM
 
 Then score both against the human labels on the lines they contain. Same
 chunks, same gold, one difference.
@@ -62,7 +62,7 @@ def main():
     client = OpenAI(base_url=args.base_url, api_key="local")
     params = LLMGenParams(max_tokens=12000, context_length=32768, temperature=0.0,
                           top_p=0.8, reasoning_effort="none",
-                          presegment_quotes=False)
+                          segmentation="llm")
 
     jobs = []
     for path in sorted(glob.glob(REPO + "/ab_test_runtime/fixtures_draft/labelling_bundle__*.json")):

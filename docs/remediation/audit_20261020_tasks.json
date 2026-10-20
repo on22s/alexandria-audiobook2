@@ -62,8 +62,8 @@
         "01",
         "02"
       ],
-      "status": "in_progress",
-      "validation_status": "Six tasksaccepted viaPR1431;F028 remains open. Initial local quick8613unit0skip/72API+12explicitexclusions/all8gates893.029s and118targetedCPU+4nav passed. Published2d5f9f68 nativeLinux/macOS19casespassed; Windowsfailed1assertion9errors ongracefultaskkill forheadlessSDK. SDK-specific ownedWindowsJob termination with bounded zero-membership/root-wait is repaired locally;20coreCPUcasespassed including failure-retention controls. Integrated release/native3OS requalification/mergepending; F028notaccepted. Remoteinferencecancellationprovider-dependent;GPU/model/listening/fullnativequalificationunrun.",
+      "status": "accepted",
+      "validation_status": "All7 tasks accepted: six via PR1431 and F028 via PR1433. Accepted via PR1433, merged by repository owner as e37a69e62f0db28e1c2e9fdb9250dc550bb18169, with tree identical to tested head34c858a47be2fe91cdebe712ba38d56d4f400c01. All8 exact-head CI checks passed, including20 selected SDK lifetime tests on native Windows/macOS/Linux.119 distinct targeted CPU checks plus4 navigation tests; local quick8626 unit0skip/72API0fail12 explicit full-mode exclusions/all8 gates881.726s. Initial Windows failure repaired; macOS runner-capacity cancellation retried successfully. Remote inference cancellation remains provider-dependent. GPU/model/listening/full product-native qualification unrun.",
       "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1431"
     },
     {
@@ -136,7 +136,9 @@
       "depends_on": [
         "02",
         "06"
-      ]
+      ],
+      "status": "in_progress",
+      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
     },
     {
       "id": "08",
@@ -503,10 +505,12 @@
       "test_gap_ids": [
         "T02"
       ],
-      "status": "in_progress",
+      "status": "resolved",
       "reproduction_status": "Original repeated timeout growth reproduced on pre-fix main. Own transport failed-stop upload and repeat-admission failure modes reproduced before repair.",
-      "validation_status": "Integrated with accepted Batch06 main d74e11bf:119 distinct targeted CPU cases and4 navigation checks passed; ./ready.sh quick passed8626 unit tests without unit skips,72 API passes,12 explicit full-mode exclusions and all8 gates in881.726s. Initial published2d5f9f68 nativeLinux/macOS passed19cases; Windows failed on graceful taskkill for headlessSDK. SDK-specific owned Windows Job termination now confirms zero kernel membership with bounded root wait; terminate/query/deadline failure controls preserve ownership and files. New exact-head native3OS CI and merge pending; F028 not accepted. Remote inference cancellation remains provider-dependent; GPU/model/listening/full product-native qualification unrun.",
-      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1433"
+      "validation_status": "Accepted via PR1433, merged by repository owner as e37a69e62f0db28e1c2e9fdb9250dc550bb18169, with tree identical to tested head34c858a47be2fe91cdebe712ba38d56d4f400c01. All8 exact-head CI checks passed, including20 selected SDK lifetime tests on native Windows/macOS/Linux.119 distinct targeted CPU checks plus4 navigation tests; local quick8626 unit0skip/72API0fail12 explicit full-mode exclusions/all8 gates881.726s. Initial Windows failure repaired; macOS runner-capacity cancellation retried successfully. Remote inference cancellation remains provider-dependent. GPU/model/listening/full product-native qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1433",
+      "merge_commit": "e37a69e62f0db28e1c2e9fdb9250dc550bb18169",
+      "tested_commit": "34c858a47be2fe91cdebe712ba38d56d4f400c01"
     },
     {
       "task_id": "F029",
@@ -929,7 +933,8 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
     },
     {
       "task_id": "F033",
@@ -943,7 +948,8 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
     },
     {
       "task_id": "F034",
@@ -957,7 +963,8 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
     },
     {
       "task_id": "F035",
@@ -971,7 +978,8 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
     },
     {
       "task_id": "F036",
@@ -985,7 +993,8 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
     },
     {
       "task_id": "F037",
@@ -999,7 +1008,8 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
     },
     {
       "task_id": "F041",
@@ -1013,7 +1023,8 @@
       "severity": "low",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "PR #1447 integrated against accepted F028 main e37a69e62f0db28e1c2e9fdb9250dc550bb18169. Fresh combined ./ready.sh quick passed8643 unit tests with zero unit skips,72 API passes/zero failures and12 explicit full-mode exclusions;all8 gates passed859.861s. 234 distinct targeted checks passed(230 CPU plus4 navigation);all17 new methods remain inventoried. The original8623-unit gate remains historical evidence. Both prose/task conflicts are reconciled; implementation paths merged cleanly and the derived inventory was rebuilt. New exact published-head CI and merge remain pending;no Batch07 task accepted. GPU/model/listening/full native-platform qualification unrun.36/58 accepted;22 remain."
     },
     {
       "task_id": "E01",

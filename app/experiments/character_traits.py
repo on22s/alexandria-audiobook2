@@ -135,8 +135,8 @@ def install_line_traits():
     import three_pass_generate as tp
     original = tp.get_named_from_answer
 
-    def with_traits(frozen_batch, ordered, cast=None):
-        out = original(frozen_batch, ordered, cast)
+    def with_traits(frozen_batch, ordered, cast=None, speaker_traits=False):
+        out = original(frozen_batch, ordered, cast, speaker_traits)
         return [{**entry, "line_gender": get_normalized(item.get("gender"), GENDERS),
                  "line_age_group": get_normalized(item.get("age_group"), AGE_GROUPS)}
                 for entry, item in zip(out, ordered)]

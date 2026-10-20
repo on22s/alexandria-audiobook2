@@ -163,15 +163,21 @@ def main():
           % (result["unpaired"]["mean_gold_position"],
              result["unpaired"]["mean_predicted_position"]))
     print("paired, wrong rows only:")
-    print("  earlier than gold %d (%.1f%%)   later %d"
+    share = ("%.1f%%" % (100 * paired["share_earlier"])
+             if paired["share_earlier"] is not None else "n/a; no directional discordances")
+    shift = ("%+.4f" % paired["mean_signed_shift"]
+             if paired["mean_signed_shift"] is not None else "n/a; no wrong positioned rows")
+    print("  earlier than gold %d (%s)   later %d"
           % (paired["wrong_answer_earlier_than_gold"],
-             100 * paired["share_earlier"], paired["wrong_answer_later_than_gold"]))
-    print("  mean signed shift %+.4f | sign test p = %.3g"
-          % (paired["mean_signed_shift"], paired["sign_test_p"]))
+             share, paired["wrong_answer_later_than_gold"]))
+    print("  mean signed shift %s | sign test p = %.3g"
+          % (shift, paired["sign_test_p"]))
     print("stratified by whether the context offered a local signal:")
     for name, cell in doc["stratified_by_local_signal"].items():
-        print("  %-18s n=%-4d earlier %5.1f%%  p=%.2g"
-              % (name, cell["n"], 100 * (cell["share_earlier"] or 0),
+        share = ("%5.1f%%" % (100 * cell["share_earlier"])
+                 if cell["share_earlier"] is not None else "n/a")
+        print("  %-18s n=%-4d earlier %s  p=%.2g"
+              % (name, cell["n"], share,
                  cell["sign_test_p"]))
     print("\n%s" % doc["verdict"])
     return 0

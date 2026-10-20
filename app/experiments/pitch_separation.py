@@ -53,14 +53,21 @@ def spanning_adapters(manifest_path, count):
     voice and a high female one may not behave the same way, and sampling the
     dense middle would never show it.
     """
-    raw = json.load(open(manifest_path, encoding="utf-8"))
+    if count < 1:
+        raise ValueError("adapter count must be positive")
+    with open(manifest_path, encoding="utf-8") as handle:
+        raw = json.load(handle)
     items = raw if isinstance(raw, list) else list(raw.values())
     pool = sorted(((i["id"], (i.get("voice_features") or {})["mean_f0"])
                    for i in items if isinstance(i, dict) and i.get("id")
                    and (i.get("voice_features") or {}).get("mean_f0")),
                   key=lambda x: x[1])
+    if not pool:
+        raise ValueError("no adapters with measured mean_f0 in manifest")
     if len(pool) <= count:
         return pool, pool
+    if count == 1:
+        return pool[:1], pool
     step = (len(pool) - 1) / (count - 1)
     picked = [pool[round(i * step)] for i in range(count)]
     return picked, pool
@@ -84,7 +91,10 @@ def main():
         REPO, "ab_test_runtime", "experiments", "pitch_separation.json"))
     args = ap.parse_args()
 
-    picked, pool = spanning_adapters(args.manifest, args.adapters)
+    try:
+        picked, pool = spanning_adapters(args.manifest, args.adapters)
+    except ValueError as exc:
+        ap.error(str(exc))
     print(f"{len(pool)} adapters in pool, {len(picked)} sampled across "
           f"{pool[0][1]:.0f}-{pool[-1][1]:.0f} Hz\n")
 

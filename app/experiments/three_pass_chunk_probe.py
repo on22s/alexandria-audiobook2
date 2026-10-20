@@ -36,7 +36,7 @@ def main():
         max_tokens=generation.get("max_tokens", 10000),
         temperature=generation.get("temperature", 0.6),
         top_p=generation.get("top_p", 0.8), top_k=generation.get("top_k"),
-        min_p=generation.get("min_p"), presegment_quotes=True,
+        min_p=generation.get("min_p"), segmentation="auto",
         segment_temperature=0.0, attribute_temperature=0.0,
         instruct_temperature=generation.get("three_pass_instruct_temperature", 0.1))
     entries = run_three_pass(

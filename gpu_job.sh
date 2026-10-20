@@ -520,28 +520,42 @@ case "$dirty_state" in
         # experiment script is untracked for exactly as long as it takes to
         # write and run it - the case the dirty gate exists for - and
         # `git diff HEAD` cannot see it. --no-index exits 1 on difference,
-        # which is its normal result here, so its status is deliberately
-        # ignored rather than treated as failure.
+        # which is its normal result here. Other statuses mean the capture
+        # failed and must never advertise a reproducible patch.
         # FIFTH KNOB THAT POINTED AT REAL SHARED STATE. The suite runs
         # this path on every dirty-tree test and left 202 patch files in
         # the working tree, untracked and unwanted. isolated_env pins it
         # like GPU_LOCK, GPU_QLOG, GPU_PAUSE_FLAG and GPU_PENDING_DIR.
         patch_dir="${GPU_PATCH_DIR:-${REPO}/ab_test_runtime/logs/dirty_patches}"
         patch_file="$patch_dir/${NAME}-$(date -u +%Y%m%dT%H%M%SZ).patch"
-        if mkdir -p "$patch_dir" 2>/dev/null; then
-            {
-                git -C "${REPO}" diff --binary HEAD 2>/dev/null
+        patch_tmp=""
+        if mkdir -p "$patch_dir" 2>/dev/null \
+                && patch_tmp=$(mktemp "${patch_file}.tmp.XXXXXX") \
+                && (
+                git -C "${REPO}" diff --binary HEAD 2>/dev/null || exit 1
                 # Same exclusion as tree_state: ab_test_runtime/ is where
                 # runs write, and scanning it here walked 2,305 untracked
                 # files under 145 GB - 11s before every ALLOW_DIRTY_TREE START.
-                while IFS= read -r -d '' f; do
+                # Wait for the producer too: process substitution otherwise
+                # hides a failed file listing behind a successful empty loop.
+                exec {patch_list_fd}< <(get_untracked_source_files "$REPO")
+                patch_list_pid=$!
+                mapfile -d '' -t patch_untracked <&"$patch_list_fd" || exit 1
+                exec {patch_list_fd}<&-
+                wait "$patch_list_pid" || exit 1
+                for f in "${patch_untracked[@]}"; do
                     git -C "$REPO" diff --no-index --binary -- /dev/null "$f" 2>/dev/null
-                done < <(get_untracked_source_files "$REPO")
-            } > "$patch_file"
+                    patch_diff_status=$?
+                    case "$patch_diff_status" in 0|1) ;; *) exit 1 ;; esac
+                done
+            ) > "$patch_tmp" \
+                && [ -s "$patch_tmp" ] \
+                && mv -- "$patch_tmp" "$patch_file"; then
             write_queue_log "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1) patch=${patch_file##*/}"
             echo "gpu_job: uncommitted state saved to $patch_file" >&2
             echo "gpu_job: reproduce with: git checkout $(git -C "${REPO}" rev-parse --short HEAD 2>/dev/null) && git apply $patch_file" >&2
         else
+            [ -z "$patch_tmp" ] || rm -f -- "$patch_tmp" 2>/dev/null
             # Say so rather than proceeding silently: an override whose code
             # state was NOT captured is a different thing from one that was.
             write_queue_log "$(stamp) DIRTY_RUN $NAME (ALLOW_DIRTY_TREE=1) patch=UNSAVED"

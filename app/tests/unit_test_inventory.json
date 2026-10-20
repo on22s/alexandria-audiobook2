@@ -747,6 +747,15 @@
     "tests.test_batch06_reporting_coverage.ReportingCoverageTests.test_pdnc_report_prints_shared_accuracies_and_unmatched_and_failed_counts",
     "tests.test_batch06_reporting_coverage.ReportingCoverageTests.test_symbolization_cli_serializes_every_attempt_and_reports_transport_dropout"
   ],
+  "test_batch07_diagnostic_boundaries": [
+    "tests.test_batch07_diagnostic_boundaries.DiagnosticBoundariesTests.test_invalid_counts_and_empty_pitch_pools_refuse_before_inference",
+    "tests.test_batch07_diagnostic_boundaries.DiagnosticBoundariesTests.test_perfect_roster_cli_uses_real_gold_and_reports_no_discordances",
+    "tests.test_batch07_diagnostic_boundaries.DiagnosticBoundariesTests.test_roster_ties_preserve_zero_shift_and_directional_controls",
+    "tests.test_batch07_diagnostic_boundaries.DiagnosticBoundariesTests.test_selectivity_cli_saves_all_correct_all_failed_and_mixed_strata",
+    "tests.test_batch07_diagnostic_boundaries.DiagnosticBoundariesTests.test_selectivity_without_pairs_still_refuses_without_publishing",
+    "tests.test_batch07_diagnostic_boundaries.DiagnosticBoundariesTests.test_single_adapter_cli_publishes_native_pcm_provider_results",
+    "tests.test_batch07_diagnostic_boundaries.DiagnosticBoundariesTests.test_single_adapter_selection_preserves_even_range_controls"
+  ],
   "test_batch_alias_registry": [
     "tests.test_batch_alias_registry.BatchAliasRegistryTests.test_corrected_and_removed_aliases_govern_single_and_bidirectional_batches"
   ],
@@ -2780,6 +2789,11 @@
     "tests.test_deterministic_retry.DeterministicRetryTest.test_nonzero_temperature_still_retries",
     "tests.test_deterministic_retry.DeterministicRetryTest.test_temperature_zero_stops_repeating_an_identical_prompt"
   ],
+  "test_diagnostic_constructor_contracts": [
+    "tests.test_diagnostic_constructor_contracts.DiagnosticConstructorTests.test_chunk_probe_constructs_auto_params_and_publishes_real_quality",
+    "tests.test_diagnostic_constructor_contracts.DiagnosticConstructorTests.test_quote_fallthrough_constructs_llm_params_and_scores_one_native_job",
+    "tests.test_diagnostic_constructor_contracts.DiagnosticConstructorTests.test_two_by_two_initializes_paths_and_executes_all_four_one_item_arms"
+  ],
   "test_diagnostic_records_cause": [
     "tests.test_diagnostic_records_cause.DiagnosticRecordsCause.test_a_non_dict_record_is_ignored",
     "tests.test_diagnostic_records_cause.DiagnosticRecordsCause.test_it_keeps_what_the_client_already_recorded",
@@ -2884,6 +2898,13 @@
     "tests.test_dirty_gate_ignores_artifacts.DirtyGateIgnoresArtifactsTest.test_a_harness_in_the_code_tree_is_still_caught",
     "tests.test_dirty_gate_ignores_artifacts.DirtyGateIgnoresArtifactsTest.test_both_implementations_exclude_the_artifact_tree",
     "tests.test_dirty_gate_ignores_artifacts.DirtyGateIgnoresArtifactsTest.test_without_the_exclusion_an_artifact_makes_the_tree_dirty"
+  ],
+  "test_dirty_patch_capture": [
+    "tests.test_dirty_patch_capture.DirtyPatchCaptureTests.test_failed_capture_listing_cannot_silently_omit_untracked_inputs",
+    "tests.test_dirty_patch_capture.DirtyPatchCaptureTests.test_failed_tracked_diff_cannot_publish_empty_patch",
+    "tests.test_dirty_patch_capture.DirtyPatchCaptureTests.test_failed_untracked_diff_cannot_publish_tracked_only_patch",
+    "tests.test_dirty_patch_capture.DirtyPatchCaptureTests.test_patch_output_redirection_failure_is_unsaved",
+    "tests.test_dirty_patch_capture.DirtyPatchCaptureTests.test_patch_rename_failure_does_not_advertise_partial_evidence"
   ],
   "test_distill_eval_books": [
     "tests.test_distill_eval_books.BookArgumentTests.test_duplicate_books_are_refused_not_deduplicated",
@@ -4750,6 +4771,10 @@
     "tests.test_line_format.LineFormatRoundTrip.test_round_trip_is_exact",
     "tests.test_line_format.WhitespaceNormalisation.test_label_whitespace_is_normalised",
     "tests.test_line_format.WhitespaceNormalisation.test_text_is_byte_exact_including_edge_whitespace"
+  ],
+  "test_line_traits_hook": [
+    "tests.test_line_traits_hook.LineTraitsHookTests.test_accepted_answer_keeps_experiment_traits_and_product_alias_fields",
+    "tests.test_line_traits_hook.LineTraitsHookTests.test_kept_answer_preserves_frozen_text_traits_and_unchecked_reason"
   ],
   "test_linux_termination_grace": [
     "tests.test_linux_termination_grace.LinuxTerminationGraceTest.test_explicit_grace_applies_to_term_on_disconnect",
