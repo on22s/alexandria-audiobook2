@@ -25,6 +25,33 @@ class ChunkStatusJournalTests(unittest.TestCase):
     def manager(self):
         return journal.ChunkStatusJournal(self.path, self.book)
 
+    def test_audio_references_follow_aliases_replay_and_compaction(self):
+        manager = self.manager()
+        manager.apply_update('one', {'audio_path': 'voicelines/one.wav', 'status': 'done'})
+        manager.apply_update('two', {'audio_path': 'voicelines/./one.wav', 'status': 'error'})
+        manager.apply_update('one', {'audio_path': None})
+        self.assertTrue(manager.is_audio_path_referenced(str(self.path.parent / 'voicelines/one.wav')))
+        reloaded = self.manager()
+        self.assertTrue(reloaded.is_audio_path_referenced('voicelines/one.wav'))
+        reloaded.save_compacted(reloaded.get_rows())
+        self.assertTrue(manager.is_audio_path_referenced('voicelines/one.wav'))
+        manager.apply_update('two', {'audio_path': None})
+        self.assertFalse(manager.is_audio_path_referenced('voicelines/one.wav'))
+
+    def test_cached_audio_reference_updates_do_not_scan_the_book_or_accumulate_old_keys(self):
+        rows = [dict(uid=str(i), audio_path=f'voicelines/{i}.wav') for i in range(2000)]
+        self.path.write_text(json.dumps(rows))
+        manager = self.manager()
+        manager.ensure_writable()
+        with patch.object(journal, 'get_chunk_audio_key', wraps=journal.get_chunk_audio_key) as key:
+            manager.apply_update('0', {'audio_path': 'voicelines/fresh.wav'})
+            self.assertTrue(manager.is_audio_path_referenced('voicelines/fresh.wav'))
+            self.assertFalse(manager.is_audio_path_referenced('voicelines/0.wav'))
+            self.assertLessEqual(key.call_count, 4)
+        for i in range(20):
+            manager.apply_update('0', {'audio_path': f'voicelines/retake-{i}.wav'})
+        self.assertEqual(len(manager._audio_references), len(rows))
+
     def test_fsynced_uid_updates_replay_and_returns_are_detached(self):
         manager = self.manager()
         original = self.path.read_bytes()

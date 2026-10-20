@@ -1685,6 +1685,15 @@
     "tests.test_chinese_attribution_frame.PlumbingTest.test_the_alias_map_is_built_from_the_corpus_itself",
     "tests.test_chinese_attribution_frame.PlumbingTest.test_the_last_non_blank_pre_sentence_is_used"
   ],
+  "test_chunk_audio_save_failure": [
+    "tests.test_chunk_audio_save_failure.ChunkAudioSaveFailureTests.test_audio_sync_failure_leaves_metadata_and_previous_take_unchanged",
+    "tests.test_chunk_audio_save_failure.ChunkAudioSaveFailureTests.test_failed_snapshot_or_append_preserves_prior_bytes_and_revision",
+    "tests.test_chunk_audio_save_failure.ChunkAudioSaveFailureTests.test_interruption_after_install_before_metadata_preserves_prior_and_bounds_retry",
+    "tests.test_chunk_audio_save_failure.ChunkAudioSaveFailureTests.test_post_commit_error_keeps_new_revision_paired_with_its_audio",
+    "tests.test_chunk_audio_save_failure.ChunkAudioSaveFailureTests.test_shared_live_paths_block_slot_replacement_in_snapshot_and_journal",
+    "tests.test_chunk_audio_save_failure.ChunkAudioSaveFailureTests.test_single_parallel_and_native_callers_preserve_prior_on_save_failure",
+    "tests.test_chunk_audio_save_failure.ChunkAudioSaveFailureTests.test_successive_renders_bound_slots_across_speaker_names_and_restarts"
+  ],
   "test_chunk_cuts_respect_quotes": [
     "tests.test_chunk_cuts_respect_quotes.QuoteSafeCuts.test_a_one_paragraph_per_line_book_is_cut_between_lines_never_inside_a_quotation",
     "tests.test_chunk_cuts_respect_quotes.QuoteSafeCuts.test_a_paragraph_with_no_newline_still_cuts_at_sentence_ends",
@@ -1779,6 +1788,8 @@
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_saved_local_edit_refetches_server_normalization_when_revision_is_unchanged"
   ],
   "test_chunk_status_journal": [
+    "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_audio_references_follow_aliases_replay_and_compaction",
+    "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_cached_audio_reference_updates_do_not_scan_the_book_or_accumulate_old_keys",
     "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_compaction_interrupted_after_snapshot_is_not_replayed_twice",
     "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_compaction_interrupted_before_snapshot_can_retry_without_losing_updates",
     "tests.test_chunk_status_journal.ChunkStatusJournalTests.test_complete_malformed_record_or_changed_identity_fail_preserving_files",

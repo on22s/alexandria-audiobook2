@@ -23,7 +23,9 @@ from verbalization import (SET_APART_HINT, classify,
                            split_bracketed_spans)
 from utils import (atomic_json_write, safe_load_json, is_oom_failure, is_path_inside,
                    get_app_config_path, is_nonverbal_text, secure_filename, file_lock)
-from chunk_status_journal import ChunkStatusJournal, get_chunk_status_journal_path
+from chunk_status_journal import (ChunkStatusJournal, get_chunk_status_journal_path,
+                                  get_chunk_audio_key)
+from adapter_publication import sync_adapter_directory
 from config_settings import load_app_config
 from literal_policy import (ensure_literal_narration, bind_literal_chunks,
                             ensure_literal_chunk, CHUNK_POLICY_KEY)
@@ -1076,7 +1078,28 @@ class ProjectManager:
                 if any(related.get(key) != expected.get(key) for key in ("status", "audio_path", "audio_revision")):
                     return None
             if audio_source is not None:
-                publish_audio_output(audio_source, self.get_chunk_audio_path(kwargs["audio_path"]))
+                # Install only into an unreferenced slot. A failed metadata save
+                # leaves the prior take intact, including after process death.
+                # Reusing the inactive slot bounds abandoned audio to two files
+                # per UID/format without a separate rollback journal.
+                references = (None if journal else {
+                    get_chunk_audio_key(self.chunks_path, row.get("audio_path")) for row in chunks})
+                label = re.sub(r"[^A-Za-z0-9_-]", "_", str(uid))[:64]
+                digest = hashlib.sha256(str(uid).encode("utf-8")).hexdigest()[:16]
+                extension = os.path.splitext(audio_source)[1]
+                for slot in range(2):
+                    candidate = f"voicelines/voiceline_{label}_{digest}.slot-{slot}{extension}"
+                    referenced = (journal.is_audio_path_referenced(candidate) if journal else
+                                  get_chunk_audio_key(self.chunks_path, candidate) in references)
+                    if not referenced:
+                        break
+                else:
+                    raise ValueError("Both chunk audio publication slots are referenced; preserve the shared takes before retrying")
+                kwargs["audio_path"] = candidate
+                with open(audio_source, "rb+") as handle:
+                    os.fsync(handle.fileno())
+                publish_audio_output(audio_source, self.get_chunk_audio_path(candidate))
+                sync_adapter_directory(self.voicelines_dir)
             if kwargs:
                 if journal:
                     chunk = journal.apply_update(uid, kwargs)
@@ -1091,14 +1114,12 @@ class ProjectManager:
         try:
             staged_audio = self._export_chunk_audio(temp_path, f".render-{uuid.uuid4().hex}")
             staged_path = self.get_chunk_audio_path(staged_audio)
-            extension = os.path.splitext(staged_audio)[1]
-            audio_path = f"voicelines/voiceline_{chunk['uid']}_{sanitize_filename(speaker)}{extension}"
             updated = self._update_chunk_fields_by_uid(
                 chunk["uid"], expected_chunk=chunk, audio_source=staged_path,
-                status="done", audio_path=audio_path, audio_revision=uuid.uuid4().hex, error=None, drift=None)
+                status="done", audio_revision=uuid.uuid4().hex, error=None, drift=None)
             if updated is None:
                 raise ValueError(GENERATION_INPUTS_CHANGED)
-            return audio_path
+            return updated["audio_path"]
         finally:
             if staged_path:
                 self._remove_temp_file(staged_path)

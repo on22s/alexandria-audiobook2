@@ -1,5 +1,6 @@
 """Durable per-UID render updates; callers hold the chunks-file lock."""
 import copy
+from collections import Counter
 import hashlib
 import json
 import logging
@@ -16,6 +17,14 @@ logger = logging.getLogger(__name__)
 
 def get_chunk_status_journal_path(chunks_path):
     return os.fspath(chunks_path) + ".status.jsonl"
+
+
+def get_chunk_audio_key(chunks_path, audio_path):
+    """Compare persisted audio aliases using their actual filesystem target."""
+    if not isinstance(audio_path, str) or not audio_path:
+        return None
+    return os.path.normcase(os.path.realpath(os.path.join(
+        os.path.dirname(os.path.abspath(chunks_path)), audio_path)))
 
 
 def remove_chunk_snapshot(chunks_path):
@@ -49,6 +58,7 @@ class ChunkStatusJournal:
         self._versions = None
         self._rows = None
         self._by_uid = None
+        self._audio_references = None
         self._sequence = 0
         self._prefix = None
         self._compacted = False
@@ -114,6 +124,8 @@ class ChunkStatusJournal:
         if versions != self._get_versions():
             raise ValueError("Chunk status files changed while reading")
         self._rows, self._by_uid = rows, by_uid
+        self._audio_references = Counter(
+            get_chunk_audio_key(self.snapshot, row.get("audio_path")) for row in rows)
         self._sequence, self._prefix, self._compacted = sequence, prefix, compacted
         self._versions = versions
 
@@ -124,6 +136,10 @@ class ChunkStatusJournal:
     def get_row(self, uid):
         self._load()
         return copy.deepcopy(self._by_uid.get(uid))
+
+    def is_audio_path_referenced(self, audio_path):
+        self._load()
+        return self._audio_references[get_chunk_audio_key(self.snapshot, audio_path)] > 0
 
     def ensure_writable(self):
         """Preserve a torn journal before repairing; finish published compaction."""
@@ -163,6 +179,12 @@ class ChunkStatusJournal:
                 or not set(changes).issubset(FIELDS)):
             raise ValueError("Invalid chunk status update")
         self._append({"type": "update", "uid": uid, "changes": changes})
+        if "audio_path" in changes:
+            previous = get_chunk_audio_key(self.snapshot, self._by_uid[uid].get("audio_path"))
+            self._audio_references[previous] -= 1
+            if not self._audio_references[previous]:
+                del self._audio_references[previous]
+            self._audio_references[get_chunk_audio_key(self.snapshot, changes["audio_path"])] += 1
         self._by_uid[uid].update(copy.deepcopy(changes))
         return copy.deepcopy(self._by_uid[uid])
 

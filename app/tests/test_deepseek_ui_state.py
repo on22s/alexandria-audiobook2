@@ -49,16 +49,17 @@ for(const change of ['text','revision']){
             manager._export_chunk_audio = export
             source = root / 'sample.wav'
             snapshots = []
-            for amplitude in (.1, .2):
+            for amplitude in (.1, .2, .3):
                 sf.write(source, [amplitude] * 2400, 24000)
                 manager._publish_generated_chunk_audio(manager.load_chunks()[0], str(source), 'Narrator')
                 snapshots.append(manager.load_chunks()[0])
-            self.assertEqual(snapshots[0]['audio_path'], snapshots[1]['audio_path'])
-            self.assertNotEqual(snapshots[0]['audio_revision'], snapshots[1]['audio_revision'])
-            self.assertEqual(snapshots[1]['audio_revision'], ProjectManager(tmp).load_chunks()[0]['audio_revision'])
-            pcm, rate = sf.read(root / snapshots[1]['audio_path'])
+            self.assertNotEqual(snapshots[0]['audio_path'], snapshots[1]['audio_path'])
+            self.assertEqual(snapshots[0]['audio_path'], snapshots[2]['audio_path'])
+            self.assertEqual(3, len({row['audio_revision'] for row in snapshots}))
+            self.assertEqual(snapshots[2]['audio_revision'], ProjectManager(tmp).load_chunks()[0]['audio_revision'])
+            pcm, rate = sf.read(root / snapshots[2]['audio_path'])
             self.assertEqual(24000, rate)
-            self.assertAlmostEqual(.2, float(pcm[0]), places=4)
+            self.assertAlmostEqual(.3, float(pcm[0]), places=4)
 
     def test_file_selections_serialize_backend_and_ignore_stale_success_failure(self):
         books.CurrentBookNarratorJsTests().run_js(r'''
