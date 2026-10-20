@@ -103,7 +103,7 @@ class PairedJsonRecoveryTests(unittest.TestCase):
                 with patch.object(voices,'VOICE_CONFIG_PATH',str(first)), \
                      patch.object(voices,'VOICE_LIBRARY_PATH',str(second)), \
                      patch.object(voices,'file_lock',lock), \
-                     patch.object(voices,'_load_voice_library',side_effect=lambda:json.loads(second.read_text())), \
+                     patch.object(voices,'_load_voice_library',side_effect=lambda *,for_update:json.loads(second.read_text())), \
                      patch.object(voices,'_build_lora_candidates',return_value=[]), \
                      patch.object(voices,'_script_line_counts',return_value={}), \
                      patch.object(voices,'get_active_book_id',return_value='fixture'):

@@ -38,7 +38,7 @@ class DatasetPreviewCleanupTests(unittest.TestCase):
                 generated.append((path, path.read_bytes(), kwargs))
                 return str(path), 24000
             states = {'dataset_builder': {'running': False, 'cancel': False, 'logs': []}}
-            def claim(name):
+            def claim(name, *, resources):
                 states[name]['running'] = True
                 return 'owned-fixture'
             def release(name, token, **kwargs):

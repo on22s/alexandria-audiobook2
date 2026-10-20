@@ -22,7 +22,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 01: Protect saved data and voice publication
 
-**Dependencies:** none; start here. **Tasks:** 4. **Status:** not started. **PR:** not opened.
+**Dependencies:** none; start here. **Tasks:** 4. **Status:** fixes prepared; release verification pending. **PR:** not opened.
 
 **Batch acceptance:** Prove malformed-library byte preservation, conflicting two-process dataset mutation refusal, unchanged unrelated saved names, and affected-only audio invalidation. Investigate F031 with A queued for a backward pass while the foreign worker reviews B; do not mistake its existing active-file lock for the missing whole-batch reservation.
 
@@ -147,6 +147,21 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 - [ ] **E03** [#1422](https://github.com/on22s/alexandria-audiobook2/issues/1422) — The historical probe launcher repeats readiness probing but lacks an explicit readiness failure branch.
 - [ ] **E14** [#1423](https://github.com/on22s/alexandria-audiobook2/issues/1423) — Keep dated experimental drivers visibly historical and migrate them before reuse
 - [ ] **E15** [#1424](https://github.com/on22s/alexandria-audiobook2/issues/1424) — Update the frozen identity verifier cache path before rerunning it against current scoring code
+
+## Batch 01 verification progress
+
+All four fixes are prepared together on the merged planning baseline. A combined
+238-test CPU regression run passed, including exact saved-family preservation,
+foreign generation/mutation exclusion, the reverse admission order, dead-owner
+cleanup, alias-aware audio invalidation, stale in-flight render refusal and paired
+publication rollback. The F031 two-process case is now reproduced with Book A's
+forward pass complete while the foreign batch reviews Book B; A's file lock is
+explicitly free at the attempted overwrite. The original review's confidence
+classification remains preserved in the task manifest.
+
+Full quick-release verification and exact-head CI, including the added native
+Windows resource tests, are pending. No execution task is accepted or closed.
+GPU/model/listening qualification is unrun; CPU fixtures do not establish it.
 
 ## Completion gate
 

@@ -178,7 +178,8 @@
       "severity": "high",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "238 combined targeted tests passed; full quick release and exact-head CI pending"
     },
     {
       "task_id": "F002",
@@ -192,7 +193,8 @@
       "severity": "high",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "238 combined targeted tests passed; full quick release and exact-head CI pending"
     },
     {
       "task_id": "F003",
@@ -206,7 +208,8 @@
       "severity": "high",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "238 combined targeted tests passed; full quick release and exact-head CI pending"
     },
     {
       "task_id": "F031",
@@ -220,7 +223,9 @@
       "severity": "medium",
       "confidence": "plausible",
       "test_gap_ids": [],
-      "status": "open"
+      "status": "in_progress",
+      "validation_status": "238 combined targeted tests passed; full quick release and exact-head CI pending",
+      "reproduction_status": "Confirmed by the two-process forward-A/review-B/queued-backward-A regression; original review confidence retained."
     },
     {
       "task_id": "F004",

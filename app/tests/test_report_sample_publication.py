@@ -53,7 +53,7 @@ class SamplePublicationTests(unittest.TestCase):
                     prepare_report_task_ownership(stack,state,root)
                     claims, threads, result, errors = [], [], [], []
                     entered, resume = threading.Event(), threading.Event()
-                    def claim(name):
+                    def claim(name, *, resources):
                         claims.append(name)
                         state[name]['running'] = True
                         state[name]['cancel'] = False

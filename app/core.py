@@ -37,7 +37,8 @@ from lmstudio_settings import (get_active_llm_config, get_current_status, get_ef
 from hf_utils import fetch_builtin_manifest, is_adapter_downloaded
 from run_history import finish_run, prune_runs, record_artifact, start_run
 from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
-from task_ownership import acquire_task_lease, ensure_startup_recovery
+from task_ownership import (acquire_task_lease, ensure_startup_recovery, get_task_resource_path,
+                            ensure_task_resources_available, TaskOwnershipBusy)
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -285,24 +286,33 @@ def get_stored_line_count(entry) -> int:
         return 0
 
 
-def _load_voice_library() -> dict:
+def _load_voice_library(*, for_update=False) -> dict:
     # favorites: adapter ids the user starred (#522 19.4); user data, so it
     # lives here rather than in the shipped built-in manifest.
     lib = {"shared": {}, "casts": {}, "favorites": []}
-    if os.path.exists(VOICE_LIBRARY_PATH):
-        try:
-            with open(VOICE_LIBRARY_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                for section in ("shared", "casts", "favorites"):
-                    value = data.get(section, lib[section])
-                    if isinstance(value, type(lib[section])):
-                        lib[section] = value
-                    else:
-                        logger.warning("Invalid voice library section %s; using default", section)
-                lib["favorites"] = [str(a) for a in lib["favorites"] if a]
-        except (json.JSONDecodeError, ValueError, OSError) as e:
-            _warn_corrupted_json("voice library", VOICE_LIBRARY_PATH, "resetting to empty", e)
+    try:
+        with open(VOICE_LIBRARY_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError("Voice library must be a JSON object")
+        for section in ("shared", "casts", "favorites"):
+            value = data.get(section, lib[section])
+            if isinstance(value, type(lib[section])):
+                lib[section] = value
+            elif for_update:
+                raise ValueError(f"Invalid voice library section {section}")
+            else:
+                logger.warning("Invalid voice library section %s; using default", section)
+        lib["favorites"] = [str(a) for a in lib["favorites"] if a]
+    except FileNotFoundError:
+        pass  # First use may create the library; failed reads must not reset it.
+    except (ValueError, OSError) as e:
+        if for_update:
+            _warn_corrupted_json("voice library", VOICE_LIBRARY_PATH, "leaving unchanged", e)
+            raise HTTPException(status_code=409, detail=(
+                "Voice library could not be read safely and was left unchanged. "
+                "Repair or restore voice_library.json before trying again.")) from e
+        _warn_corrupted_json("voice library", VOICE_LIBRARY_PATH, "using empty read-only view", e)
     return lib
 
 
@@ -665,9 +675,7 @@ _request_task_claims = contextvars.ContextVar("alexandria_request_task_claims", 
 
 def get_saved_book_destination_path(path):
     """Identify a saved name through directory aliases and platform casing."""
-    path = os.path.abspath(path)
-    return os.path.normcase(os.path.join(os.path.realpath(os.path.dirname(path)),
-                                        os.path.basename(path)))
+    return get_task_resource_path(path)
 
 
 @contextmanager
@@ -688,7 +696,13 @@ def ensure_saved_book_destination_available(path):
                     "This saved book is owned by batch review. Wait for it to finish or cancel it."))
         _saved_book_publications[destination] = _saved_book_publications.get(destination, 0) + 1
     try:
-        yield
+        try:
+            with ensure_task_resources_available(DATA_DIR, ('batch_review',), (destination,), mutation_timeout=10):
+                yield
+        except TaskOwnershipBusy as error:
+            raise HTTPException(status_code=409, detail=(
+                "This saved book is owned by batch review or another save. "
+                "Wait for it to finish or cancel it.")) from error
     finally:
         with _gpu_lock:
             remaining = _saved_book_publications[destination] - 1
@@ -727,7 +741,7 @@ def _reap_gpu_leases():
                 return
         time.sleep(0.1)
 
-def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False):
+def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources=None):
     """Atomically re-check and reserve the GPU lock for task_name.
 
     check_global_gpu_lock() alone has a TOCTOU race: two requests for
@@ -754,10 +768,11 @@ def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False):
         handle = None
         try:
             conflicts = gpu_lock_conflicts(task_name, cpu_only=cpu_only)
+            lease_options = {} if resources is None else {"resources": resources}
             if cpu_only:
-                task_lease = acquire_task_lease(DATA_DIR, task_name, conflicts, cpu_only=True)
+                task_lease = acquire_task_lease(DATA_DIR, task_name, conflicts, cpu_only=True, **lease_options)
             else:
-                task_lease = acquire_task_lease(DATA_DIR, task_name, conflicts)
+                task_lease = acquire_task_lease(DATA_DIR, task_name, conflicts, **lease_options)
             if needs_local_gpu:
                 handle = acquire_gpu_lock()
             if handle is not None:
@@ -782,7 +797,8 @@ def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False):
             if task_lease is not None:
                 task_lease.close()
             if isinstance(error, (OSError, RuntimeError)):
-                raise HTTPException(status_code=400, detail=str(error)) from error
+                status = 409 if resources is not None and isinstance(error, TaskOwnershipBusy) else 400
+                raise HTTPException(status_code=status, detail=str(error)) from error
             raise
 
 
@@ -811,11 +827,15 @@ class _RequestTaskClaims(list):
     closed = False
 
 
-def reserve_background_task(task_name, *, cpu_only=False, saved_destinations=None):
+def reserve_background_task(task_name, *, cpu_only=False, saved_destinations=None, resources=None):
     """Reserve unstarted work and bind its token to the current request."""
     destinations = (tuple(get_saved_book_destination_path(path) for path in saved_destinations)
                     if saved_destinations is not None else None)
-    claim_id = claim_gpu_task(task_name, cpu_only=True) if cpu_only else claim_gpu_task(task_name)
+    if destinations is not None:
+        resources = tuple(resources or ()) + destinations
+    resource_options = {} if resources is None else {"resources": resources}
+    claim_id = (claim_gpu_task(task_name, cpu_only=True, **resource_options) if cpu_only
+                else claim_gpu_task(task_name, **resource_options))
     try:
         with _gpu_lock:
             claims = _request_task_claims.get()

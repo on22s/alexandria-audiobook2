@@ -91,7 +91,7 @@ def _mutate_voice_library(mutator, companion_paths=()):
         with file_lock(VOICE_LIBRARY_PATH), contextlib.ExitStack() as locks:
             for path in companion_paths:
                 locks.enter_context(file_lock(path))
-            lib = _load_voice_library()
+            lib = _load_voice_library(for_update=True)
             result = mutator(lib)
             atomic_json_write(lib, VOICE_LIBRARY_PATH)
             return result

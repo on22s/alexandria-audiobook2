@@ -204,7 +204,7 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
              patch.object(dataset_builder, "claim_gpu_task") as claim:
             response = asyncio.run(dataset_builder.dataset_builder_generate_sample(request))
         self.assertEqual("done", response["status"])
-        claim.assert_called_once_with("dataset_builder")
+        claim.assert_called_once_with("dataset_builder", resources=(str((self.root / "voice").resolve()),))
         updated = dataset_builder._load_builder_state("voice")["samples"]
         self.assertEqual(1, len(updated))
         self.assertEqual("New text", updated[0]["text"])
@@ -229,7 +229,7 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as raised:
                 asyncio.run(dataset_builder.dataset_builder_generate_sample(request))
         self.assertEqual(500, raised.exception.status_code)
-        claim.assert_called_once_with("dataset_builder")
+        claim.assert_called_once_with("dataset_builder", resources=(str((self.root / "voice").resolve()),))
         updated = dataset_builder._load_builder_state("voice")["samples"][0]
         for key, value in self.original.items():
             if key != "status":

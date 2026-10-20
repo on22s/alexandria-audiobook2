@@ -1,4 +1,5 @@
 import json
+from contextlib import contextmanager
 import hashlib
 import asyncio
 import logging
@@ -11,6 +12,7 @@ from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+import core
 
 from core import (
     DATASET_BUILDER_DIR,
@@ -25,6 +27,7 @@ from core import (
 )
 from dataset_publication import apply_dataset_publication
 from utils import atomic_json_write
+from task_ownership import ensure_task_resources_available, TaskOwnershipBusy
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -100,6 +103,18 @@ def _get_builder_state_lock(name):
     """One in-process lock per builder state file for read-modify-write updates."""
     with _builder_state_locks_guard:
         return _builder_state_locks.setdefault(_get_builder_project_key(name), threading.Lock())
+
+
+@contextmanager
+def ensure_builder_project_mutation(name, detail):
+    with _get_builder_state_lock(name):
+        _require_builder_idle(name, detail)
+        try:
+            with ensure_task_resources_available(core.DATA_DIR, ('dataset_builder',),
+                                                  (_get_builder_project_key(name),), mutation_timeout=10):
+                yield
+        except TaskOwnershipBusy as error:
+            raise HTTPException(status_code=409, detail=detail) from error
 
 
 class LoraDatasetSample(BaseModel):
@@ -244,17 +259,19 @@ async def dataset_builder_create(request: DatasetBuilderCreateRequest):
     """Create a new dataset builder project."""
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
-    if os.path.exists(work_dir):
-        raise HTTPException(status_code=400, detail=f"Project '{safe_name}' already exists")
-    _save_builder_state(safe_name, {"description": "", "global_seed": "", "samples": []})
+    def create():
+        with ensure_builder_project_mutation(safe_name, "Wait for dataset generation before creating its project"):
+            if os.path.exists(work_dir):
+                raise HTTPException(status_code=400, detail=f"Project '{safe_name}' already exists")
+            _save_builder_state(safe_name, {"description": "", "global_seed": "", "samples": []})
+    await asyncio.to_thread(create)
     return {"name": safe_name}
 
 def _dataset_builder_update_meta_sync(request: DatasetBuilderUpdateMetaRequest):
     """Invalidate cached samples whose inherited generation inputs changed."""
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
-    with _get_builder_state_lock(safe_name):
-        _require_builder_idle(safe_name, "Stop dataset generation before editing its metadata")
+    with ensure_builder_project_mutation(safe_name, "Stop dataset generation before editing its metadata"):
         if not os.path.exists(work_dir):
             raise HTTPException(status_code=404, detail="Project not found")
         state = _load_builder_state(safe_name)
@@ -279,8 +296,7 @@ def _dataset_builder_update_rows_sync(request: DatasetBuilderUpdateRowsRequest):
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     validate_dataset_row_definitions(request.rows)
-    with _get_builder_state_lock(safe_name):
-        _require_builder_idle(safe_name, "Stop dataset generation before editing its rows")
+    with ensure_builder_project_mutation(safe_name, "Stop dataset generation before editing its rows"):
         if not os.path.exists(work_dir):
             raise HTTPException(status_code=404, detail="Project not found")
         state = _load_builder_state(safe_name)
@@ -305,8 +321,7 @@ def _dataset_builder_edit_rows_sync(request: DatasetBuilderEditRowsRequest):
     indices = [edit.index for edit in request.edits]
     if len(set(indices)) != len(indices):
         raise HTTPException(status_code=400, detail="Each row may appear only once in an edit")
-    with _get_builder_state_lock(safe_name):
-        _require_builder_idle(safe_name, "Stop dataset generation before editing its rows")
+    with ensure_builder_project_mutation(safe_name, "Stop dataset generation before editing its rows"):
         if not os.path.isfile(os.path.join(DATASET_BUILDER_DIR, safe_name, "state.json")):
             raise HTTPException(status_code=404, detail="Project not found")
         state = _load_builder_state(safe_name)
@@ -349,7 +364,7 @@ def _generate_dataset_sample_sync(request: DatasetSampleGenRequest):
         if request.sample_index >= len(samples):
             raise HTTPException(status_code=400, detail="Sample index is outside the project's rows")
         with _builder_task_lock:
-            claim_id = claim_gpu_task("dataset_builder")
+            claim_id = claim_gpu_task("dataset_builder", resources=(_get_builder_project_key(safe_name),))
             apply_builder_task_owner(safe_name)
     try:
         engine = project_manager.get_engine()
@@ -531,7 +546,7 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
 
     with _get_builder_state_lock(safe_name):
         with _builder_task_lock:
-            claim_id = reserve_background_task("dataset_builder")
+            claim_id = reserve_background_task("dataset_builder", resources=(_get_builder_project_key(safe_name),))
             apply_builder_task_owner(safe_name)
             try:
                 os.makedirs(work_dir, exist_ok=True)
@@ -573,8 +588,7 @@ def _dataset_builder_save_sync(request: DatasetSaveRequest):
     """Finalize dataset builder project as a training dataset."""
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
 
-    with _get_builder_state_lock(safe_name):
-        _require_builder_idle(safe_name, "Wait for dataset generation before saving")
+    with ensure_builder_project_mutation(safe_name, "Wait for dataset generation before saving"):
         work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
         if not os.path.exists(work_dir):
             raise HTTPException(status_code=404, detail="Dataset builder project not found")
@@ -692,8 +706,7 @@ def _dataset_builder_delete_sync(name: str):
     """Discard a dataset builder working project."""
     work_dir = _safe_subpath(DATASET_BUILDER_DIR, name)
     project_name = os.path.relpath(work_dir, os.path.realpath(DATASET_BUILDER_DIR)).split(os.sep)[0]
-    with _get_builder_state_lock(project_name):
-        _require_builder_idle(project_name, "Stop dataset generation before deleting its project")
+    with ensure_builder_project_mutation(project_name, "Stop dataset generation before deleting its project"):
         if not os.path.exists(work_dir):
             raise HTTPException(status_code=404, detail="Dataset builder project not found")
         shutil.rmtree(work_dir)

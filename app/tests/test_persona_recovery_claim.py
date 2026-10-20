@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from fastapi import BackgroundTasks, HTTPException
 import core
+import voice_config_store as voice_store
 from routers import script, voices
 
 
@@ -63,7 +64,7 @@ class PersonaRecoveryClaimTests(unittest.TestCase):
 
     def test_resume_reserves_before_the_awaited_write_and_adopts_the_same_owner(self):
         arrived, release = threading.Event(), threading.Event()
-        original = voices.atomic_json_write
+        original = voice_store.atomic_json_write
         tasks = BackgroundTasks()
         calls = []
 
@@ -95,7 +96,7 @@ class PersonaRecoveryClaimTests(unittest.TestCase):
             self.assertFalse(self.state['persona']['running'])
             self.assertNotIn('persona', core._task_claims)
 
-        with patch.object(voices, 'atomic_json_write', side_effect=save), \
+        with patch.object(voice_store, 'atomic_json_write', side_effect=save), \
              patch.object(voices, 'run_process', side_effect=lambda *args: calls.append(args)):
             asyncio.run(run())
         self.assertEqual(1, len(calls))
@@ -113,8 +114,8 @@ class PersonaRecoveryClaimTests(unittest.TestCase):
                 self.config.write_text('{"Hero":{"type":"custom","voice":"Ryan"}}')
                 before = self.config.read_bytes()
                 tasks = RejectTasks() if mode == 'register' else BackgroundTasks()
-                original = voices.atomic_json_write
-                with patch.object(voices, 'atomic_json_write',
+                original = voice_store.atomic_json_write
+                with patch.object(voice_store, 'atomic_json_write',
                                   side_effect=OSError('disk full') if mode == 'save' else original):
                     with self.assertRaises((OSError, RuntimeError)):
                         asyncio.run(voices.recover_persona(tasks, self.request()))
@@ -141,7 +142,7 @@ class PersonaRecoveryClaimTests(unittest.TestCase):
 
     def test_cancelled_request_cannot_register_work_or_release_a_replacement_owner(self):
         arrived, release, saved = threading.Event(), threading.Event(), threading.Event()
-        original = voices.atomic_json_write
+        original = voice_store.atomic_json_write
         tasks = BackgroundTasks()
 
         def save(*args, **kwargs):
@@ -169,5 +170,5 @@ class PersonaRecoveryClaimTests(unittest.TestCase):
             self.assertEqual([], tasks.tasks)
             self.assertTrue(core.release_gpu_task_claim('persona', replacement))
 
-        with patch.object(voices, 'atomic_json_write', side_effect=save):
+        with patch.object(voice_store, 'atomic_json_write', side_effect=save):
             asyncio.run(run())

@@ -110,7 +110,8 @@ class DatasetBuilderOwnershipTests(unittest.TestCase):
     def test_batch_setup_failure_releases_only_the_unstarted_reservation(self):
         with self.fixture() as (root,builder,work,output,states,api),TestClient(api,raise_server_exceptions=False) as client:
             states['dataset_builder']['running']=False
-            def reserve(task):
+            def reserve(task, *, resources):
+                self.assertEqual((str(work.resolve()),), resources)
                 states[task]['running']=True;return 'pending-fixture'
             with patch.object(routes,'check_global_gpu_lock'),patch.object(routes,'reserve_background_task',side_effect=reserve),patch.object(routes.os,'makedirs',side_effect=OSError('fixture setup disk failure')),patch.object(routes,'release_gpu_task_claim') as release,patch.object(routes,'start_claimed_task_thread') as start:
                 response=client.post('/api/dataset_builder/generate_batch',json={'name':'voice','description':'Warm','samples':[{'text':'Known'}]})

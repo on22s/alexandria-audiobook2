@@ -8,12 +8,14 @@ import hashlib
 from utils import atomic_json_write, file_lock
 
 
-def apply_voice_config_update(path, transform, expected=None, backup_path=None, expected_revision=None):
+def apply_voice_config_update(path, transform, expected=None, backup_path=None, expected_revision=None,
+                              *, publish=None):
     """Read, transform, and atomically save a voice config under its file lock.
 
     ``transform`` receives the current dict and returns a new dict. A CLI
     repair can pass its reported snapshot as ``expected`` so an intervening
-    UI save is rejected instead of overwritten.
+    UI save is rejected instead of overwritten. A paired-file publisher may
+    replace the default atomic write; the caller must hold its companion lock.
     """
     with file_lock(path):
         if os.path.exists(path):
@@ -34,7 +36,10 @@ def apply_voice_config_update(path, transform, expected=None, backup_path=None, 
             if os.path.lexists(backup_path):
                 raise FileExistsError(f"Voice config backup already exists: {backup_path}")
             shutil.copy2(path, backup_path)
-        atomic_json_write(updated, path)
+        if publish is None:
+            atomic_json_write(updated, path)
+        else:
+            publish(updated, path)
         return updated
 
 

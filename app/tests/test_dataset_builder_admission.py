@@ -55,7 +55,7 @@ class DatasetBuilderAdmissionTests(unittest.TestCase):
             root=Path(tmp);work=root/'voice';work.mkdir();(work/'state.json').write_text(json.dumps({'samples':[{'text':'Old','emotion':'calm','status':'pending'}]}))
             source=root/'source.wav';sf.write(source,np.full(240,.125),24000);expected_audio=source.read_bytes()
             entered=threading.Event();release=threading.Event();states={'dataset_builder':{'running':False,'logs':[]}};threads=[]
-            def claim(task):states[task]['running']=True;threads.append(('claim',threading.get_ident()));return 'fixture'
+            def claim(task, *, resources):states[task]['running']=True;threads.append(('claim',threading.get_ident()));return 'fixture'
             def finish(task,claim_id):states[task]['running']=False;threads.append(('release',threading.get_ident()))
             def render(**kwargs):
                 threads.append(('render',threading.get_ident()));entered.set();self.assertTrue(release.wait(2));return str(source),24000
@@ -86,7 +86,7 @@ class DatasetBuilderAdmissionTests(unittest.TestCase):
             root=Path(tmp);work=root/'voice';work.mkdir();(work/'state.json').write_text(json.dumps({'samples':[{'text':'Old','status':'pending'}]}))
             source=root/'source.wav';sf.write(source,np.full(240,.25),24000);expected_audio=source.read_bytes()
             entered=threading.Event();release=threading.Event();finished=threading.Event();states={'dataset_builder':{'running':False}}
-            def claim(task):states[task]['running']=True;return 'owned-fixture'
+            def claim(task, *, resources):states[task]['running']=True;return 'owned-fixture'
             def finish(task,claim_id):
                 self.assertEqual('owned-fixture',claim_id);states[task]['running']=False;finished.set()
             def render(**kwargs):entered.set();self.assertTrue(release.wait(2));return str(source),24000

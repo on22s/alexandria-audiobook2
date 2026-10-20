@@ -203,3 +203,5 @@ jobs:
         env:
           PYTHONPATH: .
         run: python tests/native_windows_owner_checks.py
+      - name: Verify native Windows resource admission and mutation locks
+        run: python -m unittest tests.test_task_resources -v

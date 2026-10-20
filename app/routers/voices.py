@@ -252,7 +252,7 @@ class PersonaVoiceAuditRequest(VoiceTargetScope):
     suggestion_reason: Optional[str] = Field(default=None, max_length=500)
 
 
-def _apply_book_voice_update(transform, expected_revision=None, config_path=None):
+def _apply_book_voice_update(transform, expected_revision=None, config_path=None, *, publish=None):
     """Publish voice changes while fencing affected renders under chunk locks."""
     config_path = VOICE_CONFIG_PATH if config_path is None else config_path
     root = os.path.dirname(config_path)
@@ -265,7 +265,8 @@ def _apply_book_voice_update(transform, expected_revision=None, config_path=None
             updated = transform(current)
             manager._apply_voice_timeline_audio_invalidation_locked(current, updated)
             return updated
-        return apply_voice_config_update(config_path, update, expected_revision=expected_revision)
+        return apply_voice_config_update(config_path, update, expected_revision=expected_revision,
+                                         publish=publish)
 
 
 def _mutate_book_voice_entry(speaker, mutator, book_token=None):
@@ -1054,8 +1055,8 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
             current = get_book_snapshot(data_dir, allow_missing_script=True, include_voices=False)
             if get_book_snapshot_token(current) != book_token:
                 raise HTTPException(status_code=409, detail="Active book changed; recover this persona again for the current book")
-            with file_lock(VOICE_CONFIG_PATH):
-                config = safe_load_json(VOICE_CONFIG_PATH, default={})
+            def update(current_config):
+                config = copy.deepcopy(current_config)
                 base = config.get(request.speaker, {})
                 before = copy.deepcopy(base)
                 if request.state_version:
@@ -1074,7 +1075,8 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
                 get_validated_voice_changes(request.speaker, before, base,
                                             trusted_states={request.state_version} if request.state_version else ())
                 config[request.speaker] = base
-                atomic_json_write(config, VOICE_CONFIG_PATH)
+                return config
+            _apply_book_voice_update(update)
 
     claim_id = reserve_background_task("persona") if request.resume else None
     try:
@@ -1851,76 +1853,77 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
         if cast_name and not book_id:
             raise HTTPException(status_code=400, detail="Active book identity is required to save suggestions to a cast.")
 
-        with file_lock(VOICE_LIBRARY_PATH), file_lock(VOICE_CONFIG_PATH):
+        with file_lock(VOICE_LIBRARY_PATH):
             current_token = None
             if any(value.get("book_token") is not None for value in suggestions.values()):
                 current_token = get_book_snapshot_token(get_book_snapshot(
                     os.path.dirname(SCRIPT_PATH), allow_missing_script=True, include_voices=False))
-            voice_config = safe_load_json(VOICE_CONFIG_PATH, default={})
-            lib = _load_voice_library()
+            lib = _load_voice_library(for_update=bool(cast_name))
             if cast_name and cast_name not in lib["casts"]:
                 raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
-            usage = get_cast_adapter_usage(lib, cast_name, identities)
             applied = []
-            for character, suggestion in suggestions.items():
-                if character not in counts:
-                    continue
-                if suggestion.get("book_token") is not None and suggestion["book_token"] != current_token:
-                    raise HTTPException(status_code=409, detail="Active book changed; generate voice suggestions again")
-                suggestion_book_id = secure_filename(suggestion.get("book_id") or "")
-                if suggestion_book_id != secure_filename(book_id or ""):
-                    raise HTTPException(status_code=409, detail=(
-                        f"Suggestion for '{character}' belongs to a different book. Generate suggestions again."))
-                adapter_id = suggestion.get("adapter_id")
-                if adapter_id:
-                    adapter_id = identities.get(os.path.normcase(adapter_id), adapter_id)
-                candidate = candidates.get(adapter_id)
-                if not candidate:
-                    raise HTTPException(status_code=400, detail=f"Unknown or unavailable LoRA adapter: {adapter_id}")
-                style = (suggestion.get("character_style") or "").strip()[:500]
-                cfg = dict(voice_config.get(character) or {})
-                cfg.pop("active_candidate", None)
-                cfg.pop("active_version", None)
-                cfg.update({
-                    "type": candidate["type"], "adapter_id": adapter_id,
-                    "adapter_path": (f"builtin_lora/{adapter_id}" if candidate["type"] == "builtin_lora"
-                                     else f"lora_models/{adapter_id}"),
-                    "character_style": style,
-                    # Stable per character, so a voice is one draw for the
-                    # whole book rather than a fresh draw per line.
-                    "seed": str(character_voice_seed(character)),
-                    **get_trait_assignment_metadata(suggestion),
-                })
-                cfg["persona_voice_audit"] = {
-                    "persona_ref": cfg.get("persona_ref"),
-                    "persona_description": (cfg.get("description") or "")[:1000],
-                    "voice_adapter_id": adapter_id,
-                    "suggestion_reason": (suggestion.get("reason") or "")[:240],
-                }
-                voice_config[character] = cfg
-
-                if cast_name:
-                    try:
-                        key = get_cast_member_key(character, book_id)
-                    except ValueError as e:
-                        raise HTTPException(status_code=400, detail=str(e))
-                    members = get_cast_storage_pool(lib, cast_name, character)
-                    casting = {
-                        "priority": suggestion.get("priority"),
-                        "suggestion_reason": (suggestion.get("reason") or "")[:240],
-                        "reuse_count_when_assigned": usage.get(adapter_id, {}).get("character_count", 0),
+            def update(current_config):
+                voice_config = copy.deepcopy(current_config)
+                usage = get_cast_adapter_usage(lib, cast_name, identities)
+                for character, suggestion in suggestions.items():
+                    if character not in counts:
+                        continue
+                    if suggestion.get("book_token") is not None and suggestion["book_token"] != current_token:
+                        raise HTTPException(status_code=409, detail="Active book changed; generate voice suggestions again")
+                    suggestion_book_id = secure_filename(suggestion.get("book_id") or "")
+                    if suggestion_book_id != secure_filename(book_id or ""):
+                        raise HTTPException(status_code=409, detail=(
+                            f"Suggestion for '{character}' belongs to a different book. Generate suggestions again."))
+                    adapter_id = suggestion.get("adapter_id")
+                    if adapter_id:
+                        adapter_id = identities.get(os.path.normcase(adapter_id), adapter_id)
+                    candidate = candidates.get(adapter_id)
+                    if not candidate:
+                        raise HTTPException(status_code=400, detail=f"Unknown or unavailable LoRA adapter: {adapter_id}")
+                    style = (suggestion.get("character_style") or "").strip()[:500]
+                    cfg = dict(voice_config.get(character) or {})
+                    cfg.pop("active_candidate", None)
+                    cfg.pop("active_version", None)
+                    cfg.update({
+                        "type": candidate["type"], "adapter_id": adapter_id,
+                        "adapter_path": (f"builtin_lora/{adapter_id}" if candidate["type"] == "builtin_lora"
+                                         else f"lora_models/{adapter_id}"),
+                        "character_style": style,
+                        # Stable per character, so a voice is one draw for the
+                        # whole book rather than a fresh draw per line.
+                        "seed": str(character_voice_seed(character)),
                         **get_trait_assignment_metadata(suggestion),
+                    })
+                    cfg["persona_voice_audit"] = {
+                        "persona_ref": cfg.get("persona_ref"),
+                        "persona_description": (cfg.get("description") or "")[:1000],
+                        "voice_adapter_id": adapter_id,
+                        "suggestion_reason": (suggestion.get("reason") or "")[:240],
                     }
-                    members[key] = _make_library_entry(
-                        character, cfg, counts[character], book_id, casting, members.get(key))
-                    usage = get_cast_adapter_usage(lib, cast_name, identities)
-                applied.append(character)
+                    voice_config[character] = cfg
 
-            if cast_name:
-                atomic_json_write_pair(voice_config, VOICE_CONFIG_PATH,
-                                       lib, VOICE_LIBRARY_PATH)
-            else:
-                atomic_json_write(voice_config, VOICE_CONFIG_PATH)
+                    if cast_name:
+                        try:
+                            key = get_cast_member_key(character, book_id)
+                        except ValueError as e:
+                            raise HTTPException(status_code=400, detail=str(e))
+                        members = get_cast_storage_pool(lib, cast_name, character)
+                        casting = {
+                            "priority": suggestion.get("priority"),
+                            "suggestion_reason": (suggestion.get("reason") or "")[:240],
+                            "reuse_count_when_assigned": usage.get(adapter_id, {}).get("character_count", 0),
+                            **get_trait_assignment_metadata(suggestion),
+                        }
+                        members[key] = _make_library_entry(
+                            character, cfg, counts[character], book_id, casting, members.get(key))
+                        usage = get_cast_adapter_usage(lib, cast_name, identities)
+                    applied.append(character)
+                return voice_config
+
+            def publish_pair(updated, path):
+                atomic_json_write_pair(updated, path, lib, VOICE_LIBRARY_PATH)
+
+            _apply_book_voice_update(update, publish=publish_pair if cast_name else None)
     return {"applied": applied, "count": len(applied), "cast": cast_name,
             "book_id": book_id, "adapter_usage": get_cast_adapter_usage(lib, cast_name, identities)}
 

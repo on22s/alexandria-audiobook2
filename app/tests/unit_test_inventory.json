@@ -2314,6 +2314,10 @@
     "tests.test_dataset_builder_benchmark_lifetime.BuilderBenchmarkLifetimeTests.test_real_completed_worker_does_not_need_done_log_and_reports_one_batch_throughput",
     "tests.test_dataset_builder_benchmark_lifetime.BuilderBenchmarkLifetimeTests.test_timeout_keeps_globals_and_temp_project_until_worker_has_stopped"
   ],
+  "test_dataset_builder_foreign_ownership": [
+    "tests.test_dataset_builder_foreign_ownership.DatasetBuilderForeignOwnershipTests.test_mutations_refuse_foreign_generation_and_preserve_project_bytes",
+    "tests.test_dataset_builder_foreign_ownership.DatasetBuilderForeignOwnershipTests.test_unrelated_project_metadata_stays_editable_during_foreign_generation"
+  ],
   "test_dataset_builder_ownership": [
     "tests.test_dataset_builder_ownership.DatasetBuilderOwnershipTests.test_active_project_delete_refuses_and_keeps_its_complete_working_state",
     "tests.test_dataset_builder_ownership.DatasetBuilderOwnershipTests.test_batch_setup_failure_releases_only_the_unstarted_reservation",
@@ -3588,6 +3592,9 @@
     "tests.test_finite_audio_metrics.FiniteAudioMetricsTests.test_finite_pcm_overflow_is_rejected_in_computed_metrics",
     "tests.test_finite_audio_metrics.FiniteAudioMetricsTests.test_lora_cli_fails_invalid_probe_or_similarity_preserving_candidates_and_rebuilds_cache",
     "tests.test_finite_audio_metrics.FiniteAudioMetricsTests.test_lora_main_rebuilds_nan_cache_and_skips_finite_replacement"
+  ],
+  "test_foreign_batch_destinations": [
+    "tests.test_foreign_batch_destinations.ForeignBatchDestinationTests.test_forward_reviewed_book_is_reserved_while_foreign_batch_reviews_next_book"
   ],
   "test_fp8_scale_load_probe": [
     "tests.test_fp8_scale_load_probe.ScaleFindingsTest.test_a_clean_load_reports_nothing",
@@ -8855,6 +8862,15 @@
     "tests.test_subset_run_receipts.SubsetRunReceiptTests.test_both_completion_receipts_preserve_full_zip_name_and_actual_size",
     "tests.test_subset_run_receipts.SubsetRunReceiptTests.test_each_run_clears_prior_status_and_preserves_prior_zip_artifacts"
   ],
+  "test_suggestion_audio_invalidation": [
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_damaged_cast_library_refuses_suggestions_before_any_audio_invalidation",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_failed_cast_publication_restores_both_files_and_keeps_old_audio_fenced",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_inflight_old_voice_cannot_publish_after_suggestion",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_invalid_second_suggestion_cannot_partially_publish_or_invalidate",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_manual_persona_recovery_invalidates_changed_style_and_alias_audio",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_reapplying_identical_effective_voice_preserves_audio",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_single_and_bulk_with_or_without_cast_invalidate_alias_audio_only"
+  ],
   "test_suggestion_candidate_queue_js": [
     "tests.test_suggestion_candidate_queue_js.SuggestionCandidateQueueTests.test_cast_or_book_switch_refuses_late_suggestions_and_candidate_writes",
     "tests.test_suggestion_candidate_queue_js.SuggestionCandidateQueueTests.test_catalog_failure_retains_pool_warns_beside_success_and_clears_after_recovery",
@@ -8927,6 +8943,17 @@
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_slow_review_hydration_does_not_delay_independent_controls",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_training_preparer_audio_benchmark_adapters_and_idle_dispatch",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_word_timing_reload_restores_editor_activity_and_cancel_until_retirement"
+  ],
+  "test_task_resources": [
+    "tests.test_task_resources.TaskResourceTests.test_body_timeout_is_not_misreported_as_ownership_and_releases_mutation",
+    "tests.test_task_resources.TaskResourceTests.test_dead_owner_metadata_is_ignored_and_marker_inode_survives",
+    "tests.test_task_resources.TaskResourceTests.test_large_valid_scope_still_allows_an_unrelated_saved_name",
+    "tests.test_task_resources.TaskResourceTests.test_legacy_unknown_and_malformed_live_scope_refuse_mutation",
+    "tests.test_task_resources.TaskResourceTests.test_metadata_failure_releases_task_and_canonical_alias_matches",
+    "tests.test_task_resources.TaskResourceTests.test_mutation_blocks_matching_foreign_admission_but_releases_global_barrier",
+    "tests.test_task_resources.TaskResourceTests.test_normal_and_cpu_tasks_reserve_only_their_declared_scope",
+    "tests.test_task_resources.TaskResourceTests.test_partial_multi_resource_reservation_rolls_back_its_earlier_slots",
+    "tests.test_task_resources.TaskResourceTests.test_serialized_mutation_waits_without_holding_global_task_admission"
   ],
   "test_task_start_controls_js": [
     "tests.test_task_start_controls_js.TaskStartControlJsTests.test_export_control_ids_are_wired_to_actual_buttons",
@@ -10256,6 +10283,12 @@
     "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_manual_selection_invalidates_only_changed_effective_voices",
     "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_parallel_journal_worker_cannot_publish_after_timeline_changes",
     "tests.test_voice_followups_733.VoiceTimelineAudioTests.test_wrong_book_and_revision_leave_audio_and_voices_unchanged"
+  ],
+  "test_voice_library_recovery": [
+    "tests.test_voice_library_recovery.VoiceLibraryRecoveryTests.test_damaged_library_refuses_cast_and_favorite_without_replacing_bytes",
+    "tests.test_voice_library_recovery.VoiceLibraryRecoveryTests.test_missing_and_legacy_valid_libraries_remain_writable",
+    "tests.test_voice_library_recovery.VoiceLibraryRecoveryTests.test_read_only_recovery_keeps_existing_fallback_without_changing_bytes",
+    "tests.test_voice_library_recovery.VoiceLibraryRecoveryTests.test_unreadable_existing_library_refuses_before_mutation"
   ],
   "test_voice_library_transactions": [
     "tests.test_voice_library_transactions.VoiceLibraryTransactionTests.test_bulk_keeps_library_kernel_lock_through_each_config_publication",
