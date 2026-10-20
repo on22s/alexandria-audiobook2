@@ -1572,6 +1572,15 @@
     "tests.test_chapter_render_memory.ChapterRenderMemoryTests.test_full_export_combines_only_one_chapter_and_releases_previous_render",
     "tests.test_chapter_render_memory.ChapterRenderMemoryTests.test_subset_does_not_render_unrequested_chapters"
   ],
+  "test_chapter_selection_integrity": [
+    "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_all_chapter_export_keeps_its_partial_export_warning",
+    "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_changed_only_shortcut_cannot_rebind_selection_when_metadata_excludes_a_row",
+    "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_decoder_rejected_selection_preserves_prior_delivery_cold_and_warm",
+    "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_fallback_keeps_row_multiplicity_without_uids_when_one_shared_clip_decode_fails",
+    "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_fallback_uses_one_source_snapshot_if_live_rows_change",
+    "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_first_selected_export_never_substitutes_the_following_chapter",
+    "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_matching_metadata_and_decoder_omissions_keep_previewed_selection"
+  ],
   "test_chapter_timing_cache": [
     "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_cancelled_index_preserves_prior_publication_and_does_not_publish_partial_facts",
     "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_changed_only_checks_content_identity_before_reusing_a_selected_chapter",

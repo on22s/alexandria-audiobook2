@@ -77,6 +77,8 @@ CHUNK_GENERATION_FIELDS = (
     "text", "speaker", "instruct", "take", *NARRATOR_GENERATION_FIELDS,
     "character_style", "default_style", "style_timeline", "voice_revision", CHUNK_POLICY_KEY)
 GENERATION_INPUTS_CHANGED = "Chunk removed or generation inputs changed during generation"
+CHAPTER_SELECTION_AUDIO_ERROR = (
+    "Some chapter audio could not be decoded. Repair the affected clips before exporting selected chapters.")
 
 
 class ChunkTargetMissingError(LookupError):
@@ -1888,10 +1890,9 @@ class ProjectManager:
             note += f", {reused} unchanged and kept"
         return True, note
 
-    def _export_changed_chapters(self, options, chapters,
+    def _export_changed_chapters(self, chunks, options, chapters,
                                  progress_callback=None, cancel_check=None):
         """Return None for incomplete/old exports, otherwise decode changed groups only."""
-        chunks = self.load_chunks()
         if not chunks:
             return None
         for chunk in chunks:
@@ -1961,25 +1962,41 @@ class ProjectManager:
             options["mastering"] = get_mastering_options(mastering)
         with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
             try:
+                captured_chunks = self.load_chunks()
+                selected_sources = None
+                if chapters is not None:
+                    # Match preview numbering before a decoder can remove rows.
+                    # Keep order and multiplicity, including legacy rows without UIDs.
+                    selected_sources = []
+                    for chunk in captured_chunks:
+                        ensure_audio_export_active(cancel_check)
+                        if self.is_chunk_audio_available(chunk):
+                            selected_sources.append(chunk)
+                    get_index_selection(chapters, len(self._chapter_groups(
+                        selected_sources, per_chunk_chapters)))
                 from chapter_timing_cache import ensure_chapter_timing_facts
                 indexed = ensure_chapter_timing_facts(
-                    self.root_dir, self.load_chunks(), self.get_chunk_audio_path,
+                    self.root_dir, captured_chunks, self.get_chunk_audio_path,
                     self.get_chunk_audio_segment, sources.save_segment, cancel_check,
                     self._get_chapter_decoder_codes(),
                     _loading_progress(progress_callback))
                 if indexed is not None:
+                    if selected_sources is not None and [row for row, _ in indexed.pairs] != selected_sources:
+                        return False, CHAPTER_SELECTION_AUDIO_ERROR
                     return self._export_indexed_chapters(
                         indexed, sources, options, chapters, changed_only,
                         progress_callback, cancel_check)
-                if changed_only:
+                if changed_only and (selected_sources is None or captured_chunks == selected_sources):
                     incremental = self._export_changed_chapters(
-                        options, chapters, progress_callback, cancel_check)
+                        captured_chunks, options, chapters, progress_callback, cancel_check)
                     if incremental is not None:
                         return incremental
                 pairs, skipped = self._load_chunks_with_audio(
-                    cancel_check=cancel_check,
+                    cancel_check=cancel_check, chunks=captured_chunks,
                     progress_callback=_loading_progress(progress_callback),
                     segment_transform=sources.save_segment)
+                if selected_sources is not None and [row for row, _ in pairs] != selected_sources:
+                    return False, CHAPTER_SELECTION_AUDIO_ERROR
                 if not pairs:
                     return False, "No audio segments found"
                 pause_defaults = self._load_pause_defaults()

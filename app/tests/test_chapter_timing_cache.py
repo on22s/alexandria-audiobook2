@@ -228,9 +228,9 @@ class ChapterTimingCacheTests(unittest.TestCase):
             with patch.object(manager, 'get_chunk_audio_segment', side_effect=lambda chunk:
                               None if chunk == chunks[0] else reader(chunk)):
                 ok, message = manager.export_chapters(fmt='wav', per_chunk_chapters=True, chapters=[0])
-            self.assertTrue(ok, message)
-            self.assertIn('1 chunk(s) skipped', message)
-            self.assertEqual('[A] Chapter 2', self.result(root)[0]['title'])
+            self.assertFalse(ok, message)
+            self.assertIn('could not be decoded', message)
+            self.assertFalse((root / CHAPTER_EXPORT_DIR / 'manifest.json').exists())
             with patch.object(manager, 'get_chunk_audio_segment', wraps=reader) as decode:
                 ok, message = manager.export_chapters(fmt='wav', per_chunk_chapters=True, chapters=[0])
                 self.assertTrue(ok, message)
