@@ -3527,8 +3527,36 @@
     "tests.test_external_comparability.RecordShapeTest.test_a_number_without_a_protocol_is_rejected",
     "tests.test_external_comparability.RecordShapeTest.test_every_entry_carries_every_required_field"
   ],
+  "test_external_tts_client_process": [
+    "tests.test_external_tts_client_process.ExternalClientProcessTests.test_abrupt_native_parent_death_reaps_blocked_sdk_worker",
+    "tests.test_external_tts_client_process.ExternalClientProcessTests.test_cached_client_and_private_output_survive_subsequent_sdk_overwrites",
+    "tests.test_external_tts_client_process.ExternalClientProcessTests.test_cancelled_request_never_starts_and_bad_protocol_response_stops_worker",
+    "tests.test_external_tts_client_process.ExternalClientProcessTests.test_failed_stop_retains_owned_upload_bytes_until_reaping_is_proven",
+    "tests.test_external_tts_client_process.ExternalClientProcessTests.test_native_parent_exit_reaps_sdk_interpreter_with_blocked_non_daemon_work",
+    "tests.test_external_tts_client_process.ExternalClientProcessTests.test_predict_and_constructor_hangs_are_killed_and_reaped_before_replacement",
+    "tests.test_external_tts_client_process.ExternalClientProcessTests.test_protocol_bounds_and_provider_error_redaction_preserve_recovery",
+    "tests.test_external_tts_client_process.ExternalClientProcessTests.test_queued_call_timeout_does_not_kill_the_other_active_call",
+    "tests.test_external_tts_client_process.SDKWindowsStopPolicyTests.test_headless_windows_sdk_stop_uses_owned_job_and_retains_unproven_ownership"
+  ],
   "test_external_tts_client_workers": [
     "tests.test_external_tts_client_workers.ExternalTTSClientWorkerTests.test_one_endpoint_runs_two_requests_while_each_client_has_one_inflight_call"
+  ],
+  "test_external_tts_engine_lifetime": [
+    "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_clone_snapshot_lives_until_owned_sdk_stops_then_cleans_after_timeout",
+    "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_default_clone_transport_preserves_public_file_data_and_private_result_lifetime",
+    "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_default_transport_recovers_single_and_batch_deadlines_with_bounded_pool",
+    "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_engine_reset_stops_actual_active_sdk_and_preserves_prior_audio",
+    "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_native_parent_exit_reaps_default_engine_sdk_work",
+    "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_reset_failure_retains_engine_ownership_and_closes_other_cached_clients",
+    "tests.test_external_tts_engine_lifetime.NativeSDKConstructorDeadlineTests.test_installed_gradio_sdk_constructor_http_stall_is_bounded_and_reaped"
+  ],
+  "test_external_tts_executor": [
+    "tests.test_external_tts_executor.ExternalExecutorTests.test_native_interpreter_can_exit_with_an_unreleased_application_worker",
+    "tests.test_external_tts_executor.ExternalExecutorTests.test_repeated_timeouts_keep_one_pool_and_remove_cancelled_queue_entries",
+    "tests.test_external_tts_executor.ExternalExecutorTests.test_success_exception_and_shutdown_preserve_real_future_semantics"
+  ],
+  "test_external_tts_worker_bounds": [
+    "tests.test_external_tts_worker_bounds.ExternalWorkerBoundsTests.test_repeated_single_and_batch_timeouts_share_a_bounded_worker_pool"
   ],
   "test_failover_client_cleanup": [
     "tests.test_failover_client_cleanup.FailoverClientCleanupTests.test_close_releases_both_real_transports_before_and_after_switch",

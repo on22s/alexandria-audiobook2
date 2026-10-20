@@ -47,7 +47,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 03: Preserve rendered text, voice identity, and timing
 
-**Dependencies:** Batch 01, Batch 02 (accepted). **Tasks:** 7. **Status:** six accepted; F028 remains open separately. **PR:** [#1431](https://github.com/on22s/alexandria-audiobook2/pull/1431).
+**Dependencies:** Batch01, Batch02 (accepted). **Tasks:** 7. **Status:** six accepted; F028 Windows repair/requalification pending. **PR:** [#1431](https://github.com/on22s/alexandria-audiobook2/pull/1431), [#1433](https://github.com/on22s/alexandria-audiobook2/pull/1433).
 
 **Batch acceptance:** Exercise single/native/external/design/clone dispatch using deterministic CPU callbacks and valid synthetic PCM; preserve once-only pronunciation and reference alias policy. Check effective take behavior, complete-sample timing, and repeated stalled-request resource lifetime. Queue any required real-model/audio confirmation separately.
 
@@ -85,18 +85,18 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 06: Make training data and measurement gates trustworthy
 
-**Dependencies:** Batch 05 (accepted). **Tasks:** 8. **Status:** 80 targeted CPU checks and required quick release (8,606 unit tests) passed; exact-head CI/merge pending. **PR:** not opened.
+**Dependencies:** Batch05 (accepted). **Tasks:** 8. **Status:** accepted. **PR:** [#1432](https://github.com/on22s/alexandria-audiobook2/pull/1432).
 
 **Batch acceptance:** Use known-good, known-bad and boundary fixtures. Require comparable paired denominators, alias-aware scoring, corpus pseudo-speaker filtering, stable large-count statistics, true representative reference choice and gate refusal when requested generations fail. An identical served model cannot be reported as an adapter effect.
 
-- [ ] **F005** [#1395](https://github.com/on22s/alexandria-audiobook2/issues/1395) — The tight-dataset experiment writes the first selected clip as reference instead of the promised within-arm centroid representative.
-- [ ] **F008** [#1396](https://github.com/on22s/alexandria-audiobook2/issues/1396) — The documented --no-scale base-only mode still reports two identical served-model runs as an adapter comparison.
-- [ ] **F009** [#1397](https://github.com/on22s/alexandria-audiobook2/issues/1397) — LUAR overrides discard fixture aliases while retaining alias-aware baseline scores, undercounting correct repairs.
-- [ ] **F010** [#1398](https://github.com/on22s/alexandria-audiobook2/issues/1398) — Both PDNC training builders teach corpus pseudo-speakers as real attribution labels.
-- [ ] **F013** [#1399](https://github.com/on22s/alexandria-audiobook2/issues/1399) — The exact sign test overflows on supported corpus-sized discordant counts.
-- [ ] **F015** [#1400](https://github.com/on22s/alexandria-audiobook2/issues/1400) — The adapter stop gate can pass an adapter after most requested generations fail.
-- [ ] **E09** [#1401](https://github.com/on22s/alexandria-audiobook2/issues/1401) — Current candidates with a legitimately empty plain_already_works list are described as missing the third state.
-- [ ] **E17** [#1402](https://github.com/on22s/alexandria-audiobook2/issues/1402) — Preserve paired-row coverage and transport failures in experiment reports Includes T08, T09.
+- [x] **F005** [#1395](https://github.com/on22s/alexandria-audiobook2/issues/1395) — The tight-dataset experiment writes the first selected clip as reference instead of the promised within-arm centroid representative.
+- [x] **F008** [#1396](https://github.com/on22s/alexandria-audiobook2/issues/1396) — The documented --no-scale base-only mode still reports two identical served-model runs as an adapter comparison.
+- [x] **F009** [#1397](https://github.com/on22s/alexandria-audiobook2/issues/1397) — LUAR overrides discard fixture aliases while retaining alias-aware baseline scores, undercounting correct repairs.
+- [x] **F010** [#1398](https://github.com/on22s/alexandria-audiobook2/issues/1398) — Both PDNC training builders teach corpus pseudo-speakers as real attribution labels.
+- [x] **F013** [#1399](https://github.com/on22s/alexandria-audiobook2/issues/1399) — The exact sign test overflows on supported corpus-sized discordant counts.
+- [x] **F015** [#1400](https://github.com/on22s/alexandria-audiobook2/issues/1400) — The adapter stop gate can pass an adapter after most requested generations fail.
+- [x] **E09** [#1401](https://github.com/on22s/alexandria-audiobook2/issues/1401) — Current candidates with a legitimately empty plain_already_works list are described as missing the third state.
+- [x] **E17** [#1402](https://github.com/on22s/alexandria-audiobook2/issues/1402) — Preserve paired-row coverage and transport failures in experiment reports Includes T08, T09.
 
 ### Batch 07: Restore diagnostic CLI and provenance contracts
 
@@ -231,24 +231,50 @@ aggregate, native Windows ownership and three OS reports-checkJs candidates.
 **21/58 accepted; 37 remain.** GPU/model/listening and full native-platform
 qualifications are unrun and are not inferred from these control-plane checks.
 
-## Batch 03 six-task acceptance
+## Batch 03 partial acceptance and worker-lifetime qualification
 
-Six audio fixes merged in PR #1431 as
-`f94ad7745d5b78745d875f74dd18153e9c1f0226`; its tree is identical to tested
-integrated head `56a4bcfc040661184c5ceccdbe2e5656d63439f2`. All five exact-head
-CI checks passed, including complete inventory and native Windows ownership.
-The initial audio quick gate passed8,581 unit tests. After integration with
-accepted Batch05, quick verification passed8,594 without unit skips,72 API
-checks without failures and12 explicit full-mode exclusions, plus all8 gates.
-Development verification includes288 targeted CPU regressions, strengthened
-native RNG/strict reference checks and4 navigation checks. Exact reference
-bytes, complete PCM and native ZIP/WAV behavior are exercised; model/provider/
-score callbacks and final M4B compression use bounded fixtures. GPU/model/
-listening and complete native-platform qualifications are unrun.
+Six tasks merged in PR #1431 as `f94ad7745d5b78745d875f74dd18153e9c1f0226`;
+its tree matches tested head `56a4bcfc040661184c5ceccdbe2e5656d63439f2`.
+All five exact-head CI gates passed. Initial audio quick verification passed
+8,581 unit tests; the combined accepted Batch05/audio quick gate passed8,594
+without unit skips,72 API checks without failures and12 explicit full-mode
+exclusions, plus all8 gates. The six child checklists have merged proof. Their
+CPU/native file/PCM regressions do not establish real-model, listening or full
+native-platform qualification.
 
-The six child issue checklists have merged proof. F028/#1382 remains open for
-its shared-layer worker-lifetime PR; all seven Batch03 tasks remain required.
-**27/58 accepted; 31 remain.**
+F028/T02 remains required. Its original repeated-timeout worker growth was
+reproduced before changing scheduling. One fixed application pool now serves
+both single and batch calls. Each endpoint slot retains a cached SDK client in
+an owned interpreter, so deadlines bound SDK construction, blocked prediction
+and non-daemon SDK threads. Success keeps client/session reuse; timeout reaps
+before replacement. Engine reset and ordinary/abrupt parent exit preserve
+ownership. Queued cancellation, submission deadlines, timely later completion,
+private staging and prior-output preservation remain tested.
+
+Development verification passed118 distinct CPU checks on accepted mainf94ad774.
+Tests use actual native subprocess ownership, deliberately blocked non-daemon
+SDK-shaped executors, actual installed SDK HTTP construction, native PCM/ZIP,
+real naming/alias operations and bounded model/provider callbacks. Clone upload
+copies belong to the SDK owner: failed termination retains their bytes and
+refuses more admission until cleanup succeeds. Both failed-stop defects were
+reproduced before repair. Remote inference cancellation remains provider-limited.
+
+Required `./ready.sh` quick passed8,613 unit tests without unit skips,72 API
+checks without failures and12 explicit full-mode exclusions, plus all8 gates
+(893.029 seconds). Exact published-head native Windows/macOS/Linux checks and
+merge remain pending. F028 stays open, and Batch03 is incomplete until all
+seven tasks are accepted. **27/58 accepted; 31 remain.**
+
+The initial published head passed its local quick gate and native Linux/macOS
+checks (19 cases each). Native Windows failed on graceful taskkill errors for
+headless SDK workers; its resources correctly remained retained, so F028 stays
+open. The SDK now uses owned Windows Job termination and confirms zero kernel
+membership and a bounded root wait before release. All119 targeted CPU cases
+plus4 navigation checks pass with termination/query/timeout failure controls.
+Integrated with accepted Batch06 main, `./ready.sh` quick passed8,626 unit tests
+without unit skips,72 API passes and12 explicit full-mode exclusions; all8 gates
+passed in881.726 seconds. Renewed exact-head native3OS checks and merge remain
+pending. Generic training shutdown and admission policies are unchanged. **35/58 accepted; 23 remain.**
 
 ## Batch 05 verification progress
 
@@ -317,8 +343,10 @@ duplicate or nonboolean pilot rows refuse.
 
 Required `./ready.sh` quick passed8,606 unit tests without unit skips,72 API
 checks without failures and12 explicit full-mode exclusions, plus all8 gates
-(867.009 seconds). Exact published-head CI and merge remain pending. All eight
-Batch06 tasks remain open. **27/58 accepted; 31 remain.**
+(867.009 seconds). All five exact-head CI gates passed. PR #1432 merged as
+`d74e11bff8ab3d2116c004f349e56d0be271babd`, with a tree identical to tested
+head `8e7e8b6bd849cef806fbdaaea197a6566c58d86b`. The eight child issues have
+verified merged acceptance checklists. **35/58 accepted; 23 remain.**
 
 ## Completion gate
 

@@ -63,7 +63,7 @@
         "02"
       ],
       "status": "in_progress",
-      "validation_status": "Accepted six Batch03 audio fixes via PR1431/f94ad7745d5b78745d875f74dd18153e9c1f0226, tested56a4bcfc040661184c5ceccdbe2e5656d63439f2 with identical tree.8594 unit tests without unit skips,72 API passes,12 explicit full-mode exclusions,all8 quick gates; all5 exact-head CI checks passed.288 targeted CPU regressions plus native CPU RNG/strict references and4 navigation checks. GPU/model/listening/full native-platform qualification unrun. F028 remains open; batch incomplete until all7tasks accepted.",
+      "validation_status": "Six tasksaccepted viaPR1431;F028 remains open. Initial local quick8613unit0skip/72API+12explicitexclusions/all8gates893.029s and118targetedCPU+4nav passed. Published2d5f9f68 nativeLinux/macOS19casespassed; Windowsfailed1assertion9errors ongracefultaskkill forheadlessSDK. SDK-specific ownedWindowsJob termination with bounded zero-membership/root-wait is repaired locally;20coreCPUcasespassed including failure-retention controls. Integrated release/native3OS requalification/mergepending; F028notaccepted. Remoteinferencecancellationprovider-dependent;GPU/model/listening/fullnativequalificationunrun.",
       "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1431"
     },
     {
@@ -117,8 +117,9 @@
       "depends_on": [
         "05"
       ],
-      "status": "in_progress",
-      "validation_status": "Required ./ready.sh quick passed8606 unit tests without unit skips,72 API checks without failures and12 explicit full-mode exclusions,all8 gates(867.009s).80 distinct targeted CPU checks plus4 goal-navigation checks passed on accepted mainf94ad774. Exact published-head CI/merge pending; no Batch06 task accepted. GPU/model/training/listening/full native-platform qualification unrun."
+      "status": "resolved",
+      "validation_status": "Accepted PR1432 merged by repository owner asd74e11bff8ab3d2116c004f349e56d0be271babd; tested8e7e8b6bd849cef806fbdaaea197a6566c58d86b/treeidentical. Required quick8606unit0skip/72API0fail12explicitfullmodeexclusions/all8gates867.009s;80targetedCPU+4nav including4explicitfunctiontests. All5exactheadCIpassed. GPU/model/training/listening/fullnativequalificationunrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432"
     },
     {
       "id": "07",
@@ -502,7 +503,10 @@
       "test_gap_ids": [
         "T02"
       ],
-      "status": "open"
+      "status": "in_progress",
+      "reproduction_status": "Original repeated timeout growth reproduced on pre-fix main. Own transport failed-stop upload and repeat-admission failure modes reproduced before repair.",
+      "validation_status": "Integrated with accepted Batch06 main d74e11bf:119 distinct targeted CPU cases and4 navigation checks passed; ./ready.sh quick passed8626 unit tests without unit skips,72 API passes,12 explicit full-mode exclusions and all8 gates in881.726s. Initial published2d5f9f68 nativeLinux/macOS passed19cases; Windows failed on graceful taskkill for headlessSDK. SDK-specific owned Windows Job termination now confirms zero kernel membership with bounded root wait; terminate/query/deadline failure controls preserve ownership and files. New exact-head native3OS CI and merge pending; F028 not accepted. Remote inference cancellation remains provider-dependent; GPU/model/listening/full product-native qualification unrun.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1433"
     },
     {
       "task_id": "F029",
@@ -762,9 +766,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "Required ./ready.sh quick passed8606 unit tests without unit skips,72 API checks without failures and12 explicit full-mode exclusions,all8 gates(867.009s).80 distinct targeted CPU checks plus4 goal-navigation checks passed on accepted mainf94ad774. Exact published-head CI/merge pending; no Batch06 task accepted. GPU/model/training/listening/full native-platform qualification unrun.",
-      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing."
+      "status": "resolved",
+      "validation_status": "Accepted PR1432 merged by repository owner asd74e11bff8ab3d2116c004f349e56d0be271babd; tested8e7e8b6bd849cef806fbdaaea197a6566c58d86b/treeidentical. Required quick8606unit0skip/72API0fail12explicitfullmodeexclusions/all8gates867.009s;80targetedCPU+4nav including4explicitfunctiontests. All5exactheadCIpassed. GPU/model/training/listening/fullnativequalificationunrun.",
+      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "d74e11bff8ab3d2116c004f349e56d0be271babd",
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b"
     },
     {
       "task_id": "F008",
@@ -778,9 +786,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "Required ./ready.sh quick passed8606 unit tests without unit skips,72 API checks without failures and12 explicit full-mode exclusions,all8 gates(867.009s).80 distinct targeted CPU checks plus4 goal-navigation checks passed on accepted mainf94ad774. Exact published-head CI/merge pending; no Batch06 task accepted. GPU/model/training/listening/full native-platform qualification unrun.",
-      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing."
+      "status": "resolved",
+      "validation_status": "Accepted PR1432 merged by repository owner asd74e11bff8ab3d2116c004f349e56d0be271babd; tested8e7e8b6bd849cef806fbdaaea197a6566c58d86b/treeidentical. Required quick8606unit0skip/72API0fail12explicitfullmodeexclusions/all8gates867.009s;80targetedCPU+4nav including4explicitfunctiontests. All5exactheadCIpassed. GPU/model/training/listening/fullnativequalificationunrun.",
+      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "d74e11bff8ab3d2116c004f349e56d0be271babd",
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b"
     },
     {
       "task_id": "F009",
@@ -794,9 +806,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "Required ./ready.sh quick passed8606 unit tests without unit skips,72 API checks without failures and12 explicit full-mode exclusions,all8 gates(867.009s).80 distinct targeted CPU checks plus4 goal-navigation checks passed on accepted mainf94ad774. Exact published-head CI/merge pending; no Batch06 task accepted. GPU/model/training/listening/full native-platform qualification unrun.",
-      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing."
+      "status": "resolved",
+      "validation_status": "Accepted PR1432 merged by repository owner asd74e11bff8ab3d2116c004f349e56d0be271babd; tested8e7e8b6bd849cef806fbdaaea197a6566c58d86b/treeidentical. Required quick8606unit0skip/72API0fail12explicitfullmodeexclusions/all8gates867.009s;80targetedCPU+4nav including4explicitfunctiontests. All5exactheadCIpassed. GPU/model/training/listening/fullnativequalificationunrun.",
+      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "d74e11bff8ab3d2116c004f349e56d0be271babd",
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b"
     },
     {
       "task_id": "F010",
@@ -810,9 +826,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "Required ./ready.sh quick passed8606 unit tests without unit skips,72 API checks without failures and12 explicit full-mode exclusions,all8 gates(867.009s).80 distinct targeted CPU checks plus4 goal-navigation checks passed on accepted mainf94ad774. Exact published-head CI/merge pending; no Batch06 task accepted. GPU/model/training/listening/full native-platform qualification unrun.",
-      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing."
+      "status": "resolved",
+      "validation_status": "Accepted PR1432 merged by repository owner asd74e11bff8ab3d2116c004f349e56d0be271babd; tested8e7e8b6bd849cef806fbdaaea197a6566c58d86b/treeidentical. Required quick8606unit0skip/72API0fail12explicitfullmodeexclusions/all8gates867.009s;80targetedCPU+4nav including4explicitfunctiontests. All5exactheadCIpassed. GPU/model/training/listening/fullnativequalificationunrun.",
+      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "d74e11bff8ab3d2116c004f349e56d0be271babd",
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b"
     },
     {
       "task_id": "F013",
@@ -826,9 +846,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "Required ./ready.sh quick passed8606 unit tests without unit skips,72 API checks without failures and12 explicit full-mode exclusions,all8 gates(867.009s).80 distinct targeted CPU checks plus4 goal-navigation checks passed on accepted mainf94ad774. Exact published-head CI/merge pending; no Batch06 task accepted. GPU/model/training/listening/full native-platform qualification unrun.",
-      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing."
+      "status": "resolved",
+      "validation_status": "Accepted PR1432 merged by repository owner asd74e11bff8ab3d2116c004f349e56d0be271babd; tested8e7e8b6bd849cef806fbdaaea197a6566c58d86b/treeidentical. Required quick8606unit0skip/72API0fail12explicitfullmodeexclusions/all8gates867.009s;80targetedCPU+4nav including4explicitfunctiontests. All5exactheadCIpassed. GPU/model/training/listening/fullnativequalificationunrun.",
+      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "d74e11bff8ab3d2116c004f349e56d0be271babd",
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b"
     },
     {
       "task_id": "F015",
@@ -842,9 +866,13 @@
       "severity": "medium",
       "confidence": "confirmed",
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "Required ./ready.sh quick passed8606 unit tests without unit skips,72 API checks without failures and12 explicit full-mode exclusions,all8 gates(867.009s).80 distinct targeted CPU checks plus4 goal-navigation checks passed on accepted mainf94ad774. Exact published-head CI/merge pending; no Batch06 task accepted. GPU/model/training/listening/full native-platform qualification unrun.",
-      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing."
+      "status": "resolved",
+      "validation_status": "Accepted PR1432 merged by repository owner asd74e11bff8ab3d2116c004f349e56d0be271babd; tested8e7e8b6bd849cef806fbdaaea197a6566c58d86b/treeidentical. Required quick8606unit0skip/72API0fail12explicitfullmodeexclusions/all8gates867.009s;80targetedCPU+4nav including4explicitfunctiontests. All5exactheadCIpassed. GPU/model/training/listening/fullnativequalificationunrun.",
+      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "d74e11bff8ab3d2116c004f349e56d0be271babd",
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b"
     },
     {
       "task_id": "E09",
@@ -858,9 +886,13 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "Required ./ready.sh quick passed8606 unit tests without unit skips,72 API checks without failures and12 explicit full-mode exclusions,all8 gates(867.009s).80 distinct targeted CPU checks plus4 goal-navigation checks passed on accepted mainf94ad774. Exact published-head CI/merge pending; no Batch06 task accepted. GPU/model/training/listening/full native-platform qualification unrun.",
-      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing."
+      "status": "resolved",
+      "validation_status": "Accepted PR1432 merged by repository owner asd74e11bff8ab3d2116c004f349e56d0be271babd; tested8e7e8b6bd849cef806fbdaaea197a6566c58d86b/treeidentical. Required quick8606unit0skip/72API0fail12explicitfullmodeexclusions/all8gates867.009s;80targetedCPU+4nav including4explicitfunctiontests. All5exactheadCIpassed. GPU/model/training/listening/fullnativequalificationunrun.",
+      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "d74e11bff8ab3d2116c004f349e56d0be271babd",
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b"
     },
     {
       "task_id": "E17",
@@ -877,9 +909,13 @@
         "T08",
         "T09"
       ],
-      "status": "in_progress",
-      "validation_status": "Required ./ready.sh quick passed8606 unit tests without unit skips,72 API checks without failures and12 explicit full-mode exclusions,all8 gates(867.009s).80 distinct targeted CPU checks plus4 goal-navigation checks passed on accepted mainf94ad774. Exact published-head CI/merge pending; no Batch06 task accepted. GPU/model/training/listening/full native-platform qualification unrun.",
-      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing."
+      "status": "resolved",
+      "validation_status": "Accepted PR1432 merged by repository owner asd74e11bff8ab3d2116c004f349e56d0be271babd; tested8e7e8b6bd849cef806fbdaaea197a6566c58d86b/treeidentical. Required quick8606unit0skip/72API0fail12explicitfullmodeexclusions/all8gates867.009s;80targetedCPU+4nav including4explicitfunctiontests. All5exactheadCIpassed. GPU/model/training/listening/fullnativequalificationunrun.",
+      "reproduction_status": "Reproduced or characterized with native CPU fixtures on freshly fetched main3a4a0dde; preserved failure evidence before editing.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432",
+      "accepted_date": "2026-10-20",
+      "merge_commit": "d74e11bff8ab3d2116c004f349e56d0be271babd",
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b"
     },
     {
       "task_id": "F007",

@@ -1,0 +1,32 @@
+name: external TTS lifetime
+on:
+  pull_request:
+    paths:
+      - 'app/external_tts_*.py'
+      - 'app/tts.py'
+      - 'app/project.py'
+      - 'app/subprocess_ownership.py'
+      - 'app/tests/test_external_tts_*.py'
+      - '.github/workflows/external-tts-lifetime.yml'
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+      - name: Install CPU transport and audio dependencies
+        run: python -m pip install 'numpy==2.2.6' 'soundfile==0.14.0' 'pydub==0.25.1' 'gradio_client==2.0.3' 'pydantic==2.12.5'
+      - name: Verify native owned SDK and engine lifetime
+        run: python -m unittest tests.test_external_tts_executor tests.test_external_tts_client_process tests.test_external_tts_engine_lifetime tests.test_external_tts_worker_bounds -v

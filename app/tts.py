@@ -10,6 +10,8 @@ import logging
 import tempfile
 import sys
 import threading
+import time
+import weakref
 from contextvars import ContextVar, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
@@ -33,6 +35,9 @@ from audio_assembly import AudioSegmentBuilder
 from audio_pcm_producer import (get_pcm_source_shape, get_audio_duration_ms,
                                 get_joined_pcm_shape, get_promoted_pcm_shape, get_silence_pcm_shape)
 from voice_manifest import get_resolved_adapter_path, get_adapter_asset_snapshot
+from external_tts_executor import ExternalTTSExecutor
+from external_tts_client import (ExternalTTSClient, ExternalPrediction,
+                                 ensure_external_request_control)
 
 try:
     from .utils import secure_filename as _secure_filename, get_runtime_data_dir as _get_runtime_data_dir, is_path_inside
@@ -45,6 +50,31 @@ except ImportError:
 # including distinct engine instances. Reentrancy permits prompt/load helpers
 # and fallback generation to use the same admission as their outer render.
 _LOCAL_TTS_LOCK = threading.RLock()
+_EXTERNAL_RUNTIME_LOCK = threading.Lock()
+
+
+def create_external_client(url, timeout):
+    return ExternalTTSClient(url, timeout)
+
+
+def _close_external_runtime(lock, calls, clients, executor):
+    with lock:
+        cancelled = list(calls)
+        cached = list(clients.values())
+    for event in cancelled:
+        event.set()
+    if executor is not None:
+        executor.shutdown(wait=False, cancel_futures=True)
+    failure = None
+    for client in cached:
+        close = getattr(client, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception as error:
+                failure = failure or error
+    if failure is not None:
+        raise failure
 
 
 @dataclass(frozen=True)
@@ -711,6 +741,9 @@ class TTSEngine:
         self._external_pool_lock = threading.Lock()
         self._external_next = 0
         self._external_client_next = {}
+        self._external_executor = None
+        self._external_calls = set()
+        self._external_closed = False
 
         # Clone prompt cache: speaker_name -> (reference input key, reusable voice_clone_prompt)
         self._clone_prompt_cache = {}
@@ -1387,22 +1420,89 @@ class TTSEngine:
         """-> (client, lock) for the next endpoint worker, creating its client on demand."""
         url = url or self._next_external_url()
         with self._external_pool_lock:
+            if self._external_closed:
+                raise RuntimeError("External TTS engine is closed")
             worker = self._external_client_next.get(url, 0) % self._external_parallel_workers
             self._external_client_next[url] = worker + 1
             key = (url, worker)
             lock = self._external_locks.setdefault(key, threading.Lock())
             client = self._gradio_clients.get(key)
         if client is None:
-            from gradio_client import Client
             with lock:
                 client = self._gradio_clients.get(key)
                 if client is None:
                     print(f"Connecting to TTS server at {url}...")
-                    client = Client(url)
+                    client = create_external_client(url, self._external_timeout)
                     with self._external_pool_lock:
-                        self._gradio_clients[key] = client
-                    print(f"Connected to external TTS server {url}.")
+                        closed = self._external_closed
+                        if not closed:
+                            self._gradio_clients[key] = client
+                    if closed:
+                        close = getattr(client, "close", None)
+                        if close is not None:
+                            close()
+                        raise RuntimeError("External TTS engine is closed")
+                    print(f"External TTS client ready for {url}.")
         return client, lock
+
+    def _ensure_external_executor(self):
+        with _EXTERNAL_RUNTIME_LOCK:
+            if not hasattr(self, "_external_pool_lock"):
+                self._external_pool_lock = threading.Lock()
+            if not hasattr(self, "_gradio_clients"):
+                self._gradio_clients = {}
+            if not hasattr(self, "_external_calls"):
+                self._external_calls = set()
+            if not hasattr(self, "_external_closed"):
+                self._external_closed = False
+            if self._external_closed:
+                raise RuntimeError("External TTS engine is closed")
+            executor = getattr(self, "_external_executor", None)
+            if executor is None:
+                workers = (getattr(self, "_external_parallel_workers", 1)
+                           * len(getattr(self, "_external_urls", None) or [None]))
+                executor = ExternalTTSExecutor(workers)
+                self._external_executor = executor
+                self._external_finalizer = weakref.finalize(
+                    self, _close_external_runtime, self._external_pool_lock,
+                    self._external_calls, self._gradio_clients, executor)
+            return executor
+
+    def _submit_external(self, function, cancelled, *args):
+        executor = self._ensure_external_executor()
+        with self._external_pool_lock:
+            if self._external_closed:
+                cancelled.set()
+                raise RuntimeError("External TTS engine is closed")
+            self._external_calls.add(cancelled)
+        try:
+            future = executor.submit(partial(copy_context().run, function), *args)
+        except BaseException:
+            with self._external_pool_lock:
+                self._external_calls.discard(cancelled)
+            cancelled.set()
+            raise
+        owner = weakref.ref(self)
+        def release(future):
+            engine = owner()
+            if engine is not None:
+                with engine._external_pool_lock:
+                    engine._external_calls.discard(cancelled)
+        future.add_done_callback(release)
+        return future
+
+    def close_external(self):
+        with _EXTERNAL_RUNTIME_LOCK:
+            if not hasattr(self, "_external_pool_lock"):
+                return
+            with self._external_pool_lock:
+                self._external_closed = True
+            executor = getattr(self, "_external_executor", None)
+        _close_external_runtime(self._external_pool_lock, getattr(self, "_external_calls", set()),
+                                self._gradio_clients, executor)
+        finalizer = getattr(self, "_external_finalizer", None)
+        if finalizer is not None:
+            finalizer.detach()
 
     # ── Clone prompt cache (local mode) ──────────────────────────
 
@@ -1469,30 +1569,36 @@ class TTSEngine:
 
     def _external_single(self, generate, output_path):
         """Bound one external request without publishing late audio."""
+        from concurrent.futures import TimeoutError as FutureTimeout
         staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
         cancelled = threading.Event()
-        finished = threading.Event()
-        result = {"success": False}
+        deadline = time.monotonic() + self._external_timeout
 
         def work():
             try:
-                result["success"] = generate(staging_path, cancelled)
+                if cancelled.is_set() or time.monotonic() >= deadline:
+                    return False, time.monotonic()
+                with ensure_external_request_control(deadline, cancelled):
+                    return generate(staging_path, cancelled), time.monotonic()
             except Exception as error:
                 import traceback
                 traceback.print_exc()
                 apply_tts_failure(error)
+                return False, time.monotonic()
             finally:
                 if cancelled.is_set():
                     try:
                         os.remove(staging_path)
                     except FileNotFoundError:
                         pass
-                finished.set()
-
-        context = copy_context()
-        threading.Thread(target=lambda: context.run(work), daemon=True).start()
-        if not finished.wait(self._external_timeout):
+        future = self._submit_external(work, cancelled)
+        try:
+            success, finished_at = future.result(timeout=max(0, deadline - time.monotonic()))
+            if finished_at > deadline:
+                raise FutureTimeout()
+        except FutureTimeout:
             cancelled.set()
+            future.cancel()
             try:
                 os.remove(staging_path)
             except FileNotFoundError:
@@ -1500,7 +1606,18 @@ class TTSEngine:
             print(f"External TTS timed out after {self._external_timeout}s")
             apply_tts_failure(TimeoutError(f"External TTS timed out after {self._external_timeout}s"))
             return False
-        if (result["success"] and os.path.exists(staging_path)
+        except Exception as error:
+            apply_tts_failure(error)
+            success = False
+        except BaseException:
+            cancelled.set()
+            future.cancel()
+            try:
+                os.remove(staging_path)
+            except FileNotFoundError:
+                pass
+            raise
+        if (success and os.path.exists(staging_path)
                 and publish_audio_output(staging_path, output_path, cancelled)):
             return True
         try:
@@ -2717,6 +2834,29 @@ class TTSEngine:
             if os.path.exists(staging_path):
                 os.remove(staging_path)
 
+    def _save_external_prediction(self, result, output_path, cancelled, text):
+        """Consume a provider result while its client is still serialized."""
+        try:
+            generated_audio_filepath = result[0]
+            if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
+                print(f"Error: No audio file generated for: '{text[:50]}...'")
+                apply_tts_failure("External TTS returned no audio file.", "invalid_audio",
+                                  "Check the TTS server logs before retrying.")
+                return False
+
+            if os.path.getsize(generated_audio_filepath) == 0:
+                print(f"Error: Generated audio file is empty for: '{text[:50]}...'")
+                apply_tts_failure("External TTS returned an empty audio file.", "invalid_audio",
+                                  "Check the TTS server logs before retrying.")
+                return False
+
+            if cancelled and cancelled.is_set():
+                return False
+            return self._save_external_audio(generated_audio_filepath, output_path, cancelled)
+        finally:
+            if isinstance(result, ExternalPrediction):
+                result.close()
+
     def _external_generate_custom(self, text, instruct_text, speaker, voice_config, output_path,
                                   endpoint=None, cancelled=None):
         """Generate custom voice audio via an external Gradio server (a pool
@@ -2752,22 +2892,7 @@ class TTSEngine:
                         api_name="/generate_custom_voice"
                     )
 
-            generated_audio_filepath = result[0]
-            if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
-                print(f"Error: No audio file generated for: '{text[:50]}...'")
-                apply_tts_failure("External TTS returned no audio file.", "invalid_audio",
-                                  "Check the TTS server logs before retrying.")
-                return False
-
-            if os.path.getsize(generated_audio_filepath) == 0:
-                print(f"Error: Generated audio file is empty for: '{text[:50]}...'")
-                apply_tts_failure("External TTS returned an empty audio file.", "invalid_audio",
-                                  "Check the TTS server logs before retrying.")
-                return False
-
-            if cancelled and cancelled.is_set():
-                return False
-            return self._save_external_audio(generated_audio_filepath, output_path, cancelled)
+                return self._save_external_prediction(result, output_path, cancelled, text)
 
         except Exception as e:
             import traceback
@@ -2839,22 +2964,7 @@ class TTSEngine:
                             api_name="/generate_voice_clone"
                         )
 
-            generated_audio_filepath = result[0]
-            if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
-                print(f"Error: No audio file generated for: '{text[:50]}...'")
-                apply_tts_failure("External TTS returned no audio file.", "invalid_audio",
-                                  "Check the TTS server logs before retrying.")
-                return False
-
-            if os.path.getsize(generated_audio_filepath) == 0:
-                print(f"Error: Generated audio file is empty for: '{text[:50]}...'")
-                apply_tts_failure("External TTS returned an empty audio file.", "invalid_audio",
-                                  "Check the TTS server logs before retrying.")
-                return False
-
-            if cancelled and cancelled.is_set():
-                return False
-            return self._save_external_audio(generated_audio_filepath, output_path, cancelled)
+                return self._save_external_prediction(result, output_path, cancelled, text)
 
         except Exception as e:
             import traceback
@@ -2892,10 +3002,10 @@ class TTSEngine:
         pool endpoint. Each worker serializes requests through its client
         lock, with deadlines measured from submission. Same result shape as local batches.
 
-        A call that times out is reported failed; its thread finishes in the
-        background (gradio_client has no cancel), which is why the executor is
-        not joined - waiting for it would hold the whole batch hostage."""
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+        One engine pool serves all calls. SDK I/O runs in cached owned clients
+        and is stopped at the request deadline; queued cancellation removes work
+        without adding application threads or publishing late audio."""
+        from concurrent.futures import TimeoutError as FutureTimeout
         import time
         results = {"completed": [], "failed": []}
         if not chunks:
@@ -2908,8 +3018,6 @@ class TTSEngine:
                 c.get("text", ""), c.get("speaker", ""), get_batch_voice_config(voice_config, c.get("speaker", ""), c["index"], batch_seed), out,
                 endpoint=ep, cancelled=cancelled),
         }[kind]
-        workers = self._external_parallel_workers * len(self._external_urls)
-        executor = ThreadPoolExecutor(max_workers=workers)
         futures = {}
 
         def remove_staging_audio(staging_path):
@@ -2923,52 +3031,70 @@ class TTSEngine:
                 return diagnostic
             return None
 
-        def render_to_staging(chunk, staging_path, endpoint, cancelled):
+        def render_to_staging(chunk, staging_path, endpoint, cancelled, deadline):
             try:
-                success = generate(chunk, staging_path, endpoint, cancelled)
-                return success, time.monotonic()
+                if cancelled.is_set() or time.monotonic() >= deadline:
+                    return False, time.monotonic()
+                with ensure_external_request_control(deadline, cancelled):
+                    success = generate(chunk, staging_path, endpoint, cancelled)
+                    return success, time.monotonic()
             finally:
                 if cancelled.is_set():
                     remove_staging_audio(staging_path)
 
-        for chunk in chunks:
-            idx = chunk["index"]
-            output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
-            staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
-            cancelled = threading.Event()
-            deadline = time.monotonic() + self._external_timeout
-            future = executor.submit(partial(copy_context().run, render_to_staging), chunk, staging_path,
-                                     self._next_external_url(), cancelled)
-            futures[idx] = (future, cancelled, staging_path, output_path, deadline)
-        for idx, (future, cancelled, staging_path, output_path, deadline) in futures.items():
-            try:
-                success, finished_at = future.result(timeout=max(0, deadline - time.monotonic()))
-                if finished_at > deadline:
-                    raise FutureTimeout()
-            except FutureTimeout:
-                cancelled.set()
-                future.cancel()
-                cleanup_error = remove_staging_audio(staging_path)
-                message = f"external TTS timed out after {self._external_timeout}s"
-                if cleanup_error:
-                    message += f"; {cleanup_error}"
-                results["failed"].append((idx, message))
-                continue
-            except Exception as e:                              # noqa: BLE001
-                results["failed"].append((idx, str(e)))
-                continue
-            if success and os.path.exists(staging_path):
-                if publish_audio_output(staging_path, output_path, cancelled):
-                    results["completed"].append(idx)
-                else:
+        try:
+            for chunk in chunks:
+                idx = chunk["index"]
+                output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
+                staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
+                cancelled = threading.Event()
+                deadline = time.monotonic() + self._external_timeout
+                future = self._submit_external(render_to_staging, cancelled, chunk, staging_path,
+                                               self._next_external_url(), cancelled, deadline)
+                futures[idx] = (future, cancelled, staging_path, output_path, deadline)
+            for idx, (future, cancelled, staging_path, output_path, deadline) in futures.items():
+                try:
+                    success, finished_at = future.result(timeout=max(0, deadline - time.monotonic()))
+                    if finished_at > deadline:
+                        raise FutureTimeout()
+                except FutureTimeout:
+                    cancelled.set()
+                    future.cancel()
                     cleanup_error = remove_staging_audio(staging_path)
-                    message = "external TTS cancelled before publication"
+                    message = f"external TTS timed out after {self._external_timeout}s"
                     if cleanup_error:
                         message += f"; {cleanup_error}"
                     results["failed"].append((idx, message))
-            else:
-                results["failed"].append((idx, f"{kind} voice generation failed"))
-        executor.shutdown(wait=False)
+                    continue
+                except Exception as e:                              # noqa: BLE001
+                    cancelled.set()
+                    cleanup_error = remove_staging_audio(staging_path)
+                    message = str(e) or type(e).__name__
+                    if cleanup_error:
+                        message += f"; {cleanup_error}"
+                    results["failed"].append((idx, message))
+                    continue
+                if success and os.path.exists(staging_path):
+                    if publish_audio_output(staging_path, output_path, cancelled):
+                        results["completed"].append(idx)
+                    else:
+                        cleanup_error = remove_staging_audio(staging_path)
+                        message = "external TTS cancelled before publication"
+                        if cleanup_error:
+                            message += f"; {cleanup_error}"
+                        results["failed"].append((idx, message))
+                else:
+                    cleanup_error = remove_staging_audio(staging_path)
+                    message = f"{kind} voice generation failed"
+                    if cleanup_error:
+                        message += f"; {cleanup_error}"
+                    results["failed"].append((idx, message))
+        except BaseException:
+            for future, cancelled, staging_path, _, _ in futures.values():
+                cancelled.set()
+                future.cancel()
+                remove_staging_audio(staging_path)
+            raise
         return results
 
     # ── Utility ──────────────────────────────────────────────────

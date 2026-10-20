@@ -69,12 +69,15 @@ class ExternalPoolTests(unittest.TestCase):
         _FakeClient.behaviour_for = {}
         self._mod = patch.dict(sys.modules, {"gradio_client": _FakeGradio})
         self._mod.start()
+        self._factory = patch.object(tts_module, "create_external_client", side_effect=lambda url, timeout: _FakeClient(url))
+        self._factory.start()
         self.voice_config = {"NARR": {"type": "custom", "voice": "Ryan", "seed": 1},
                              "HOLO": {"type": "clone", "ref_audio": os.path.join(self.tmp.name, "ref.wav"),
                                       "ref_text": "hi", "seed": 1}}
         Path(self.voice_config["HOLO"]["ref_audio"]).write_bytes(b"RIFF")
 
     def tearDown(self):
+        self._factory.stop()
         self._mod.stop()
         self.tmp.cleanup()
 

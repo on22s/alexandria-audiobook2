@@ -2795,19 +2795,42 @@ All five exact-head CI gates passed. PR #1430 merged as
 `5ccc085c460c23d1ad7749b8c4e1d5dd6ca70d9a`. No model/training/listening
 quality is inferred from CPU callbacks. **21/58 accepted; 37 remain.**
 
-**Batch 06 progress — 2026-10-20.** All eight measurement/training-data tasks
-have development fixes, with 80 targeted CPU checks passed. Arm references use
-the selected arm's centroid; PDNC training excludes pseudo-speakers; no-scale
-measurement runs once as served; LUAR scoring and candidate admission share the
-fixture alias policy. Large exact sign tests stay finite. Stop gates retain all
-requested failures and cannot pass a successful subset. Empty measured lexicon
-states stay distinct from legacy absence, and paired reports expose the shared
-cohort, unmatched rows and serialized transport failures. Real diagnostic CLI,
-CSV/ZIP/PCM and exact-integer probability fixtures are exercised; model/provider
-callbacks are bounded CPU fixtures. Required quick release passed 8,606 unit
-tests without unit skips, 72 API checks without failures and12 explicit
-full-mode exclusions, plus all eight gates. Exact published-head CI and merge
-remain pending; no Batch 06 task is accepted. **27/58 accepted; 31 remain.**
+**Batch 06 accepted — 2026-10-20.** PR #1432 merged by the repository owner
+as `d74e11bff8ab3d2116c004f349e56d0be271babd`; its tree matches tested head
+`8e7e8b6bd849cef806fbdaaea197a6566c58d86b`. All five exact-head CI checks
+passed. Local quick verification passed8,606 unit tests without unit skips,
+72 API checks without failures and12 explicit full-mode exclusions, plus all8
+gates(867.009 seconds).80 targeted CPU checks plus4 navigation checks include
+actual diagnostic CLIs, native CSV/ZIP/PCM and independent exact probabilities.
+GPU/model/training/listening and complete native-platform qualifications are
+unrun. The eight child issues have verified merged evidence. **35/58 accepted;
+23 remain.**
+
+**F028 worker lifetime progress — 2026-10-20.** The engine now shares a fixed
+application pool and cached SDK clients in owned interpreters. Submission
+cancellation removes queued work; deadlines stop/reap SDK construction and
+prediction, while completion timestamps protect timely later results. Engine
+reset and parent exit retain ownership and prior published audio. Clone uploads
+have private owned copies; a failed stop retains their bytes and fences new
+admission until reaping succeeds. Development verification passed118 targeted
+CPU checks, including native SDK-shaped non-daemon stalls and normal/abrupt
+parent exit, plus a native HTTP stall in the installed Gradio SDK. Required
+quick release passed8,613 unit tests without unit skips,72 API passes and12
+explicit full-mode exclusions, plus all8 gates. Exact published-head native
+three-platform CI and merge remain pending; F028/T02 is not accepted.
+Remote inference cancellation remains provider-dependent. No GPU/model/listening
+or complete native-platform qualification is inferred. **35/58 accepted; 23 remain.**
+
+**F028 Windows qualification repair — 2026-10-20.** Initial native Linux and
+macOS checks passed19 cases; Windows failed on the graceful taskkill path for
+the headless SDK. The SDK-specific stop now terminates its admitted Windows Job
+and checks zero membership plus a bounded root wait. API failures or unproven
+termination retain ownership and files. All119 targeted CPU cases plus4 navigation
+checks passed. The integrated `./ready.sh` quick gate on accepted Batch06 main
+passed8,626 unit tests with zero unit skips,72 API passes and12 explicit
+full-mode exclusions; all8 gates passed in881.726 seconds. Renewed exact-head
+native Windows/macOS/Linux checks and merge remain pending.
+No Windows or F028 acceptance is claimed. **35/58 accepted; 23 remain.**
 
 **Target — OPEN.** Zero undisposed execution tasks, with the required
 regressions and platform/model checks recorded on the exact merged revisions.

@@ -41,7 +41,7 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
                     raise PermissionError('synthetic pending deletion denied')
                 return remove(path)
             with patch.object(engine, '_external_generate_custom', side_effect=render), \
-                    patch('concurrent.futures.ThreadPoolExecutor', return_value=executor), \
+                    patch.object(engine, '_ensure_external_executor', return_value=executor), \
                     patch.object(executor, 'submit', side_effect=record_submit), \
                     patch.object(tts.os, 'remove', side_effect=deny_cleanup):
                 try:
@@ -116,7 +116,7 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
             executor=SimpleNamespace(submit=submit,shutdown=lambda **kwargs:None)
             chunks=[{'index':i,'speaker':'A','text':str(i)} for i in (0,1)]
             with patch.object(engine,'_external_generate_custom',side_effect=render), \
-                    patch('concurrent.futures.ThreadPoolExecutor',return_value=executor), \
+                    patch.object(engine, '_ensure_external_executor', return_value=executor), \
                     patch('time.monotonic',side_effect=lambda:clock[0]):
                 result=engine._external_batch(chunks,{'A':{'voice':'Ryan'}},str(root),'custom')
             self.assertGreater(clock[0],engine._external_timeout)
@@ -140,7 +140,7 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
                 return future
             executor=SimpleNamespace(submit=submit,shutdown=lambda **kwargs:None)
             with patch.object(engine,'_external_generate_custom',side_effect=render), \
-                    patch('concurrent.futures.ThreadPoolExecutor',return_value=executor), \
+                    patch.object(engine, '_ensure_external_executor', return_value=executor), \
                     patch('time.monotonic',side_effect=lambda:clock[0]):
                 result=engine._external_batch([{'index':i,'speaker':'A','text':str(i)} for i in (0,1)],{'A':{'voice':'Ryan'}},str(root),'custom')
             self.assertEqual([0],result['completed']);self.assertEqual([1],[i for i,_ in result['failed']])

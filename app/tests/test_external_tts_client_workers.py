@@ -49,10 +49,10 @@ class ExternalTTSClientWorkerTests(unittest.TestCase):
                         with guard:self.active-=1
             url=f'http://127.0.0.1:{server.server_port}';engine=tts.TTSEngine({'tts':{'mode':'external','url':url,'parallel_workers':2,'external_timeout_seconds':5}})
             try:
-                with patch.dict('sys.modules',{'gradio_client':SimpleNamespace(Client=Client)}),concurrent.futures.ThreadPoolExecutor(4) as pool:
+                with patch.object(tts, 'create_external_client', side_effect=lambda url, timeout: Client(url)),concurrent.futures.ThreadPoolExecutor(4) as pool:
                     futures=[pool.submit(engine.generate_custom_voice,f'line {i}','','A',{'A':{'voice':'Ryan','seed':0}},str(root/f'output-{i}.wav')) for i in range(4)]
                     self.assertTrue(all(future.result(6) for future in futures))
-            finally:server.shutdown();server.server_close();server_thread.join(2)
+            finally:engine.close_external();server.shutdown();server.server_close();server_thread.join(2)
             self.assertEqual(2,state['peak']);self.assertEqual(2,len(clients))
             self.assertEqual([1,1],[client.peak for client in clients]);self.assertEqual([2,2],[client.count for client in clients])
             for i in range(4):

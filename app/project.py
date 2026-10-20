@@ -676,6 +676,10 @@ class ProjectManager:
         """Invalidate settings and the cached engine after pending construction."""
         with self._engine_lock:
             self.invalidate_config_cache()
+            if self.engine is not None:
+                close = getattr(self.engine, "close_external", None)
+                if callable(close):
+                    close()
             self.engine = None
 
     def _read_config(self):
