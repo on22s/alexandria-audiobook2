@@ -111,7 +111,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--dataset", default=SP + "/wp_test.json")
     ap.add_argument("--limit", type=int, default=150)
-    ap.add_argument("--scales", nargs="+", type=float, default=[0.0, 1.0])
+    ap.add_argument("--scales", nargs="+", type=float, default=[0.0, 1.0],
+                    help="adapter scales to compare; ignored with --no-scale")
     ap.add_argument("--model", default="qwen/qwen3-14b")
     ap.add_argument("--base_url", default="http://127.0.0.1:8090/v1")
     ap.add_argument("--no-scale", action="store_true", dest="no_scale",
@@ -127,11 +128,10 @@ def main():
 
     client = OpenAI(base_url=args.base_url, api_key="local")
     results = {}
-    for scale in args.scales:
+    for scale in ([None] if args.no_scale else args.scales):
         # The adapter comparison needs llama.cpp's /lora-adapters endpoint.
-        # --no-scale runs base-only against any OpenAI-compatible server, so
-        # the prior question - can this model do Chinese attribution at all -
-        # can be answered without standing up the serving stack.
+        # --no-scale measures one as-served arm against any compatible server;
+        # without an intervention it cannot measure an adapter effect.
         if not args.no_scale:
             set_scale(args.base_url, scale)
         started, hit, n, blank, errors = time.time(), 0, 0, 0, 0
@@ -173,15 +173,15 @@ def main():
                 f"{errors}/{n} calls failed - the server is not answering; "
                 f"refusing to report this as a result")
         lo, hi = clopper_pearson(hit, max(n, 1))
-        results[str(scale)] = {"correct": hit, "n": n, "unparsed": blank,
+        results["as_served" if args.no_scale else str(scale)] = {"correct": hit, "n": n, "unparsed": blank,
                                "api_errors": errors,
                                "unparsed_samples": raw_samples}
-        label = "adapter off" if scale == 0 else f"adapter {scale}"
+        label = "as served" if args.no_scale else ("adapter off" if scale == 0 else f"adapter {scale}")
         print(f"  {label:14} {hit}/{n} = {hit/max(n,1)*100:5.1f}%  "
               f"[{lo:.1f}-{hi:.1f}]  unparsed {blank}  {time.time()-started:.0f}s",
               flush=True)
 
-    if "0.0" in results and "1.0" in results:
+    if not args.no_scale and "0.0" in results and "1.0" in results:
         b = results["0.0"]["correct"] / max(results["0.0"]["n"], 1)
         l = results["1.0"]["correct"] / max(results["1.0"]["n"], 1)
         print(f"\n  adapter effect on Chinese: {(l-b)*100:+.1f} points")
@@ -191,7 +191,8 @@ def main():
     print("\n  NOT comparable to the ledger: anonymised character tags remove")
     print("  name knowledge, aliases and romanisation entirely, so this measures")
     print("  a narrower and cleaner task than the pipeline performs.")
-    json.dump({"dataset": os.path.basename(args.dataset), "results": results},
+    json.dump({"dataset": os.path.basename(args.dataset), "results": results,
+               "measurement_mode": "as_served" if args.no_scale else "adapter_scales"},
               open(args.out, "w"), indent=1)
     print("\nwrote", args.out)
 

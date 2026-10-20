@@ -22,13 +22,13 @@ say 50%.
 import argparse
 import glob
 import json
-import math
 import os
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
 
+from experiments.stats import exact_mcnemar
 from experiments.provenance import provenance  # noqa: E402
 from experiments.scoring import alias_groups, same_speaker  # noqa: E402
 from experiments.scene_narrowing import recent_mentions  # noqa: E402
@@ -45,12 +45,7 @@ def position(name, names, groups):
 
 def sign_test(a, b):
     """Two-sided exact binomial p for a paired win/loss count."""
-    n = a + b
-    if not n:
-        return 1.0
-    k = min(a, b)
-    tail = sum(math.comb(n, i) for i in range(k + 1))
-    return min(1.0, 2.0 * tail / (2.0 ** n))
+    return exact_mcnemar(a, b)[0]
 
 
 def analyse(rows, fixtures):

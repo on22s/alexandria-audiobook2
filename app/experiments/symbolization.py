@@ -46,7 +46,7 @@ APP = REPO + "/app/"
 sys.path.insert(0, APP)
 from openai import OpenAI
 from experiments.scoring import alias_groups, same_speaker
-from experiments.stats import clopper_pearson, paired
+from experiments.stats import clopper_pearson, paired, paired_coverage
 from generate_script import LLMGenParams
 from three_pass_generate import attribute_batch, build_roster, get_deterministic_named_entry
 
@@ -138,7 +138,7 @@ def main():
     params = LLMGenParams(max_tokens=2000, context_length=32768, temperature=0.0,
                           attribute_temperature=0.0, top_p=0.8,
                           reasoning_effort="none")
-    answers = {}
+    answers, records, summaries = {}, [], {}
     for arm in ("names", "symbols"):
         started, hit, n = time.time(), 0, 0
         per_row = {}
@@ -162,7 +162,12 @@ def main():
             try:
                 out = attribute_batch(client, args.model, frozen, params, use_roster,
                                       neighbor_contexts=ctx)
-            except Exception:
+            except Exception as error:
+                from diagnostics import redact_text
+                for off in range(len(block)):
+                    records.append({"arm": arm, "id": str(s + off), "correct": None,
+                                    "status": "transport_failed", "error_type": type(error).__name__,
+                                    "error": redact_text(str(error))[:250]})
                 n += len(block)
                 continue
             for off, b in enumerate(block):
@@ -176,20 +181,30 @@ def main():
                     got = (sp or "").upper().replace(" ", "")
                     ok = bool(want_sym) and want_sym.replace(" ", "") == got
                 per_row[s + off] = ok
+                records.append({"arm": arm, "id": str(s + off), "correct": bool(ok),
+                                "status": "answered" if sp else "unanswered"})
                 hit += ok
         answers[arm] = per_row
+        arm_records = [row for row in records if row["arm"] == arm]
+        summaries[arm] = {"requested": n, "correct": hit,
+                          **{status: sum(row["status"] == status for row in arm_records)
+                             for status in ("answered", "unanswered", "transport_failed")}}
         lo, hi = clopper_pearson(hit, max(n, 1))
         print(f"  {arm:8} {hit}/{n} = {hit/max(n,1)*100:5.1f}%  [{lo:.1f}-{hi:.1f}]  "
               f"{time.time()-started:.0f}s", flush=True)
 
+    cohort = paired_coverage(answers["names"], answers["symbols"])
     if len(answers) == 2:
         p, x, y, n = paired(answers["names"], answers["symbols"])
         print(f"\n  symbols - names  +{y}/-{x} of {n}  p={p:.4g}")
+        print(f"  unmatched {cohort['first']['unmatched_rows']}/{cohort['second']['unmatched_rows']}; "
+              f"transport failures {summaries['names']['transport_failed']}/{summaries['symbols']['transport_failed']}")
         print("\n  SPC symbolizes AND fine-tunes on symbolized data. This applies")
         print("  only the representation to a model that never trained on it, so a")
         print("  loss here does not refute the technique - it would say it needs")
         print("  the matching training regime.")
-    json.dump({"book": args.book, "answers": {k: {str(i): v for i, v in a.items()}
+    json.dump({"book": args.book, "rows": records, "summary": summaries, "paired_cohort": cohort,
+               "answers": {k: {str(i): v for i, v in a.items()}
                                               for k, a in answers.items()}},
               open(args.out, "w"), indent=1)
     print("\nwrote", args.out)

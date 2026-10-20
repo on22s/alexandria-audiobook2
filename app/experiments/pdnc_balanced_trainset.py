@@ -10,6 +10,7 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
+from experiments.pdnc_fixture import is_pseudo_speaker
 from experiments.provenance import provenance  # noqa: E402
 DEFAULT_ROOT = os.path.join(REPO, "ab_test_runtime", "pdnc")
 SPECIAL = {"UNKNOWN", "UNKNOWABLE", "UNNAMED", "NOT_DIALOGUE"}
@@ -28,10 +29,12 @@ def load_characters(path):
     with open(path, encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
             name = (row.get("Main Name") or "").strip()
-            if not name:
+            if not name or name.upper() in SPECIAL or is_pseudo_speaker(name):
                 continue
             roster.append(name.upper())
             for alias in [name] + list(ast.literal_eval(row.get("Aliases") or "[]")):
+                if is_pseudo_speaker(str(alias)):
+                    continue
                 speakers[str(alias).strip().upper()] = {
                     "canonical": name.upper(),
                     "category": (row.get("Category") or "unknown").lower(),

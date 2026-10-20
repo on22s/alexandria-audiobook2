@@ -131,15 +131,17 @@ def write_arm(out_dir, chosen, held_out, texts):
     # The reference sample every arm speaks with: the clip nearest the centroid
     # of what that arm actually trained on, so neither arm is handed the other's
     # idea of the voice.
-    first = chosen[0]
-    with zipfile.ZipFile(first[1]) as zf:
+    embeddings = np.asarray([row[3] for row in chosen], dtype=np.float64)
+    centroid = embeddings.mean(axis=0)
+    reference = chosen[int(np.argmax(embeddings @ centroid))]
+    with zipfile.ZipFile(reference[1]) as zf:
         member = next((n for n in zf.namelist()
-                       if n.endswith("/" + first[2]) or n == first[2]), None)
+                       if n.endswith("/" + reference[2]) or n == reference[2]), None)
         if member:
             with open(os.path.join(out_dir, "ref.wav"), "wb") as out:
                 out.write(zf.read(member))
     with open(os.path.join(out_dir, "ref_text.txt"), "w", encoding="utf-8") as fh:
-        fh.write(texts.get((first[0], first[2]), ""))
+        fh.write(texts.get((reference[0], reference[2]), ""))
 
 
 def texts_for(pool):

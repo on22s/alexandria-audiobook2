@@ -24,7 +24,7 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
-from experiments.stats import paired          # noqa: E402
+from experiments.stats import paired, paired_coverage          # noqa: E402
 from experiments.manifest import completeness, read_inputs  # noqa: E402
 from experiments.provenance import provenance  # noqa: E402
 
@@ -32,20 +32,38 @@ EXPERIMENTS = os.path.join(REPO, "ab_test_runtime", "experiments")
 PILOTS = ("pdnc_evidence", "pdnc_sequence", "pdnc_context_evidence")
 
 
-def arms_of(path):
-    """-> {arm_name: {row_id: correct}} for one pilot artifact."""
+def _load_pilot(path):
+    """Read answer maps and explicit transport failures without mixing them."""
     with open(path, encoding="utf-8") as handle:
         payload = json.load(handle)
     arms = collections.defaultdict(dict)
+    failures = collections.defaultdict(list)
+    seen = set()
     for row in payload["rows"]:
-        arms[row["arm"]][row["id"]] = bool(row["correct"])
-    return arms
+        arm, row_id = row["arm"], row["id"]
+        key = (arm, row_id)
+        if key in seen:
+            raise ValueError(f"Duplicate pilot row: {key}")
+        seen.add(key)
+        answers = arms[arm]
+        if row.get("status") == "transport_failed":
+            failures[arm].append(row_id)
+        else:
+            if type(row["correct"]) is not bool:
+                raise ValueError(f"Pilot correctness must be boolean: {key}")
+            answers[row_id] = row["correct"]
+    return arms, {arm: failures[arm] for arm in arms}
+
+
+def arms_of(path):
+    """Return {arm: {row_id: correct}} for measured rows in one pilot."""
+    return _load_pilot(path)[0]
 
 
 def score(paths):
     per_pilot, baselines = [], {}
     for path in paths:
-        arms = arms_of(path)
+        arms, failures = _load_pilot(path)
         if "baseline" not in arms:
             raise SystemExit("%s has no baseline arm; arms=%s"
                              % (path, sorted(arms)))
@@ -61,8 +79,11 @@ def score(paths):
             "completeness": completeness(path),
             "arm": others[0],
             "shared_rows": n,
-            "baseline_accuracy": sum(base[i] for i in base) / len(base),
-            "arm_accuracy": sum(arm[i] for i in arm) / len(arm),
+            "baseline_accuracy": sum(base.values()) / len(base) if base else None,
+            "paired_cohort": paired_coverage(base, arm),
+            "transport_failures": {name: len(ids) for name, ids in failures.items()},
+            "transport_failure_ids": failures,
+            "arm_accuracy": sum(arm.values()) / len(arm) if arm else None,
             "arm_only_wins": arm_only,
             "baseline_only_wins": base_only,
             "p_value": p,
@@ -89,14 +110,19 @@ def score(paths):
 
 def render(summary):
     lines = ["=== PDNC pilots, paired ==="]
+    def format_accuracy(value):
+        return "n/a" if value is None else f"{value * 100:5.1f}%"
     for row in summary["pilots"]:
+        cohort = row["paired_cohort"]
+        first, second = cohort["first"], cohort["second"]
+        failures = row["transport_failures"]
         lines.append(
-            "  %-26s %-10s base %5.1f%%  arm %5.1f%%  "
-            "discordant %d/%d  p=%.3f"
-            % (row["artifact"].replace("__pilot__local-llamacpp.json", ""),
-               row["arm"], row["baseline_accuracy"] * 100,
-               row["arm_accuracy"] * 100, row["arm_only_wins"],
-               row["baseline_only_wins"], row["p_value"]))
+            f"  {row['artifact'].replace('__pilot__local-llamacpp.json', ''):26} "
+            f"{row['arm']:10} base {format_accuracy(first['shared_accuracy'])}  "
+            f"arm {format_accuracy(second['shared_accuracy'])}  shared n={cohort['shared_rows']}  "
+            f"unmatched {first['unmatched_rows']}/{second['unmatched_rows']}  "
+            f"transport failures {failures['baseline']}/{failures[row['arm']]}  "
+            f"discordant {row['arm_only_wins']}/{row['baseline_only_wins']}  p={row['p_value']:.3f}")
     lines.append("=== the same baseline condition, measured twice ===")
     for row in summary["baseline_noise_floor"]:
         fraction = row["fraction"]

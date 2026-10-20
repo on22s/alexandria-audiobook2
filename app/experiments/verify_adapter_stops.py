@@ -89,7 +89,7 @@ def main():
 
     print(f"{len(rows)} lines through {os.path.basename(args.adapter)}\n")
     print(f"  {'id':30}{'human':>9}{'gen':>9}{'ratio':>8}")
-    ratios, measured = [], []
+    ratios, measured, failed = [], [], []
     for row in rows:
         wav = os.path.join(out_dir, row["id"] + ".wav")
         try:
@@ -97,6 +97,9 @@ def main():
                    entry, wav)
         except GenerationFailed as exc:
             print(f"  {row['id'][:28]:30} GENERATION FAILED: {str(exc)[:50]}")
+            from diagnostics import redact_text
+            failed.append({"id": row["id"], "status": "generation_failed",
+                           "error_type": type(exc).__name__, "error": redact_text(str(exc))[:250]})
             continue
         info = sf.info(wav)
         gen = info.frames / float(info.samplerate)
@@ -108,20 +111,26 @@ def main():
                          "ratio": round(ratio, 2)})
         print(f"  {row['id'][:28]:30}{human:8.1f}s{gen:8.1f}s{ratio:8.1f}x")
 
-    if not ratios:
-        sys.exit("nothing generated; cannot judge the adapter")
-
-    median = statistics.median(ratios)
-    worst = max(ratios)
-    ok, verdict = judge_stop_ratios(ratios, args.max_ratio)
-    print(f"\n  median {median:.1f}x, worst {worst:.1f}x, "
-          f"threshold {args.max_ratio:.1f}x (every line)")
+    median = statistics.median(ratios) if ratios else None
+    worst = max(ratios) if ratios else None
+    if ratios:
+        ok, verdict = judge_stop_ratios(ratios, args.max_ratio)
+        print(f"\n  median {median:.1f}x, worst {worst:.1f}x, "
+              f"threshold {args.max_ratio:.1f}x (every line)")
+    else:
+        ok, verdict = False, "INCONCLUSIVE - nothing generated; cannot judge the adapter."
+    if failed:
+        ok = False
+        verdict = (f"INCONCLUSIVE - {len(failed)} of {len(rows)} requested generations failed; "
+                   "the adapter cannot pass on the successful subset.")
     print(f"\n  {verdict}")
 
     doc = {"adapter": os.path.relpath(args.adapter, REPO),
            "seed": args.seed, "max_ratio": args.max_ratio,
            "median_ratio": median, "worst_ratio": worst,
-           "passed": ok, "verdict": verdict, "lines": measured}
+           "passed": ok, "verdict": verdict, "lines": measured,
+           "requested_count": len(rows), "generated_count": len(measured),
+           "failed_count": len(failed), "failed_lines": failed}
     try:
         from experiments.provenance import provenance
         doc["provenance"] = provenance(__file__, args)

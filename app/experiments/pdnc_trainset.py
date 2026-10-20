@@ -27,6 +27,9 @@ import argparse, ast, collections, csv, json, os, random, sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(REPO, "app"))
+from experiments.pdnc_fixture import is_pseudo_speaker
+
 HELD_OUT = {"PrideAndPrejudice", "TheSignOfTheFour", "TheAwakening"}
 SPECIAL = {"UNKNOWN", "UNNAMED", "NOT_DIALOGUE"}
 
@@ -41,14 +44,14 @@ def convert(folder, name, per_novel, context_chars, rng):
     roster = []
     for row in csv.DictReader(open(c, encoding="utf-8")):
         main = (row.get("Main Name") or "").strip()
-        if main:
+        if main and main.upper() not in SPECIAL and not is_pseudo_speaker(main):
             roster.append(main.upper())
     roster = sorted(set(roster))
     rows = []
     for n, row in enumerate(csv.DictReader(open(q, encoding="utf-8"))):
         line = (row.get("quoteText") or "").strip()
         speaker = (row.get("speaker") or "").strip().upper()
-        if not line or not speaker or speaker in SPECIAL or speaker not in roster:
+        if not line or not speaker or speaker in SPECIAL or is_pseudo_speaker(speaker) or speaker not in roster:
             continue
         try:
             spans = ast.literal_eval(row.get("quoteByteSpans") or "[]")

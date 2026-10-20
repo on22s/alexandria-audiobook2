@@ -2770,18 +2770,18 @@ unit tests without unit skips and 72 API checks with 12 explicit full-mode
 exclusions, plus 115 distinct targeted CPU/Node checks. Full native-platform,
 GPU/model and listening qualifications are unrun.
 
-**Batch 03 progress — 2026-10-20.** Six audio fixes have passed 288 distinct
-targeted CPU checks covering take seeds, once-only pronunciation, immutable
-clone references, renamed/relocated drift references, and frame-based export
-positions. They are integrated onto accepted Batch 04. The final acceptance tree passed
-8,581 unit tests without unit skips and 72 API checks without failures, with
-12 explicit full-mode exclusions; all eight release gates passed. Native CPU
-RNG and strict absolute-clone acceptance checks pass. The original published-head CI passed. The combined Batch 03/05 quick
-release then passed 8,594 unit tests without unit skips, 72 API checks without
-failures and 12 explicit full-mode exclusions, plus all eight gates. Exact
-integrated published-head CI and merge are pending. F028/T02 stays open for its own shared worker-lifetime PR under
-the plan's split rule. No task is removed from the active goal. The accepted
-count stays **21/58; 37 remain** until further merged evidence.
+**Batch 03 partial acceptance — 2026-10-20.** Six audio tasks merged in
+PR #1431 as `f94ad7745d5b78745d875f74dd18153e9c1f0226`, with a tree identical
+to tested integrated head `56a4bcfc040661184c5ceccdbe2e5656d63439f2`. All five
+exact-head CI gates passed. The initial audio quick gate passed 8,581 unit
+tests; the combined Batch03/accepted Batch05 gate passed 8,594 without unit
+skips, 72 API checks without failures and12 explicit full-mode exclusions,
+plus all eight gates. Development proof includes288 targeted CPU checks,
+native CPU RNG draws, strict reference bytes and frame-exact native PCM/ZIP
+exports; model/provider/score callbacks and final M4B compression use bounded
+fixtures. GPU/model/listening and full native-platform qualification are unrun.
+F028/#1382 remains open for its separate worker-lifetime PR; all seven Batch03
+tasks remain required. **27/58 accepted; 31 remain.**
 
 **Batch 05 progress — 2026-10-20.** Five experiment recovery/input-identity
 fixes have passed 206 targeted CPU checks. Real CLI fixtures cover cross-phase
@@ -2794,6 +2794,20 @@ All five exact-head CI gates passed. PR #1430 merged as
 `3a4a0dde477d0daaa38962c20f3284b858f4a3d4`; its tree matches tested head
 `5ccc085c460c23d1ad7749b8c4e1d5dd6ca70d9a`. No model/training/listening
 quality is inferred from CPU callbacks. **21/58 accepted; 37 remain.**
+
+**Batch 06 progress — 2026-10-20.** All eight measurement/training-data tasks
+have development fixes, with 80 targeted CPU checks passed. Arm references use
+the selected arm's centroid; PDNC training excludes pseudo-speakers; no-scale
+measurement runs once as served; LUAR scoring and candidate admission share the
+fixture alias policy. Large exact sign tests stay finite. Stop gates retain all
+requested failures and cannot pass a successful subset. Empty measured lexicon
+states stay distinct from legacy absence, and paired reports expose the shared
+cohort, unmatched rows and serialized transport failures. Real diagnostic CLI,
+CSV/ZIP/PCM and exact-integer probability fixtures are exercised; model/provider
+callbacks are bounded CPU fixtures. Required quick release passed 8,606 unit
+tests without unit skips, 72 API checks without failures and12 explicit
+full-mode exclusions, plus all eight gates. Exact published-head CI and merge
+remain pending; no Batch 06 task is accepted. **27/58 accepted; 31 remain.**
 
 **Target — OPEN.** Zero undisposed execution tasks, with the required
 regressions and platform/model checks recorded on the exact merged revisions.

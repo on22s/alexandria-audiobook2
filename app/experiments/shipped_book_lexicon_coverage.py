@@ -53,8 +53,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 WORD = re.compile(r"[a-z0-9']+")
 
 
-def load_states(path):
-    """-> (entries, unfixable, plain_ok) as three sets of case-folded terms.
+def _load_states(path):
+    """Read three case-folded term sets and whether the third state is present.
 
     A candidates file written before `plain_already_works` existed has only a
     count, and there is no way to recover the list from it. Rather than guess,
@@ -68,7 +68,12 @@ def load_states(path):
     unfixable = {r["term"].lower() for r in doc.get("could_not_fix", [])
                  if isinstance(r, dict) and r.get("term")}
     plain_ok = {t.lower() for t in doc.get("plain_already_works", [])}
-    return entries, unfixable, plain_ok
+    return entries, unfixable, plain_ok, "plain_already_works" in doc
+
+
+def load_states(path):
+    """Read the three measured term sets, retaining the historical helper API."""
+    return _load_states(path)[:3]
 
 
 def shipped_scripts(scripts_dir):
@@ -118,14 +123,14 @@ def discover(scripts):
 
 
 def scan(scripts_dir, candidates):
-    entries, unfixable, plain_ok = load_states(candidates)
+    entries, unfixable, plain_ok, available = _load_states(candidates)
     scripts = shipped_scripts(scripts_dir)
     term_books = discover(scripts)
     per_book = collections.Counter()
     for term, books in term_books.items():
         for b in books:
             per_book[b] += 1
-    return entries, unfixable, plain_ok, scripts, per_book, term_books
+    return entries, unfixable, plain_ok, scripts, per_book, term_books, available
 
 
 def main():
@@ -141,7 +146,7 @@ def main():
         REPO, "ab_test_runtime", "experiments", "shipped_book_lexicon_coverage.json"))
     args = ap.parse_args()
 
-    entries, unfixable, plain_ok, scripts, per_book, term_books = scan(
+    entries, unfixable, plain_ok, scripts, per_book, term_books, available = scan(
         args.scripts, args.candidates)
     books = len(scripts)
     # NO BOOKS IS NOT 100% COVERAGE, AND IT IS NOT 0% EITHER. Run from a
@@ -181,7 +186,7 @@ def main():
         "present_with_entry": sum(1 for t in present if t in entries),
         "present_recorded_unfixable": sum(1 for t in present if t in unfixable),
         "present_plain_already_works": sum(1 for t in present if t in plain_ok),
-        "third_state_available": bool(plain_ok),
+        "third_state_available": available,
         "present_in_neither_state": len(neither),
         "coverage_percent": round(
             100.0 * (len(present) - len(neither)) / len(present), 1) if present else None,
@@ -222,7 +227,7 @@ def main():
         rest = doc["neither_state_unexplained"]
         if rest:
             print(f"      unexplained: {', '.join(rest)}")
-    if not plain_ok:
+    if not available:
         print("\n  NOTE: this candidates file predates `plain_already_works` "
               "and carries only a count, so terms the plain reading already "
               "says cannot be recognised and are counted as uncovered. "

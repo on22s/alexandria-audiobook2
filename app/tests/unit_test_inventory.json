@@ -731,6 +731,22 @@
     "tests.test_basic_auth_scheme_case.BasicAuthSchemeTests.test_all_basic_scheme_cases_accept_same_exact_unicode_credentials",
     "tests.test_basic_auth_scheme_case.BasicAuthSchemeTests.test_wrong_scheme_and_malformed_payload_still_reject"
   ],
+  "test_batch06_measurement_integrity": [
+    "tests.test_batch06_measurement_integrity.Batch06MeasurementIntegrityTests.test_both_pdnc_builders_exclude_pseudo_targets_and_rosters",
+    "tests.test_batch06_measurement_integrity.Batch06MeasurementIntegrityTests.test_current_empty_third_state_is_available_and_legacy_absence_is_distinct",
+    "tests.test_batch06_measurement_integrity.Batch06MeasurementIntegrityTests.test_large_exact_sign_test_matches_integer_probability_and_small_controls",
+    "tests.test_batch06_measurement_integrity.Batch06MeasurementIntegrityTests.test_luar_cli_uses_fixture_aliases_for_both_measured_arms",
+    "tests.test_batch06_measurement_integrity.Batch06MeasurementIntegrityTests.test_no_scale_measures_one_as_served_arm_without_adapter_effect_claims",
+    "tests.test_batch06_measurement_integrity.Batch06MeasurementIntegrityTests.test_reference_audio_and_text_follow_each_selected_arm_centroid",
+    "tests.test_batch06_measurement_integrity.Batch06MeasurementIntegrityTests.test_scaled_chinese_comparison_keeps_real_interventions_and_result_keys",
+    "tests.test_batch06_measurement_integrity.Batch06MeasurementIntegrityTests.test_stop_cli_records_all_requested_failures_and_cannot_pass_a_survivor_subset"
+  ],
+  "test_batch06_reporting_coverage": [
+    "tests.test_batch06_reporting_coverage.ReportingCoverageTests.test_disjoint_or_all_failed_cohorts_report_no_shared_accuracy",
+    "tests.test_batch06_reporting_coverage.ReportingCoverageTests.test_duplicate_or_nonboolean_pilot_rows_refuse_instead_of_changing_denominators",
+    "tests.test_batch06_reporting_coverage.ReportingCoverageTests.test_pdnc_report_prints_shared_accuracies_and_unmatched_and_failed_counts",
+    "tests.test_batch06_reporting_coverage.ReportingCoverageTests.test_symbolization_cli_serializes_every_attempt_and_reports_transport_dropout"
+  ],
   "test_batch_alias_registry": [
     "tests.test_batch_alias_registry.BatchAliasRegistryTests.test_corrected_and_removed_aliases_govern_single_and_bidirectional_batches"
   ],

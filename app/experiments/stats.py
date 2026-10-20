@@ -103,3 +103,14 @@ def paired(rows_a, rows_b):
     b = sum(1 for i in shared if rows_a[i] and not rows_b[i])
     c = sum(1 for i in shared if rows_b[i] and not rows_a[i])
     return exact_mcnemar(b, c) + (len(shared),)
+
+
+def paired_coverage(rows_a, rows_b):
+    """Describe the exact shared cohort separately from each arm's full rows."""
+    shared = set(rows_a) & set(rows_b)
+    def describe(rows):
+        correct = sum(bool(rows[key]) for key in shared)
+        return {"rows": len(rows), "unmatched_rows": len(set(rows) - shared),
+                "shared_correct": correct,
+                "shared_accuracy": correct / len(shared) if shared else None}
+    return {"shared_rows": len(shared), "first": describe(rows_a), "second": describe(rows_b)}

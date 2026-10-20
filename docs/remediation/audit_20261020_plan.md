@@ -47,17 +47,17 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 03: Preserve rendered text, voice identity, and timing
 
-**Dependencies:** Batch 01, Batch 02 (accepted). **Tasks:** 7. **Status:** six fixes in integrated qualification; F028 worker lifetime remains open for a separate shared-layer PR. **PR:** [#1431](https://github.com/on22s/alexandria-audiobook2/pull/1431).
+**Dependencies:** Batch 01, Batch 02 (accepted). **Tasks:** 7. **Status:** six accepted; F028 remains open separately. **PR:** [#1431](https://github.com/on22s/alexandria-audiobook2/pull/1431).
 
 **Batch acceptance:** Exercise single/native/external/design/clone dispatch using deterministic CPU callbacks and valid synthetic PCM; preserve once-only pronunciation and reference alias policy. Check effective take behavior, complete-sample timing, and repeated stalled-request resource lifetime. Queue any required real-model/audio confirmation separately.
 
-- [ ] **F024** [#1378](https://github.com/on22s/alexandria-audiobook2/issues/1378) — Different take reuses the original seed for normally assigned voices Includes T01.
-- [ ] **F025** [#1379](https://github.com/on22s/alexandria-audiobook2/issues/1379) — Timeline rounding accumulates drift against the encoded PCM
-- [ ] **F026** [#1380](https://github.com/on22s/alexandria-audiobook2/issues/1380) — LoRA and design rendering apply pronunciation substitutions more than once Includes T06.
-- [ ] **F027** [#1381](https://github.com/on22s/alexandria-audiobook2/issues/1381) — External clone rendering loses references after adapter rename Includes T03.
+- [x] **F024** [#1378](https://github.com/on22s/alexandria-audiobook2/issues/1378) — Different take reuses the original seed for normally assigned voices Includes T01.
+- [x] **F025** [#1379](https://github.com/on22s/alexandria-audiobook2/issues/1379) — Timeline rounding accumulates drift against the encoded PCM
+- [x] **F026** [#1380](https://github.com/on22s/alexandria-audiobook2/issues/1380) — LoRA and design rendering apply pronunciation substitutions more than once Includes T06.
+- [x] **F027** [#1381](https://github.com/on22s/alexandria-audiobook2/issues/1381) — External clone rendering loses references after adapter rename Includes T03.
 - [ ] **F028** [#1382](https://github.com/on22s/alexandria-audiobook2/issues/1382) — Timed-out external batches retain unbounded executor threads Includes T02.
-- [ ] **F029** [#1383](https://github.com/on22s/alexandria-audiobook2/issues/1383) — Renamed adapters lose voice-drift measurements despite valid serving aliases Includes T04.
-- [ ] **F030** [#1384](https://github.com/on22s/alexandria-audiobook2/issues/1384) — Relocated runtime data makes every built-in voice reference fail drift admission
+- [x] **F029** [#1383](https://github.com/on22s/alexandria-audiobook2/issues/1383) — Renamed adapters lose voice-drift measurements despite valid serving aliases Includes T04.
+- [x] **F030** [#1384](https://github.com/on22s/alexandria-audiobook2/issues/1384) — Relocated runtime data makes every built-in voice reference fail drift admission
 
 ### Batch 04: Repair preparation and frontend recovery
 
@@ -85,7 +85,7 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 06: Make training data and measurement gates trustworthy
 
-**Dependencies:** Batch 05. **Tasks:** 8. **Status:** not started. **PR:** not opened.
+**Dependencies:** Batch 05 (accepted). **Tasks:** 8. **Status:** 80 targeted CPU checks and required quick release (8,606 unit tests) passed; exact-head CI/merge pending. **PR:** not opened.
 
 **Batch acceptance:** Use known-good, known-bad and boundary fixtures. Require comparable paired denominators, alias-aware scoring, corpus pseudo-speaker filtering, stable large-count statistics, true representative reference choice and gate refusal when requested generations fail. An identical served model cannot be reported as an adapter effect.
 
@@ -231,39 +231,24 @@ aggregate, native Windows ownership and three OS reports-checkJs candidates.
 **21/58 accepted; 37 remain.** GPU/model/listening and full native-platform
 qualifications are unrun and are not inferred from these control-plane checks.
 
-## Batch 03 verification progress
+## Batch 03 six-task acceptance
 
-Six fixes (F024–F027, F029, F030) have 288 distinct targeted CPU tests passed.
-The real Editor generation path retains the configured original seed while
-numbered takes use stable distinct offsets. Actual local and external model
-boundaries receive a single simultaneous pronunciation substitution, including
-overlapping/self-containing rules, direct calls, ensembles and dynamic
-narrators. Direct wrappers, public overrides, seeded inference and LoRA lock
-serialization remain covered.
+Six audio fixes merged in PR #1431 as
+`f94ad7745d5b78745d875f74dd18153e9c1f0226`; its tree is identical to tested
+integrated head `56a4bcfc040661184c5ceccdbe2e5656d63439f2`. All five exact-head
+CI checks passed, including complete inventory and native Windows ownership.
+The initial audio quick gate passed8,581 unit tests. After integration with
+accepted Batch05, quick verification passed8,594 without unit skips,72 API
+checks without failures and12 explicit full-mode exclusions, plus all8 gates.
+Development verification includes288 targeted CPU regressions, strengthened
+native RNG/strict reference checks and4 navigation checks. Exact reference
+bytes, complete PCM and native ZIP/WAV behavior are exercised; model/provider/
+score callbacks and final M4B compression use bounded fixtures. GPU/model/
+listening and complete native-platform qualifications are unrun.
 
-A 1,000-clip native export fixture checks every Audacity label, complete
-speaker-track PCM and M4B metadata against WAV frame positions. Pauses and
-legacy/mixed-rate promotion controls preserve combined PCM while removing
-accumulated annotation/track drift. Clone upload uses captured private reference
-bytes across rename/replacement; drift measurements resolve durable aliases
-and admit installed built-ins after runtime relocation while refusing symlink
-escapes. Provider/model score callbacks are synthetic CPU fixtures.
-
-These six fixes are integrated onto accepted Batch 04. The final acceptance
-tree passed all eight quick release gates: 8,581 unit tests without unit skips,
-72 API checks without failures and 12 explicit full-mode exclusions. Native
-CPU RNG-state/draw comparisons use the actual Editor seed configurations;
-strict absolute-clone scoring/refusal and exact reference-byte checks pass.
-The original published-head CI passed. Integration with accepted Batch 05
-passed all eight quick release gates: 8,594 unit tests without unit skips,
-72 API checks without failures and 12 explicit full-mode exclusions. Exact
-integrated published-head CI and merge are pending; none of these six tasks is
-accepted yet.
-
-F028/T02 stays open for a separate shared-layer PR because SDK-owned worker
-shutdown needs its own lifetime proof. This is the working contract's permitted
-split; all seven tasks remain required for Batch 03 completion.
-**21/58 accepted; 37 remain.**
+The six child issue checklists have merged proof. F028/#1382 remains open for
+its shared-layer worker-lifetime PR; all seven Batch03 tasks remain required.
+**27/58 accepted; 31 remain.**
 
 ## Batch 05 verification progress
 
@@ -302,6 +287,39 @@ inventory aggregate and native Windows ownership. PR #1430 merged as
 head `5ccc085c460c23d1ad7749b8c4e1d5dd6ca70d9a`. All five child issues have
 merged acceptance evidence. **21/58 accepted; 37 remain.**
 
+## Batch 06 verification progress
+
+All eight tasks retain their original issue and review-entry mappings. Concrete
+failure fixtures were run against freshly fetched main `3a4a0dde` before fixes.
+Development verification passed 80 CPU checks, including four existing function
+tests, actual diagnostic CLI paths, native CSV/ZIP/WAV operations and an
+independent exact-integer binomial oracle. Models, provider responses, training
+and score callbacks are bounded fixtures; no inference or listening result is
+claimed.
+
+The arm writer now chooses reference audio and text from its own selected
+centroid. Both PDNC builders share the canonical pseudo-speaker predicate while
+retaining ordinary speakers and existing sampling controls. `--no-scale` emits
+one as-served arm; scaled comparisons retain their interventions and keys.
+LUAR candidate admission and both arm scores use fixture aliases, retaining the
+original artifact correctness beside the rescored value. Sign tests reuse the
+shared stable exact-binomial implementation.
+
+The stop CLI records requested/generated/failed counts and every failed ID,
+writes an inconclusive refusal even when all calls fail, and never approves a
+successful subset. Lexicon scans distinguish an available empty third state
+from a legacy missing key and avoid the misleading regeneration notice.
+Paired reports expose shared-cohort accuracy separately from whole-arm totals,
+unmatched counts and transport-failure IDs. Symbolization preserves every
+attempt's status while retaining the aggregate attempt denominator and legacy
+answer maps. Disjoint/all-failed cohorts show unavailable shared accuracy;
+duplicate or nonboolean pilot rows refuse.
+
+Required `./ready.sh` quick passed8,606 unit tests without unit skips,72 API
+checks without failures and12 explicit full-mode exclusions, plus all8 gates
+(867.009 seconds). Exact published-head CI and merge remain pending. All eight
+Batch06 tasks remain open. **27/58 accepted; 31 remain.**
+
 ## Completion gate
 
 - [ ] All 58 child issues have merged acceptance evidence or an evidence-backed duplicate/refutation/obsolete disposition.
@@ -313,3 +331,13 @@ merged acceptance evidence. **21/58 accepted; 37 remain.**
 ## Task manifest and updates
 
 The [machine-readable task map](audit_20261020_tasks.json) binds review IDs to issues, batches, dependencies and test-gap owners. Update its status and this checklist together after a batch merges. Do not renumber the original review IDs. Repository issue links contain the portable source evidence and acceptance criteria; private local artifacts are not required to understand a task.
+
+## Batch 05 merged acceptance reconciliation
+
+PR #1430 merged as `3a4a0dde477d0daaa38962c20f3284b858f4a3d4`; its tree
+matches tested head `5ccc085c460c23d1ad7749b8c4e1d5dd6ca70d9a`. All five
+exact-head CI gates passed. The five child issues have checked acceptance and
+merged proof. Required local quick release passed 8,583 unit tests without
+unit skips, 72 API checks without failures and12 explicit full-mode exclusions,
+and all eight gates. GPU/model/training/listening and complete native-platform
+qualification are unrun. **21/58 accepted; 37 remain.**

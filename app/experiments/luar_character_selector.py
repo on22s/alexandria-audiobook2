@@ -41,7 +41,9 @@ def main():
     parser.add_argument("--revision", default="89713b0911254c6c40d3211a7a4380fbe5f9d127")
     args = parser.parse_args()
     artifact = json.load(open(args.baseline, encoding="utf-8"))
-    entries = json.load(open(args.inputs, encoding="utf-8"))["entries"]
+    fixture = json.load(open(args.inputs, encoding="utf-8"))
+    entries = fixture["entries"]
+    aliases = alias_groups(fixture)
     baseline = {}
     for row in artifact["rows"]:
         if row["arm"] == "baseline":
@@ -75,17 +77,18 @@ def main():
                 scores = matrix @ functional.normalize(query, dim=-1)[0].cpu()
                 order = torch.argsort(scores, descending=True)
                 candidates = set(base.get("candidates") or [])
-                order = [int(i) for i in order if not candidates or names[int(i)] in candidates]
+                order = [int(i) for i in order if not candidates or any(same_speaker(names[int(i)], candidate, aliases)
+                                                       for candidate in candidates)]
                 if order and (len(order) == 1 or scores[order[0]] - scores[order[1]] >= args.margin):
                     prediction, reason = names[order[0]], "luar_profile_override"
             rows.append({"id": entry["id"], "expected": entry["expected_speaker"],
                          "baseline": base["predicted"], "predicted": prediction,
-                         "baseline_correct": bool(base["correct"]), "reason": reason})
+                         "source_baseline_correct": bool(base["correct"]),
+                         "baseline_correct": same_speaker(base["predicted"], entry["expected_speaker"], aliases),
+                         "reason": reason})
 
-    aliases = alias_groups()
     base_scores = {r["id"]: r["baseline_correct"] for r in rows}
-    arm_scores = {r["id"]: (r["baseline_correct"] if r["reason"] == "baseline_default"
-                            else same_speaker(r["predicted"], r["expected"], aliases)) for r in rows}
+    arm_scores = {r["id"]: same_speaker(r["predicted"], r["expected"], aliases) for r in rows}
     p_value, lost, gained, n = paired(base_scores, arm_scores)
     summary = {"n": n, "baseline_correct": sum(base_scores.values()),
                "luar_correct": sum(arm_scores.values()), "gained": gained, "lost": lost,
