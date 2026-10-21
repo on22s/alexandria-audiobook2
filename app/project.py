@@ -16,8 +16,10 @@ import gc
 import math
 import unicodedata
 import uuid
-from pronunciation import ensure_pronunciation_snapshot
-from speech_text import normalize_for_speech
+from pronunciation import (ensure_pronunciation_snapshot, ensure_occurrence_pronunciation_context,
+                           get_occurrence_pronunciation_inputs, get_pronunciation_text_digest,
+                           is_pronunciation_settings_dependent)
+from speech_text import get_speech_normalization
 from script_repair import EXPLICIT_SILENCE_MS
 from speech_policy import (get_spoken_symbol, get_spoken_word_text,
                            get_spoken_text_spacing, get_scene_break_text)
@@ -30,12 +32,14 @@ from chunk_status_journal import (ChunkStatusJournal, get_chunk_status_journal_p
                                   get_chunk_audio_key)
 from adapter_publication import sync_adapter_directory
 from config_settings import load_app_config
+from lora_evidence import get_tts_model_settings
 from literal_policy import (ensure_literal_narration, bind_literal_chunks,
                             ensure_literal_chunk, CHUNK_POLICY_KEY)
 from audio_validation import publish_audio_output, remove_stale_audio, validate_generated_audio
 from tts import (
     TTSEngine,
     get_chunk_seed,
+    get_pronunciation_render_context,
     get_reproducible_voice_config,
     ExportCancelled,
     ensure_audio_export_active,
@@ -143,7 +147,19 @@ def get_chapter_reuse_duration(plan, old, wanted, changed_only, out_dir):
 
 def get_chunk_generation_inputs(chunk):
     """Fields whose changes make a captured render obsolete."""
-    return {field: chunk[field] for field in CHUNK_GENERATION_FIELDS if field in chunk}
+    inputs = {field: chunk[field] for field in CHUNK_GENERATION_FIELDS if field in chunk}
+    rules = get_occurrence_pronunciation_inputs(chunk.get("pronunciation_rules"))
+    if rules:
+        inputs["pronunciation_rules"] = rules
+    return inputs
+
+
+def get_occurrence_speech_projection(chunk, index, voices, model_settings):
+    """Read canonical words and decisions without changing source or loading models."""
+    context = get_pronunciation_render_context(voices, chunk, index, model_settings)
+    with ensure_occurrence_pronunciation_context(chunk, context):
+        preparation = get_speech_normalization(chunk.get("text", ""))
+    return {**preparation, "context": context}
 
 
 def get_narrator_generation_context(entry):
@@ -845,6 +861,66 @@ class ProjectManager:
         with self._chunks_lock, file_lock(self.chunks_path):
             return self._read_chunks()
 
+    def get_saved_chunks(self):
+        """Read existing rows strictly; never regenerate, backfill or repair."""
+        with self._chunks_lock, file_lock(self.chunks_path):
+            return self._get_saved_chunks_locked()
+
+    def _get_saved_chunks_locked(self):
+        """Caller holds the existing thread and kernel chunk locks."""
+        chunks = self._get_saved_chunk_rows_locked()
+        uids, ids = set(), set()
+        for row in chunks:
+            uid, number = row.get("uid"), row.get("id")
+            if (not isinstance(uid, str) or not uid or len(uid) > 128 or uid in uids
+                    or type(number) is not int or number < 0 or number in ids
+                    or not isinstance(row.get("text", ""), str)
+                    or not isinstance(row.get("speaker", "NARRATOR"), str)):
+                raise ValueError("Saved chunk identity or text needs repair in Editor before preview")
+            uids.add(uid)
+            ids.add(number)
+        return chunks
+
+    def _get_saved_chunk_rows_locked(self):
+        """Read snapshot/journal objects without requiring legacy UID migration."""
+        if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
+            chunks = self._get_status_journal_locked().get_rows()
+        else:
+            with open(self.chunks_path, "r", encoding="utf-8") as source:
+                chunks = json.load(source)
+        if not isinstance(chunks, list) or any(not isinstance(row, dict) for row in chunks):
+            raise ValueError("Saved chunks must be an array of objects; open Editor to repair them")
+        return chunks
+
+    def get_pronunciation_preview_settings(self):
+        """Read active or configured settings without constructing a TTS engine."""
+        with self._engine_lock:
+            if self.engine is not None:
+                read = getattr(self.engine, "get_model_settings", None)
+                if callable(read):
+                    return {"settings": read(), "source": "active"}
+                return {"settings": {}, "source": "unknown"}
+        return {"settings": get_tts_model_settings(self._read_config()), "source": "configured"}
+
+    def _apply_pronunciation_settings_invalidation_locked(self, before, after):
+        """Fence changed scoped words before publishing settings; retain audio files."""
+        chunks = self._get_saved_chunks_locked()
+        voices = self.get_voice_config_for_update()
+        updated, changed = list(chunks), []
+        with ensure_pronunciation_snapshot():
+            for index, chunk in enumerate(chunks):
+                if not is_pronunciation_settings_dependent(chunk):
+                    continue
+                old = get_occurrence_speech_projection(chunk, index, voices, before)
+                new = get_occurrence_speech_projection(chunk, index, voices, after)
+                if old["text"] != new["text"]:
+                    updated[index] = {**chunk, "status": "pending", "audio_path": None,
+                                      "error": None, "drift": None, "voice_revision": uuid.uuid4().hex}
+                    changed.append(chunk["uid"])
+        if changed:
+            self._save_chunks_locked(updated, uids_backfilled=True)
+        return changed
+
     def _get_chunks_file_version(self):
         """Identify the file whose rows have already received stable UIDs."""
         try:
@@ -1229,15 +1305,28 @@ class ProjectManager:
 
     def _publish_generated_chunk_audio(self, chunk, temp_path, speaker):
         """Convert privately, then attach/promote audio only to unchanged inputs."""
-        validate_generated_audio(temp_path, "generated speech",
-                                 expected_text=normalize_for_speech(chunk.get("text", "")))
+        with ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context")):
+            preparation = get_speech_normalization(chunk.get("text", ""))
+            validate_generated_audio(temp_path, "generated speech", expected_text=preparation["text"])
+        revision = uuid.uuid4().hex
+        evidence = {}
+        if preparation.get("pronunciation_decisions"):
+            evidence["pronunciation_receipt"] = {
+                "audio_revision": revision,
+                "text_sha256": get_pronunciation_text_digest(chunk.get("text", "")),
+                "prepared_sha256": preparation["pronunciation_prepared_sha256"],
+                "speech_sha256": get_pronunciation_text_digest(preparation["text"]),
+                "context": chunk.get("_pronunciation_context", {}),
+                "decisions": preparation["pronunciation_decisions"]}
+        elif "pronunciation_receipt" in chunk:
+            evidence["pronunciation_receipt"] = None
         staged_path = None
         try:
             staged_audio = self._export_chunk_audio(temp_path, f".render-{uuid.uuid4().hex}")
             staged_path = self.get_chunk_audio_path(staged_audio)
             updated = self._update_chunk_fields_by_uid(
                 chunk["uid"], expected_chunk=chunk, audio_source=staged_path,
-                status="done", audio_revision=uuid.uuid4().hex, error=None, drift=None)
+                status="done", audio_revision=revision, error=None, drift=None, **evidence)
             if updated is None:
                 raise ValueError(GENERATION_INPUTS_CHANGED)
             return updated["audio_path"]
@@ -1324,6 +1413,11 @@ class ProjectManager:
             # for a read-modify-write — no extra locking needed here.
             voice_config = safe_load_json(self.voice_config_path, default={})
 
+            if chunk.get("pronunciation_rules"):
+                settings = engine.get_model_settings() if callable(getattr(engine, "get_model_settings", None)) else {}
+                chunk = {**chunk, "_pronunciation_context": get_pronunciation_render_context(
+                    voice_config, chunk, index, settings)}
+
             speaker = chunk["speaker"]
             # Resolve aliases to canonical speaker used for TTS
             canonical_speaker = self._resolve_alias(speaker, voice_config)
@@ -1352,11 +1446,12 @@ class ProjectManager:
                     take=chunk.get("take", 0))
             generation_args = (text, instruct, speaker_to_use, chunk_voice_config, temp_path)
             failure = None
-            if callable(getattr(engine, "generate_voice_result", None)):
-                result = engine.generate_voice_result(*generation_args)
-                success, failure = result.success, result.failure
-            else:
-                success = engine.generate_voice(*generation_args)
+            with ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context")):
+                if callable(getattr(engine, "generate_voice_result", None)):
+                    result = engine.generate_voice_result(*generation_args)
+                    success, failure = result.success, result.failure
+                else:
+                    success = engine.generate_voice(*generation_args)
 
             if success:
                 validate_generated_audio(
@@ -2686,12 +2781,21 @@ class ProjectManager:
                     # Resolve aliases so batch uses canonical speaker config
                     speaker = chunk.get("speaker", "")
                     canonical = self._resolve_alias(speaker, voice_config)
+                    if chunk.get("pronunciation_rules"):
+                        settings = engine.get_model_settings() if callable(getattr(engine, "get_model_settings", None)) else {}
+                        chunk = {**chunk, "_pronunciation_context": get_pronunciation_render_context(
+                            voice_config, chunk, idx, settings)}
+                        captured[idx] = chunk
                     batch_chunk = {
                         "index": idx,
                         "text": chunk.get("text", ""),
                         "instruct": chunk.get("instruct", ""),
                         "speaker": canonical
                     }
+                    if chunk.get("pronunciation_rules"):
+                        batch_chunk.update(uid=chunk.get("uid"),
+                                           pronunciation_rules=copy.deepcopy(chunk["pronunciation_rules"]),
+                                           _source_speaker=speaker)
                     # Preserve narrator-selection metadata through the
                     # project boundary; the TTS engine uses these fields to
                     # resolve focus/chapter/gender strategies per chunk.

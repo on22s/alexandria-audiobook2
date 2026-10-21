@@ -270,3 +270,278 @@ def character_forms(script_path=None, aliases_path=None, voice_config_path=None)
                            "lowercase_occurrences": lower}
     return dict(sorted(forms.items(),
                        key=lambda kv: -kv[1]["occurrences"]))
+
+
+MAX_OCCURRENCE_RULES = 32
+MAX_OCCURRENCE_RULE_BYTES = 65536
+OCCURRENCE_COORDINATE_SPACE = 'pre_lexicon_v1'
+OCCURRENCE_RENDER_FIELDS = ('coordinate_space', 'offset_unit', 'uid', 'text_sha256', 'prepared_sha256',
+                            'start', 'end', 'original', 'replacement', 'phonetic_hint',
+                            'fallback', 'restrictions')
+OCCURRENCE_RULE_FIELDS = frozenset(('id', 'state', 'note', *OCCURRENCE_RENDER_FIELDS))
+PRONUNCIATION_MODEL_CONTEXT = {'engine_mode': 'mode', 'language': 'language'}
+
+
+class OccurrenceAnchorConflict(ValueError):
+    """A reviewed anchor no longer identifies this exact saved occurrence."""
+
+
+def get_pronunciation_model_context(settings):
+    """The existing model settings which can restrict an occurrence rule."""
+    return {field: settings.get(key) for field, key in PRONUNCIATION_MODEL_CONTEXT.items()}
+
+
+def is_pronunciation_settings_dependent(chunk):
+    return any(set(rule.get('restrictions', {})) & PRONUNCIATION_MODEL_CONTEXT.keys()
+               for rule in get_occurrence_pronunciation_inputs(chunk.get('pronunciation_rules')))
+
+
+def get_pronunciation_text_digest(text):
+    """Bind anchors to exact Unicode codepoints, including reviewed surrogates."""
+    import hashlib
+    return hashlib.sha256(text.encode('utf-8', errors='surrogatepass')).hexdigest()
+
+
+def get_occurrence_rule_error(rule):
+    """Return a bounded rule's schema error without interpreting its anchor."""
+    if (not isinstance(rule, dict) or len(rule) > len(OCCURRENCE_RULE_FIELDS)
+            or any(key not in OCCURRENCE_RULE_FIELDS for key in rule)):
+        return 'invalid_rule'
+    if (not isinstance(rule.get('id'), str) or not 1 <= len(rule['id']) <= 64
+            or rule.get('state') not in ('draft', 'approved', 'rejected')
+            or rule.get('coordinate_space') != OCCURRENCE_COORDINATE_SPACE
+            or rule.get('offset_unit') != 'unicode_codepoint'
+            or not isinstance(rule.get('uid'), str) or not 1 <= len(rule['uid']) <= 128):
+        return 'invalid_rule'
+    if any(not isinstance(rule.get(key), str) or re.fullmatch(r'[0-9a-f]{64}', rule[key]) is None
+           for key in ('text_sha256', 'prepared_sha256')):
+        return 'invalid_anchor_digest'
+    if (type(rule.get('start')) is not int or type(rule.get('end')) is not int
+            or rule['start'] < 0 or rule['end'] <= rule['start']
+            or not isinstance(rule.get('original'), str) or not 1 <= len(rule['original']) <= 512):
+        return 'invalid_anchor_span'
+    replacement, hint, fallback = (rule.get(key) for key in ('replacement', 'phonetic_hint', 'fallback'))
+    if any(value is not None and (not isinstance(value, str) or not value.strip() or len(value) > 512)
+           for value in (replacement, hint, fallback)):
+        return 'invalid_replacement'
+    if (replacement is None) == (hint is None) or (replacement is not None and fallback is not None):
+        return 'choose_respelling_or_phonetic_hint'
+    restrictions = rule.get('restrictions', {})
+    if (not isinstance(restrictions, dict) or len(restrictions) > 4
+            or set(restrictions) - {'speaker', 'voice_sha256', *PRONUNCIATION_MODEL_CONTEXT}
+            or any(not isinstance(value, str) or not value.strip() or len(value) > 256
+                   for value in restrictions.values())):
+        return 'invalid_restrictions'
+    voice = restrictions.get('voice_sha256')
+    if voice is not None and re.fullmatch(r'[0-9a-f]{64}', voice) is None:
+        return 'invalid_voice_identity'
+    if restrictions.get('engine_mode') not in (None, 'local', 'external'):
+        return 'invalid_engine_mode'
+    if not isinstance(rule.get('note', ''), str) or len(rule.get('note', '')) > 512:
+        return 'invalid_note'
+    return None
+
+
+def get_occurrence_anchor_error(rule, uid, text_digest, prepared, prepared_digest):
+    """Use exact hashes and Unicode-codepoint bounds; never search for reattachment."""
+    if rule['uid'] != uid:
+        return 'wrong_chunk'
+    if rule['text_sha256'] != text_digest:
+        return 'stale_chunk_text'
+    if rule['prepared_sha256'] != prepared_digest:
+        return 'stale_preparation'
+    if rule['end'] > len(prepared) or prepared[rule['start']:rule['end']] != rule['original']:
+        return 'stale_span'
+    return None
+
+
+def validate_occurrence_pronunciation_rules(rules, uid, text, prepared):
+    """Refuse invalid/stale approval data before a bounded chunk document save."""
+    if not isinstance(rules, list) or len(rules) > MAX_OCCURRENCE_RULES:
+        raise ValueError('At most 32 occurrence rules are allowed per line.')
+    text_digest = get_pronunciation_text_digest(text)
+    prepared_digest = get_pronunciation_text_digest(prepared)
+    seen, approved = set(), []
+    for rule in rules:
+        error = get_occurrence_rule_error(rule)
+        if error:
+            raise ValueError('Occurrence rule needs review: ' + error)
+        error = get_occurrence_anchor_error(rule, uid, text_digest, prepared, prepared_digest)
+        if error:
+            raise OccurrenceAnchorConflict('Occurrence rule needs review: ' + error)
+        if rule['id'] in seen:
+            raise ValueError('Occurrence rule IDs must be unique.')
+        seen.add(rule['id'])
+        if rule['state'] == 'approved':
+            approved.append(rule)
+    previous_end = -1
+    for rule in sorted(approved, key=lambda row: row['start']):
+        if rule['start'] < previous_end:
+            raise ValueError('Approved occurrence spans may not overlap.')
+        previous_end = rule['end']
+    if len(json.dumps(rules, ensure_ascii=False, allow_nan=False).encode('utf-8', errors='surrogatepass')) > MAX_OCCURRENCE_RULE_BYTES:
+        raise ValueError('Occurrence rules exceed the 64 KiB line limit.')
+
+
+def get_occurrence_pronunciation_inputs(rules):
+    """Capture approved render data; notes, review drafts and IDs do not alter speech."""
+    if not isinstance(rules, list) or len(rules) > MAX_OCCURRENCE_RULES:
+        return []
+    active = [{key: dict(rule[key]) if key == 'restrictions' else rule[key]
+               for key in OCCURRENCE_RENDER_FIELDS if key in rule}
+              for rule in rules if get_occurrence_rule_error(rule) is None and rule['state'] == 'approved']
+    return sorted(active, key=lambda row: (row['start'], row['end']))
+
+
+def get_occurrence_pronunciation_resolution(text, entries, pattern=None, *, rules=None,
+                                           uid=None, text_digest=None, context=None):
+    """Plan scoped and shared replacements against one string, then apply once."""
+    if not rules:
+        spoken, substitutions = get_pronunciation_result(text, entries, pattern)
+        return {'text': spoken, 'substitutions': substitutions, 'decisions': []}
+    if not isinstance(rules, list) or len(rules) > MAX_OCCURRENCE_RULES:
+        spoken, substitutions = get_pronunciation_result(text, entries, pattern)
+        return {'text': spoken, 'substitutions': substitutions,
+                'decisions': [{'id': None, 'applied': False, 'reason': 'invalid_rule_document'}]}
+    prepared_digest = get_pronunciation_text_digest(text)
+    context = context or {}
+    candidates, decisions, approved, ids, duplicate_ids = [], [], [], set(), set()
+    for rule in rules:
+        error = get_occurrence_rule_error(rule)
+        rule_id = rule.get('id') if isinstance(rule, dict) else None
+        if not isinstance(rule_id, str) or not 1 <= len(rule_id) <= 64:
+            rule_id = None
+        decision = {'id': rule_id, 'applied': False, 'reason': error}
+        decisions.append(decision)
+        if error:
+            continue
+        if rule['id'] in ids:
+            decision['reason'] = 'duplicate_rule_id'
+            duplicate_ids.add(rule['id'])
+            continue
+        ids.add(rule['id'])
+        if rule['state'] != 'approved':
+            decision['reason'] = rule['state']
+            continue
+        error = get_occurrence_anchor_error(rule, uid, text_digest, text, prepared_digest)
+        if error:
+            decision['reason'] = error
+            continue
+        approved.append((rule, decision))
+    # Invalid stored overlap is never resolved by list order or active restriction.
+    conflicts = set()
+    for i, (rule, _decision) in enumerate(approved):
+        for other, _ in approved[i + 1:]:
+            if rule['start'] < other['end'] and other['start'] < rule['end']:
+                conflicts.update((rule['id'], other['id']))
+    for rule, decision in approved:
+        if rule['id'] in duplicate_ids:
+            decision['reason'] = 'duplicate_rule_id'
+            continue
+        if rule['id'] in conflicts:
+            decision['reason'] = 'overlapping_approved_spans'
+            continue
+        mismatch = next((key for key, value in rule.get('restrictions', {}).items()
+                         if context.get(key) != value), None)
+        if mismatch:
+            decision['reason'] = 'scope_mismatch:' + mismatch
+            continue
+        replacement = rule.get('replacement')
+        reason = 'applied_respelling'
+        if replacement is None:
+            replacement = rule.get('fallback')
+            if replacement is None:
+                decision['reason'] = 'unsupported_phonetic_hint'
+                continue
+            reason = 'applied_phonetic_fallback'
+        decision.update(applied=True, reason=reason)
+        candidates.append((rule['start'], rule['end'], replacement,
+                           {'name': rule['original'], 'spoken': replacement,
+                            'rule_id': rule['id'], 'scope': 'occurrence'}))
+    if not candidates:
+        spoken, substitutions = get_pronunciation_result(text, entries, pattern)
+        return {'text': spoken, 'substitutions': substitutions, 'decisions': decisions}
+    active = entries if pattern is not None else {
+        key: value for key, value in entries.items() if key.strip() and value.strip()}
+    pattern = pattern if pattern is not None else _compile(active)
+    replacements = list(candidates)
+    if pattern is not None:
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            if any(start < stop and begin < end for begin, stop, _replacement, _row in candidates):
+                continue
+            name = match.group(1)
+            replacements.append((start, end, active[name], {'name': name, 'spoken': active[name]}))
+    ordered = sorted(replacements, key=lambda row: row[0])
+    pieces, cursor = [], len(text)
+    for start, end, replacement, _row in reversed(ordered):
+        pieces.extend((text[end:cursor], replacement))
+        cursor = start
+    pieces.append(text[:cursor])
+    return {'text': ''.join(reversed(pieces)),
+            'substitutions': [row for _start, _end, _replacement, row in ordered],
+            'decisions': decisions}
+
+
+def get_occurrence_pronunciation_candidates(prepared, uid, text, query):
+    """Offer bounded exact prepared-text spans; browser offsets are never input."""
+    if not isinstance(query, str) or not query.strip() or len(query) > 128:
+        raise ValueError('Choose an exact spelling of 1–128 characters.')
+    if len(text) > 131072:
+        raise ValueError('This line exceeds the occurrence editor text limit.')
+    pattern = _compile({query: query})
+    anchors = {'coordinate_space': OCCURRENCE_COORDINATE_SPACE,
+               'offset_unit': 'unicode_codepoint', 'uid': uid,
+               'text_sha256': get_pronunciation_text_digest(text),
+               'prepared_sha256': get_pronunciation_text_digest(prepared)}
+    candidates = []
+    for match in pattern.finditer(prepared):
+        if len(candidates) == 64:
+            return {'candidates': candidates, 'truncated': True}
+        start, end = match.span()
+        candidates.append({**anchors, 'start': start, 'end': end, 'original': match.group(1),
+                           'before': prepared[max(0, start - 40):start],
+                           'after': prepared[end:end + 40]})
+    return {'candidates': candidates, 'truncated': False}
+
+
+_occurrence_context = ContextVar('pronunciation_occurrence_context', default=None)
+
+
+@contextmanager
+def ensure_occurrence_pronunciation_context(chunk, context=None):
+    """Carry a bounded immutable render snapshot through existing prepared dispatch."""
+    rules = chunk.get('pronunciation_rules')
+    scoped = None
+    if rules:
+        if not isinstance(rules, list) or len(rules) > MAX_OCCURRENCE_RULES:
+            snapshot = 'invalid_rule_document'
+        else:
+            snapshot = []
+            for rule in rules:
+                if get_occurrence_rule_error(rule) is not None:
+                    snapshot.append({'state': 'invalid'})
+                    continue
+                snapshot.append({key: dict(rule[key]) if key == 'restrictions' else rule[key]
+                                 for key in ('id', 'state', *OCCURRENCE_RENDER_FIELDS) if key in rule})
+        scoped = {'uid': chunk.get('uid'),
+                  'text_digest': get_pronunciation_text_digest(chunk.get('text', '')),
+                  'rules': snapshot, 'context': dict(context or {})}
+    token = _occurrence_context.set(scoped)
+    try:
+        yield
+    finally:
+        _occurrence_context.reset(token)
+
+
+def ensure_speech_pronunciation_result(text):
+    """Use the canonical pre-lexicon string and this render's two snapshots."""
+    scoped = _occurrence_context.get()
+    if scoped is None:
+        spoken, substitutions = apply_pronunciation(text)
+        return {'text': spoken, 'substitutions': substitutions, 'decisions': []}
+    with ensure_pronunciation_snapshot():
+        entries, pattern = _audition_matcher.get()
+        return get_occurrence_pronunciation_resolution(
+            text, entries, pattern, rules=scoped['rules'], uid=scoped['uid'],
+            text_digest=scoped['text_digest'], context=scoped['context'])

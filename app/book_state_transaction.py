@@ -110,10 +110,13 @@ def recover_book_state_locked(data_dir):
 
 
 @contextlib.contextmanager
-def ensure_book_state(data_dir, timeout=10):
+def ensure_book_state(data_dir, timeout=10, *, recover=True):
     """Serialize book operations and recover pending switches before use."""
     with file_lock(str(Path(data_dir) / JOURNAL), timeout=timeout):
-        recover_book_state_locked(data_dir)
+        if recover:
+            recover_book_state_locked(data_dir)
+        elif (Path(data_dir) / JOURNAL).exists():
+            raise ValueError("Book recovery is required before previewing saved state")
         yield
 
 

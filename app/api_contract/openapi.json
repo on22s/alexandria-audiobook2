@@ -3003,6 +3003,247 @@
         "title": "PronunciationAudition",
         "type": "object"
       },
+      "PronunciationOccurrenceEdit": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          },
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Revision",
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/PronunciationOccurrenceRule"
+            },
+            "maxItems": 32,
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "index",
+          "expected_uid",
+          "revision",
+          "rules"
+        ],
+        "title": "PronunciationOccurrenceEdit",
+        "type": "object"
+      },
+      "PronunciationOccurrenceQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          },
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "query": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "index",
+          "expected_uid",
+          "revision",
+          "query"
+        ],
+        "title": "PronunciationOccurrenceQuery",
+        "type": "object"
+      },
+      "PronunciationOccurrenceRule": {
+        "additionalProperties": false,
+        "properties": {
+          "coordinate_space": {
+            "const": "pre_lexicon_v1",
+            "title": "Coordinate Space",
+            "type": "string"
+          },
+          "end": {
+            "minimum": 1.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "fallback": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback"
+          },
+          "id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 512,
+            "title": "Note",
+            "type": "string"
+          },
+          "offset_unit": {
+            "const": "unicode_codepoint",
+            "title": "Offset Unit",
+            "type": "string"
+          },
+          "original": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Original",
+            "type": "string"
+          },
+          "phonetic_hint": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phonetic Hint"
+          },
+          "prepared_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Prepared Sha256",
+            "type": "string"
+          },
+          "replacement": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replacement"
+          },
+          "restrictions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "maxProperties": 4,
+            "title": "Restrictions",
+            "type": "object"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "draft",
+              "approved",
+              "rejected"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "text_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Text Sha256",
+            "type": "string"
+          },
+          "uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Uid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "coordinate_space",
+          "offset_unit",
+          "uid",
+          "text_sha256",
+          "prepared_sha256",
+          "start",
+          "end",
+          "original"
+        ],
+        "title": "PronunciationOccurrenceRule",
+        "type": "object"
+      },
+      "PronunciationOccurrenceTarget": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          },
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "index",
+          "expected_uid"
+        ],
+        "title": "PronunciationOccurrenceTarget",
+        "type": "object"
+      },
       "PronunciationPreview": {
         "properties": {
           "expected_book_token": {
@@ -9243,6 +9484,150 @@
           }
         },
         "summary": "Generate Pronunciation Audition Endpoint"
+      }
+    },
+    "/api/pronunciation/occurrences": {
+      "post": {
+        "operationId": "get_occurrence_editor_endpoint_api_pronunciation_occurrences_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PronunciationOccurrenceTarget"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Occurrence Editor Endpoint"
+      }
+    },
+    "/api/pronunciation/occurrences/candidates": {
+      "post": {
+        "operationId": "get_occurrence_candidates_endpoint_api_pronunciation_occurrences_candidates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PronunciationOccurrenceQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Occurrence Candidates Endpoint"
+      }
+    },
+    "/api/pronunciation/occurrences/preview": {
+      "post": {
+        "operationId": "get_occurrence_preview_endpoint_api_pronunciation_occurrences_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PronunciationOccurrenceEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Occurrence Preview Endpoint"
+      }
+    },
+    "/api/pronunciation/occurrences/save": {
+      "post": {
+        "operationId": "save_occurrence_rules_endpoint_api_pronunciation_occurrences_save_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PronunciationOccurrenceEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Occurrence Rules Endpoint"
       }
     },
     "/api/pronunciation/preview": {

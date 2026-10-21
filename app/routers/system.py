@@ -64,6 +64,12 @@ from utils import (atomic_json_write, file_lock,
                    run_rocm_smi_json, system_has_gpu)
 from run_history import get_run, list_runs
 from runtime_info import get_runtime_info
+from book_state_transaction import ensure_book_state
+from chunk_status_journal import get_chunk_status_journal_path
+from lora_evidence import get_tts_model_settings
+from pronunciation import get_pronunciation_model_context, is_pronunciation_settings_dependent
+from project import ProjectManager
+from core import ensure_book_switch_allowed
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -982,23 +988,98 @@ def _get_config_preview_sync(config):
                                          exists=os.path.isfile(CONFIG_PATH))
 
 
-@router.post("/api/config")
-async def save_config(config: AppConfig):
-    def _save():
+def apply_config_save(existing, normalized_config):
+    """The caller holds the config lock; preserve existing damaged-file backup policy."""
+    if existing.needs_backup:
+        try:
+            backup_damaged_app_config(CONFIG_PATH)
+        except OSError as exc:
+            raise HTTPException(status_code=500,
+                                detail=f"Could not preserve damaged config before saving: {exc}") from exc
+    atomic_json_write(normalized_config.model_dump(), CONFIG_PATH)
+
+
+def is_pronunciation_config_change(before, after):
+    return (get_pronunciation_model_context(get_tts_model_settings(before)) !=
+            get_pronunciation_model_context(get_tts_model_settings(after)))
+
+
+def save_config_document(config):
+    """Fence only mode/language dependencies introduced by scoped pronunciation."""
+    manager = project_manager
+    bound = (isinstance(manager, ProjectManager) and
+             os.path.abspath(manager.config_path) == os.path.abspath(CONFIG_PATH))
+    with file_lock(CONFIG_PATH):
+        existing = load_app_config_result(CONFIG_PATH)
+        normalized = get_config_to_save(config, existing.data)
+        if not bound:
+            apply_config_save(existing, normalized)
+            return False
+
+    try:
+        return apply_pronunciation_config_change(config, manager)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=(
+            "Settings could not be applied safely. Check saved book/config files and retry; "
+            "affected lines may require regeneration.")) from error
+
+
+def apply_pronunciation_config_change(config, manager):
+    """The mode/language branch preserves existing unrelated settings behavior."""
+    root = manager.root_dir
+    # Inspect rules before consulting the engine: legacy saves must reach
+    # reset even while a constructor holds its lock. Book ownership keeps rule
+    # approval from racing the configuration write and reset.
+    with ensure_book_state(root, recover=False):
+        with manager._chunks_lock, file_lock(manager.chunks_path), file_lock(CONFIG_PATH):
+            existing = load_app_config_result(CONFIG_PATH)
+            normalized = get_config_to_save(config, existing.data)
+            rows = []
+            if (os.path.exists(manager.chunks_path) or
+                    os.path.exists(get_chunk_status_journal_path(manager.chunks_path))):
+                try:
+                    rows = manager._get_saved_chunk_rows_locked()
+                except ValueError:
+                    if is_pronunciation_config_change(existing.data, normalized.model_dump()):
+                        raise
+                    # An unrelated save keeps the legacy damaged-chunks policy.
+            dependent = any(is_pronunciation_settings_dependent(row) for row in rows)
+        before = manager.get_pronunciation_preview_settings()["settings"] if dependent else None
         with file_lock(CONFIG_PATH):
             existing = load_app_config_result(CONFIG_PATH)
-            normalized_config = get_config_to_save(config, existing.data)
-            if existing.needs_backup:
-                try:
-                    backup_damaged_app_config(CONFIG_PATH)
-                except OSError as exc:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Could not preserve damaged config before saving: {exc}",
-                    ) from exc
-            atomic_json_write(normalized_config.model_dump(), CONFIG_PATH)
+            normalized = get_config_to_save(config, existing.data)
+            requires_fence = dependent and (
+                is_pronunciation_config_change(existing.data, normalized.model_dump()) or
+                get_pronunciation_model_context(before) != get_pronunciation_model_context(
+                    get_tts_model_settings(normalized.model_dump())))
+            if not requires_fence:
+                # Preserve legacy write failures and cached engines on failure.
+                apply_config_save(existing, normalized)
+        if not requires_fence:
+            manager.reset_engine()
+            return True
 
-    await asyncio.to_thread(_save)
-    # Serialize reset with construction without blocking the event loop.
-    await asyncio.to_thread(project_manager.reset_engine)
+    with ensure_book_switch_allowed(operation="change conditional pronunciation settings"):
+        with ensure_book_state(root, recover=False):
+            before = manager.get_pronunciation_preview_settings()["settings"]
+            try:
+                with manager._chunks_lock, file_lock(manager.chunks_path), file_lock(CONFIG_PATH):
+                    existing = load_app_config_result(CONFIG_PATH)
+                    normalized = get_config_to_save(config, existing.data)
+                    manager._apply_pronunciation_settings_invalidation_locked(
+                        before, get_tts_model_settings(normalized.model_dump()))
+                    apply_config_save(existing, normalized)
+            except OSError as error:
+                raise HTTPException(status_code=409, detail=(
+                    "Settings could not be applied safely. Check saved book/config files and retry; "
+                    "affected lines may require regeneration.")) from error
+            manager.reset_engine()
+            return True
+
+
+@router.post("/api/config")
+async def save_config(config: AppConfig):
+    reset = await asyncio.to_thread(save_config_document, config)
+    if not reset:
+        await asyncio.to_thread(project_manager.reset_engine)
     return {"status": "saved"}

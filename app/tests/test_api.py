@@ -597,6 +597,55 @@ def test_get_chunks():
         }
 
 
+
+def test_occurrence_pronunciation_roundtrip():
+    """Exercise all occurrence endpoints against one disposable saved line."""
+    rows = get("/api/chunks").json()
+    if not rows:
+        raise TestFailure("No saved fixture line available for occurrence endpoint checks")
+    assert_status(post(f"/api/chunks/{len(rows) - 1}/insert"))
+    inserted = get("/api/chunks").json()[-1]
+    uid = inserted['uid']; index = len(rows)
+    text = "𠀀 Ann\r\nAnn arrived."
+    try:
+        assert_status(post_chunk_update(index, json={'text': text, 'instruct': ''}))
+        status = get('/api/chunks/status').json()
+        target = dict(index=index, expected_uid=uid, expected_book_token=status['book_token'])
+        response = post('/api/pronunciation/occurrences', json=target)
+        assert_status(response); current = response.json()
+        response = post('/api/pronunciation/occurrences/candidates', json={
+            **target, 'revision': current['revision'], 'query': 'Ann'})
+        assert_status(response); candidates = response.json()['candidates']
+        if len(candidates) != 2:
+            raise TestFailure(f"Expected two exact Ann candidates: {candidates}")
+        anchor = candidates[1]['anchor']
+        if anchor['start'] != 7 or anchor['end'] != 10:
+            raise TestFailure(f"Expected Unicode codepoint offsets for the second Ann: {anchor}")
+        rule = {**anchor, 'id': 'api-fixture-occurrence', 'state': 'approved', 'replacement': 'Ah-n'}
+        edit = {**target, 'revision': current['revision'], 'rules': [rule]}
+        response = post('/api/pronunciation/occurrences/preview', json=edit)
+        assert_status(response)
+        if response.json()['preview']['text'] != "𠀀 Ann\r\nAh-n arrived.":
+            raise TestFailure(f"Incorrect selected-occurrence preview: {response.json()}")
+        response = post('/api/pronunciation/occurrences/save', json=edit)
+        assert_status(response); saved = response.json()
+        assert_status(post('/api/pronunciation/occurrences/save', json=edit), 409, 'Stale rule revision must be refused')
+        response = post('/api/pronunciation/occurrences', json=target)
+        assert_status(response); reloaded = response.json()
+        persisted = get('/api/chunks').json()[index]
+        if (reloaded['rules'] != saved['rules'] or reloaded['revision'] != saved['revision']
+                or persisted['uid'] != uid or persisted['text'] != text):
+            raise TestFailure('Occurrence save/reload changed the authored text or rule identity')
+    finally:
+        # Resolve the UID again so cleanup never deletes a different shifted row.
+        remaining = get('/api/chunks').json()
+        matches = [i for i, row in enumerate(remaining) if row.get('uid') == uid]
+        if len(matches) == 1:
+            snapshot = get('/api/chunks/status').json()
+            assert_status(delete(f'/api/chunks/{matches[0]}', params={
+                'expected_book_token': snapshot['book_token'], 'expected_uid': uid}))
+
+
 def test_update_chunk():
     if not shared.get("has_chunks"):
         raise TestFailure("SKIP: no chunks available")
@@ -1475,6 +1524,7 @@ def run_all_tests():
 
     section("Chunks")
     run_test("get_chunks", test_get_chunks)
+    run_test("occurrence_pronunciation_roundtrip", test_occurrence_pronunciation_roundtrip)
     run_test("update_chunk", test_update_chunk)
     run_test("update_chunk_pause_after", test_update_chunk_pause_after)
     run_test("update_chunk_pause_after_zero", test_update_chunk_pause_after_zero)

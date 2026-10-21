@@ -112,8 +112,8 @@ def verbalize_symbols(text):
     return (text.translate(table) if table else text), transformations
 
 
-def get_speech_normalization(text):
-    """Return normalized text and every applied transformation as new data."""
+def get_prelexicon_speech_normalization(text):
+    """Return the exact prepared coordinate space before pronunciation substitution."""
     if not text:
         return {"text": text, "changed": False, "transformations": [],
                 "risk_categories": get_speech_risks(text)}
@@ -155,13 +155,29 @@ def get_speech_normalization(text):
         normalized, count = get_spoken_text_spacing(normalized)
         if count:
             transformations.append({"type": "normalized_punctuation_spacing", "count": count})
+    return {"text": normalized, "changed": normalized != original,
+            "transformations": transformations,
+            "risk_categories": get_speech_risks(original)}
+
+
+def get_speech_normalization(text):
+    """Return normalized text and every applied transformation as new data."""
+    prepared = get_prelexicon_speech_normalization(text)
+    if not text:
+        return prepared
+    original = str(text)
+    normalized = prepared["text"]
+    transformations = prepared["transformations"]
     # Proper-noun respellings, applied LAST so a lexicon entry is never
     # mangled by symbol or break handling. Recorded as a transformation like
     # everything else: a silent respelling would be untraceable, with the
     # listener hearing one thing and the script saying another.
+    pronunciation_decisions = []
     try:
-        from pronunciation import apply_pronunciation
-        spoken, applied = apply_pronunciation(normalized)
+        from pronunciation import ensure_speech_pronunciation_result, get_pronunciation_text_digest
+        resolution = ensure_speech_pronunciation_result(normalized)
+        spoken, applied = resolution["text"], resolution["substitutions"]
+        pronunciation_decisions = resolution["decisions"]
         if applied:
             normalized = spoken
             transformations.append({"type": "pronunciation_lexicon",
@@ -177,9 +193,13 @@ def get_speech_normalization(text):
                                 "trimmed_characters": len(normalized) - len(stripped),
                                 "appended_period": bool(stripped)})
     normalized = bounded
-    return {"text": normalized, "changed": normalized != original,
-            "transformations": transformations,
-            "risk_categories": get_speech_risks(original)}
+    result = {"text": normalized, "changed": normalized != original,
+              "transformations": transformations,
+              "risk_categories": get_speech_risks(original)}
+    if pronunciation_decisions:
+        result["pronunciation_decisions"] = pronunciation_decisions
+        result["pronunciation_prepared_sha256"] = get_pronunciation_text_digest(prepared["text"])
+    return result
 
 
 def normalize_for_speech(text):

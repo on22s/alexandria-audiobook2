@@ -30,6 +30,7 @@ from adapter_checkpoint_transaction import (ensure_adapter_generation_snapshot, 
 from lora_evidence import get_file_sha256, get_tts_model_settings
 from audio_validation import GeneratedAudioError, publish_audio_output
 from speech_text import normalize_for_speech, get_speech_preparation
+from pronunciation import ensure_occurrence_pronunciation_context, get_pronunciation_model_context
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
 from audio_pcm_producer import (get_pcm_source_shape, get_audio_duration_ms,
@@ -292,6 +293,21 @@ def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
         if voice_category(config) == "ensemble":
             pending.extend(member for member in config.get("members") or [] if isinstance(member, str))
     return inputs
+
+
+def get_pronunciation_render_context(voices, chunk, index, model_settings, *, source_speaker=None):
+    """Identify the selected root/group assignment and actual speech mode."""
+    inputs = get_chunk_voice_inputs(voices, chunk, index)
+    identity = {name: {key: value for key, value in fields.items()
+                       if key not in {"character_style", "default_style", "seed"}}
+                for name, fields in inputs.items()}
+    encoded = json.dumps(identity, sort_keys=True, ensure_ascii=False,
+                         separators=(",", ":"), allow_nan=False).encode("utf-8", errors="surrogatepass")
+    context = {"speaker": chunk.get("speaker") if source_speaker is None else source_speaker,
+               "voice_sha256": hashlib.sha256(encoded).hexdigest(),
+               **get_pronunciation_model_context(model_settings)}
+    return {key: value if isinstance(value, str) and len(value) <= 256 else None
+            for key, value in context.items()}
 
 
 CHUNK_SEED_PRIME = 1_000_003
@@ -2091,14 +2107,8 @@ class TTSEngine:
         if not chunks:
             return results
 
-        # Normalised once here so every downstream path - including
-        # _local_batch_lora, which does not go through the single-item
-        # methods - sees speakable text. Copies rather than mutating the
-        # caller's chunk dicts (Rule 17); the caller still owns the originals.
-        chunks = [{**c, **get_speech_preparation(c.get("text"), c.get("instruct", ""))}
-                  for c in chunks]
-        # Resolve narrator strategy once per chunk while retaining the existing
-        # batching paths for ordinary speakers.
+        # Resolve each row before its one canonical speech preparation. Stable
+        # UID/rules remain on copies through native, external and fallback paths.
         dynamic_chunks = []
         for chunk in chunks:
             source_speaker = chunk.get("_source_speaker", chunk.get("speaker"))
@@ -2115,7 +2125,14 @@ class TTSEngine:
             except (UnsupportedVoiceBackendError, ValueError, TypeError, OverflowError) as error:
                 results["failed"].append((chunk["index"], str(error)))
                 continue
-            dynamic_chunks.append((chunk, resolved))
+            context = (get_pronunciation_render_context(
+                voice_config, chunk, chunk["index"],
+                {"mode": self._mode, "language": self._language},
+                source_speaker=chunk.get("_source_speaker", chunk.get("speaker")))
+                if chunk.get("pronunciation_rules") else None)
+            with ensure_occurrence_pronunciation_context(chunk, context):
+                prepared = get_speech_preparation(chunk.get("text"), chunk.get("instruct", ""))
+            dynamic_chunks.append(({**chunk, **prepared}, resolved))
         chunks = [chunk for chunk, _ in dynamic_chunks]
         if not chunks:
             return results

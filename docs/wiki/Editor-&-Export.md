@@ -21,7 +21,35 @@ Each chunk can also be played, re-rendered on its own, and inserted or deleted.
    after an edit, trying a different instruction, or comparing voices.
 3. Or click **Render Pending** to render every chunk that still needs audio.
 
-## Rendering
+## Pronunciation
+
+### Correcting one pronunciation
+
+Open **Pronunciation**, load shared rules, and **Preview counts and line voices**.
+Choose a line and **Load line rules**. Enter the original spelling and spoken replacement,
+then **Find original spelling** and add the intended match as a draft. Matches refer to the
+text prepared for speech, after cue and symbol cleanup. The script itself stays unchanged.
+
+Review the draft, choose **Approved**, and **Preview line** before **Save line rules**.
+Draft and rejected rules do not affect speech. Approved occurrence rules take priority over
+shared rules for that occurrence; inserted replacements are never substituted a second time.
+Optional restrictions select the authored speaker, the exact assigned voice or ensemble,
+language, or engine mode. A phonetic hint needs an explicit spoken fallback for plain-text
+engines; otherwise the preview reports that it was bypassed.
+
+Saving line rules waits for active work to finish or be cancelled. Only changed effective
+speech makes a line pending, and its prior audio file is retained. Notes and inactive drafts
+keep existing audio. Changing language or engine mode also makes affected conditional lines
+pending. Preview does not load a TTS model; auditions above generate disposable audio using
+the chosen line voice. Listen to an audition and the rendered line to judge the reading.
+
+Rules belong to the current Editor line identities. Reordering a line preserves its rules;
+editing its text requires reviewing new matches. Loading or rebuilding a saved script creates
+new lines and does not transfer occurrence rules. Overlapping approved occurrences and stale
+matches are refused. A generated take records the applied and bypassed decisions with its
+audio revision, so later review notes cannot relabel an earlier performance.
+
+## Rendering audio
 
 - **Render Pending** renders every chunk that has no audio yet.
 - **Regenerate All** re-renders every chunk.

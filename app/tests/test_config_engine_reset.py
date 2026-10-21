@@ -137,7 +137,9 @@ class ConfigEngineResetTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await asyncio.to_thread(self.reset_entered.wait, 3))
         second = asyncio.create_task(self.client.post("/api/config", json=self.payload("local")))
         try:
-            self.assertTrue(await asyncio.to_thread(self.second_write.wait, 3))
+            # Config publication and reset hold book ownership together so a
+            # pronunciation approval cannot observe new settings/old engine.
+            self.assertFalse(await asyncio.to_thread(self.second_write.wait, .1))
             self.assertFalse(first.done())
             self.assertFalse(second.done())
             await asyncio.wait_for(self.client.get("/cpu-ping"), 2)
@@ -146,5 +148,6 @@ class ConfigEngineResetTests(unittest.IsolatedAsyncioTestCase):
         await getter
         responses = await asyncio.wait_for(asyncio.gather(first, second), 5)
         self.assertEqual([200, 200], [response.status_code for response in responses])
+        self.assertTrue(self.second_write.is_set())
         self.block = False
         self.assertEqual(json.loads(self.path.read_text())["tts"]["mode"], self.manager.get_engine().mode)
