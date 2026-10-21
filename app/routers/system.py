@@ -205,7 +205,11 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
                 and getattr(incoming, "api_key", None) == _REDACTED_SECRET):
             saved = saved if isinstance(saved, dict) else {}
             endpoint = get_api_key_endpoint(getattr(incoming, "base_url", None))
-            if not endpoint or endpoint != get_api_key_endpoint(saved.get("base_url")):
+            saved_endpoint = get_api_key_endpoint(saved.get("base_url"))
+            inactive = "llm_remote" if config.llm_mode == "local" else "llm_local"
+            unchanged_inactive_blank = (section == inactive and not endpoint and not saved_endpoint
+                                        and isinstance((existing or {}).get(section), dict))
+            if endpoint != saved_endpoint or (not endpoint and not unchanged_inactive_blank):
                 raise HTTPException(status_code=400, detail=f"Enter an API key for the changed {section} endpoint, or clear the key field.")
             updates[section] = incoming.model_copy(update={"api_key": saved.get("api_key", "")})
     return config.model_copy(update=updates, deep=True) if updates else config

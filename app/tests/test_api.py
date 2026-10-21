@@ -170,6 +170,37 @@ def delete(path, **kwargs):
                            headers=get_api_test_headers(kwargs.pop("headers", None)), **kwargs)
 
 
+def get_config_after_save_snapshot(document):
+    """Expected public snapshot after Save's normal default/serialization changes.
+
+    Keep every configured field. Materialize generation defaults and its derived
+    preset variant, normalize named endpoint URLs, mirror the active profile,
+    and account for GET redacting a newly persisted public placeholder key.
+    Credentials remain bound to their original profiles; references are not resolved.
+    """
+    from config_settings import AppConfig, GenerationConfig
+    from attribution_prompt_variants import resolve_attribution_preset
+    from llm_provider import is_api_key_reference
+
+    expected = AppConfig(**document).model_dump()
+    for section in ('llm_local', 'llm_remote'):
+        profile = expected.get(section)
+        if profile and profile['base_url'].strip():
+            url = profile['base_url'].strip().rstrip('/')
+            profile['base_url'] = url if url.endswith('/v1') else url + '/v1'
+    active = expected.get('llm_' + expected['llm_mode'])
+    if active is not None:
+        expected['llm'] = json.loads(json.dumps(active))
+    for section in ('llm', 'llm_local', 'llm_remote', 'tts'):
+        profile = expected.get(section)
+        if profile and profile.get('api_key') and not is_api_key_reference(profile['api_key']):
+            profile['api_key'] = '[REDACTED]'
+    variant, _, _ = resolve_attribution_preset(expected)
+    generation = expected['generation'] or GenerationConfig().model_dump()
+    expected['generation'] = {**generation, 'three_pass_attribute_prompt_variant': variant}
+    return expected
+
+
 def llm_mode_fields(original):
     """llm_mode/llm_local fields to splice into a POST /api/config payload.
 
@@ -346,6 +377,34 @@ def test_synthesis_window_config_roundtrip():
         restored = get('/api/config'); assert_status(restored, 200)
         from config_settings import AppConfig
         if AppConfig(**restored.json()).model_dump() != AppConfig(**original).model_dump():
+            raise TestFailure('Config test cleanup did not restore the complete configuration')
+
+
+def test_repeated_config_save_with_inactive_profile():
+    response = get('/api/config'); assert_status(response, 200)
+    original = response.json()
+    def proposal(document):
+        # Keep every profile, prompt and top-level option through the test.
+        return json.loads(json.dumps(document))
+    payload = proposal(original)
+    inactive = 'llm_remote' if original.get('llm_mode', 'local') == 'local' else 'llm_local'
+    if original.get(inactive) is None:
+        payload[inactive] = {'base_url': '', 'api_key': 'local', 'model_name': ''}
+    try:
+        assert_status(post('/api/config', json=payload), 200)
+        for value in (321, 322):
+            response = get('/api/config'); assert_status(response, 200)
+            reloaded = response.json(); reloaded['tts']['pause_same_speaker_ms'] = value
+            assert_status(post('/api/config', json=proposal(reloaded)), 200)
+            response = get('/api/config'); assert_status(response, 200)
+            if response.json()['tts']['pause_same_speaker_ms'] != value:
+                raise TestFailure('Repeated config save did not preserve the new pause setting')
+    finally:
+        assert_status(post('/api/config', json=proposal(original)), 200)
+
+        restored = get('/api/config'); assert_status(restored, 200)
+        from config_settings import AppConfig
+        if AppConfig(**restored.json()).model_dump() != get_config_after_save_snapshot(original):
             raise TestFailure('Config test cleanup did not restore the complete configuration')
 
 
@@ -1555,6 +1614,7 @@ def run_all_tests():
     run_test("save_pause_config_roundtrip", test_save_pause_config_roundtrip)
     run_test("pause_config_defaults", test_pause_config_defaults)
     run_test("synthesis_window_config_roundtrip", test_synthesis_window_config_roundtrip)
+    run_test("repeated_config_save_with_inactive_profile", test_repeated_config_save_with_inactive_profile)
     run_test("save_review_prompts_roundtrip", test_save_review_prompts_roundtrip)
     run_test("save_persona_prompts_roundtrip", test_save_persona_prompts_roundtrip)
     run_test("get_default_prompts", test_get_default_prompts)
