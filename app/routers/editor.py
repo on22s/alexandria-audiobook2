@@ -156,6 +156,30 @@ def get_word_timing_audio(index: int,
     return WordTimingAudioResponse(stream, size, suffix)
 
 
+class TakeHistoryPolicyRequest(BaseModel):
+    expected_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+    enabled: bool = Field(strict=True)
+
+
+@router.get("/api/take_history_policy")
+async def get_take_history_policy_endpoint():
+    from editor_take_history import get_editor_take_policy
+    try:
+        return await asyncio.to_thread(get_editor_take_policy, project_manager)
+    except (ValueError, OSError, KeyError, TypeError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.post("/api/take_history_policy")
+async def change_take_history_policy_endpoint(request: TakeHistoryPolicyRequest):
+    from editor_take_history import change_editor_take_policy
+    try:
+        return await asyncio.to_thread(change_editor_take_policy, project_manager, request)
+    except (ValueError, OSError, KeyError, TypeError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
 class TakeSnapshotRequest(WordTimingRequest):
     pass
 
@@ -195,7 +219,7 @@ async def list_take_snapshots(
 async def change_take_snapshot(request: TakeHistoryAction):
     from editor_take_history import change_editor_take
     try:
-        return await asyncio.to_thread(change_editor_take, project_manager, request)
+        return await asyncio.to_thread(change_editor_take, project_manager, request, _get_undo_take_rows)
     except (ValueError, OSError, KeyError, TypeError) as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 
@@ -376,13 +400,19 @@ def _ensure_chunk_listing():
 
 
 def _get_editor_chunk_views(chunks, book_token):
-    return [get_speech_verification_chunk_view(chunk,book_token,project_manager.get_chunk_audio_path)
-            for chunk in chunks]
+    views = [get_speech_verification_chunk_view(chunk,book_token,project_manager.get_chunk_audio_path)
+             for chunk in chunks]
+    for view in views:
+        view.pop('_retained_take', None)
+    return views
 
 
 def _ensure_editor_chunks():
     """Load rows without inventing IDs or discarding persisted progress."""
-    chunks = project_manager.load_chunks()
+    try:
+        chunks = project_manager.load_chunks()
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     seen = set()
     for position, chunk in enumerate(chunks):
         chunk_id = chunk.get('id')
@@ -478,6 +508,15 @@ def _get_editor_quality_sync(expected_book_token):
 
 
 _deleted_chunk_receipts = {}
+
+
+def _get_undo_take_rows():
+    """Caller holds the book lock; unexpired deletion undo still owns its audio."""
+    book = get_editor_book_identity(os.path.dirname(SCRIPT_PATH))
+    now = time.monotonic()
+    return [receipt['chunk'] for receipt in _deleted_chunk_receipts.values()
+            if receipt['book'] == book and now - receipt['created'] <= 60]
+
 
 
 def check_chunk_identity(index, expected_book_token=None, expected_uid=None):
@@ -582,7 +621,10 @@ def _apply_chunk_edit(operation, *args):
     """Keep the conflict check and chunk mutation atomic with task claims."""
     with _gpu_lock:
         check_global_gpu_lock("audio")
-        return operation(*args)
+        try:
+            return operation(*args)
+        except (ValueError, OSError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
 @router.post("/api/chunks/restore")
 async def restore_chunk(request: ChunkRestoreRequest):

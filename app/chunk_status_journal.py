@@ -10,9 +10,11 @@ import uuid
 
 from adapter_publication import save_adapter_publication_bytes, sync_adapter_directory
 from utils import file_lock
+from take_retention import (KEY as RETAINED_TAKE_KEY, get_retained_audio_paths,
+    get_retained_take_bytes, MAX_BOOK_RECEIPT_BYTES)
 
 FIELDS = frozenset(("status", "audio_path", "audio_revision", "error", "drift", "pronunciation_receipt", "synthesis_receipt",
-                    "speech_verification", "speech_verification_failure", "speech_verification_recheck"))
+                    "speech_verification", "speech_verification_failure", "speech_verification_recheck", RETAINED_TAKE_KEY))
 logger = logging.getLogger(__name__)
 
 
@@ -126,7 +128,11 @@ class ChunkStatusJournal:
             raise ValueError("Chunk status files changed while reading")
         self._rows, self._by_uid = rows, by_uid
         self._audio_references = Counter(
-            get_chunk_audio_key(self.snapshot, row.get("audio_path")) for row in rows)
+            get_chunk_audio_key(self.snapshot, path) for row in rows
+            for path in (row.get("audio_path"), *get_retained_audio_paths(row)))
+        self._retained_bytes = sum(get_retained_take_bytes(row) for row in rows)
+        if self._retained_bytes > MAX_BOOK_RECEIPT_BYTES:
+            raise ValueError('Retained prior-take metadata exceeds its book limit.')
         self._sequence, self._prefix, self._compacted = sequence, prefix, compacted
         self._versions = versions
 
@@ -179,13 +185,21 @@ class ChunkStatusJournal:
         if (uid not in self._by_uid or not isinstance(changes, dict) or not changes
                 or not set(changes).issubset(FIELDS)):
             raise ValueError("Invalid chunk status update")
+        previous = self._by_uid[uid]
+        updated = {**previous, **copy.deepcopy(changes)}
+        retained_bytes = self._retained_bytes - get_retained_take_bytes(previous) + get_retained_take_bytes(updated)
+        if retained_bytes > MAX_BOOK_RECEIPT_BYTES:
+            raise ValueError('Prior-take metadata is full. Disable automatic history before editing more lines.')
+        before_paths = (previous.get('audio_path'), *get_retained_audio_paths(previous))
+        after_paths = (updated.get('audio_path'), *get_retained_audio_paths(updated))
         self._append({"type": "update", "uid": uid, "changes": changes})
-        if "audio_path" in changes:
-            previous = get_chunk_audio_key(self.snapshot, self._by_uid[uid].get("audio_path"))
-            self._audio_references[previous] -= 1
-            if not self._audio_references[previous]:
-                del self._audio_references[previous]
-            self._audio_references[get_chunk_audio_key(self.snapshot, changes["audio_path"])] += 1
+        for path in before_paths:
+            key = get_chunk_audio_key(self.snapshot, path)
+            self._audio_references[key] -= 1
+            if not self._audio_references[key]: del self._audio_references[key]
+        for path in after_paths:
+            self._audio_references[get_chunk_audio_key(self.snapshot, path)] += 1
+        self._retained_bytes = retained_bytes
         self._by_uid[uid].update(copy.deepcopy(changes))
         return copy.deepcopy(self._by_uid[uid])
 

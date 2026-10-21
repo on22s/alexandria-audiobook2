@@ -3210,6 +3210,16 @@
                      </div>
                        </div>
                        <aside class="editor-review-panel editor-line-inspector" aria-label="Selected line inspector">
+                           <details class="mb-3">
+                               <summary>Automatic take history</summary>
+                               <p class="small mt-2">Optionally save prior performances before regenerating them. This project setting starts with selected takes and future edits. Earlier detached audio is not reconstructed. Saving stops when history is full; remove an unneeded snapshot or turn this setting off to continue. Snapshots remain available for audition.</p>
+                               <div class="d-flex flex-wrap gap-2 mb-2">
+                                   <button type="button" class="btn btn-outline-secondary btn-sm" id="editor-auto-take-refresh" title="Read the saved automatic-history setting for this project." onclick="loadAutomaticTakePolicy()">Refresh setting</button>
+                                   <button type="button" class="btn btn-outline-primary btn-sm" id="editor-auto-take-on" title="Keep selected prior performances before future regeneration." onclick="changeAutomaticTakePolicy(true)" disabled>Turn on</button>
+                                   <button type="button" class="btn btn-outline-secondary btn-sm" id="editor-auto-take-off" title="Stop new automatic snapshots while retaining existing copies." onclick="changeAutomaticTakePolicy(false)" disabled>Turn off</button>
+                               </div>
+                               <p class="small" id="editor-auto-take-status" role="status" aria-live="polite">Off by default. Refresh to read this project's setting.</p>
+                           </details>
                            <details id="editor-line-details" open>
                                <summary><strong>Selected line</strong></summary>
                                <p id="editor-line-empty" class="small mt-2 mb-0">Choose Inspect on a line, focus one of its fields, or open a finding.</p>
@@ -3221,7 +3231,7 @@
                                        <button type="button" class="btn btn-outline-success btn-sm" id="editor-line-generate" onclick="generateEditorReviewLine()">Generate line…</button>
                                    </div>
                                    <details class="mb-3"><summary title="Save and audition immutable copies of earlier performances without changing the selected audio.">Saved take snapshots</summary>
-                                       <p class="small mt-2">Save a copy of a good performance before regenerating it. Snapshots keep their original bytes for audition. They do not change which take is selected. Save explicitly; automatic history and restoring a snapshot are not available yet.</p>
+                                       <p class="small mt-2">Save a copy of a good performance before regenerating it. Snapshots keep their original bytes for audition. They do not change which take is selected. Save explicitly or enable automatic take history above. Restoring a snapshot is not available yet.</p>
                                        <div class="d-flex flex-wrap gap-2 mb-2">
                                            <button type="button" id="editor-take-save" class="btn btn-outline-primary btn-sm" onclick="saveEditorTakeSnapshot()" title="Save an immutable copy of the selected saved performance, including its recorded metadata.">Save this take</button>
                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorTakeSnapshots(false)" title="List the saved snapshots for this stable line in the current book generation.">This line's snapshots</button>

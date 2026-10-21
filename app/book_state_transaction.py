@@ -1,5 +1,9 @@
 """Recoverable publication of the active book's flat-file artifact set."""
 import contextlib
+import asyncio
+from contextvars import ContextVar
+from dataclasses import dataclass
+import threading
 import hashlib
 import json
 from editor_poll_snapshot import get_snapshot_digest
@@ -14,6 +18,41 @@ from adapter_publication import (get_adapter_bundle_sha256, sync_adapter_directo
                                  save_adapter_publication_bytes)
 
 JOURNAL = '.active_book_transaction.json'
+_held_books = ContextVar('held_book_state_scopes', default=())
+
+
+def _get_book_scope_owner():
+    try:
+        task = asyncio.current_task()
+    except RuntimeError:
+        task = None
+    return os.getpid(), threading.get_ident(), task
+
+
+@dataclass
+class _BookScope:
+    root: str
+    owner: tuple
+    active: bool = True
+
+
+def is_book_state_admitted(data_dir):
+    root = os.path.normcase(os.path.realpath(data_dir))
+    owner = _get_book_scope_owner()
+    return any(scope.active and scope.root == root and scope.owner == owner
+               for scope in _held_books.get())
+
+
+@contextlib.contextmanager
+def reuse_book_state(data_dir, timeout=10):
+    """Reuse only this live task/thread/process's actual kernel admission."""
+    if is_book_state_admitted(data_dir):
+        if (Path(data_dir) / JOURNAL).exists():
+            raise ValueError('Book transaction must finish before reusing its state.')
+        yield
+    else:
+        with ensure_book_state(data_dir, timeout=timeout):
+            yield
 
 
 def _get_path(root, relative):
@@ -117,7 +156,13 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True):
             recover_book_state_locked(data_dir)
         elif (Path(data_dir) / JOURNAL).exists():
             raise ValueError("Book recovery is required before previewing saved state")
-        yield
+        scope = _BookScope(os.path.normcase(os.path.realpath(data_dir)), _get_book_scope_owner())
+        token = _held_books.set((*_held_books.get(), scope))
+        try:
+            yield
+        finally:
+            scope.active = False
+            _held_books.reset(token)
 
 
 def apply_book_state_locked(data_dir, replacements, removals):

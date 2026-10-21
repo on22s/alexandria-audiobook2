@@ -137,3 +137,58 @@ async function changeEditorTakeSnapshot(record, action, identity, book) {
     finally { takeHistoryBusy = false; window.applyTakeHistoryInspector(); }
     if (identity === getTakeHistoryIdentity()) { await loadEditorTakeSnapshots(takeHistoryAll, takeHistoryOffset); }
 }
+
+
+let automaticTakePolicy = null;
+let automaticTakePolicyBusy = false;
+let automaticTakePolicyRequest = 0;
+
+function renderAutomaticTakePolicy() {
+    document.getElementById('editor-auto-take-refresh').disabled = automaticTakePolicyBusy;
+    document.getElementById('editor-auto-take-on').disabled = automaticTakePolicyBusy || !automaticTakePolicy || automaticTakePolicy.enabled === true;
+    document.getElementById('editor-auto-take-off').disabled = automaticTakePolicyBusy || !automaticTakePolicy || automaticTakePolicy.enabled === false;
+    const status = document.getElementById('editor-auto-take-status');
+    if (!automaticTakePolicy) {
+        status.textContent = 'Refresh to read this project setting. Automatic history is off by default.';
+    } else if (automaticTakePolicy.error) {
+        status.textContent = automaticTakePolicy.error;
+    } else {
+        status.textContent = automaticTakePolicy.enabled ? 'On. Prior takes are saved before regeneration. History limits include deleted and interrupted copies.' : 'Off. Saved snapshots remain available. A pending prior take stays protected until its replacement succeeds.';
+    }
+}
+
+async function loadAutomaticTakePolicy() {
+    if (automaticTakePolicyBusy) { return; }
+    const request = ++automaticTakePolicyRequest;
+    automaticTakePolicyBusy = true;
+    renderAutomaticTakePolicy();
+    try {
+        const result = await API.get('/api/take_history_policy');
+        if (request === automaticTakePolicyRequest) { automaticTakePolicy = result; }
+    } catch (error) {
+        automaticTakePolicy = null;
+        showActionError('Cannot read automatic history', error, 'Inspect the saved policy and refresh this setting.');
+    } finally {
+        automaticTakePolicyBusy = false;
+        renderAutomaticTakePolicy();
+    }
+}
+
+async function changeAutomaticTakePolicy(enabled) {
+    if (automaticTakePolicyBusy || !automaticTakePolicy) { return; }
+    const policy = automaticTakePolicy;
+    automaticTakePolicyBusy = true;
+    renderAutomaticTakePolicy();
+    try {
+        automaticTakePolicy = await API.post('/api/take_history_policy', {
+            enabled, expected_book_token: policy.book_token, expected_revision: policy.revision,
+        });
+        showToast(enabled ? 'Automatic take history enabled.' : 'Automatic take history disabled.', 'success');
+    } catch (error) {
+        automaticTakePolicy = null;
+        showActionError('Cannot change automatic history', error, 'Refresh the setting before retrying. Existing audio is retained.');
+    } finally {
+        automaticTakePolicyBusy = false;
+        renderAutomaticTakePolicy();
+    }
+}

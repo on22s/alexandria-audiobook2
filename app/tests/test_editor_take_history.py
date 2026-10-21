@@ -128,3 +128,33 @@ class EditorTakeHistoryTests(unittest.TestCase):
                 response = client.get(f"/api/take_snapshots/{row['version']}/audio", params={**target, **changed})
                 self.assertEqual(response.status_code, 409, response.text)
                 self.assertEqual((root/'take_history/manifest.json').read_bytes(), before)
+
+    def test_deep_manifest_returns_conflict_without_rewriting_audio_or_metadata(self):
+        with self.fixture() as (root, manager, client, request):
+            response = client.post('/api/chunks/0/take_snapshots', json=request)
+            self.assertEqual(response.status_code, 200, response.text)
+            audio = (root/'voicelines/line.wav').read_bytes()
+            chunks = (root/'chunks.json').read_bytes()
+            manifest = root/'take_history/manifest.json'
+            valid = manifest.read_bytes()
+            malformed_cases = [('syntax', b'not valid JSON'),
+                               ('parser depth', b'[' * 2000 + b'0' + b']' * 2000)]
+            # This depth parses successfully but used to overflow deepcopy in
+            # the summary. Bound all metadata, including non-summary evidence.
+            deep = 0
+            for _ in range(500): deep = [deep]
+            for field in ('shape', 'book_label', 'take', 'audio_revision', 'captured', 'unknown'):
+                document = json.loads(valid)
+                document['records'][0][field] = {'evidence':deep} if field == 'captured' else deep
+                raw = json.dumps(document).encode()
+                json.loads(raw)  # Prove these exercise admission after parsing.
+                malformed_cases.append((field, raw))
+            for label, malformed in malformed_cases:
+                with self.subTest(field=label, size=len(malformed)):
+                    manifest.write_bytes(malformed)
+                    response = client.get('/api/take_snapshots', params={
+                        'expected_book_token': request['expected_book_token']})
+                    self.assertEqual(response.status_code, 409, response.text)
+                    self.assertEqual(manifest.read_bytes(), malformed)
+                    self.assertEqual((root/'voicelines/line.wav').read_bytes(), audio)
+                    self.assertEqual((root/'chunks.json').read_bytes(), chunks)

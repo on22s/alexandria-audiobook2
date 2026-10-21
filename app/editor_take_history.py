@@ -1,15 +1,11 @@
 """Editor snapshot admission; never select or relabel a historical recording."""
-import copy
 import os
 
 from audio_take_history import AudioTakeHistory
 from book_state_transaction import ensure_book_state, get_book_operation_token, get_book_operation_identity
 from chunk_status_journal import get_chunk_audio_key
 from utils import file_lock
-
-
-_CAPTURED_FIELDS = ('text', 'speaker', 'instruct', 'take', 'audio_revision',
-                    'pronunciation_receipt', 'synthesis_receipt', 'speech_verification')
+from take_retention import get_captured_take, get_retained_audio_paths
 
 
 def capture_editor_take(manager, index, request):
@@ -26,12 +22,7 @@ def capture_editor_take(manager, index, request):
                 raise ValueError('The selected saved take changed. Refresh Editor.')
             if not manager._is_project_audio_path(row['audio_path']):
                 raise ValueError('Take snapshots require saved audio inside the project.')
-            captured = {key: copy.deepcopy(row.get(key)) for key in _CAPTURED_FIELDS}
-            # Exact available authored inputs/receipts are retained; missing provider
-            # proof is not replaced with present-day settings or a guessed model ID.
-            from project import get_chunk_generation_inputs
-            captured['generation_inputs'] = copy.deepcopy(get_chunk_generation_inputs(row))
-            captured['provenance'] = 'selected artifact snapshot; exact generation dependencies not certified'
+            captured = get_captured_take(row)
             history = AudioTakeHistory(manager.root_dir)
             return history.capture(os.path.join(manager.root_dir, row['audio_path']),
                 request.expected_book_token, request.expected_uid, captured,
@@ -51,14 +42,33 @@ def open_editor_take(manager, book_token, version, sha256, source_book_token, ui
         return AudioTakeHistory(manager.root_dir).open(version, sha256, book_token=source_book_token, uid=uid)
 
 
-def change_editor_take(manager, request):
+def change_editor_take(manager, request, extra_rows=None):
     with ensure_book_state(manager.root_dir), manager._chunks_lock, file_lock(manager.chunks_path):
         if get_book_operation_token(manager.root_dir) != request.expected_book_token:
             raise ValueError('Active book changed. Refresh Editor.')
         rows = manager._get_saved_chunks_locked()
-        references = {get_chunk_audio_key(manager.chunks_path, row.get('audio_path')) for row in rows}
+        if extra_rows is not None:
+            rows = [*rows, *extra_rows()]
+        references = {get_chunk_audio_key(manager.chunks_path, path) for row in rows
+                      for path in (row.get('audio_path'), *get_retained_audio_paths(row))}
         def referenced(path):
             return get_chunk_audio_key(manager.chunks_path, str(path)) in references
         return AudioTakeHistory(manager.root_dir).change(
             request.version, request.sha256, request.action, referenced,
             book_token=request.source_book_token, uid=request.expected_uid)
+
+
+def get_editor_take_policy(manager):
+    from take_retention import get_take_history_policy
+    with ensure_book_state(manager.root_dir):
+        return {**get_take_history_policy(manager.root_dir, tolerate_invalid=True),
+                'book_token': get_book_operation_token(manager.root_dir)}
+
+
+def change_editor_take_policy(manager, request):
+    from take_retention import set_take_history_policy
+    with ensure_book_state(manager.root_dir):
+        if get_book_operation_token(manager.root_dir) != request.expected_book_token:
+            raise ValueError('Active book changed. Refresh automatic history controls.')
+        return {**set_take_history_policy(manager, request.enabled, request.expected_revision),
+                'book_token': request.expected_book_token}

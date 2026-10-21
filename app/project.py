@@ -1,6 +1,6 @@
 import os
 import copy
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, nullcontext
 from collections import Counter
 import tempfile
 import hashlib
@@ -39,7 +39,7 @@ from literal_policy import (ensure_literal_narration, bind_literal_chunks,
 from audio_validation import publish_audio_output, remove_stale_audio, validate_generated_audio
 from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationCancelled,
                                     ensure_audio_generation_active, ensure_audio_generation_publication,
-                                    ensure_audio_generation_book,
+                                    ensure_audio_generation_book, ensure_audio_generation_book_work, reuse_audio_generation_book,
                                     get_audio_generation_owner, is_audio_generation_cancelled,
                                     run_with_audio_generation_owner)
 from synthesis_recovery_context import (RecoveryParent, RecoveryAdmissionError, get_recovery_claim_digest,
@@ -47,6 +47,10 @@ from synthesis_recovery_context import (RecoveryParent, RecoveryAdmissionError, 
 from synthesis_recovery_identity import get_recovery_digest
 from speech_verification_settings import get_enabled_speech_verification_settings
 from book_state_transaction import get_book_operation_token
+from take_retention import (KEY as RETAINED_TAKE_KEY, POLICY as TAKE_HISTORY_POLICY, admit_take_history_edit,
+    get_take_history_policy, preserve_retained_takes, make_retained_take,
+    validate_retained_take, get_retained_audio_paths, get_retained_book_bytes)
+from audio_take_history import AudioTakeHistory
 from tts import (
     TTSEngine,
     get_chunk_seed,
@@ -884,7 +888,7 @@ class ProjectManager:
         
         Uses _chunks_lock to prevent race conditions with concurrent saves.
         """
-        with self._chunks_lock, file_lock(self.chunks_path):
+        with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
             return self._read_chunks()
 
     def get_saved_chunks(self):
@@ -916,6 +920,7 @@ class ProjectManager:
                 chunks = json.load(source)
         if not isinstance(chunks, list) or any(not isinstance(row, dict) for row in chunks):
             raise ValueError("Saved chunks must be an array of objects; open Editor to repair them")
+        get_retained_book_bytes(chunks)
         return chunks
 
     def get_pronunciation_preview_settings(self):
@@ -956,8 +961,12 @@ class ProjectManager:
         return (stat.st_dev, stat.st_ino, stat.st_size,
                 stat.st_mtime_ns, stat.st_ctime_ns)
 
-    def _save_chunks_locked(self, chunks, uids_backfilled=False):
+    def _save_chunks_locked(self, chunks, uids_backfilled=False, *, retained_update_uid=None):
         """Publish rows and retain UID validation only for known-valid writes."""
+        if (os.path.lexists(os.path.join(self.root_dir, TAKE_HISTORY_POLICY))
+                or any(row.get(RETAINED_TAKE_KEY) is not None for row in chunks)):
+            previous = self._get_saved_chunk_rows_locked() if os.path.exists(self.chunks_path) else []
+            preserve_retained_takes(self.root_dir, previous, chunks, updated_uid=retained_update_uid)
         if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
             self._get_status_journal_locked().save_compacted(
                 chunks, save_snapshot=lambda rows: atomic_json_write(rows, self.chunks_path))
@@ -981,6 +990,7 @@ class ProjectManager:
         if not isinstance(chunks, list) or not all(isinstance(c, dict) for c in chunks):
             chunks = None
         if chunks is not None:
+            get_retained_book_bytes(chunks)
             # Retain the backfill cache across ordinary status writes, but
             # revalidate a replaced saved book or an externally edited file.
             if (not self._uids_backfilled
@@ -1089,7 +1099,7 @@ class ProjectManager:
         return [updated[index]["uid"] for index in changed]
 
     def save_chunks(self, chunks):
-        with self._chunks_lock, file_lock(self.chunks_path):
+        with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
             self._save_chunks_locked(chunks)
 
     def _modify_chunk(self, index, mutator):
@@ -1099,7 +1109,7 @@ class ProjectManager:
         entire read-modify-write cycle, preventing concurrent threads from
         overwriting each other's updates.
         """
-        with self._chunks_lock, file_lock(self.chunks_path):
+        with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
             chunks = self._read_chunks()
             if not (0 <= index < len(chunks)):
                 return None
@@ -1110,7 +1120,7 @@ class ProjectManager:
 
     def insert_chunk(self, after_index):
         """Insert an empty chunk after the given index. Returns the new chunk list."""
-        with self._chunks_lock, file_lock(self.chunks_path):
+        with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
             chunks = self._read_chunks()
             if not (0 <= after_index < len(chunks)):
                 return None
@@ -1139,7 +1149,7 @@ class ProjectManager:
 
     def delete_chunk(self, index):
         """Delete a chunk at the given index. Returns (deleted_chunk, updated_chunks) or None."""
-        with self._chunks_lock, file_lock(self.chunks_path):
+        with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
             chunks = self._read_chunks()
             if not (0 <= index < len(chunks)):
                 return None
@@ -1166,7 +1176,7 @@ class ProjectManager:
         audio_path = chunk_data.get("audio_path")
         if audio_path and not self._is_project_audio_path(audio_path):
             return None
-        with self._chunks_lock, file_lock(self.chunks_path):
+        with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
             chunks = self._read_chunks()
 
             chunk_data = copy.deepcopy(chunk_data)
@@ -1299,12 +1309,19 @@ class ProjectManager:
                 if any(related.get(key) != expected.get(key) for key in ("status", "audio_path", "audio_revision")):
                     return None
             if audio_source is not None:
+                if get_take_history_policy(self.root_dir)['enabled'] and (chunk.get('audio_path') or chunk.get(RETAINED_TAKE_KEY)):
+                    held = validate_retained_take(chunk)
+                    if held is None or held['archive'] is None:
+                        raise ValueError('Retain the prior take under book admission before publishing replacement audio.')
+                if RETAINED_TAKE_KEY in chunk:
+                    kwargs[RETAINED_TAKE_KEY] = None
                 # Install only into an unreferenced slot. A failed metadata save
                 # leaves the prior take intact, including after process death.
                 # Reusing the inactive slot bounds abandoned audio to two files
                 # per UID/format without a separate rollback journal.
                 references = (None if journal else {
-                    get_chunk_audio_key(self.chunks_path, row.get("audio_path")) for row in chunks})
+                    get_chunk_audio_key(self.chunks_path, path) for row in chunks
+                    for path in (row.get("audio_path"), *get_retained_audio_paths(row))})
                 label = re.sub(r"[^A-Za-z0-9_-]", "_", str(uid))[:64]
                 digest = hashlib.sha256(str(uid).encode("utf-8")).hexdigest()[:16]
                 extension = os.path.splitext(audio_source)[1]
@@ -1323,10 +1340,16 @@ class ProjectManager:
                 sync_adapter_directory(self.voicelines_dir)
             if kwargs:
                 if journal:
+                    if audio_source is None and RETAINED_TAKE_KEY not in kwargs:
+                        changed = {**chunk, **kwargs}
+                        preserve_retained_takes(self.root_dir, [chunk], [changed])
+                        if changed.get(RETAINED_TAKE_KEY) != chunk.get(RETAINED_TAKE_KEY):
+                            kwargs[RETAINED_TAKE_KEY] = changed.get(RETAINED_TAKE_KEY)
                     chunk = journal.apply_update(uid, kwargs)
                 else:
                     chunk.update(kwargs)
-                    self._save_chunks_locked(chunks, uids_backfilled=bool(chunk.get("uid")))
+                    self._save_chunks_locked(chunks, uids_backfilled=bool(chunk.get("uid")),
+                        retained_update_uid=uid if RETAINED_TAKE_KEY in kwargs else None)
             return chunk
 
     def _publish_generated_chunk_audio(self, chunk, temp_path, speaker, recovery_parent=None):
@@ -1364,7 +1387,7 @@ class ProjectManager:
                 chunk, temp_path, staged_path, preparation, revision)
             evidence.update(speech_verification=speech_receipt,speech_verification_failure=None,
                             speech_verification_recheck=None)
-            with self._ensure_chunk_generation_publication(chunk) as current_book:
+            with self._ensure_automatic_predecessor(chunk), self._ensure_chunk_generation_publication(chunk) as current_book:
                 if not current_book:
                     raise ValueError(GENERATION_INPUTS_CHANGED)
                 if staged_version is not None and self._get_speech_staged_version(staged_path) != staged_version:
@@ -1383,21 +1406,73 @@ class ProjectManager:
                 self._remove_temp_file(staged_path)
 
     @contextmanager
+    def _ensure_automatic_predecessor(self, chunk):
+        if not get_take_history_policy(self.root_dir)['enabled']:
+            yield {}
+            return
+        with ensure_audio_generation_book_work(self.root_dir):
+            token = get_book_operation_token(self.root_dir)
+            admission = chunk.get('_take_history_book_token')
+            if admission is not None and admission != token:
+                raise ValueError(GENERATION_INPUTS_CHANGED)
+            chunk['_take_history_book_token'] = token
+            with ensure_audio_generation_publication():
+                current = self._update_chunk_fields_by_uid(chunk.get('uid'), expected_chunk=chunk)
+                if current is None:
+                    raise ValueError(GENERATION_INPUTS_CHANGED)
+                receipt = validate_retained_take(current) or make_retained_take(self.root_dir, current)
+            if receipt is None:
+                yield {}
+                return
+            if receipt['book_token'] != token:
+                raise ValueError('Prior take belongs to another book generation; inspect its retained metadata.')
+            original = copy.deepcopy(current.get(RETAINED_TAKE_KEY))
+            history = AudioTakeHistory(self.root_dir)
+            history.enable_automatic_format(cancel_check=ensure_audio_generation_active)
+            if receipt['archive'] is not None:
+                archive = receipt['archive']
+                verified = history.verify_retained(archive['version'], archive['sha256'], token, current['uid'],
+                    receipt['captured'], cancel_check=ensure_audio_generation_active)
+                if verified['path'] != archive['path']:
+                    raise ValueError('Retained archive path differs from its verified manifest; inspect the receipt.')
+            else:
+                saved = history.capture(os.path.join(self.root_dir, receipt['path']), token, current['uid'],
+                    receipt['captured'], expected_source_version=receipt['source_version'],
+                    cancel_check=ensure_audio_generation_active)
+                receipt = {**receipt, 'archive': dict(version=saved['version'], sha256=saved['sha256'],
+                    path=f"take_history/{saved['version']}{os.path.splitext(receipt['path'])[1].lower()}")}
+            retained = {RETAINED_TAKE_KEY: receipt}
+            # A committed hold precedes any slot installation, even direct calls
+            # which did not enter generating before reaching this publisher.
+            with ensure_audio_generation_publication():
+                held = self._update_chunk_fields_by_uid(current['uid'], expected_chunk=chunk,
+                    expected_fields={RETAINED_TAKE_KEY: original, 'audio_revision': current.get('audio_revision')},
+                    **retained)
+                if held is None:
+                    raise ValueError(GENERATION_INPUTS_CHANGED)
+            yield retained
+
+    @contextmanager
     def _ensure_chunk_generation_publication(self, chunk):
         admission = chunk.get('_speech_verification_admission')
-        guard = (ensure_audio_generation_book(self.root_dir) if admission is not None
+        retained_book = chunk.get('_take_history_book_token')
+        guard = (reuse_audio_generation_book(self.root_dir) if retained_book is not None or get_take_history_policy(self.root_dir)['enabled']
+                 else ensure_audio_generation_book(self.root_dir) if admission is not None
                  else ensure_audio_generation_publication())
         with guard:
-            yield admission is None or get_book_operation_token(self.root_dir) == admission['book_token']
+            token = get_book_operation_token(self.root_dir) if admission is not None or retained_book is not None else None
+            yield ((admission is None or token == admission['book_token'])
+                   and (retained_book is None or token == retained_book))
 
     def _update_generation_fields(self, chunk, **fields):
         if fields.get('status') == 'error':
             fields.setdefault('speech_verification_failure',None)
-        with self._ensure_chunk_generation_publication(chunk) as current_book:
+        scope = self._ensure_automatic_predecessor(chunk) if fields.get('status') == 'generating' else nullcontext({})
+        with scope as retained, self._ensure_chunk_generation_publication(chunk) as current_book:
             if not current_book:
                 return None
             return self._update_chunk_fields_by_uid(
-                chunk.get("uid"), expected_chunk=chunk, **fields)
+                chunk.get("uid"), expected_chunk=chunk, **fields, **retained)
 
     def _capture_speech_verification_admission(self, engine):
         requested = get_enabled_speech_verification_settings(self._load_tts_config().get('speech_verification'))
@@ -2759,7 +2834,7 @@ class ProjectManager:
     def generate_chunks_parallel(self, indices, max_workers=2, progress_callback=None,
                                   cancel_check=None, admitted_requests=None):
         """Accumulate durable UID transitions, compact after every worker stops."""
-        with self._chunks_lock, file_lock(self.chunks_path):
+        with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
             if self._active_journal_identity is not None:
                 raise ValueError("Parallel chunk generation is already active")
             self._read_chunks()
@@ -2769,7 +2844,7 @@ class ProjectManager:
             return self._generate_chunks_parallel_with_status_journal(
                 indices, max_workers, progress_callback, cancel_check, admitted_requests)
         finally:
-            with self._chunks_lock, file_lock(self.chunks_path):
+            with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
                 try:
                     if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
                         self._save_chunks_locked(self._read_chunks(), uids_backfilled=True)
@@ -3110,6 +3185,20 @@ class ProjectManager:
             results["cancelled"] = total
             return results
 
+        if get_take_history_policy(self.root_dir)['enabled']:
+            try:
+                for idx in indices:
+                    chunk = captured.get(idx)
+                    if chunk is not None:
+                        with self._ensure_automatic_predecessor(chunk):
+                            pass
+            except AudioGenerationCancelled:
+                results['cancelled'] = total
+                return results
+            except (ValueError, OSError) as error:
+                results['failed'] = [(idx, str(error)) for idx in indices]
+                return results
+
         # Get TTS engine
         engine = self.get_engine()
         if not engine:
@@ -3130,6 +3219,11 @@ class ProjectManager:
                 updated = self._update_generation_fields(chunk, status="generating") if chunk else None
             except AudioGenerationCancelled:
                 break
+            except (ValueError, OSError) as error:
+                self._reset_captured_generations(captured, active_indices, set())
+                failed = {item[0] for item in results['failed']}
+                results['failed'].extend((item, str(error)) for item in indices if item not in failed)
+                return results
             if updated is None:
                 results["failed"].append((idx, GENERATION_INPUTS_CHANGED))
             else:
@@ -3173,6 +3267,10 @@ class ProjectManager:
                         updated = self._update_generation_fields(chunk, status="generating")
                     except AudioGenerationCancelled:
                         break
+                    except (ValueError, OSError) as error:
+                        self._restore_cancelled_generation(chunk)
+                        cleanup_failures.append((idx, str(error)))
+                        continue
                     if updated is None:
                         cleanup_failures.append((idx, GENERATION_INPUTS_CHANGED))
                         continue

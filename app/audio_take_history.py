@@ -21,6 +21,7 @@ MAX_AUDIO_BYTES = 64 * 1024**2
 MAX_PAYLOAD_BYTES = 1024**3
 MAX_MANIFEST_BYTES = 16 * 1024**2
 MAX_RECORD_BYTES = 128 * 1024
+MAX_METADATA_DEPTH = 64
 _VERSION = re.compile(r'[0-9a-f]{32}')
 _DIGEST = re.compile(r'[0-9a-f]{64}')
 _SUFFIXES = {'.wav', '.mp3', '.flac', '.ogg'}
@@ -29,6 +30,28 @@ _SUFFIXES = {'.wav', '.mp3', '.flac', '.ogg'}
 def _encode(value):
     return json.dumps(value, ensure_ascii=True, sort_keys=True,
                       separators=(',', ':'), allow_nan=False).encode('ascii')
+
+
+def _ensure_metadata_depth(value):
+    # JSON's parser can accept nesting which later deepcopy/response encoding
+    # cannot. Admit bounded structure before any recursive record operation.
+    # Iterator frames use memory proportional to depth, not record breadth.
+    frames = [iter((value,))]
+    while frames:
+        try:
+            item = next(frames[-1])
+        except StopIteration:
+            frames.pop()
+            continue
+        if type(item) is dict:
+            children = iter(item.values())
+        elif type(item) is list:
+            children = iter(item)
+        else:
+            continue
+        if len(frames) > MAX_METADATA_DEPTH:
+            raise ValueError('Take history metadata is too deeply nested; existing audio was preserved.')
+        frames.append(children)
 
 
 def _version(info):
@@ -172,11 +195,16 @@ class AudioTakeHistory:
                 raise ValueError('Take metadata changed while reading; it was preserved.')
         if _version(_ensure_plain_path(self.manifest, self.root).stat()) != _version(info):
             raise ValueError('Take metadata changed while reading; it was preserved.')
-        return self._validate(json.loads(data))
+        try:
+            document = json.loads(data)
+        except RecursionError as error:
+            raise ValueError('Take history manifest is too deeply nested; existing audio was preserved.') from error
+        return self._validate(document)
 
     def _validate(self, document):
+        _ensure_metadata_depth(document)
         if (type(document) is not dict or set(document) != {'version', 'records'}
-                or type(document['version']) is not int or document['version'] != 1 or type(document['records']) is not list
+                or type(document['version']) is not int or document['version'] not in (1, 2) or type(document['records']) is not list
                 or len(document['records']) > MAX_RECORDS):
             raise ValueError('Take history manifest is invalid; existing audio was preserved.')
         seen, counts, total = set(), {}, 0
@@ -221,6 +249,26 @@ class AudioTakeHistory:
             stream.write(data); stream.flush(); os.fsync(stream.fileno())
         os.replace(self.pending, self.manifest)
         sync_adapter_directory(str(self.directory))
+
+    def enable_automatic_format(self, *, cancel_check=None):
+        """Fence older manual-only writers before any automatic hold is saved."""
+        with self._locked(cancel_check=cancel_check) as document:
+            self._ensure_inventory(document)
+            if document['version'] == 1:
+                document['version'] = 2
+                self._save(document)
+
+    def verify_retained(self, version, sha256, book_token, uid, captured, *, cancel_check=None):
+        """Verify a committed predecessor without reopening a reused source slot."""
+        with self._locked(cancel_check=cancel_check) as document:
+            if document['version'] != 2:
+                raise ValueError('Automatic take history requires its newer archive format.')
+            row = self._find(document, version, sha256, book_token, uid)
+            if row['state'] != 'ready' or row['captured'] != captured:
+                raise ValueError('Retained predecessor changed. Inspect take history before retrying.')
+            with self._open_verified(row, cancel_check=cancel_check):
+                _check_cancelled(cancel_check)
+            return {**self._summary(row), 'path': self._path(row).relative_to(self.root).as_posix()}
 
     def _path(self, row):
         return self.directory / (row['version'] + row['suffix'])

@@ -3977,6 +3977,31 @@
         "title": "TakeHistoryAction",
         "type": "object"
       },
+      "TakeHistoryPolicyRequest": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "expected_revision",
+          "enabled"
+        ],
+        "title": "TakeHistoryPolicyRequest",
+        "type": "object"
+      },
       "TakeSnapshotRequest": {
         "properties": {
           "expected_audio_revision": {
@@ -11411,6 +11436,56 @@
           }
         },
         "summary": "Get System Stats"
+      }
+    },
+    "/api/take_history_policy": {
+      "get": {
+        "operationId": "get_take_history_policy_endpoint_api_take_history_policy_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Take History Policy Endpoint"
+      },
+      "post": {
+        "operationId": "change_take_history_policy_endpoint_api_take_history_policy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakeHistoryPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Take History Policy Endpoint"
       }
     },
     "/api/take_snapshots": {

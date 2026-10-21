@@ -260,7 +260,8 @@ def _apply_book_voice_update(transform, expected_revision=None, config_path=None
     manager = project_manager if project_manager.chunks_path == chunks_path else ProjectManager(root)
     if manager is not project_manager:
         manager.chunks_path = chunks_path
-    with manager._chunks_lock, file_lock(chunks_path):
+    from take_retention import admit_take_history_edit
+    with admit_take_history_edit(root), manager._chunks_lock, file_lock(chunks_path):
         def update(current):
             updated = transform(current)
             manager._apply_voice_timeline_audio_invalidation_locked(current, updated)

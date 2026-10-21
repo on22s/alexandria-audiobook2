@@ -11,7 +11,7 @@ Element.prototype.replaceChildren=function(...nodes){for(const child of [...this
 Element.prototype.append=function(...nodes){for(const child of nodes){this.appendChild(child);}};
 Element.prototype.pause=function(){this.paused=true;};Element.prototype.load=function(){this.loaded=true;};
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(v){if(v){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
-for(const id of ['editor-take-save','editor-take-list','editor-take-more','editor-take-first','editor-take-status']){body.appendChild(new Element('div',{id}));}
+for(const id of ['editor-take-save','editor-take-list','editor-take-more','editor-take-first','editor-take-status','editor-auto-take-refresh','editor-auto-take-on','editor-auto-take-off','editor-auto-take-status']){body.appendChild(new Element('div',{id}));}
 let selected={chunk:{id:0,uid:'u',text:'Synthetic words.',instruct:'',speaker:'Hero',audio_path:'line.wav',audio_revision:'r1'}};
 context.chunkSnapshotBookToken='a'.repeat(64);context.getEditorReviewTarget=()=>selected;
 context.getChunkAudioIdentity=c=>JSON.stringify([c.audio_path,c.audio_revision]);
@@ -92,4 +92,38 @@ for (const change of [
     const pending=context.saveEditorTakeSnapshot();await tick();change();release();await pending;
     assert.equal(posts.length,0);assert.equal(gets.length,0);
 }
+''')
+
+    def test_policy_refresh_and_change_are_serialized_and_use_admitted_book_revision(self):
+        self.run_js(r'''
+context.renderAutomaticTakePolicy();assert(document.getElementById('editor-auto-take-on').disabled);
+const pending=context.loadAutomaticTakePolicy();await tick();assert.equal(gets[0].url,'/api/take_history_policy');
+await context.loadAutomaticTakePolicy();assert.equal(gets.length,1);assert(document.getElementById('editor-auto-take-refresh').disabled);
+const policy={enabled:false,book_token:'e'.repeat(64),revision:'f'.repeat(64),error:null};gets[0].resolve(policy);await pending;
+assert(!document.getElementById('editor-auto-take-on').disabled);assert(document.getElementById('editor-auto-take-off').disabled);
+const change=context.changeAutomaticTakePolicy(true);await tick();await context.changeAutomaticTakePolicy(true);assert.equal(posts.length,1);
+assert.equal(posts[0].url,'/api/take_history_policy');assert.equal(posts[0].body.expected_book_token,policy.book_token);assert.equal(posts[0].body.expected_revision,policy.revision);assert.equal(posts[0].body.enabled,true);
+posts[0].resolve({...policy,enabled:true,revision:'1'.repeat(64)});await change;
+assert(document.getElementById('editor-auto-take-on').disabled);assert(!document.getElementById('editor-auto-take-off').disabled);
+assert.equal(selected.chunk.audio_revision,'r1');assert.equal(toasts.length,1);
+''')
+
+    def test_failed_policy_read_or_write_requires_refresh_before_retry(self):
+        self.run_js(r'''
+const pending=context.loadAutomaticTakePolicy();await tick();gets[0].reject(new Error('unreadable'));await pending;
+await context.changeAutomaticTakePolicy(true);assert.equal(posts.length,0);assert(document.getElementById('editor-auto-take-on').disabled);
+const reload=context.loadAutomaticTakePolicy();await tick();gets[1].resolve({enabled:false,book_token:'a'.repeat(64),revision:'b'.repeat(64)});await reload;
+const change=context.changeAutomaticTakePolicy(true);await tick();posts[0].reject(new Error('book changed'));await change;
+await context.changeAutomaticTakePolicy(true);assert.equal(posts.length,1);assert.equal(errors.length,2);
+assert(!document.getElementById('editor-auto-take-refresh').disabled);assert(document.getElementById('editor-auto-take-off').disabled);
+''')
+
+    def test_damaged_policy_can_be_disabled_without_a_selected_line_or_saved_drafts(self):
+        self.run_js(r'''
+selected=null;edits=true;
+const pending=context.loadAutomaticTakePolicy();await tick();const policy={enabled:null,book_token:'a'.repeat(64),revision:'b'.repeat(64),error:'Damaged <script> policy'};
+gets[0].resolve(policy);await pending;
+assert.equal(document.getElementById('editor-auto-take-status').textContent,policy.error);assert(!document.getElementById('editor-auto-take-off').disabled);
+const change=context.changeAutomaticTakePolicy(false);await tick();assert.equal(posts.length,1);assert.equal(posts[0].body.enabled,false);
+posts[0].resolve({...policy,enabled:false,error:null});await change;assert.equal(toasts.length,1);assert.equal(errors.length,0);
 ''')

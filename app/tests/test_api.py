@@ -679,6 +679,34 @@ def test_take_snapshot_contract():
         'expected_book_token': token, 'sha256': 'b' * 64}), 422)
 
 
+def test_take_history_policy_contract():
+    response = get('/api/take_history_policy')
+    assert_status(response)
+    original = response.json()
+    if type(original.get('enabled')) is not bool or original.get('error'):
+        raise TestFailure('Expected a readable automatic-history policy in the API fixture')
+    request = dict(expected_book_token=original['book_token'], expected_revision=original['revision'],
+                   enabled=not original['enabled'])
+    assert_status(post('/api/take_history_policy', json={**request, 'enabled': 1}), 422)
+    token = original['book_token']
+    stale = ('0' if token[0] != '0' else '1') + token[1:]
+    assert_status(post('/api/take_history_policy', json={**request, 'expected_book_token': stale}), 409)
+    changed = None
+    try:
+        response = post('/api/take_history_policy', json=request)
+        assert_status(response); changed = response.json()
+        if changed['enabled'] != request['enabled'] or changed['revision'] == original['revision']:
+            raise TestFailure('Policy change did not persist its requested state and new revision')
+        assert_status(post('/api/take_history_policy', json=request), 409)
+        if get('/api/take_history_policy').json() != changed:
+            raise TestFailure('Policy GET did not return the committed setting')
+    finally:
+        if changed is not None:
+            assert_status(post('/api/take_history_policy', json={
+                'expected_book_token': changed['book_token'], 'expected_revision': changed['revision'],
+                'enabled': original['enabled']}))
+
+
 def test_update_chunk():
     if not shared.get("has_chunks"):
         raise TestFailure("SKIP: no chunks available")
@@ -1592,6 +1620,7 @@ def run_all_tests():
     section("Chunks")
     run_test("get_chunks", test_get_chunks)
     run_test("take_snapshot_contract", test_take_snapshot_contract)
+    run_test("take_history_policy_contract", test_take_history_policy_contract)
     run_test("occurrence_pronunciation_roundtrip", test_occurrence_pronunciation_roundtrip)
     run_test("update_chunk", test_update_chunk)
     run_test("update_chunk_pause_after", test_update_chunk_pause_after)

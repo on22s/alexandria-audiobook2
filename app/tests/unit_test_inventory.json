@@ -772,6 +772,24 @@
     "tests.test_auto_pause_on_api_exhaustion.ReaderMirrorsTheMarkerTests.test_marker_sets_paused_and_the_resume_line_clears_it",
     "tests.test_auto_pause_on_api_exhaustion.ReaderMirrorsTheMarkerTests.test_ordinary_output_leaves_paused_alone"
   ],
+  "test_automatic_take_generation": [
+    "tests.test_automatic_take_generation.AutomaticTakeGenerationTests.test_cancel_keeps_selected_audio_and_verified_archive_holds",
+    "tests.test_automatic_take_generation.AutomaticTakeGenerationTests.test_success_archives_prior_bytes_in_all_owned_render_modes"
+  ],
+  "test_automatic_take_history": [
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_capacity_refuses_before_model_work_and_first_pass_ignores_archive",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_coherent_damaged_suffix_cannot_delete_actual_archive_or_publish",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_direct_publication_commits_archive_hold_before_replacing_any_slot",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_disabling_keeps_hold_until_success_and_avoids_new_archive_admission",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_early_generation_archives_original_receipt_and_success_clears_only_hold",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_file_version_refuses_changed_predecessor_without_relabeling_it",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_held_archive_blocks_delete_and_publication_failure_can_retry_after_old_slot_changes",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_journal_status_updates_keep_cached_rows_and_bound_receipt_charge",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_native_batch_capacity_preflight_leaves_no_generating_rows_or_model_load",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_native_batch_reservation_failure_restores_already_reserved_rows",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_original_authored_receipt_survives_repeated_edits_without_copying_payload",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_policy_is_off_by_default_versioned_and_disables_without_parsing_archive"
+  ],
   "test_background_speakers": [
     "tests.test_background_speakers.AbScoringTest.test_cast_alias_credits_full_name_strict_does_not",
     "tests.test_background_speakers.AbScoringTest.test_incomplete_pass_two_is_refused",
@@ -1310,6 +1328,13 @@
     "tests.test_book_render_admission.BookRenderAdmissionTests.test_invalid_selection_registration_failure_and_cancellation_release_own_claim",
     "tests.test_book_render_admission.BookRenderAdmissionTests.test_pending_admission_excludes_switch_and_owns_lease_until_worker_finishes",
     "tests.test_book_render_admission.BookSaveIdentityTests.test_save_refuses_switched_book_family_but_allows_same_book_edits"
+  ],
+  "test_book_scope_reuse": [
+    "tests.test_book_scope_reuse.BookScopeReuseTests.test_async_child_and_changed_pid_cannot_inherit_kernel_admission",
+    "tests.test_book_scope_reuse.BookScopeReuseTests.test_cancelled_work_does_not_leak_owner_or_book_during_contention",
+    "tests.test_book_scope_reuse.BookScopeReuseTests.test_copied_thread_cannot_reuse_parent_and_expired_context_has_no_admission",
+    "tests.test_book_scope_reuse.BookScopeReuseTests.test_long_work_releases_owner_mutex_and_brief_publication_reacquires_it",
+    "tests.test_book_scope_reuse.BookScopeReuseTests.test_only_explicit_reuse_is_reentrant_and_nested_roots_remain_admitted"
   ],
   "test_book_state_transaction": [
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_actual_persona_main_rejects_changed_book_and_keeps_original_artifact_identity",
@@ -3305,6 +3330,7 @@
     "tests.test_editor_take_history.EditorTakeHistoryTests.test_archive_actions_and_audition_refuse_wrong_source_book_or_uid",
     "tests.test_editor_take_history.EditorTakeHistoryTests.test_corrupt_audio_and_invalid_route_action_boundaries",
     "tests.test_editor_take_history.EditorTakeHistoryTests.test_damaged_missing_and_legacy_uid_state_is_not_repaired_by_snapshot_refusal",
+    "tests.test_editor_take_history.EditorTakeHistoryTests.test_deep_manifest_returns_conflict_without_rewriting_audio_or_metadata",
     "tests.test_editor_take_history.EditorTakeHistoryTests.test_old_book_archive_is_discoverable_but_never_attached_to_new_rows",
     "tests.test_editor_take_history.EditorTakeHistoryTests.test_real_roundtrip_both_backends_keeps_current_revision_source_and_audio",
     "tests.test_editor_take_history.EditorTakeHistoryTests.test_selected_archive_reference_and_alias_source_cannot_be_deleted_or_captured",
@@ -9796,13 +9822,27 @@
     "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_waiting_for_other_process_archive_lock_is_cancellable"
   ],
   "test_take_history_js": [
+    "tests.test_take_history_js.TakeHistoryJsTests.test_damaged_policy_can_be_disabled_without_a_selected_line_or_saved_drafts",
     "tests.test_take_history_js.TakeHistoryJsTests.test_deleted_and_pending_copies_have_no_audio_and_remain_visible_in_usage",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_failed_policy_read_or_write_requires_refresh_before_retry",
     "tests.test_take_history_js.TakeHistoryJsTests.test_old_list_reply_and_old_audio_clear_when_line_or_book_changes",
     "tests.test_take_history_js.TakeHistoryJsTests.test_permanent_removal_rechecks_target_after_confirmation",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_policy_refresh_and_change_are_serialized_and_use_admitted_book_revision",
     "tests.test_take_history_js.TakeHistoryJsTests.test_save_is_uid_revision_bound_duplicate_clicks_block_and_drafts_refuse",
     "tests.test_take_history_js.TakeHistoryJsTests.test_save_never_retargets_after_line_book_or_take_changes_during_render_barrier",
     "tests.test_take_history_js.TakeHistoryJsTests.test_snapshot_labels_are_literal_and_actions_use_exact_version_hash",
     "tests.test_take_history_js.TakeHistoryJsTests.test_two_saves_waiting_on_the_same_render_barrier_issue_one_request"
+  ],
+  "test_take_history_policy": [
+    "tests.test_take_history_policy.TakeHistoryPolicyTests.test_changed_book_refuses_policy_write",
+    "tests.test_take_history_policy.TakeHistoryPolicyTests.test_deep_or_malformed_policy_can_be_disabled_with_unreadable_archive_and_chunks",
+    "tests.test_take_history_policy.TakeHistoryPolicyTests.test_deep_private_receipt_refuses_reads_and_edits_before_copy_or_mutation",
+    "tests.test_take_history_policy.TakeHistoryPolicyTests.test_deleted_chunk_undo_protects_archive_until_restore_or_expiration",
+    "tests.test_take_history_policy.TakeHistoryPolicyTests.test_public_editor_view_redacts_private_receipt_without_mutating_saved_rows",
+    "tests.test_take_history_policy.TakeHistoryPolicyTests.test_real_routes_default_enable_strict_boolean_and_stale_revision"
+  ],
+  "test_take_retention_process_death": [
+    "tests.test_take_retention_process_death.TakeRetentionProcessDeathTests.test_actual_process_death_preserves_original_take_and_allows_explicit_retry"
   ],
   "test_task_claim_ownership": [
     "tests.test_task_claim_ownership.TaskClaimOwnershipTests.test_actual_book_load_keeps_started_export_reserved_after_legacy_flag_clears",

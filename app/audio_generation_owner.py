@@ -122,6 +122,43 @@ def ensure_audio_generation_book(root, *, timeout=10):
         time.sleep(min(.01, remaining))
 
 
+@contextmanager
+def reuse_audio_generation_book(root, *, timeout=10):
+    """Explicit parent publication inside a retention-owned book scope."""
+    from book_state_transaction import is_book_state_admitted, reuse_book_state
+    if is_book_state_admitted(root):
+        with ensure_audio_generation_publication(), reuse_book_state(root):
+            yield
+    else:
+        with ensure_audio_generation_book(root, timeout=timeout):
+            yield
+
+
+@contextmanager
+def ensure_audio_generation_book_work(root, *, timeout=10):
+    """Keep book identity stable for cancellable work, without an owner mutex.
+
+    Renew exact owner admission before parent publication. Contending publishers
+    use a book try-lock so a book holder can poll cancellation without deadlock.
+    """
+    from book_state_transaction import reuse_book_state
+    deadline = time.monotonic() + timeout
+    with ExitStack() as stack:
+        while True:
+            ensure_audio_generation_active()
+            try:
+                stack.enter_context(reuse_book_state(root, timeout=0))
+            except TimeoutError:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise
+                time.sleep(min(.01, remaining))
+            else:
+                break
+        ensure_audio_generation_active()
+        yield
+
+
 def is_audio_generation_cancelled():
     try:
         ensure_audio_generation_active()
