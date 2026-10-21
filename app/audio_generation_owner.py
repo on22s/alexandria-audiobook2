@@ -1,16 +1,17 @@
 """Exact-owner admission for Editor synthesis; direct Python callers stay unowned."""
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from contextvars import ContextVar
 from dataclasses import dataclass
 import re
+import time
 
 AUDIO_GENERATION_CANCELLED = "Audio generation cancelled"
 _owner = ContextVar('audio_generation_owner', default=None)
 
 
 class AudioGenerationCancelled(RuntimeError):
-    def __init__(self):
-        super().__init__(AUDIO_GENERATION_CANCELLED)
+    def __init__(self,message=AUDIO_GENERATION_CANCELLED):
+        super().__init__(message)
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,31 @@ def ensure_audio_generation_publication(*, allow_cancelled=False):
 def ensure_audio_generation_active():
     with ensure_audio_generation_publication():
         pass
+
+
+@contextmanager
+def ensure_audio_generation_book(root, *, timeout=10):
+    """Admit owner and book without waiting for a book while holding the owner.
+
+    Script admission takes the book before its task mutex. A failed try-lock
+    must release our owner mutex before retrying so that admission can finish.
+    """
+    from book_state_transaction import ensure_book_state
+    deadline = time.monotonic() + timeout
+    while True:
+        with ExitStack() as stack:
+            stack.enter_context(ensure_audio_generation_publication())
+            try:
+                stack.enter_context(ensure_book_state(root, timeout=0))
+            except TimeoutError:
+                pass
+            else:
+                yield
+                return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('Could not admit audio publication to the active book.')
+        time.sleep(min(.01, remaining))
 
 
 def is_audio_generation_cancelled():

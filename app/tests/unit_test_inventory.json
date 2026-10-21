@@ -660,6 +660,12 @@
     "tests.test_audio_channels_js.AudioChannelsJsTests.test_preview_reuses_stage_and_selection_is_explicit_then_dispose_revokes",
     "tests.test_audio_channels_js.AudioChannelsJsTests.test_submission_lock_survives_late_preview_completion"
   ],
+  "test_audio_generation_book": [
+    "tests.test_audio_generation_book.AudioGenerationBookTests.test_body_timeout_is_not_retried_or_replaced_by_admission_timeout",
+    "tests.test_audio_generation_book.AudioGenerationBookTests.test_book_holder_can_acquire_owner_mutex_while_publication_retries",
+    "tests.test_audio_generation_book.AudioGenerationBookTests.test_cancellation_is_rechecked_during_contention",
+    "tests.test_audio_generation_book.AudioGenerationBookTests.test_persistent_contention_is_bounded"
+  ],
   "test_audio_generation_cancellation": [
     "tests.test_audio_generation_cancellation.AudioGenerationCancellationTests.test_acknowledged_cancel_during_provider_keeps_prior_takes_and_lease_until_cleanup",
     "tests.test_audio_generation_cancellation.AudioGenerationCancellationTests.test_actual_single_parallel_native_callbacks_receive_their_own_recovery_parent",
@@ -2362,6 +2368,19 @@
   "test_cors_auth_order": [
     "tests.test_cors_auth_order.CorsAuthOrderTests.test_native_allowed_denied_origins_and_optional_auth"
   ],
+  "test_cpu_asr_scratch": [
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_child_outputs_are_private_and_removed_after_reaping",
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_corrupt_authority_is_preserved",
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_empty_oversize_and_cancelled_captures_are_unavailable",
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_fifo_and_directory_inputs_are_rejected_without_blocking_or_output_creation",
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_interrupted_known_outputs_are_reclaimed_on_next_admission",
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_live_outside_owner_retains_lease_after_callers_handle_closes",
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_root_alias_private_mode_and_replaced_lease_are_refused",
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_single_slot_is_nonblocking_and_capture_is_exact_and_private",
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_symlink_hardlink_and_fifo_outputs_preserve_targets",
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_unknown_file_preserves_all_known_outputs_before_any_cleanup",
+    "tests.test_cpu_asr_scratch.CPUASRScratchTests.test_unsupported_platform_is_explicit_without_filesystem_mutation"
+  ],
   "test_cpu_fixture_lock": [
     "tests.test_cpu_fixture_lock.CpuFixtureLockTests.test_exception_restores_the_callers_inherited_claim_without_borrowing_it",
     "tests.test_cpu_fixture_lock.CpuFixtureLockTests.test_private_lease_is_native_and_external_lease_stays_protected"
@@ -3173,15 +3192,21 @@
   ],
   "test_editor_review_js": [
     "tests.test_editor_review_js.EditorReviewJsTests.test_filters_counts_text_injection_and_inspector_use_saved_facts",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_incomplete_recheck_does_not_hide_completed_content_difference",
     "tests.test_editor_review_js.EditorReviewJsTests.test_malformed_or_changed_facts_and_failures_disable_old_links",
     "tests.test_editor_review_js.EditorReviewJsTests.test_markup_preserves_handlers_separates_whole_book_actions_and_loads_before_restore",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_mismatched_selected_take_receipt_cannot_show_details",
     "tests.test_editor_review_js.EditorReviewJsTests.test_pagination_counts_every_finding_and_preserves_all_rows",
     "tests.test_editor_review_js.EditorReviewJsTests.test_pending_audition_stops_if_the_book_or_audio_element_is_replaced",
     "tests.test_editor_review_js.EditorReviewJsTests.test_play_and_generate_reuse_existing_audio_and_original_handlers",
     "tests.test_editor_review_js.EditorReviewJsTests.test_reorder_resolves_current_uid_and_drafts_focus_original_controls",
     "tests.test_editor_review_js.EditorReviewJsTests.test_replaced_uid_clears_selection_and_old_finding_cannot_target_replacement",
     "tests.test_editor_review_js.EditorReviewJsTests.test_serialized_latest_request_wins_and_late_book_reply_cannot_paint",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_speech_evidence_separates_selected_take_and_rejected_attempt_without_html",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_speech_recheck_requires_proven_input_and_cancel_uses_owned_endpoint",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_speech_recheck_saves_original_identity_and_ignores_late_selection_reply",
     "tests.test_editor_review_js.EditorReviewJsTests.test_stacked_mobile_selection_reveals_inspector_but_field_focus_stays_in_table",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_successful_same_selection_recheck_installs_snapshot_before_refreshing_facts",
     "tests.test_editor_review_js.EditorReviewJsTests.test_unchanged_findings_retain_focus_and_disclosure_and_publish_no_drafts"
   ],
   "test_editor_review_regressions": [
@@ -3210,6 +3235,14 @@
     "tests.test_editor_safety_js.EditorSafetyJsTests.test_suggested_candidates_refresh_cards_and_autosave_metadata_without_losing_edits",
     "tests.test_editor_safety_js.EditorSafetyJsTests.test_voice_change_label_counts_transitions_and_preserves_type_values",
     "tests.test_editor_safety_js.EditorSafetyJsTests.test_voice_change_refreshes_actual_card_timeline_and_handles_missing_cached_config"
+  ],
+  "test_editor_speech_verification": [
+    "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_changed_source_take_book_and_bytes_never_accept_a_late_report",
+    "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_failed_receipt_save_retains_original_selected_evidence_and_audio",
+    "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_missing_proven_input_or_old_take_revision_refuses_asr",
+    "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_recheck_binds_exact_original_input_and_retains_audio_even_when_content_difference_found",
+    "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_unavailable_recheck_cannot_clear_a_known_content_difference",
+    "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_unavailable_recheck_is_explicit_and_prior_audio_is_unchanged"
   ],
   "test_editor_validation_findings": [
     "tests.test_editor_validation_findings.EditorValidationFindingTests.test_empty_persisted_row_gets_uid_and_missing_identity_target_is_409",
@@ -8927,6 +8960,103 @@
     "tests.test_speech_verbalization.VerbalizationTest.test_unknown_symbols_are_dropped_not_read",
     "tests.test_speech_verbalization.VerbalizationTest.test_verbalized_symbols_are_not_also_swept_by_the_catch_all"
   ],
+  "test_speech_verification": [
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_busy_and_unsupported_language_are_explicit_without_provider_work",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_cancel_is_not_downgraded_to_unavailable",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_changed_audio_is_unavailable_even_after_both_transcripts_agree",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_disagreeing_confirmation_does_not_promote_a_primary_suspicion",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_duplicate_phrase_corroborates_but_authored_repeat_does_not",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_good_long_take_needs_no_confirmation_and_binds_finished_bytes",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_long_audio_for_a_short_input_is_explicitly_incomplete_acoustic_evidence",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_malformed_audio_metadata_is_unavailable_without_asr",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_omission_requires_distinct_confirmation_of_the_same_region",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_oversized_diagnostics_are_discarded_with_explicit_unavailable_status",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_short_acoustic_suspicion_triggers_stronger_check_even_if_asr_collapses_repeat",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_unavailable_confirmation_retains_primary_evidence_and_never_claims_pass",
+    "tests.test_speech_verification.FinishedSpeechVerificationTests.test_unavailable_short_acoustic_check_never_becomes_no_candidate"
+  ],
+  "test_speech_verification_acoustic": [
+    "tests.test_speech_verification_acoustic.ShortAcousticEvidenceTests.test_breath_sized_impulses_and_stutter_are_not_utterance_count",
+    "tests.test_speech_verification_acoustic.ShortAcousticEvidenceTests.test_duration_channel_rate_and_cancellation_are_explicit",
+    "tests.test_speech_verification_acoustic.ShortAcousticEvidenceTests.test_exact_separated_short_repeat_is_suspicion_without_lexical_verdict",
+    "tests.test_speech_verification_acoustic.ShortAcousticEvidenceTests.test_flat_tones_silence_and_distinct_envelopes_do_not_claim_repeated_speech",
+    "tests.test_speech_verification_acoustic.ShortAcousticEvidenceTests.test_pair_budget_refuses_excess_islands_without_partial_candidate_pass"
+  ],
+  "test_speech_verification_asr": [
+    "tests.test_speech_verification_asr.SpeechVerificationASRTests.test_command_retains_close_owned_lease_and_discards_unbounded_diagnostics",
+    "tests.test_speech_verification_asr.SpeechVerificationASRTests.test_confirmation_cannot_reuse_primary_json_when_provider_writes_nothing",
+    "tests.test_speech_verification_asr.SpeechVerificationASRTests.test_full_text_limit_includes_segment_separators",
+    "tests.test_speech_verification_asr.SpeechVerificationASRTests.test_json_read_has_a_byte_bound_without_relying_on_stat",
+    "tests.test_speech_verification_asr.SpeechVerificationASRTests.test_native_text_validation_never_returns_partial_evidence",
+    "tests.test_speech_verification_asr.SpeechVerificationASRTests.test_raw_text_keeps_authored_repeat_and_ignores_unusable_timestamps"
+  ],
+  "test_speech_verification_compare": [
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_adjacent_pronunciation_and_numeric_uncertainty_preserves_missing_tail",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_authored_repetition_permits_only_its_actual_multiplicity",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_concordance_requires_same_expected_projection_and_region",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_empty_transcript_never_becomes_confirmed_lexical_loss",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_equal_counts_do_not_hide_missing_and_extra_words",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_evidence_snippets_are_bounded_but_token_regions_are_complete",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_exact_comparison_normalizes_only_comparison_typography",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_extra_passage_corroborates_only_exact_shared_ordered_subregions",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_numeric_regions_remain_ambiguous_and_changed_values_are_not_forgiven",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_pronunciation_ambiguity_does_not_hide_an_unrelated_omission",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_resource_caps_refuse_whole_comparison_without_prefix_pass",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_shared_respelling_replacements_remain_review_evidence",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_short_lines_have_no_ratio_material_verdict",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_spelling_similarity_does_not_erase_negation_or_names",
+    "tests.test_speech_verification_compare.SpeechVerificationComparisonTests.test_too_many_difference_blocks_is_unavailable_not_partial_evidence"
+  ],
+  "test_speech_verification_cpu_admission": [
+    "tests.test_speech_verification_cpu_admission.SpeechVerificationCPUAdmissionTests.test_request_cancellation_retains_cpu_claim_and_late_report_cannot_publish"
+  ],
+  "test_speech_verification_editor": [
+    "tests.test_speech_verification_editor.SpeechVerificationEditorTests.test_edited_source_or_reselected_book_does_not_expose_old_evidence",
+    "tests.test_speech_verification_editor.SpeechVerificationEditorTests.test_malformed_persisted_evidence_is_hidden_without_mutating_saved_chunks",
+    "tests.test_speech_verification_editor.SpeechVerificationEditorTests.test_rejected_attempt_is_separate_from_prior_selected_take_in_quality_review",
+    "tests.test_speech_verification_editor.SpeechVerificationEditorTests.test_replaced_or_missing_selected_audio_invalidates_poll_evidence_without_writing_receipt",
+    "tests.test_speech_verification_editor.SpeechVerificationEditorTests.test_status_listing_and_review_agree_without_audio_hash_or_provider_work"
+  ],
+  "test_speech_verification_publication": [
+    "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_book_replacement_with_matching_uid_and_inputs_is_not_an_authorized_target",
+    "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_changed_staged_bytes_or_cancelled_owner_never_attach_success",
+    "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_confirmed_failure_keeps_prior_and_records_rejected_attempt_separately",
+    "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_large_valid_audio_records_unavailable_without_exceeding_hash_bound",
+    "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_late_same_size_mutation_with_restored_mtime_refuses_publication",
+    "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_single_parallel_native_attach_only_finished_revision_bound_evidence",
+    "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_snapshot_or_journal_metadata_failure_cannot_replace_prior_take_or_proof",
+    "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_source_edit_during_asr_refuses_new_take_and_does_not_overwrite_edit",
+    "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_unavailable_is_saved_explicitly_and_off_regeneration_clears_old_receipts",
+    "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_unrepresentable_comparison_records_unavailable_and_can_publish_audio"
+  ],
+  "test_speech_verification_receipt": [
+    "tests.test_speech_verification_receipt.SpeechVerificationReceiptTests.test_diagnostic_abbreviation_preserves_complete_counts_and_is_explicit",
+    "tests.test_speech_verification_receipt.SpeechVerificationReceiptTests.test_input_validation_requires_exact_completed_artifact_and_never_guesses_text",
+    "tests.test_speech_verification_receipt.SpeechVerificationReceiptTests.test_malformed_difference_entries_are_rejected_before_public_projection",
+    "tests.test_speech_verification_receipt.SpeechVerificationReceiptTests.test_polling_refuses_malformed_or_incomplete_persisted_evidence",
+    "tests.test_speech_verification_receipt.SpeechVerificationReceiptTests.test_polling_refuses_stale_source_rules_uid_book_and_take_without_audio_io",
+    "tests.test_speech_verification_receipt.SpeechVerificationReceiptTests.test_pronunciation_ambiguity_is_scoped_to_complete_actual_replacement_sequences",
+    "tests.test_speech_verification_receipt.SpeechVerificationReceiptTests.test_receipt_separates_actual_input_from_source_and_contains_full_asset_hashes",
+    "tests.test_speech_verification_receipt.SpeechVerificationReceiptTests.test_rejected_attempt_is_not_misrepresented_as_the_selected_take_check",
+    "tests.test_speech_verification_receipt.SpeechVerificationReceiptTests.test_selected_take_quick_stat_invalidates_changed_or_missing_audio_without_hashing"
+  ],
+  "test_speech_verification_runtime": [
+    "tests.test_speech_verification_runtime.SpeechVerifierRuntimeTests.test_bad_header_and_role_are_unavailable",
+    "tests.test_speech_verification_runtime.SpeechVerifierRuntimeTests.test_complete_finite_identity_has_model_bundle_recipe_and_adapter",
+    "tests.test_speech_verification_runtime.SpeechVerifierRuntimeTests.test_copied_model_or_wrong_architecture_does_not_qualify_as_stronger",
+    "tests.test_speech_verification_runtime.SpeechVerifierRuntimeTests.test_file_hash_captures_resolved_alias_and_honors_size_and_cancel_bounds",
+    "tests.test_speech_verification_runtime.SpeechVerifierRuntimeTests.test_library_changes_are_bound_and_missing_library_is_unavailable",
+    "tests.test_speech_verification_runtime.SpeechVerifierRuntimeTests.test_loader_overrides_and_other_platforms_are_explicit_without_provider_launch",
+    "tests.test_speech_verification_runtime.SpeechVerifierRuntimeTests.test_missing_optional_loaded_owner_identity_cannot_qualify_verification",
+    "tests.test_speech_verification_runtime.SpeechVerifierRuntimeTests.test_model_role_header_must_match_the_hashed_file_version"
+  ],
+  "test_speech_verification_settings_admission": [
+    "tests.test_speech_verification_settings_admission.SpeechVerificationSettingsAdmissionTests.test_invalid_or_omitted_policy_never_silently_disables_saved_check",
+    "tests.test_speech_verification_settings_admission.SpeechVerificationSettingsAdmissionTests.test_live_task_blocks_policy_change_and_actual_engine_drift_without_mutation"
+  ],
+  "test_speech_verification_settings_js": [
+    "tests.test_speech_verification_settings_js.SpeechVerificationSettingsJsTests.test_off_default_roundtrip_and_unloaded_save_does_not_override_settings"
+  ],
   "test_split_quote_evidence": [
     "tests.test_split_quote_evidence.EvidenceLocationTest.test_a_quotation_with_no_referring_expression_is_none",
     "tests.test_split_quote_evidence.EvidenceLocationTest.test_evidence_in_the_surrounding_context_is_found",
@@ -9223,7 +9353,8 @@
     "tests.test_subprocess_log_batches.SubprocessLogBatchTests.test_slow_output_is_published_while_child_waits_without_eof"
   ],
   "test_subprocess_owner_portability": [
-    "tests.test_subprocess_owner_portability.SubprocessOwnerPortabilityTests.test_missing_sigkill_does_not_break_non_linux_worker_admission"
+    "tests.test_subprocess_owner_portability.SubprocessOwnerPortabilityTests.test_missing_sigkill_does_not_break_non_linux_worker_admission",
+    "tests.test_subprocess_owner_portability.SubprocessOwnerPortabilityTests.test_standalone_deployment_runs_owned_child_without_optional_identity_helper"
   ],
   "test_subset_run_receipts": [
     "tests.test_subset_run_receipts.SubsetRunReceiptTests.test_both_completion_receipts_preserve_full_zip_name_and_actual_size",
@@ -9267,6 +9398,22 @@
     "tests.test_synthesis_audio.SynthesisAudioTests.test_preserved_frames_mixed_rates_mono_to_stereo_without_pad_or_flatten",
     "tests.test_synthesis_audio.SynthesisAudioTests.test_quiet_utterance_is_not_removed_and_outer_edges_remain_unchanged",
     "tests.test_synthesis_audio.SynthesisAudioTests.test_unsupported_layout_is_rejected_before_any_full_pcm_validation"
+  ],
+  "test_synthesis_input": [
+    "tests.test_synthesis_input.SynthesisInputCaptureTests.test_changed_output_discards_previously_captured_input",
+    "tests.test_synthesis_input.SynthesisInputCaptureTests.test_collector_and_text_limits_are_explicit_absence_instead_of_partial_proof",
+    "tests.test_synthesis_input.SynthesisInputCaptureTests.test_copied_context_worker_is_isolated_until_accepted_promotion",
+    "tests.test_synthesis_input.SynthesisInputCaptureTests.test_disabled_unknown_and_failed_outputs_supply_no_guessed_expectation",
+    "tests.test_synthesis_input.SynthesisInputCaptureTests.test_ensemble_has_one_script_and_rejects_mismatched_member_inputs",
+    "tests.test_synthesis_input.SynthesisInputCaptureTests.test_exact_text_and_completed_bytes_are_copied_without_repreparation",
+    "tests.test_synthesis_input.SynthesisInputCaptureTests.test_failed_promotion_clears_older_same_path_proof_even_if_bytes_match",
+    "tests.test_synthesis_input.SynthesisInputCaptureTests.test_windows_preserve_exact_span_whitespace_and_require_all_children"
+  ],
+  "test_synthesis_input_recovery": [
+    "tests.test_synthesis_input_recovery.SynthesisInputRecoveryTests.test_changed_serving_after_capture_aborts_before_recovered_input_or_new_provider",
+    "tests.test_synthesis_input_recovery.SynthesisInputRecoveryTests.test_interruption_then_fresh_scope_restores_input_without_calling_cached_leaf",
+    "tests.test_synthesis_input_recovery.SynthesisInputRecoveryTests.test_proof_version_has_a_separate_key_and_never_relabels_legacy_cached_pcm",
+    "tests.test_synthesis_input_recovery.SynthesisInputRecoveryTests.test_unobserved_or_mismatched_leaf_input_cannot_enter_proof_contract_cache"
   ],
   "test_synthesis_recovery": [
     "tests.test_synthesis_recovery.RecoveryOrchestrationTests.test_cache_failure_keeps_serving_guard_and_postcommit_cleanup_cannot_raise",
@@ -10242,6 +10389,17 @@
     "tests.test_tts_review_regressions.TtsReviewRegressions.test_external_clone_passes_language_to_provider",
     "tests.test_tts_review_regressions.TtsReviewRegressions.test_late_merge_cancellation_preserves_previous_export",
     "tests.test_tts_review_regressions.TtsReviewRegressions.test_selected_gpu_limits_disabled_sub_batches_and_snapshot"
+  ],
+  "test_tts_speech_input": [
+    "tests.test_tts_speech_input.TTSSpeechInputTests.test_all_builtin_single_and_split_compositions_capture_actual_prepared_input_once",
+    "tests.test_tts_speech_input.TTSSpeechInputTests.test_execution_setting_is_strict_off_default_and_excluded_from_acoustic_identity",
+    "tests.test_tts_speech_input.TTSSpeechInputTests.test_external_actual_client_result_promotes_matching_input_to_single_and_batch",
+    "tests.test_tts_speech_input.TTSSpeechInputTests.test_external_late_worker_cannot_mutate_a_later_call_input",
+    "tests.test_tts_speech_input.TTSSpeechInputTests.test_native_batch_keeps_sorted_original_indices_and_exact_provider_texts",
+    "tests.test_tts_speech_input.TTSSpeechInputTests.test_native_batch_missing_waveform_and_save_failure_do_not_lend_receipts",
+    "tests.test_tts_speech_input.TTSSpeechInputTests.test_project_single_parallel_and_native_routes_carry_input_to_shared_publication",
+    "tests.test_tts_speech_input.TTSSpeechInputTests.test_split_batch_parents_get_complete_original_index_input",
+    "tests.test_tts_speech_input.TTSSpeechInputTests.test_unknown_successful_override_and_disabled_capture_have_no_guessed_input"
   ],
   "test_tts_validation_manifest": [
     "tests.test_tts_validation_manifest.JapaneseIsExcludedNotFailed.test_kana_is_detected",

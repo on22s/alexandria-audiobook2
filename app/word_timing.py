@@ -8,7 +8,6 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import tempfile
 import time
 import wave
 
@@ -72,65 +71,126 @@ def get_validated_word_spans(text, segments, duration):
     return spans
 
 
-def run_timing_command(command, cancel_check, timeout=180):
+def run_timing_command(command, cancel_check, timeout=180, *, task_lease_fd=None):
     if cancel_check():
         raise ValueError('Word timing cancelled.')
     process = None
     started = time.monotonic()
-    with tempfile.TemporaryFile() as errors:
-        try:
-            process = start_owned_subprocess(command, stdout=subprocess.DEVNULL,
-                                             stderr=errors, start_new_session=True)
-            while True:
-                if cancel_check():
-                    raise ValueError('Word timing cancelled.')
-                if time.monotonic() - started >= timeout:
-                    raise ValueError('Word timing timed out.')
-                try:
-                    status = process.wait(timeout=.1)
-                    break
-                except subprocess.TimeoutExpired:
-                    continue
+    # Provider diagnostics aren't consumed here. Do not spool unlimited native
+    # stderr into an anonymous file while a provider is failing noisily.
+    try:
+        options = {} if task_lease_fd is None else {'task_lease_fd': task_lease_fd, 'umask': 0o077}
+        process = start_owned_subprocess(command, stdout=subprocess.DEVNULL,
+                                         stderr=subprocess.DEVNULL, start_new_session=True, **options)
+        while True:
             if cancel_check():
                 raise ValueError('Word timing cancelled.')
-            if status:
-                raise ValueError(f'The word-timing provider failed with exit code {status}.')
-        finally:
-            if process is not None:
-                try:
-                    if process.poll() is None:
-                        stop_owned_subprocess(process, timeout=1)
-                finally:
-                    control = getattr(process, '_alexandria_control', None)
-                    if control is not None:
-                        control.close()
+            if time.monotonic() - started >= timeout:
+                raise ValueError('Word timing timed out.')
+            try:
+                status = process.wait(timeout=.1)
+                break
+            except subprocess.TimeoutExpired:
+                continue
+        if cancel_check():
+            raise ValueError('Word timing cancelled.')
+        if status:
+            raise ValueError(f'The word-timing provider failed with exit code {status}.')
+    finally:
+        if process is not None:
+            try:
+                if process.poll() is None:
+                    stop_owned_subprocess(process, timeout=1)
+            finally:
+                control = getattr(process, '_alexandria_control', None)
+                if control is not None:
+                    control.close()
 
 
-def render_word_timing(audio_path, runtime, text, cancel_check, directory):
-    """Decode a finite prefix, refuse excess duration, then run a cached CPU provider."""
+def decode_asr_audio(audio_path, cancel_check, directory, *, command=None, decoder='ffmpeg'):
+    """Decode a bounded capture, rejecting excess duration instead of timing a prefix."""
+    command = command or run_timing_command
     decoded = Path(directory) / 'audio.wav'
-    run_timing_command(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(audio_path),
+    _ensure_asr_output_absent(directory, 'audio.wav')
+    command([decoder, '-nostdin', '-v', 'error', '-y', '-i', str(audio_path),
                         '-map', '0:a:0', '-vn', '-t', str(MAX_SECONDS + 1),
                         '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', str(decoded)], cancel_check, 60)
     with wave.open(str(decoded)) as stream:
         duration = stream.getnframes() / stream.getframerate()
     if not 0 < duration <= MAX_SECONDS:
         raise ValueError('Word timing supports one nonempty chunk of at most 120 seconds.')
+    return decoded, duration
+
+
+def read_asr_payload(path):
+    """Read native JSON with a byte bound even if the output grows during read."""
+    with Path(path).open('rb') as stream:
+        data = stream.read(MAX_RESULT_BYTES + 1)
+    if len(data) > MAX_RESULT_BYTES:
+        raise ValueError('ASR timing output exceeds its size limit.')
+    payload = json.loads(data.decode('utf-8'))
+    if not isinstance(payload, dict):
+        raise ValueError('Malformed ASR result.')
+    return payload
+
+
+def _ensure_asr_output_absent(directory, name):
+    prepare = getattr(directory, 'ensure_output_absent', None)
+    if prepare is not None:
+        prepare(name)
+    else:
+        (Path(directory) / name).unlink(missing_ok=True)
+
+
+def get_asr_transcript(payload):
+    """Keep all ordered native text, including repeats, independent of timestamps."""
+    rows = payload.get('transcription')
+    if not isinstance(rows, list) or len(rows) > 4096:
+        raise ValueError('Malformed or oversized ASR transcription.')
+    texts, size = [], 0
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get('text'), str):
+            raise ValueError('Malformed ASR transcription text.')
+        text = row['text'].strip()
+        size += len(text) + bool(texts)
+        if size > 20000 or any(0xD800 <= ord(char) <= 0xDFFF for char in text):
+            raise ValueError('ASR transcript exceeds its text bound or contains invalid Unicode.')
+        texts.append(text)
+    return ' '.join(texts)
+
+
+def transcribe_asr_audio(decoded, runtime, cancel_check, directory, *, command=None):
+    """One finite cached English CPU invocation shared by timing and content QA."""
+    command = command or run_timing_command
     import psutil
     minimum = max(2 * 1024**3, Path(runtime['model']).stat().st_size * 4 + 512 * 1024**2)
     if psutil.virtual_memory().available < minimum:
         raise ValueError('Insufficient available system RAM for the cached word-timing model.')
     prefix = Path(directory) / 'asr'
-    run_timing_command([runtime['binary'], '--model', runtime['model'], '--file', str(decoded),
-                        '--language', 'en', '--max-len', '1', '--split-on-word',
-                        '--output-json-full', '--output-file', str(prefix), '--no-prints',
-                        '--no-gpu', '--threads', '2'], cancel_check)
-    result = prefix.with_suffix('.json')
-    if result.stat().st_size > MAX_RESULT_BYTES:
-        raise ValueError('ASR timing output exceeds its size limit.')
-    payload = json.loads(result.read_text(encoding='utf-8'))
+    _ensure_asr_output_absent(directory, 'asr.json')
+    command([runtime['binary'], '--model', runtime['model'], '--file', str(decoded),
+             '--output-file', str(prefix), *get_asr_options()], cancel_check)
+    payload = read_asr_payload(prefix.with_suffix('.json'))
+    # A malformed text instrument is unavailable even if timestamps look valid.
+    get_asr_transcript(payload)
+    return payload
+
+
+def get_asr_options():
+    return ['--language', 'en', '--max-len', '1', '--split-on-word',
+            '--output-json-full', '--no-prints', '--no-gpu', '--threads', '2']
+
+
+def render_word_timing(audio_path, runtime, text, cancel_check, directory):
+    """Decode a finite prefix, refuse excess duration, then run a cached CPU provider."""
+    command = getattr(directory, 'run', None)
+    decoded, duration = decode_asr_audio(audio_path, cancel_check, directory, command=command)
+    payload = transcribe_asr_audio(decoded, runtime, cancel_check, directory, command=command)
     segments = get_coalesced_whisper_cpp_segments(payload.get('transcription'))
     spans = get_validated_word_spans(text, segments, duration)
     return {'display_text': text, 'spans': spans, 'duration': duration,
             'provider': 'whisper.cpp (English, CPU)', 'language': 'en',
             'notice': 'Estimated ASR timing only. Untimed or repeated words need listening review; this does not certify pronunciation.'}
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_verification_code
+_LOADED_SPEECH_VERIFICATION_CODE_SHA256 = _get_loaded_verification_code()

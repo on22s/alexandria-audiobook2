@@ -8,6 +8,7 @@ from book_state_transaction import ensure_book_state
 from speech_text import get_speech_preparation
 from utils import atomic_json_write, is_path_inside
 from word_timing import MAX_AUDIO_BYTES, MAX_RESULT_BYTES, get_timing_fingerprint, render_word_timing, get_validated_word_spans
+from cpu_asr_scratch import CPUASRScratch, is_close_owned_cpu_asr_supported
 
 
 def read_bounded_file_hash(stream, limit):
@@ -137,32 +138,43 @@ def publish_word_timing(manager, index, request, runtime, check_identity, cancel
             if cancel_check() or current != binding:
                 raise ValueError('Timing inputs changed. Refresh Editor.')
             return {**cached, 'cached': True}
-    with tempfile.TemporaryDirectory(prefix='.word-timing-', dir=manager.root_dir) as directory:
-        snapshot = Path(directory) / 'input.audio'
-        size = 0
-        with path.open('rb') as source, snapshot.open('wb') as target:
-            for block in iter(lambda: source.read(1024**2), b''):
-                if cancel_check():
-                    raise ValueError('Word timing cancelled.')
-                size += len(block)
-                if size > MAX_AUDIO_BYTES:
-                    raise ValueError('Timing input grew beyond its size limit.')
-                target.write(block)
-        if get_regular_file_hash(snapshot, MAX_AUDIO_BYTES) != binding['audio_sha256']:
+    # Cached hits above do not contend for the provider. Native supported hosts
+    # share one retained lease across timing and verification, across books and
+    # worktrees. Other platforms retain their existing timing implementation.
+    scratch = (CPUASRScratch() if is_close_owned_cpu_asr_supported() else
+               tempfile.TemporaryDirectory(prefix='.word-timing-', dir=manager.root_dir))
+    with scratch as directory:
+        if isinstance(directory, CPUASRScratch):
+            snapshot, captured = directory.capture(path, cancel_check)
+            captured_digest = captured['sha256']
+        else:
+            snapshot = Path(directory) / 'input.audio'
+            size = 0
+            with path.open('rb') as source, snapshot.open('wb') as target:
+                for block in iter(lambda: source.read(1024**2), b''):
+                    if cancel_check():
+                        raise ValueError('Word timing cancelled.')
+                    size += len(block)
+                    if size > MAX_AUDIO_BYTES:
+                        raise ValueError('Timing input grew beyond its size limit.')
+                    target.write(block)
+            captured_digest = get_regular_file_hash(snapshot, MAX_AUDIO_BYTES)
+        if captured_digest != binding['audio_sha256']:
             raise ValueError('Audio changed while capturing the selected take.')
         result = render_word_timing(snapshot, runtime, binding['prepared_text'], cancel_check, directory)
         result = {**result, 'binding': binding, 'fingerprint': get_timing_fingerprint(binding)}
         if len(json.dumps(result, ensure_ascii=False).encode()) > MAX_RESULT_BYTES:
             raise ValueError('Word timing result exceeds its size limit.')
-        with ensure_book_state(manager.root_dir):
-            current, _ = capture_locked()
-            if cancel_check() or current != binding:
-                raise ValueError('The book, audio, pronunciation or timing provider changed. Refresh Editor.')
-            cache.parent.mkdir(parents=True, exist_ok=True)
-            atomic_json_write(result, str(cache))
-            # At most one record per book/row, and a finite retained history across books.
-            others = sorted((p for p in cache.parent.glob('*.json') if p != cache),
-                            key=lambda p: p.stat().st_mtime, reverse=True)
-            for old in others[127:]:
-                old.unlink()
-        return {**result, 'cached': False}
+    # Provider descendants and scratch are gone before readmitting book state.
+    with ensure_book_state(manager.root_dir):
+        current, _ = capture_locked()
+        if cancel_check() or current != binding:
+            raise ValueError('The book, audio, pronunciation or timing provider changed. Refresh Editor.')
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        atomic_json_write(result, str(cache))
+        # At most one record per book/row, and a finite retained history across books.
+        others = sorted((p for p in cache.parent.glob('*.json') if p != cache),
+                        key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in others[127:]:
+            old.unlink()
+    return {**result, 'cached': False}

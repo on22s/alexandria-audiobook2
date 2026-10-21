@@ -1498,6 +1498,15 @@
     <button class="btn btn-sm btn-outline-secondary" type="button" onclick="clearSynthesisRecoveryWindows()">Clear retained recovery windows</button>
     <p class="form-text">Open Editor first to load the current book. Clearing requires idle tasks and keeps all saved takes. Damaged or unknown cache files are preserved for inspection.</p>
 </details>
+<details class="settings-advanced mb-3" id="speech-verification-settings">
+    <summary>Generated speech checks (experimental)</summary>
+    <div class="form-check mt-2 mb-2">
+        <input class="form-check-input" type="checkbox" id="speech-verification-enabled" disabled>
+        <label class="form-check-label" for="speech-verification-enabled">Check new takes for missing or extra speech</label>
+    </div>
+    <p class="form-text">Off by default. Save Configuration to check subsequent renders against the exact text sent for synthesis. A confirmed material defect rejects the new attempt and keeps the prior take. Review differences and unavailable checks in the Editor.</p>
+    <p class="form-text">Initial coverage: English mono audio with the installed Linux CPU whisper.cpp bundle. Uses cached Small.en and, for suspicious results, a distinct Large-v3 model. Checks can add substantial time and RAM. Short lines also receive a bounded acoustic check. Unsupported inputs or missing resources report unavailable. No models are downloaded automatically; listening review is still needed.</p>
+</details>
                         <div class="row mb-3">
                             <div class="col-md-2">
                                 <label class="form-label" for="pause-between-speakers">Speaker Change Pause (ms)</label>
@@ -3173,6 +3182,7 @@
                                  <label for="editor-quality-filter">Show</label>
                                  <select id="editor-quality-filter" class="form-select form-select-sm" style="width:auto;" onchange="renderEditorQualityInbox(true)">
                                      <option value="all">All findings</option><option value="unknown">Unknown speakers</option><option value="failed">Failed renders</option><option value="missing">Missing audio files</option><option value="drift">Voice drift</option>
+                                     <option value="speech_rejected">Rejected speech attempts</option><option value="speech_review">Speech review needed</option><option value="speech_unavailable">Speech check unavailable</option><option value="speech_difference">Speech content differences</option>
                                  </select>
                                  <button class="btn btn-outline-secondary btn-sm" id="btn-drift-check" onclick="runDriftCheck()" title="Run the existing voice check against saved reference voices">Check Voices</button>
                                  <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="chk-drift-only" onchange="applyDriftFilter()"><label class="form-check-label" for="chk-drift-only">Show only drift in table</label></div>
@@ -3223,6 +3233,9 @@
                                        <dt>Pause after <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('pause_after')">Edit pause</button></dt><dd id="editor-line-pause"></dd>
                                        <dt>Render error</dt><dd id="editor-line-error" class="small editor-line-text"></dd>
                                        <dt>Audio and voice check</dt><dd id="editor-line-quality" class="small"></dd><dd id="editor-line-drift-detail" class="small"></dd>
+                                       <dt>Speech content check</dt><dd id="editor-line-speech" class="small"></dd><dd id="editor-line-speech-attempt" class="small"></dd>
+                                       <dd><div class="d-flex flex-wrap gap-2"><button type="button" id="editor-line-speech-recheck" class="btn btn-outline-primary btn-sm" onclick="recheckEditorSpeech()" title="Recheck this saved take using its recorded synthesis input and cached CPU models. Existing audio is retained.">Recheck speech</button><button type="button" id="editor-line-speech-cancel" class="btn btn-outline-secondary btn-sm" onclick="cancelEditorSpeechVerification()" title="Request cancellation of the active speech recheck and keep saved audio." disabled>Cancel recheck</button></div><p id="editor-line-speech-status" class="small mt-2" role="status">Rechecking requires a take with recorded synthesis input. To check older takes, enable speech checks and regenerate the line.</p></dd>
+                                       <dd><details><summary>Speech input and saved evidence</summary><p id="editor-line-speech-expected" class="small editor-line-text"></p><pre id="editor-line-speech-evidence" class="small editor-line-text"></pre></details></dd>
                                        <dt>Source entries</dt><dd id="editor-line-source" class="small"></dd>
                                    </dl>
                                </div>
@@ -3599,6 +3612,7 @@
     <script src="/static/js/app-training.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-tts-capabilities.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-synthesis-windows.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-speech-verification.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-guides.js?v=__APP_BUILD__"></script>
 <script src="/static/js/app-audio-channels.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>

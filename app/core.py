@@ -27,7 +27,7 @@ import aiofiles
 from fastapi import HTTPException, UploadFile
 
 from character_evidence import aliases_for
-from audio_generation_owner import (AudioGenerationCancelled, AudioGenerationOwner,
+from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationCancelled, AudioGenerationOwner,
                                     ensure_audio_generation_owner)
 from project import ProjectManager
 from config_settings import load_app_config
@@ -554,6 +554,7 @@ def _revalidate_voicelab_paths(*path_label_pairs: Tuple[Optional[str], str]) -> 
 # Global state for process tracking
 process_state = {
     "word_timing": {"running": False, "logs": [], "cancel": False},
+    "speech_verification": {"running": False, "logs": [], "cancel": False},
     "script": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "voices": {"running": False, "logs": []},
     "persona": {"running": False, "logs": [], "cancel": False, "process": None},
@@ -915,13 +916,14 @@ def _ensure_owned_task_started(task_name, claim_id, already_started=False):
 
 
 @contextmanager
-def _ensure_audio_task_owner(claim_id, *, allow_cancelled=False):
+def _ensure_audio_task_owner(claim_id, *, allow_cancelled=False, task_name='audio'):
     # Same mutex as cancel admission. Always acquire it before Project chunk locks.
     with _gpu_lock:
-        owner = _task_claims.get("audio")
+        owner = _task_claims.get(task_name)
         if (owner is None or owner["id"] != claim_id or owner["phase"] != "started"
-                or (process_state["audio"]["cancel"] and not allow_cancelled)):
-            raise AudioGenerationCancelled()
+                or (process_state[task_name]["cancel"] and not allow_cancelled)):
+            raise AudioGenerationCancelled('Speech verification cancelled' if task_name == 'speech_verification'
+                                           else AUDIO_GENERATION_CANCELLED)
         yield
 
 
@@ -929,8 +931,9 @@ def _run_owned_background_task(task_name, claim_id, callback, already_started=Fa
     if not _ensure_owned_task_started(task_name, claim_id, already_started):
         return
     try:
-        owner = (AudioGenerationOwner(claim_id, functools.partial(_ensure_audio_task_owner, claim_id))
-                 if task_name == "audio" else None)
+        owner = (AudioGenerationOwner(claim_id, functools.partial(_ensure_audio_task_owner,
+                    claim_id,task_name=task_name))
+                 if task_name in ('audio','speech_verification') else None)
         with ensure_audio_generation_owner(owner):
             return callback()
     finally:

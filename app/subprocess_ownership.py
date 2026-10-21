@@ -492,6 +492,19 @@ def run_owned_command(control, command, *, disconnect_signal=None, stop_timeout=
         raise
 
 
+# Standalone queue/remote launchers also deploy this module by itself. Missing
+# optional evidence code must not disable process ownership; verification
+# explicitly refuses an absent loaded-code identity.
+try:
+    from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_verification_code
+except ModuleNotFoundError as error:
+    if error.name != 'loaded_module_code':
+        raise
+    _LOADED_SPEECH_VERIFICATION_CODE_SHA256 = None
+else:
+    _LOADED_SPEECH_VERIFICATION_CODE_SHA256 = _get_loaded_verification_code()
+
+
 if __name__ == "__main__":
     command = sys.argv[3:]
     stop_receipt_path = None

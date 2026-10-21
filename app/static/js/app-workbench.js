@@ -1171,6 +1171,12 @@
                         if (typeof applyWordTimingTaskActivity === 'function') { applyWordTimingTaskActivity(false); }
                     });
                 },
+                speech_verification: () => {
+                    if (typeof applySpeechVerificationTaskActivity === 'function') { applySpeechVerificationTaskActivity(true); }
+                    reattachTaskActivity('speech_verification', ['editor-line-speech-recheck'], 'editor-line-speech-status', () => {
+                        if (typeof applySpeechVerificationTaskActivity === 'function') { applySpeechVerificationTaskActivity(false); }
+                    });
+                },
                 drift_check: () => { reattachTaskActivity('drift_check', [], null, () => loadChunks(false)); },
             };
             const controlGroups = new Map(logGroups.flatMap(group =>

@@ -11,16 +11,20 @@ from synthesis_recovery_identity import RecoveryIdentityUnavailable, get_recover
 from synthesis_recovery_native import ensure_native_recovery_model_capture
 from synthesis_recovery_serving import (capture_native_custom_serving_identity,
     ensure_native_recovery_serving, ensure_native_recovery_serving_current, _capture_engine_methods)
+from synthesis_input import (is_speech_input_capture_active, get_captured_speech_input,
+                              capture_speech_input)
 
 _CACHE_ERRORS = (RecoveryCacheUnavailable, OSError, TimeoutError)
 
 
 class RecoverySession:
-    def __init__(self, reason, *, engine=None, request=None, parent=None, identity=None, key=None, budget=0):
+    def __init__(self, reason, *, engine=None, request=None, parent=None, identity=None, key=None, budget=0,
+                 input_plan=None):
         self.reason = reason
         self.engine, self.request, self.parent = engine, request, parent
         self.identity, self.key, self.budget = identity, key, budget
         self.storage = None
+        self.input_plan = input_plan
         self.reused, self.saved = [], []
 
     def close(self):
@@ -63,6 +67,13 @@ class RecoverySession:
     def save(self, index, path, info, sha256):
         if self.storage is None:
             return
+        if self.input_plan is not None:
+            proof = get_captured_speech_input(path)
+            if (proof is None or proof['text'] != self.input_plan.windows[index].text or
+                    proof['language'] != self.engine._language or proof['audio']['sha256'] != sha256):
+                self.reason = 'unproven_window_input'
+                self.close()
+                return
         try:
             saved = self.storage.save_window(self.key, self.parent.uid_sha256, index,
                 self.parent.claim_sha256, path, dict(size=Path(path).stat().st_size,
@@ -76,12 +87,23 @@ class RecoverySession:
             else:
                 self.reason = 'capacity_reached'
 
+    def restore_input(self, index, path):
+        # input_plan exists only for the versioned request-key contract whose
+        # saver required observed leaf input bound to the exact cached PCM.
+        if self.input_plan is not None:
+            self.check()
+            return capture_speech_input(path, self.input_plan.windows[index].text,
+                self.engine._language, 'recovered_qualified_api_input_v1')
+        return None
+
     def get_receipt(self):
         receipt = dict(version=1, status=self.reason, reused_windows=list(self.reused),
                        saved_windows=list(self.saved))
         if self.identity is not None:
             receipt.update(request_sha256=self.key, serving_sha256=self.identity.sha256,
                            parent=self.parent.get_semantic_identity())
+        if self.input_plan is not None:
+            receipt['input_proof_version'] = 1
         return receipt
 
 
@@ -113,10 +135,14 @@ def ensure_synthesis_recovery(engine, category, plan, settings, request=None):
     except RecoveryIdentityUnavailable:
         yield RecoverySession('unproven_dependencies')
         return
-    key = get_recovery_digest(dict(version=1, parent=parent.get_semantic_identity(),
-        plan=asdict(plan), policy=settings, serving_sha256=identity.sha256))
+    descriptor = dict(version=1, parent=parent.get_semantic_identity(),
+        plan=asdict(plan), policy=settings, serving_sha256=identity.sha256)
+    input_plan = plan if is_speech_input_capture_active() else None
+    if input_plan is not None:
+        descriptor['input_proof_version'] = 1
+    key = get_recovery_digest(descriptor)
     session = RecoverySession('eligible', engine=engine, request=request, parent=parent,
-        identity=identity, key=key, budget=policy['max_audio_mb'] * 1024 * 1024)
+        identity=identity, key=key, budget=policy['max_audio_mb'] * 1024 * 1024, input_plan=input_plan)
     try:
         with ensure_native_recovery_serving(engine, identity):
             session.check()

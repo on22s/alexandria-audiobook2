@@ -4,6 +4,7 @@ from dataclasses import asdict, fields
 from synthesis_audio import SynthesisJoinPolicy
 from synthesis_windows import MAX_WINDOW_SOURCE_CHARS
 from tts_capabilities import get_tts_capability_modes
+from speech_verification_settings import get_enabled_speech_verification_settings
 
 RECOVERY_DEFAULT_AUDIO_MB = 256
 RECOVERY_MIN_AUDIO_MB = 16
@@ -33,6 +34,11 @@ def get_enabled_synthesis_recovery_settings(value=None):
     """Return an optional copied execution policy; never add it to model identity."""
     settings = get_synthesis_recovery_settings(value)
     return settings if settings['enabled'] else None
+
+
+def get_synthesis_execution_policy(settings):
+    return {'synthesis_recovery': get_enabled_synthesis_recovery_settings(settings.get('synthesis_recovery')),
+            'speech_verification': get_enabled_speech_verification_settings(settings.get('speech_verification'))}
 
 
 def get_synthesis_budget_keys():

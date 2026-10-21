@@ -3560,6 +3560,34 @@
         "title": "SpeakerSelection",
         "type": "object"
       },
+      "SpeechVerificationRequest": {
+        "properties": {
+          "expected_audio_revision": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Audio Revision",
+            "type": "string"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "expected_uid",
+          "expected_audio_revision"
+        ],
+        "title": "SpeechVerificationRequest",
+        "type": "object"
+      },
       "StartRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3794,6 +3822,13 @@
             "default": false,
             "title": "Reproducible Takes",
             "type": "boolean"
+          },
+          "speech_verification": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Speech Verification",
+            "type": "object"
           },
           "sub_batch_enabled": {
             "default": true,
@@ -6211,6 +6246,53 @@
           }
         },
         "summary": "Insert Chunk"
+      }
+    },
+    "/api/chunks/{index}/speech_verification": {
+      "post": {
+        "operationId": "recheck_chunk_speech_api_chunks__index__speech_verification_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recheck Chunk Speech"
       }
     },
     "/api/chunks/{index}/word_timing": {
@@ -10867,6 +10949,22 @@
         "tags": [
           "speaker_review"
         ]
+      }
+    },
+    "/api/speech_verification/cancel": {
+      "post": {
+        "operationId": "cancel_speech_verification_api_speech_verification_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel Speech Verification"
       }
     },
     "/api/status": {

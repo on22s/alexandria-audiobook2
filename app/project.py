@@ -39,11 +39,14 @@ from literal_policy import (ensure_literal_narration, bind_literal_chunks,
 from audio_validation import publish_audio_output, remove_stale_audio, validate_generated_audio
 from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationCancelled,
                                     ensure_audio_generation_active, ensure_audio_generation_publication,
+                                    ensure_audio_generation_book,
                                     get_audio_generation_owner, is_audio_generation_cancelled,
                                     run_with_audio_generation_owner)
 from synthesis_recovery_context import (RecoveryParent, RecoveryAdmissionError, get_recovery_claim_digest,
     ensure_synthesis_recovery_parent, ensure_synthesis_recovery_batch)
 from synthesis_recovery_identity import get_recovery_digest
+from speech_verification_settings import get_enabled_speech_verification_settings
+from book_state_transaction import get_book_operation_token
 from tts import (
     TTSEngine,
     get_chunk_seed,
@@ -1342,7 +1345,15 @@ class ProjectManager:
         try:
             staged_audio = self._export_chunk_audio(temp_path, f".render-{uuid.uuid4().hex}")
             staged_path = self.get_chunk_audio_path(staged_audio)
-            with ensure_audio_generation_publication():
+            speech_receipt, staged_version = self._verify_generated_chunk_speech(
+                chunk, temp_path, staged_path, preparation, revision)
+            evidence.update(speech_verification=speech_receipt,speech_verification_failure=None,
+                            speech_verification_recheck=None)
+            with self._ensure_chunk_generation_publication(chunk) as current_book:
+                if not current_book:
+                    raise ValueError(GENERATION_INPUTS_CHANGED)
+                if staged_version is not None and self._get_speech_staged_version(staged_path) != staged_version:
+                    raise ValueError('Finished audio changed before speech evidence publication')
                 updated = self._update_chunk_fields_by_uid(
                     chunk["uid"], expected_chunk=chunk, audio_source=staged_path,
                     status="done", audio_revision=revision, error=None, drift=None, **evidence)
@@ -1356,10 +1367,95 @@ class ProjectManager:
             if staged_path:
                 self._remove_temp_file(staged_path)
 
+    @contextmanager
+    def _ensure_chunk_generation_publication(self, chunk):
+        admission = chunk.get('_speech_verification_admission')
+        guard = (ensure_audio_generation_book(self.root_dir) if admission is not None
+                 else ensure_audio_generation_publication())
+        with guard:
+            yield admission is None or get_book_operation_token(self.root_dir) == admission['book_token']
+
     def _update_generation_fields(self, chunk, **fields):
-        with ensure_audio_generation_publication():
+        if fields.get('status') == 'error':
+            fields.setdefault('speech_verification_failure',None)
+        with self._ensure_chunk_generation_publication(chunk) as current_book:
+            if not current_book:
+                return None
             return self._update_chunk_fields_by_uid(
                 chunk.get("uid"), expected_chunk=chunk, **fields)
+
+    def _capture_speech_verification_admission(self, engine):
+        requested = get_enabled_speech_verification_settings(self._load_tts_config().get('speech_verification'))
+        reader = getattr(engine,'get_speech_verification_policy',None)
+        active = get_enabled_speech_verification_settings(reader()) if callable(reader) else None
+        if requested is None and active is None:
+            return None
+        with ensure_audio_generation_book(self.root_dir):
+            reason=None if active == requested else 'Execution settings differ from the active TTS engine.'
+            if get_recovery_claim_digest() is None:
+                reason=reason or 'Exact owned generation admission is unavailable for this render path.'
+            return {'book_token':get_book_operation_token(self.root_dir),
+                    'policy':copy.deepcopy(requested),
+                    'reason':reason}
+
+    @staticmethod
+    def _get_speech_staged_version(path):
+        info = os.stat(path)
+        return info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns
+
+    def _verify_generated_chunk_speech(self,chunk,temp_path,staged_path,preparation,revision):
+        admission=chunk.get('_speech_verification_admission')
+        if admission is None:
+            return None,None
+        from speech_verification import verify_finished_speech
+        from speech_verification_receipt import (get_validated_speech_input,
+            get_pronunciation_ambiguity_regions,get_speech_verification_receipt,SpeechContentMismatchError)
+        from speech_verification_runtime import get_verification_runtime,get_verifier_file_identity
+        from speech_verification_compare import SpeechComparisonUnavailable
+        from word_timing import MAX_AUDIO_BYTES
+        ensure_audio_generation_active()
+        speech_input=get_validated_speech_input(chunk.get('_speech_input'),temp_path,is_audio_generation_cancelled)
+        staged_version=self._get_speech_staged_version(staged_path)
+        reason=admission.get('reason')
+        if admission.get('policy') is None:
+            reason=reason or 'Speech verification is disabled in the saved execution settings.'
+        if speech_input is None:
+            reason=reason or 'Exact synthesis input is unavailable for this render path.'
+        if speech_input is not None and speech_input['text'] != preparation['text']:
+            raise ValueError('Actual synthesis input differs from the captured chunk preparation; regenerate the line.')
+        if staged_version[2] > MAX_AUDIO_BYTES:
+            reason='Finished audio exceeds the 64 MiB speech verification limit.'
+        regions=[]
+        if not reason:
+            try:
+                regions=get_pronunciation_ambiguity_regions(preparation,speech_input['text'])
+            except SpeechComparisonUnavailable as error:
+                reason='Speech comparison is unavailable: '+str(error)
+        if reason:
+            report={'version':1,'status':'unavailable','stage':'input_admission','reason':reason}
+        else:
+            runtime_root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            report=verify_finished_speech(staged_path,speech_input['text'],speech_input['language'],
+                get_verification_runtime(runtime_root),get_verification_runtime(runtime_root,confirmation=True),
+                is_audio_generation_cancelled,
+                ambiguous_expected_regions=regions)
+        ensure_audio_generation_active()
+        if staged_version[2] > MAX_AUDIO_BYTES:
+            if self._get_speech_staged_version(staged_path) != staged_version:
+                raise ValueError('Finished audio changed during speech verification admission')
+            current={'file_version':staged_version}
+            binding={'sha256':None,'size':staged_version[2]}
+        else:
+            current=get_verifier_file_identity(staged_path,MAX_AUDIO_BYTES,is_audio_generation_cancelled)
+            binding={key:current[key] for key in ('sha256','size')}
+        if report.get('audio') is not None and report['audio'] != binding:
+            raise ValueError('Finished audio differs from the speech verification capture')
+        report={**report,'audio':binding}
+        receipt=get_speech_verification_receipt(report,chunk,admission['book_token'],revision,speech_input)
+        if report['status']=='corroborated_content_difference' and report.get('stage')=='complete':
+            raise SpeechContentMismatchError(receipt)
+        receipt['audio_file_version']=list(current['file_version'][:4])
+        return receipt,tuple(current['file_version'])
 
     def _capture_synthesis_recovery_parent(self, engine, index, chunk):
         """Capture owned parent admission for disposable spill and optional recovery."""
@@ -1535,6 +1631,8 @@ class ProjectManager:
                     chunk_voice_config, get_chunk_seed(text, chunk.get("take", 0)),
                     take=chunk.get("take", 0))
             generation_args = (text, instruct, speaker_to_use, chunk_voice_config, temp_path)
+            chunk={**chunk,'_speech_input':None,
+                   '_speech_verification_admission':self._capture_speech_verification_admission(engine)}
             failure = None
             ensure_audio_generation_active()
             recovery_parent = self._capture_synthesis_recovery_parent(engine, index, chunk)
@@ -1546,6 +1644,9 @@ class ProjectManager:
                     receipt = getattr(result, "synthesis_receipt", None)
                     if receipt is not None:
                         chunk = {**chunk, "_synthesis_receipt": copy.deepcopy(receipt)}
+                    speech_input = getattr(result, "speech_input", None)
+                    if speech_input is not None:
+                        chunk = {**chunk, "_speech_input": copy.deepcopy(speech_input)}
                 else:
                     success = engine.generate_voice(*generation_args)
 
@@ -1572,8 +1673,9 @@ class ProjectManager:
                 self._restore_cancelled_generation(chunk)
                 return False, AUDIO_GENERATION_CANCELLED
             try:
+                from speech_verification_receipt import get_speech_verification_error_fields
                 updated = self._update_generation_fields(
-                    chunk, status="error", error=str(e))
+                    chunk, status="error", error=str(e),**get_speech_verification_error_fields(e))
                 if updated is None:
                     return False, GENERATION_INPUTS_CHANGED
             except AudioGenerationCancelled:
@@ -2767,7 +2869,9 @@ class ProjectManager:
                 return "cancelled", idx, AUDIO_GENERATION_CANCELLED
             print(f"Error processing chunk {idx}: {e}")
             try:
-                updated = self._update_generation_fields(chunk, status="error", error=str(e))
+                from speech_verification_receipt import get_speech_verification_error_fields
+                updated = self._update_generation_fields(chunk, status="error", error=str(e),
+                    **get_speech_verification_error_fields(e))
             except AudioGenerationCancelled:
                 self._restore_cancelled_generation(chunk)
                 return "cancelled", idx, AUDIO_GENERATION_CANCELLED
@@ -2850,6 +2954,11 @@ class ProjectManager:
             for idx in indices:
                 results["failed"].append((idx, "TTS engine not initialized"))
             return results
+
+        speech_admission=self._capture_speech_verification_admission(engine)
+        captured={index:{**row,'_speech_input':None,
+                         '_speech_verification_admission':copy.deepcopy(speech_admission)}
+                  for index,row in captured.items()}
 
         # Reserve each captured row conditionally; never save the old whole list.
         active_indices = []
@@ -2967,6 +3076,9 @@ class ProjectManager:
                 receipt = batch_results.get("synthesis_receipts", {}).get(idx)
                 if receipt is not None and idx in captured:
                     captured[idx] = {**captured[idx], "_synthesis_receipt": copy.deepcopy(receipt)}
+                speech_input = batch_results.get("speech_inputs", {}).get(idx)
+                if speech_input is not None and idx in captured:
+                    captured[idx] = {**captured[idx], "_speech_input": copy.deepcopy(speech_input)}
                 recovery_parent = recovery_parents.get(captured[idx].get('uid')) if idx in captured else None
                 outcome, out_idx, payload = self._finalize_completed_chunk(idx, captured,
                     **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}))

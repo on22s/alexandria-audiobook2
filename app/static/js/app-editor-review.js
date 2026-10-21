@@ -1,6 +1,7 @@
 // Review saved facts; reuse the Editor's original controls, drafts and audio.
-const EDITOR_ISSUE_LABELS = {unknown: 'Unknown speaker', failed: 'Failed render', missing: 'Missing audio file', drift: 'Voice drift'};
+const EDITOR_ISSUE_LABELS = {unknown: 'Unknown speaker', failed: 'Failed render', missing: 'Missing audio file', drift: 'Voice drift', speech_rejected: 'Rejected speech attempt', speech_review: 'Speech review needed', speech_unavailable: 'Speech check unavailable', speech_difference: 'Speech content difference'};
 const EDITOR_DRIFT_LABELS = {not_rendered: 'Voice check not applicable before rendering', unmeasured: 'Voice check not measured', unavailable: 'Voice check unavailable or failed', flagged: 'Voice drift flagged', measured: 'Voice check measured; no drift flag'};
+const EDITOR_SPEECH_LABELS = {not_checked: 'No current speech check', unavailable: 'Speech check unavailable', review: 'Transcript or acoustic differences need listening review', no_content_candidate: 'No material content candidate found; listening review still needed', corroborated_content_difference: 'Two ASR passes confirmed material missing or extra speech', review_confirmation_unavailable: 'Suspicious speech; stronger confirmation unavailable', review_short_acoustic_unavailable: 'Short-utterance acoustic check incomplete'};
 let editorReviewData = null;
 let editorReviewFresh = false;
 let editorReviewRequest = 0;
@@ -47,7 +48,7 @@ function renderEditorLineInspector() {
     document.getElementById('editor-line-empty').hidden = !!target;
     document.getElementById('editor-line-content').hidden = !target;
     document.querySelectorAll('#chunks-table-body .editor-selected-line').forEach(row => row.classList.remove('editor-selected-line'));
-    if (!target) { editorReviewSelection = null; window.applyWordTimingInspector?.(); return; }
+    if (!target) { editorReviewSelection = null; window.applyWordTimingInspector?.(); window.applySpeechVerificationInspector?.(); return; }
     const {chunk, row} = target;
     row.classList.add('editor-selected-line');
     const selectors = {speaker: 'select', text: '.chunk-text', instruct: '.chunk-instruct', pause_after: '.chunk-pause-after'};
@@ -62,6 +63,7 @@ function renderEditorLineInspector() {
     set('editor-line-pause', values.pause_after === '' ? 'Use the configured default' : `${values.pause_after} ms`);
     set('editor-line-error', typeof chunk.error === 'string' && chunk.error ? chunk.error : 'No render error recorded.');
     const fact = editorReviewFresh && editorReviewData?.rows.find(item => item.uid === chunk.uid);
+    renderEditorSpeechEvidence(chunk,fact);
     set('editor-line-quality', fact ? `${fact.audio === 'present' ? 'Nonempty audio file present (quality not certified)' : fact.audio === 'missing' ? 'Saved audio file is missing, empty or outside the project' : 'Audio not rendered'} · ${EDITOR_DRIFT_LABELS[fact.drift]}` : 'Review facts are unavailable or stale. Refresh review.');
     const drift = chunk.drift;
     set('editor-line-drift-detail', drift && typeof drift === 'object' ? [Number.isFinite(drift.score) ? `Recorded similarity ${drift.score}` : '', Number.isFinite(drift.threshold) ? `threshold ${drift.threshold}` : '', typeof drift.reference === 'string' ? `reference: ${drift.reference}` : '', typeof drift.error === 'string' ? `check error: ${drift.error}` : ''].filter(Boolean).join(' · ') : 'No recorded voice-check details.');
@@ -71,6 +73,48 @@ function renderEditorLineInspector() {
     document.getElementById('editor-line-play').disabled = !audio?.getAttribute('src') || (fact && fact.audio === 'missing');
     document.getElementById('editor-line-generate').disabled = chunk.status === 'generating';
     window.applyWordTimingInspector?.();
+    window.applySpeechVerificationInspector?.();
+}
+
+function renderEditorSpeechEvidence(chunk, fact) {
+    const summary=document.getElementById('editor-line-speech');
+    const attempt=document.getElementById('editor-line-speech-attempt');
+    const expected=document.getElementById('editor-line-speech-expected');
+    const details=document.getElementById('editor-line-speech-evidence');
+    if (!fact) {
+        summary.textContent='Speech evidence is unavailable or stale. Refresh review.';
+        attempt.textContent='';expected.textContent='';details.textContent='';return;
+    }
+    summary.textContent=EDITOR_SPEECH_LABELS[fact.speech] || EDITOR_SPEECH_LABELS.not_checked;
+    const receipt=chunk.speech_verification;
+    const current=receipt && receipt.book_token === chunkSnapshotBookToken && receipt.uid === chunk.uid
+        && receipt.audio_revision === chunk.audio_revision && receipt.status === fact.speech;
+    const rejected=chunk.speech_verification_failure;
+    const recheck=chunk.speech_verification_recheck;
+    const incomplete=recheck && fact.speech_recheck === recheck.status && recheck.book_token === chunkSnapshotBookToken
+        && recheck.uid === chunk.uid && recheck.audio_revision === chunk.audio_revision;
+    const failure=fact.speech_attempt === 'rejected' && rejected?.book_token === chunkSnapshotBookToken
+        && rejected.uid === chunk.uid && rejected.status === 'corroborated_content_difference';
+    attempt.textContent=failure ? 'A later attempt was rejected for confirmed missing or extra speech. The prior take was kept. Listen, review the line, and generate it again.' : '';
+    if (incomplete) { attempt.textContent+=' Latest recheck incomplete or unavailable; the existing selected-take evidence is retained.'; }
+    expected.textContent=current && receipt.expected_text ? `Exact input sent for this take: ${receipt.expected_text}` : 'Exact synthesis input is not available for a current selected-take check.';
+    const format=(value,label)=>{
+        const notes=[label,EDITOR_SPEECH_LABELS[value.status],value.reason || '',
+            Number.isFinite(value.seconds) ? `Added check time: ${value.seconds.toFixed(2)} seconds` : ''];
+        for (const name of ['primary','confirmation']) {
+            const pass=value[name];if (!pass) { continue; }
+            notes.push(`${name}: ${pass.expected_words} expected tokens, ${pass.observed_words} heard, ${pass.unmatched_expected} unmatched expected, ${pass.unmatched_observed} unmatched heard.`);
+            for (const difference of pass.differences || []) {
+                notes.push(`${difference.kind}: expected “${difference.expected}”; heard “${difference.observed}”${difference.ambiguity?.length ? ` (${difference.ambiguity.join(', ')})` : ''}`);
+            }
+            if (pass.diagnostics_abbreviated) { notes.push(`Showing ${pass.differences.length} of ${pass.difference_count} differences; counts cover the full bounded comparison.`); }
+        }
+        notes.push('Saved identities and bounds:',JSON.stringify(value,null,2));
+        return notes.filter(Boolean).join('\n');
+    };
+    details.textContent=[current ? format(receipt,'Selected take') : '',
+        failure ? format(rejected,'Rejected attempt; this is not the selected take') : '',
+        incomplete ? format(recheck,'Latest incomplete recheck; earlier selected-take evidence retained') : ''].filter(Boolean).join('\n\n');
 }
 
 function focusEditorReviewField(field) {
@@ -118,7 +162,10 @@ function isEditorReviewDataValid(data) {
         return expected.get(row.uid) === row.id
             && Array.isArray(row.issues) && new Set(row.issues).size === row.issues.length
             && row.issues.every(issue => Object.hasOwn(EDITOR_ISSUE_LABELS, issue))
-            && ['present', 'missing', 'not_rendered'].includes(row.audio) && Object.hasOwn(EDITOR_DRIFT_LABELS, row.drift);
+            && ['present', 'missing', 'not_rendered'].includes(row.audio) && Object.hasOwn(EDITOR_DRIFT_LABELS, row.drift)
+            && (row.speech === undefined || Object.hasOwn(EDITOR_SPEECH_LABELS,row.speech))
+            && (row.speech_attempt == null || row.speech_attempt === 'rejected')
+            && (row.speech_recheck == null || Object.hasOwn(EDITOR_SPEECH_LABELS,row.speech_recheck));
     });
 }
 

@@ -5,9 +5,28 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import shutil
 
 
 class SubprocessOwnerPortabilityTests(unittest.TestCase):
+    def test_standalone_deployment_runs_owned_child_without_optional_identity_helper(self):
+        app_dir=Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ('subprocess_ownership.py','windows_subprocess_owner.py','windows_subprocess_job.py',
+                         'macos_subprocess_owner.py','macos_subprocess_kernel.py'):
+                shutil.copy2(app_dir/name,Path(tmp)/name)
+            script=r"""
+import subprocess,sys
+sys.path.insert(0,sys.argv[1])
+import subprocess_ownership as owned
+assert owned._LOADED_SPEECH_VERIFICATION_CODE_SHA256 is None
+result=owned.run_owned_capture([sys.executable,'-c',"print('owned-child')"],timeout=5)
+assert result.returncode == 0,result.stderr
+assert result.stdout.strip() == b'owned-child',result.stdout
+"""
+            result=subprocess.run([sys.executable,'-I','-c',script,tmp],capture_output=True,text=True,timeout=10)
+            self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+
     def test_missing_sigkill_does_not_break_non_linux_worker_admission(self):
         app_dir = Path(__file__).resolve().parent.parent
         with tempfile.TemporaryDirectory() as tmp:

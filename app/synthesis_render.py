@@ -41,7 +41,7 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
     from audio_validation import GeneratedAudioError
     from tts import ensure_audio_export_active
 
-    get_synthesis_plan_text(plan)
+    prepared_text = get_synthesis_plan_text(plan)
     if len(plan.windows) < 2:
         raise ValueError('Internal synthesis orchestration needs more than one window')
     settings = copy.deepcopy(settings)
@@ -75,6 +75,9 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
                         row = None
                     else:
                         recovery.accept(index)
+                        restore = getattr(recovery, 'restore_input', None)
+                        if restore is not None:
+                            restore(index, path)
                 if row is None:
                     if recovery is not None:
                         recovery.check()
@@ -121,6 +124,8 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
                             raise ExportCancelled('Internal recovery publication cancelled')
                 except AudioGenerationCancelled as error:
                     raise ExportCancelled('Internal recovery publication cancelled') from error
+            from synthesis_input import capture_composite_speech_input
+            capture_composite_speech_input([path for _, path in results], output, prepared_text, 'windows')
             captured = _receipts.get()
             if captured is not None:
                 captured.append(copy.deepcopy(receipt))

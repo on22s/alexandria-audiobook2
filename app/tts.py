@@ -35,6 +35,9 @@ from synthesis_render import (ensure_synthesis_receipts, get_synthesis_window_pl
                               render_synthesis_windows)
 from synthesis_recovery_context import ensure_synthesis_recovery_batch_parent
 from synthesis_settings import get_enabled_synthesis_recovery_settings
+from speech_verification_settings import get_enabled_speech_verification_settings
+from synthesis_input import (ensure_speech_input_capture, is_speech_input_capture_active,
+    capture_speech_input, get_captured_speech_input, promote_speech_input, capture_composite_speech_input)
 from synthesis_recovery_serving import (ensure_native_recovery_serving_current,
                                         SynthesisRecoveryDependencyChanged)
 from pronunciation import ensure_occurrence_pronunciation_context, get_pronunciation_model_context
@@ -100,9 +103,27 @@ class TTSGenerationResult:
     success: bool
     failure: TTSFailure | None = None
     synthesis_receipt: dict | None = None
+    speech_input: dict | None = None
 
 
 _TTS_FAILURES = ContextVar("tts_generation_failures", default=None)
+
+
+def capture_batch_speech_inputs(render):
+    @wraps(render)
+    def wrapped(self, chunks, voice_config, output_dir, batch_seed=-1):
+        enabled = bool(getattr(self, '_speech_verification', None))
+        with ensure_speech_input_capture(enabled):
+            result = render(self, chunks, voice_config, output_dir, batch_seed)
+            if not enabled:
+                return result
+            inputs = {}
+            for index in result['completed']:
+                record = get_captured_speech_input(os.path.join(output_dir, f'temp_batch_{index}.wav'))
+                if record is not None:
+                    inputs[index] = record
+            return {**result, 'speech_inputs': inputs}
+    return wrapped
 
 
 def apply_tts_failure(error, category=None, next_action=None):
@@ -749,6 +770,7 @@ class TTSEngine:
         # Recovery changes execution/retention, never the acoustic model or LoRA
         # evidence identity returned by get_model_settings.
         self._synthesis_recovery = get_enabled_synthesis_recovery_settings(tts_config.get("synthesis_recovery"))
+        self._speech_verification = get_enabled_speech_verification_settings(tts_config.get('speech_verification'))
         self._url = tts_config.get("url", "http://127.0.0.1:7860")
         # Each endpoint has one lazily created client per configured worker.
         # Every client keeps its own lock: gradio_client cannot be shared
@@ -1634,6 +1656,9 @@ class TTSEngine:
     def get_synthesis_recovery_policy(self):
         return copy.deepcopy(getattr(self, "_synthesis_recovery", None))
 
+    def get_speech_verification_policy(self):
+        return copy.deepcopy(getattr(self, '_speech_verification', None))
+
     def _get_synthesis_window_plan(self, text, category, voice_data=None, voice_config=None):
         settings = getattr(self, "_synthesis_windows", None)
         if settings is None:
@@ -1681,18 +1706,22 @@ class TTSEngine:
         staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
         cancelled = threading.Event()
         deadline = time.monotonic() + self._external_timeout
+        capture_inputs = is_speech_input_capture_active()
 
         def work():
             try:
                 if cancelled.is_set() or time.monotonic() >= deadline:
-                    return False, time.monotonic()
-                with ensure_external_request_control(deadline, cancelled):
-                    return generate(staging_path, cancelled), time.monotonic()
+                    return False, time.monotonic(), None
+                with (ensure_external_request_control(deadline, cancelled),
+                      ensure_speech_input_capture(capture_inputs)):
+                    success = generate(staging_path, cancelled)
+                    proof = get_captured_speech_input(staging_path) if success else None
+                    return success, time.monotonic(), proof
             except Exception as error:
                 import traceback
                 traceback.print_exc()
                 apply_tts_failure(error)
-                return False, time.monotonic()
+                return False, time.monotonic(), None
             finally:
                 if cancelled.is_set():
                     try:
@@ -1701,7 +1730,7 @@ class TTSEngine:
                         pass
         future = self._submit_external(work, cancelled)
         try:
-            success, finished_at = future.result(timeout=max(0, deadline - time.monotonic()))
+            success, finished_at, speech_input = future.result(timeout=max(0, deadline - time.monotonic()))
             if finished_at > deadline:
                 raise FutureTimeout()
         except FutureTimeout:
@@ -1727,6 +1756,7 @@ class TTSEngine:
             raise
         if (success and os.path.exists(staging_path)
                 and publish_audio_output(staging_path, output_path, cancelled)):
+            promote_speech_input(speech_input, output_path)
             return True
         try:
             os.remove(staging_path)
@@ -1785,16 +1815,18 @@ class TTSEngine:
         failures = []
         token = _TTS_FAILURES.set(failures)
         try:
-            with ensure_synthesis_receipts() as receipts:
+            with (ensure_synthesis_receipts() as receipts,
+                  ensure_speech_input_capture(bool(getattr(self, '_speech_verification', None)))):
                 try:
                     success = bool(self.generate_voice(
                         text, instruct_text, speaker, voice_config, output_path))
                 except Exception as error:
                     apply_tts_failure(error)
                     success = False
+                speech_input = get_captured_speech_input(output_path) if success else None
             # An ensemble can wrap the original member failure; retain its cause.
             return TTSGenerationResult(success, None if success or not failures else failures[0],
-                                       receipts[-1] if success and receipts else None)
+                                       receipts[-1] if success and receipts else None, speech_input)
         finally:
             _TTS_FAILURES.reset(token)
 
@@ -1920,7 +1952,10 @@ class TTSEngine:
                 member_paths.append(member_path)
 
             print(f"  Unison: mixing {len(member_paths)} voices ({', '.join(members)})")
-            return mix_to_unison(member_paths, output_path)
+            success = mix_to_unison(member_paths, output_path)
+            if success and mix_to_unison is _RAW_MIX_TO_UNISON:
+                capture_composite_speech_input(member_paths, output_path, text, 'ensemble')
+            return success
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -1982,6 +2017,7 @@ class TTSEngine:
         filename = f"preview_{uuid.uuid4().hex}.wav"
         wav_path = os.path.join(previews_dir, filename)
         self._save_wav(audio, sr, wav_path)
+        capture_speech_input(wav_path, sample_text, lang, 'local_design_api')
 
         return wav_path, sr
 
@@ -2022,10 +2058,14 @@ class TTSEngine:
 
         seed = int(voice_data.get("seed", -1))
         wav_path, sr = self.generate_voice_design(description=description, sample_text=text, seed=seed)
+        speech_input = get_captured_speech_input(wav_path)
         staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
         try:
             shutil.copy2(wav_path, staging_path)
-            return publish_audio_output(staging_path, output_path)
+            success = publish_audio_output(staging_path, output_path)
+            if success:
+                promote_speech_input(speech_input, output_path)
+            return success
         finally:
             try:
                 os.remove(staging_path)
@@ -2157,6 +2197,7 @@ class TTSEngine:
             rtf = duration / gen_time if gen_time > 0 else 0
             print(f"TTS [local lora] done: {gen_time:.1f}s -> {duration:.1f}s audio ({rtf:.2f}x real-time)")
             self._save_wav(audio, sr, output_path)
+            capture_speech_input(output_path, text, self._language, 'local_lora_api')
             return True
 
         except Exception as e:
@@ -2221,6 +2262,7 @@ class TTSEngine:
     # ── Batch generation ─────────────────────────────────────────
 
     @capture_tts_operation("generate_batch")
+    @capture_batch_speech_inputs
     def generate_batch(self, chunks, voice_config, output_dir, batch_seed=-1):
         """Generate multiple audio files.
 
@@ -2496,6 +2538,7 @@ class TTSEngine:
             rtf = duration / gen_time if gen_time > 0 else 0
             print(f"TTS [local] done: {gen_time:.1f}s -> {duration:.1f}s audio ({rtf:.2f}x real-time)")
             self._save_wav(audio, sr, output_path)
+            capture_speech_input(output_path, text, self._language, 'local_custom_api')
             return True
 
         except SynthesisRecoveryDependencyChanged:
@@ -2553,6 +2596,7 @@ class TTSEngine:
             rtf = duration / gen_time if gen_time > 0 else 0
             print(f"TTS [local clone] done: {gen_time:.1f}s -> {duration:.1f}s audio ({rtf:.2f}x real-time)")
             self._save_wav(audio, sr, output_path)
+            capture_speech_input(output_path, text, self._language, 'local_clone_api')
             return True
 
         except Exception as e:
@@ -2581,6 +2625,20 @@ class TTSEngine:
             except Exception as error:
                 print(f"    Error saving chunk {index}: {error}")
                 result["failed"].append((index, str(error)))
+        return result, duration
+
+    def save_submitted_batch_waveforms(self, waveforms, indices, texts, sample_rate, output_dir,
+                                      category, log_saved=False):
+        result, duration = self.save_batch_waveforms(waveforms, indices, sample_rate, output_dir,
+                                                    log_saved=log_saved)
+        render = self.save_batch_waveforms
+        if (is_speech_input_capture_active() and len(waveforms) <= len(indices) == len(texts)
+                and isinstance(render, MethodType) and render.__func__ is _RAW_SAVE_BATCH_WAVEFORMS):
+            submitted = dict(zip(indices, texts))
+            for index in result['completed']:
+                if index in submitted:
+                    capture_speech_input(os.path.join(output_dir, f'temp_batch_{index}.wav'),
+                        submitted[index], self._language, 'local_' + category + '_batch_api')
         return result, duration
 
     @ensure_local_tts_serialized
@@ -2690,8 +2748,8 @@ class TTSEngine:
                         results["failed"].append((idx, "Batch returned None"))
                     continue
 
-                saved, sb_audio_duration = self.save_batch_waveforms(
-                    wavs_list, sb_indices, sr, output_dir, log_saved=True)
+                saved, sb_audio_duration = self.save_submitted_batch_waveforms(
+                    wavs_list, sb_indices, sb_texts, sr, output_dir, 'custom', log_saved=True)
                 results["completed"].extend(saved["completed"])
                 results["failed"].extend(saved["failed"])
 
@@ -2814,8 +2872,8 @@ class TTSEngine:
                             results["failed"].append((idx, "Batch returned None"))
                         continue
 
-                    saved, sb_audio_duration = self.save_batch_waveforms(
-                        wavs_list, sb_indices, sr, output_dir)
+                    saved, sb_audio_duration = self.save_submitted_batch_waveforms(
+                        wavs_list, sb_indices, sb_texts, sr, output_dir, 'clone')
                     results["completed"].extend(saved["completed"])
                     results["failed"].extend(saved["failed"])
 
@@ -2987,8 +3045,8 @@ class TTSEngine:
                             results["failed"].append((idx, "Batch returned None"))
                         continue
 
-                    saved, sb_audio_duration = self.save_batch_waveforms(
-                        wavs_list, sb_indices, sr, output_dir)
+                    saved, sb_audio_duration = self.save_submitted_batch_waveforms(
+                        wavs_list, sb_indices, sb_texts, sr, output_dir, 'lora')
                     results["completed"].extend(saved["completed"])
                     results["failed"].extend(saved["failed"])
 
@@ -3090,7 +3148,10 @@ class TTSEngine:
                         api_name="/generate_custom_voice"
                     )
 
-                return self._save_external_prediction(result, output_path, cancelled, text)
+                success = self._save_external_prediction(result, output_path, cancelled, text)
+                if success:
+                    capture_speech_input(output_path, text, self._language, 'external_custom_api')
+                return success
 
         except Exception as e:
             import traceback
@@ -3162,7 +3223,10 @@ class TTSEngine:
                             api_name="/generate_voice_clone"
                         )
 
-                return self._save_external_prediction(result, output_path, cancelled, text)
+                success = self._save_external_prediction(result, output_path, cancelled, text)
+                if success:
+                    capture_speech_input(output_path, text, self._language, 'external_clone_api')
+                return success
 
         except Exception as e:
             import traceback
@@ -3217,6 +3281,7 @@ class TTSEngine:
                 endpoint=ep, cancelled=cancelled),
         }[kind]
         futures = {}
+        capture_inputs = is_speech_input_capture_active()
 
         def remove_staging_audio(staging_path):
             try:
@@ -3232,10 +3297,12 @@ class TTSEngine:
         def render_to_staging(chunk, staging_path, endpoint, cancelled, deadline):
             try:
                 if cancelled.is_set() or time.monotonic() >= deadline:
-                    return False, time.monotonic()
-                with ensure_external_request_control(deadline, cancelled):
+                    return False, time.monotonic(), None
+                with (ensure_external_request_control(deadline, cancelled),
+                      ensure_speech_input_capture(capture_inputs)):
                     success = generate(chunk, staging_path, endpoint, cancelled)
-                    return success, time.monotonic()
+                    proof = get_captured_speech_input(staging_path) if success else None
+                    return success, time.monotonic(), proof
             finally:
                 if cancelled.is_set():
                     remove_staging_audio(staging_path)
@@ -3252,7 +3319,7 @@ class TTSEngine:
                 futures[idx] = (future, cancelled, staging_path, output_path, deadline)
             for idx, (future, cancelled, staging_path, output_path, deadline) in futures.items():
                 try:
-                    success, finished_at = future.result(timeout=max(0, deadline - time.monotonic()))
+                    success, finished_at, speech_input = future.result(timeout=max(0, deadline - time.monotonic()))
                     if finished_at > deadline:
                         raise FutureTimeout()
                 except FutureTimeout:
@@ -3274,6 +3341,7 @@ class TTSEngine:
                     continue
                 if success and os.path.exists(staging_path):
                     if publish_audio_output(staging_path, output_path, cancelled):
+                        promote_speech_input(speech_input, output_path)
                         results["completed"].append(idx)
                     else:
                         cleanup_error = remove_staging_audio(staging_path)
@@ -3348,6 +3416,8 @@ _RAW_LORA_VOICE = TTSEngine.generate_lora_voice
 _RAW_DESIGN_VOICE = TTSEngine.generate_design_voice
 _RAW_ENSEMBLE_VOICE = TTSEngine.generate_ensemble_voice
 _RAW_GENERATE_VOICE = TTSEngine.generate_voice
+_RAW_SAVE_BATCH_WAVEFORMS = TTSEngine.save_batch_waveforms
+_RAW_MIX_TO_UNISON = mix_to_unison
 
 
 from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code

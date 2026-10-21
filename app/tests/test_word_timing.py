@@ -68,6 +68,8 @@ class WordTimingTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        scratch = patch('cpu_asr_scratch.get_cpu_asr_scratch_parent', return_value=self.root)
+        scratch.start(); self.addCleanup(scratch.stop)
         self.pm = ProjectManager(str(self.root))
         self.pm.voicelines_dir = str(self.root / 'voicelines')
         Path(self.pm.voicelines_dir).mkdir(exist_ok=True)

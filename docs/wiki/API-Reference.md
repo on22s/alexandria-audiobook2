@@ -395,6 +395,48 @@ script-JSON book without its original source remains unavailable and requires
 confirmation on each merge. This check compares text, not the words in WAVs.
 
 
+### Optional generated speech verification
+
+Save `tts.speech_verification: {"enabled": true}` through the configuration API
+to check subsequent generated takes. It defaults to off. Initial coverage is
+English mono audio using a cached Linux CPU whisper.cpp Small.en runtime and
+a distinct Large-v3 checkpoint for stronger confirmation. Nothing downloads
+automatically. Missing resources, unsupported inputs and finite evidence limits
+produce explicit unavailable results. Checks add CPU time and RAM; ASR and
+short-line acoustic evidence still need listening review.
+
+The check compares the finished encoded take with the exact text observed at
+the synthesis API, including pronunciation substitutions. A confirmed material
+missing or extra passage rejects the new attempt while preserving the prior
+selected take. Other discrepancies remain review evidence. Authored repetitions
+and ambiguous numerical/pronunciation regions are retained.
+
+`GET /api/chunks` and `/api/chunks/status` expose bounded `speech_verification`
+metadata only when the input, UID, book and selected take still match. A quick
+file-version check hides replaced or missing audio without hashing/decoding a
+whole book. `speech_verification_failure` describes a rejected attempt separately
+from the selected take. `/api/chunks/quality` exposes speech review categories.
+An incomplete or unavailable recheck is recorded in `speech_verification_recheck`
+without erasing completed evidence for the unchanged selected take.
+These reads do not start a check. The Editor inspector shows the exact input,
+counts, diagnostic excerpts, costs, verifier identities and any abbreviation.
+
+To recheck one saved take, send `POST /api/chunks/{index}/speech_verification`
+with `expected_book_token`, `expected_uid` and `expected_audio_revision` from
+the current chunk snapshot. The take must have a current recorded synthesis
+input and finished-audio hash; older or unproven takes require regeneration with
+checks enabled. The CPU task hashes the selected audio, runs fresh bounded
+verification, and conditionally saves the result only if the book, row, inputs,
+take and bytes remain unchanged. It returns a compact `receipt` and a bounded
+fresh `report`. Rechecking retains the selected audio even when it finds a
+content defect. No separate historical report cache is created.
+
+Use `POST /api/speech_verification/cancel` to request cancellation and
+`GET /api/status/speech_verification` to inspect task state. The claim remains
+owned until provider descendants and private scratch have been cleaned up,
+including after the initiating HTTP request disconnects. CPU ASR shares one
+close-owned private lease with word timing, so a busy provider reports unavailable.
+
 Editor Undo uses the `undo_token` returned by `DELETE /api/chunks/{index}`.
 Send that token, the returned `deleted` object as `chunk`, and the original
 `at_index` to `POST /api/chunks/restore` within 60 seconds. A receipt can restore

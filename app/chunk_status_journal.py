@@ -11,7 +11,8 @@ import uuid
 from adapter_publication import save_adapter_publication_bytes, sync_adapter_directory
 from utils import file_lock
 
-FIELDS = frozenset(("status", "audio_path", "audio_revision", "error", "drift", "pronunciation_receipt", "synthesis_receipt"))
+FIELDS = frozenset(("status", "audio_path", "audio_revision", "error", "drift", "pronunciation_receipt", "synthesis_receipt",
+                    "speech_verification", "speech_verification_failure", "speech_verification_recheck"))
 logger = logging.getLogger(__name__)
 
 

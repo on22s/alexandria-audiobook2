@@ -52,6 +52,7 @@ from generation_checkpoint_deltas import load_generation_checkpoint_document
 from generation_checkpoint_shards import get_generation_checkpoint_artifacts
 from editor_poll_snapshot import EditorPollSnapshots, get_snapshot_digest
 from editor_review_facts import get_editor_review_facts
+from speech_verification_receipt import get_speech_verification_chunk_view
 from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection,
@@ -158,6 +159,43 @@ async def cancel_word_timing():
         raise HTTPException(status_code=400, detail='No word-timing task is running.')
     process_state['word_timing']['cancel'] = True
     return {'status': 'cancellation requested'}
+
+
+class SpeechVerificationRequest(BaseModel):
+    expected_book_token: str = Field(pattern=r'^[0-9a-f]{64}$')
+    expected_uid: str = Field(min_length=1,max_length=128)
+    expected_audio_revision: str = Field(min_length=1,max_length=128)
+
+
+@router.post('/api/chunks/{index}/speech_verification')
+async def recheck_chunk_speech(index: int, request: SpeechVerificationRequest):
+    from editor_speech_verification import recheck_editor_speech
+    from speech_verification_runtime import get_verification_runtime
+    if index < 0:
+        raise HTTPException(status_code=400,detail='Choose a valid Editor line.')
+    def run():
+        state=process_state['speech_verification']
+        state['logs']=['Rechecking one saved take with its recorded synthesis input. CPU only.']
+        try:
+            result=recheck_editor_speech(project_manager,index,request,
+                get_verification_runtime(ROOT_DIR),get_verification_runtime(ROOT_DIR,confirmation=True),
+                check_chunk_identity)
+            state['logs'].append('Speech check: '+result['receipt']['status']+'. Listening review is still needed.')
+            return result
+        except (ValueError,OSError,KeyError,TypeError,RuntimeError) as error:
+            state['logs'].append('Speech check failed: '+str(error))
+            raise HTTPException(status_code=409,detail=str(error)) from error
+    return await run_claimed_task_worker('speech_verification',run,cpu_only=True)
+
+
+@router.post('/api/speech_verification/cancel')
+async def cancel_speech_verification():
+    with _gpu_lock:
+        state=process_state['speech_verification']
+        if not state.get('running'):
+            raise HTTPException(status_code=400,detail='No speech verification task is running.')
+        state['cancel']=True
+    return {'status':'cancellation requested'}
 
 
 class ChunkUpdate(BaseModel):
@@ -270,9 +308,15 @@ async def get_chunks():
 
 
 def _ensure_chunk_listing():
-    with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
-        chunks = _ensure_editor_chunks()
+    root=os.path.dirname(SCRIPT_PATH)
+    with ensure_book_state(root):
+        chunks = _get_editor_chunk_views(_ensure_editor_chunks(),get_snapshot_digest(get_editor_book_identity(root)))
     return chunks
+
+
+def _get_editor_chunk_views(chunks, book_token):
+    return [get_speech_verification_chunk_view(chunk,book_token,project_manager.get_chunk_audio_path)
+            for chunk in chunks]
 
 
 def _ensure_editor_chunks():
@@ -346,6 +390,7 @@ def _ensure_chunk_status_snapshot(revision):
     with ensure_book_state(root):
         chunks = _ensure_editor_chunks()
         identity = get_editor_book_identity(root)
+        chunks = _get_editor_chunk_views(chunks,get_snapshot_digest(identity))
         return _editor_poll_snapshots.ensure_snapshot(chunks, identity, revision)
 
 
@@ -365,10 +410,10 @@ def _get_editor_quality_sync(expected_book_token):
         identity = get_editor_book_identity(root)
         if get_snapshot_digest(identity) != expected_book_token:
             raise HTTPException(status_code=409, detail="The selected book changed. Refresh Editor before reviewing its lines.")
-        chunks = _ensure_editor_chunks()
+        chunks = _get_editor_chunk_views(_ensure_editor_chunks(),expected_book_token)
         snapshot = _editor_poll_snapshots.ensure_snapshot(chunks, identity, None)
         return {'book_token': snapshot['book_token'], 'revision': snapshot['revision'],
-                'rows': get_editor_review_facts(chunks, project_manager.get_chunk_audio_path)}
+                'rows': get_editor_review_facts(chunks, project_manager.get_chunk_audio_path,expected_book_token)}
 
 
 _deleted_chunk_receipts = {}

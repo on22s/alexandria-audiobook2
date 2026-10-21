@@ -69,7 +69,8 @@ from book_state_transaction import ensure_book_state
 from chunk_status_journal import get_chunk_status_journal_path
 from lora_evidence import get_tts_model_settings
 from pronunciation import get_pronunciation_model_context, is_pronunciation_settings_dependent
-from synthesis_settings import get_enabled_synthesis_window_settings, get_enabled_synthesis_recovery_settings
+from synthesis_settings import (get_enabled_synthesis_window_settings, get_enabled_synthesis_recovery_settings,
+                                get_synthesis_execution_policy)
 from project import ProjectManager
 from core import ensure_book_switch_allowed
 
@@ -1020,10 +1021,10 @@ def is_synthesis_window_config_change(before, after):
             get_synthesis_window_model_context(get_tts_model_settings(after)))
 
 
-def is_synthesis_recovery_config_change(before, after, engine):
-    saved = get_enabled_synthesis_recovery_settings(before.get('tts', {}).get('synthesis_recovery'))
-    proposed = get_enabled_synthesis_recovery_settings(after.get('tts', {}).get('synthesis_recovery'))
-    active = get_enabled_synthesis_recovery_settings(getattr(engine, '_synthesis_recovery', None))
+def is_synthesis_execution_config_change(before, after, engine):
+    saved = get_synthesis_execution_policy(before.get('tts', {}))
+    proposed = get_synthesis_execution_policy(after.get('tts', {}))
+    active = get_synthesis_execution_policy({key: getattr(engine, '_' + key, None) for key in proposed})
     return saved != proposed or engine is not None and active != proposed
 
 
@@ -1078,7 +1079,7 @@ def apply_pronunciation_config_change(config, manager):
             normalized = get_config_to_save(config, existing.data)
             after = get_tts_model_settings(normalized.model_dump())
             requires_fence = (
-                is_synthesis_recovery_config_change(existing.data, normalized.model_dump(), manager.engine) or
+                is_synthesis_execution_config_change(existing.data, normalized.model_dump(), manager.engine) or
                 dependent and (is_pronunciation_config_change(existing.data, normalized.model_dump()) or
                                get_pronunciation_model_context(before) != get_pronunciation_model_context(after)) or
                 is_synthesis_window_config_change(existing.data, normalized.model_dump()) or
@@ -1090,7 +1091,7 @@ def apply_pronunciation_config_change(config, manager):
             manager.reset_engine()
             return True
 
-    with ensure_book_switch_allowed(operation="change synthesis window, recovery or conditional pronunciation settings"):
+    with ensure_book_switch_allowed(operation="change synthesis window, recovery, speech verification or conditional pronunciation settings"):
         with ensure_book_state(root, recover=False):
             before = manager.get_pronunciation_preview_settings()["settings"]
             try:

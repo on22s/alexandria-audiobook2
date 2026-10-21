@@ -56,6 +56,7 @@
             "synthesis-windows-enabled": {what: "Use explicit limits to synthesize smaller windows inside a line. Save Configuration to apply these choices to future renders."},
             "synthesis-recovery-enabled": {what: "Keep verified windows for interrupted fixed-seed native local stock-voice renders on Linux. Off by default. Save Configuration to apply; unsupported renders continue normally and selected takes are preserved."},
             "synthesis-recovery-budget": {what: "Logical limit for indexed recovery audio across the workspace, in MiB (16–4096). Default 256. Interrupted cache writes remain charged; temporary working files are separate."},
+            'speech-verification-enabled': {what: 'Check new English takes with cached CPU ASR and short-line acoustics. Off by default; save to apply. Confirmed missing or extra speech rejects the attempt and keeps the prior take. Unsupported or unavailable checks are labeled. Adds time and RAM; listening review is still needed.'},
             "synthesis-sentence-gap": {what: "Optional target silence at sentence joins within one take. Blank preserves natural silence; trimming is limited by the edge trim setting."},
             "synthesis-clause-gap": {what: "Optional target silence at clause joins within one take. Blank preserves natural silence; trimming is limited by the edge trim setting."},
             "synthesis-paragraph-gap": {what: "Optional target silence at paragraph joins within one take. Blank preserves natural silence; trimming is limited by the edge trim setting."},
