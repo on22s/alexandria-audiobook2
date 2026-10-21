@@ -3780,6 +3780,23 @@
     "tests.test_fp8_scale_load_probe.ScaleFindingsTest.test_it_marks_a_scale_tensor_as_a_scale",
     "tests.test_fp8_scale_load_probe.ScaleFindingsTest.test_no_report_is_not_a_clean_report_by_accident"
   ],
+  "test_fragment_chapter_origin": [
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_actual_text_edit_invalidates_negative_evidence_without_deleting_old_audio",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_aside_words_hints_source_and_pause_keep_one_real_export_chapter",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_authored_heading_above_aside_keeps_boundary_ambiguous_inline_title_defers",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_bounded_heading_keeps_only_first_boundary_and_tail_pause",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_first_bounded_heading_with_terminal_period_keeps_source_start",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_genuine_numbered_unnumbered_and_long_keyword_titles_still_start_chapters",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_legacy_delivery_retry_remains_voice_only_and_saved_audio_is_not_migrated",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_legacy_malformed_and_stale_markers_keep_legacy_fallback_and_explicit_mode",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_literal_word_binding_and_forced_body_splits_preserve_source_role",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_ordinary_same_context_prose_still_merges_before_evidence_is_finalized",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_quoted_labels_between_asides_cannot_bypass_original_context_admission",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_role_validation_is_strict_text_bound_and_cannot_override_spoken_gate",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_same_text_edits_delete_restore_keep_bound_negative_evidence",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_scene_cue_aside_and_bounded_prefixes_cannot_invent_titles",
+    "tests.test_fragment_chapter_origin.FragmentChapterOriginTests.test_unknown_glyph_and_unpaired_surrogate_are_retained_without_hash_failure"
+  ],
   "test_front_matter_telemetry": [
     "tests.test_front_matter_telemetry.FrontMatterTelemetryTests.test_front_only_removal_is_reported_without_modifying_upload"
   ],

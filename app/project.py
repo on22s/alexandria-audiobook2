@@ -155,7 +155,23 @@ def get_chunk_context(entry):
     context = get_narrator_generation_context(entry)
     if "spoken" in entry:
         context["spoken"] = copy.deepcopy(entry["spoken"])
+    if "_chapter_start" in entry:
+        context["_chapter_start"] = entry["_chapter_start"]
     return context
+
+
+def get_chapter_text_digest(text):
+    """Bind the source structural role to exact text, including reviewed surrogates."""
+    return hashlib.sha256(text.encode("utf-8", errors="surrogatepass")).hexdigest()
+
+
+def get_chunk_chapter_start(chunk):
+    """Return a source role only while its evidence matches the exact chunk text."""
+    origin = chunk.get("chapter_origin")
+    if (isinstance(origin, dict) and type(origin.get("is_heading")) is bool and
+            origin.get("text_sha256") == get_chapter_text_digest(chunk.get("text", ""))):
+        return origin["is_heading"]
+    return None
 
 
 def get_chunk_generation_requests(chunks, indices, admitted_requests=None):
@@ -278,6 +294,11 @@ def _is_structural_text(text, max_length=80):
     return False
 
 
+def is_smart_chapter_text(text):
+    """Use the existing long keyword-title policy for source and export decisions."""
+    return _is_structural_text(text, max_length=None if CHAPTER_HEADING_RE.match(text.strip()) else 80)
+
+
 def _make_chunk(speaker, text, instruct, pause_after=None, source_indices=None,
                 narrator_context=None):
     """Build a chunk dict, omitting pause_after when None for clean JSON."""
@@ -382,6 +403,16 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
         allowed_labels = {label for label, count in original_counts.items()
                           if prepared_counts[label] == count}
 
+    original_headings = Counter(get_chapter_heading_offsets(original_text).values())
+    prepared_headings = Counter()
+    for index, part in enumerate(parts):
+        if index in plain_indices:
+            prepared_headings.update(get_chapter_heading_offsets(part["text"]).values())
+    source_headings = {label for label, count in original_headings.items()
+                       if prepared_headings[label] == count and (
+                           label not in UNNUMBERED_CHAPTER_HEADINGS or label in allowed_labels)}
+    source_title = (split_chapters and len(parts) == 1 and
+                    is_smart_chapter_text(original_text))
     prepared = []
     for index, part in enumerate(parts):
         text_parts = (get_chapter_text_parts(part["text"], allowed_labels)
@@ -394,6 +425,11 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
                 continue
             child = dict(part)
             child["text"] = cleaned_part
+            child["_chapter_start"] = bool(
+                split_chapters and index in plain_indices and (
+                    text_part.strip().casefold() in source_headings or
+                    (source_title and len(text_parts) == 1 and
+                     is_smart_chapter_text(cleaned_part))))
             if part_index < len(text_parts) - 1:
                 child.pop("pause_after", None)
             prepared.append(child)
@@ -599,10 +635,15 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
             piece = {**chunk, "text": remaining[:cut]}
             piece.pop("pause_after", None)
             bounded.append(piece)
+            chunk = {**chunk, "_chapter_start": False}
             remaining = remaining[cut:]
         bounded.append({**chunk, "text": remaining})
-    normalized = [{**chunk, "text": get_tts_chunk_text(chunk["text"])}
-                  for chunk in bounded]
+    normalized = []
+    for chunk in bounded:
+        chunk = {**chunk, "text": get_tts_chunk_text(chunk["text"])}
+        chunk["chapter_origin"] = {"is_heading": chunk.pop("_chapter_start", False),
+                                   "text_sha256": get_chapter_text_digest(chunk["text"])}
+        normalized.append(chunk)
     return bind_literal_chunks(normalized, literal_policy)
 
 logger = logging.getLogger(__name__)
@@ -1755,14 +1796,14 @@ class ProjectManager:
         heading_indices = []
         for i, chunk in enumerate(chunks):
             text = chunk.get("text", "").strip()
-            heading = CHAPTER_HEADING_RE.match(text)
-            numbered_heading = is_numbered_heading(text)
+            source_start = get_chunk_chapter_start(chunk)
             # Preserve explicit headings and unquoted narrator titles, while
             # keeping short dialogue and complete sentences in their chapter.
             if (get_speaker(chunk).upper() == "NARRATOR" and text
                     and chunk.get("spoken") is not True
+                    and source_start is not False
                     and '"' not in text
-                    and (numbered_heading or _is_structural_text(text, max_length=None if heading else 80))):
+                    and (source_start is True or is_smart_chapter_text(text))):
                 heading_indices.append(i)
 
         # If no headings detected, fall back to per-chunk
