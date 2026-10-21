@@ -27,6 +27,10 @@ _DIGEST = re.compile(r'[0-9a-f]{64}')
 _SUFFIXES = {'.wav', '.mp3', '.flac', '.ogg'}
 
 
+class TakeAudioOutsideSnapshotBounds(ValueError):
+    """Valid output may be ineligible for bounded optional take evidence."""
+
+
 def _encode(value):
     return json.dumps(value, ensure_ascii=True, sort_keys=True,
                       separators=(',', ':'), allow_nan=False).encode('ascii')
@@ -125,7 +129,7 @@ def _decode(stream, *, cancel_check=None):
     with sf.SoundFile(stream, closefd=False) as audio:
         rate, channels, expected = audio.samplerate, audio.channels, audio.frames
         if not 0 < rate <= 192000 or channels not in (1, 2) or not 0 < expected <= rate * 600:
-            raise ValueError('Take snapshots support mono/stereo audio of at most ten minutes.')
+            raise TakeAudioOutsideSnapshotBounds('Take snapshots support mono/stereo audio of at most ten minutes.')
         frames = 0
         while True:
             _check_cancelled(cancel_check)

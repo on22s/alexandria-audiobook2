@@ -53,7 +53,7 @@ class LauncherResetRecoveryTests(unittest.TestCase):
     def prepare(self, root):
         (root / 'app').mkdir()
         for name in ('book_state_transaction.py', 'utils.py', 'loaded_module_code.py', 'adapter_publication.py',
-                     'editor_poll_snapshot.py', 'chunk_status_journal.py', 'take_retention.py',
+                     'editor_poll_snapshot.py', 'chunk_status_journal.py', 'take_retention.py','take_publication.py',
                      'audio_take_history.py', 'audio_generation_owner.py', 'audio_validation.py'):
             shutil.copyfile(ROOT / 'app' / name, root / 'app' / name)
         shutil.copyfile(ROOT / 'gpu_stats.py', root / 'gpu_stats.py')

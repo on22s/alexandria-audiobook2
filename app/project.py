@@ -1274,7 +1274,7 @@ class ProjectManager:
 
     def _update_chunk_fields_by_uid(self, uid, expected_chunk=None, required_status=None,
                                     audio_source=None, expected_fields=None, expected_related_chunks=None,
-                                    require_target=False, **kwargs):
+                                    require_target=False, publication_audio=None, **kwargs):
         """Conditionally publish to the live UID under one lock, preserving other rows.
 
         Generation compares only captured render inputs. An owned converted temp
@@ -1338,6 +1338,10 @@ class ProjectManager:
                     os.fsync(handle.fileno())
                 publish_audio_output(audio_source, self.get_chunk_audio_path(candidate))
                 sync_adapter_directory(self.voicelines_dir)
+                if publication_audio is not None:
+                    from take_publication import validate_published_take_audio
+                    validate_published_take_audio(self.root_dir, self.get_chunk_audio_path(candidate),
+                        publication_audio, ensure_audio_generation_active)
             if kwargs:
                 if journal:
                     if audio_source is None and RETAINED_TAKE_KEY not in kwargs:
@@ -1352,7 +1356,7 @@ class ProjectManager:
                         retained_update_uid=uid if RETAINED_TAKE_KEY in kwargs else None)
             return chunk
 
-    def _publish_generated_chunk_audio(self, chunk, temp_path, speaker, recovery_parent=None):
+    def _publish_generated_chunk_audio(self, chunk, temp_path, speaker, recovery_parent=None, publication_admission=None):
         """Convert privately, then attach/promote audio only to unchanged inputs."""
         ensure_audio_generation_active()
         with ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context")):
@@ -1387,13 +1391,26 @@ class ProjectManager:
                 chunk, temp_path, staged_path, preparation, revision)
             evidence.update(speech_verification=speech_receipt,speech_verification_failure=None,
                             speech_verification_recheck=None)
-            with self._ensure_automatic_predecessor(chunk), self._ensure_chunk_generation_publication(chunk) as current_book:
+            from take_publication import (KEY as PUBLICATION_KEY, get_take_publication_receipt,
+                                          get_take_publication_book_token)
+            publication, publication_version = get_take_publication_receipt(
+                publication_admission, get_chunk_generation_inputs(chunk), preparation,
+                chunk.get('_speech_input'), evidence.get('synthesis_receipt'), temp_path,
+                staged_path, revision, ensure_audio_generation_active)
+            if publication is not None or PUBLICATION_KEY in chunk:
+                evidence[PUBLICATION_KEY] = publication
+            publication_book = get_take_publication_book_token(publication_admission)
+            with self._ensure_automatic_predecessor(chunk), self._ensure_chunk_generation_publication(
+                    chunk, publication_book=publication_book) as current_book:
                 if not current_book:
                     raise ValueError(GENERATION_INPUTS_CHANGED)
                 if staged_version is not None and self._get_speech_staged_version(staged_path) != staged_version:
                     raise ValueError('Finished audio changed before speech evidence publication')
+                if publication_version is not None and self._get_speech_staged_version(staged_path) != publication_version:
+                    raise ValueError('Finished audio changed before take evidence publication')
                 updated = self._update_chunk_fields_by_uid(
                     chunk["uid"], expected_chunk=chunk, audio_source=staged_path,
+                    publication_audio=publication['audio'] if publication is not None else None,
                     status="done", audio_revision=revision, error=None, drift=None, **evidence)
             if updated is None:
                 raise ValueError(GENERATION_INPUTS_CHANGED)
@@ -1453,16 +1470,17 @@ class ProjectManager:
             yield retained
 
     @contextmanager
-    def _ensure_chunk_generation_publication(self, chunk):
+    def _ensure_chunk_generation_publication(self, chunk, publication_book=None):
         admission = chunk.get('_speech_verification_admission')
         retained_book = chunk.get('_take_history_book_token')
-        guard = (reuse_audio_generation_book(self.root_dir) if retained_book is not None or get_take_history_policy(self.root_dir)['enabled']
+        guard = (reuse_audio_generation_book(self.root_dir) if publication_book is not None or retained_book is not None or get_take_history_policy(self.root_dir)['enabled']
                  else ensure_audio_generation_book(self.root_dir) if admission is not None
                  else ensure_audio_generation_publication())
         with guard:
-            token = get_book_operation_token(self.root_dir) if admission is not None or retained_book is not None else None
+            token = get_book_operation_token(self.root_dir) if publication_book is not None or admission is not None or retained_book is not None else None
             yield ((admission is None or token == admission['book_token'])
-                   and (retained_book is None or token == retained_book))
+                   and (retained_book is None or token == retained_book)
+                   and (publication_book is None or token == publication_book))
 
     def _update_generation_fields(self, chunk, **fields):
         if fields.get('status') == 'error':
@@ -1473,6 +1491,17 @@ class ProjectManager:
                 return None
             return self._update_chunk_fields_by_uid(
                 chunk.get("uid"), expected_chunk=chunk, **fields, **retained)
+
+    def _capture_take_publication_admission(self, engine, parent, index, chunk, voice_config, speaker):
+        if parent is None or not get_take_history_policy(self.root_dir)['enabled']:
+            return None
+        from take_publication import capture_take_publication_admission
+        with ensure_audio_generation_book_work(self.root_dir):
+            token = get_book_operation_token(self.root_dir)
+            if chunk.get('_take_history_book_token', token) != token:
+                raise ValueError(GENERATION_INPUTS_CHANGED)
+            return capture_take_publication_admission(engine, parent, token, chunk['uid'], index,
+                get_chunk_generation_inputs(chunk), voice_config, speaker)
 
     def _capture_speech_verification_admission(self, engine):
         requested = get_enabled_speech_verification_settings(self._load_tts_config().get('speech_verification'))
@@ -1726,10 +1755,13 @@ class ProjectManager:
             failure = None
             ensure_audio_generation_active()
             recovery_parent = self._capture_synthesis_recovery_parent(engine, index, chunk)
+            publication_admission = self._capture_take_publication_admission(
+                engine, recovery_parent, index, chunk, chunk_voice_config, speaker_to_use)
             with (ensure_synthesis_recovery_parent(recovery_parent),
                   ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context"))):
                 if callable(getattr(engine, "generate_voice_result", None)):
-                    result = engine.generate_voice_result(*generation_args)
+                    result = engine.generate_voice_result(*generation_args,
+                        **({'capture_input':True} if publication_admission is not None else {}))
                     success, failure = result.success, result.failure
                     receipt = getattr(result, "synthesis_receipt", None)
                     if receipt is not None:
@@ -1749,7 +1781,8 @@ class ProjectManager:
 
                 audio_path = self._publish_generated_chunk_audio(
                     chunk, temp_path, speaker_to_use,
-                    **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}))
+                    **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}),
+                    **({'publication_admission': publication_admission} if publication_admission is not None else {}))
 
                 return True, audio_path
             else:
@@ -3080,7 +3113,7 @@ class ProjectManager:
                 else:
                     print(f"Warning: Could not delete temp file {temp_path}")
 
-    def _finalize_completed_chunk(self, idx, chunks, recovery_parent=None):
+    def _finalize_completed_chunk(self, idx, chunks, recovery_parent=None, publication_admission=None):
         """Finalize from a captured row, conditionally publishing to the live UID.
 
         Returns (outcome, original_index, audio_path_or_error); never mutates the
@@ -3097,7 +3130,8 @@ class ProjectManager:
             validate_generated_audio(temp_path, f"batch chunk {idx}")
             audio_path = self._publish_generated_chunk_audio(
                 chunk, temp_path, chunk.get("speaker", "unknown"),
-                **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}))
+                **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}),
+                **({'publication_admission': publication_admission} if publication_admission is not None else {}))
             print(f"Chunk {idx} completed: {audio_path}")
             return "completed", idx, audio_path
         except Exception as e:
@@ -3310,13 +3344,23 @@ class ProjectManager:
             # every row, there is nothing safe to dispatch.
             try:
                 recovery_parents = {}
+                publication_admissions = {}
                 for row in batch_chunks:
                     parent = self._capture_synthesis_recovery_parent(engine, row["index"], captured[row["index"]])
                     if parent is not None:
                         recovery_parents[row["uid"]] = parent
+                        from tts import get_batch_voice_config
+                        materialized = get_batch_voice_config(
+                            resolve_narrator_voice_config(row['speaker'], voice_config, row),
+                            row['speaker'], row['index'], batch_seed)
+                        admission = self._capture_take_publication_admission(engine, parent, row['index'],
+                            captured[row['index']], materialized, row['speaker'])
+                        if admission is not None:
+                            publication_admissions[row['index']] = admission
                 with ensure_synthesis_recovery_batch(recovery_parents):
                     batch_results = (engine.generate_batch(
-                        batch_chunks, voice_config, self.root_dir, batch_seed)
+                        batch_chunks, voice_config, self.root_dir, batch_seed,
+                        **({'capture_input':True} if publication_admissions else {}))
                         if batch_chunks and not is_audio_generation_cancelled() else {"completed": [], "failed": []})
             except Exception:
                 if is_audio_generation_cancelled():
@@ -3340,8 +3384,10 @@ class ProjectManager:
                 if speech_input is not None and idx in captured:
                     captured[idx] = {**captured[idx], "_speech_input": copy.deepcopy(speech_input)}
                 recovery_parent = recovery_parents.get(captured[idx].get('uid')) if idx in captured else None
+                publication_admission = publication_admissions.get(idx)
                 outcome, out_idx, payload = self._finalize_completed_chunk(idx, captured,
-                    **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}))
+                    **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}),
+                    **({'publication_admission': publication_admission} if publication_admission is not None else {}))
                 if outcome == "completed":
                     results["completed"].append(out_idx)
                 elif outcome != "cancelled":

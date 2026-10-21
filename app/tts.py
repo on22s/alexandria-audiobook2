@@ -113,8 +113,8 @@ _TTS_FAILURES = ContextVar("tts_generation_failures", default=None)
 
 def capture_batch_speech_inputs(render):
     @wraps(render)
-    def wrapped(self, chunks, voice_config, output_dir, batch_seed=-1):
-        enabled = bool(getattr(self, '_speech_verification', None))
+    def wrapped(self, chunks, voice_config, output_dir, batch_seed=-1, *, capture_input=False):
+        enabled = capture_input is True or bool(getattr(self, '_speech_verification', None))
         with ensure_speech_input_capture(enabled):
             result = render(self, chunks, voice_config, output_dir, batch_seed)
             if not enabled:
@@ -1892,13 +1892,13 @@ class TTSEngine:
                 output_path)
 
     @capture_tts_operation("generate_voice_result")
-    def generate_voice_result(self, text, instruct_text, speaker, voice_config, output_path):
+    def generate_voice_result(self, text, instruct_text, speaker, voice_config, output_path, *, capture_input=False):
         """Return call-local diagnostics without changing legacy boolean methods."""
         failures = []
         token = _TTS_FAILURES.set(failures)
         try:
             with (ensure_synthesis_receipts() as receipts,
-                  ensure_speech_input_capture(bool(getattr(self, '_speech_verification', None)))):
+                  ensure_speech_input_capture(capture_input is True or bool(getattr(self, '_speech_verification', None)))):
                 try:
                     success = bool(self.generate_voice(
                         text, instruct_text, speaker, voice_config, output_path))
@@ -3485,7 +3485,7 @@ _RAW_RECOVERY_METHODS = {name: getattr(TTSEngine, name) for name in (
     'generate_voice_result', 'generate_voice', '_dispatch_prepared_voice', '_generate_voice_prepared',
     'generate_custom_voice', '_generate_custom_voice_prepared', '_render_synthesis_windows',
     '_get_synthesis_window_plan', '_generate_prepared_batch_parent', '_local_generate_custom',
-    'get_voice_backend', 'get_synthesis_recovery_policy',
+    'get_voice_backend', 'get_synthesis_recovery_policy', 'get_model_settings', 'generate_batch',
     '_init_local_custom', '_load_model', '_resolve_local_model_path', '_resolve_device', '_save_wav')}
 _RAW_RECOVERY_FUNCTIONS = {name: globals()[name] for name in (
     'get_custom_voice_request', 'anchored_instruct', 'get_memory_bounded_codec_decode')}

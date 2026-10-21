@@ -36,3 +36,19 @@ Completed archive copies remain discoverable in the project archive.
 Snapshots preserve actual saved bytes and recorded inputs. They do not certify
 the exact model, reference material or all dependencies used by an earlier render.
 Listen to a candidate before using it in an audiobook.
+
+With automatic history enabled, eligible built-in local CustomVoice renders also
+record a bounded publication receipt. This currently requires deterministic
+seeds, internal synthesis windows and qualified recovery serving identity. Exact
+observed speech input is captured independently of ASR, then bound to the finished
+encoded file's hash and decoded shape. Selected voice/model inputs, pronunciation
+decisions, window policy, book/line identity and audio revision are bound as well.
+Other renders and earlier snapshots remain unproven. Existing snapshots are not
+retroactively certified, and this receipt alone does not enable restoration.
+
+Publication receipts and pending predecessor metadata share a 16 MiB book budget.
+Each publication receipt is at most 4 KiB; immutable archive record/payload limits
+still apply. Valid first-pass audio outside the receipt's 64 MiB, mono/stereo,
+192 kHz and ten-minute bounds can publish without proof. New generation replaces its prior receipt atomically with the audio
+selection, or clears it when complete proof is unavailable. History browsing does
+not load a model, hash selected audio or run speech verification.

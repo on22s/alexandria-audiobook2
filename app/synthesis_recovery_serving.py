@@ -29,7 +29,7 @@ _AA2_MODULES = (
     'synthesis_audio', 'synthesis_render', 'synthesis_workspace', 'synthesis_recovery_cache',
     'synthesis_recovery_identity', 'synthesis_recovery_context', 'synthesis_recovery_code',
     'loaded_module_code', 'synthesis_recovery_native', 'synthesis_recovery_serving', 'device_utils', 'tts_diagnostics',
-    'synthesis_recovery', 'clone_reference_cache',
+    'synthesis_recovery', 'clone_reference_cache', 'take_publication',
 )
 _MODULE_STATE_FIELDS = (
     'training', 'eps', 'variance_epsilon', 'p', 'inplace', 'stride', 'padding',

@@ -21,7 +21,7 @@ POLICY = '.take_history_policy.json'
 _DIGEST = re.compile(r'[a-f0-9]{64}')
 _VERSION = re.compile(r'[a-f0-9]{32}')
 _CAPTURED_FIELDS = ('text', 'speaker', 'instruct', 'take', 'audio_revision',
-                    'pronunciation_receipt', 'synthesis_receipt', 'speech_verification')
+                    'pronunciation_receipt', 'synthesis_receipt', 'speech_verification', 'take_publication')
 
 
 def get_captured_take(row):
@@ -148,8 +148,12 @@ def get_retained_audio_paths(row):
 
 
 def get_retained_take_bytes(row):
+    publication_bytes = 0
+    if row.get('take_publication') is not None:
+        from take_publication import validate_take_publication
+        publication_bytes = len(_encode(validate_take_publication(row)))
     receipt = validate_retained_take(row)
-    return len(_encode(receipt)) if receipt is not None else 0
+    return publication_bytes + (len(_encode(receipt)) if receipt is not None else 0)
 
 
 def get_retained_book_bytes(rows):

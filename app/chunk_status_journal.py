@@ -14,7 +14,7 @@ from take_retention import (KEY as RETAINED_TAKE_KEY, get_retained_audio_paths,
     get_retained_take_bytes, MAX_BOOK_RECEIPT_BYTES)
 
 FIELDS = frozenset(("status", "audio_path", "audio_revision", "error", "drift", "pronunciation_receipt", "synthesis_receipt",
-                    "speech_verification", "speech_verification_failure", "speech_verification_recheck", RETAINED_TAKE_KEY))
+                    "speech_verification", "speech_verification_failure", "speech_verification_recheck", "take_publication", RETAINED_TAKE_KEY))
 logger = logging.getLogger(__name__)
 
 

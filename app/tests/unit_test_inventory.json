@@ -9841,6 +9841,20 @@
     "tests.test_take_history_policy.TakeHistoryPolicyTests.test_public_editor_view_redacts_private_receipt_without_mutating_saved_rows",
     "tests.test_take_history_policy.TakeHistoryPolicyTests.test_real_routes_default_enable_strict_boolean_and_stale_revision"
   ],
+  "test_take_publication": [
+    "tests.test_take_publication.TakePublicationTests.test_captured_book_fences_publication_after_history_is_disabled",
+    "tests.test_take_publication.TakePublicationTests.test_encoded_bytes_are_bound_separately_from_observed_pcm",
+    "tests.test_take_publication.TakePublicationTests.test_failed_final_metadata_preserves_prior_and_never_commits_new_certificate",
+    "tests.test_take_publication.TakePublicationTests.test_input_capture_can_be_requested_without_asr_and_does_not_leak",
+    "tests.test_take_publication.TakePublicationTests.test_installed_slot_is_checked_before_metadata_commits",
+    "tests.test_take_publication.TakePublicationTests.test_missing_mismatched_and_deep_evidence_cannot_certify_a_file",
+    "tests.test_take_publication.TakePublicationTests.test_owned_builtin_single_parallel_and_batch_transport_without_asr",
+    "tests.test_take_publication.TakePublicationTests.test_publication_metadata_is_bounded_before_json_copy_and_journal_append",
+    "tests.test_take_publication.TakePublicationTests.test_selected_metadata_and_history_keep_certificate_in_both_stores",
+    "tests.test_take_publication.TakePublicationTests.test_stage_mutation_after_binding_refuses_publication_and_cancel_propagates",
+    "tests.test_take_publication.TakePublicationTests.test_unknown_overridden_unowned_and_random_renderers_remain_unproven",
+    "tests.test_take_publication.TakePublicationTests.test_valid_output_outside_snapshot_limits_still_publishes_without_proof"
+  ],
   "test_take_retention_process_death": [
     "tests.test_take_retention_process_death.TakeRetentionProcessDeathTests.test_actual_process_death_preserves_original_take_and_allows_explicit_retry"
   ],
