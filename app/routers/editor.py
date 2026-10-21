@@ -1,3 +1,4 @@
+from audio_generation_owner import AUDIO_GENERATION_CANCELLED
 from merge_integrity import get_source_integrity
 from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
@@ -591,8 +592,9 @@ async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks,
             state["error"] = None
             try:
                 success, message = project_manager.generate_chunk_audio(index, admitted_chunk=requested[index])
-                state["status"] = "done" if success else "failed"
-                state["error"] = None if success else message
+                cancelled = not success and message == AUDIO_GENERATION_CANCELLED
+                state["status"] = "cancelled" if cancelled else ("done" if success else "failed")
+                state["error"] = None if success or cancelled else message
                 state["logs"].append(
                     f"Generation {'complete' if success else 'failed'}: {message}")
             except Exception as exc:

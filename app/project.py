@@ -36,6 +36,10 @@ from lora_evidence import get_tts_model_settings
 from literal_policy import (ensure_literal_narration, bind_literal_chunks,
                             ensure_literal_chunk, CHUNK_POLICY_KEY)
 from audio_validation import publish_audio_output, remove_stale_audio, validate_generated_audio
+from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationCancelled,
+                                    ensure_audio_generation_active, ensure_audio_generation_publication,
+                                    get_audio_generation_owner, is_audio_generation_cancelled,
+                                    run_with_audio_generation_owner)
 from tts import (
     TTSEngine,
     get_chunk_seed,
@@ -1305,6 +1309,7 @@ class ProjectManager:
 
     def _publish_generated_chunk_audio(self, chunk, temp_path, speaker):
         """Convert privately, then attach/promote audio only to unchanged inputs."""
+        ensure_audio_generation_active()
         with ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context")):
             preparation = get_speech_normalization(chunk.get("text", ""))
             validate_generated_audio(temp_path, "generated speech", expected_text=preparation["text"])
@@ -1324,15 +1329,35 @@ class ProjectManager:
         try:
             staged_audio = self._export_chunk_audio(temp_path, f".render-{uuid.uuid4().hex}")
             staged_path = self.get_chunk_audio_path(staged_audio)
-            updated = self._update_chunk_fields_by_uid(
-                chunk["uid"], expected_chunk=chunk, audio_source=staged_path,
-                status="done", audio_revision=revision, error=None, drift=None, **evidence)
+            with ensure_audio_generation_publication():
+                updated = self._update_chunk_fields_by_uid(
+                    chunk["uid"], expected_chunk=chunk, audio_source=staged_path,
+                    status="done", audio_revision=revision, error=None, drift=None, **evidence)
             if updated is None:
                 raise ValueError(GENERATION_INPUTS_CHANGED)
             return updated["audio_path"]
         finally:
             if staged_path:
                 self._remove_temp_file(staged_path)
+
+    def _update_generation_fields(self, chunk, **fields):
+        with ensure_audio_generation_publication():
+            return self._update_chunk_fields_by_uid(
+                chunk.get("uid"), expected_chunk=chunk, **fields)
+
+    def _restore_cancelled_generation(self, chunk):
+        try:
+            with ensure_audio_generation_publication(allow_cancelled=True):
+                current = self._update_chunk_fields_by_uid(chunk.get("uid"), expected_chunk=chunk)
+                if current is not None and current.get("status") == "generating":
+                    return self._update_chunk_fields_by_uid(
+                        chunk.get("uid"), expected_chunk=chunk, required_status="generating",
+                        status=(chunk.get("status", "pending") if chunk.get("status") != "generating" else "pending"),
+                        error=chunk.get("error"))
+                return current
+        except AudioGenerationCancelled:
+            # A replaced/released owner has no authority even for cleanup.
+            return None
 
     def _reset_captured_generations(self, captured, indices, done_indices):
         """Reset generating owners; count unfinished requests and report stale inputs."""
@@ -1341,6 +1366,15 @@ class ProjectManager:
             if idx in done_indices:
                 continue
             chunk = get_captured_chunk(captured, idx)
+            if get_audio_generation_owner() is not None:
+                # One owner admission covers the entire read/reset; cancellation
+                # may arrive while cleanup waits, and stale owners cannot reset.
+                current = self._restore_cancelled_generation(chunk) if chunk else None
+                if current is None:
+                    failed.append((idx, GENERATION_INPUTS_CHANGED))
+                else:
+                    count += 1
+                continue
             current = (self._update_chunk_fields_by_uid(chunk.get("uid"), expected_chunk=chunk)
                        if chunk else None)
             if current is None:
@@ -1394,18 +1428,16 @@ class ProjectManager:
         if not chunk:
             return False, "Invalid chunk index"
         ensure_literal_chunk(chunk)
-        updated = self._update_chunk_fields_by_uid(
-            chunk.get("uid"), expected_chunk=chunk, status="generating", error=None)
-        if updated is None:
-            return False, GENERATION_INPUTS_CHANGED
-
         temp_path = None
         try:
+            updated = self._update_generation_fields(chunk, status="generating", error=None)
+            if updated is None:
+                return False, GENERATION_INPUTS_CHANGED
             engine = self.get_engine()
             if not engine:
                 message = "TTS engine not initialized"
-                updated = self._update_chunk_fields_by_uid(
-                    chunk["uid"], expected_chunk=chunk, status="error", error=message)
+                updated = self._update_generation_fields(
+                    chunk, status="error", error=message)
                 return False, message if updated is not None else GENERATION_INPUTS_CHANGED
 
             # atomic_json_write's write-temp+rename makes plain reads safe even
@@ -1446,6 +1478,7 @@ class ProjectManager:
                     take=chunk.get("take", 0))
             generation_args = (text, instruct, speaker_to_use, chunk_voice_config, temp_path)
             failure = None
+            ensure_audio_generation_active()
             with ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context")):
                 if callable(getattr(engine, "generate_voice_result", None)):
                     result = engine.generate_voice_result(*generation_args)
@@ -1453,6 +1486,7 @@ class ProjectManager:
                 else:
                     success = engine.generate_voice(*generation_args)
 
+            ensure_audio_generation_active()
             if success:
                 validate_generated_audio(
                     temp_path, f"chunk {index} ({speaker_to_use})")
@@ -1465,16 +1499,22 @@ class ProjectManager:
                 return True, audio_path
             else:
                 message = failure.get_message() if failure else "Generation returned False"
-                updated = self._update_chunk_fields_by_uid(
-                    chunk["uid"], expected_chunk=chunk, status="error", error=message)
+                updated = self._update_generation_fields(
+                    chunk, status="error", error=message)
                 return False, message if updated is not None else GENERATION_INPUTS_CHANGED
 
         except Exception as e:
+            if isinstance(e, AudioGenerationCancelled) or is_audio_generation_cancelled():
+                self._restore_cancelled_generation(chunk)
+                return False, AUDIO_GENERATION_CANCELLED
             try:
-                updated = self._update_chunk_fields_by_uid(
-                    chunk["uid"], expected_chunk=chunk, status="error", error=str(e))
+                updated = self._update_generation_fields(
+                    chunk, status="error", error=str(e))
                 if updated is None:
                     return False, GENERATION_INPUTS_CHANGED
+            except AudioGenerationCancelled:
+                self._restore_cancelled_generation(chunk)
+                return False, AUDIO_GENERATION_CANCELLED
             except Exception as update_err:
                 print(f"Warning: Failed to update chunk {index} status to error: {update_err}")
             return False, str(e)
@@ -2445,6 +2485,7 @@ class ProjectManager:
             return results
 
         all_indices = list(indices)
+        audio_owner = get_audio_generation_owner()
 
         def _run_round(round_indices, workers):
             """One pass at `workers` concurrency.
@@ -2456,10 +2497,11 @@ class ProjectManager:
             completed, oom_failed, hard_failed = [], [], []
             was_cancelled = False
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = {executor.submit(self._generate_captured_chunk_audio, idx, captured.get(idx)): idx
+                futures = {executor.submit(run_with_audio_generation_owner, audio_owner,
+                                           self._generate_captured_chunk_audio, idx, captured.get(idx)): idx
                            for idx in round_indices}
                 for future in as_completed(futures):
-                    if cancel_check and cancel_check() and not was_cancelled:
+                    if (is_audio_generation_cancelled() or (cancel_check and cancel_check())) and not was_cancelled:
                         was_cancelled = True
                         print("[CANCEL] Cancellation requested — stopping parallel generation")
                         for pending_future in futures:
@@ -2473,6 +2515,8 @@ class ProjectManager:
                         if success:
                             completed.append(idx)
                             print(f"Chunk {idx} completed: {msg}")
+                        elif audio_owner is not None and msg == AUDIO_GENERATION_CANCELLED:
+                            was_cancelled = True
                         elif is_oom_failure(msg):
                             oom_failed.append((idx, msg))
                             print(f"Chunk {idx} failed (VRAM): {msg}")
@@ -2644,6 +2688,7 @@ class ProjectManager:
             return "failed", idx, "Index out of range in captured generation"
         temp_path = os.path.join(self.root_dir, f"temp_batch_{idx}.wav")
         try:
+            ensure_audio_generation_active()
             if not os.path.exists(temp_path):
                 raise ValueError("Temp audio file not found")
             validate_generated_audio(temp_path, f"batch chunk {idx}")
@@ -2652,9 +2697,15 @@ class ProjectManager:
             print(f"Chunk {idx} completed: {audio_path}")
             return "completed", idx, audio_path
         except Exception as e:
+            if isinstance(e, AudioGenerationCancelled) or is_audio_generation_cancelled():
+                self._restore_cancelled_generation(chunk)
+                return "cancelled", idx, AUDIO_GENERATION_CANCELLED
             print(f"Error processing chunk {idx}: {e}")
-            updated = self._update_chunk_fields_by_uid(
-                chunk.get("uid"), expected_chunk=chunk, status="error", error=str(e))
+            try:
+                updated = self._update_generation_fields(chunk, status="error", error=str(e))
+            except AudioGenerationCancelled:
+                self._restore_cancelled_generation(chunk)
+                return "cancelled", idx, AUDIO_GENERATION_CANCELLED
             return "failed", idx, str(e) if updated is not None else GENERATION_INPUTS_CHANGED
         finally:
             self._remove_temp_file(temp_path)
@@ -2663,6 +2714,8 @@ class ProjectManager:
         """Separate retryable OOM failures and conditionally mark live owners."""
         oom_failed, hard_failures = [], []
         for idx, error in batch_failed:
+            if is_audio_generation_cancelled():
+                break
             chunk = get_captured_chunk(chunks, idx)
             current = (self._update_chunk_fields_by_uid(chunk.get("uid"), expected_chunk=chunk)
                        if chunk else None)
@@ -2672,8 +2725,10 @@ class ProjectManager:
             if is_oom_failure(error) and current_batch_size > 1:
                 oom_failed.append(idx)
                 continue
-            updated = self._update_chunk_fields_by_uid(
-                chunk["uid"], expected_chunk=chunk, status="error", error=str(error))
+            try:
+                updated = self._update_generation_fields(chunk, status="error", error=str(error))
+            except AudioGenerationCancelled:
+                break
             hard_failures.append((idx, error if updated is not None else GENERATION_INPUTS_CHANGED))
         return oom_failed, hard_failures
 
@@ -2720,6 +2775,10 @@ class ProjectManager:
         # for a read-modify-write — no extra locking needed here.
         voice_config = safe_load_json(self.voice_config_path, default={})
 
+        if is_audio_generation_cancelled():
+            results["cancelled"] = total
+            return results
+
         # Get TTS engine
         engine = self.get_engine()
         if not engine:
@@ -2731,11 +2790,19 @@ class ProjectManager:
         active_indices = []
         for idx in indices:
             chunk = captured.get(idx)
-            if not chunk or self._update_chunk_fields_by_uid(
-                    chunk.get("uid"), expected_chunk=chunk, status="generating") is None:
+            try:
+                updated = self._update_generation_fields(chunk, status="generating") if chunk else None
+            except AudioGenerationCancelled:
+                break
+            if updated is None:
                 results["failed"].append((idx, GENERATION_INPUTS_CHANGED))
             else:
                 active_indices.append(idx)
+        if is_audio_generation_cancelled():
+            reset_count, stale = self._reset_captured_generations(captured, indices, set())
+            results["cancelled"] += reset_count
+            results["failed"].extend(stale)
+            return results
         indices = active_indices
 
         # Optionally reorder indices so same voice-type chunks are contiguous.
@@ -2751,7 +2818,7 @@ class ProjectManager:
         current_batch_size = max(1, batch_size)
         batch_num = 0
         while pending:
-            if cancel_check and cancel_check():
+            if is_audio_generation_cancelled() or (cancel_check and cancel_check()):
                 print(f"[CANCEL] Cancellation requested before batch {batch_num + 1}")
                 break
 
@@ -2766,8 +2833,11 @@ class ProjectManager:
             for idx in batch_indices:
                 chunk = captured.get(idx)
                 if chunk:
-                    if self._update_chunk_fields_by_uid(
-                            chunk["uid"], expected_chunk=chunk, status="generating") is None:
+                    try:
+                        updated = self._update_generation_fields(chunk, status="generating")
+                    except AudioGenerationCancelled:
+                        break
+                    if updated is None:
                         cleanup_failures.append((idx, GENERATION_INPUTS_CHANGED))
                         continue
                     temp_path = os.path.join(
@@ -2807,10 +2877,18 @@ class ProjectManager:
             try:
                 batch_results = (engine.generate_batch(
                     batch_chunks, voice_config, self.root_dir, batch_seed)
-                    if batch_chunks else {"completed": [], "failed": []})
+                    if batch_chunks and not is_audio_generation_cancelled() else {"completed": [], "failed": []})
             except Exception:
+                if is_audio_generation_cancelled():
+                    for idx in batch_indices:
+                        self._remove_temp_file(os.path.join(self.root_dir, f"temp_batch_{idx}.wav"))
+                    break
                 self._reset_captured_generations(captured, indices, set())
                 raise
+            if is_audio_generation_cancelled():
+                for idx in batch_indices:
+                    self._remove_temp_file(os.path.join(self.root_dir, f"temp_batch_{idx}.wav"))
+                break
             batch_results["failed"].extend(cleanup_failures)
 
             # Process completed chunks - convert to MP3 and update status
@@ -2818,12 +2896,17 @@ class ProjectManager:
                 outcome, out_idx, payload = self._finalize_completed_chunk(idx, captured)
                 if outcome == "completed":
                     results["completed"].append(out_idx)
-                else:
+                elif outcome != "cancelled":
                     results["failed"].append((out_idx, payload))
 
             oom_failed, hard_failures = self._record_batch_failures(
                 batch_results["failed"], captured, current_batch_size)
+            # Preserve failures durably recorded before cancellation admission.
             results["failed"].extend(hard_failures)
+            if is_audio_generation_cancelled():
+                for idx in batch_indices:
+                    self._remove_temp_file(os.path.join(self.root_dir, f"temp_batch_{idx}.wav"))
+                break
 
             if oom_failed:
                 gc.collect()

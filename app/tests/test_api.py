@@ -1392,6 +1392,18 @@ def test_cancel_audio():
     data = r.json()
     if data.get("status") not in ("not_running", "cancelling"):
         raise TestFailure(f"Expected status not_running or cancelling, got {data}")
+    if data.get("status") == "not_running":
+        # Repeated idle cancellation must not detach or rewrite completed takes.
+        before = get("/api/chunks")
+        assert_status(before)
+        again = post("/api/cancel_audio", json={})
+        assert_status(again)
+        if again.json().get("status") != "not_running":
+            raise TestFailure(f"Idle cancellation unexpectedly started work: {again.json()}")
+        after = get("/api/chunks")
+        assert_status(after)
+        if before.json() != after.json():
+            raise TestFailure("Repeated idle cancellation changed saved chunk/take metadata")
 
 
 def test_export_audacity():

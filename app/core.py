@@ -27,6 +27,7 @@ import aiofiles
 from fastapi import HTTPException, UploadFile
 
 from character_evidence import aliases_for
+from audio_generation_owner import AudioGenerationCancelled, ensure_audio_generation_owner
 from project import ProjectManager
 from config_settings import load_app_config
 from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
@@ -902,11 +903,24 @@ def _ensure_owned_task_started(task_name, claim_id, already_started=False):
         return True
 
 
+@contextmanager
+def _ensure_audio_task_owner(claim_id, *, allow_cancelled=False):
+    # Same mutex as cancel admission. Always acquire it before Project chunk locks.
+    with _gpu_lock:
+        owner = _task_claims.get("audio")
+        if (owner is None or owner["id"] != claim_id or owner["phase"] != "started"
+                or (process_state["audio"]["cancel"] and not allow_cancelled)):
+            raise AudioGenerationCancelled()
+        yield
+
+
 def _run_owned_background_task(task_name, claim_id, callback, already_started=False):
     if not _ensure_owned_task_started(task_name, claim_id, already_started):
         return
     try:
-        return callback()
+        owner = functools.partial(_ensure_audio_task_owner, claim_id) if task_name == "audio" else None
+        with ensure_audio_generation_owner(owner):
+            return callback()
     finally:
         release_gpu_task_claim(task_name, claim_id)
 
