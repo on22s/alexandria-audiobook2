@@ -35,6 +35,33 @@ class EditorRenderBarrierTests(unittest.TestCase):
             result=subprocess.run(['node','-e',HARNESS+code,str(SOURCE),str(Path(tmp)/'chunks.json')],capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
 
+    def test_unchanged_native_textarea_line_endings_preserve_raw_text_and_delivery(self):
+        self.run_node(r'''
+(async()=>{for(const raw of ['First\r\nSecond','First\rSecond','First\nSecond']){
+ const a=client();a.setHold(false);const saved={id:7,uid:'row-7',text:raw,instruct:raw,speaker:'OLD',pause_after:null,status:'done',audio_path:'prior.wav'};
+ vm.runInContext('cachedChunks='+JSON.stringify([saved]),a.context);fs.writeFileSync(artifact,JSON.stringify([saved]));
+ Object.assign(a.controls,{text:raw.replace(/\r\n?/g,'\n'),instruct:raw.replace(/\r\n?/g,'\n'),speaker:'OLD',pause_after:''});
+ await a.context.ensureEditorRenderSnapshot();assert.strictEqual(a.calls.length,0,'unchanged snapshot must not write');assert.deepStrictEqual(JSON.parse(fs.readFileSync(artifact)),[saved]);
+ await a.context.saveRowEdits(7);const posted=a.calls.at(-1).data;assert.strictEqual(posted.text,raw);assert.strictEqual(posted.instruct,raw);
+ assert.strictEqual(JSON.parse(fs.readFileSync(artifact))[0].text,raw);
+}finished=true;})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
+    def test_real_text_edits_and_pending_reverts_keep_their_intended_line_endings(self):
+        self.run_node(r'''
+(async()=>{
+ const a=client();const raw='First\r\nSecond',saved={id:7,uid:'row-7',text:raw,instruct:raw,speaker:'OLD'};
+ vm.runInContext('cachedChunks='+JSON.stringify([saved]),a.context);fs.writeFileSync(artifact,JSON.stringify([saved]));
+ Object.assign(a.controls,{text:'Edited\nSecond',instruct:raw.replace(/\r\n/g,'\n'),speaker:'OLD',pause_after:''});
+ const save=a.context.saveRowEdits(7,true);await tick();assert.strictEqual(a.calls[0].data.text,'Edited\nSecond');assert(!Object.hasOwn(a.calls[0].data,'instruct'));a.gates.shift()();await save;
+ // A queued actual edit followed by a visible revert must win over that edit.
+ vm.runInContext('cachedChunks='+JSON.stringify([saved]),a.context);Object.assign(a.controls,{text:'First\nSecond'});
+ const earlier=a.context.updateChunk(7,'text','Earlier edit');const snapshot=a.context.ensureEditorRenderSnapshot();await tick();a.gates.shift()();await tick();a.gates.shift()();await Promise.all([earlier,snapshot]);
+ assert.strictEqual(JSON.parse(fs.readFileSync(artifact))[0].text,raw);assert.strictEqual(a.calls.at(-1).data.text,raw);
+ finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
     def test_both_render_buttons_serialize_rows_and_include_focused_uncommitted_controls(self):
         self.run_node(r'''
 (async()=>{for(const button of ['renderAll','renderBatchFast']){

@@ -3121,7 +3121,9 @@
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_edits_during_snapshot_and_confirmation_are_flushed_and_resnapshotted",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_failed_row_save_aborts_render_and_successful_retry_uses_latest_artifact",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_queued_edits_keep_captured_row_and_book_identity",
-    "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_unchanged_controls_do_not_overwrite_other_client_and_pending_revert_is_saved"
+    "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_real_text_edits_and_pending_reverts_keep_their_intended_line_endings",
+    "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_unchanged_controls_do_not_overwrite_other_client_and_pending_revert_is_saved",
+    "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_unchanged_native_textarea_line_endings_preserve_raw_text_and_delivery"
   ],
   "test_editor_repair_js": [
     "tests.test_editor_repair_js.EditorRepairJsTests.test_batch_selection_confirmation_cancellation_and_change",

@@ -15,6 +15,7 @@ const ctx={URLSearchParams,window:null,currentBookFilename:'A',console:{log:()=>
  setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,delay});return id;},clearTimeout:id=>timers.delete(id),
  refreshEditorIntegrity:async()=>{},refreshRuntimeEstimate:async()=>{},invalidateEditorIntegrity:()=>{},isAudioPlaying:()=>playing,buildSpeakerSelect:chunk=>chunk.speaker||'',_driftBadge:()=>'',_driftKey:drift=>JSON.stringify(drift),updateChunkRow:chunk=>updates.push(chunk.id)};ctx.window=ctx;
 vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
+run(source.slice(source.indexOf('function getEditorFieldValue('),source.indexOf('window.updateChunk =')));
 run(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')));
 run(source.slice(source.indexOf('let isPlayingSequence ='),source.indexOf('function buildSpeakerSelect(')));
 const start=source.includes('function ensureChunkRefresh(')?source.indexOf('function ensureChunkRefresh('):source.indexOf('async function loadChunks(');
@@ -211,6 +212,7 @@ for(const m of value.matchAll(/<tr data-id="(\d+)"[\s\S]*?<\/tr>/g)){
 }}});
 const c={URLSearchParams,window:null,document,currentBookFilename:'book-A',API:{get:async()=>data,post:async url=>{const q=new URL(url,'http://fixture').searchParams;assert.strictEqual(q.get('expected_uid'),'first');assert.strictEqual(q.get('expected_book_token'),'book-token');return{};}},invalidateEditorIntegrity(){},refreshEditorIntegrity:async()=>{},refreshRuntimeEstimate:async()=>{},Date,escapeHtml:String,buildSpeakerSelect:()=>'<select></select>',_driftBadge:()=>'',_driftKey:()=>'',isAudioPlaying:()=>false,updateChunkRow(){},setTimeout:()=>1,clearTimeout(){},applyDriftFilter(){},generateChunk(){}};c.window=c;vm.createContext(c);
 function run(code){return vm.runInContext(code,c);}let a=source.indexOf('let isPlayingSequence =');run(source.slice(a,source.indexOf('function buildSpeakerSelect(',a)));
+run(source.slice(source.indexOf('function getEditorFieldValue('),source.indexOf('window.updateChunk =')));
 a=source.indexOf('async function refreshChunkSnapshot(');run(source.slice(a,source.indexOf('window.insertChunkAfter =',a)));
 a=source.indexOf('const pendingChunkEdits =');run(source.slice(a,source.indexOf('async function flushChunkEdits()',a)));
 const original=[{id:1,uid:'first',text:'First saved line',instruct:'',speaker:'Narrator',status:'pending'},{id:2,uid:'second',text:'Second saved line',instruct:'old style',pause_after:50,speaker:'Narrator',status:'generating'}];
