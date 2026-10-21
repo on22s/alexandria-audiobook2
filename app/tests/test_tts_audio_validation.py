@@ -33,8 +33,9 @@ def _wav(path, seconds=0.5, rate=24000):
 
 class TestClonePromptCacheInputs(unittest.TestCase):
     def test_reference_text_and_same_path_audio_bytes_invalidate_prompt(self):
-        from types import SimpleNamespace
         from unittest.mock import Mock, patch
+        from tests.test_clone_reference_cache import Prompt
+        import torch
         import numpy as np
         import soundfile as sf
         from tts import TTSEngine
@@ -43,12 +44,16 @@ class TestClonePromptCacheInputs(unittest.TestCase):
             sf.write(ref, np.zeros(1200), 24000)
             voice = {"ALICE": {"ref_audio": ref, "ref_text": "Old text"}}
             engine = TTSEngine({"tts": {"mode": "local"}})
-            prompts = [object(), object(), object()]
+            prompts = [[Prompt(None, torch.tensor([float(number)]))] for number in range(3)]
             create = Mock(side_effect=prompts)
-            model = SimpleNamespace(create_voice_clone_prompt=create)
+            class Model:
+                create_voice_clone_prompt = create
+            model = Model()
             with patch.object(engine, "_init_local_clone", return_value=model):
                 first = engine._get_clone_prompt("ALICE", voice)
-                self.assertIs(first, engine._get_clone_prompt("ALICE", voice))
+                cached = engine._get_clone_prompt("ALICE", voice)
+                self.assertIsNot(first, cached)
+                self.assertTrue(torch.equal(first[0].ref_spk_embedding, cached[0].ref_spk_embedding))
                 voice["ALICE"]["ref_text"] = "New text"
                 second = engine._get_clone_prompt("ALICE", voice)
                 self.assertIsNot(first, second)
@@ -58,7 +63,8 @@ class TestClonePromptCacheInputs(unittest.TestCase):
                 os.utime(ref, ns=(stat.st_atime_ns, stat.st_mtime_ns))
                 third = engine._get_clone_prompt("ALICE", voice)
                 self.assertIsNot(second, third)
-                self.assertIs(third, engine._get_clone_prompt("ALICE", voice))
+                self.assertTrue(torch.equal(third[0].ref_spk_embedding,
+                    engine._get_clone_prompt("ALICE", voice)[0].ref_spk_embedding))
             self.assertEqual(3, create.call_count)
             self.assertEqual("New text", create.call_args.kwargs["ref_text"])
             audio, rate = create.call_args.kwargs["ref_audio"]

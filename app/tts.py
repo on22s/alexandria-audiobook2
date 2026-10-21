@@ -24,7 +24,9 @@ import soundfile as sf
 
 import device_utils
 from tts_diagnostics import (capture_tts_operation, measure_tts_stage, record_tts_audio,
-                             record_tts_cache, record_tts_failure, measure_tts_stage_time)
+                             record_tts_cache, record_tts_failure, measure_tts_stage_time,
+                             record_tts_reference_cache)
+import clone_reference_cache
 from adapter_checkpoint_transaction import (ensure_adapter_generation_snapshot, get_adapter_generation_sha256,
                                             get_adapter_serving_metadata)
 from lora_evidence import get_file_sha256, get_tts_model_settings
@@ -813,8 +815,11 @@ class TTSEngine:
         self._external_calls = set()
         self._external_closed = False
 
-        # Clone prompt cache: speaker_name -> (reference input key, reusable voice_clone_prompt)
-        self._clone_prompt_cache = {}
+        self._prepared_reference_cache = clone_reference_cache.ReferenceLRU(
+            clone_reference_cache.PREPARED_MAX_ENTRIES, clone_reference_cache.PREPARED_MAX_BYTES)
+        self._clone_prompt_cache = clone_reference_cache.ReferenceLRU(
+            clone_reference_cache.PROMPT_MAX_ENTRIES, clone_reference_cache.PROMPT_MAX_BYTES)
+        self._clone_prompt_model_ref = None
         # LoRA clone prompt cache: (adapter_path, serving generation) -> reusable prompt
         self._lora_prompt_cache = {}
 
@@ -1300,7 +1305,7 @@ class TTSEngine:
             if name == "custom":
                 self._custom_warmup_needed = True
             elif name == "clone":
-                self._clone_prompt_cache.clear()
+                self._clear_clone_reference_caches()
             elif name == "lora":
                 self._lora_adapter_path = None
                 self._lora_generation_sha256 = None
@@ -1591,10 +1596,39 @@ class TTSEngine:
 
     # ── Clone prompt cache (local mode) ──────────────────────────
 
+    def _clear_clone_reference_caches(self):
+        self._clone_prompt_cache.clear()
+        prepared = getattr(self, '_prepared_reference_cache', None)
+        if prepared is not None:
+            prepared.clear()
+        self._clone_prompt_model_ref = None
+
+    def _capture_clone_prompt_cache_copy(self, prompt):
+        try:
+            captured = clone_reference_cache.copy_clone_prompt(prompt, self._clone_prompt_cache.max_bytes)
+        except Exception as error:
+            # Optional retention must not turn a usable provider result into a
+            # render failure. Release cache storage before ordinary generation.
+            self._clone_prompt_cache.clear()
+            self._prepared_reference_cache.clear()
+            logging.warning('Clone reference cache copy bypassed (%s).', type(error).__name__)
+            captured = None
+        if captured is None:
+            self._clone_prompt_cache.record_bypass()
+        return captured
+
     @ensure_local_tts_serialized
     @measure_tts_stage("reference_preparation")
     def _get_clone_prompt(self, speaker, voice_config):
-        """Get or create a cached voice clone prompt for a speaker."""
+        """Prepare an admitted reference, sharing bounded content/model work."""
+        try:
+            return self._prepare_clone_prompt(speaker, voice_config)
+        finally:
+            record_tts_reference_cache(self._prepared_reference_cache.snapshot(),
+                                       self._clone_prompt_cache.snapshot())
+
+    def _prepare_clone_prompt(self, speaker, voice_config):
+        ensure_audio_generation_active()
         voice_data = voice_config.get(speaker, {})
         ref_audio_path = voice_data.get("ref_audio")
         ref_text = voice_data.get("ref_text")
@@ -1607,30 +1641,78 @@ class TTSEngine:
         # Hash and decode one captured reference, resolving historical adapter
         # directories under publication admission before reading their bytes.
         ref_audio_path, audio_bytes = get_adapter_asset_snapshot(ref_audio_path)
-        reference_key = (ref_audio_path, ref_text, hashlib.sha256(audio_bytes).hexdigest())
-        if speaker in self._clone_prompt_cache:
-            cached_key, cached_prompt = self._clone_prompt_cache[speaker]
-            if cached_key == reference_key:
-                record_tts_cache(True)
-                return cached_prompt
-            print(f"Voice changed for '{speaker}', rebuilding clone prompt...")
-
+        digest = hashlib.sha256(audio_bytes).hexdigest()
+        # Admission always precedes hits, including a resident-family change.
         model = self._init_local_clone()
+        owner = self._clone_prompt_model_ref
+        if owner is None or owner() is not model:
+            self._clear_clone_reference_caches()
+            try:
+                self._clone_prompt_model_ref = weakref.ref(model)
+            except TypeError:
+                # An unknown provider without weak identity remains uncached.
+                pass
+        prepared_key = (clone_reference_cache.PREPROCESSING_VERSION, digest)
+        cache_prompt = self._clone_prompt_model_ref is not None and type(ref_text) is str
+        prompt_key = (*prepared_key, ref_text) if cache_prompt else None
+        if cache_prompt:
+            cached = self._clone_prompt_cache.lookup(prompt_key)
+            if cached is not None:
+                copied = self._capture_clone_prompt_cache_copy(cached)
+                if copied is not None:
+                    ensure_audio_generation_active()
+                    record_tts_cache(True)
+                    return copied[0]
+                cached = None  # Release the evicted buffers before rebuilding.
+        else:
+            self._clone_prompt_cache.record_bypass()
+        record_tts_cache(False)
 
-        # Load reference audio as numpy array
-        audio_array, sample_rate = sf.read(io.BytesIO(audio_bytes))
-        # Ensure mono
-        if audio_array.ndim > 1:
-            audio_array = audio_array.mean(axis=1)
+        prepared = self._prepared_reference_cache.lookup(prepared_key)
+        audio_array = None
+        if prepared is not None:
+            try:
+                audio_array = prepared[0].copy(order='C')
+                sample_rate = prepared[1]
+            except MemoryError:
+                self._prepared_reference_cache.clear()
+                self._prepared_reference_cache.record_bypass()
+                prepared = None
+        staged_reference = None
+        if audio_array is None:
+            # Preserve float64 decode/mono mean before the provider's float32
+            # conversion. Changing that order changes reference samples.
+            audio_array, sample_rate = sf.read(io.BytesIO(audio_bytes))
+            if audio_array.ndim > 1:
+                audio_array = audio_array.mean(axis=1)
+            charge = (audio_array.nbytes + sys.getsizeof(audio_array)
+                      + sys.getsizeof(sample_rate) + sys.getsizeof((audio_array, sample_rate)))
+            if charge <= self._prepared_reference_cache.max_bytes:
+                try:
+                    snapshot = audio_array.copy(order='C')
+                    snapshot.flags.writeable = False
+                    staged_reference = (snapshot, sample_rate)
+                except MemoryError:
+                    self._prepared_reference_cache.clear()
+                    self._prepared_reference_cache.record_bypass()
+            else:
+                self._prepared_reference_cache.record_bypass()
 
         print(f"Creating clone prompt for '{speaker}'...")
-        record_tts_cache(False)
+        ensure_audio_generation_active()
         prompt = model.create_voice_clone_prompt(
             ref_audio=(audio_array, sample_rate),
             ref_text=ref_text,
         )
-        self._clone_prompt_cache[speaker] = (reference_key, prompt)
-        print(f"Clone prompt cached for '{speaker}'.")
+        ensure_audio_generation_active()
+        if staged_reference is not None:
+            self._prepared_reference_cache.store(prepared_key, staged_reference, charge)
+        if cache_prompt:
+            captured = self._capture_clone_prompt_cache_copy(prompt)
+            if captured is not None:
+                self._clone_prompt_cache.store(prompt_key, captured[0], captured[1])
+        ensure_audio_generation_active()
+        print(f"Clone prompt prepared for '{speaker}'.")
         return prompt
 
     def get_voice_backend(self, category):

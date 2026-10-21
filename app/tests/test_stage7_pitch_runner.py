@@ -18,6 +18,42 @@ class Stage7PitchRunnerTests(unittest.TestCase):
                 "rows": [{"pitch_status": "measured"}] * 2
                         + [{"pitch_status": "tracker_failure"}] * 2})
 
+        for diagnostic in ("ImportError: decoder unavailable", "only 0 voiced frames"):
+            with self.subTest(diagnostic=diagnostic):
+                with self.assertRaises(RuntimeError) as raised:
+                    runner.require_pilot_gate({"rows": [{"pitch_status": "measured"}] * 2
+                        + [{"pitch_status": "tracker_failure", "pitch_error": diagnostic}] * 2})
+                message = str(raised.exception)
+                self.assertIn("only 2/4", message)
+                self.assertIn("row 3: status='tracker_failure'", message)
+                self.assertIn(diagnostic, message)
+                self.assertNotIn("row 1:", message)
+
+        for failed in ({}, {"pitch_status": None, "pitch_error": 123}):
+            with self.subTest(failed=failed), self.assertRaises(RuntimeError) as raised:
+                runner.require_pilot_gate({"rows": [failed] * 4})
+            self.assertIn("no pitch diagnostic", str(raised.exception))
+
+        with self.assertRaises(RuntimeError) as raised:
+            runner.require_pilot_gate({"rows": [{"pitch_status": "x" * 1000,
+                "pitch_error": "\x1b[31m\n" + "z" * 10000}] * 100})
+        message = str(raised.exception)
+        self.assertLess(len(message), 1500)
+        self.assertIn("row 4:", message)
+        self.assertNotIn("row 5:", message)
+        self.assertNotIn("x" * 41, message)
+        self.assertNotIn("z" * 161, message)
+        self.assertNotIn("\x1b", message)
+        self.assertNotIn("\n", message)
+        self.assertIn("\\x1b", message)
+
+        # repr can expand one nonprintable Unicode character to ten output
+        # characters. Bound that case too, separately from the ASCII fixture.
+        with self.assertRaises(RuntimeError) as raised:
+            runner.require_pilot_gate({"rows": [{"pitch_status": "\U0010ffff" * 1000,
+                "pitch_error": "\U0010ffff" * 10000}] * 100})
+        self.assertLess(len(str(raised.exception)), 9000)
+
     def test_full_job_is_all_adapters_seeds_and_passages(self):
         with patch.object(runner.os.path, "exists", return_value=False), \
                 patch.object(runner, "run_gpu_job") as run_gpu, \

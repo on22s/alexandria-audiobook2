@@ -529,8 +529,9 @@ class AdapterIdAliasTests(unittest.TestCase):
     def test_clone_prompt_reads_saved_old_adapter_reference_without_changing_config(self):
         from pathlib import Path
         import tempfile
-        from types import SimpleNamespace
         from unittest.mock import patch
+        from tests.test_clone_reference_cache import Prompt
+        import torch
         import numpy as np
         import soundfile as sf
         import tts
@@ -543,11 +544,16 @@ class AdapterIdAliasTests(unittest.TestCase):
             self.assertEqual(0,_invoke(models,'--apply'))
             captured=[]
             def prompt(**kwargs):
-                captured.append(kwargs);return object()
+                captured.append(kwargs)
+                return [Prompt(None,torch.ones(4),ref_text=kwargs['ref_text'])]
+            class Model:
+                create_voice_clone_prompt = staticmethod(prompt)
             engine=tts.TTSEngine({'tts':{'mode':'local'}})
-            with patch.object(engine,'_init_local_clone',return_value=SimpleNamespace(create_voice_clone_prompt=prompt)):
+            with patch.object(engine,'_init_local_clone',return_value=Model()):
                 first=engine._get_clone_prompt('ANN',config)
-                self.assertIs(first,engine._get_clone_prompt('ANN',config))
+                second=engine._get_clone_prompt('ANN',config)
+                self.assertIsNot(first,second)
+                self.assertTrue(torch.equal(first[0].ref_spk_embedding,second[0].ref_spk_embedding))
             self.assertEqual(before,config);self.assertEqual(1,len(captured))
             audio,rate=captured[0]['ref_audio'];self.assertEqual(24000,rate)
             np.testing.assert_allclose(audio,.05,atol=4e-5)

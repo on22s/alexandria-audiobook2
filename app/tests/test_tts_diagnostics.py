@@ -89,6 +89,7 @@ class TtsDiagnosticsTests(unittest.TestCase):
         before = self.records()
         contexts[0].run(diagnostics.record_tts_failure, 'timeout')
         contexts[0].run(diagnostics.record_tts_cache, True)
+        contexts[0].run(diagnostics.record_tts_reference_cache, {'hits': 99}, {'hits': 99})
         self.assertEqual(before, self.records())
         outcomes = {record['outcome']: record for record in before}
         self.assertEqual(1, outcomes['completed']['reference_cache_hits'])
@@ -116,26 +117,62 @@ class TtsDiagnosticsTests(unittest.TestCase):
         self.assertEqual([], result['sections']['tts']['records'])
 
     def test_native_clone_cache_hits_misses_and_save_failure_are_observed(self):
+        from tests.test_clone_reference_cache import Prompt
+        import torch
         engine = tts.TTSEngine({'tts': {'mode': 'local'}})
         with tempfile.TemporaryDirectory() as directory:
             reference = Path(directory) / 'reference.wav'
             sf.write(reference, np.full(2400, .1), 24000)
             class Model:
-                def create_voice_clone_prompt(self, **_kwargs):
-                    return object()
+                def create_voice_clone_prompt(self, **kwargs):
+                    return [Prompt(None, torch.ones(4), ref_text=kwargs['ref_text'])]
             config = {'S': {'type': 'clone', 'ref_audio': str(reference), 'ref_text': 'Private reference'}}
             @diagnostics.capture_tts_operation('generate_clone_voice')
             def render(self):
                 with patch.object(engine, '_init_local_clone', return_value=Model()):
                     first = engine._get_clone_prompt('S', config)
                     second = engine._get_clone_prompt('S', config)
-                return first is second
+                return first is not second and torch.equal(first[0].ref_spk_embedding,
+                                                           second[0].ref_spk_embedding)
             self.assertTrue(render(engine))
             self.assertEqual((1, 1), (self.records()[0]['reference_cache_hits'], self.records()[0]['reference_cache_misses']))
+            snapshot = self.records()[0]['reference_cache']
+            self.assertEqual(1, snapshot['clone_prompts']['entries'])
+            self.assertEqual(1, snapshot['prepared_audio']['entries'])
             with patch.object(engine, '_local_generate_custom', side_effect=OSError('private disk failure')):
                 result = engine.generate_voice_result('Private text', '', 'S', {'S': {'type':'custom'}}, str(Path(directory)/'out.wav'))
             self.assertFalse(result.success)
             self.assertEqual('failed', self.records()[-1]['outcome'])
+
+    def test_reference_cache_observations_remain_bounded_and_content_free(self):
+        from tests.test_clone_reference_cache import Prompt
+        import torch
+        engine = tts.TTSEngine({'tts': {'mode': 'local'}})
+        with tempfile.TemporaryDirectory() as directory:
+            reference = Path(directory) / 'PRIVATE_REFERENCE.wav'
+            sf.write(reference, np.full(2400, .1), 24000)
+            class Model:
+                def create_voice_clone_prompt(self, **kwargs):
+                    return [Prompt(None, torch.ones(4), ref_text=kwargs['ref_text'])]
+            model = Model()
+            @diagnostics.capture_tts_operation('generate_clone_voice')
+            def render(self):
+                self._get_clone_prompt('PRIVATE_SPEAKER', {'PRIVATE_SPEAKER': {
+                    'ref_audio': str(reference), 'ref_text': 'PRIVATE_REFERENCE_TEXT'}})
+                return True
+            with patch.object(engine, '_init_local_clone', return_value=model):
+                for _ in range(55):
+                    self.assertTrue(render(engine))
+        records = self.records()
+        payload = json.dumps(diagnostics.get_tts_diagnostics_bundle())
+        self.assertEqual(50, len(records))
+        self.assertLessEqual(len(payload.encode()), 65536)
+        self.assertNotIn('PRIVATE_', payload)
+        self.assertNotIn(directory, payload)
+        for record in records:
+            for tier in record['reference_cache'].values():
+                self.assertLessEqual(tier['entries'], tier['max_entries'])
+                self.assertLessEqual(tier['charged_bytes'], tier['max_bytes'])
 
     def test_legacy_boolean_failure_still_records_a_safe_failure_category(self):
         engine = tts.TTSEngine({'tts': {'mode': 'local'}})

@@ -15,6 +15,7 @@ import numpy as np
 import soundfile as sf
 import torch
 import tts
+from tests.test_clone_reference_cache import Prompt
 from tests.test_lora_generation_cache import _write
 
 
@@ -30,7 +31,7 @@ class ModelLifecycleTests(unittest.TestCase):
                 self.family = family
                 self.model = NS(talker=NS(eval=lambda: None))
             def create_voice_clone_prompt(self, **kwargs):
-                return [NS(ref_code=None, ref_text=kwargs['ref_text'])]
+                return [Prompt(None, torch.ones(4), ref_text=kwargs['ref_text'])]
             def render(self, **kwargs):
                 renders.append((self.family, kwargs))
                 if state.entered is not None and self.family == 'CustomVoice':
@@ -93,11 +94,12 @@ class ModelLifecycleTests(unittest.TestCase):
                     self.assertTrue(engine.generate_voice('Synthetic line', '', speaker, config, str(root / f'{number}.wav')))
                 self.assertEqual(['CustomVoice', 'Base'], [family for family, _ in state.loads])
                 self.assertIsNone(engine._local_custom_model)
-                self.assertEqual(1, len(engine._clone_prompt_cache))
+                self.assertEqual(1, engine._clone_prompt_cache.snapshot()['entries'])
                 design, _ = engine.generate_voice_design('Synthetic identity', 'Synthetic line')
                 self.assertTrue(Path(design).exists())
                 self.assertIsNone(engine._local_clone_model)
-                self.assertEqual({}, engine._clone_prompt_cache)
+                self.assertEqual(0, engine._clone_prompt_cache.snapshot()['entries'])
+                self.assertEqual(0, engine._prepared_reference_cache.snapshot()['charged_bytes'])
                 self.assertTrue(engine.generate_voice('Synthetic line', '', 'CUSTOM', config, str(root / 'again.wav')))
                 self.assertIsNone(engine._local_design_model)
                 self.assertTrue(engine._custom_warmup_needed)
@@ -115,10 +117,15 @@ class ModelLifecycleTests(unittest.TestCase):
                 engine._init_local_custom()
                 original = weakref.ref(engine._local_custom_model)
                 engine._init_local_clone()
-                engine._clone_prompt_cache['fixture'] = ('key', 'prompt')
+                reference = Path(tmp) / 'reference.wav'
+                sf.write(reference, np.sin(np.arange(2400) / 30) * .1, 24000)
+                config = {'CLONE': {'ref_audio': str(reference), 'ref_text': 'Synthetic reference'}}
+                first = engine._get_clone_prompt('CLONE', config)
                 engine._init_local_design()
                 self.assertIs(original(), engine._init_local_custom())
-                self.assertEqual(('key', 'prompt'), engine._clone_prompt_cache['fixture'])
+                self.assertEqual(1, engine._clone_prompt_cache.snapshot()['entries'])
+                self.assertTrue(torch.equal(first[0].ref_spk_embedding,
+                    engine._get_clone_prompt('CLONE', config)[0].ref_spk_embedding))
                 self.assertEqual(3, len(state.loads))
 
     def test_unknown_capacity_conservatively_releases_inactive_family(self):

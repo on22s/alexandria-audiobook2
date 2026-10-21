@@ -1956,6 +1956,17 @@
   "test_clone_playback_js": [
     "tests.test_clone_playback_js.ClonePlaybackTests.test_native_play_rejection_and_throw_are_reported_without_unhandled_promises"
   ],
+  "test_clone_reference_cache": [
+    "tests.test_clone_reference_cache.ReferenceCachePrimitiveTests.test_count_lru_and_independent_byte_limit_evict_payloads",
+    "tests.test_clone_reference_cache.ReferenceCachePrimitiveTests.test_inference_mode_prompt_can_be_copied_and_used_outside_its_creation_scope",
+    "tests.test_clone_reference_cache.ReferenceCachePrimitiveTests.test_meta_nested_and_complex_tensors_bypass_without_cpu_copy",
+    "tests.test_clone_reference_cache.ReferenceCachePrimitiveTests.test_oversized_entry_preserves_existing_and_clear_releases_ownership",
+    "tests.test_clone_reference_cache.ReferenceCachePrimitiveTests.test_public_prompt_snapshot_and_delivery_copy_isolate_tensor_and_wrapper_mutation",
+    "tests.test_clone_reference_cache.ReferenceCachePrimitiveTests.test_quantized_metadata_storage_and_aliases_are_not_admitted",
+    "tests.test_clone_reference_cache.ReferenceCachePrimitiveTests.test_small_noncontiguous_view_does_not_retain_large_backing_storage",
+    "tests.test_clone_reference_cache.ReferenceCachePrimitiveTests.test_snapshot_preserves_prepared_state_without_reapplying_constructor_transforms",
+    "tests.test_clone_reference_cache.ReferenceCachePrimitiveTests.test_unknown_hidden_sparse_and_over_budget_prompts_bypass_before_copy"
+  ],
   "test_closed_set_harness": [
     "tests.test_closed_set_harness.ClosedSetHarnessTests.test_actual_harness_starts_scores_all_arms_and_writes_verified_rows"
   ],
@@ -5526,7 +5537,7 @@
     "tests.test_local_tts_concurrency.GeneratedStereoFrameTests.test_mono_and_one_channel_arrays_keep_duration",
     "tests.test_local_tts_concurrency.GeneratedStereoFrameTests.test_stereo_preserves_frame_count_channels_and_each_channel_samples",
     "tests.test_local_tts_concurrency.LocalTTSConcurrencyTests.test_failure_releases_admission_for_another_engine",
-    "tests.test_local_tts_concurrency.LocalTTSConcurrencyTests.test_parallel_clone_prompt_requests_build_once_and_share_the_captured_prompt",
+    "tests.test_local_tts_concurrency.LocalTTSConcurrencyTests.test_parallel_clone_prompt_requests_build_once_and_isolate_captured_prompts",
     "tests.test_local_tts_concurrency.LocalTTSConcurrencyTests.test_two_engines_do_not_reseed_an_inflight_custom_render"
   ],
   "test_local_ui_assets": [
@@ -10472,7 +10483,8 @@
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_measured_stage_clock_and_exception_do_not_change_the_failure",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_native_clone_cache_hits_misses_and_save_failure_are_observed",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_native_render_retains_audio_and_excludes_every_caller_field",
-    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_parallel_calls_isolate_outcomes_and_late_updates_are_ignored"
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_parallel_calls_isolate_outcomes_and_late_updates_are_ignored",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_reference_cache_observations_remain_bounded_and_content_free"
   ],
   "test_tts_diagnostics_js": [
     "tests.test_tts_diagnostics_js.TtsDiagnosticsJsTests.test_out_of_order_reads_and_failure_invalidate_the_download"
@@ -10513,6 +10525,20 @@
     "tests.test_tts_output_boundary.TtsOutputBoundaryTests.test_bad_ids_and_repetitions_fail_before_wav_generation",
     "tests.test_tts_output_boundary.TtsOutputBoundaryTests.test_escaping_output_symlink_is_not_overwritten",
     "tests.test_tts_output_boundary.TtsOutputBoundaryTests.test_normal_unicode_cases_still_publish_measured_pcm_inside_output"
+  ],
+  "test_tts_reference_cache": [
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_both_retained_tiers_obey_actual_small_byte_and_count_budgets",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_cancelled_hit_and_cancellation_after_provider_cannot_skip_admission",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_concurrent_labels_admit_only_one_shared_provider_preparation",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_failed_new_prompt_and_cache_copy_memory_error_leave_no_partial_retention",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_identical_labels_and_path_aliases_share_work_but_capture_every_hit",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_loaded_code_map_includes_cache_and_is_stable_across_warm_hit_and_clear",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_non_scalar_public_provider_transcript_bypasses_prompt_keying",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_prepared_copy_memory_error_releases_old_array_before_provider_retry",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_sample_rate_preprocessing_and_actual_model_change_invalidate",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_transcript_variant_reuses_pristine_float64_preparation",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_unknown_provider_prompt_stays_uncached_without_blocking_generation",
+    "tests.test_tts_reference_cache.TtsReferenceCacheTests.test_warm_hit_copy_memory_error_rebuilds_and_retention_recovers"
   ],
   "test_tts_review_regressions": [
     "tests.test_tts_review_regressions.TtsReviewRegressions.test_clone_and_lora_single_and_batch_use_configured_language",

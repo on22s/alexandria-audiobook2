@@ -37,8 +37,19 @@ def require_index_entries(*filenames):
 def require_pilot_gate(doc):
     measured = sum(row.get("pitch_status") == "measured" for row in doc["rows"])
     if measured < 3:
+        failures = []
+        for index, row in enumerate(doc["rows"]):
+            if row.get("pitch_status") == "measured":
+                continue
+            status, error = row.get("pitch_status"), row.get("pitch_error")
+            status = status[:40] if type(status) is str else "unavailable"
+            error = error[:160] if type(error) is str else "no pitch diagnostic"
+            failures.append(f"row {index + 1}: status={status!r}, error={error!r}")
+            if len(failures) == 4:
+                break
         raise RuntimeError(
-            f"Stage 7 pilot gate failed: only {measured}/4 pitch tracks measured")
+            f"Stage 7 pilot gate failed: only {measured}/4 pitch tracks measured; "
+            + "; ".join(failures))
 
 
 def ensure_pilot(adapter):

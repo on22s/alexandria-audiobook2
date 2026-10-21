@@ -45,7 +45,9 @@ class LocalTTSConcurrencyTests(unittest.TestCase):
                 audio,rate=sf.read(root/'first.wav');self.assertEqual(24000,rate)
                 np.testing.assert_allclose(audio,.11,atol=4e-5)
 
-    def test_parallel_clone_prompt_requests_build_once_and_share_the_captured_prompt(self):
+    def test_parallel_clone_prompt_requests_build_once_and_isolate_captured_prompts(self):
+        import torch
+        from tests.test_clone_reference_cache import Prompt
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);ref=root/'ref.wav';sf.write(ref,np.zeros(240),24000)
             entered=threading.Event();second_started=threading.Event();second_build=threading.Event();calls=[]
@@ -54,14 +56,19 @@ class LocalTTSConcurrencyTests(unittest.TestCase):
                 if len(calls)==1:
                     entered.set();self.assertTrue(second_started.wait(2));second_build.wait(.15)
                 else:second_build.set()
-                return object()
+                return [Prompt(None, torch.ones(4), ref_text=kwargs['ref_text'])]
+            class Model:
+                create_voice_clone_prompt = staticmethod(create)
             engine=tts.TTSEngine({'tts':{'mode':'local'}});config={'A':{'ref_audio':str(ref),'ref_text':'reference'}}
             def other():
                 second_started.set();return engine._get_clone_prompt('A',config)
-            with patch.object(engine,'_init_local_clone',return_value=types.SimpleNamespace(create_voice_clone_prompt=create)),concurrent.futures.ThreadPoolExecutor(2) as pool:
+            with patch.object(engine,'_init_local_clone',return_value=Model()),concurrent.futures.ThreadPoolExecutor(2) as pool:
                 one=pool.submit(engine._get_clone_prompt,'A',config);self.assertTrue(entered.wait(2));two=pool.submit(other)
                 first=one.result(3);second=two.result(3)
-            self.assertEqual(1,len(calls));self.assertIs(first,second)
+            self.assertEqual(1,len(calls));self.assertIsNot(first,second)
+            self.assertTrue(torch.equal(first[0].ref_spk_embedding,second[0].ref_spk_embedding))
+            first[0].ref_spk_embedding.zero_()
+            self.assertTrue(torch.equal(second[0].ref_spk_embedding,torch.ones(4)))
 
     def test_failure_releases_admission_for_another_engine(self):
         with tempfile.TemporaryDirectory() as tmp:

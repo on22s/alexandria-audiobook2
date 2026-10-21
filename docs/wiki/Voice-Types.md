@@ -160,6 +160,16 @@ Clones a voice from a 5–15 second reference recording.
   reference.
 - **Batching:** yes — lines are grouped by speaker and batched together.
 
+Local clone voices reuse reference preparation when speaker labels or file paths
+point to identical audio and the same reference transcript. Audio is checked
+again before reuse; changed reference bytes, transcript or resident model rebuild
+the affected work. Cache storage is bounded, and evicted references are prepared
+again automatically. Unloading the clone model clears its reference caches.
+
+Recent TTS diagnostics include cache hits, misses, evictions and charged cache
+bytes. These counts describe retained cache payloads; they do not measure total
+process or GPU memory.
+
 ## LoRA Voice
 
 **Model:** Base with a LoRA adapter. **Best for:** recurring characters who need a unique,

@@ -4,7 +4,8 @@ from contextlib import ExitStack
 from pathlib import Path
 import tempfile
 import threading
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -13,6 +14,7 @@ import soundfile as sf
 import pronunciation
 import tts
 from tests.test_batch_style_timeline import get_engine, get_torch
+from tests.test_support import apply_test_module_providers
 
 
 class PronunciationDispatchTests(unittest.TestCase):
@@ -21,12 +23,20 @@ class PronunciationDispatchTests(unittest.TestCase):
                 ('Reinhard arrives.', {'Reinhard': 'Rine-hard', 'Rine': 'Reen'}, 'Rine-hard arrives.'),
                 ('Ann arrives.', {'Ann': 'Ann Ann'}, 'Ann Ann arrives.')):
             for kind in ('custom', 'clone', 'lora', 'design', 'ensemble'):
-                with self.subTest(source=source, kind=kind), tempfile.TemporaryDirectory() as tmp:
+                lazy_name = 'tests._pronunciation_dispatch_lazy_provider'
+                with (self.subTest(source=source, kind=kind),
+                      tempfile.TemporaryDirectory() as tmp,
+                      apply_test_module_providers({lazy_name: None})):
                     root = Path(tmp)
                     engine = get_engine()
                     seen = []
+                    previous_torch = sys.modules.get('torch')
                     torch = get_torch()
+                    lazy_provider = ModuleType(lazy_name)
                     def synth(**kwargs):
+                        # A real lazy dependency can initialize during synthesis.
+                        # Restoring Torch must retain that unrelated import.
+                        sys.modules[lazy_name] = lazy_provider
                         if kind == 'lora':
                             acquired = []
                             def contend():
@@ -54,7 +64,7 @@ class PronunciationDispatchTests(unittest.TestCase):
                     before = copy.deepcopy((config, chunks))
                     with ExitStack() as stack:
                         stack.enter_context(pronunciation.ensure_pronunciation_audition(rules))
-                        stack.enter_context(patch.dict('sys.modules', {'torch': torch}))
+                        stack.enter_context(apply_test_module_providers({'torch': torch}))
                         for method in ('_init_local_custom', '_init_local_clone', '_init_local_design'):
                             stack.enter_context(patch.object(engine, method, return_value=model))
                         stack.enter_context(patch.object(engine, '_get_clone_prompt', return_value=prompt))
@@ -72,6 +82,8 @@ class PronunciationDispatchTests(unittest.TestCase):
                             success = getattr(engine, f'generate_{kind}_voice')(source, 'Calm.', config['A'], str(root / 'direct.wav'))
                         self.assertTrue(success)
                         result = engine.generate_batch(chunks, config, tmp)
+                    self.assertIs(sys.modules.get(lazy_name), lazy_provider)
+                    self.assertIs(sys.modules.get('torch'), previous_torch)
                     self.assertEqual([0], result['completed'])
                     self.assertEqual([], result['failed'])
                     self.assertEqual([expected] * 3, seen)

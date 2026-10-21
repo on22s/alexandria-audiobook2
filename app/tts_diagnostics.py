@@ -29,6 +29,7 @@ class _Observation:
         self.stages = {}
         self.cache_hits = 0
         self.cache_misses = 0
+        self.reference_cache = None
         self.audio_seconds = 0.0
         self.audio_files = 0
         self.failure = None
@@ -78,6 +79,7 @@ def capture_tts_operation(operation):
                                           if name in observation.stages else None for name in _STAGES},
                         'reference_cache_hits': observation.cache_hits,
                         'reference_cache_misses': observation.cache_misses,
+                        'reference_cache': observation.reference_cache,
                         'audio_seconds': round(observation.audio_seconds, 6) if observation.audio_files else None,
                         'audio_files': observation.audio_files,
                         'completed_items': completed, 'failed_items': failed,
@@ -121,6 +123,21 @@ def record_tts_cache(hit):
                     observation.cache_hits += 1
                 else:
                     observation.cache_misses += 1
+
+
+def record_tts_reference_cache(prepared, prompts):
+    """Observe bounded aggregate counts, never reference paths/text/tensors."""
+    observation = _CURRENT.get()
+    if observation is None:
+        return
+    names = ('hits', 'misses', 'evictions', 'bypasses', 'cleared_entries',
+             'entries', 'charged_bytes', 'max_entries', 'max_bytes')
+    state = {tier: {name: values[name] for name in names
+                    if type(values.get(name)) is int and values[name] >= 0}
+             for tier, values in (('prepared_audio', prepared), ('clone_prompts', prompts))}
+    with observation.lock:
+        if not observation.closed:
+            observation.reference_cache = state
 
 
 def record_tts_failure(category):
