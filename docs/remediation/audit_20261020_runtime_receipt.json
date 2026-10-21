@@ -1,0 +1,486 @@
+{
+  "scope": "Actual private Linux ROCm model/API public-excerpt verification, generation-source equivalence and current-source chapter export replay; no live deployment or human auditory certification.",
+  "runtime": {
+    "source_head": "22b0de7f85caccf6ebd8fae55e6df9c41ab3d3a3",
+    "application_tree": "a64fc7fbd5b82964f062153b02ea91e7a17e7fad",
+    "api_original_counts": {
+      "passed": 82,
+      "failed": 0,
+      "skipped": 2,
+      "total": 84
+    },
+    "api_complement_original_functions": {
+      "gpu_lock_mutual_exclusion": {
+        "seconds": 2.11,
+        "ok": true
+      },
+      "generate_script": {
+        "seconds": 2.07,
+        "ok": true
+      }
+    },
+    "distinct_api_cases_across_runs": 84,
+    "source_words": 263,
+    "script_and_chunks_exact_order": true,
+    "all_nine_active_chunks_in_new_publication_slots": true,
+    "completed_chunks": 9,
+    "exports_verified": [
+      "MP3",
+      "M4B",
+      "Audacity CRC/LOF/labels/three valid aligned native WAV tracks"
+    ],
+    "asr": {
+      "recalled": 261,
+      "source_words": 263,
+      "recall": 0.9923954372623575,
+      "silent_control_rejected": true
+    },
+    "encoded_audio_parity_with_prior_qualified_run": {
+      "matched": 9,
+      "total": 9,
+      "presented_listening_clip_matches_current_bytes": true
+    },
+    "actual_listening": "unrun;no human answer or subjective judgment inferred",
+    "limits": "Fixed public-excerpt functionality/parity,not whole-book prosody or the separate1090performance campaign"
+  },
+  "current_source_equivalence": {
+    "actual_real_source_chapter_groups_identical": {
+      "False": [
+        [
+          "CHAPTER I.",
+          0,
+          2
+        ],
+        [
+          "thought Alice",
+          3,
+          8
+        ]
+      ],
+      "True": [
+        [
+          "[NARRATOR] CHAPTER I.",
+          0,
+          0
+        ],
+        [
+          "[NARRATOR] Down the Rabbit-Hole Alice was beginning to get very tired of sitting by her sis",
+          1,
+          1
+        ],
+        [
+          "[ALICE] and what is the use of a book,",
+          2,
+          2
+        ],
+        [
+          "[NARRATOR] thought Alice",
+          3,
+          3
+        ],
+        [
+          "[ALICE] without pictures or conversations?",
+          4,
+          4
+        ],
+        [
+          "[NARRATOR] So she was considering in her own mind (as well as she could, for the hot day ma",
+          5,
+          5
+        ],
+        [
+          "[WHITE RABBIT] Oh dear! Oh dear! I shall be late!",
+          6,
+          6
+        ],
+        [
+          "[NARRATOR] (when she thought it over afterwards, it occurred to her that she ought to have ",
+          7,
+          7
+        ],
+        [
+          "[NARRATOR] just in time to see it pop down a large rabbit-hole under the hedge.",
+          8,
+          8
+        ]
+      ]
+    },
+    "generation_source": "22b0de7f85caccf6ebd8fae55e6df9c41ab3d3a3",
+    "current_source": "e00921cb956d5005c5d9e91859e446a72021cb8b",
+    "changed_project_functions": [
+      "ProjectManager._apply_chapter_export_plans",
+      "ProjectManager._chapter_groups",
+      "ProjectManager._export_changed_chapters",
+      "ProjectManager._export_chapters",
+      "ProjectManager._stage_chapter_export_plans",
+      "get_chapter_output_digest",
+      "get_chapter_reuse_duration",
+      "get_chunk_context",
+      "group_into_chunks"
+    ],
+    "tts_and_pronunciation_exact_bytes_unchanged": true,
+    "all_other_project_functions_semantically_identical": true,
+    "actual_annotated_script_sha256": "789d82d17ebe79217036e719d979e98bef8a5b6912c46fa55dfee76adfddb1e9",
+    "rebuilt_chunks": 9,
+    "regrouped_real_source_inputs_exactly_equal_to_actual_generated_chunks": true,
+    "generation_input_fields": [
+      "instruct",
+      "speaker",
+      "text"
+    ],
+    "required_changed_behavior_checks": "Spoken-heading intent regression cases, chapter/cache/omission cases, real selected export replay at current source; old generation evidence retained only for matching real inputs and unchanged model/publication methods."
+  },
+  "chapter_replay": {
+    "source_head": "e00921cb956d5005c5d9e91859e446a72021cb8b",
+    "generation_source_head": "22b0de7f85caccf6ebd8fae55e6df9c41ab3d3a3",
+    "real_generated_chunks": 9,
+    "selected_index": 2,
+    "selected_text": "and what is the use of a book,",
+    "preview": [
+      {
+        "number": 3,
+        "title": "[ALICE] and what is the use of a book,",
+        "file": "03 - _ALICE_ and what is the use of a book_.wav"
+      }
+    ],
+    "cold_and_warm": [
+      {
+        "manifest": {
+          "format": "wav",
+          "template": "{chapter_number} - {chapter_name}",
+          "padding": 2,
+          "per_chunk_chapters": true,
+          "book_name": "",
+          "series_name": "",
+          "volume_number": "",
+          "chapter_plan_version": 1,
+          "chapters": [
+            {
+              "index": 2,
+              "number": 3,
+              "title": "[ALICE] and what is the use of a book,",
+              "file": "03 - _ALICE_ and what is the use of a book_.wav",
+              "chunks": [
+                2,
+                2
+              ],
+              "fingerprint": "ab2c33b70b56d7ea",
+              "source_fingerprint": "7d91492696c2ae8c96ee827de4fb4e1179c4197d21dd2f23940a8509ca1fd1e2",
+              "output_sha256": "b5f0a49b04e6d54b399761bf481cd09846cd7a744856f09821714c37316e10f3",
+              "output_bytes": 72524,
+              "duration_ms": 1510.0,
+              "start_ms": 15530.0,
+              "end_ms": 17040.0
+            }
+          ]
+        },
+        "sha256": "b5f0a49b04e6d54b399761bf481cd09846cd7a744856f09821714c37316e10f3",
+        "result": [
+          true,
+          "1 chapter file(s) written"
+        ]
+      },
+      {
+        "manifest": {
+          "format": "wav",
+          "template": "{chapter_number} - {chapter_name}",
+          "padding": 2,
+          "per_chunk_chapters": true,
+          "book_name": "",
+          "series_name": "",
+          "volume_number": "",
+          "chapter_plan_version": 1,
+          "chapters": [
+            {
+              "index": 2,
+              "number": 3,
+              "title": "[ALICE] and what is the use of a book,",
+              "file": "03 - _ALICE_ and what is the use of a book_.wav",
+              "chunks": [
+                2,
+                2
+              ],
+              "fingerprint": "ab2c33b70b56d7ea",
+              "source_fingerprint": "7d91492696c2ae8c96ee827de4fb4e1179c4197d21dd2f23940a8509ca1fd1e2",
+              "output_sha256": "b5f0a49b04e6d54b399761bf481cd09846cd7a744856f09821714c37316e10f3",
+              "output_bytes": 72524,
+              "duration_ms": 1510.0,
+              "start_ms": 15530.0,
+              "end_ms": 17040.0
+            }
+          ]
+        },
+        "sha256": "b5f0a49b04e6d54b399761bf481cd09846cd7a744856f09821714c37316e10f3",
+        "result": [
+          true,
+          "1 chapter file(s) written"
+        ]
+      }
+    ],
+    "cold_warm_bytes_and_offsets_identical": true,
+    "decoder_omission_result": [
+      false,
+      "Some chapter audio could not be decoded. Repair the affected clips before exporting selected chapters."
+    ],
+    "prior_outputs_preserved": true,
+    "temps_cleaned": true,
+    "model_engine_never_loaded": true,
+    "original_source_bytes_preserved": true,
+    "cpu_asr": {
+      "hypothesis": "And what is the use of a book?",
+      "ordered_words_correct": 8,
+      "expected_words": 8,
+      "gpu": false,
+      "threads": 2
+    },
+    "scope": "Real chapter export replay on copied actual media, including failure before publication; unchanged generation qualified separately, no human listening verdict."
+  },
+  "retained_output_replay": {
+    "source_head": "e00921cb956d5005c5d9e91859e446a72021cb8b",
+    "real_media": "Copied nine actual generated speech clips; no model engine loaded",
+    "same_size_corruption_of_unselected_retained_output_refused": [
+      false,
+      "Chapter 3 has an invalid or unverified retained output; select it for export or export all chapters."
+    ],
+    "prior_delivery_bytes_preserved_on_refusal": true,
+    "selected_corrupt_output_regenerated_to_exact_original_bytes": [
+      true,
+      "1 chapter file(s) written"
+    ],
+    "legacy_missing_digest_retention_refused": [
+      false,
+      "Chapter 3 has an invalid or unverified retained output; select it for export or export all chapters."
+    ],
+    "selected_legacy_output_regenerated_with_fresh_integrity_evidence": [
+      true,
+      "1 chapter file(s) written"
+    ],
+    "source_audio_preserved": true,
+    "temps_cleaned": true,
+    "output_sha256": "b5f0a49b04e6d54b399761bf481cd09846cd7a744856f09821714c37316e10f3",
+    "output_bytes": 72524
+  },
+  "proof_sha256": {
+    "final_native_api_main22b_attempt1.json": "88071cd2743c7ea919e1a41c6e12ed721c135ce921fe737a21201b64a621c488",
+    "final_smoke_main22b_attempt1/result.json": "958765f85ca8eab234f8a5fa705d8d0b44704d7d2d73f574d6759a7a22aa5ef3",
+    "final_smoke_main22b_artifact_verification.json": "97f4727c3385ce5c9b0f9dd9c8b06a2a1cb370df1c56bea228b1d1d778534c14",
+    "final_smoke_main22b_audacity_verification.json": "cbd068242ad217d5de34c54d84b9d0c9c33608f936d80b687501e57108a304ff",
+    "final_smoke_main22b_asr_verification.json": "271d3ad19743c6594a0b7a2f000d238049835c50da6e674b5b5f24bbf4834c57",
+    "final_runtime_main22b_live_preservation.json": "d82bba3c21e8addfe3f75b0902f67994c7ba00589eba64bf8175f1dc83fbe38d",
+    "final_cached_model_hashes.json": "0fc26b443d9a076e191b8f4a068e72721e0ca56269f0b118ffd20f50e11f2b6b",
+    "output_main_generation_source_comparison.json": "747eb2263728675ee22eab7d869830289f0cb8aeb5124860eaea7f92575bddc4",
+    "final_output_main_real_export_replay.json": "4b8b75381639296cb10de6a98f68c7fd54a28c0447c7970d3c30d5b8a931c31e",
+    "final_output_main_retention_replay.json": "703889d65e20af1870715c8b18b1155c12dd1c3214d19798cb5dff060615da0b",
+    "heading_main_generation_source_comparison.json": "5c7ff2464d30418514f58482d84a4f3e0dfc5e45e9e553d2017e27c3af57a807",
+    "final_heading_main_real_export_replay.json": "3742a6f65b3d85fad11493acc6b9e94a457b6dd8cb227f54839c6f8a51522b46"
+  },
+  "unrun": [
+    "Human listening/pronunciation/prosody judgment (no explicit task acceptance listening criterion; no pass inferred).",
+    "Whole-book quality and separate #1090 typical-performance campaign.",
+    "Live application deployment/environment upgrade.",
+    "Whole-product inference on Windows/macOS; native SDK and ownership CI are scoped separately."
+  ],
+  "additional_accepted_source_equivalence": {
+    "actual_real_source_chapter_groups_identical": {
+      "False": [
+        [
+          "CHAPTER I.",
+          0,
+          2
+        ],
+        [
+          "thought Alice",
+          3,
+          8
+        ]
+      ],
+      "True": [
+        [
+          "[NARRATOR] CHAPTER I.",
+          0,
+          0
+        ],
+        [
+          "[NARRATOR] Down the Rabbit-Hole Alice was beginning to get very tired of sitting by her sis",
+          1,
+          1
+        ],
+        [
+          "[ALICE] and what is the use of a book,",
+          2,
+          2
+        ],
+        [
+          "[NARRATOR] thought Alice",
+          3,
+          3
+        ],
+        [
+          "[ALICE] without pictures or conversations?",
+          4,
+          4
+        ],
+        [
+          "[NARRATOR] So she was considering in her own mind (as well as she could, for the hot day ma",
+          5,
+          5
+        ],
+        [
+          "[WHITE RABBIT] Oh dear! Oh dear! I shall be late!",
+          6,
+          6
+        ],
+        [
+          "[NARRATOR] (when she thought it over afterwards, it occurred to her that she ought to have ",
+          7,
+          7
+        ],
+        [
+          "[NARRATOR] just in time to see it pop down a large rabbit-hole under the hedge.",
+          8,
+          8
+        ]
+      ]
+    },
+    "generation_source": "22b0de7f85caccf6ebd8fae55e6df9c41ab3d3a3",
+    "current_source": "873525d932b83e3f5cee17740d2f4f5b99b2710e",
+    "changed_project_functions": [
+      "ProjectManager._apply_chapter_export_plans",
+      "ProjectManager._chapter_groups",
+      "ProjectManager._export_changed_chapters",
+      "ProjectManager._export_chapters",
+      "ProjectManager._stage_chapter_export_plans",
+      "get_chapter_heading_offsets",
+      "get_chapter_output_digest",
+      "get_chapter_reuse_duration",
+      "get_chapter_text_parts",
+      "get_chunk_context",
+      "get_unnumbered_chapter_counts",
+      "group_into_chunks",
+      "is_chapter_line_context_unambiguous",
+      "split_on_unspeakable"
+    ],
+    "tts_and_pronunciation_exact_bytes_unchanged": true,
+    "all_other_project_functions_semantically_identical": true,
+    "actual_annotated_script_sha256": "789d82d17ebe79217036e719d979e98bef8a5b6912c46fa55dfee76adfddb1e9",
+    "rebuilt_chunks": 9,
+    "regrouped_real_source_inputs_exactly_equal_to_actual_generated_chunks": true,
+    "generation_input_fields": [
+      "instruct",
+      "speaker",
+      "text"
+    ],
+    "required_changed_behavior_checks": "Spoken-heading intent regression cases, chapter/cache/omission cases, real selected export replay at current source; old generation evidence retained only for matching real inputs and unchanged model/publication methods."
+  },
+  "additional_accepted_source_real_export_replay": {
+    "source_head": "873525d932b83e3f5cee17740d2f4f5b99b2710e",
+    "generation_source_head": "22b0de7f85caccf6ebd8fae55e6df9c41ab3d3a3",
+    "real_generated_chunks": 9,
+    "selected_index": 2,
+    "selected_text": "and what is the use of a book,",
+    "preview": [
+      {
+        "number": 3,
+        "title": "[ALICE] and what is the use of a book,",
+        "file": "03 - _ALICE_ and what is the use of a book_.wav"
+      }
+    ],
+    "cold_and_warm": [
+      {
+        "manifest": {
+          "format": "wav",
+          "template": "{chapter_number} - {chapter_name}",
+          "padding": 2,
+          "per_chunk_chapters": true,
+          "book_name": "",
+          "series_name": "",
+          "volume_number": "",
+          "chapter_plan_version": 1,
+          "chapters": [
+            {
+              "index": 2,
+              "number": 3,
+              "title": "[ALICE] and what is the use of a book,",
+              "file": "03 - _ALICE_ and what is the use of a book_.wav",
+              "chunks": [
+                2,
+                2
+              ],
+              "fingerprint": "ab2c33b70b56d7ea",
+              "source_fingerprint": "77f2c4368539925798de6bd3dd86a4322c67627c845e90caee558f6353f0ea2c",
+              "output_sha256": "b5f0a49b04e6d54b399761bf481cd09846cd7a744856f09821714c37316e10f3",
+              "output_bytes": 72524,
+              "duration_ms": 1510.0,
+              "start_ms": 15530.0,
+              "end_ms": 17040.0
+            }
+          ]
+        },
+        "sha256": "b5f0a49b04e6d54b399761bf481cd09846cd7a744856f09821714c37316e10f3",
+        "result": [
+          true,
+          "1 chapter file(s) written"
+        ]
+      },
+      {
+        "manifest": {
+          "format": "wav",
+          "template": "{chapter_number} - {chapter_name}",
+          "padding": 2,
+          "per_chunk_chapters": true,
+          "book_name": "",
+          "series_name": "",
+          "volume_number": "",
+          "chapter_plan_version": 1,
+          "chapters": [
+            {
+              "index": 2,
+              "number": 3,
+              "title": "[ALICE] and what is the use of a book,",
+              "file": "03 - _ALICE_ and what is the use of a book_.wav",
+              "chunks": [
+                2,
+                2
+              ],
+              "fingerprint": "ab2c33b70b56d7ea",
+              "source_fingerprint": "77f2c4368539925798de6bd3dd86a4322c67627c845e90caee558f6353f0ea2c",
+              "output_sha256": "b5f0a49b04e6d54b399761bf481cd09846cd7a744856f09821714c37316e10f3",
+              "output_bytes": 72524,
+              "duration_ms": 1510.0,
+              "start_ms": 15530.0,
+              "end_ms": 17040.0
+            }
+          ]
+        },
+        "sha256": "b5f0a49b04e6d54b399761bf481cd09846cd7a744856f09821714c37316e10f3",
+        "result": [
+          true,
+          "1 chapter file(s) written"
+        ]
+      }
+    ],
+    "cold_warm_bytes_and_offsets_identical": true,
+    "decoder_omission_result": [
+      false,
+      "Some chapter audio could not be decoded. Repair the affected clips before exporting selected chapters."
+    ],
+    "prior_outputs_preserved": true,
+    "temps_cleaned": true,
+    "model_engine_never_loaded": true,
+    "original_source_bytes_preserved": true,
+    "cpu_asr": {
+      "hypothesis": "And what is the use of a book?",
+      "ordered_words_correct": 8,
+      "expected_words": 8,
+      "gpu": false,
+      "threads": 2
+    },
+    "scope": "Real chapter export replay on copied actual media, including failure before publication; unchanged generation qualified separately, no human listening verdict."
+  },
+  "additional_heading_controls": {
+    "tests": 10,
+    "skips": 0,
+    "seconds": 0.025,
+    "source": "873525d932b83e3f5cee17740d2f4f5b99b2710e"
+  }
+}

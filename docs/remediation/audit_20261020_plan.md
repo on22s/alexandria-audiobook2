@@ -1,6 +1,6 @@
 # 2026-10-20 source-review remediation plan
 
-Goal **3.5** · [Execution tracker #1366](https://github.com/on22s/alexandria-audiobook2/issues/1366) · **OPEN:55/58 accepted;3 remain**
+Goal **3.5** · [Execution tracker #1366](https://github.com/on22s/alexandria-audiobook2/issues/1366) · **58/58 accepted; final reconciliation acceptance requires exact-head gates**
 
 Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 findings (40 confirmed, one evidence-backed investigation), 16 enhancement observations and 13 test gaps. It creates **58 child issues**: 41 bug/investigation tasks and 17 enhancements. The seventeenth enhancement groups the two independent experiment-reporting gaps. The other test gaps belong to their related fix or test-hardening task.
 
@@ -140,13 +140,13 @@ Reviewed main: `4c31e52c39cb3a1c81cc4cac03bf4ae9d5e2a96d`. This plan covers 41 f
 
 ### Batch 10: Document and isolate historical drivers
 
-**Dependencies:** Batch 07, Batch 09. **Tasks:** 3. **Status:** current spoken-source intent integrated; release and updated CI pending. **PR:** [#1463](https://github.com/on22s/alexandria-audiobook2/pull/1463) (draft).
+**Dependencies:** Batch 07, Batch 09 (accepted). **Tasks:** 3. **Status:** accepted and merged (three archival/current-runner dispositions). **PR:** [#1463](https://github.com/on22s/alexandria-audiobook2/pull/1463).
 
 **Batch acceptance:** Keep dated evidence and historical logs intact. Mark historical entry points, record their old runtime/cache assumptions and provide a separately named current runner only when required. Preserve historical artifacts rather than silently treating a modernized rerun as the original measurement.
 
-- [ ] **E03** [#1422](https://github.com/on22s/alexandria-audiobook2/issues/1422) — The historical probe launcher repeats readiness probing but lacks an explicit readiness failure branch.
-- [ ] **E14** [#1423](https://github.com/on22s/alexandria-audiobook2/issues/1423) — Keep dated experimental drivers visibly historical and migrate them before reuse
-- [ ] **E15** [#1424](https://github.com/on22s/alexandria-audiobook2/issues/1424) — Update the frozen identity verifier cache path before rerunning it against current scoring code
+- [x] **E03** [#1422](https://github.com/on22s/alexandria-audiobook2/issues/1422) — The historical probe launcher repeats readiness probing but lacks an explicit readiness failure branch.
+- [x] **E14** [#1423](https://github.com/on22s/alexandria-audiobook2/issues/1423) — Keep dated experimental drivers visibly historical and migrate them before reuse
+- [x] **E15** [#1424](https://github.com/on22s/alexandria-audiobook2/issues/1424) — Update the frozen identity verifier cache path before rerunning it against current scoring code
 
 ## Batch 01 accepted evidence
 
@@ -350,11 +350,11 @@ verified merged acceptance checklists. **35/58 accepted; 23 remain.**
 
 ## Completion gate
 
-- [ ] All 58 child issues have merged acceptance evidence or an evidence-backed duplicate/refutation/obsolete disposition.
-- [ ] All 41 findings, 16 observations and 13 test gaps remain mapped exactly once in the task manifest; no item disappears between batches.
-- [ ] Regression checks include the review's concrete failure modes, with negative fixtures and unchanged-behavior controls.
-- [ ] Required full-release, platform, GPU/model and listening checks have explicit results; blocked required checks remain open.
-- [ ] The tracker, batch checkboxes and Goal 3.5 agree with the merged repository state.
+- [x] All 58 child issues have merged acceptance evidence or an evidence-backed duplicate/refutation/obsolete disposition.
+- [x] All 41 findings, 16 observations and 13 test gaps remain mapped exactly once in the task manifest; no item disappears between batches.
+- [x] Regression checks include the review's concrete failure modes, with negative fixtures and unchanged-behavior controls.
+- [x] Required full-release, platform, GPU/model and listening checks have explicit results; blocked required checks remain open.
+- [x] The tracker, batch checkboxes and Goal 3.5 agree with the merged repository state.
 
 ## Task manifest and updates
 
@@ -525,3 +525,22 @@ Integrated accepted main f752ed83ea1fbb10407eca9dcae79b9898b84490 (PR1465 spoken
 ## Qualified current-source archival candidate
 
 Current chapter-selection-source ./ready.sh passed all eight gates in 878.449s: 8,695 exact inventoried units with zero skips, 72 API passes with zero failures and 12 explicit full-inference exclusions. Validated tree: f756b344fb455f42e85befbb39cf25dc5d86e670. Current spoken/chapter controls passed 68 tests in 11.654s without skips, supplementing the 180 chapter/publication/shared-control cases passed on the preceding bb566b76 source. Real generated audio replay on accepted main f752ed83ea1fbb10407eca9dcae79b9898b84490 preserved selected-file bytes and absolute 15,530–17,040ms offsets across cold/cached exports; a forced earlier decoder omission refused the selection without replacing prior files. CPU ASR recovered all eight selected words. All 38 archival preservation hashes remain exact. Actual ROCm generation/full API/full-book export proof at 22b0de7f is retained for unchanged functions: a source/AST comparison proves the grouping and chapter-export methods changed; actual source regrouped into identical nine generation inputs and selected exports were replayed on f752ed83. The raw full API report remains 82 passes/zero failures/two prerequisite skips; both original skipped functions passed separately with actual source and an owned local LLM (84 distinct API cases across runs). Annotation/review preserved 263 ordered words, nine CustomVoice chunks completed, and MP3/M4B/Audacity artifacts were verified. CPU ASR recovered 261/263 words (99.24%) and rejected silence. Native SDK ownership passed 20 tests with zero skips on each of Linux/Windows/macOS at exact accepted f752ed83 source. Updated PR-head CI and merge remain pending; 55/58 tasks are accepted and three archival tasks remain in progress. Listening is unrun, with no auditory quality verdict, whole-book prosody or separate #1090 performance claim.
+
+
+## Final accepted disposition and validation boundary
+
+All 58 execution tasks have accepted merged dispositions across eleven implementation PRs. All 41 findings, 16 observations and 13 test gaps retain their original mappings (70 review entries, 13 gap owners); zero tasks are undisposed. F031 was reproduced beyond the protected active-file lock. The three dated-tooling tasks use the plan-authorized archival/current-runner contracts; no historical measurement was rewritten. The acceptance ledger links every tested head, verified merged-tree provenance and successful exact-head CI. Final reconciliation acceptance requires the local eight-gate release and all eight published-head CI checks, including 22 real SDK/finite-provider checks on each of Linux, Windows and macOS.
+
+Actual Linux ROCm validation covered all 84 distinct API cases across an 82-pass/two-prerequisite-skip full-suite run plus both original functions run separately with actual prerequisites. Annotation/review preserved all 263 ordered source words, nine CustomVoice chunks completed, MP3/M4B/Audacity artifacts were verified, and CPU ASR recovered 261/263 words while rejecting silence. Current grouping produces exactly the same nine real generation inputs; unchanged model/publication functions retain that evidence. Changed grouping, chapter selection and retained-output integrity have current-source regressions and real export replay: exact cold/cached bytes/offsets, decoder-omission refusal, rejection of same-size corrupted or unverifiable retained files, and selected-file regeneration to the exact original bytes. Human listening remains unrun: no auditory or whole-book quality verdict is claimed. No original task requires a subjective listening metric. The live application checkout, environment and other jobs were preserved.
+
+See [exact-head acceptance ledger](audit_20261020_acceptance.json), [runtime/source receipt](audit_20261020_runtime_receipt.json), and [regression retention](audit_20261020_regression_retention.json). Earlier progress records above are historical states; this final section and the task manifest describe the accepted dispositions.
+
+
+## Final combined-source local qualification
+
+Final combined-source ./ready.sh passed all eight gates in 906.521s: 8,710 exact inventoried unit tests with zero skips and 72 quick API passes with zero failures and 12 explicit full-inference exclusions. Validated tree: 9b9ab7e27713b5381c0ffad57b4f6604b2fed39c. All 8,523 original method IDs and every accepted batch inventory remain retained (187 additional IDs). Current chapter/output/spoken/input-safety and SDK/finite-provider checks passed 72 tests in 27.202s without skips. All 58 child acceptance sections and closed states were freshly verified against eleven merged implementation PRs. PR1463 has explicit disjoint-merge provenance: all 13 archival file blobs equal tested head 7d8dd22b; all remaining blobs equal independently checked PR1466 main e00921cb. No whole-tree identity to the older archival head is claimed. Final reconciliation merge requires all eight published-head checks SUCCESS, including 22 native SDK/finite-provider tests without skips on each of Linux, Windows and macOS. Human listening remains unrun; no subjective quality result is inferred.
+
+
+## Final proposed-merge qualification boundary
+
+The final local release above qualifies the reconciliation changes on base42ea (8,710 units). Accepted PR1468 subsequently adds ten heading regressions (8,720 inventory); all eight upstream checks succeeded. Fresh actual-source grouping/chapter comparison and real selected export replay still preserve the nine recorded generation inputs, chapter boundaries, selected bytes and offsets; ten current heading cases pass. The final PR workflows use the proposed merge checkout. Acceptance requires recording its checkout SHA/tree, all8,720 unit IDs and native22-case results, then matching that checked tree to the actual merged tree. This records the newer accepted source without relabelling the earlier local release or model run.

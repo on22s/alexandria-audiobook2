@@ -24,7 +24,10 @@
       "depends_on": [],
       "status": "accepted",
       "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1426",
-      "merge_commit": "b50f014092dbed90d782747a763bc483362e19b5"
+      "merge_commit": "b50f014092dbed90d782747a763bc483362e19b5",
+      "tested_commit": "c9a31073979d9787eaa9aacf13156a62fa622cc5",
+      "accepted_date": "2026-10-20",
+      "validation_status": "All tasks accepted with merged exact-head evidence. See the source-bound release and validation matrix in the acceptance ledger."
     },
     {
       "id": "02",
@@ -42,9 +45,11 @@
         "01"
       ],
       "status": "accepted",
-      "validation_status": "accepted: all six exact-head CI checks passed",
+      "validation_status": "All tasks accepted with merged exact-head evidence. See the source-bound release and validation matrix in the acceptance ledger.",
       "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1428",
-      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c"
+      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c",
+      "tested_commit": "46ad293ba91f735c703cebefd155dbdeeb9884dd",
+      "accepted_date": "2026-10-20"
     },
     {
       "id": "03",
@@ -63,8 +68,11 @@
         "02"
       ],
       "status": "accepted",
-      "validation_status": "All7 tasks accepted: six via PR1431 and F028 via PR1433. Accepted via PR1433, merged by repository owner as e37a69e62f0db28e1c2e9fdb9250dc550bb18169, with tree identical to tested head34c858a47be2fe91cdebe712ba38d56d4f400c01. All8 exact-head CI checks passed, including20 selected SDK lifetime tests on native Windows/macOS/Linux.119 distinct targeted CPU checks plus4 navigation tests; local quick8626 unit0skip/72API0fail12 explicit full-mode exclusions/all8 gates881.726s. Initial Windows failure repaired; macOS runner-capacity cancellation retried successfully. Remote inference cancellation remains provider-dependent. GPU/model/listening/full product-native qualification unrun.",
-      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1431"
+      "validation_status": "All tasks accepted with merged exact-head evidence. Batch03 also includes F028 via PR1433; both exact heads/merges are retained in the acceptance ledger.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1431",
+      "tested_commit": "56a4bcfc040661184c5ceccdbe2e5656d63439f2",
+      "merge_commit": "f94ad7745d5b78745d875f74dd18153e9c1f0226",
+      "accepted_date": "2026-10-20"
     },
     {
       "id": "04",
@@ -82,7 +90,9 @@
       "status": "accepted",
       "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1429",
       "merge_commit": "0dd5e8465c4d96a31cd526f5ba3cc2b195a36927",
-      "validation_status": "Accepted: all eight exact-head CI checks passed"
+      "validation_status": "All tasks accepted with merged exact-head evidence. See the source-bound release and validation matrix in the acceptance ledger.",
+      "tested_commit": "08c140e61ad6bf0d16160ff48b160e07d5c0f079",
+      "accepted_date": "2026-10-20"
     },
     {
       "id": "05",
@@ -97,9 +107,12 @@
       "depends_on": [
         "02"
       ],
-      "status": "resolved",
-      "validation_status": "Accepted in PR #1430:206 distinct targeted CPU regressions,4 navigation tests; ./ready.sh quick8583 unit tests without unit skips,72 API passes,12 explicit full-mode exclusions,all8 gates. All5 exact-head CI gates passed including complete inventory and native Windows ownership; tested and merged trees identical. GPU/model/training/listening and full native-platform qualifications unrun.",
-      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1430"
+      "status": "accepted",
+      "validation_status": "All tasks accepted with merged exact-head evidence. See the source-bound release and validation matrix in the acceptance ledger.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1430",
+      "tested_commit": "5ccc085c460c23d1ad7749b8c4e1d5dd6ca70d9a",
+      "merge_commit": "3a4a0dde477d0daaa38962c20f3284b858f4a3d4",
+      "accepted_date": "2026-10-20"
     },
     {
       "id": "06",
@@ -117,9 +130,12 @@
       "depends_on": [
         "05"
       ],
-      "status": "resolved",
-      "validation_status": "Accepted PR1432 merged by repository owner asd74e11bff8ab3d2116c004f349e56d0be271babd; tested8e7e8b6bd849cef806fbdaaea197a6566c58d86b/treeidentical. Required quick8606unit0skip/72API0fail12explicitfullmodeexclusions/all8gates867.009s;80targetedCPU+4nav including4explicitfunctiontests. All5exactheadCIpassed. GPU/model/training/listening/fullnativequalificationunrun.",
-      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432"
+      "status": "accepted",
+      "validation_status": "All tasks accepted with merged exact-head evidence. See the source-bound release and validation matrix in the acceptance ledger.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1432",
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b",
+      "merge_commit": "d74e11bff8ab3d2116c004f349e56d0be271babd",
+      "accepted_date": "2026-10-20"
     },
     {
       "id": "07",
@@ -138,7 +154,11 @@
         "06"
       ],
       "status": "accepted",
-      "validation_status": "Accepted via PR1447,merged as b48669b18ed9f4f026311a947f9f88158832e1c3,tree-identical to tested headf3fb0a9b98d7be7be6ec17381435cbc098f05862. All5 exact-head CI checks passed. Combined quick8643unit0skip/72API0failed12explicitfull-modeexclusions/all8gates859.861s. 234distincttargetedchecks(230CPU+4navigation),plus4navigationafterbookkeeping. Seven child acceptance checklists verified CLOSED. GPU/model/listening/full product-native qualification unrun.43/58accepted;15remain."
+      "validation_status": "All tasks accepted with merged exact-head evidence. See the source-bound release and validation matrix in the acceptance ledger.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1447",
+      "tested_commit": "f3fb0a9b98d7be7be6ec17381435cbc098f05862",
+      "merge_commit": "b48669b18ed9f4f026311a947f9f88158832e1c3",
+      "accepted_date": "2026-10-20"
     },
     {
       "id": "08",
@@ -156,10 +176,11 @@
         "04"
       ],
       "status": "accepted",
-      "validation_status": "Accepted via PR #1454, merged as f6f97a279305f36536c3dafc80391571379eb272, tree-identical to tested head 95ee2ec192d2745501981b1003e7628053504fd3 (tree 81ca0bfd55c5dfed538f5d65cd07d7926a6eb706). All nine exact-head CI checks passed: three unit shards, the inventory aggregate, Windows ownership, native SDK lifetime on Linux/Windows/macOS and macOS subprocess prerequisites. Native SDK suites each passed 20 tests with zero skips. Local quick release passed 8,670 units with zero skips, 72 API checks with zero failures and 12 explicit full-inference exclusions, and all eight gates in 852.390s. Combined targeted checks passed 428 distinct tests without skips. Normal hooks preserved the committed tree; only three bookkeeping documents changed after the release gate. All five issue acceptance bodies/checklists verified closed. 55/58 accepted; three historical tasks remain. Full GPU/TTS/LLM inference, real GPU concurrency and listening remain unrun global gates; these native ownership/SDK checks do not certify the whole product on every OS.",
+      "validation_status": "All tasks accepted with merged exact-head evidence. See the source-bound release and validation matrix in the acceptance ledger.",
       "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1454",
       "merge_commit": "f6f97a279305f36536c3dafc80391571379eb272",
-      "tested_commit": "95ee2ec192d2745501981b1003e7628053504fd3"
+      "tested_commit": "95ee2ec192d2745501981b1003e7628053504fd3",
+      "accepted_date": "2026-10-20"
     },
     {
       "id": "09",
@@ -178,10 +199,11 @@
         "06"
       ],
       "status": "accepted",
-      "validation_status": "Accepted via PR1453,merged as 08312868514f11986e28aff57534a3421ed80219,tree-identical to tested headc0eea53488624440826538aaa6243cba1ecbe03a. All5 exact-head CI checks passed. Fresh repaired quick release8655units/zero skips,72APIpasses/zero failures/12explicit full-inference exclusions;all8gates851.436s.267distincttargeted checks passed48.279s,12focused native ownership checks passed24.720s,4navigation checks after bookkeeping. Initial native /proc exit-race failure and its passing base report preserved;deterministic ESRCH/ENOENT/permission/live-PID controls now pass. Five mutation controls/direct13/16/10inventoryparity/95guard relocations retained. Seven child issues1415\u20131421 acceptance bodies/checklists verified CLOSED.50/58accepted;8remain. Full GPU/TTS/LLM/listening and complete product-native qualification unrun.",
+      "validation_status": "All tasks accepted with merged exact-head evidence. See the source-bound release and validation matrix in the acceptance ledger.",
       "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1453",
       "merge_commit": "08312868514f11986e28aff57534a3421ed80219",
-      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a"
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a",
+      "accepted_date": "2026-10-20"
     },
     {
       "id": "10",
@@ -195,8 +217,12 @@
         "07",
         "09"
       ],
-      "status": "in_progress",
-      "validation_status": "Current chapter-selection-source ./ready.sh passed all eight gates in 878.449s: 8,695 exact inventoried units with zero skips, 72 API passes with zero failures and 12 explicit full-inference exclusions. Validated tree: f756b344fb455f42e85befbb39cf25dc5d86e670. Current spoken/chapter controls passed 68 tests in 11.654s without skips, supplementing the 180 chapter/publication/shared-control cases passed on the preceding bb566b76 source. Real generated audio replay on accepted main f752ed83ea1fbb10407eca9dcae79b9898b84490 preserved selected-file bytes and absolute 15,530\u201317,040ms offsets across cold/cached exports; a forced earlier decoder omission refused the selection without replacing prior files. CPU ASR recovered all eight selected words. All 38 archival preservation hashes remain exact. Actual ROCm generation/full API/full-book export proof at 22b0de7f is retained for unchanged functions: a source/AST comparison proves the grouping and chapter-export methods changed; actual source regrouped into identical nine generation inputs and selected exports were replayed on f752ed83. The raw full API report remains 82 passes/zero failures/two prerequisite skips; both original skipped functions passed separately with actual source and an owned local LLM (84 distinct API cases across runs). Annotation/review preserved 263 ordered words, nine CustomVoice chunks completed, and MP3/M4B/Audacity artifacts were verified. CPU ASR recovered 261/263 words (99.24%) and rejected silence. Native SDK ownership passed 20 tests with zero skips on each of Linux/Windows/macOS at exact accepted f752ed83 source. Updated PR-head CI and merge remain pending; 55/58 tasks are accepted and three archival tasks remain in progress. Listening is unrun, with no auditory quality verdict, whole-book prosody or separate #1090 performance claim."
+      "status": "accepted",
+      "validation_status": "All tasks accepted with merged exact-head evidence. See the source-bound release and validation matrix in the acceptance ledger.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1463",
+      "tested_commit": "7d8dd22b32131a30b16a904ff9055870fefd352c",
+      "merge_commit": "42ea094d9381cb4df241cc906a7500c16dc42a93",
+      "accepted_date": "2026-10-20"
     }
   ],
   "tasks": [
@@ -1292,9 +1318,14 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "Current chapter-selection-source ./ready.sh passed all eight gates in 878.449s: 8,695 exact inventoried units with zero skips, 72 API passes with zero failures and 12 explicit full-inference exclusions. Validated tree: f756b344fb455f42e85befbb39cf25dc5d86e670. Current spoken/chapter controls passed 68 tests in 11.654s without skips, supplementing the 180 chapter/publication/shared-control cases passed on the preceding bb566b76 source. Real generated audio replay on accepted main f752ed83ea1fbb10407eca9dcae79b9898b84490 preserved selected-file bytes and absolute 15,530\u201317,040ms offsets across cold/cached exports; a forced earlier decoder omission refused the selection without replacing prior files. CPU ASR recovered all eight selected words. All 38 archival preservation hashes remain exact. Actual ROCm generation/full API/full-book export proof at 22b0de7f is retained for unchanged functions: a source/AST comparison proves the grouping and chapter-export methods changed; actual source regrouped into identical nine generation inputs and selected exports were replayed on f752ed83. The raw full API report remains 82 passes/zero failures/two prerequisite skips; both original skipped functions passed separately with actual source and an owned local LLM (84 distinct API cases across runs). Annotation/review preserved 263 ordered words, nine CustomVoice chunks completed, and MP3/M4B/Audacity artifacts were verified. CPU ASR recovered 261/263 words (99.24%) and rejected silence. Native SDK ownership passed 20 tests with zero skips on each of Linux/Windows/macOS at exact accepted f752ed83 source. Updated PR-head CI and merge remain pending; 55/58 tasks are accepted and three archival tasks remain in progress. Listening is unrun, with no auditory quality verdict, whole-book prosody or separate #1090 performance claim.",
-      "disposition": "archival/current-runner boundary; pending merged acceptance"
+      "status": "resolved",
+      "validation_status": "Merged archival acceptance with exact-head CI/release, 38 byte-preservation checks, 18-observation catalog and two reproducible CPU-only characterizations; see acceptance ledger.",
+      "disposition": "accepted archival/current-runner contract",
+      "reproduction_status": "Characterized exact frozen source; explicit plan-authorized archival/current-runner disposition.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1463",
+      "tested_commit": "7d8dd22b32131a30b16a904ff9055870fefd352c",
+      "merge_commit": "42ea094d9381cb4df241cc906a7500c16dc42a93",
+      "accepted_date": "2026-10-20"
     },
     {
       "task_id": "E14",
@@ -1308,9 +1339,14 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "Current chapter-selection-source ./ready.sh passed all eight gates in 878.449s: 8,695 exact inventoried units with zero skips, 72 API passes with zero failures and 12 explicit full-inference exclusions. Validated tree: f756b344fb455f42e85befbb39cf25dc5d86e670. Current spoken/chapter controls passed 68 tests in 11.654s without skips, supplementing the 180 chapter/publication/shared-control cases passed on the preceding bb566b76 source. Real generated audio replay on accepted main f752ed83ea1fbb10407eca9dcae79b9898b84490 preserved selected-file bytes and absolute 15,530\u201317,040ms offsets across cold/cached exports; a forced earlier decoder omission refused the selection without replacing prior files. CPU ASR recovered all eight selected words. All 38 archival preservation hashes remain exact. Actual ROCm generation/full API/full-book export proof at 22b0de7f is retained for unchanged functions: a source/AST comparison proves the grouping and chapter-export methods changed; actual source regrouped into identical nine generation inputs and selected exports were replayed on f752ed83. The raw full API report remains 82 passes/zero failures/two prerequisite skips; both original skipped functions passed separately with actual source and an owned local LLM (84 distinct API cases across runs). Annotation/review preserved 263 ordered words, nine CustomVoice chunks completed, and MP3/M4B/Audacity artifacts were verified. CPU ASR recovered 261/263 words (99.24%) and rejected silence. Native SDK ownership passed 20 tests with zero skips on each of Linux/Windows/macOS at exact accepted f752ed83 source. Updated PR-head CI and merge remain pending; 55/58 tasks are accepted and three archival tasks remain in progress. Listening is unrun, with no auditory quality verdict, whole-book prosody or separate #1090 performance claim.",
-      "disposition": "archival/current-runner boundary; pending merged acceptance"
+      "status": "resolved",
+      "validation_status": "Merged archival acceptance with exact-head CI/release, 38 byte-preservation checks, 18-observation catalog and two reproducible CPU-only characterizations; see acceptance ledger.",
+      "disposition": "accepted archival/current-runner contract",
+      "reproduction_status": "Characterized exact frozen source; explicit plan-authorized archival/current-runner disposition.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1463",
+      "tested_commit": "7d8dd22b32131a30b16a904ff9055870fefd352c",
+      "merge_commit": "42ea094d9381cb4df241cc906a7500c16dc42a93",
+      "accepted_date": "2026-10-20"
     },
     {
       "task_id": "E15",
@@ -1324,9 +1360,14 @@
       "severity": null,
       "confidence": null,
       "test_gap_ids": [],
-      "status": "in_progress",
-      "validation_status": "Current chapter-selection-source ./ready.sh passed all eight gates in 878.449s: 8,695 exact inventoried units with zero skips, 72 API passes with zero failures and 12 explicit full-inference exclusions. Validated tree: f756b344fb455f42e85befbb39cf25dc5d86e670. Current spoken/chapter controls passed 68 tests in 11.654s without skips, supplementing the 180 chapter/publication/shared-control cases passed on the preceding bb566b76 source. Real generated audio replay on accepted main f752ed83ea1fbb10407eca9dcae79b9898b84490 preserved selected-file bytes and absolute 15,530\u201317,040ms offsets across cold/cached exports; a forced earlier decoder omission refused the selection without replacing prior files. CPU ASR recovered all eight selected words. All 38 archival preservation hashes remain exact. Actual ROCm generation/full API/full-book export proof at 22b0de7f is retained for unchanged functions: a source/AST comparison proves the grouping and chapter-export methods changed; actual source regrouped into identical nine generation inputs and selected exports were replayed on f752ed83. The raw full API report remains 82 passes/zero failures/two prerequisite skips; both original skipped functions passed separately with actual source and an owned local LLM (84 distinct API cases across runs). Annotation/review preserved 263 ordered words, nine CustomVoice chunks completed, and MP3/M4B/Audacity artifacts were verified. CPU ASR recovered 261/263 words (99.24%) and rejected silence. Native SDK ownership passed 20 tests with zero skips on each of Linux/Windows/macOS at exact accepted f752ed83 source. Updated PR-head CI and merge remain pending; 55/58 tasks are accepted and three archival tasks remain in progress. Listening is unrun, with no auditory quality verdict, whole-book prosody or separate #1090 performance claim.",
-      "disposition": "archival/current-runner boundary; pending merged acceptance"
+      "status": "resolved",
+      "validation_status": "Merged archival acceptance with exact-head CI/release, 38 byte-preservation checks, 18-observation catalog and two reproducible CPU-only characterizations; see acceptance ledger.",
+      "disposition": "accepted archival/current-runner contract",
+      "reproduction_status": "Characterized exact frozen source; explicit plan-authorized archival/current-runner disposition.",
+      "pull_request": "https://github.com/on22s/alexandria-audiobook2/pull/1463",
+      "tested_commit": "7d8dd22b32131a30b16a904ff9055870fefd352c",
+      "merge_commit": "42ea094d9381cb4df241cc906a7500c16dc42a93",
+      "accepted_date": "2026-10-20"
     }
   ],
   "test_gap_owners": {

@@ -1,0 +1,739 @@
+{
+  "goal": "3.5",
+  "tracker": "https://github.com/on22s/alexandria-audiobook2/issues/1366",
+  "accepted_tasks": 58,
+  "undisposed_tasks": 0,
+  "review_entries": 70,
+  "test_gap_owners": 13,
+  "planning_pr": {
+    "headRefOid": "d0e492fc7613579dcb470070f9a2ec718c5f26a4",
+    "mergeCommit": {
+      "oid": "98b07cedcacbf48e361523179bea6ec2daf54197"
+    },
+    "mergedAt": "2026-10-20T12:20:31Z",
+    "number": 1425,
+    "state": "MERGED",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-20T11:56:47Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39417548111/job/118610140469",
+        "name": "unit (1/3)",
+        "startedAt": "2026-10-20T11:48:09Z",
+        "status": "COMPLETED",
+        "workflowName": "tests"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-20T11:55:20Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39417548111/job/118610140282",
+        "name": "unit (2/3)",
+        "startedAt": "2026-10-20T11:48:09Z",
+        "status": "COMPLETED",
+        "workflowName": "tests"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-20T11:58:02Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39417548111/job/118610140261",
+        "name": "unit (3/3)",
+        "startedAt": "2026-10-20T11:48:09Z",
+        "status": "COMPLETED",
+        "workflowName": "tests"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-20T11:48:54Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39417548111/job/118610139902",
+        "name": "windows-owner",
+        "startedAt": "2026-10-20T11:48:09Z",
+        "status": "COMPLETED",
+        "workflowName": "tests"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-10-20T11:58:23Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39417548111/job/118614087503",
+        "name": "test",
+        "startedAt": "2026-10-20T11:58:05Z",
+        "status": "COMPLETED",
+        "workflowName": "tests"
+      }
+    ],
+    "trees_identical": true,
+    "tree": "ecbda0404c30a483964442c48c11701de6f481db"
+  },
+  "implementation_prs": [
+    {
+      "pull_request": 1426,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1426",
+      "tested_commit": "c9a31073979d9787eaa9aacf13156a62fa622cc5",
+      "merge_commit": "b50f014092dbed90d782747a763bc483362e19b5",
+      "tree": "d14ddd767a5122cdc4c5a62f437d75a2acf19e70",
+      "tested_tree": "d14ddd767a5122cdc4c5a62f437d75a2acf19e70",
+      "trees_identical": true,
+      "merge_composition": null,
+      "exact_head_checks": [
+        {
+          "name": "native-prerequisites",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39431615528/job/118657812569"
+        },
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39431615527/job/118657813644"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39431615527/job/118657813849"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39431615527/job/118657813767"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39431615527/job/118657813715"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39431615527/job/118663296873"
+        }
+      ]
+    },
+    {
+      "pull_request": 1428,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1428",
+      "tested_commit": "46ad293ba91f735c703cebefd155dbdeeb9884dd",
+      "merge_commit": "33d3111ab87245c0e75937d31eada4e5e391280c",
+      "tree": "e1a9212ab85bd63239da637927f77b4d766e8b38",
+      "tested_tree": "e1a9212ab85bd63239da637927f77b4d766e8b38",
+      "trees_identical": true,
+      "merge_composition": null,
+      "exact_head_checks": [
+        {
+          "name": "native-prerequisites",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39442055455/job/118694178014"
+        },
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39442055527/job/118694179154"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39442055527/job/118694178049"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39442055527/job/118694178350"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39442055527/job/118694178401"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39442055527/job/118699485998"
+        }
+      ]
+    },
+    {
+      "pull_request": 1429,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1429",
+      "tested_commit": "08c140e61ad6bf0d16160ff48b160e07d5c0f079",
+      "merge_commit": "0dd5e8465c4d96a31cd526f5ba3cc2b195a36927",
+      "tree": "07dfa69fa5642af9508026545e9316511ee5ee31",
+      "tested_tree": "07dfa69fa5642af9508026545e9316511ee5ee31",
+      "trees_identical": true,
+      "merge_composition": null,
+      "exact_head_checks": [
+        {
+          "name": "candidate (ubuntu-latest)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39449151934/job/118718972922"
+        },
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39449152272/job/118718975118"
+        },
+        {
+          "name": "candidate (windows-latest)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39449151934/job/118718972892"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39449152272/job/118718975093"
+        },
+        {
+          "name": "candidate (macos-latest)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39449151934/job/118718973191"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39449152272/job/118718975028"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39449152272/job/118718974829"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39449152272/job/118724421531"
+        }
+      ]
+    },
+    {
+      "pull_request": 1430,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1430",
+      "tested_commit": "5ccc085c460c23d1ad7749b8c4e1d5dd6ca70d9a",
+      "merge_commit": "3a4a0dde477d0daaa38962c20f3284b858f4a3d4",
+      "tree": "8ced1f4b4b070cd868df7cc395743fb809bac8ab",
+      "tested_tree": "8ced1f4b4b070cd868df7cc395743fb809bac8ab",
+      "trees_identical": true,
+      "merge_composition": null,
+      "exact_head_checks": [
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39460210404/job/118757405033"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39460210404/job/118757405026"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39460210404/job/118757405232"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39460210404/job/118757404478"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39460210404/job/118761924304"
+        }
+      ]
+    },
+    {
+      "pull_request": 1431,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1431",
+      "tested_commit": "56a4bcfc040661184c5ceccdbe2e5656d63439f2",
+      "merge_commit": "f94ad7745d5b78745d875f74dd18153e9c1f0226",
+      "tree": "30ee49087a167d117361a90fcdcd766574680951",
+      "tested_tree": "30ee49087a167d117361a90fcdcd766574680951",
+      "trees_identical": true,
+      "merge_composition": null,
+      "exact_head_checks": [
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39465501710/job/118775704343"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39465501710/job/118775704569"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39465501710/job/118775704628"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39465501710/job/118775704773"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39465501710/job/118780416995"
+        }
+      ]
+    },
+    {
+      "pull_request": 1432,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1432",
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b",
+      "merge_commit": "d74e11bff8ab3d2116c004f349e56d0be271babd",
+      "tree": "b4b2e48aba799afa7780760e640985084216012c",
+      "tested_tree": "b4b2e48aba799afa7780760e640985084216012c",
+      "trees_identical": true,
+      "merge_composition": null,
+      "exact_head_checks": [
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39471039389/job/118794841874"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39471039389/job/118794841320"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39471039389/job/118794841595"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39471039389/job/118794841143"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39471039389/job/118799763218"
+        }
+      ]
+    },
+    {
+      "pull_request": 1433,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1433",
+      "tested_commit": "34c858a47be2fe91cdebe712ba38d56d4f400c01",
+      "merge_commit": "e37a69e62f0db28e1c2e9fdb9250dc550bb18169",
+      "tree": "21d0e607f9e0bee9770c9f316ffb277a51e30e47",
+      "tested_tree": "21d0e607f9e0bee9770c9f316ffb277a51e30e47",
+      "trees_identical": true,
+      "merge_composition": null,
+      "exact_head_checks": [
+        {
+          "name": "native (ubuntu-latest)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39477810716/job/118829254908"
+        },
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39477810974/job/118818218688"
+        },
+        {
+          "name": "native (windows-latest)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39477810716/job/118829253142"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39477810974/job/118818218737"
+        },
+        {
+          "name": "native (macos-latest)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39477810716/job/118829251364"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39477810974/job/118818218553"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39477810974/job/118818218129"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39477810974/job/118823756163"
+        }
+      ]
+    },
+    {
+      "pull_request": 1447,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1447",
+      "tested_commit": "f3fb0a9b98d7be7be6ec17381435cbc098f05862",
+      "merge_commit": "b48669b18ed9f4f026311a947f9f88158832e1c3",
+      "tree": "9a59264b9b81668f7a29fb1fcfa6d60f0ca8207e",
+      "tested_tree": "9a59264b9b81668f7a29fb1fcfa6d60f0ca8207e",
+      "trees_identical": true,
+      "merge_composition": null,
+      "exact_head_checks": [
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39486413490/job/118847858966"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39486413490/job/118847858920"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39486413490/job/118847858819"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39486413490/job/118847858501"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39486413490/job/118853110063"
+        }
+      ]
+    },
+    {
+      "pull_request": 1453,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1453",
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a",
+      "merge_commit": "08312868514f11986e28aff57534a3421ed80219",
+      "tree": "c81a747fbe61dfece8d5e2dcd3836e4249c75ae4",
+      "tested_tree": "c81a747fbe61dfece8d5e2dcd3836e4249c75ae4",
+      "trees_identical": true,
+      "merge_composition": null,
+      "exact_head_checks": [
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39497451029/job/118886064330"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39497451029/job/118886064188"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39497451029/job/118886064214"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39497451029/job/118886063845"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39497451029/job/118891432394"
+        }
+      ]
+    },
+    {
+      "pull_request": 1454,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1454",
+      "tested_commit": "95ee2ec192d2745501981b1003e7628053504fd3",
+      "merge_commit": "f6f97a279305f36536c3dafc80391571379eb272",
+      "tree": "81ca0bfd55c5dfed538f5d65cd07d7926a6eb706",
+      "tested_tree": "81ca0bfd55c5dfed538f5d65cd07d7926a6eb706",
+      "trees_identical": true,
+      "merge_composition": null,
+      "exact_head_checks": [
+        {
+          "name": "native (ubuntu-latest)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39502476856/job/118903154728"
+        },
+        {
+          "name": "native-prerequisites",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39502476770/job/118903154847"
+        },
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39502476976/job/118903154951"
+        },
+        {
+          "name": "native (windows-latest)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39502476856/job/118903154419"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39502476976/job/118903154889"
+        },
+        {
+          "name": "native (macos-latest)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39502476856/job/118903154875"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39502476976/job/118903154757"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39502476976/job/118903154588"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39502476976/job/118907819084"
+        }
+      ]
+    },
+    {
+      "pull_request": 1463,
+      "url": "https://github.com/on22s/alexandria-audiobook2/pull/1463",
+      "tested_commit": "7d8dd22b32131a30b16a904ff9055870fefd352c",
+      "merge_commit": "42ea094d9381cb4df241cc906a7500c16dc42a93",
+      "tree": "95089b20f8a7288684663a53b92be080b753bd84",
+      "tested_tree": "2faa19eb987e9f8d022f7d585e033237a8466269",
+      "trees_identical": false,
+      "merge_composition": {
+        "archival_pr": 1463,
+        "tested_head": "7d8dd22b32131a30b16a904ff9055870fefd352c",
+        "tested_tree": "2faa19eb987e9f8d022f7d585e033237a8466269",
+        "qualified_previous_main": "f752ed83ea1fbb10407eca9dcae79b9898b84490",
+        "accepted_upstream_pr": 1466,
+        "accepted_upstream_tested_head": "3013401e7f07181bd53c6fcc8309e524ceee0ec7",
+        "accepted_upstream_merge": "e00921cb956d5005c5d9e91859e446a72021cb8b",
+        "accepted_upstream_checks": [
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:39:21Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362131/job/118949359158",
+            "name": "native (ubuntu-latest)",
+            "startedAt": "2026-10-20T23:38:46Z",
+            "status": "COMPLETED",
+            "workflowName": "external TTS lifetime"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:39:06Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362152/job/118949358657",
+            "name": "candidate (ubuntu-latest)",
+            "startedAt": "2026-10-20T23:38:46Z",
+            "status": "COMPLETED",
+            "workflowName": "reports checkJs"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:47:32Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362089/job/118949358819",
+            "name": "unit (1/3)",
+            "startedAt": "2026-10-20T23:38:46Z",
+            "status": "COMPLETED",
+            "workflowName": "tests"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:39:46Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362131/job/118949358690",
+            "name": "native (windows-latest)",
+            "startedAt": "2026-10-20T23:38:46Z",
+            "status": "COMPLETED",
+            "workflowName": "external TTS lifetime"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:40:11Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362152/job/118949359021",
+            "name": "candidate (windows-latest)",
+            "startedAt": "2026-10-20T23:38:48Z",
+            "status": "COMPLETED",
+            "workflowName": "reports checkJs"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:47:53Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362089/job/118949359154",
+            "name": "unit (2/3)",
+            "startedAt": "2026-10-20T23:38:46Z",
+            "status": "COMPLETED",
+            "workflowName": "tests"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:40:26Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362131/job/118949359108",
+            "name": "native (macos-latest)",
+            "startedAt": "2026-10-20T23:38:51Z",
+            "status": "COMPLETED",
+            "workflowName": "external TTS lifetime"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:39:55Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362152/job/118949358987",
+            "name": "candidate (macos-latest)",
+            "startedAt": "2026-10-20T23:38:53Z",
+            "status": "COMPLETED",
+            "workflowName": "reports checkJs"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:47:07Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362089/job/118949359096",
+            "name": "unit (3/3)",
+            "startedAt": "2026-10-20T23:38:46Z",
+            "status": "COMPLETED",
+            "workflowName": "tests"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:39:53Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362089/job/118949359175",
+            "name": "windows-owner",
+            "startedAt": "2026-10-20T23:38:46Z",
+            "status": "COMPLETED",
+            "workflowName": "tests"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-20T23:48:16Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39516362089/job/118952500925",
+            "name": "test",
+            "startedAt": "2026-10-20T23:47:56Z",
+            "status": "COMPLETED",
+            "workflowName": "tests"
+          }
+        ],
+        "expected_merge_tree": "95089b20f8a7288684663a53b92be080b753bd84",
+        "changed_paths": [
+          "GOALS.md",
+          "ab_test_runtime/README.md",
+          "docs/remediation/audit_20261020_historical.md",
+          "docs/remediation/audit_20261020_historical_catalog.json",
+          "docs/remediation/audit_20261020_historical_identity.json",
+          "docs/remediation/audit_20261020_historical_preservation.json",
+          "docs/remediation/audit_20261020_historical_readiness.json",
+          "docs/remediation/audit_20261020_plan.md",
+          "docs/remediation/audit_20261020_tasks.json",
+          "docs/remediation/probes/probe_archived_readiness.py",
+          "docs/remediation/probes/probe_frozen_identity.py",
+          "docs/results/thunder-campaign-2026-09-30.md",
+          "run_chains/README.md"
+        ],
+        "upstream_changed_paths": [
+          "app/project.py",
+          "app/static/js/app-core.js",
+          "app/tests/test_chapter_input_safety_js.py",
+          "app/tests/test_chapter_output_integrity.py",
+          "app/tests/test_chapter_preview_selection.py",
+          "app/tests/unit_test_inventory.json"
+        ],
+        "no_path_overlap": true,
+        "all_merged_blobs_verified": true,
+        "original_38_files_preserved": true,
+        "scope": "Only archival/doc/probe changes from checked head; every other merged blob exactly from independently checked accepted PR1466. Not a claim of whole-tree identity to the old tested head. Final combined-source release remains required."
+      },
+      "exact_head_checks": [
+        {
+          "name": "unit (1/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39517727746/job/118953812206"
+        },
+        {
+          "name": "unit (2/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39517727746/job/118953812436"
+        },
+        {
+          "name": "unit (3/3)",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39517727746/job/118953812699"
+        },
+        {
+          "name": "windows-owner",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39517727746/job/118953812555"
+        },
+        {
+          "name": "test",
+          "conclusion": "SUCCESS",
+          "url": "https://github.com/on22s/alexandria-audiobook2/actions/runs/39517727746/job/118956981407"
+        }
+      ],
+      "ci_checkout_commit": "fc9b3dc23334bb1c1648b164ac84cfbc5c3d06c9",
+      "ci_checkout_tree": "95089b20f8a7288684663a53b92be080b753bd84",
+      "ci_checkout_tree_matches_merge": true
+    }
+  ],
+  "final_source_base": "42ea094d9381cb4df241cc906a7500c16dc42a93",
+  "required_final_ci": [
+    "unit (1/3)",
+    "unit (2/3)",
+    "unit (3/3)",
+    "windows-owner",
+    "test",
+    "native (ubuntu-latest)",
+    "native (windows-latest)",
+    "native (macos-latest)"
+  ],
+  "native_requirement": "Each native job must execute all 22 SDK/finite-provider methods with zero skips; merge acceptance requires all eight exact-head checks SUCCESS. CI links are available on the reconciliation PR; no platform result is inferred from local mocks.",
+  "local_release": {
+    "status": "passed",
+    "gates": 8,
+    "duration_seconds": 906.521,
+    "validated_tree": "9b9ab7e27713b5381c0ffad57b4f6604b2fed39c",
+    "unit_tests": 8710,
+    "unit_skips": 0,
+    "quick_api": {
+      "passed": 72,
+      "failed": 0,
+      "skipped": 12,
+      "total": 84
+    },
+    "explicit_quick_api_exclusions": 12,
+    "note": "Full model/API results and separately exercised prerequisites remain accurately separated in runtime receipt; published-head native/CI results must pass before merge."
+  },
+  "listening": "unrun; no human answer inferred; no explicit per-task listening criterion in original 58 acceptance checklists. Goal completion covers accepted code remediation, not a voice-quality target.",
+  "targeted_current_source": {
+    "tests": 72,
+    "skips": 0,
+    "seconds": 27.202,
+    "scope": "Chapter output/selection/cache/spoken intent/input safety plus SDK lifetime and finite-provider controls."
+  },
+  "additional_accepted_source": {
+    "pull_request": 1468,
+    "merge_commit": "873525d932b83e3f5cee17740d2f4f5b99b2710e",
+    "tested_head": "6152be1b9d3f6929a6a590e39d4297a40bed96ac",
+    "inventory": 8720,
+    "all_eight_upstream_checks": "SUCCESS",
+    "new_heading_controls": {
+      "tests": 10,
+      "skips": 0,
+      "seconds": 0.025
+    },
+    "final_acceptance_requirement": "Download final proposed-merge CI checkout provenance and require its tree to equal the actual final merged tree; 8720 complete unit IDs and 22 native cases each OS. Local Ready8710 remains honestly separate."
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "current_source": "873525d932b83e3f5cee17740d2f4f5b99b2710e",
+  "current_inventory": 8720,
+  "baseline_inventory": 8523,
+  "new_method_ids": 197,
+  "removed_baseline_ids": [],
+  "accepted_pr_inventory_retention": [
+    {
+      "pull_request": 1426,
+      "tested_commit": "c9a31073979d9787eaa9aacf13156a62fa622cc5",
+      "tested_inventory": 8546,
+      "missing_from_current_inventory": []
+    },
+    {
+      "pull_request": 1428,
+      "tested_commit": "46ad293ba91f735c703cebefd155dbdeeb9884dd",
+      "tested_inventory": 8564,
+      "missing_from_current_inventory": []
+    },
+    {
+      "pull_request": 1429,
+      "tested_commit": "08c140e61ad6bf0d16160ff48b160e07d5c0f079",
+      "tested_inventory": 8570,
+      "missing_from_current_inventory": []
+    },
+    {
+      "pull_request": 1430,
+      "tested_commit": "5ccc085c460c23d1ad7749b8c4e1d5dd6ca70d9a",
+      "tested_inventory": 8583,
+      "missing_from_current_inventory": []
+    },
+    {
+      "pull_request": 1431,
+      "tested_commit": "56a4bcfc040661184c5ceccdbe2e5656d63439f2",
+      "tested_inventory": 8594,
+      "missing_from_current_inventory": []
+    },
+    {
+      "pull_request": 1432,
+      "tested_commit": "8e7e8b6bd849cef806fbdaaea197a6566c58d86b",
+      "tested_inventory": 8606,
+      "missing_from_current_inventory": []
+    },
+    {
+      "pull_request": 1433,
+      "tested_commit": "34c858a47be2fe91cdebe712ba38d56d4f400c01",
+      "tested_inventory": 8626,
+      "missing_from_current_inventory": []
+    },
+    {
+      "pull_request": 1447,
+      "tested_commit": "f3fb0a9b98d7be7be6ec17381435cbc098f05862",
+      "tested_inventory": 8643,
+      "missing_from_current_inventory": []
+    },
+    {
+      "pull_request": 1453,
+      "tested_commit": "c0eea53488624440826538aaa6243cba1ecbe03a",
+      "tested_inventory": 8655,
+      "missing_from_current_inventory": []
+    },
+    {
+      "pull_request": 1454,
+      "tested_commit": "95ee2ec192d2745501981b1003e7628053504fd3",
+      "tested_inventory": 8670,
+      "missing_from_current_inventory": []
+    },
+    {
+      "pull_request": 1463,
+      "tested_commit": "7d8dd22b32131a30b16a904ff9055870fefd352c",
+      "tested_inventory": 8695,
+      "missing_from_current_inventory": []
+    }
+  ],
+  "local_release_source_inventory": 8710,
+  "source_note": "Latest accepted heading source adds ten tests. Final CI checks the complete proposed merge checkout, including this accepted source; local Ready remains recorded separately at 8710."
+}
