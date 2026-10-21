@@ -36,7 +36,8 @@ class SharedAudioValidationTests(unittest.TestCase):
                     with self.assertRaisesRegex(GeneratedAudioError, 'truncated audio'):
                         validate_generated_audio(path)
             # Only the file-extent boundary is simulated; no multi-GiB decoding claim.
-            with patch('audio_validation.os.path.getsize', return_value=2**32 + len(original)):
+            with patch('audio_validation.os.path.getsize', return_value=2**32 + len(original)), \
+                    patch('audio_validation.os.fstat', return_value=SimpleNamespace(st_size=2**32 + len(original))):
                 self.assertEqual(path, validate_generated_audio(path))
             sf.write(path, np.full(80, 0.25), 24000, format='RF64')
             self.assertEqual(b'RF64', path.read_bytes()[:4])

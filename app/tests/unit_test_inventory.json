@@ -11541,6 +11541,16 @@
     "tests.test_watchdog_startup.WatchdogStartupTests.test_session_never_observed_fails_without_completion_artifact",
     "tests.test_watchdog_startup.WatchdogStartupTests.test_zip_presence_or_old_observer_receipt_cannot_prove_runner_success"
   ],
+  "test_wav_container_validation": [
+    "tests.test_wav_container_validation.WavContainerValidationTests.test_container_scan_keeps_cancellation_and_same_descriptor_position",
+    "tests.test_wav_container_validation.WavContainerValidationTests.test_data_extent_refuses_even_when_decoder_info_and_decode_agree",
+    "tests.test_wav_container_validation.WavContainerValidationTests.test_healthy_integer_float_and_non_wav_keep_real_validation",
+    "tests.test_wav_container_validation.WavContainerValidationTests.test_inconsistent_data_declaration_preserves_prior_selected_publication",
+    "tests.test_wav_container_validation.WavContainerValidationTests.test_metadata_chunk_scan_is_bounded_without_decoding_or_consuming_payloads",
+    "tests.test_wav_container_validation.WavContainerValidationTests.test_metadata_padding_and_data_are_checked_against_riff_boundary",
+    "tests.test_wav_container_validation.WavContainerValidationTests.test_python_wave_odd_unsigned_pcm_keeps_terminal_padding_compatibility",
+    "tests.test_wav_container_validation.WavContainerValidationTests.test_short_riff_declaration_cannot_hide_data_from_container_validation"
+  ],
   "test_wav_decoder": [
     "tests.test_wav_decoder.WavDecoderTests.test_float_wav_uses_container_format_without_invalid_decoder"
   ],

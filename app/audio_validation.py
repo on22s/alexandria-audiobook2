@@ -116,6 +116,60 @@ def get_minimum_speech_duration(text):
     return units / 80 if units >= 80 else 0
 
 
+def validate_wav_container(stream, context="audio generation", *, cancel_check=None):
+    """Check conventional RIFF/WAVE extents on the caller's open descriptor.
+
+    Decoders can clamp both reported and decoded frames to the physical bytes.
+    This validates declared subchunks independently, preserving the stream offset.
+    Non-WAV formats and the legacy wrapped-length large-WAV path retain their
+    existing full-decoder validation; this does not certify RF64 declarations.
+    """
+    position = stream.tell()
+    try:
+        stream.seek(0)
+        head = stream.read(12)
+        if len(head) != 12 or head[:4] != b"RIFF" or head[8:] != b"WAVE":
+            return
+        size = os.fstat(stream.fileno()).st_size
+        extent = struct.unpack("<I", head[4:8])[0] + 8
+        if size < extent:
+            raise GeneratedAudioError(f"{context} wrote truncated audio: header declares {extent} bytes, file is {size} ({extent - size} missing)")
+        # Existing RIFF writers can wrap their 32-bit lengths above 4 GiB. Keep
+        # that compatibility, without claiming conventional subchunk proof there.
+        if size >= 2**32:
+            return
+        offset, count = 12, 0
+        found = set()
+        while offset < extent:
+            if cancel_check is not None and cancel_check():
+                raise GeneratedAudioCancelled(f"{context} validation cancelled")
+            if count >= 65536:
+                raise GeneratedAudioError(f"{context} WAV contains too many subchunks to validate")
+            if offset + 8 > extent:
+                raise GeneratedAudioError(f"{context} wrote truncated WAV subchunk header")
+            stream.seek(offset)
+            chunk = stream.read(8)
+            if len(chunk) != 8:
+                raise GeneratedAudioError(f"{context} wrote truncated WAV subchunk header")
+            length = struct.unpack("<I", chunk[4:])[0]
+            end = offset + 8 + length
+            padded = end + (length & 1)
+            # Python's wave writer historically omits the final pad for odd
+            # PCM_U8 data. Admit only that terminal, physically complete case;
+            # metadata and any following chunk still require their padding.
+            terminal_data = chunk[:4] == b"data" and end == extent == size
+            if end > extent or padded > extent and not terminal_data:
+                raise GeneratedAudioError(f"{context} wrote truncated WAV subchunk payload or padding")
+            if chunk[:4] in (b"fmt ", b"data"):
+                found.add(chunk[:4])
+            offset = end if terminal_data else padded
+            count += 1
+        if offset != extent or found != {b"fmt ", b"data"}:
+            raise GeneratedAudioError(f"{context} WAV does not contain format and data inside its RIFF extent")
+    finally:
+        stream.seek(position)
+
+
 def validate_generated_audio(path, context="audio generation", *, expected_text=None, cancel_check=None):
     """Validate all frames, optionally polling a cancellation predicate per block."""
     def check():
@@ -172,15 +226,7 @@ def validate_generated_audio(path, context="audio generation", *, expected_text=
                 f"({frames / rate:.3f}s; minimum {minimum:.3f}s)")
 
     with open(path, "rb") as handle:
-        head = handle.read(12)
-    if len(head) >= 12 and head[:4] == b"RIFF" and head[8:12] == b"WAVE":
-        declared = struct.unpack("<I", head[4:8])[0] + 8
-        # Wrapped 32-bit lengths remain below the actual large-file extent.
-        # A near-limit declaration still cannot exceed a small file's bytes.
-        if size < declared:
-            raise GeneratedAudioError(
-                f"{context} wrote truncated audio: header declares {declared} "
-                f"bytes, file is {size} ({declared - size} missing)")
+        validate_wav_container(handle, context, cancel_check=cancel_check)
     return path
 
 
