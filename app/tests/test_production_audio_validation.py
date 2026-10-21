@@ -138,7 +138,7 @@ class _BatchEngine:
         path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
         self.saw_stale = os.path.exists(path)
         if self.write_output:
-            _write_wav(path)
+            sf.write(path, np.full(2400, 0.1, dtype=np.float32), 24000, format="WAV")
         return {"completed": [idx], "failed": []}
 
 
@@ -223,6 +223,9 @@ class ProductionCompletionBoundaryTests(unittest.TestCase):
             chunk = manager.load_chunks()[0]
             self.assertEqual("done", chunk["status"])
             self.assertIsNone(chunk["error"])
+            samples, rate = sf.read(manager.get_chunk_audio_path(chunk["audio_path"]))
+            self.assertEqual(24000, rate)
+            np.testing.assert_allclose(samples, 0.1, atol=1 / 32768)
 
     def test_false_batch_completion_without_fresh_file_is_an_error(self):
         with tempfile.TemporaryDirectory() as tmp:

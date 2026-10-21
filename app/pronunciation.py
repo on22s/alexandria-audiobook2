@@ -143,6 +143,25 @@ def get_pronunciation_result(text, entries, pattern=None):
 
 
 @contextmanager
+def ensure_pronunciation_snapshot():
+    """Freeze one worker's lexicon through synthesis and speech admission."""
+    if _audition_matcher.get() is not None:
+        yield
+        return
+    try:
+        entries = load_lexicon()
+        matcher = (entries, _compile(entries))
+    except Exception as error:  # acquisition remains as fail-soft as speech preparation
+        logger.warning("Pronunciation snapshot unavailable; continuing without substitutions: %s", error)
+        matcher = ({}, None)
+    token = _audition_matcher.set(matcher)
+    try:
+        yield
+    finally:
+        _audition_matcher.reset(token)
+
+
+@contextmanager
 def ensure_literal_pronunciation_audition():
     """Read audition spellings literally in this worker; retain normal speech preparation."""
     with ensure_pronunciation_audition({}):

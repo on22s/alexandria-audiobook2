@@ -1,15 +1,16 @@
-"""Shared structural validation for newly generated audio files."""
+"""Shared integrity validation with optional generated-speech admission."""
 import os
 import contextlib
 import hashlib
 import tempfile
 from pathlib import Path
 import struct
+import unicodedata
 from utils import file_lock
 
 
 class GeneratedAudioError(RuntimeError):
-    """Generated output is missing, empty, undecodable, or incomplete."""
+    """Generated output failed structural, sample, or speech validation."""
 
 
 def is_audio_file_present(path, resolve_path):
@@ -94,7 +95,23 @@ def publish_audio_output(staging_path, output_path, cancelled=None):
         return True
 
 
-def validate_generated_audio(path, context="audio generation"):
+def get_minimum_speech_duration(text):
+    """Reject only gross duration failures, leaving short utterances unrestricted.
+
+    Eighty letters/digits per second is a deliberately generous ceiling, not a
+    speaking-rate quality score. Count Han, kana and Hangul as four units so
+    compact scripts do not inherit an English character-rate assumption.
+    """
+    units = 0
+    for char in unicodedata.normalize("NFC", text):
+        if not char.isalnum():
+            continue
+        name = unicodedata.name(char, "")
+        units += 4 if name.startswith(("CJK", "HIRAGANA", "KATAKANA", "HANGUL")) else 1
+    return units / 80 if units >= 80 else 0
+
+
+def validate_generated_audio(path, context="audio generation", *, expected_text=None):
     """Return ``path`` after fully validating a newly generated audio file."""
     if not os.path.exists(path):
         raise GeneratedAudioError(f"{context} wrote no file: {path}")
@@ -108,12 +125,16 @@ def validate_generated_audio(path, context="audio generation"):
         frames, rate = info.frames, info.samplerate
         # Reading the entire stream exercises decoding beyond the header.
         decoded_frames = 0
+        peak = 0.0
         with sf.SoundFile(path) as audio:
             while True:
                 block = audio.read(65536)
                 if not len(block):
                     break
                 validate_finite_audio_values(block, context)
+                if expected_text is not None:
+                    import numpy as np
+                    peak = max(peak, float(np.max(np.abs(block))))
                 decoded_frames += len(block)
     except Exception as exc:  # noqa: BLE001
         raise GeneratedAudioError(
@@ -127,6 +148,15 @@ def validate_generated_audio(path, context="audio generation"):
         raise GeneratedAudioError(
             f"{context} wrote incomplete audio: frame count header declares "
             f"{frames}, decoded {decoded_frames}")
+
+    if expected_text is not None:
+        if peak < 1e-5:
+            raise GeneratedAudioError(f"{context} returned effectively silent speech")
+        minimum = get_minimum_speech_duration(expected_text)
+        if frames / rate < minimum:
+            raise GeneratedAudioError(
+                f"{context} returned speech too short for the requested text "
+                f"({frames / rate:.3f}s; minimum {minimum:.3f}s)")
 
     with open(path, "rb") as handle:
         head = handle.read(12)

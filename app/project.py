@@ -16,6 +16,8 @@ import gc
 import math
 import unicodedata
 import uuid
+from pronunciation import ensure_pronunciation_snapshot
+from speech_text import normalize_for_speech
 from script_repair import EXPLICIT_SILENCE_MS
 from speech_policy import (get_spoken_symbol, get_spoken_word_text,
                            get_spoken_text_spacing, get_scene_break_text)
@@ -1227,6 +1229,8 @@ class ProjectManager:
 
     def _publish_generated_chunk_audio(self, chunk, temp_path, speaker):
         """Convert privately, then attach/promote audio only to unchanged inputs."""
+        validate_generated_audio(temp_path, "generated speech",
+                                 expected_text=normalize_for_speech(chunk.get("text", "")))
         staged_path = None
         try:
             staged_audio = self._export_chunk_audio(temp_path, f".render-{uuid.uuid4().hex}")
@@ -1296,6 +1300,7 @@ class ProjectManager:
                     raise ValueError("Literal chunks have no matching source-policy script")
                 ensure_literal_chunk(chunks[index], policy)
 
+    @ensure_pronunciation_snapshot()
     def _generate_captured_chunk_audio(self, index, chunk):
         if not chunk:
             return False, "Invalid chunk index"
@@ -2577,6 +2582,7 @@ class ProjectManager:
             hard_failures.append((idx, error if updated is not None else GENERATION_INPUTS_CHANGED))
         return oom_failed, hard_failures
 
+    @ensure_pronunciation_snapshot()
     def generate_chunks_batch(self, indices, batch_seed=-1, batch_size=4, progress_callback=None,
                                batch_group_by_type=False, cancel_check=None, admitted_requests=None):
         """Generate multiple chunks using batch TTS API with a single seed.
