@@ -9434,6 +9434,28 @@
   "test_synthesis_windows_controls_js": [
     "tests.test_synthesis_windows_controls_js.SynthesisWindowControlsTests.test_server_policy_roundtrip_disabled_preservation_errors_and_labels"
   ],
+  "test_synthesis_workspace": [
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_active_same_claim_parallel_parents_preserved_by_live_kernel_lease",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_actual_core_preclaim_and_startup_cleanup_use_existing_idle_barrier",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_actual_dispatch_only_known_owned_supported_custom_with_recovery_disabled",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_after_publication_cleanup_failure_keeps_success_and_charge_until_idle",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_capacity_refuses_before_mkdir_and_never_falls_back",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_core_preclaim_busy_book_defers_and_live_foreign_lease_preserved",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_corrupt_missing_and_aliased_authority_never_reset_or_scan_legacy",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_exact_owner_cancel_cleanup_succeeds_but_replaced_owner_defers",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_hard_exit_window_join_and_postpublication_reclaimed_under_idle",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_live_foreign_task_preserved_then_existing_process_retries_after_sigkill",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_normal_unwind_and_nested_parallel_parent_registrations",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_project_capture_when_recovery_disabled_still_renews_book_and_inputs",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_real_process_death_registration_creation_and_retirement_boundaries",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_real_render_success_and_late_failure_preserve_selected_parent",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_replaced_persistent_lock_refuses_deletion",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_reserved_creation_gap_does_not_authorize_deleting_present_directory",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unknown_aliases_links_and_substituted_directory_preserve_all_files",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unlink_and_directory_sync_fault_keep_charge_and_retry",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unowned_or_changed_claim_refused_before_registry_creation",
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unsafe_first_row_does_not_starve_later_abandoned_workspace"
+  ],
   "test_system_version": [
     "tests.test_system_version.VersionEndpointTests.test_version_endpoint_returns_runtime_info"
   ],

@@ -1362,11 +1362,12 @@ class ProjectManager:
                 chunk.get("uid"), expected_chunk=chunk, **fields)
 
     def _capture_synthesis_recovery_parent(self, engine, index, chunk):
-        """Capture optional metadata; every later cache write renews exact admission."""
+        """Capture owned parent admission for disposable spill and optional recovery."""
         policy_reader = getattr(engine, "get_synthesis_recovery_policy", None)
         policy = policy_reader() if callable(policy_reader) else None
         claim_digest = get_recovery_claim_digest()
-        if not policy or not policy.get("enabled") or claim_digest is None or not chunk.get("uid"):
+        windowed = getattr(engine, "_synthesis_windows", None)
+        if (not (policy and policy.get("enabled")) and not windowed) or claim_digest is None or not chunk.get("uid"):
             return None
         owner = get_audio_generation_owner()
         captured = copy.deepcopy(chunk)

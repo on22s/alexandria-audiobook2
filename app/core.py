@@ -762,6 +762,16 @@ def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources
             check_global_gpu_lock(task_name, cpu_only=True)
         else:
             check_global_gpu_lock(task_name)
+        if task_name == "audio":
+            try:
+                with ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
+                    if idle:
+                        from synthesis_workspace import apply_abandoned_synthesis_workspace_cleanup
+                        from book_state_transaction import ensure_book_state
+                        with ensure_book_state(DATA_DIR, timeout=0):
+                            apply_abandoned_synthesis_workspace_cleanup(DATA_DIR)
+            except TimeoutError:
+                pass  # Ordinary task-lease admission still determines conflicts.
         needs_local_gpu = (not cpu_only and task_name not in NON_GPU_TASKS
                            and (task_name not in LLM_TASKS
                                 or (llm_is_on_this_gpu() if llm_config is None

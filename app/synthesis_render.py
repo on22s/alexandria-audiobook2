@@ -35,7 +35,7 @@ def get_synthesis_window_plan(text, settings, budget_keys):
     return plan if len(plan.windows) > 1 else None
 
 
-def render_synthesis_windows(plan, render, output_path, settings, cancel_check=None, recovery=None):
+def render_synthesis_windows(plan, render, output_path, settings, cancel_check=None, recovery=None, workspace_parent=None):
     """Render exact prepared spans; failure/cancel leaves prior parent bytes intact."""
     from audio_mastering import get_audio_sha256
     from audio_validation import GeneratedAudioError
@@ -52,7 +52,10 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
     ensure_audio_export_active(cancel_check)
     token = _active_root.set(True)
     try:
-        with tempfile.TemporaryDirectory(prefix='.synthesis-render-', dir=output.parent) as directory:
+        from synthesis_workspace import ensure_synthesis_workspace
+        workspace = (tempfile.TemporaryDirectory(prefix='.synthesis-render-', dir=output.parent)
+                     if workspace_parent is None else ensure_synthesis_workspace(workspace_parent, len(plan.windows)))
+        with workspace as directory:
             results, windows, metadata = [], [], []
             for index, window in enumerate(plan.windows):
                 ensure_audio_export_active(cancel_check)
@@ -98,12 +101,15 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
                 results.append((index, path))
             if recovery is not None:
                 recovery.check()
-            assembled = Path(directory) / 'assembled-parent.wav' if recovery is not None else output
-            receipt = assemble_synthesis_windows(plan, results, assembled, policy=policy, cancel_check=cancel_check)
+            private_parent = recovery is not None or workspace_parent is not None
+            assembled = Path(directory) / 'assembled-parent.wav' if private_parent else output
+            scratch = {} if workspace_parent is None else {'scratch_directory': Path(directory) / 'join'}
+            receipt = assemble_synthesis_windows(plan, results, assembled, policy=policy, cancel_check=cancel_check, **scratch)
             receipt.update(version=1, policy=settings, windows=windows)
             if recovery is not None:
                 recovery.check()
                 receipt['recovery'] = recovery.get_receipt()
+            if private_parent:
                 from audio_validation import publish_audio_output
                 from audio_generation_owner import (AudioGenerationCancelled, get_audio_generation_owner,
                                                     ensure_audio_generation_publication)

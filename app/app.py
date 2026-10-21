@@ -56,6 +56,8 @@ async def lifespan(_app):
     with ensure_startup_recovery(DATA_DIR) as recovery_allowed:
         if recovery_allowed:
             with ensure_book_state(DATA_DIR):
+                from synthesis_workspace import apply_abandoned_synthesis_workspace_cleanup
+                apply_abandoned_synthesis_workspace_cleanup(DATA_DIR)
                 reset_stuck_chunks()
             interrupted = mark_interrupted_runs(RUN_HISTORY_DIR)
             if interrupted:

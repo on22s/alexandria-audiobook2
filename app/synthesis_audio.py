@@ -1,4 +1,5 @@
 """Bounded internal-window assembly; inter-chunk export timing stays separate."""
+from contextlib import nullcontext
 from dataclasses import dataclass, replace
 import math
 import os
@@ -172,7 +173,7 @@ def _faded_pcm(source, start, frames, fade_in, fade_out, check):
         cursor += len(values)
 
 
-def assemble_synthesis_windows(plan, results, output_path, *, policy=None, cancel_check=None):
+def assemble_synthesis_windows(plan, results, output_path, *, policy=None, cancel_check=None, scratch_directory=None):
     """Install one complete parent WAV or retain the prior destination on failure."""
     import numpy as np
     from audio_pcm_producer import PCMSourceStore, PCMProducer, iter_converted_pcm
@@ -202,8 +203,9 @@ def assemble_synthesis_windows(plan, results, output_path, *, policy=None, cance
     threshold_db = EDGE_SILENCE_THRESHOLD_DBFS if policy.quiet_threshold_db is None else policy.quiet_threshold_db
     threshold = 2147483648 * 10 ** (threshold_db / 20)
     output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='.synthesis-join-', dir=output.parent) as directory, \
-            PCMSourceStore(directory, check) as store:
+    scratch = (tempfile.TemporaryDirectory(prefix='.synthesis-join-', dir=output.parent)
+               if scratch_directory is None else nullcontext(scratch_directory))
+    with scratch as directory, PCMSourceStore(directory, check) as store:
         sources, edges = [], []
         for index, (path, (info, version), shape) in enumerate(zip(paths, metadata, shapes)):
             check()
