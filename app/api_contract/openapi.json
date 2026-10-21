@@ -3804,6 +3804,13 @@
             "title": "Sub Batch Ratio",
             "type": "number"
           },
+          "synthesis_windows": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Synthesis Windows",
+            "type": "object"
+          },
           "url": {
             "default": "http://127.0.0.1:7860",
             "title": "Url",

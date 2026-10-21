@@ -30,6 +30,9 @@ from adapter_checkpoint_transaction import (ensure_adapter_generation_snapshot, 
 from lora_evidence import get_file_sha256, get_tts_model_settings
 from audio_validation import GeneratedAudioError, publish_audio_output
 from speech_text import normalize_for_speech, get_speech_preparation
+from audio_generation_owner import is_audio_generation_cancelled, ensure_audio_generation_active
+from synthesis_render import (ensure_synthesis_receipts, get_synthesis_window_plan,
+                              render_synthesis_windows)
 from pronunciation import ensure_occurrence_pronunciation_context, get_pronunciation_model_context
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
@@ -92,6 +95,7 @@ class TTSFailure:
 class TTSGenerationResult:
     success: bool
     failure: TTSFailure | None = None
+    synthesis_receipt: dict | None = None
 
 
 _TTS_FAILURES = ContextVar("tts_generation_failures", default=None)
@@ -721,6 +725,7 @@ class TTSEngine:
         model_settings = get_tts_model_settings(config)
         tts_config = config.get("tts", {})
         self._mode = model_settings["mode"]
+        self._synthesis_windows = copy.deepcopy(model_settings.get("synthesis_windows"))
         self._url = tts_config.get("url", "http://127.0.0.1:7860")
         # Each endpoint has one lazily created client per configured worker.
         # Every client keeps its own lock: gradio_client cannot be shared
@@ -1579,9 +1584,37 @@ class TTSEngine:
 
     def get_model_settings(self):
         """Return the actual model settings used by this initialized engine."""
-        return {"mode": self._mode, "device": self._device,
-                "compile_codec": self._compile_codec_enabled,
-                "max_new_tokens": self._max_new_tokens, "language": self._language}
+        settings = {"mode": self._mode, "device": self._device,
+                    "compile_codec": self._compile_codec_enabled,
+                    "max_new_tokens": self._max_new_tokens, "language": self._language}
+        if getattr(self, "_synthesis_windows", None) is not None:
+            settings["synthesis_windows"] = copy.deepcopy(self._synthesis_windows)
+        return settings
+
+    def _get_synthesis_window_plan(self, text, category, voice_data=None, voice_config=None):
+        settings = getattr(self, "_synthesis_windows", None)
+        if settings is None:
+            return None
+        keys = [f"{self.get_voice_backend(category)}.{category}"]
+        if category == "ensemble":
+            for member in self._get_ensemble_members(voice_data, voice_config):
+                member_category = voice_category(voice_config[member])
+                keys.append(f"{self.get_voice_backend(member_category)}.{member_category}")
+        return get_synthesis_window_plan(text, settings, keys)
+
+    def _render_synthesis_windows(self, text, category, render, output_path,
+                                  voice_data=None, voice_config=None):
+        try:
+            ensure_audio_generation_active()
+            plan = self._get_synthesis_window_plan(text, category, voice_data, voice_config)
+            if plan is None:
+                return None
+            render_synthesis_windows(plan, render, output_path, self._synthesis_windows,
+                                     cancel_check=is_audio_generation_cancelled)
+            return True
+        except Exception as error:
+            apply_tts_failure(error)
+            return False
 
     # ── Core generation methods ──────────────────────────────────
 
@@ -1653,6 +1686,11 @@ class TTSEngine:
 
     def _generate_custom_voice_prepared(self, text, instruct_text, speaker, voice_config, output_path):
         """Render explicitly prepared input; public callers use the raw wrapper."""
+        windowed = self._render_synthesis_windows(
+            text, "custom", lambda span, path: self._generate_custom_voice_prepared(
+                span, instruct_text, speaker, voice_config, path), output_path)
+        if windowed is not None:
+            return windowed
         if self.get_voice_backend("custom") == "local":
             return self._local_generate_custom(text, instruct_text, speaker, voice_config, output_path)
         else:
@@ -1669,6 +1707,11 @@ class TTSEngine:
 
     def _generate_clone_voice_prepared(self, text, speaker, voice_config, output_path):
         """Render explicitly prepared input; public callers use the raw wrapper."""
+        windowed = self._render_synthesis_windows(
+            text, "clone", lambda span, path: self._generate_clone_voice_prepared(
+                span, speaker, voice_config, path), output_path)
+        if windowed is not None:
+            return windowed
         if self.get_voice_backend("clone") == "local":
             return self._local_generate_clone(text, speaker, voice_config, output_path)
         else:
@@ -1683,14 +1726,16 @@ class TTSEngine:
         failures = []
         token = _TTS_FAILURES.set(failures)
         try:
-            try:
-                success = bool(self.generate_voice(
-                    text, instruct_text, speaker, voice_config, output_path))
-            except Exception as error:
-                apply_tts_failure(error)
-                success = False
+            with ensure_synthesis_receipts() as receipts:
+                try:
+                    success = bool(self.generate_voice(
+                        text, instruct_text, speaker, voice_config, output_path))
+                except Exception as error:
+                    apply_tts_failure(error)
+                    success = False
             # An ensemble can wrap the original member failure; retain its cause.
-            return TTSGenerationResult(success, None if success or not failures else failures[0])
+            return TTSGenerationResult(success, None if success or not failures else failures[0],
+                                       receipts[-1] if success and receipts else None)
         finally:
             _TTS_FAILURES.reset(token)
 
@@ -1776,7 +1821,7 @@ class TTSEngine:
         return self._generate_ensemble_voice_prepared(
             prepared["text"], prepared["instruct"], voice_data, voice_config, output_path)
 
-    def _generate_ensemble_voice_prepared(self, text, instruct_text, voice_data, voice_config, output_path):
+    def _get_ensemble_members(self, voice_data, voice_config):
         members = voice_data.get("members") or []
         if not members:
             raise ValueError("Ensemble voice has no members configured.")
@@ -1793,7 +1838,17 @@ class TTSEngine:
                     f"Ensemble member '{member}' is itself an ensemble; "
                     f"ensembles cannot be nested.")
             self.get_voice_backend(voice_category(member_data))
+        return resolved_members
 
+    def _generate_ensemble_voice_prepared(self, text, instruct_text, voice_data, voice_config, output_path):
+        resolved_members = self._get_ensemble_members(voice_data, voice_config)
+        windowed = self._render_synthesis_windows(
+            text, "ensemble", lambda span, path: self._generate_ensemble_voice_prepared(
+                span, instruct_text, voice_data, voice_config, path), output_path,
+            voice_data=voice_data, voice_config=voice_config)
+        if windowed is not None:
+            return windowed
+        members = voice_data.get("members") or []
         temp_dir = tempfile.mkdtemp(prefix="unison_")
         try:
             member_paths = []
@@ -1884,6 +1939,11 @@ class TTSEngine:
 
     def _generate_design_voice_prepared(self, text, instruct_text, voice_data, output_path):
         self.get_voice_backend("design")
+        windowed = self._render_synthesis_windows(
+            text, "design", lambda span, path: self._generate_design_voice_prepared(
+                span, instruct_text, voice_data, path), output_path)
+        if windowed is not None:
+            return windowed
         import shutil
 
         base_desc = (voice_data.get("description") or "").strip()
@@ -1944,6 +2004,11 @@ class TTSEngine:
     def _generate_lora_voice_prepared(self, text, instruct_text, voice_data, output_path):
         try:
             self.get_voice_backend("lora")
+            windowed = self._render_synthesis_windows(
+                text, "lora", lambda span, path: self._generate_lora_voice_prepared(
+                    span, instruct_text, voice_data, path), output_path)
+            if windowed is not None:
+                return windowed
             import time
 
             adapter_path = voice_data.get("adapter_path")
@@ -2084,6 +2149,15 @@ class TTSEngine:
             print("Clone prompt cached for LoRA adapter.")
         return self._lora_prompt_cache[cache_key]
 
+    def _generate_prepared_batch_parent(self, chunk, voice_config, output_dir, batch_seed):
+        idx = chunk["index"]
+        output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
+        resolved = get_batch_voice_config(voice_config, chunk.get("speaker"), idx, batch_seed)
+        with ensure_synthesis_receipts() as receipts:
+            success = self._dispatch_prepared_voice(
+                chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path)
+        return success, receipts[-1] if success and receipts else None
+
     # ── Batch generation ─────────────────────────────────────────
 
     @capture_tts_operation("generate_batch")
@@ -2104,7 +2178,7 @@ class TTSEngine:
         """
         results = {"completed": [], "failed": []}
 
-        if not chunks:
+        if not chunks or is_audio_generation_cancelled():
             return results
 
         # Resolve each row before its one canonical speech preparation. Stable
@@ -2140,14 +2214,17 @@ class TTSEngine:
             # A dynamic narrator may use different configs per chunk; keep those
             # chunks on the established single-item path to avoid mixing voices.
             for chunk, resolved in dynamic_chunks:
+                if is_audio_generation_cancelled():
+                    return results
                 if resolved is voice_config:
                     continue
                 idx = chunk["index"]
-                output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
-                resolved = get_batch_voice_config(resolved, chunk.get("speaker"), idx, batch_seed)
                 try:
-                    if self._dispatch_prepared_voice(chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path):
+                    success, receipt = self._generate_prepared_batch_parent(chunk, resolved, output_dir, batch_seed)
+                    if success:
                         results["completed"].append(idx)
+                        if receipt is not None:
+                            results.setdefault("synthesis_receipts", {})[idx] = receipt
                     else:
                         results["failed"].append((idx, "Narrator voice generation failed"))
                 except Exception as e:
@@ -2160,6 +2237,34 @@ class TTSEngine:
         # from dynamo guard accumulation across batches
         if self._compile_codec_enabled:
             self._reset_compile_cache()
+
+        # Split parents keep their original index/config; unsplit rows retain
+        # native list batching. Speech preparation has already run exactly once.
+        if getattr(self, "_synthesis_windows", None) is not None:
+            native_chunks = []
+            for chunk in chunks:
+                if is_audio_generation_cancelled():
+                    return results
+                idx, speaker = chunk["index"], chunk.get("speaker")
+                try:
+                    effective = get_batch_voice_config(voice_config, speaker, idx, batch_seed)
+                    data = effective.get(speaker, {})
+                    plan = self._get_synthesis_window_plan(chunk["text"], voice_category(data), data, effective)
+                    if plan is None:
+                        native_chunks.append(chunk)
+                        continue
+                    success, receipt = self._generate_prepared_batch_parent(chunk, voice_config, output_dir, batch_seed)
+                    if success:
+                        results["completed"].append(idx)
+                        if receipt is not None:
+                            results.setdefault("synthesis_receipts", {})[idx] = receipt
+                    else:
+                        results["failed"].append((idx, "Internal synthesis window generation failed"))
+                except Exception as error:
+                    results["failed"].append((idx, str(error)))
+            chunks = native_chunks
+            if not chunks:
+                return results
 
         # Separate chunks by voice type
         custom_chunks = []
@@ -2187,6 +2292,8 @@ class TTSEngine:
         # Ensemble chunks need several different voices each, so they can't join
         # a same-voice batch — render them one at a time.
         if ensemble_chunks:
+            if is_audio_generation_cancelled():
+                return results
             batch_results = self._sequential_ensemble(ensemble_chunks, voice_config, output_dir, batch_seed)
             results["completed"].extend(batch_results["completed"])
             results["failed"].extend(batch_results["failed"])
@@ -2194,6 +2301,8 @@ class TTSEngine:
 
         # Process custom voice chunks
         if custom_chunks:
+            if is_audio_generation_cancelled():
+                return results
             if self.get_voice_backend("custom") == "local":
                 batch_results = self._local_batch_custom(custom_chunks, voice_config, output_dir, batch_seed)
             else:
@@ -2204,6 +2313,8 @@ class TTSEngine:
 
         # Process clone voice chunks (batched by speaker in local mode)
         if clone_chunks:
+            if is_audio_generation_cancelled():
+                return results
             if self.get_voice_backend("clone") == "local":
                 batch_results = self._local_batch_clone(clone_chunks, voice_config, output_dir, batch_seed)
             else:
@@ -2214,6 +2325,8 @@ class TTSEngine:
 
         # Process LoRA voice chunks (batched by adapter in local mode)
         if lora_chunks:
+            if is_audio_generation_cancelled():
+                return results
             batch_results = self._local_batch_lora(lora_chunks, voice_config, output_dir, batch_seed)
             results["completed"].extend(batch_results["completed"])
             results["failed"].extend(batch_results["failed"])
@@ -2221,7 +2334,11 @@ class TTSEngine:
 
         # Process design voice chunks (sequential — each line has unique description)
         if design_chunks:
+            if is_audio_generation_cancelled():
+                return results
             for chunk in design_chunks:
+                if is_audio_generation_cancelled():
+                    return results
                 idx = chunk["index"]
                 output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
                 speaker = chunk.get("speaker")

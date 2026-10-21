@@ -1459,6 +1459,34 @@
                             </div>
                         </div>
 </details>
+<details class="settings-advanced mb-3" id="synthesis-window-settings">
+    <summary>Internal render windows (experimental)</summary>
+    <p class="form-text mt-2">Split a long line into smaller synthesis calls and assemble one take. Limits apply to new renders. Saved lines and export pauses retain their structure. Choose explicit limits after checking the backend and listening to the result.</p>
+    <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="synthesis-windows-enabled" title="Use explicit limits to synthesize smaller windows inside a line. Save Configuration to apply these choices to future renders." disabled>
+        <label class="form-check-label" for="synthesis-windows-enabled">Enable internal render windows</label>
+    </div>
+    <p class="form-text" id="synthesis-window-status" role="status">Load configuration to see supported voice categories.</p>
+    <fieldset id="synthesis-window-options" disabled>
+        <legend class="fs-6">Limits by service and voice category</legend>
+        <p class="form-text">Leave character limits blank to keep that category's existing rendering. A word limit is optional. Ensembles use the smallest enabled limit among the ensemble and its members.</p>
+        <div class="table-responsive"><table class="table table-sm">
+            <thead><tr><th scope="col">Service / voice</th><th scope="col">Maximum characters</th><th scope="col">Maximum words (optional)</th></tr></thead>
+            <tbody id="synthesis-window-budgets"></tbody>
+        </table></div>
+        <h6>Joins within one take</h6>
+        <p class="form-text">Blank gap targets preserve natural silence. Trimming removes only detected quiet edges up to the chosen cap. The first and last edges of a line are kept. Defaults leave fades, trimming and crossfades off.</p>
+        <div class="row g-2">
+            <div class="col-md-4"><label class="form-label" for="synthesis-sentence-gap">Sentence gap target (ms)</label><input class="form-control" type="number" id="synthesis-sentence-gap" title="Optional target silence at sentence joins within one take. Blank preserves natural silence; trimming is limited by the edge trim setting." min="0" max="5000" step="1" placeholder="Preserve natural silence"></div>
+            <div class="col-md-4"><label class="form-label" for="synthesis-clause-gap">Clause gap target (ms)</label><input class="form-control" type="number" id="synthesis-clause-gap" title="Optional target silence at clause joins within one take. Blank preserves natural silence; trimming is limited by the edge trim setting." min="0" max="5000" step="1" placeholder="Preserve natural silence"></div>
+            <div class="col-md-4"><label class="form-label" for="synthesis-paragraph-gap">Paragraph gap target (ms)</label><input class="form-control" type="number" id="synthesis-paragraph-gap" title="Optional target silence at paragraph joins within one take. Blank preserves natural silence; trimming is limited by the edge trim setting." min="0" max="5000" step="1" placeholder="Preserve natural silence"></div>
+            <div class="col-md-3"><label class="form-label" for="synthesis-edge-trim">Maximum quiet edge trim (ms)</label><input class="form-control" type="number" id="synthesis-edge-trim" title="Maximum detected quiet audio removed from each internal boundary edge. Zero preserves the original edges, and the outer line edges are always kept." min="0" max="2000" step="1" value="0"></div>
+            <div class="col-md-3"><label class="form-label" for="synthesis-fade">Boundary fade (ms)</label><input class="form-control" type="number" id="synthesis-fade" title="Short fade at internal sentence, clause and paragraph boundaries. Zero disables fading. Listen to check consonants and endings after changing this value." min="0" max="50" step="1" value="0"></div>
+            <div class="col-md-3"><label class="form-label" for="synthesis-crossfade">Continuation crossfade (ms)</label><input class="form-control" type="number" id="synthesis-crossfade" title="Overlap adjacent continuation windows by up to this duration, bounded by available audio. Zero disables crossfading. Listen to check the resulting join." min="0" max="50" step="1" value="0"></div>
+            <div class="col-md-3"><label class="form-label" for="synthesis-quiet-threshold">Quiet threshold (dBFS, optional)</label><input class="form-control" type="number" id="synthesis-quiet-threshold" title="Optional silence detection threshold from -120 to 0 dBFS. Blank uses the existing threshold. Quiet speech can require a lower value." min="-120" max="0" step="any" placeholder="Use existing threshold"></div>
+        </div>
+    </fieldset>
+</details>
                         <div class="row mb-3">
                             <div class="col-md-2">
                                 <label class="form-label" for="pause-between-speakers">Speaker Change Pause (ms)</label>
@@ -3559,6 +3587,7 @@
     <script src="/static/js/app-pronunciation.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-training.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-tts-capabilities.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-synthesis-windows.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-guides.js?v=__APP_BUILD__"></script>
 <script src="/static/js/app-audio-channels.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>

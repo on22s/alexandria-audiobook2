@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from typing import Annotated, Dict, List, Literal, Optional, Union, get_args, get_origin
 from types import UnionType
 
-from pydantic import BaseModel, Field, JsonValue, TypeAdapter, ValidationError
+from pydantic import AfterValidator, BaseModel, Field, JsonValue, TypeAdapter, ValidationError
+from synthesis_settings import get_synthesis_window_settings
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,8 @@ class TTSConfig(BaseModel):
     batch_seed: Optional[int] = None
     # Opt-in: single-chunk renders derive their seed from text + take.
     reproducible_takes: bool = False
+    # Explicit per-backend internal windows; no automatic budget or seam changes.
+    synthesis_windows: Annotated[Dict[str, JsonValue], AfterValidator(get_synthesis_window_settings)] = Field(default_factory=get_synthesis_window_settings)
     compile_codec: bool = False
     max_new_tokens: int = Field(default=2048, ge=256, le=8192)
     sub_batch_enabled: bool = True

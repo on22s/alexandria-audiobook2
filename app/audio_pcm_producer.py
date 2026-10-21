@@ -120,24 +120,44 @@ class PCMSourceStore:
         if (block_bytes is None
                 or segment.frame_width != segment.channels * segment.sample_width):
             return segment
-        self.cancel_check()
-        offset = self.byte_count
-        # Reads for the trim phase move the shared handle. Append only after
-        # the committed high-water mark, never after the last range read.
-        self.stream.seek(offset)
         view = memoryview(segment.raw_data)
         try:
             step = block_bytes // segment.frame_width * segment.frame_width
-            for start in range(0, len(view), step):
-                self.cancel_check()
-                block = view[start:start + step]
-                if self.stream.write(block) != len(block):
-                    raise OSError('Incomplete source PCM snapshot write')
-            size = len(view)
+            pieces = (view[start:start + step] for start in range(0, len(view), step))
+            source = self.save_pcm(pieces, *shape)
+            # Retain Pydub's exact duration metadata contract for existing callers.
+            return PCMSourceRange(self, source.offset, source.byte_count, *shape[0], len(segment))
         finally:
             view.release()
+
+    def save_pcm(self, pieces, layout, frames):
+        """Snapshot bounded frame-aligned blocks with an exact declared size."""
+        allowance = get_pcm_block_bytes(layout)
+        if (allowance is None or type(frames) is not int or frames < 0
+                or any(type(value) is not int or value <= 0 for value in layout)
+                or layout[2] not in (1, 2, 4)):
+            raise ValueError('Invalid PCM source shape')
+        self.cancel_check()
+        offset = self.byte_count
+        self.stream.seek(offset)
+        frame_width = layout[0] * layout[2]
+        expected = frames * frame_width
+        size = 0
+        for block in pieces:
+            self.cancel_check()
+            if len(block) > allowance or len(block) % frame_width or size + len(block) > expected:
+                raise ValueError('Source PCM blocks disagree with the declared bounded shape')
+            # Lazy pieces (or cancellation checks) may read this same store.
+            self.stream.seek(offset + size)
+            if self.stream.write(block) != len(block):
+                raise OSError('Incomplete source PCM snapshot write')
+            size += len(block)
+        if size != expected:
+            raise ValueError('Source PCM snapshot has missing frames')
+        self.stream.truncate(offset + size)
         self.byte_count += size
-        return PCMSourceRange(self, offset, size, *shape[0], len(segment))
+        duration_ms = round(1000 * frames / layout[1])
+        return PCMSourceRange(self, offset, size, *layout, duration_ms)
 
     def iter_pcm(self, source, block_bytes):
         if (source.store is not self or self.stream is None

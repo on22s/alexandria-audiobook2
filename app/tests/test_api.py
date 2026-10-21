@@ -305,6 +305,50 @@ def test_save_pause_config_roundtrip():
     post("/api/config", json=restore)
 
 
+
+def test_synthesis_window_config_roundtrip():
+    """Explicit controls survive omission, reject invalid proposals, and disable cleanly."""
+    response = get('/api/config'); assert_status(response, 200)
+    original = response.json()
+    # Preserve the complete public configuration through every proposal and cleanup.
+    base = json.loads(json.dumps(original))
+    policy = {'enabled': True, 'budgets': {
+        'local.custom': {'max_chars': 240, 'max_words': 40},
+        'external.clone': {'max_chars': 160, 'max_words': None}}, 'seams': {
+        'sentence_gap_ms': 125, 'clause_gap_ms': None, 'paragraph_gap_ms': 300,
+        'max_edge_trim_ms': 25, 'fade_ms': 3, 'continuation_crossfade_ms': 4,
+        'quiet_threshold_db': -42.125}}
+    try:
+        proposal = {**base, 'tts': {**base['tts'], 'synthesis_windows': policy}}
+        assert_status(post('/api/config', json=proposal), 200)
+        response = get('/api/config'); assert_status(response, 200)
+        if response.json()['tts'].get('synthesis_windows') != policy:
+            raise TestFailure('Internal render controls did not round-trip exactly')
+        omitted = {key: value for key, value in base['tts'].items() if key != 'synthesis_windows'}
+        assert_status(post('/api/config', json={**base, 'tts': omitted}), 200)
+        response = get('/api/config'); assert_status(response, 200)
+        if response.json()['tts'].get('synthesis_windows') != policy:
+            raise TestFailure('Omitting internal render controls erased the saved policy')
+        invalid = {**policy, 'budgets': {'external.design': {'max_chars': 100}}}
+        assert_status(post('/api/config', json={**base, 'tts': {**base['tts'], 'synthesis_windows': invalid}}), 422)
+        response = get('/api/config'); assert_status(response, 200)
+        if response.json()['tts'].get('synthesis_windows') != policy:
+            raise TestFailure('Invalid internal render proposal modified saved controls')
+        disabled = {**policy, 'enabled': False}
+        assert_status(post('/api/config', json={**base, 'tts': {**base['tts'], 'synthesis_windows': disabled}}), 200)
+        response = get('/api/config'); assert_status(response, 200)
+        if response.json()['tts'].get('synthesis_windows') != disabled:
+            raise TestFailure('Disabling internal renders lost the saved draft budgets')
+    finally:
+        assert_status(post('/api/config', json={**base, 'tts': {**base['tts'],
+            'synthesis_windows': base['tts'].get('synthesis_windows', {})}}), 200)
+
+        restored = get('/api/config'); assert_status(restored, 200)
+        from config_settings import AppConfig
+        if AppConfig(**restored.json()).model_dump() != AppConfig(**original).model_dump():
+            raise TestFailure('Config test cleanup did not restore the complete configuration')
+
+
 def test_pause_config_defaults():
     """Verify pause fields have sensible defaults when not explicitly set."""
     r = get("/api/config")
@@ -1510,6 +1554,7 @@ def run_all_tests():
     run_test("save_config_roundtrip", test_save_config_roundtrip)
     run_test("save_pause_config_roundtrip", test_save_pause_config_roundtrip)
     run_test("pause_config_defaults", test_pause_config_defaults)
+    run_test("synthesis_window_config_roundtrip", test_synthesis_window_config_roundtrip)
     run_test("save_review_prompts_roundtrip", test_save_review_prompts_roundtrip)
     run_test("save_persona_prompts_roundtrip", test_save_persona_prompts_roundtrip)
     run_test("get_default_prompts", test_get_default_prompts)

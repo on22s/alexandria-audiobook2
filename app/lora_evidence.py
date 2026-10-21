@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+from synthesis_settings import get_enabled_synthesis_window_settings
 
 EVALUATION_EVIDENCE_VERSION = 3
 GENERATION_FILES = ('adapter_config.json', 'adapter_model.safetensors',
@@ -12,11 +13,15 @@ GENERATION_FILES = ('adapter_config.json', 'adapter_model.safetensors',
 def get_tts_model_settings(config):
     """Read model inputs without constructing an engine or importing its dependencies."""
     tts = config.get("tts", {})
-    return {"mode": tts.get("mode", "external"),
+    settings = {"mode": tts.get("mode", "external"),
             "device": tts.get("device", "auto"),
             "compile_codec": tts.get("compile_codec", False),
             "max_new_tokens": tts.get("max_new_tokens", 2048),
             "language": tts.get("language", "English")}
+    windows = get_enabled_synthesis_window_settings(tts.get("synthesis_windows"))
+    if windows is not None:
+        settings["synthesis_windows"] = windows
+    return settings
 
 
 def get_file_sha256(path: str) -> str:

@@ -68,6 +68,7 @@ from book_state_transaction import ensure_book_state
 from chunk_status_journal import get_chunk_status_journal_path
 from lora_evidence import get_tts_model_settings
 from pronunciation import get_pronunciation_model_context, is_pronunciation_settings_dependent
+from synthesis_settings import get_enabled_synthesis_window_settings
 from project import ProjectManager
 from core import ensure_book_switch_allowed
 
@@ -1004,8 +1005,18 @@ def is_pronunciation_config_change(before, after):
             get_pronunciation_model_context(get_tts_model_settings(after)))
 
 
+
+def get_synthesis_window_model_context(settings):
+    return get_enabled_synthesis_window_settings(settings.get("synthesis_windows"))
+
+
+def is_synthesis_window_config_change(before, after):
+    return (get_synthesis_window_model_context(get_tts_model_settings(before)) !=
+            get_synthesis_window_model_context(get_tts_model_settings(after)))
+
+
 def save_config_document(config):
-    """Fence only mode/language dependencies introduced by scoped pronunciation."""
+    """Fence effective window policies and conditional pronunciation dependencies."""
     manager = project_manager
     bound = (isinstance(manager, ProjectManager) and
              os.path.abspath(manager.config_path) == os.path.abspath(CONFIG_PATH))
@@ -1025,7 +1036,7 @@ def save_config_document(config):
 
 
 def apply_pronunciation_config_change(config, manager):
-    """The mode/language branch preserves existing unrelated settings behavior."""
+    """Preserve unrelated saves; fence changed captured synthesis dependencies."""
     root = manager.root_dir
     # Inspect rules before consulting the engine: legacy saves must reach
     # reset even while a constructor holds its lock. Book ownership keeps rule
@@ -1044,14 +1055,21 @@ def apply_pronunciation_config_change(config, manager):
                         raise
                     # An unrelated save keeps the legacy damaged-chunks policy.
             dependent = any(is_pronunciation_settings_dependent(row) for row in rows)
-        before = manager.get_pronunciation_preview_settings()["settings"] if dependent else None
+            active_policy = getattr(manager.engine, "_synthesis_windows", None)
+            windows_relevant = (
+                get_synthesis_window_model_context(get_tts_model_settings(existing.data)) is not None or
+                get_synthesis_window_model_context(get_tts_model_settings(normalized.model_dump())) is not None or
+                isinstance(active_policy, dict) and active_policy.get("enabled") is True)
+        before = manager.get_pronunciation_preview_settings()["settings"] if dependent or windows_relevant else None
         with file_lock(CONFIG_PATH):
             existing = load_app_config_result(CONFIG_PATH)
             normalized = get_config_to_save(config, existing.data)
-            requires_fence = dependent and (
-                is_pronunciation_config_change(existing.data, normalized.model_dump()) or
-                get_pronunciation_model_context(before) != get_pronunciation_model_context(
-                    get_tts_model_settings(normalized.model_dump())))
+            after = get_tts_model_settings(normalized.model_dump())
+            requires_fence = (
+                dependent and (is_pronunciation_config_change(existing.data, normalized.model_dump()) or
+                               get_pronunciation_model_context(before) != get_pronunciation_model_context(after)) or
+                is_synthesis_window_config_change(existing.data, normalized.model_dump()) or
+                windows_relevant and get_synthesis_window_model_context(before) != get_synthesis_window_model_context(after))
             if not requires_fence:
                 # Preserve legacy write failures and cached engines on failure.
                 apply_config_save(existing, normalized)
@@ -1059,15 +1077,20 @@ def apply_pronunciation_config_change(config, manager):
             manager.reset_engine()
             return True
 
-    with ensure_book_switch_allowed(operation="change conditional pronunciation settings"):
+    with ensure_book_switch_allowed(operation="change synthesis window or conditional pronunciation settings"):
         with ensure_book_state(root, recover=False):
             before = manager.get_pronunciation_preview_settings()["settings"]
             try:
                 with manager._chunks_lock, file_lock(manager.chunks_path), file_lock(CONFIG_PATH):
                     existing = load_app_config_result(CONFIG_PATH)
                     normalized = get_config_to_save(config, existing.data)
-                    manager._apply_pronunciation_settings_invalidation_locked(
-                        before, get_tts_model_settings(normalized.model_dump()))
+                    after = get_tts_model_settings(normalized.model_dump())
+                    if get_pronunciation_model_context(before) != get_pronunciation_model_context(after):
+                        rows = (manager._get_saved_chunk_rows_locked()
+                                if os.path.exists(manager.chunks_path) or
+                                os.path.exists(get_chunk_status_journal_path(manager.chunks_path)) else [])
+                        if any(is_pronunciation_settings_dependent(row) for row in rows):
+                            manager._apply_pronunciation_settings_invalidation_locked(before, after)
                     apply_config_save(existing, normalized)
             except OSError as error:
                 raise HTTPException(status_code=409, detail=(

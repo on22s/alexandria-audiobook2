@@ -9233,6 +9233,77 @@
     "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_the_set_is_read_from_the_files_that_define_it"
   ],
   "test_support": [],
+  "test_synthesis_audio": [
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_adaptive_gap_tops_up_and_trims_actual_quiet_frames_with_a_cap",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_cancellation_inside_final_publication_lock_preserves_prior_output",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_cancellation_inside_initial_and_final_validation_stops_before_publication",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_continuation_crossfade_is_bounded_convex_and_exactly_accounted",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_decode_range_failure_and_partial_pcm_write_preserve_prior_and_cleanup",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_fades_have_correct_ends_and_do_not_change_the_frame_count",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_header_and_total_promoted_size_are_admitted_before_full_pcm_validation",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_lazy_same_store_copy_keeps_both_committed_ranges_intact",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_missing_duplicate_reused_and_bad_plan_results_preserve_prior_bytes",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_owned_publication_admits_before_real_colliding_file_lock_without_owner_reentry",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_pcm_snapshot_rejects_bad_counts_and_recovers_high_water_without_changing_prior",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_preserved_frames_mixed_rates_mono_to_stereo_without_pad_or_flatten",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_quiet_utterance_is_not_removed_and_outer_edges_remain_unchanged",
+    "tests.test_synthesis_audio.SynthesisAudioTests.test_unsupported_layout_is_rejected_before_any_full_pcm_validation"
+  ],
+  "test_synthesis_render": [
+    "tests.test_synthesis_render.SynthesisRenderTests.test_accumulated_promoted_size_stops_before_decoding_or_requesting_more",
+    "tests.test_synthesis_render.SynthesisRenderTests.test_bad_captured_plan_is_refused_before_provider_work",
+    "tests.test_synthesis_render.SynthesisRenderTests.test_default_unset_unsplit_and_smallest_explicit_member_budget",
+    "tests.test_synthesis_render.SynthesisRenderTests.test_exact_spans_one_parent_receipt_and_nested_suppression",
+    "tests.test_synthesis_render.SynthesisRenderTests.test_failure_cancel_and_invalid_layout_stop_before_later_calls_and_keep_prior",
+    "tests.test_synthesis_render.SynthesisRenderTests.test_nested_collectors_and_parallel_parent_receipts_do_not_leak"
+  ],
+  "test_synthesis_settings": [
+    "tests.test_synthesis_settings.SynthesisSettingsTests.test_budget_matrix_comes_from_existing_backend_capabilities",
+    "tests.test_synthesis_settings.SynthesisSettingsTests.test_disabled_controls_omit_model_identity_and_preserve_legacy_shape",
+    "tests.test_synthesis_settings.SynthesisSettingsTests.test_enabled_policy_is_canonical_copied_and_part_of_actual_engine_identity",
+    "tests.test_synthesis_settings.SynthesisSettingsTests.test_invalid_policy_refuses_unknown_categories_shapes_and_unbounded_values",
+    "tests.test_synthesis_settings.SynthesisSettingsTests.test_schema_and_shape_safe_loader_share_the_same_validation"
+  ],
+  "test_synthesis_window_dispatch": [
+    "tests.test_synthesis_window_dispatch.SynthesisWindowDispatchTests.test_all_builtin_voice_paths_split_canonical_occurrence_and_shared_words_once",
+    "tests.test_synthesis_window_dispatch.SynthesisWindowDispatchTests.test_external_custom_clone_and_ensemble_preserve_prepared_words_and_parent_receipts",
+    "tests.test_synthesis_window_dispatch.SynthesisWindowDispatchTests.test_owned_cancel_after_first_actual_window_stops_all_editor_modes",
+    "tests.test_synthesis_window_dispatch.SynthesisWindowDispatchTests.test_owned_native_cancel_does_not_start_later_split_or_unsplit_parent",
+    "tests.test_synthesis_window_dispatch.SynthesisWindowDispatchTests.test_project_journals_receipts_to_matching_revision_then_clears_on_unsplit_regeneration",
+    "tests.test_synthesis_window_dispatch.SynthesisWindowDispatchTests.test_unsplit_native_rows_keep_list_batching_and_original_parent_style_indices"
+  ],
+  "test_synthesis_window_settings_admission": [
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_actual_engine_policy_difference_is_fenced_even_when_saved_proposal_is_equal",
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_combined_language_and_windows_change_preserves_conditional_word_invalidation",
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_config_write_failure_keeps_cached_engine_and_releases_admission",
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_disabled_policy_edits_keep_legacy_saves_without_engine_inspection",
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_final_normalization_preserves_latest_unsent_field",
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_final_snapshot_handles_new_conditional_rule_and_actual_language",
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_foreign_cpu_owner_blocks_policy_change_with_idle_local_state",
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_pending_exact_owner_blocks_enable_change_and_disable_without_writes",
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_semantically_equal_enabled_policy_keeps_unrelated_save_behavior",
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_task_admission_stays_held_until_engine_reset_finishes",
+    "tests.test_synthesis_window_settings_admission.SynthesisWindowSettingsAdmissionTests.test_window_only_change_keeps_malformed_unrelated_chunks_bytes"
+  ],
+  "test_synthesis_windows": [
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_attached_directional_and_spaced_closers_do_not_start_a_new_window",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_captured_plan_rejects_cumulative_source_cap_before_join_allocation",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_closing_quotes_and_blank_lines_stay_with_correct_seam_class",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_exact_unicode_crlf_and_mixed_sentence_spans",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_explicit_word_budget_including_nonspaced_and_leading_whitespace",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_internal_window_count_is_bounded_before_any_provider_calls",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_invalid_budgets_and_bounded_text_are_refused",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_latin_clusters_and_decimal_grouped_numbers_remain_indivisible",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_many_source_shapes_never_drop_duplicate_or_reorder",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_noop_empty_and_complete_final_span",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_punctuation_or_lexical_overflow_is_explicit_without_loss_or_cap_extension",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_repeated_ascii_openers_in_multiline_dialogue_belong_to_the_next_words",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_sentence_preferences_only_choose_a_feasible_remaining_partition",
+    "tests.test_synthesis_windows.SynthesisWindowTests.test_small_ascii_partitions_match_independent_exhaustive_feasibility_oracle"
+  ],
+  "test_synthesis_windows_controls_js": [
+    "tests.test_synthesis_windows_controls_js.SynthesisWindowControlsTests.test_server_policy_roundtrip_disabled_preservation_errors_and_labels"
+  ],
   "test_system_version": [
     "tests.test_system_version.VersionEndpointTests.test_version_endpoint_returns_runtime_info"
   ],

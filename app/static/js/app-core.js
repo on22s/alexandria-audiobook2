@@ -1922,6 +1922,7 @@
                 renderConfigWarnings(config);
                 applyPauseSupport(config.capabilities);
                 window.setTtsCapabilityModes?.(config.capabilities?.tts_modes);
+                window.setSynthesisWindowControls?.(config.tts?.synthesis_windows, config.capabilities?.tts_modes);
                 // Local/Remote LLM profiles: keep both in memory, show the active one.
                 llmProfiles.local = config.llm_local || config.llm || {base_url:'', api_key:'local', model_name:''};
                 llmProfiles.remote = config.llm_remote || {base_url:'', api_key:'local', model_name:''};
@@ -2121,6 +2122,7 @@
                     batch_group_by_type: document.getElementById('batch-group-by-type').checked,
                     sub_batch_enabled: document.getElementById('sub-batch-enabled').checked,
                     reproducible_takes: document.getElementById('reproducible-takes').checked,
+                    ...(typeof getSynthesisWindowConfig === 'function' ? getSynthesisWindowConfig() : {}),
                     sub_batch_min_size: getNumFieldValue('sub-batch-min-size', 4, true),
                     sub_batch_ratio: getNumFieldValue('sub-batch-ratio', 5),
                     sub_batch_max_items: getNumFieldValue('sub-batch-max-items', 0, true),

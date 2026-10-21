@@ -13,6 +13,10 @@ class GeneratedAudioError(RuntimeError):
     """Generated output failed structural, sample, or speech validation."""
 
 
+class GeneratedAudioCancelled(GeneratedAudioError):
+    """Optional validation cancellation, kept distinct from bad audio."""
+
+
 def is_audio_file_present(path, resolve_path):
     """Read nonempty file presence through the project's confined-path resolver.
 
@@ -86,10 +90,11 @@ def save_generated_wav(values, sample_rate, path, context="audio generation"):
         return validate_generated_audio(path, context)
 
 
-def publish_audio_output(staging_path, output_path, cancelled=None):
+def publish_audio_output(staging_path, output_path, cancelled=None, *, cancel_check=None):
     """Publish a validated private file without racing stale-output cleanup."""
     with ensure_audio_output(output_path):
-        if cancelled is not None and cancelled.is_set():
+        if ((cancelled is not None and cancelled.is_set())
+                or (cancel_check is not None and cancel_check())):
             return False
         os.replace(staging_path, output_path)
         return True
@@ -111,8 +116,12 @@ def get_minimum_speech_duration(text):
     return units / 80 if units >= 80 else 0
 
 
-def validate_generated_audio(path, context="audio generation", *, expected_text=None):
-    """Return ``path`` after fully validating a newly generated audio file."""
+def validate_generated_audio(path, context="audio generation", *, expected_text=None, cancel_check=None):
+    """Validate all frames, optionally polling a cancellation predicate per block."""
+    def check():
+        if cancel_check is not None and cancel_check():
+            raise GeneratedAudioCancelled(f"{context} validation cancelled")
+    check()
     if not os.path.exists(path):
         raise GeneratedAudioError(f"{context} wrote no file: {path}")
     size = os.path.getsize(path)
@@ -128,6 +137,7 @@ def validate_generated_audio(path, context="audio generation", *, expected_text=
         peak = 0.0
         with sf.SoundFile(path) as audio:
             while True:
+                check()
                 block = audio.read(65536)
                 if not len(block):
                     break
@@ -136,10 +146,13 @@ def validate_generated_audio(path, context="audio generation", *, expected_text=
                     import numpy as np
                     peak = max(peak, float(np.max(np.abs(block))))
                 decoded_frames += len(block)
+    except GeneratedAudioCancelled:
+        raise
     except Exception as exc:  # noqa: BLE001
         raise GeneratedAudioError(
             f"{context} wrote undecodable audio: {type(exc).__name__}: "
             f"{str(exc)[:120]}") from exc
+    check()
     if not frames or not rate:
         raise GeneratedAudioError(
             f"{context} wrote no audio frames ({frames} frames @ {rate} Hz)")

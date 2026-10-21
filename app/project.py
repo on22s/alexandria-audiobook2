@@ -1325,6 +1325,15 @@ class ProjectManager:
                 "decisions": preparation["pronunciation_decisions"]}
         elif "pronunciation_receipt" in chunk:
             evidence["pronunciation_receipt"] = None
+        synthesis_receipt = chunk.get("_synthesis_receipt")
+        if synthesis_receipt is not None:
+            if (not isinstance(synthesis_receipt, dict)
+                    or synthesis_receipt.get("prepared_text_sha256") != get_pronunciation_text_digest(preparation["text"])):
+                raise ValueError("Internal synthesis receipt does not match the rendered speech")
+            evidence["synthesis_receipt"] = {**copy.deepcopy(synthesis_receipt),
+                                              "audio_revision": revision, "scope": "pre-encoding PCM"}
+        elif "synthesis_receipt" in chunk:
+            evidence["synthesis_receipt"] = None
         staged_path = None
         try:
             staged_audio = self._export_chunk_audio(temp_path, f".render-{uuid.uuid4().hex}")
@@ -1483,6 +1492,9 @@ class ProjectManager:
                 if callable(getattr(engine, "generate_voice_result", None)):
                     result = engine.generate_voice_result(*generation_args)
                     success, failure = result.success, result.failure
+                    receipt = getattr(result, "synthesis_receipt", None)
+                    if receipt is not None:
+                        chunk = {**chunk, "_synthesis_receipt": copy.deepcopy(receipt)}
                 else:
                     success = engine.generate_voice(*generation_args)
 
@@ -2893,6 +2905,9 @@ class ProjectManager:
 
             # Process completed chunks - convert to MP3 and update status
             for idx in batch_results["completed"]:
+                receipt = batch_results.get("synthesis_receipts", {}).get(idx)
+                if receipt is not None and idx in captured:
+                    captured[idx] = {**captured[idx], "_synthesis_receipt": copy.deepcopy(receipt)}
                 outcome, out_idx, payload = self._finalize_completed_chunk(idx, captured)
                 if outcome == "completed":
                     results["completed"].append(out_idx)
