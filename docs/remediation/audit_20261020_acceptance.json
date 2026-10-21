@@ -735,5 +735,27 @@
       "seconds": 0.025
     },
     "final_acceptance_requirement": "Download final proposed-merge CI checkout provenance and require its tree to equal the actual final merged tree; 8720 complete unit IDs and 22 native cases each OS. Local Ready8710 remains honestly separate."
+  },
+  "additional_role_source": {
+    "pull_request": 1469,
+    "merge_commit": "df69a6f502ea2e077c368cbeb3688ebaae6511c2",
+    "tested_head": "ebf93ab4621837160229eeebb09317aca2295851",
+    "inventory": 8735,
+    "all_eight_upstream_checks": "SUCCESS",
+    "local_role_tests": 15,
+    "local_role_skips": 0,
+    "generation_inputs_and_real_chapter_exports": "exact recorded speech inputs, smart boundaries, selected bytes and offsets preserved; new role metadata explicitly rebuilt and tested",
+    "refreshed_ci_requirement": "All8735 inventoried methods and native22each3OS on a proposed merge tree matching the actual merged tree."
+  },
+  "prior_proposed_merge_ci": {
+    "head": "d835205e8c186d2f4bb4779916d4040fcc95d5a0",
+    "checkout": "c1c9a98fe67a7ba94622da58e41113eb40e9c988",
+    "tree": "75bc26ce4735c8f1065752f0d41dc6a50a232834",
+    "unit_methods": 8720,
+    "unit_skips": 0,
+    "native_each_os": 22,
+    "native_skips": 0,
+    "all_eight_checks": "SUCCESS",
+    "disposition": "Preserved qualification; premerge guard refused changed main before any merge mutation. Refresh CI on newly accepted role source."
   }
 }

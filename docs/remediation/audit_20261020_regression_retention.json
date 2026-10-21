@@ -1,8 +1,8 @@
 {
-  "current_source": "873525d932b83e3f5cee17740d2f4f5b99b2710e",
-  "current_inventory": 8720,
+  "current_source": "df69a6f502ea2e077c368cbeb3688ebaae6511c2",
+  "current_inventory": 8735,
   "baseline_inventory": 8523,
-  "new_method_ids": 197,
+  "new_method_ids": 212,
   "removed_baseline_ids": [],
   "accepted_pr_inventory_retention": [
     {
@@ -73,5 +73,5 @@
     }
   ],
   "local_release_source_inventory": 8710,
-  "source_note": "Latest accepted heading source adds ten tests. Final CI checks the complete proposed merge checkout, including this accepted source; local Ready remains recorded separately at 8710."
+  "source_note": "Local Ready8710 and first proposed-merge CI8720 are separate passed records. Accepted PR1469 adds15 role regressions; refreshed proposed-merge CI must cover8735 and native22 on each OS. All source/test code in this bookkeeping candidate remains identical to the local Ready-qualified tree."
 }
