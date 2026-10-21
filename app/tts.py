@@ -2101,8 +2101,10 @@ class TTSEngine:
         # batching paths for ordinary speakers.
         dynamic_chunks = []
         for chunk in chunks:
-            speaker = chunk.get("speaker")
+            source_speaker = chunk.get("_source_speaker", chunk.get("speaker"))
             try:
+                speaker = get_resolved_speaker(chunk.get("speaker"), voice_config)
+                chunk = {**chunk, "speaker": speaker, "_source_speaker": source_speaker}
                 resolved = resolve_narrator_voice_config(speaker, voice_config, chunk)
                 if not is_voice_config_present(speaker, resolved):
                     results["failed"].append((chunk["index"],

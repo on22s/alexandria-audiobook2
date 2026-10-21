@@ -5830,6 +5830,13 @@
   "test_narrator_strategy_queue_js": [
     "tests.test_narrator_strategy_queue_js.NarratorStrategyQueueJsTests.test_writes_are_ordered_and_bound_to_the_starting_book"
   ],
+  "test_native_batch_root_aliases": [
+    "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_actual_native_provider_receives_canonical_custom_clone_design_and_ensemble",
+    "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_alias_to_dynamic_narrator_resolves_focus_before_public_override",
+    "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_bad_alias_roots_fail_before_native_provider_or_output",
+    "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_copied_requests_keep_authored_speaker_uid_index_and_existing_source_identity",
+    "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_external_alias_dispatch_keeps_once_prepared_custom_and_clone_requests"
+  ],
   "test_nickname_batch": [
     "tests.test_nickname_batch.NicknameBatchTests.test_cli_impossible_context_keeps_script_and_registry_bytes",
     "tests.test_nickname_batch.NicknameBatchTests.test_complete_prompt_fits_shared_budget_with_large_cast_and_aliases",
