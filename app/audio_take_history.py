@@ -1,5 +1,5 @@
 """Bounded, explicit immutable snapshots; chunk metadata alone selects audio."""
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 import copy
 import hashlib
 import json
@@ -11,6 +11,7 @@ import time
 import uuid
 
 from adapter_publication import sync_adapter_directory
+from audio_generation_owner import AudioGenerationCancelled
 from audio_validation import GeneratedAudioError, validate_wav_container
 from utils import file_lock
 
@@ -68,10 +69,19 @@ def _open_regular(path, root, limit, *, allow_empty=False):
         raise
 
 
-def _hash(stream, limit):
+def _check_cancelled(cancel_check):
+    if cancel_check is not None and cancel_check():
+        raise AudioGenerationCancelled()
+
+
+def _hash(stream, limit, *, cancel_check=None):
     digest, size = hashlib.sha256(), 0
     stream.seek(0)
-    for block in iter(lambda: stream.read(1024**2), b''):
+    while True:
+        _check_cancelled(cancel_check)
+        block = stream.read(1024**2)
+        if not block:
+            break
         size += len(block)
         if size > limit:
             raise ValueError('Take audio grew beyond its size limit.')
@@ -79,11 +89,13 @@ def _hash(stream, limit):
     return digest.hexdigest(), size
 
 
-def _decode(stream):
+def _decode(stream, *, cancel_check=None):
     import numpy as np
     import soundfile as sf
     try:
-        validate_wav_container(stream, 'Take snapshot')
+        _check_cancelled(cancel_check)
+        validate_wav_container(stream, 'Take snapshot',
+                               cancel_check=lambda: _check_cancelled(cancel_check))
     except GeneratedAudioError as error:
         raise ValueError(str(error)) from error
     stream.seek(0)
@@ -93,6 +105,7 @@ def _decode(stream):
             raise ValueError('Take snapshots support mono/stereo audio of at most ten minutes.')
         frames = 0
         while True:
+            _check_cancelled(cancel_check)
             block = audio.read(65536, dtype='float32', always_2d=True)
             if not len(block):
                 break
@@ -112,14 +125,33 @@ class AudioTakeHistory:
         self.pending = self.directory / 'manifest.pending'
 
     @contextmanager
-    def _locked(self):
+    def _locked(self, *, cancel_check=None):
+        _check_cancelled(cancel_check)
         _ensure_plain_path(self.directory, self.root)
         self.directory.mkdir(exist_ok=True)
         lock = Path(str(self.manifest) + '.lock')
         _ensure_plain_path(lock, self.root)
         if lock.exists() and (not lock.is_file() or lock.stat().st_nlink != 1):
             raise ValueError('Take history lock must be a regular owned file.')
-        with file_lock(str(self.manifest)):
+        with ExitStack() as stack:
+            if cancel_check is None:
+                stack.enter_context(file_lock(str(self.manifest)))
+            else:
+                # Never hold an audio task mutex while waiting or copying. The
+                # callback may briefly reacquire it to admit the owning task.
+                deadline = time.monotonic() + 10
+                while True:
+                    _check_cancelled(cancel_check)
+                    try:
+                        stack.enter_context(file_lock(str(self.manifest), timeout=0))
+                    except TimeoutError:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            raise
+                        time.sleep(min(.05, remaining))
+                    else:
+                        break
+            _check_cancelled(cancel_check)
             for path in (self.manifest, self.pending):
                 _ensure_plain_path(path, self.root)
                 if path.exists() and (not path.is_file() or path.stat().st_nlink != 1):
@@ -224,8 +256,21 @@ class AudioTakeHistory:
                                    max_line_records=MAX_LINE_RECORDS),
                         notice='Saved snapshots are for audition. Exact generation dependencies are not certified; selection is unchanged.')
 
-    def capture(self, path, book_token, uid, captured, *, book_label=''):
-        """Caller holds book and chunk admission through capture of the selected take."""
+    def capture(self, path, book_token, uid, captured, *, book_label='',
+                expected_source_version=None, cancel_check=None):
+        """Snapshot admitted bytes, optionally fenced to an earlier file version.
+
+        Caller keeps book/source identity stable. A cancellation callback may
+        return true or raise its owner's cancellation exception; it must not be
+        called under a nonreentrant owner mutex. Interrupted copies stay charged.
+        """
+        _check_cancelled(cancel_check)
+        if expected_source_version is not None:
+            if (type(expected_source_version) not in (tuple, list)
+                    or len(expected_source_version) != 5
+                    or any(type(value) is not int for value in expected_source_version)):
+                raise ValueError('Invalid predecessor file version.')
+            expected_source_version = tuple(expected_source_version)
         if type(book_token) is not str or not _DIGEST.fullmatch(book_token) or type(uid) is not str or not 0 < len(uid) <= 128:
             raise ValueError('Invalid take snapshot target.')
         # JSON round-trip makes an owned, finite, bounded record before reservation.
@@ -236,10 +281,12 @@ class AudioTakeHistory:
         suffix = path.suffix.lower()
         if suffix not in _SUFFIXES:
             raise ValueError('This audio format cannot be saved in take history.')
-        with self._locked() as document, _open_regular(path, self.root, MAX_AUDIO_BYTES)[0] as source:
+        with self._locked(cancel_check=cancel_check) as document, _open_regular(path, self.root, MAX_AUDIO_BYTES)[0] as source:
             self._ensure_inventory(document)
             original = _version(os.fstat(source.fileno()))
-            digest, size = _hash(source, MAX_AUDIO_BYTES)
+            if expected_source_version is not None and original != expected_source_version:
+                raise ValueError('Prior take changed since its metadata was captured; existing files were preserved.')
+            digest, size = _hash(source, MAX_AUDIO_BYTES, cancel_check=cancel_check)
             if _version(os.fstat(source.fileno())) != original or _version(path.stat()) != original:
                 raise ValueError('Selected take changed while hashing.')
             for row in document['records']:
@@ -247,7 +294,8 @@ class AudioTakeHistory:
                     if row['state'] != 'ready':
                         raise ValueError('This snapshot is deleted or incomplete. Undo or remove it before saving it again.')
                     # A damaged existing copy must never masquerade as a successful save.
-                    with self._open_verified(row):
+                    with self._open_verified(row, cancel_check=cancel_check):
+                        _check_cancelled(cancel_check)
                         return self._summary(row)
             rows = document['records']
             if (len(rows) >= MAX_RECORDS or sum(r['bytes'] for r in rows) + size > MAX_PAYLOAD_BYTES
@@ -257,12 +305,18 @@ class AudioTakeHistory:
                        book_label=str(book_label)[:256], sha256=digest, bytes=size, suffix=suffix,
                        state='pending', protected=False, created=time.time(), captured=captured,
                        take=captured.get('take'), audio_revision=captured.get('audio_revision'))
+            _check_cancelled(cancel_check)
             rows.append(row)
             self._save(document)  # Charged before creating any artifact bytes.
             target = self._path(row)
             source.seek(0)
+            _check_cancelled(cancel_check)
             with target.open('xb') as output:
-                for block in iter(lambda: source.read(1024**2), b''):
+                while True:
+                    _check_cancelled(cancel_check)
+                    block = source.read(1024**2)
+                    if not block:
+                        break
                     if output.tell() + len(block) > size:
                         raise ValueError('Selected take changed during copying.')
                     output.write(block)
@@ -273,23 +327,26 @@ class AudioTakeHistory:
                 raise ValueError('Selected take changed during copying; incomplete snapshot was preserved.')
             with _open_regular(target, self.root, MAX_AUDIO_BYTES)[0] as copied:
                 copied_version = _version(os.fstat(copied.fileno()))
-                if _hash(copied, MAX_AUDIO_BYTES) != (digest, size):
+                if _hash(copied, MAX_AUDIO_BYTES, cancel_check=cancel_check) != (digest, size):
                     raise ValueError('Snapshot bytes do not match the selected take.')
                 try:
-                    row['shape'] = _decode(copied)
+                    row['shape'] = _decode(copied, cancel_check=cancel_check)
+                except AudioGenerationCancelled:
+                    raise
                 except RuntimeError as error:
                     raise ValueError('Saved take cannot be decoded; the incomplete snapshot was preserved.') from error
                 if (_version(os.fstat(copied.fileno())) != copied_version or
                         _version(_ensure_plain_path(target, self.root).stat()) != copied_version):
                     raise ValueError('Snapshot changed during decoding; incomplete copy was preserved.')
+            _check_cancelled(cancel_check)
             row['state'] = 'ready'
             self._save(document)
             return self._summary(row)
 
-    def _open_verified(self, row):
+    def _open_verified(self, row, *, cancel_check=None):
         stream, info = _open_regular(self._path(row), self.root, MAX_AUDIO_BYTES)
         try:
-            if _hash(stream, MAX_AUDIO_BYTES) != (row['sha256'], row['bytes']):
+            if _hash(stream, MAX_AUDIO_BYTES, cancel_check=cancel_check) != (row['sha256'], row['bytes']):
                 raise ValueError('Saved take bytes changed; snapshot was preserved for inspection.')
             if _version(os.fstat(stream.fileno())) != _version(info):
                 raise ValueError('Saved take changed while verifying.')

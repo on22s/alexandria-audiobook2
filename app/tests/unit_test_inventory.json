@@ -9783,6 +9783,18 @@
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_the_experiment_gates_on_speaker",
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_the_schema_has_no_type_key"
   ],
+  "test_take_capture_admission": [
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_cancel_after_reservation_and_after_decode_never_commits_ready",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_cancel_before_admission_does_not_create_archive",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_cancellation_during_source_hash_copy_and_copy_verification",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_cancellation_in_riff_validation_and_decoded_blocks_stays_distinct",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_deduplicated_copy_verification_is_cancellable_without_changing_record",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_file_version_matches_descriptor_and_deduplicates_exact_bytes",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_invalid_file_version_is_rejected_without_archive_creation",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_owner_cancellation_can_acquire_mutex_during_actual_archive_copy",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_replaced_or_rewritten_predecessor_refuses_before_reservation",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_waiting_for_other_process_archive_lock_is_cancellable"
+  ],
   "test_take_history_js": [
     "tests.test_take_history_js.TakeHistoryJsTests.test_deleted_and_pending_copies_have_no_audio_and_remain_visible_in_usage",
     "tests.test_take_history_js.TakeHistoryJsTests.test_old_list_reply_and_old_audio_clear_when_line_or_book_changes",

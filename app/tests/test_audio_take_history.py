@@ -261,16 +261,16 @@ h.change(r['version'],r['sha256'],'delete',lambda _:False)
 
     def test_source_and_decoded_copy_mutation_refuse_without_selecting_partial_audio(self):
         from audio_take_history import _hash, _decode
-        def change_source(stream, limit):
-            result = _hash(stream, limit)
+        def change_source(stream, limit, **kwargs):
+            result = _hash(stream, limit, **kwargs)
             self.source.write_bytes(self.before + b'changed')
             return result
         with patch('audio_take_history._hash', side_effect=change_source):
             with self.assertRaisesRegex(ValueError, 'changed while hashing'): self.capture()
         self.assertEqual(self.history.list()['total'], 0)
         self.source.write_bytes(self.before)
-        def change_copy(stream):
-            result = _decode(stream)
+        def change_copy(stream, **kwargs):
+            result = _decode(stream, **kwargs)
             payload = next(self.history.directory.glob('*.wav'))
             with payload.open('ab') as output: output.write(b'changed')
             return result
