@@ -290,6 +290,15 @@
     "tests.test_aozora_quotes.StripTests.test_text_without_a_header_rule_survives",
     "tests.test_aozora_quotes.StripTests.test_the_ruby_anchor_is_removed"
   ],
+  "test_api_config_roundtrip_cleanup": [
+    "tests.test_api_config_roundtrip_cleanup.APIConfigRoundtripCleanupTests.test_all_six_roundtrips_accept_initial_and_legacy_default_materialization",
+    "tests.test_api_config_roundtrip_cleanup.APIConfigRoundtripCleanupTests.test_cleanup_http_failure_is_reported",
+    "tests.test_api_config_roundtrip_cleanup.APIConfigRoundtripCleanupTests.test_failed_initial_save_still_runs_and_checks_cleanup",
+    "tests.test_api_config_roundtrip_cleanup.APIConfigRoundtripCleanupTests.test_four_roundtrips_preserve_profiles_and_complete_custom_config",
+    "tests.test_api_config_roundtrip_cleanup.APIConfigRoundtripCleanupTests.test_mid_test_get_failure_still_restores_all_settings",
+    "tests.test_api_config_roundtrip_cleanup.APIConfigRoundtripCleanupTests.test_readback_assertion_failure_still_restores_config",
+    "tests.test_api_config_roundtrip_cleanup.APIConfigRoundtripCleanupTests.test_successful_cleanup_cannot_hide_lost_custom_settings"
+  ],
   "test_api_contract_regressions": [
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_check_mode_is_read_only",
     "tests.test_api_contract_regressions.ApiContractTests.test_api_contract_diff_reports_only_relative_reorders_of_shared_routes",

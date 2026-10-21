@@ -8,6 +8,7 @@ Usage:
 """
 
 import argparse
+from contextlib import contextmanager
 import io
 import json
 import sys
@@ -201,16 +202,21 @@ def get_config_after_save_snapshot(document):
     return expected
 
 
-def llm_mode_fields(original):
-    """llm_mode/llm_local fields to splice into a POST /api/config payload.
-
-    AppConfig requires llm_local (or llm_remote, per llm_mode) to be present -
-    save_config() 400s otherwise. GET /api/config always backfills llm_local
-    from the active llm section, so this is always safe to read back."""
-    return {
-        "llm_mode": original.get("llm_mode", "local"),
-        "llm_local": original.get("llm_local") or original["llm"],
-    }
+@contextmanager
+def ensure_config_roundtrip():
+    """Give a test its own proposal and restore all captured public settings."""
+    response = get('/api/config'); assert_status(response, 200)
+    original = response.json()
+    expected = get_config_after_save_snapshot(original)
+    try:
+        yield json.loads(json.dumps(original))
+    finally:
+        assert_status(post('/api/config', json=json.loads(json.dumps(original))), 200,
+                      'Config roundtrip cleanup could not restore the captured settings.')
+        restored = get('/api/config'); assert_status(restored, 200)
+        from config_settings import AppConfig
+        if AppConfig(**restored.json()).model_dump() != expected:
+            raise TestFailure('Config roundtrip cleanup did not restore the complete configuration')
 
 
 # ── Section 1: Server ───────────────────────────────────────
@@ -235,105 +241,30 @@ def test_get_config():
 
 
 def test_save_config_roundtrip():
-    # Read original
-    r = get("/api/config")
-    assert_status(r, 200)
-    original = r.json()
-    shared["original_config"] = original
-
-    # Build test config with modified language
-    test_config = {
-        "llm": original["llm"],
-        **llm_mode_fields(original),
-        "tts": {**original.get("tts", {}), "language": "_test_roundtrip_lang"},
-        "prompts": original.get("prompts"),
-        "generation": original.get("generation"),
-    }
-    test_config["tts"].setdefault("mode", "external")
-    test_config["tts"].setdefault("url", "http://127.0.0.1:7860")
-    test_config["tts"].setdefault("device", "auto")
-
-    # Save modified
-    r = post("/api/config", json=test_config)
-    assert_status(r, 200)
-
-    # Read back and verify
-    r = get("/api/config")
-    assert_status(r, 200)
-    readback = r.json()
-    if readback.get("tts", {}).get("language") != "_test_roundtrip_lang":
-        raise TestFailure("Config round-trip failed: language not persisted")
-
-    # Verify generation section persists
-    if original.get("generation") and not readback.get("generation"):
-        raise TestFailure("Config round-trip failed: generation section dropped")
-
-    # Verify review prompts persist through config save
-    readback_prompts = readback.get("prompts", {})
-    if original.get("prompts", {}).get("review_system_prompt"):
-        if not readback_prompts.get("review_system_prompt"):
-            raise TestFailure("Config round-trip failed: review_system_prompt dropped")
-
-    # Verify persona prompts persist through config save
-    if original.get("prompts", {}).get("persona_system_prompt"):
-        if not readback_prompts.get("persona_system_prompt"):
-            raise TestFailure("Config round-trip failed: persona_system_prompt dropped")
-
-    # Restore original
-    restore = {
-        "llm": original["llm"],
-        **llm_mode_fields(original),
-        "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
-        "prompts": original.get("prompts"),
-        "generation": original.get("generation"),
-    }
-    post("/api/config", json=restore)
+    with ensure_config_roundtrip() as test_config:
+        original = json.loads(json.dumps(test_config))
+        test_config['tts']['language'] = '_test_roundtrip_lang'
+        assert_status(post('/api/config', json=test_config), 200)
+        response = get('/api/config'); assert_status(response, 200)
+        readback = response.json()
+        if readback.get('tts', {}).get('language') != '_test_roundtrip_lang':
+            raise TestFailure('Config round-trip failed: language not persisted')
+        if original.get('generation') and not readback.get('generation'):
+            raise TestFailure('Config round-trip failed: generation section dropped')
+        for name in ('review_system_prompt', 'persona_system_prompt'):
+            if (original.get('prompts') or {}).get(name) and not (readback.get('prompts') or {}).get(name):
+                raise TestFailure(f'Config round-trip failed: {name} dropped')
 
 
 def test_save_pause_config_roundtrip():
-    # Read original
-    r = get("/api/config")
-    assert_status(r, 200)
-    original = r.json()
-
-    # Save with custom pause values
-    test_config = {
-        "llm": original["llm"],
-        **llm_mode_fields(original),
-        "tts": {
-            **original.get("tts", {}),
-            "pause_between_speakers_ms": 1000,
-            "pause_same_speaker_ms": 400,
-        },
-        "prompts": original.get("prompts"),
-        "generation": original.get("generation"),
-    }
-    test_config["tts"].setdefault("mode", "external")
-    test_config["tts"].setdefault("url", "http://127.0.0.1:7860")
-    test_config["tts"].setdefault("device", "auto")
-
-    r = post("/api/config", json=test_config)
-    assert_status(r, 200)
-
-    # Read back and verify
-    r = get("/api/config")
-    assert_status(r, 200)
-    readback = r.json()
-    tts = readback.get("tts", {})
-    if tts.get("pause_between_speakers_ms") != 1000:
-        raise TestFailure(f"pause_between_speakers_ms not persisted: {tts.get('pause_between_speakers_ms')}")
-    if tts.get("pause_same_speaker_ms") != 400:
-        raise TestFailure(f"pause_same_speaker_ms not persisted: {tts.get('pause_same_speaker_ms')}")
-
-    # Restore original
-    restore = {
-        "llm": original["llm"],
-        **llm_mode_fields(original),
-        "tts": original.get("tts", {"mode": "external", "url": "http://127.0.0.1:7860", "device": "auto"}),
-        "prompts": original.get("prompts"),
-        "generation": original.get("generation"),
-    }
-    post("/api/config", json=restore)
+    with ensure_config_roundtrip() as test_config:
+        test_config['tts'].update(pause_between_speakers_ms=1000, pause_same_speaker_ms=400)
+        assert_status(post('/api/config', json=test_config), 200)
+        response = get('/api/config'); assert_status(response, 200)
+        tts = response.json().get('tts', {})
+        for name, expected in (('pause_between_speakers_ms', 1000), ('pause_same_speaker_ms', 400)):
+            if tts.get(name) != expected:
+                raise TestFailure(f'{name} not persisted: {tts.get(name)}')
 
 
 
@@ -376,7 +307,7 @@ def test_synthesis_window_config_roundtrip():
 
         restored = get('/api/config'); assert_status(restored, 200)
         from config_settings import AppConfig
-        if AppConfig(**restored.json()).model_dump() != AppConfig(**original).model_dump():
+        if AppConfig(**restored.json()).model_dump() != get_config_after_save_snapshot(original):
             raise TestFailure('Config test cleanup did not restore the complete configuration')
 
 
@@ -426,90 +357,33 @@ def test_pause_config_defaults():
 
 
 def test_save_review_prompts_roundtrip():
-    # Read current config
-    r = get("/api/config")
-    assert_status(r, 200)
-    original = r.json()
-
-    # Save config with custom review prompts
-    test_config = {
-        "llm": original["llm"],
-        **llm_mode_fields(original),
-        "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
-        "prompts": {
-            **(original.get("prompts") or {}),
-            "review_system_prompt": f"{TEST_PREFIX}review_sys",
-            "review_user_prompt": f"{TEST_PREFIX}review_usr",
-        },
-        "generation": original.get("generation"),
-    }
-    r = post("/api/config", json=test_config)
-    assert_status(r, 200)
-
-    # Read back and verify
-    r = get("/api/config")
-    assert_status(r, 200)
-    readback = r.json()
-    prompts = readback.get("prompts", {})
-    if prompts.get("review_system_prompt") != f"{TEST_PREFIX}review_sys":
-        raise TestFailure(f"review_system_prompt not persisted: {prompts.get('review_system_prompt')}")
-    if prompts.get("review_user_prompt") != f"{TEST_PREFIX}review_usr":
-        raise TestFailure(f"review_user_prompt not persisted: {prompts.get('review_user_prompt')}")
-
-    # Restore original
-    restore = {
-        "llm": original["llm"],
-        **llm_mode_fields(original),
-        "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
-        "prompts": original.get("prompts"),
-        "generation": original.get("generation"),
-    }
-    post("/api/config", json=restore)
+    with ensure_config_roundtrip() as test_config:
+        test_config['prompts'] = {**(test_config.get('prompts') or {}),
+                                 'review_system_prompt': f'{TEST_PREFIX}review_sys',
+                                 'review_user_prompt': f'{TEST_PREFIX}review_usr'}
+        assert_status(post('/api/config', json=test_config), 200)
+        response = get('/api/config'); assert_status(response, 200)
+        prompts = response.json().get('prompts', {})
+        for name, value in (('review_system_prompt', f'{TEST_PREFIX}review_sys'),
+                            ('review_user_prompt', f'{TEST_PREFIX}review_usr')):
+            if prompts.get(name) != value:
+                raise TestFailure(f'{name} not persisted: {prompts.get(name)}')
 
 
 def test_save_persona_prompts_roundtrip():
-    # Read current config
-    r = get("/api/config")
-    assert_status(r, 200)
-    original = r.json()
-
-    # Save config with custom persona prompts
-    test_config = {
-        "llm": original["llm"],
-        **llm_mode_fields(original),
-        "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
-        "prompts": {
-            **(original.get("prompts") or {}),
-            "persona_system_prompt": f"{TEST_PREFIX}persona_sys",
-            "persona_user_prompt": f"{TEST_PREFIX}persona_usr",
-            "persona_advanced_prompt": f"{TEST_PREFIX}persona_adv",
-        },
-        "generation": original.get("generation"),
-    }
-    r = post("/api/config", json=test_config)
-    assert_status(r, 200)
-
-    # Read back and verify
-    r = get("/api/config")
-    assert_status(r, 200)
-    readback = r.json()
-    prompts = readback.get("prompts", {})
-    if prompts.get("persona_system_prompt") != f"{TEST_PREFIX}persona_sys":
-        raise TestFailure(f"persona_system_prompt not persisted: {prompts.get('persona_system_prompt')}")
-    if prompts.get("persona_user_prompt") != f"{TEST_PREFIX}persona_usr":
-        raise TestFailure(f"persona_user_prompt not persisted: {prompts.get('persona_user_prompt')}")
-    if prompts.get("persona_advanced_prompt") != f"{TEST_PREFIX}persona_adv":
-        raise TestFailure(f"persona_advanced_prompt not persisted: {prompts.get('persona_advanced_prompt')}")
-
-    # Restore original
-    restore = {
-        "llm": original["llm"],
-        **llm_mode_fields(original),
-        "tts": original.get("tts", {"mode": "local", "url": "http://127.0.0.1:7860", "device": "auto"}),
-        "prompts": original.get("prompts"),
-        "generation": original.get("generation"),
-    }
-    post("/api/config", json=restore)
+    with ensure_config_roundtrip() as test_config:
+        test_config['prompts'] = {**(test_config.get('prompts') or {}),
+                                 'persona_system_prompt': f'{TEST_PREFIX}persona_sys',
+                                 'persona_user_prompt': f'{TEST_PREFIX}persona_usr',
+                                 'persona_advanced_prompt': f'{TEST_PREFIX}persona_adv'}
+        assert_status(post('/api/config', json=test_config), 200)
+        response = get('/api/config'); assert_status(response, 200)
+        prompts = response.json().get('prompts', {})
+        for name, value in (('persona_system_prompt', f'{TEST_PREFIX}persona_sys'),
+                            ('persona_user_prompt', f'{TEST_PREFIX}persona_usr'),
+                            ('persona_advanced_prompt', f'{TEST_PREFIX}persona_adv')):
+            if prompts.get(name) != value:
+                raise TestFailure(f'{name} not persisted: {prompts.get(name)}')
 
 
 def test_get_default_prompts():
