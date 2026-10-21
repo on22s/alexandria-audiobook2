@@ -1148,7 +1148,10 @@
                 batch_preparer: () => { _pollPreparerLogs('batch_preparer'); },
                 audio: () => {
                     show('btn-cancel-merge');
-                    pollLogs('audio', 'audio-logs', () => { show('btn-cancel-merge', 'none'); });
+                    pollLogs('audio', 'audio-logs', () => {
+                        show('btn-cancel-merge', 'none');
+                        window.resetExportQualityView?.();
+                    });
                 },
                 benchmark: () => { refreshBenchmarkStatus(); },
                 audacity_export: () => { pollExport('audacity_export'); },

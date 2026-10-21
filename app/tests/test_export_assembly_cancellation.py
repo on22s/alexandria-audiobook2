@@ -4,6 +4,7 @@ from unittest.mock import patch
 from pydub import AudioSegment
 import tts
 import project
+import chapter_export_quality
 from tests.test_chapter_export import _project
 import tempfile
 
@@ -43,16 +44,16 @@ class ExportAssemblyCancellationTests(unittest.TestCase):
         prefix=segments[0]+AudioSegment.silent(duration=80)
         self.assertAlmostEqual(tts.get_audio_duration_ms(prefix),timeline[1][2],delta=1e-9)
 
-    def test_chapter_export_cancellation_inside_timeline_returns_cancelled(self):
+    def test_chapter_export_cancellation_inside_frame_planning_returns_cancelled(self):
         with tempfile.TemporaryDirectory() as tmp:
             pm,chunks=_project(tmp)
             active=False
-            timeline=project.compute_timeline
+            timeline=chapter_export_quality.get_chapter_pcm_plan
             def interrupted(*args,**kw):
                 nonlocal active
                 active=True
                 return timeline(*args,**kw)
-            with patch.object(pm,'load_chunks',return_value=chunks),patch.object(project,'compute_timeline',side_effect=interrupted),patch.object(project,'_export_audio_segment') as encode:
+            with patch.object(pm,'load_chunks',return_value=chunks),patch.object(chapter_export_quality,'get_chapter_pcm_plan',side_effect=interrupted),patch.object(project,'_export_audio_segment') as encode:
                 self.assertEqual((False,'Export cancelled'),pm.export_chapters(fmt='wav',cancel_check=lambda:active))
                 encode.assert_not_called()
 

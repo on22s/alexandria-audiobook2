@@ -1290,6 +1290,24 @@ def test_get_audacity_export():
     assert_status(r, 200)
 
 
+def test_export_quality_contract():
+    snapshot = get('/api/chunks/status')
+    assert_status(snapshot)
+    token = snapshot.json()['book_token']
+    assert_status(get('/api/export_quality'), 422)
+    stale = 'f' * 64 if token != 'f' * 64 else 'e' * 64
+    assert_status(get('/api/export_quality', params={'expected_book_token': stale}), 409)
+    response = get('/api/export_quality', params={'expected_book_token': token})
+    assert_status(response)
+    data = response.json()
+    if (data.get('book_token') != token or data.get('identity_check') != 'metadata_only'
+            or data.get('history_scope') != 'app_session'
+            or not all(isinstance(data.get(key), list) for key in ('reports', 'rejected_attempts', 'attempts'))):
+        raise TestFailure('Export checks must return bounded book-scoped session evidence')
+    for route in ('/api/merge', '/api/merge_m4b', '/api/export_chapters'):
+        assert_status(post(route, json={'export_quality': {'silence_dbfs': -100}}), 422)
+
+
 # ── Section 14: Full Tests — Generation ─────────────────────
 
 def test_gpu_lock_mutual_exclusion():
@@ -1627,6 +1645,7 @@ def run_all_tests():
     run_test("get_audiobook", test_get_audiobook)
     run_test("get_audiobook_m4b", test_get_audiobook_m4b)
     run_test("get_audacity_export", test_get_audacity_export)
+    run_test("export_quality_contract", test_export_quality_contract)
 
     section("Generation (TTS/LLM)")
     run_test("gpu_lock_mutual_exclusion", test_gpu_lock_mutual_exclusion, requires_full=True)

@@ -921,7 +921,7 @@ def _ensure_audio_task_owner(claim_id, *, allow_cancelled=False, task_name='audi
     with _gpu_lock:
         owner = _task_claims.get(task_name)
         if (owner is None or owner["id"] != claim_id or owner["phase"] != "started"
-                or (process_state[task_name]["cancel"] and not allow_cancelled)):
+                or (process_state[task_name].get("cancel", False) and not allow_cancelled)):
             raise AudioGenerationCancelled('Speech verification cancelled' if task_name == 'speech_verification'
                                            else AUDIO_GENERATION_CANCELLED)
         yield
@@ -933,7 +933,8 @@ def _run_owned_background_task(task_name, claim_id, callback, already_started=Fa
     try:
         owner = (AudioGenerationOwner(claim_id, functools.partial(_ensure_audio_task_owner,
                     claim_id,task_name=task_name))
-                 if task_name in ('audio','speech_verification') else None)
+                 if task_name in ('audio', 'speech_verification', 'm4b_export',
+                                  'chapter_export', 'audacity_export') else None)
         with ensure_audio_generation_owner(owner):
             return callback()
     finally:

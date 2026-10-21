@@ -26,6 +26,8 @@ from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field, StrictInt, field_validator
 from config_settings import load_app_config
 from audio_mastering import MasteringOptions, get_audio_sha256
+from export_quality import ExportQualityOptions
+from export_quality_session import ExportQualityAttempt, get_session_evidence
 
 from core import (
     AUDIOBOOK_PATH,
@@ -59,7 +61,8 @@ from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      get_chunk_generation_requests, get_speaker)
 from runtime_estimate import get_book_runtime_estimate
 from routers.voices import get_script_speaker
-from tts import voice_config_for_chunk, resolve_narrator_voice_config, voice_category
+from tts import (voice_config_for_chunk, resolve_narrator_voice_config, voice_category,
+                 ExportCancelled, ensure_audio_export_active)
 import voice_drift
 
 
@@ -655,6 +658,7 @@ async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks,
         return {"status": "started"}
 
 class MergeRequest(BaseModel):
+    export_quality: Optional[ExportQualityOptions] = None
     mastering: Optional[MasteringOptions] = None
     integrity_confirmation: Optional[str] = Field(None, min_length=64, max_length=64,
                                                   pattern="^[0-9a-f]{64}$")
@@ -680,6 +684,39 @@ def _ensure_editor_integrity():
 @router.get("/api/editor/integrity")
 async def get_editor_integrity():
     return await asyncio.to_thread(_ensure_editor_integrity)
+
+
+def get_export_quality_attempt(request, state, *, audacity=False):
+    # A cancelled queued worker must not start book I/O for evidence capture.
+    ensure_audio_export_active(lambda: state.get('cancel', False))
+    with ensure_book_state(DATA_DIR):
+        token = get_snapshot_digest(get_editor_book_identity(DATA_DIR))
+    options = getattr(request, 'export_quality', None)
+    return ExportQualityAttempt(state, token,
+        options.model_dump() if options is not None else None, audacity=audacity)
+
+
+def record_export_quality_error(attempt, error):
+    if attempt is None:
+        return
+    if isinstance(error, ExportCancelled):
+        attempt.finish(False, 'Export cancelled')
+    else:
+        attempt.fail(error)
+
+
+@router.get('/api/export_quality')
+async def get_export_quality(expected_book_token: Annotated[str, Query(pattern=r'^[0-9a-f]{64}$')]):
+    return await asyncio.to_thread(_get_export_quality_sync, expected_book_token)
+
+
+def _get_export_quality_sync(token):
+    with ensure_book_state(DATA_DIR):
+        check_chunk_identity(0, token)
+    result = get_session_evidence(DATA_DIR, process_state, token)
+    with ensure_book_state(DATA_DIR):
+        check_chunk_identity(0, token)
+    return result
 
 
 def ensure_export_mastering_context(request, state):
@@ -754,15 +791,19 @@ def _start_merge_audio(background_tasks, request):
         def task():
             process_state["audio"]["start_time"] = time.time()
             process_state["audio"]["logs"] = ["Starting merge..."]
+            quality_attempt = None
             try:
                 with ensure_book_state(DATA_DIR):
                     current, chunks = _ensure_editor_integrity_locked()
                     if current["snapshot"] != admitted_snapshot:
                         raise ValueError("Source or editor chunks changed after merge admission; review again.")
+                quality_attempt = get_export_quality_attempt(request, process_state["audio"])
                 success, msg = project_manager.merge_audio(
                     cancel_check=lambda: process_state["audio"]["cancel"],
                     progress_callback=lambda m: process_state["audio"]["logs"].append(m),
-                    chunks=chunks, **ensure_export_mastering_context(request, process_state["audio"]))
+                    chunks=chunks, **ensure_export_mastering_context(request, process_state["audio"]),
+                    **quality_attempt.kwargs)
+                quality_attempt.finish(success, msg)
                 if success:
                     process_state["audio"]["logs"].append(f"Merge complete: {msg}")
                 elif msg == "Merge cancelled":
@@ -770,7 +811,9 @@ def _start_merge_audio(background_tasks, request):
                 else:
                     process_state["audio"]["logs"].append(f"Merge failed: {msg}")
             except Exception as e:
-                process_state["audio"]["logs"].append(f"Merge error: {e}")
+                record_export_quality_error(quality_attempt, e)
+                process_state["audio"]["logs"].append('Merge cancelled' if isinstance(e, ExportCancelled)
+                                                    else f"Merge error: {e}")
             finally:
                 process_state["audio"]["running"] = False
                 process_state["audio"]["cancel"] = False
@@ -785,6 +828,12 @@ def get_export_task_result(success, message):
             "message": str(message)}
 
 
+def get_export_task_error(error):
+    if isinstance(error, ExportCancelled):
+        return {'status': 'cancelled', 'message': 'Export cancelled'}
+    return {'status': 'failed', 'message': str(error)}
+
+
 @router.post("/api/export_audacity")
 async def export_audacity_endpoint(background_tasks: BackgroundTasks):
     # Atomic check-and-set on the request thread (closes the double-start TOCTOU
@@ -793,16 +842,21 @@ async def export_audacity_endpoint(background_tasks: BackgroundTasks):
 
     def task():
         process_state["audacity_export"]["logs"] = ["Starting Audacity export..."]
+        quality_attempt = None
         try:
+            quality_attempt = get_export_quality_attempt(None, process_state["audacity_export"], audacity=True)
             success, msg = project_manager.export_audacity(
-                progress_callback=lambda m: process_state["audacity_export"]["logs"].append(m))
+                progress_callback=lambda m: process_state["audacity_export"]["logs"].append(m),
+                **quality_attempt.kwargs)
+            quality_attempt.finish(success, msg)
             process_state["audacity_export"]["result"] = get_export_task_result(success, msg)
             if success:
                 process_state["audacity_export"]["logs"].append(f"Export complete: {msg}")
             else:
                 process_state["audacity_export"]["logs"].append(f"Export failed: {msg}")
         except Exception as e:
-            process_state["audacity_export"]["result"] = {"status": "failed", "message": str(e)}
+            record_export_quality_error(quality_attempt, e)
+            process_state["audacity_export"]["result"] = get_export_task_error(e)
             process_state["audacity_export"]["logs"].append(f"Export error: {e}")
         finally:
             process_state["audacity_export"]["running"] = False
@@ -879,6 +933,7 @@ async def validate_export_readiness(require_ready):
 
 
 class M4bExportRequest(BaseModel):
+    export_quality: Optional[ExportQualityOptions] = None
     mastering: Optional[MasteringOptions] = None
     per_chunk_chapters: bool = False
     title: str = ""
@@ -896,7 +951,9 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
 
     def task():
         process_state["m4b_export"]["logs"] = ["Starting M4B export..."]
+        quality_attempt = None
         try:
+            quality_attempt = get_export_quality_attempt(request, process_state["m4b_export"])
             meta = {
                 "title": request.title,
                 "author": request.author,
@@ -909,14 +966,17 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
                 per_chunk_chapters=request.per_chunk_chapters, metadata=meta,
                 cancel_check=lambda: process_state["m4b_export"].get("cancel", False),
                 progress_callback=lambda message: process_state["m4b_export"]["logs"].append(message),
-                **ensure_export_mastering_context(request, process_state["m4b_export"]))
+                **ensure_export_mastering_context(request, process_state["m4b_export"]),
+                **quality_attempt.kwargs)
+            quality_attempt.finish(success, msg)
             process_state["m4b_export"]["result"] = get_export_task_result(success, msg)
             if success:
                 process_state["m4b_export"]["logs"].append(f"Export complete: {msg}")
             else:
                 process_state["m4b_export"]["logs"].append(f"Export failed: {msg}")
         except Exception as e:
-            process_state["m4b_export"]["result"] = {"status": "failed", "message": str(e)}
+            record_export_quality_error(quality_attempt, e)
+            process_state["m4b_export"]["result"] = get_export_task_error(e)
             process_state["m4b_export"]["logs"].append(f"Export error: {e}")
         finally:
             process_state["m4b_export"]["running"] = False
@@ -925,16 +985,22 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
     process_state["m4b_export"]["result"] = None
     return {"status": "started"}
 
-@router.post("/api/merge_m4b/cancel")
-async def cancel_m4b_export():
-    state = process_state["m4b_export"]
-    if not state["running"]:
-        raise HTTPException(status_code=400, detail="No M4B export is running.")
-    state["cancel"] = True
+def _cancel_cpu_export(task_name, missing_message):
+    with _gpu_lock:
+        state = process_state[task_name]
+        if not state["running"]:
+            raise HTTPException(status_code=400, detail=missing_message)
+        state["cancel"] = True
     return {"status": "cancelling"}
 
 
+@router.post("/api/merge_m4b/cancel")
+async def cancel_m4b_export():
+    return await asyncio.to_thread(_cancel_cpu_export, 'm4b_export', 'No M4B export is running.')
+
+
 class ChapterExportRequest(BaseModel):
+    export_quality: Optional[ExportQualityOptions] = None
     mastering: Optional[MasteringOptions] = None
     format: str = "mp3"
     per_chunk_chapters: bool = False
@@ -974,7 +1040,9 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
 
     def task():
         state["logs"] = ["Starting chapter export..."]
+        quality_attempt = None
         try:
+            quality_attempt = get_export_quality_attempt(request, state)
             success, msg = project_manager.export_chapters(
                 fmt=request.format, per_chunk_chapters=request.per_chunk_chapters,
                 template=request.template, padding=request.padding,
@@ -982,11 +1050,14 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
                 volume_number=request.volume_number, chapters=chapters,
                 changed_only=request.changed_only,
                 progress_callback=lambda m: state["logs"].append(m),
-                cancel_check=lambda: state["cancel"], **ensure_export_mastering_context(request, state))
+                cancel_check=lambda: state["cancel"], **ensure_export_mastering_context(request, state),
+                **quality_attempt.kwargs)
+            quality_attempt.finish(success, msg)
             state["result"] = get_export_task_result(success, msg)
             state["logs"].append(f"Export complete: {msg}" if success else f"Export failed: {msg}")
         except Exception as e:
-            state["result"] = {"status": "failed", "message": str(e)}
+            record_export_quality_error(quality_attempt, e)
+            state["result"] = get_export_task_error(e)
             state["logs"].append(f"Export error: {e}")
         finally:
             state["running"] = False
@@ -999,11 +1070,7 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
 
 @router.post("/api/export_chapters/cancel")
 async def cancel_chapter_export():
-    state = process_state["chapter_export"]
-    if not state["running"]:
-        raise HTTPException(status_code=400, detail="No chapter export is running.")
-    state["cancel"] = True
-    return {"status": "cancelling"}
+    return await asyncio.to_thread(_cancel_cpu_export, 'chapter_export', 'No chapter export is running.')
 
 
 @router.get("/api/export_chapters/preview")

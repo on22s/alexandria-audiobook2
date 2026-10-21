@@ -50,6 +50,7 @@ class LocalUiAssetTests(unittest.TestCase):
         }
         feature_assets = {'/static/js/app-word-timing.js?v=__APP_BUILD__', '/static/js/app-audio-channels.js?v=__APP_BUILD__', '/static/js/app-tts-diagnostics.js?v=__APP_BUILD__',
                           '/static/js/app-mastering.js?v=__APP_BUILD__', '/static/js/app-settings.js?v=__APP_BUILD__',
+                          '/static/js/app-export-quality.js?v=__APP_BUILD__',
                           '/static/js/app-editor-repair.js?v=__APP_BUILD__',
                           '/static/js/app-workspace.js?v=__APP_BUILD__',
                           '/static/js/app-pronunciation.js?v=__APP_BUILD__',

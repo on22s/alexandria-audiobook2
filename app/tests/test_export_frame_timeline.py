@@ -47,6 +47,7 @@ class ExportFrameTimelineTests(unittest.TestCase):
                     expected = np.zeros((1000, 2000), dtype='<i2')
                     expected[parity::2] = 8192
                     np.testing.assert_array_equal(expected, samples)
+            from m4b_encode import encode_m4b
             def encode(cmd, *args):
                 with wave.open(cmd[cmd.index('-i') + 1]) as wav:
                     self.assertEqual(2000000, wav.getnframes())
@@ -57,8 +58,7 @@ class ExportFrameTimelineTests(unittest.TestCase):
                 for index, (start, end) in enumerate(zip(starts, ends)):
                     self.assertAlmostEqual(index * 2000 / 24, start, delta=1)
                     self.assertAlmostEqual((index + 1) * 2000 / 24, end, delta=1)
-                Path(cmd[-1]).write_bytes(b'synthetic encoder result')
-                return 0, ''
+                return encode_m4b(cmd, *args)
             with patch('m4b_encode.encode_m4b', side_effect=encode):
                 self.assertTrue(manager.merge_m4b(per_chunk_chapters=True)[0])
 

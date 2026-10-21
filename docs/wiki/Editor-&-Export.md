@@ -96,6 +96,28 @@ pauses you hear. The result appears in the Result tab.
 **Author**, **Narrator**, **Year**, **Description** and **Cover Image**, and choose
 **Per-chunk chapters**.
 
+### Export integrity checks
+
+The Result tab checks finished MP3, M4B and chapter audio before replacing an earlier
+delivery. These checks compare the encoded audio with an independent source-frame plan,
+decode it for damaged or non-finite samples, and check M4B chapter markers and authored
+book metadata. A failed or cancelled export preserves the earlier delivery.
+
+Under **Export integrity checks**, set the silence threshold and maximum unexpected gap
+for the next export. Long silence produces a warning by default; enable **Reject exports
+with unexpected long silence** to refuse it instead. Authored inter-line pauses are
+excluded. These checks do not certify speech content or pronunciation.
+
+**Show checks for this book** displays completed checks separately from rejected attempts,
+including frame counts and silence or chapter time ranges. Results are retained for this
+app session, up to 32 deliveries and 16 rejected attempts per export type. The view omits
+receipts when file metadata changes; opening it does not rehash or decode the audio.
+Its SHA-256 values describe the bytes at the completed check. Export publication itself
+checks complete file bytes and source identity.
+
+Audacity checks ZIP members, WAV headers, exact track frames, LOF/labels and archive CRCs.
+Its inactive-speaker gaps are intentional and are not classified as missing narration.
+
 ### Chapter files
 
 **Export chapters** writes each chapter as its own MP3 or WAV file, named by a template such as

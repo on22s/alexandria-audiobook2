@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+from tests.export_quality_assertions import stable_chapter_evidence
 import soundfile as sf
 from fastapi import HTTPException
 
@@ -594,7 +595,8 @@ class MalformedChapterManifestTests(unittest.TestCase):
                         ok, msg = pm.export_chapters(fmt="wav", changed_only=changed)
                         self.assertTrue(ok, msg)
                         self.assertIn("2 chapter file(s) written", msg)
-                        self.assertEqual(expected_manifest, json.loads((output / "manifest.json").read_text()))
+                        self.assertEqual(stable_chapter_evidence(expected_manifest),
+                                         stable_chapter_evidence(json.loads((output / "manifest.json").read_text())))
                         for name, (samples, rate) in expected_audio.items():
                             actual, actual_rate = sf.read(output / name, dtype="int16")
                             self.assertEqual(rate, actual_rate)

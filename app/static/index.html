@@ -3271,6 +3271,15 @@
                             <i class="fas fa-file-archive me-2"></i>Download All (zip)
                         </a>
                         <div class="w-100 mt-3">
+                            <details id="export-quality-options" class="workflow-disclosure mt-3 text-start">
+                                <summary>Export integrity checks</summary>
+                                <p class="small mt-2">Finished MP3, M4B and chapter audio is checked before publication. Long silence is advisory by default; authored pauses are excluded. These settings apply to the next export. Audacity checks archive structure and track frames.</p>
+                                <div class="row g-2"><div class="col-sm-6"><label class="form-label" for="export-quality-noise">Silence threshold (dBFS)</label><input id="export-quality-noise" type="number" class="form-control" value="-50" min="-90" max="-20" step="1" oninput="resetExportQualityView()"></div><div class="col-sm-6"><label class="form-label" for="export-quality-gap">Maximum unexpected gap (seconds)</label><input id="export-quality-gap" type="number" class="form-control" value="5" min="0.1" max="3600" step="0.1" oninput="resetExportQualityView()"></div></div>
+                                <label class="form-check mt-2"><input id="export-quality-reject" type="checkbox" class="form-check-input" onchange="resetExportQualityView()"><span class="form-check-label">Reject exports with unexpected long silence</span></label>
+                                <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="loadExportQualityReports()">Show checks for this book</button>
+                                <p id="export-quality-status" role="status" aria-live="polite" class="small mt-2">Completed checks and rejected attempts are retained separately for this app session.</p>
+                                <div id="export-quality-reports" class="small"></div>
+                            </details>
                             <details id="export-mastering-options" class="workflow-disclosure mt-3 text-start">
                                 <summary title="Optional processing applied to assembled exports, with measured output results">Optional export mastering</summary>
                                 <p class="small mt-2">Applies to the next merged MP3, MP3/WAV chapters or M4B. Source clips and Audacity tracks stay unchanged. Analysis and encoding use CPU and extra disk/time. These targets do not certify distribution compliance.</p>
@@ -3619,6 +3628,7 @@
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workspace.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-mastering.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-export-quality.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-reports.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-help.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-settings.js?v=__APP_BUILD__"></script>

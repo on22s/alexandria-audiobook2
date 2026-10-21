@@ -71,6 +71,21 @@ assert.deepStrictEqual(calls,['persona','voicelab']);assert(el('btn-voicelab-sta
 assert(!requests.includes('/api/status/persona'));assert(!requests.includes('/api/status/voicelab'));
 """)
 
+    def test_reattached_mp3_completion_invalidates_the_export_evidence_view(self):
+        self.run_js(r"""
+let resets=0,completed;
+ctx.resetExportQualityView=()=>resets++;
+ctx.window=ctx;
+ctx.pollLogs=(name,id,done)=>{assert.strictEqual(name,'audio');completed=done;};
+statuses={audio:{running:true}};
+await ctx.reattachRunningPollers();
+assert.strictEqual(resets,0);
+assert.strictEqual(typeof completed,'function');
+completed();
+assert.strictEqual(resets,1);
+assert.strictEqual(el('btn-cancel-merge').style.display,'none');
+""")
+
     def test_training_preparer_audio_benchmark_adapters_and_idle_dispatch(self):
         self.run_js(r"""
 for(const task of ['lora_training','preparer','batch_preparer','audio','benchmark']){

@@ -2766,6 +2766,9 @@ async def get_status(task_name: str, include_health: bool = False):
     if task_name not in process_state:
         raise HTTPException(status_code=404, detail="Task not found")
     state = dict(process_state[task_name])
+    # Export evidence has its own book-token gate and bounded explicit view.
+    for key in ('export_quality_reports', 'export_quality_rejections', 'export_quality_attempt'):
+        state.pop(key, None)
     state["running"] = is_task_running(task_name, states={task_name: state})
     state.pop("process", None)
     state.pop("processes", None)

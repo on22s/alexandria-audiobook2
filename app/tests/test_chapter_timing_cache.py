@@ -13,7 +13,9 @@ import soundfile as sf
 from project import ProjectManager, CHAPTER_EXPORT_DIR
 import chapter_timing_cache as cache
 import project
+import export_publication
 import tts
+from tests.export_quality_assertions import stable_chapter_evidence
 
 
 class ChapterTimingCacheTests(unittest.TestCase):
@@ -38,7 +40,7 @@ class ChapterTimingCacheTests(unittest.TestCase):
 
     def result(self, root):
         output = root / CHAPTER_EXPORT_DIR
-        row = json.loads((output / 'manifest.json').read_text())['chapters'][0]
+        row = stable_chapter_evidence(json.loads((output / 'manifest.json').read_text())['chapters'][0])
         return row, (output / row['file']).read_bytes()
 
     def test_mp3_legacy_index_once_then_cold_selected_export_decodes_only_selected_audio(self):
@@ -60,7 +62,7 @@ class ChapterTimingCacheTests(unittest.TestCase):
             # Full and subset exports share the independently decoded reference clock.
             self.assertTrue(manager.export_chapters(fmt='wav', per_chunk_chapters=True)[0])
             manifest = json.loads((root / CHAPTER_EXPORT_DIR / 'manifest.json').read_text())
-            self.assertEqual(first[0], manifest['chapters'][2])
+            self.assertEqual(first[0], stable_chapter_evidence(manifest['chapters'][2]))
             self.assertAlmostEqual(tts.get_audio_duration_ms(reference[2][1]), first[0]['duration_ms'])
             for path, raw in original.items():
                 self.assertEqual(raw, path.read_bytes())
@@ -84,7 +86,7 @@ class ChapterTimingCacheTests(unittest.TestCase):
             self.assertNotEqual(before['start_ms'], after['start_ms'])
             self.assertTrue(manager.export_chapters(fmt='wav', per_chunk_chapters=True)[0])
             full = json.loads((root / CHAPTER_EXPORT_DIR / 'manifest.json').read_text())['chapters'][1]
-            self.assertEqual(after, full)
+            self.assertEqual(after, stable_chapter_evidence(full))
 
     def test_corrupted_facts_and_changed_trim_policy_require_fresh_indexing(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -171,7 +173,7 @@ class ChapterTimingCacheTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'compressed.input'
             raw = b'known encoded bytes' * 100000; path.write_bytes(raw)
-            native_open = open
+            native_open = os.fdopen
             reads = []
             class Reader:
                 def __init__(self, stream): self.stream = stream
@@ -184,7 +186,7 @@ class ChapterTimingCacheTests(unittest.TestCase):
                     self_test.assertLessEqual(size, 65536)
                     return self.stream.read(size)
             self_test = self
-            with patch.object(cache, 'open', side_effect=lambda *a, **k: Reader(native_open(*a, **k)), create=True):
+            with patch.object(cache.os, 'fdopen', side_effect=lambda *a, **k: Reader(native_open(*a, **k))):
                 identity = cache.read_source_identity(path, lambda: False)
             self.assertEqual(hashlib.sha256(raw).hexdigest(), identity['sha256'])
             self.assertGreater(len(reads), 10)
@@ -207,7 +209,13 @@ class ChapterTimingCacheTests(unittest.TestCase):
             self.assertEqual(stat.st_size, path.stat().st_size)
             os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
             reader = manager.get_chunk_audio_segment
+            source_version = export_publication._get_source_version
+            def coarse_source_version(source_path):
+                # Both the timing cache and final source fence observe the same
+                # coarse filesystem clock; byte hashing still sees the new PCM.
+                return frozen_version if Path(source_path) == path else source_version(source_path)
             with patch.object(cache, '_version', side_effect=coarse_filesystem_version), \
+                    patch.object(export_publication, '_get_source_version', side_effect=coarse_source_version), \
                     patch.object(manager, 'get_chunk_audio_segment', wraps=reader) as decode:
                 expected_file = before[0]['file']
                 self.assertEqual([expected_file], [row['file'] for row in

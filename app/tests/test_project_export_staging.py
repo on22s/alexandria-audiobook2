@@ -83,12 +83,14 @@ class ExportStagingTests(unittest.TestCase):
 
             class OverlappingZip(original_zip):
                 def __enter__(self):
-                    staging.append(self.filename)
+                    if self.mode == 'w':
+                        staging.append(self.filename)
                     return super().__enter__()
 
                 def __exit__(self, *args):
                     result = super().__exit__(*args)
-                    barrier.wait(timeout=10)
+                    if self.mode == 'w':
+                        barrier.wait(timeout=10)
                     return result
 
             def publish(source, destination):
@@ -108,7 +110,8 @@ class ExportStagingTests(unittest.TestCase):
                     segment = AudioSegment.from_file(io.BytesIO(archive.read(name)), format='wav')
                     found[name] = len(segment)
             self.assertEqual({'alice.wav': 40, 'bob.wav': 100}, found)
-            self.assertEqual(['audacity_export.zip'], sorted(p.name for p in Path(root).iterdir()
+            self.assertEqual(['.active_book_transaction.json.lock', 'audacity_export.zip', 'chunks.json.lock'],
+                             sorted(p.name for p in Path(root).iterdir()
                                                            if p.is_file()))
 
     def test_overlapping_m4b_exports_keep_each_calls_wav_and_metadata(self):
@@ -150,7 +153,8 @@ class ExportStagingTests(unittest.TestCase):
                                 for duration, meta, _, _ in inputs))
             self.assertTrue(any(duration == 100 and 'title=Bob' in meta
                                 for duration, meta, _, _ in inputs))
-            self.assertEqual(['audiobook.m4b'], sorted(p.name for p in Path(root).iterdir()
+            self.assertEqual(['.active_book_transaction.json.lock', 'audiobook.m4b', 'chunks.json.lock'],
+                             sorted(p.name for p in Path(root).iterdir()
                                                     if p.is_file()))
 
     def test_audacity_releases_previous_track_and_groups_timeline_once(self):
@@ -162,26 +166,25 @@ class ExportStagingTests(unittest.TestCase):
                     for i in range(20)]
             manager._load_chunks_with_audio = lambda **kwargs: (rows, 0)
             manager._load_pause_defaults = lambda: (0, 0)
-            original_timeline = project.compute_timeline
+            original_timeline = project.iter_timeline
             iterations, tracks = [], []
             original_write = project.write_track_wav
 
-            class CountedTimeline(list):
-                def __iter__(self):
-                    iterations.append(True)
-                    return super().__iter__()
+            def counted_timeline(*args, **kwargs):
+                iterations.append(True)
+                return original_timeline(*args, **kwargs)
 
             def write(stream, entries, total, plan, cancel=None):
                 tracks.append(len(entries))
                 return original_write(stream, entries, total, plan, cancel)
 
-            with patch('project.compute_timeline', side_effect=lambda *args, **kwargs: CountedTimeline(original_timeline(*args, **kwargs))), \
+            with patch('project.iter_timeline', side_effect=counted_timeline), \
                  patch('project.write_track_wav', write), \
                  patch.object(AudioSegment, 'export', side_effect=AssertionError('materialized track')), \
                  patch('project.AudioSegmentBuilder', side_effect=AssertionError('materialized builder')):
                 ok, path = manager.export_audacity()
             self.assertTrue(ok)
-            self.assertLessEqual(len(iterations), 3)
+            self.assertEqual([True], iterations)
             self.assertEqual([1] * 20, tracks)
             with zipfile.ZipFile(path) as archive:
                 self.assertEqual(22, len(archive.namelist()))
@@ -212,5 +215,6 @@ class ExportStagingTests(unittest.TestCase):
             self.assertEqual(b'previous zip', oldzip.read_bytes())
             self.assertEqual(b'previous m4b', oldm4b.read_bytes())
             self.assertEqual(b'foreign scratch', unrelated.read_bytes())
-            self.assertEqual({oldzip.name, oldm4b.name, unrelated.name},
+            self.assertEqual({oldzip.name, oldm4b.name, unrelated.name,
+                              '.active_book_transaction.json.lock', 'chunks.json.lock'},
                              {p.name for p in Path(root).iterdir() if p.is_file()})

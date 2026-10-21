@@ -171,6 +171,9 @@
             'chk-drift-only': {what: 'Show only chunks the drift check flagged as sounding unlike their speaker’s reference voice.'},
 
             // Result tab
+            'export-quality-noise': {what: 'Level below which every audio channel counts as silent during the next MP3, M4B or chapter check. Authored pauses are excluded; Audacity checks track structure instead.'},
+            'export-quality-gap': {what: 'Minimum unexpected silent interval reported during the next assembled export, in seconds. It warns by default; enable rejection to refuse these gaps before replacing a delivery.'},
+            'export-quality-reject': {what: 'Refuse the next MP3, M4B or chapter export if an unexpected long silent interval is detected. Leave unchecked for advisory results. Failed attempts preserve earlier deliveries.'},
             'export-mastering-enabled': {what: 'Opt in to measured loudness and true-peak processing for the next assembled export. Does not alter source clips or start a job.'},
             'export-mastering-loudness': {what: 'Target integrated loudness, from -24 to -14 LUFS. Check the measured final file; a target alone does not establish compliance.'},
             'export-mastering-peak': {what: 'Target true-peak ceiling, from -9 to -1 dBTP. Lossy encoding may change the achieved peak; compare final measurements.'},
@@ -375,6 +378,7 @@
             'runDriftCheck': 'Compare generated chunks with their speaker references and flag possible voice drift for listening review.',
             'openTextDiff': 'Show the source-versus-script text comparison for inspecting changes.',
             'exportAudacity': 'Build an Audacity project from the generated audio and timeline.',
+            'loadExportQualityReports': 'Show completed delivery checks and rejected attempts retained for the current book in this app session. File metadata is checked; audio is not rehashed or decoded.',
             'removeM4bCover': 'Remove the selected cover image from this export configuration.',
             'exportM4B': 'Export generated audio as an M4B audiobook with the entered metadata and chapter settings.',
             'cancelM4B': 'Request cancellation of the current M4B export.',

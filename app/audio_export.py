@@ -1,4 +1,5 @@
 """Cancellable CPU encoding with owned descendants and atomic file publication."""
+import copy
 import json
 import os
 from pathlib import Path
@@ -100,7 +101,21 @@ def get_encoder_exception(path, fallback):
     return fallback
 
 
-def export_audio_segment(segment, path, format_name, cancel_check, mastering=None, **kwargs):
+def ensure_export_quality_output(path, plan, callback, cancel_check):
+    """Check a requested assembled delivery and transport its private receipt."""
+    if plan is None:
+        if callback is not None:
+            raise ValueError('Export quality callback requires a PCM expectation plan.')
+        return
+    from export_quality import validate_finished_export, ensure_export_stage_current
+    report = validate_finished_export(path, plan, cancel_check)
+    if callback is not None:
+        callback(copy.deepcopy(report))
+    ensure_export_stage_current(path, report, cancel_check)
+
+
+def export_audio_segment(segment, path, format_name, cancel_check, mastering=None,
+                         quality_plan=None, quality_callback=None, **kwargs):
     from tts import ensure_audio_export_active
     from core import ensure_failed_subprocess_stopped
     ensure_audio_export_active(cancel_check)
@@ -119,6 +134,11 @@ def export_audio_segment(segment, path, format_name, cancel_check, mastering=Non
             for start in range(0, len(data), 8 * 1024 * 1024):
                 ensure_audio_export_active(cancel_check)
                 stream.write(data[start:start + 8 * 1024 * 1024])
+        if quality_plan is not None and format_name == 'mp3':
+            from audio_encoding_layout import get_audio_encoding_layout
+            layout = get_audio_encoding_layout('mp3', segment.frame_rate, segment.channels)
+            kwargs = {**kwargs, 'parameters': [*(kwargs.get('parameters') or []),
+                '-ar', str(layout['frame_rate']), '-ac', str(layout['channels'])]}
         settings = {'sample_width': segment.sample_width, 'frame_rate': segment.frame_rate,
                     'channels': segment.channels, 'format': format_name, 'options': kwargs,
                     'encoder_temp': str(encoder_temp.resolve())}
@@ -127,6 +147,7 @@ def export_audio_segment(segment, path, format_name, cancel_check, mastering=Non
         if mastering is not None:
             from audio_mastering import export_mastered_pcm
             report = export_mastered_pcm(raw, output, settings, mastering, cancel_check)
+            ensure_export_quality_output(output, quality_plan, quality_callback, cancel_check)
             ensure_audio_export_active(cancel_check)
             os.replace(output, destination)
             return report
@@ -152,6 +173,7 @@ def export_audio_segment(segment, path, format_name, cancel_check, mastering=Non
                     if cancel_check is None:
                         error = get_encoder_exception(settings['exception_path'], error)
                     raise error
+                ensure_export_quality_output(output, quality_plan, quality_callback, cancel_check)
                 ensure_audio_export_active(cancel_check)
                 os.replace(output, destination)
             finally:
@@ -195,7 +217,8 @@ if __name__ == '__main__':
         raise
 
 
-def export_pcm_mp3(raw_path, output_path, settings, cancel_check, mastering=None, bitrate='192k'):
+def export_pcm_mp3(raw_path, output_path, settings, cancel_check, mastering=None, bitrate='192k',
+                   quality_plan=None, quality_callback=None):
     """Encode already-spooled PCM without decoding it into another AudioSegment."""
     from audio_ffmpeg import run_audio_ffmpeg
     from pydub import AudioSegment
@@ -217,14 +240,21 @@ def export_pcm_mp3(raw_path, output_path, settings, cancel_check, mastering=None
                 {**settings, 'format': 'mp3', 'options': {'bitrate': bitrate}}, mastering, cancel_check)
         else:
             formats = {1: 's8', 2: 's16le', 4: 's32le'}
+            output_parameters = []
+            if quality_plan is not None:
+                from audio_encoding_layout import get_audio_encoding_layout
+                layout = get_audio_encoding_layout('mp3', rate, channels)
+                output_parameters = ['-ar', str(layout['frame_rate']), '-ac', str(layout['channels'])]
             # Preserve the legacy MP3 encoder's cancellation-driven lifetime.
             run_audio_ffmpeg(['-f', formats[width], '-ar', str(rate), '-ac', str(channels),
                               '-i', str(raw_path), '-b:a', bitrate, '-id3v2_version', '3',
-                              '-f', 'mp3', str(output)], cancel_check,
+                              *output_parameters, '-f', 'mp3', str(output)], cancel_check,
                              timeout=None, environment=environment, executable=AudioSegment.converter)
             report = None
         ensure_audio_export_active(cancel_check)
         if not output.is_file() or not output.stat().st_size:
             raise OSError('Encoder did not produce an MP3 file.')
+        ensure_export_quality_output(output, quality_plan, quality_callback, cancel_check)
+        ensure_audio_export_active(cancel_check)
         os.replace(output, destination)
         return report

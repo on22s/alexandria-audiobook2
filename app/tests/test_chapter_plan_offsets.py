@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from tests.export_quality_assertions import stable_chapter_evidence
 from project import CHAPTER_EXPORT_DIR
 from pydub import AudioSegment
 from tests import test_chapter_render_memory as fixtures
@@ -12,7 +13,7 @@ from tests import test_chapter_render_memory as fixtures
 
 class ChapterPlanOffsetTests(unittest.TestCase):
     def get_manifest(self, root):
-        return json.loads(Path(root, CHAPTER_EXPORT_DIR, 'manifest.json').read_text())
+        return stable_chapter_evidence(json.loads(Path(root, CHAPTER_EXPORT_DIR, 'manifest.json').read_text()))
 
     def test_changed_boundary_pause_repositions_reused_chapters_like_full_export(self):
         for per_chunk in (True, False):

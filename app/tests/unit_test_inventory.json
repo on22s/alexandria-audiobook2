@@ -639,6 +639,16 @@
     "tests.test_attribution_voting.VotedAttributionTest.test_majority_across_samples",
     "tests.test_attribution_voting.VotedAttributionTest.test_single_vote_delegates_to_greedy"
   ],
+  "test_audacity_export_quality": [
+    "tests.test_audacity_export_quality.AudacityExportQualityTests.test_actual_directory_records_are_bounded_before_zipinfo_allocation",
+    "tests.test_audacity_export_quality.AudacityExportQualityTests.test_checked_directory_is_pinned_across_callbacks_and_actual_bytes_still_fenced",
+    "tests.test_audacity_export_quality.AudacityExportQualityTests.test_late_cancel_and_postcommit_observer_keep_publication_result_correct",
+    "tests.test_audacity_export_quality.AudacityExportQualityTests.test_native_mixed_and_legacy_tracks_match_independent_headers_without_extra_pcm_decode",
+    "tests.test_audacity_export_quality.AudacityExportQualityTests.test_source_and_editor_changes_after_archive_validation_refuse_publication",
+    "tests.test_audacity_export_quality.AudacityExportQualityTests.test_successful_writer_with_corrupt_or_wrong_members_never_replaces_prior_archive",
+    "tests.test_audacity_export_quality.AudacityExportQualityTests.test_zip64_and_cancellable_member_reads_preserve_bounded_behavior",
+    "tests.test_audacity_export_quality.AudacityExportQualityTests.test_zip64_old_and_new_python_end_locations_with_and_without_prefix"
+  ],
   "test_audio_channels": [
     "tests.test_audio_channels.AudioChannelTests.test_actual_preview_import_and_asr_stream_select_same_channel",
     "tests.test_audio_channels.AudioChannelTests.test_batch_http_consumes_previews_once_and_dispatches_selected_channel",
@@ -1567,6 +1577,17 @@
   "test_chapter_export_empty_ui": [
     "tests.test_chapter_export_empty_ui.ChapterExportEmptyUiTests.test_native_empty_receipt_and_empty_renderer_remove_stale_downloads"
   ],
+  "test_chapter_export_quality": [
+    "tests.test_chapter_export_quality.ChapterExportQualityTests.test_fallback_cancellation_during_unselected_frame_planning_returns_cancelled",
+    "tests.test_chapter_export_quality.ChapterExportQualityTests.test_historical_plan_survives_changed_unselected_sources_and_legacy_needs_independent_proof",
+    "tests.test_chapter_export_quality.ChapterExportQualityTests.test_inconsistent_recorded_source_clock_cannot_shift_retained_offsets",
+    "tests.test_chapter_export_quality.ChapterExportQualityTests.test_legacy_plan_can_migrate_only_from_current_matching_indexed_source_facts",
+    "tests.test_chapter_export_quality.ChapterExportQualityTests.test_missing_receipt_is_validated_and_current_policy_can_reject_retained_gap",
+    "tests.test_chapter_export_quality.ChapterExportQualityTests.test_mixed_rate_first_subset_uses_each_skipped_chapters_independent_clock",
+    "tests.test_chapter_export_quality.ChapterExportQualityTests.test_selected_native_fallback_and_mastered_have_one_scan_and_reuse_has_none",
+    "tests.test_chapter_export_quality.ChapterExportQualityTests.test_source_edit_between_phases_rolls_back_set_and_observer_failure_stays_successful",
+    "tests.test_chapter_export_quality.ChapterExportQualityTests.test_zero_exit_short_output_without_transport_cannot_publish_any_chapter"
+  ],
   "test_chapter_input_safety_js": [
     "tests.test_chapter_input_safety_js.ChapterInputSafetyJsTests.test_delete_requires_current_confirmation_and_preserves_storage_on_cancel_or_change",
     "tests.test_chapter_input_safety_js.ChapterInputSafetyJsTests.test_import_latest_selection_owns_storage_and_error_feedback",
@@ -1626,6 +1647,11 @@
     "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_fallback_uses_one_source_snapshot_if_live_rows_change",
     "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_first_selected_export_never_substitutes_the_following_chapter",
     "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_matching_metadata_and_decoder_omissions_keep_previewed_selection"
+  ],
+  "test_chapter_source_identity": [
+    "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_fifo_and_regular_to_fifo_open_race_have_a_hard_process_bound",
+    "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_missing_directory_and_cancellation_refuse_without_payload_read",
+    "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_regular_empty_and_followed_alias_keep_the_existing_identity_contract"
   ],
   "test_chapter_timing_cache": [
     "tests.test_chapter_timing_cache.ChapterTimingCacheTests.test_cancelled_index_preserves_prior_publication_and_does_not_publish_partial_facts",
@@ -3641,7 +3667,7 @@
   ],
   "test_export_assembly_cancellation": [
     "tests.test_export_assembly_cancellation.ExportAssemblyCancellationTests.test_cancel_interrupts_one_long_silent_edge_scan",
-    "tests.test_export_assembly_cancellation.ExportAssemblyCancellationTests.test_chapter_export_cancellation_inside_timeline_returns_cancelled",
+    "tests.test_export_assembly_cancellation.ExportAssemblyCancellationTests.test_chapter_export_cancellation_inside_frame_planning_returns_cancelled",
     "tests.test_export_assembly_cancellation.ExportAssemblyCancellationTests.test_combine_cancel_does_not_process_all_segments",
     "tests.test_export_assembly_cancellation.ExportAssemblyCancellationTests.test_full_export_stops_inside_combination_before_processing_whole_book",
     "tests.test_export_assembly_cancellation.ExportAssemblyCancellationTests.test_uncancelled_combine_and_timeline_audio_and_offsets_are_unchanged"
@@ -3656,6 +3682,78 @@
     "tests.test_export_frame_timeline.ExportFrameTimelineTests.test_pause_rounding_and_layout_promotion_follow_actual_pcm",
     "tests.test_export_frame_timeline.ExportFrameTimelineTests.test_thousand_clips_keep_native_labels_chapters_and_speaker_tracks_aligned"
   ],
+  "test_export_pcm_plan": [
+    "tests.test_export_pcm_plan.ExportPCMPlanTests.test_bad_or_unbounded_plans_refuse_and_unknown_shapes_remain_explicit",
+    "tests.test_export_pcm_plan.ExportPCMPlanTests.test_callback_failure_and_late_cancel_leave_previous_pcm_and_wav_intact",
+    "tests.test_export_pcm_plan.ExportPCMPlanTests.test_many_authored_gaps_follow_fractional_pcm_clock_without_millisecond_drift",
+    "tests.test_export_pcm_plan.ExportPCMPlanTests.test_mixed_promotion_frame_counts_and_authored_gap_envelopes_match_native_bytes",
+    "tests.test_export_pcm_plan.ExportPCMPlanTests.test_raw_and_both_wav_writer_paths_publish_source_plan_without_changing_return_contracts"
+  ],
+  "test_export_publication": [
+    "tests.test_export_publication.ExportPublicationTests.test_changes_after_media_validation_preserve_prior_delivery_and_source_edits",
+    "tests.test_export_publication.ExportPublicationTests.test_edit_after_final_hash_is_refused_by_short_metadata_admission",
+    "tests.test_export_publication.ExportPublicationTests.test_exact_project_root_and_private_regular_file_are_required",
+    "tests.test_export_publication.ExportPublicationTests.test_final_admission_does_not_read_script_payload_or_retry_body_timeout",
+    "tests.test_export_publication.ExportPublicationTests.test_hashing_is_outside_existing_chunk_lock_and_metadata_admission_does_not_rehash",
+    "tests.test_export_publication.ExportPublicationTests.test_owner_aware_cancel_callback_does_not_reenter_the_owner_mutex",
+    "tests.test_export_publication.ExportPublicationTests.test_pause_settings_change_between_tuple_and_identity_capture_refuses_export",
+    "tests.test_export_publication.ExportPublicationTests.test_supplied_stale_uid_and_changed_rows_during_capture_are_refused"
+  ],
+  "test_export_publication_transaction": [
+    "tests.test_export_publication_transaction.PublicationTransactionTests.test_actual_editor_waits_outside_book_during_owner_aware_transaction",
+    "tests.test_export_publication_transaction.PublicationTransactionTests.test_live_lease_identity_thread_lifetime_and_cleanup_are_scoped",
+    "tests.test_export_publication_transaction.PublicationTransactionTests.test_whole_set_scoped_admission_refuses_contention_and_changed_retained_file"
+  ],
+  "test_export_quality": [
+    "tests.test_export_quality.ExportQualityTests.test_authored_pause_is_exempt_but_extra_silence_outside_it_is_not",
+    "tests.test_export_quality.ExportQualityTests.test_diagnostics_keep_complete_counts_and_bound_excerpts",
+    "tests.test_export_quality.ExportQualityTests.test_empty_truncated_and_valid_wrong_duration_are_refused",
+    "tests.test_export_quality.ExportQualityTests.test_finished_hash_fences_bytes_when_metadata_clock_does_not_change",
+    "tests.test_export_quality.ExportQualityTests.test_high_rate_encoding_uses_independently_planned_pinned_output_clock",
+    "tests.test_export_quality.ExportQualityTests.test_inserted_gap_warns_by_default_and_explicit_policy_refuses_it",
+    "tests.test_export_quality.ExportQualityTests.test_largest_late_gap_survives_excerpt_limit_and_malformed_event_is_refused",
+    "tests.test_export_quality.ExportQualityTests.test_late_bytes_with_restored_mtime_invalidate_the_measured_stage",
+    "tests.test_export_quality.ExportQualityTests.test_mp4_implicit_chapter_ends_preserve_intentional_interchapter_pauses",
+    "tests.test_export_quality.ExportQualityTests.test_nan_and_infinity_are_rejected_even_when_native_decoder_exits_successfully",
+    "tests.test_export_quality.ExportQualityTests.test_nonregular_files_are_refused_before_any_blocking_read",
+    "tests.test_export_quality.ExportQualityTests.test_options_are_finite_and_invalid_plans_never_enter_a_tool_command",
+    "tests.test_export_quality.ExportQualityTests.test_private_file_open_failure_and_fifo_swap_close_descriptors_with_a_hard_bound",
+    "tests.test_export_quality.ExportQualityTests.test_probe_output_bound_and_cancel_stop_the_owned_check",
+    "tests.test_export_quality.ExportQualityTests.test_real_chapter_metadata_requires_exact_count_times_and_titles",
+    "tests.test_export_quality.ExportQualityTests.test_real_wav_mp3_aac_and_opposite_phase_stereo_match_independent_frame_plan",
+    "tests.test_export_quality.ExportQualityTests.test_valid_pcm_bytes_cannot_be_certified_as_requested_mp3"
+  ],
+  "test_export_quality_admission": [
+    "tests.test_export_quality_admission.ExportQualityAdmissionTests.test_cancelled_receipt_admission_stops_before_hash_or_decoder",
+    "tests.test_export_quality_admission.ExportQualityAdmissionTests.test_changed_options_and_chapter_expectation_cannot_reuse_prior_receipt",
+    "tests.test_export_quality_admission.ExportQualityAdmissionTests.test_missing_stale_or_incomplete_receipt_runs_real_validation",
+    "tests.test_export_quality_admission.ExportQualityAdmissionTests.test_modified_bytes_with_restored_timestamp_are_rechecked_and_refused",
+    "tests.test_export_quality_admission.ExportQualityAdmissionTests.test_real_encoder_receipt_rebinds_after_rename_without_second_decode"
+  ],
+  "test_export_quality_api": [
+    "tests.test_export_quality_api.ExportQualityApiTests.test_actual_export_routes_publish_current_proofs_and_request_scoped_policy",
+    "tests.test_export_quality_api.ExportQualityApiTests.test_cancelled_cpu_workers_preserve_queued_and_active_attempt_states",
+    "tests.test_export_quality_api.ExportQualityApiTests.test_endpoint_gates_both_book_reads_and_status_does_not_serialize_history",
+    "tests.test_export_quality_api.ExportQualityApiTests.test_evidence_refuses_escaping_and_symlinked_outputs",
+    "tests.test_export_quality_api.ExportQualityApiTests.test_failed_and_cancelled_attempts_preserve_prior_proof_and_real_delivery",
+    "tests.test_export_quality_api.ExportQualityApiTests.test_invalid_options_are_rejected_before_claim_or_evidence_mutation",
+    "tests.test_export_quality_api.ExportQualityApiTests.test_retained_summaries_counts_and_iteration_are_bounded"
+  ],
+  "test_export_quality_encoder_boundary": [
+    "tests.test_export_quality_encoder_boundary.ExportQualityEncoderBoundaryTests.test_cancel_or_changed_bytes_after_receipt_transport_keep_prior_output",
+    "tests.test_export_quality_encoder_boundary.ExportQualityEncoderBoundaryTests.test_mastering_report_does_not_exempt_short_finished_bytes_from_validation",
+    "tests.test_export_quality_encoder_boundary.ExportQualityEncoderBoundaryTests.test_ordinary_chunk_exports_do_not_add_a_finished_export_scan",
+    "tests.test_export_quality_encoder_boundary.ExportQualityEncoderBoundaryTests.test_segment_encoding_transports_actual_receipt_and_preserves_mastering_return",
+    "tests.test_export_quality_encoder_boundary.ExportQualityEncoderBoundaryTests.test_spooled_pcm_encoding_uses_same_output_clock_and_receipt",
+    "tests.test_export_quality_encoder_boundary.ExportQualityEncoderBoundaryTests.test_zero_exit_short_encoded_audio_cannot_replace_previous_delivery"
+  ],
+  "test_export_quality_js": [
+    "tests.test_export_quality_js.ExportQualityJsTests.test_actual_editor_snapshot_identity_refresh_invalidates_rendered_cards",
+    "tests.test_export_quality_js.ExportQualityJsTests.test_missing_or_mismatched_editor_snapshot_shows_a_refresh_instruction",
+    "tests.test_export_quality_js.ExportQualityJsTests.test_options_reach_actual_export_request_and_bad_values_never_post",
+    "tests.test_export_quality_js.ExportQualityJsTests.test_reports_are_safe_text_with_separate_failure_and_explicit_scope",
+    "tests.test_export_quality_js.ExportQualityJsTests.test_stale_async_book_settings_and_terminal_reconnect_cannot_restore_old_cards"
+  ],
   "test_export_readiness_shapes": [
     "tests.test_export_readiness_shapes.ExportReadinessShapeTests.test_both_routes_refuse_unusable_json_before_any_task",
     "tests.test_export_readiness_shapes.ExportReadinessShapeTests.test_readiness_still_reports_exact_missing_speakers_and_allows_ready_state"
@@ -3668,6 +3766,12 @@
   "test_export_source_boundary": [
     "tests.test_export_source_boundary.ExportSourceBoundaryTests.test_contained_absolute_and_symlink_sources_still_produce_actual_audacity_zip",
     "tests.test_export_source_boundary.ExportSourceBoundaryTests.test_worker_rejects_outside_or_nonfile_audio_before_copy_and_export"
+  ],
+  "test_export_task_owner": [
+    "tests.test_export_task_owner.ExportTaskOwnerTests.test_cancel_mutex_wait_keeps_the_async_event_loop_responsive",
+    "tests.test_export_task_owner.ExportTaskOwnerTests.test_cancel_routes_set_flags_under_the_same_owner_mutex",
+    "tests.test_export_task_owner.ExportTaskOwnerTests.test_each_cpu_export_binds_exact_live_owner_and_releases_only_its_own_claim",
+    "tests.test_export_task_owner.ExportTaskOwnerTests.test_native_http_cancel_after_real_media_check_keeps_claim_until_worker_finishes"
   ],
   "test_export_task_results": [
     "tests.test_export_task_results.ExportTaskResultTests.test_held_native_worker_clears_prior_result_and_duplicate_does_not_reset_it",
@@ -5666,6 +5770,12 @@
     "tests.test_m4b_cover_trailing_payload.M4bCoverTrailingPayloadTests.test_png_pixels_and_alpha_survive_normalization",
     "tests.test_m4b_cover_trailing_payload.M4bCoverTrailingPayloadTests.test_trailing_video_is_retired_before_actual_m4b_export"
   ],
+  "test_m4b_export_quality": [
+    "tests.test_m4b_export_quality.M4BExportQualityTests.test_callback_exceptions_after_commit_do_not_erase_success",
+    "tests.test_m4b_export_quality.M4BExportQualityTests.test_native_legacy_and_mastered_aac_match_exact_source_clock_chapters_tags_and_one_decode",
+    "tests.test_m4b_export_quality.M4BExportQualityTests.test_source_cover_mutation_and_late_cancel_preserve_prior_delivery",
+    "tests.test_m4b_export_quality.M4BExportQualityTests.test_successful_encoder_with_short_audio_missing_moved_or_renamed_chapter_and_wrong_tags_is_refused"
+  ],
   "test_macos_owner_protocol": [
     "tests.test_macos_owner_protocol.MacOwnerAdmissionTests.test_nonexclusive_and_unknown_scope_are_rejected",
     "tests.test_macos_owner_protocol.MacOwnerAdmissionTests.test_shared_scope_and_changed_identity_are_rejected",
@@ -6952,6 +7062,12 @@
     "tests.test_project_chunks.UnspeakablePassthroughTest.test_embedded_scene_break_becomes_a_pause",
     "tests.test_project_chunks.UnspeakablePassthroughTest.test_leading_scene_break_makes_no_orphan_pause",
     "tests.test_project_chunks.UnspeakablePassthroughTest.test_symbol_is_verbalized"
+  ],
+  "test_project_export_quality": [
+    "tests.test_project_export_quality.ProjectExportQualityTests.test_late_cancel_keeps_previous_delivery_and_postcommit_reporter_cannot_fail_success",
+    "tests.test_project_export_quality.ProjectExportQualityTests.test_missing_transport_checks_valid_bytes_and_unplanned_gap_policy_preserves_prior",
+    "tests.test_project_export_quality.ProjectExportQualityTests.test_native_legacy_and_mastered_mp3_have_one_actual_decode_and_current_evidence",
+    "tests.test_project_export_quality.ProjectExportQualityTests.test_zero_exit_short_output_without_encoder_receipt_is_refused_by_project"
   ],
   "test_project_export_staging": [
     "tests.test_project_export_staging.ExportStagingTests.test_audacity_releases_previous_track_and_groups_timeline_once",
@@ -9669,6 +9785,7 @@
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_every_current_registered_task_gets_a_restoration_or_activity_observer",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_exports_and_builder_restore_exact_owner_and_missing_owner_is_visible",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_one_failed_adapter_does_not_suppress_other_running_tasks",
+    "tests.test_task_reattachment.TaskReattachmentJsTests.test_reattached_mp3_completion_invalidates_the_export_evidence_view",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_remote_persona_and_local_voicelab_both_restore",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_report_explanation_reload_uses_activity_observer_until_completion",
     "tests.test_task_reattachment.TaskReattachmentJsTests.test_request_tasks_disable_until_done_and_dynamic_tasks_receive_fallback",

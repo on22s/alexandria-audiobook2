@@ -4,9 +4,11 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 import re
 import time
+import threading
 
 AUDIO_GENERATION_CANCELLED = "Audio generation cancelled"
 _owner = ContextVar('audio_generation_owner', default=None)
+_held_publication = ContextVar('audio_generation_held_publication', default=None)
 
 
 class AudioGenerationCancelled(RuntimeError):
@@ -53,15 +55,41 @@ def ensure_audio_generation_owner(owner):
         _owner.reset(token)
 
 
+@dataclass
+class _HeldPublication:
+    owner: object
+    thread: int
+    allow_cancelled: bool
+    active: bool = True
+
+
 @contextmanager
 def ensure_audio_generation_publication(*, allow_cancelled=False):
-    """Acquire owner admission before chunk locks; never wrap inference/conversion."""
+    """Acquire exact-owner admission; nested queries reuse only a live local lease.
+
+    A short publication transaction may check a generic cancellation predicate
+    which queries this same owner. Never reenter its nonreentrant task mutex.
+    Copied contexts cannot reuse an expired lease or a different thread's lease.
+    """
     owner = _owner.get()
     if owner is None:
         yield
-    else:
-        with owner(allow_cancelled=allow_cancelled):
+        return
+    held = _held_publication.get()
+    if (held is not None and held.active and held.owner is owner
+            and held.thread == threading.get_ident()):
+        if held.allow_cancelled and not allow_cancelled:
+            raise AudioGenerationCancelled()
+        yield
+        return
+    with owner(allow_cancelled=allow_cancelled):
+        held = _HeldPublication(owner, threading.get_ident(), allow_cancelled)
+        token = _held_publication.set(held)
+        try:
             yield
+        finally:
+            held.active = False
+            _held_publication.reset(token)
 
 
 def ensure_audio_generation_active():

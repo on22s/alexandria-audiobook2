@@ -12,6 +12,7 @@ from pydub import AudioSegment
 import soundfile as sf
 
 import audio_mastering
+import export_quality
 from project import CHAPTER_EXPORT_DIR, ProjectManager
 
 
@@ -284,15 +285,16 @@ class RetainedChapterIntegrityTests(unittest.TestCase):
                 manager, out, manifest = self.manager(Path(tmp))
                 retained = out / manifest['chapters'][1]['file']
                 before = self.snapshot(out)
-                original = audio_mastering.get_audio_sha256
+                original = export_quality.get_export_file_identity if staged else audio_mastering.get_audio_sha256
                 def unreadable(path, cancel_check=None):
                     target = Path(path)
                     if (staged and target.parent != out) or (not staged and target == retained):
                         raise OSError('synthetic hash read failure')
                     return original(path, cancel_check)
-                with patch('audio_mastering.get_audio_sha256', side_effect=unreadable):
+                with patch('export_quality.get_export_file_identity' if staged else
+                           'audio_mastering.get_audio_sha256', side_effect=unreadable):
                     if staged:
-                        with self.assertRaisesRegex(OSError, 'synthetic hash read failure'):
+                        with self.assertRaisesRegex(export_quality.ExportQualityError, 'synthetic hash read failure'):
                             manager.export_chapters(fmt='wav', chapters=[0])
                     else:
                         result = manager.export_chapters(fmt='wav', chapters=[0])

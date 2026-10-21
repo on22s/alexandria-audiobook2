@@ -41,14 +41,13 @@ class MergeCancelTests(unittest.TestCase):
     def test_cancel_mid_load_stops_at_the_flag(self):
         with tempfile.TemporaryDirectory() as tmp:
             pm = ProjectManager(tmp)
-            calls = []
-
-            def cancel_after_two():
-                calls.append(1)
-                return len(calls) > 2
+            loaded = []
+            def load_audio(*args, **kwargs):
+                loaded.append(1)
+                return "audio"
             with patch.object(pm, "load_chunks", return_value=_three_chunks(tmp)), \
-                 patch("project.AudioSegment.from_file", return_value="audio") as load:
-                ok, msg = pm.merge_audio(cancel_check=cancel_after_two)
+                 patch("project.AudioSegment.from_file", side_effect=load_audio) as load:
+                ok, msg = pm.merge_audio(cancel_check=lambda: len(loaded) >= 2)
             self.assertEqual((False, "Merge cancelled"), (ok, msg))
             self.assertEqual(2, load.call_count)
 

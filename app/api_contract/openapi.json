@@ -786,6 +786,16 @@
             ],
             "title": "Chapters"
           },
+          "export_quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportQualityOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "format": {
             "default": "mp3",
             "title": "Format",
@@ -1314,6 +1324,32 @@
           "filename"
         ],
         "title": "ExistingUploadRequest",
+        "type": "object"
+      },
+      "ExportQualityOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "max_unexpected_silence_seconds": {
+            "default": 5,
+            "maximum": 3600.0,
+            "minimum": 0.1,
+            "title": "Max Unexpected Silence Seconds",
+            "type": "number"
+          },
+          "reject_unexpected_silence": {
+            "default": false,
+            "title": "Reject Unexpected Silence",
+            "type": "boolean"
+          },
+          "silence_dbfs": {
+            "default": -50,
+            "maximum": -20.0,
+            "minimum": -90.0,
+            "title": "Silence Dbfs",
+            "type": "number"
+          }
+        },
+        "title": "ExportQualityOptions",
         "type": "object"
       },
       "FrontMatterSelection": {
@@ -2445,6 +2481,16 @@
             "title": "Description",
             "type": "string"
           },
+          "export_quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportQualityOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "mastering": {
             "anyOf": [
               {
@@ -2526,6 +2572,16 @@
       },
       "MergeRequest": {
         "properties": {
+          "export_quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportQualityOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "integrity_confirmation": {
             "anyOf": [
               {
@@ -7303,6 +7359,44 @@
           }
         },
         "summary": "Get Export Mastering"
+      }
+    },
+    "/api/export_quality": {
+      "get": {
+        "operationId": "get_export_quality_api_export_quality_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Export Quality"
       }
     },
     "/api/export_zip": {

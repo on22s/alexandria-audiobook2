@@ -7,6 +7,7 @@ import marshal
 import os
 from pathlib import Path
 import shutil
+import stat
 import types
 
 from pydub import AudioSegment
@@ -25,9 +26,14 @@ def _version(stat):
 
 def read_source_identity(path, cancel_check):
     """Hash compressed input in finite blocks, including restored-mtime edits."""
+    tts.ensure_audio_export_active(cancel_check)
     try:
-        with open(path, 'rb') as stream:
-            before = _version(os.fstat(stream.fileno()))
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0))
+        with os.fdopen(descriptor, 'rb') as stream:
+            admitted = os.fstat(stream.fileno())
+            if not stat.S_ISREG(admitted.st_mode):
+                return None
+            before = _version(admitted)
             digest = hashlib.sha256()
             for block in iter(lambda: stream.read(65536), b''):
                 tts.ensure_audio_export_active(cancel_check)
@@ -179,6 +185,11 @@ def ensure_chapter_timing_facts(root, chunks, resolve, decode, save_segment,
                 skipped += 1
                 continue
             identity = read_source_identity(path, cancel_check)
+            if identity is None:
+                records[path] = {'identity': None, 'available': False, 'shape': None}
+                identities[path] = None
+                skipped += 1
+                continue
             record = records.get(path, previous.get(path))
             if not _valid_record(record, identity):
                 segment = decode(chunk)

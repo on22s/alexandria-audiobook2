@@ -67,8 +67,9 @@ from tts import (
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
 from audio_pcm_producer import PCMSourceStore, get_audio_duration_ms
-from audio_streaming import (get_track_wav_plan, write_track_wav, write_combined_wav,
-                             get_streamable_layout, write_combined_pcm, iter_track_pieces)
+from audio_streaming import (get_track_wav_plan, get_track_pcm_plan, write_track_wav, write_combined_wav,
+                             get_streamable_layout, write_combined_pcm, iter_track_pieces,
+                             get_combined_source_plan, save_trimmed_pcm_sources, get_pcm_shape)
 
 MAX_CHUNK_CHARS = 500
 # Measured seconds of speech per character relative to English, Qwen3-TTS,
@@ -694,10 +695,24 @@ def _load_audio_segment(path, **kwargs):
         return AudioSegment.from_file(source, **kwargs)
 
 
+def _get_legacy_export_audio(segments, speakers, pause_ms, same_speaker_pause_ms,
+                             pause_overrides, cancel_check):
+    trimmed = save_trimmed_pcm_sources(segments, cancel_check, None)
+    pcm_plan = get_combined_source_plan(trimmed, speakers, pause_ms,
+        same_speaker_pause_ms, pause_overrides, cancel_check)
+    audio = combine_audio_with_pauses(segments, speakers, pause_ms,
+        same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check)
+    if (pcm_plan is None or get_pcm_shape(audio) != ((pcm_plan['channels'],
+            pcm_plan['frame_rate'], pcm_plan['sample_width']), pcm_plan['frames'])):
+        raise ValueError('Legacy assembled PCM disagrees with its source-frame plan.')
+    return audio, pcm_plan
+
+
 def _export_audio_segment(segment, path, format_name, cancel_check=None, **kwargs):
     """Export audio with an explicitly owned output handle."""
     from audio_export import export_audio_segment, is_easy_wav_export
-    if cancel_check is not None or kwargs.get("mastering") is not None or not is_easy_wav_export(format_name, kwargs):
+    if (cancel_check is not None or kwargs.get("mastering") is not None
+            or kwargs.get("quality_plan") is not None or not is_easy_wav_export(format_name, kwargs)):
         return export_audio_segment(segment, path, format_name, cancel_check, **kwargs)
     with open(path, "wb+") as target:
         segment.export(target, format=format_name, **kwargs)
@@ -1714,7 +1729,7 @@ class ProjectManager:
             return None
         try:
             full_path = self.get_chunk_audio_path(path)
-            if not os.path.exists(full_path):
+            if not os.path.isfile(full_path):
                 return None
             extension = os.path.splitext(full_path)[1].lstrip(".").lower()
             load_kwargs = {}
@@ -1755,19 +1770,26 @@ class ProjectManager:
             del segment
         return result, skipped
 
-    def merge_audio(self, cancel_check=None, progress_callback=None, chunks=None, mastering=None, mastering_callback=None):
+    def merge_audio(self, cancel_check=None, progress_callback=None, chunks=None, mastering=None,
+                    mastering_callback=None, export_quality=None, export_quality_callback=None):
         """Spool ordinary PCM instead of retaining every decoded source and the whole book."""
+        from export_quality import (get_export_quality_options, get_pcm_export_encoding_plan,
+            get_admitted_export_report, notify_completed_export, ensure_export_stage_current)
+        quality_options = get_export_quality_options(export_quality)
         output_filename = "cloned_audiobook.mp3"
         output_path = os.path.join(self.root_dir, output_filename)
         pending_output = output_path + f".pending.{uuid.uuid4().hex}"
         try:
+            from export_publication import ExportSourceSnapshot
+            source_snapshot = ExportSourceSnapshot(self, chunks, cancel_check)
+            chunks = source_snapshot.chunks
             with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
                 chunks_with_audio, skipped = self._load_chunks_with_audio(
                     cancel_check=cancel_check, progress_callback=_loading_progress(progress_callback),
                     chunks=chunks, segment_transform=sources.save_segment)
                 if not chunks_with_audio:
                     return False, "No audio segments found"
-                pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+                pause_ms, same_speaker_pause_ms = source_snapshot.pause_defaults
                 decoded = ((chunk, sources.load_segment(segment)) for chunk, segment in chunks_with_audio)
                 timeline = []
                 for chunk, segment, start_ms in iter_timeline(
@@ -1779,23 +1801,41 @@ class ProjectManager:
                 pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
                 with tempfile.TemporaryDirectory(prefix='.mp3-merge-', dir=self.root_dir) as directory:
                     raw = os.path.join(directory, 'combined.pcm')
+                    pcm_plans, quality_reports = [], []
                     settings = (write_combined_pcm(audio_segments, speakers, raw, pause_ms,
-                                same_speaker_pause_ms, pause_overrides, cancel_check, source_store=sources)
+                                same_speaker_pause_ms, pause_overrides, cancel_check, source_store=sources,
+                                pcm_plan_callback=pcm_plans.append)
                                 if os.path.basename(AudioSegment.converter).lower() in ('ffmpeg', 'ffmpeg.exe') else None)
                     if settings is None:
                         legacy_segments = [sources.load_segment(segment) for segment in audio_segments]
-                        final_audio = combine_audio_with_pauses(legacy_segments, speakers, pause_ms,
-                            same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check)
+                        final_audio, pcm_plan = _get_legacy_export_audio(legacy_segments, speakers, pause_ms,
+                            same_speaker_pause_ms, pause_overrides, cancel_check)
+                        quality_plan = get_pcm_export_encoding_plan(pcm_plan, format_name='mp3', options=quality_options)
                         mastering_report = _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE,
-                            cancel_check=cancel_check, **({"mastering": mastering} if mastering is not None else {}))
+                            cancel_check=cancel_check, quality_plan=quality_plan, quality_callback=quality_reports.append,
+                            **({"mastering": mastering} if mastering is not None else {}))
                     else:
+                        if len(pcm_plans) != 1:
+                            raise ValueError('PCM assembler did not provide an independent source-frame plan.')
+                        quality_plan = get_pcm_export_encoding_plan(pcm_plans[0], format_name='mp3', options=quality_options)
                         from audio_export import export_pcm_mp3
                         mastering_report = export_pcm_mp3(raw, pending_output, settings, cancel_check,
-                                                          mastering=mastering, bitrate=MP3_BITRATE)
+                            mastering=mastering, bitrate=MP3_BITRATE, quality_plan=quality_plan,
+                            quality_callback=quality_reports.append)
+                    quality_report = get_admitted_export_report(pending_output, quality_plan,
+                        quality_reports[-1] if quality_reports else None, cancel_check)
             ensure_audio_export_active(cancel_check)
-            os.replace(pending_output, output_path)
+            ensure_export_stage_current(pending_output, quality_report, cancel_check)
+            source_snapshot.verify_sources()
+            with source_snapshot.ensure_publication(pending_output, quality_report):
+                os.replace(pending_output, output_path)
+            notify_completed_export(output_path, output_filename, quality_report, export_quality_callback)
             if mastering_report and mastering_callback:
-                mastering_callback({**mastering_report, "file": output_filename})
+                try:
+                    mastering_callback({**mastering_report, "file": output_filename})
+                except Exception:
+                    logging.getLogger('AlexandriaUI').warning(
+                        'MP3 was published, but its mastering callback failed.', exc_info=True)
         except ExportCancelled:
             return False, "Merge cancelled"
         finally:
@@ -1804,20 +1844,24 @@ class ProjectManager:
             return True, f"{output_filename} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, output_filename
 
-    def export_audacity(self, progress_callback=None, cancel_check=None):
+    def export_audacity(self, progress_callback=None, cancel_check=None, export_quality_callback=None):
         """Export project as an Audacity-compatible zip with per-speaker WAV tracks,
         a LOF file for auto-import, and a labels file for chunk annotations."""
+        from audacity_export_quality import validate_audacity_export
+        from export_quality import ensure_export_stage_current, notify_completed_export
+        from export_publication import ExportSourceSnapshot
         try:
+            source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check)
             with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
                 chunks_with_audio, skipped = self._load_chunks_with_audio(
-                    cancel_check=cancel_check,
+                    cancel_check=cancel_check, chunks=source_snapshot.chunks,
                     progress_callback=_loading_progress(progress_callback),
                     segment_transform=sources.save_segment)
                 if not chunks_with_audio:
                     return False, "No audio segments found"
 
                 # Phase 1 — Compute timeline
-                pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+                pause_ms, same_speaker_pause_ms = source_snapshot.pause_defaults
                 decoded = ((chunk, sources.load_segment(segment)) for chunk, segment in chunks_with_audio)
                 timeline = []
                 for chunk, segment, start_ms in iter_timeline(
@@ -1873,6 +1917,7 @@ class ProjectManager:
                 # as valid (or clobber a previous good export with garbage).
                 zip_path = os.path.join(self.root_dir, "audacity_export.zip")
                 tmp_zip = zip_path + f".pending.{uuid.uuid4().hex}"
+                track_shapes = {}
                 try:
                     ensure_audio_export_active(cancel_check)
                     with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -1885,6 +1930,12 @@ class ProjectManager:
                             ensure_audio_export_active(cancel_check)
                             entries = speaker_chunks[speaker]
                             plan = get_track_wav_plan(entries, total_duration_ms, cancel_check)
+                            filename = speaker_filenames[speaker] + '.wav'
+                            shape = plan if plan is not None else get_track_pcm_plan(
+                                entries, total_duration_ms, cancel_check, legacy=True)
+                            if shape is None:
+                                raise ValueError('Audacity track has no independent PCM frame plan.')
+                            track_shapes[filename] = shape
                             if plan is not None:
                                 layout, frames = plan
                                 member = zipfile.ZipInfo(f"{speaker_filenames[speaker]}.wav", time.localtime()[:6])
@@ -1908,6 +1959,8 @@ class ProjectManager:
 
                             track = track_builder.finish()
                             del track_builder
+                            if get_pcm_shape(track) != shape:
+                                raise ValueError('Audacity track differs from its independent PCM frame plan.')
                             safe_name = speaker_filenames[speaker]
                             with io.BytesIO() as wav_buffer:
                                 track.export(wav_buffer, format="wav")
@@ -1915,8 +1968,15 @@ class ProjectManager:
                                 zf.writestr(f"{safe_name}.wav", wav_buffer.getvalue())
                             del track
                     sources.close()
-                    ensure_audio_export_active(cancel_check)
-                    os.replace(tmp_zip, zip_path)
+                    quality_report = validate_audacity_export(tmp_zip, track_shapes,
+                        {'project.lof': lof_content.encode('utf-8'),
+                         'labels.txt': labels_content.encode('utf-8')}, cancel_check, progress_callback)
+                    ensure_export_stage_current(tmp_zip, quality_report, cancel_check)
+                    source_snapshot.verify_sources()
+                    with source_snapshot.ensure_publication(tmp_zip, quality_report):
+                        os.replace(tmp_zip, zip_path)
+                    notify_completed_export(zip_path, 'audacity_export.zip', quality_report,
+                                            export_quality_callback)
                 except BaseException as error:
                     try:
                         if os.path.exists(tmp_zip):
@@ -1932,7 +1992,7 @@ class ProjectManager:
             return False, "Export cancelled"
 
     def merge_m4b(self, per_chunk_chapters=False, metadata=None, cancel_check=None, progress_callback=None,
-                  mastering=None, mastering_callback=None):
+                  mastering=None, mastering_callback=None, export_quality=None, export_quality_callback=None):
         """Merge audio chunks into an M4B audiobook with chapter markers.
 
         Args:
@@ -1944,18 +2004,28 @@ class ProjectManager:
         Returns:
             tuple: (success: bool, message: str)
         """
-        metadata = metadata or {}
+        from export_quality import (get_export_quality_options, get_pcm_export_encoding_plan,
+            get_admitted_export_report, ensure_export_stage_current, notify_completed_export)
+        from export_publication import ExportSourceSnapshot
+        quality_options = get_export_quality_options(export_quality)
+        metadata = copy.deepcopy(metadata or {})
+        tags = dict(title=metadata.get('title') or 'Audiobook', artist=metadata.get('author') or '',
+            album_artist=metadata.get('narrator') or '', date=metadata.get('year') or '',
+            comment=metadata.get('description') or '', genre='Audiobook')
         cleanup = []
         try:
+            cover_path = metadata.get('cover_path') or ''
+            source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check,
+                additional_sources=[cover_path] if cover_path else [])
             with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
                 chunks_with_audio, skipped = self._load_chunks_with_audio(cancel_check=cancel_check,
                         progress_callback=_loading_progress(progress_callback),
-                        segment_transform=sources.save_segment)
+                        segment_transform=sources.save_segment, chunks=source_snapshot.chunks)
                 if not chunks_with_audio:
                     return False, "No audio segments found"
 
                 # Phase 1 — Compute timeline
-                pause_ms, same_speaker_pause_ms = self._load_pause_defaults()
+                pause_ms, same_speaker_pause_ms = source_snapshot.pause_defaults
                 decoded = ((chunk, sources.load_segment(segment)) for chunk, segment in chunks_with_audio)
                 timeline = []
                 for chunk, segment, start_ms in iter_timeline(
@@ -1966,11 +2036,8 @@ class ProjectManager:
                 if not timeline:
                     return False, "No audio segments found"
 
-                # Phase 2 — Build chapters
-                chapters = self._build_m4b_chapters(timeline, per_chunk_chapters)
-                print(f"  M4B: {len(chapters)} chapters")
-
-                # Phase 3 — Combine audio and export to temp WAV
+                # Assemble using the exact post-trim source clock, including
+                # incremental prefix resampling and fractional-ms pauses.
                 audio_segments = [seg for _, seg, _ in timeline]
                 speakers = [chunk["speaker"] for chunk, _, _ in timeline]
                 pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
@@ -1983,33 +2050,44 @@ class ProjectManager:
 
                 cleanup = [temp_wav, meta_path, pending_output]
 
+                pcm_plans = []
                 duration_ms = write_combined_wav(audio_segments, speakers, temp_wav,
                     pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check,
-                    source_store=sources)
+                    source_store=sources, pcm_plan_callback=pcm_plans.append)
                 if duration_ms is None:
                     legacy_segments = [sources.load_segment(segment) for segment in audio_segments]
-                    final_audio = combine_audio_with_pauses(legacy_segments, speakers,
-                        pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check=cancel_check)
+                    final_audio, pcm_plan = _get_legacy_export_audio(legacy_segments, speakers,
+                        pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check)
                     _export_audio_segment(final_audio, temp_wav, "wav", cancel_check=cancel_check)
-                    duration_ms = len(final_audio)
+                else:
+                    if len(pcm_plans) != 1:
+                        raise ValueError('WAV assembler did not provide an independent source-frame plan.')
+                    pcm_plan = pcm_plans[0]
+                ranges = pcm_plan['source_frame_ranges']
+                if len(ranges) != len(timeline):
+                    raise ValueError('M4B source-frame ranges do not match its chapter sources.')
+                groups = self._chapter_groups([chunk for chunk, _, _ in timeline], per_chunk_chapters)
+                # MP4 represents ends by the next chapter start. This also
+                # assigns the authored inter-chapter pause to its preceding part.
+                starts = [ranges[first][0] for _, first, _ in groups] + [pcm_plan['frames']]
+                chapters = [(title, starts[index] / pcm_plan['frame_rate'],
+                    starts[index + 1] / pcm_plan['frame_rate']) for index, (title, _, _) in enumerate(groups)]
+                quality_plan = get_pcm_export_encoding_plan(pcm_plan, format_name='m4b',
+                    options=quality_options, chapters=chapters, chapter_time_base=1, expected_tags=tags)
+                print(f"  M4B: {len(chapters)} chapters")
                 sources.close()
 
             ensure_audio_export_active(cancel_check)
             # Phase 4 — Write FFmpeg metadata file with book metadata
             meta_lines = [";FFMETADATA1"]
-            meta_lines.append(f"title={self._escape_ffmeta(metadata.get('title') or 'Audiobook')}")
-            meta_lines.append(f"artist={self._escape_ffmeta(metadata.get('author') or '')}")
-            meta_lines.append(f"album_artist={self._escape_ffmeta(metadata.get('narrator') or '')}")
-            meta_lines.append(f"date={self._escape_ffmeta(metadata.get('year') or '')}")
-            meta_lines.append(f"comment={self._escape_ffmeta(metadata.get('description') or '')}")
-            meta_lines.append("genre=Audiobook")
+            meta_lines.extend(f'{key}={self._escape_ffmeta(value)}' for key, value in tags.items())
             meta_lines.append("")
-            for title, start_ms, end_ms in chapters:
+            for title, start_seconds, end_seconds in chapters:
                 safe_title = self._escape_ffmeta(title)
                 meta_lines.append("[CHAPTER]")
                 meta_lines.append("TIMEBASE=1/1000")
-                meta_lines.append(f"START={round(start_ms)}")
-                meta_lines.append(f"END={round(end_ms)}")
+                meta_lines.append(f"START={round(start_seconds * 1000)}")
+                meta_lines.append(f"END={round(end_seconds * 1000)}")
                 meta_lines.append(f"title={safe_title}")
                 meta_lines.append("")
 
@@ -2017,7 +2095,6 @@ class ProjectManager:
                 f.write("\n".join(meta_lines))
 
             # Phase 5 — FFmpeg: WAV + chapters → M4B (AAC)
-            cover_path = metadata.get("cover_path") or ""
             has_cover = cover_path and os.path.exists(cover_path)
 
             cmd = ["ffmpeg", "-y", "-i", temp_wav]
@@ -2033,12 +2110,8 @@ class ProjectManager:
             if mastering is not None:
                 from audio_mastering import get_loudness_measurements, get_mastering_filter
                 mastering_before = get_loudness_measurements(['-i', temp_wav], mastering, cancel_check)
-                import soundfile
-                info = soundfile.info(temp_wav)
-                from audio_encoding_layout import get_audio_encoding_layout
-                output_layout = get_audio_encoding_layout('m4b', info.samplerate, info.channels)
-                cmd += ['-af', get_mastering_filter(mastering, mastering_before),
-                        '-ar', str(output_layout['frame_rate']), '-ac', str(output_layout['channels'])]
+                cmd += ['-af', get_mastering_filter(mastering, mastering_before)]
+            cmd += ['-ar', str(quality_plan['sample_rate']), '-ac', str(quality_plan['channels'])]
             cmd += [
                 "-c:a", "aac",
                 "-b:a", "128k",
@@ -2047,7 +2120,7 @@ class ProjectManager:
                 pending_output
             ]
             from m4b_encode import encode_m4b
-            result, stderr = encode_m4b(cmd, duration_ms / 1000, cancel_check, progress_callback)
+            result, stderr = encode_m4b(cmd, pcm_plan['frames'] / pcm_plan['frame_rate'], cancel_check, progress_callback)
             if result != 0:
                 if progress_callback:
                     progress_callback("FFmpeg stderr: " + stderr[-500:])
@@ -2057,10 +2130,19 @@ class ProjectManager:
             if mastering_before is not None:
                 from audio_mastering import get_mastering_report
                 mastering_report = get_mastering_report(pending_output, mastering, mastering_before, stderr, cancel_check)
-            ensure_audio_export_active(cancel_check)
-            os.replace(pending_output, output_path)
+            quality_report = get_admitted_export_report(pending_output, quality_plan,
+                cancel_check=cancel_check, progress_callback=progress_callback)
+            ensure_export_stage_current(pending_output, quality_report, cancel_check)
+            source_snapshot.verify_sources()
+            with source_snapshot.ensure_publication(pending_output, quality_report):
+                os.replace(pending_output, output_path)
+            notify_completed_export(output_path, 'audiobook.m4b', quality_report, export_quality_callback)
             if mastering_report and mastering_callback:
-                mastering_callback({**mastering_report, 'file': 'audiobook.m4b'})
+                try:
+                    mastering_callback({**mastering_report, 'file': 'audiobook.m4b'})
+                except Exception:
+                    logging.getLogger('AlexandriaUI').warning(
+                        'M4B was published, but its mastering callback failed.', exc_info=True)
 
         except ExportCancelled:
             return False, "Export cancelled"
@@ -2184,7 +2266,8 @@ class ProjectManager:
     def _apply_chapter_export_plans(self, plans, chunks, options, pause_defaults,
                                     previous, chapters, changed_only, get_pairs,
                                     durations=None, progress_callback=None,
-                                    cancel_check=None, source_check=None):
+                                    cancel_check=None, source_check=None, *, source_snapshot,
+                                    get_current_quality_plan=None):
         """Stage the selected set, then publish it with rollback on failure."""
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         os.makedirs(out_dir, exist_ok=True)
@@ -2204,48 +2287,76 @@ class ProjectManager:
             staging_dir = tempfile.mkdtemp(prefix=".chapter-export-", dir=out_dir)
             retain_backup = False
             try:
+                publication_outputs = []
                 result = self._stage_chapter_export_plans(
                     plans, chunks, options, pause_defaults, previous, chapters,
                     changed_only, get_pairs, durations, progress_callback,
-                    cancel_check, staging_dir)
+                    cancel_check, staging_dir, publication_outputs, get_current_quality_plan)
                 if not result or not result[0]:
                     return result
+                from export_quality import (get_export_file_identity, get_export_file_version,
+                                            ensure_export_stage_current)
+                # Final byte proofs precede every publication lock. Retained
+                # chapters participate in the same set admission as new files.
+                for path, report in publication_outputs:
+                    ensure_export_stage_current(path, report, cancel_check)
+                manifest_path = os.path.join(staging_dir, 'manifest.json')
+                publication_outputs.append((manifest_path,
+                    get_export_file_identity(manifest_path, cancel_check)))
+                outputs = dict(publication_outputs)
                 if source_check is not None:
                     source_check()
+                source_snapshot.verify_sources()
                 ensure_audio_export_active(cancel_check)
                 backup_dir = os.path.join(staging_dir, "old")
                 os.mkdir(backup_dir)
                 names = sorted(name for name in os.listdir(staging_dir)
-                               if name not in ("old", "manifest.json")) + ["manifest.json"]
+                               if name not in ("old", "manifest.json"))
                 touched = []
-                try:
-                    for name in names:
+
+                def publish(name):
+                    source = os.path.join(staging_dir, name)
+                    target = os.path.join(out_dir, name)
+                    backup = os.path.join(backup_dir, name)
+                    existed = os.path.lexists(target)
+                    if existed:
+                        os.replace(target, backup)
+                    touched.append((target, backup, existed))
+                    os.replace(source, target)
+                    report = outputs.pop(source)
+                    version = get_export_file_version(target)
+                    if version[:4] != report['file_version'][:4]:
+                        raise ValueError('Finished chapter changed during publication. Retry the export.')
+                    outputs[target] = {**report, 'file_version': version}
+
+                with source_snapshot.ensure_publication_transaction(outputs) as admit:
+                    try:
+                        with admit():
+                            for name in names:
+                                publish(name)
+                        # No chunk lock is held during this predicate. Exact
+                        # owner queries reuse this short transaction's lease.
                         ensure_audio_export_active(cancel_check)
-                        target = os.path.join(out_dir, name)
-                        backup = os.path.join(backup_dir, name)
-                        existed = os.path.lexists(target)
-                        if existed:
-                            os.replace(target, backup)
-                        touched.append((target, backup, existed))
-                        os.replace(os.path.join(staging_dir, name), target)
-                except BaseException as error:
-                    failures = []
-                    for target, backup, existed in reversed(touched):
-                        try:
-                            if existed:
-                                os.replace(backup, target)
-                            elif os.path.lexists(target):
-                                os.unlink(target)
-                        except OSError as rollback_error:
-                            failures.append(f"{target}: {rollback_error}")
-                    if failures:
-                        retain_backup = True
-                        raise RuntimeError(
-                            f"Chapter export rollback failed; recovery files kept at {staging_dir}: "
-                            + "; ".join(failures)) from error
-                    if isinstance(error, ExportCancelled):
-                        return False, "Export cancelled"
-                    raise
+                        with admit():
+                            publish('manifest.json')
+                    except BaseException as error:
+                        failures = []
+                        for target, backup, existed in reversed(touched):
+                            try:
+                                if existed:
+                                    os.replace(backup, target)
+                                elif os.path.lexists(target):
+                                    os.unlink(target)
+                            except OSError as rollback_error:
+                                failures.append(f"{target}: {rollback_error}")
+                        if failures:
+                            retain_backup = True
+                            raise RuntimeError(
+                                f"Chapter export rollback failed; recovery files kept at {staging_dir}: "
+                                + "; ".join(failures)) from error
+                        if isinstance(error, ExportCancelled):
+                            return False, "Export cancelled"
+                        raise
                 return result
             except ExportCancelled:
                 return False, "Export cancelled"
@@ -2256,9 +2367,12 @@ class ProjectManager:
     def _stage_chapter_export_plans(self, plans, chunks, options, pause_defaults,
                                     previous, chapters, changed_only, get_pairs,
                                     durations, progress_callback, cancel_check,
-                                    staging_dir):
+                                    staging_dir, publication_outputs, get_current_quality_plan=None):
         """Write selected plans and one manifest with shared absolute offsets."""
         from audio_mastering import get_audio_sha256
+        from chapter_export_quality import (get_chapter_pcm_plan, get_chapter_quality_plan,
+            ensure_chapter_piece_matches_plan, get_recorded_chapter_quality_plan, get_chapter_plan_duration_ms)
+        from export_quality import get_admitted_export_report
         try:
             wanted = set(range(len(plans))) if chapters is None else set(get_index_selection(chapters, len(plans)))
         except ValueError as exc:
@@ -2286,8 +2400,22 @@ class ProjectManager:
                 except OSError:
                     old_duration = None
             if old_duration is not None:
+                quality_plan = get_recorded_chapter_quality_plan(old, options['export_quality'])
+                if (quality_plan is None and get_current_quality_plan is not None
+                        and get_chapter_reuse_duration(plan, old, {index}, True, out_dir) is not None):
+                    quality_plan = get_current_quality_plan(first, last)
+                if quality_plan is None:
+                    old_duration = None
+            if old_duration is not None:
+                quality_report = get_admitted_export_report(path, quality_plan,
+                    old.get('export_quality_report'), cancel_check, progress_callback)
+                if quality_report['sha256'] != digest or quality_report['output_bytes'] != output_bytes:
+                    raise ValueError('Retained chapter changed during quality admission. Retry the export.')
                 row, duration = dict(old), old_duration
-                row.update(output_sha256=digest, output_bytes=output_bytes)
+                duration = get_chapter_plan_duration_ms(quality_plan)
+                row.update(output_sha256=digest, output_bytes=output_bytes,
+                           export_quality_plan=quality_plan, export_quality_report=quality_report)
+                publication_outputs.append((path, quality_report))
                 if index in wanted:
                     reused += 1
             elif index in wanted:
@@ -2295,17 +2423,19 @@ class ProjectManager:
                 if skipped or not pairs:
                     return None
                 try:
-                    chapter_timeline = compute_timeline(
-                        pairs, *pause_defaults, cancel_check=cancel_check)
-                    duration = chapter_timeline[-1][2] + get_audio_duration_ms(chapter_timeline[-1][1])
+                    pcm_plan = get_chapter_pcm_plan(pairs, pause_defaults, cancel_check)
+                    quality_plan = get_chapter_quality_plan(pcm_plan, options['format'], options['export_quality'])
                     piece = self.get_chapter_audio(pairs, pause_defaults, cancel_check)
+                    ensure_chapter_piece_matches_plan(piece, pcm_plan)
+                    duration = get_chapter_plan_duration_ms(quality_plan)
                     if progress_callback:
                         progress_callback(
                             f"Writing chapter {index + 1}/{len(plans)}: {plan['title'][:60]}")
                     kwargs = {"bitrate": MP3_BITRATE} if options["format"] == "mp3" else {}
+                    quality_reports = []
                     mastering_report = _export_audio_segment(
                         piece, os.path.join(staging_dir, plan["file"]), options["format"],
-                        cancel_check=cancel_check, **kwargs,
+                        cancel_check=cancel_check, quality_plan=quality_plan, quality_callback=quality_reports.append, **kwargs,
                         **({"mastering": options["mastering"]} if options.get("mastering") is not None else {}))
                 except ExportCancelled:
                     return False, "Export cancelled"
@@ -2314,13 +2444,16 @@ class ProjectManager:
                 if mastering_report:
                     row["mastering_report"] = mastering_report
                 path = os.path.join(staging_dir, plan["file"])
-                row.update(output_sha256=get_audio_sha256(path, cancel_check),
-                           output_bytes=os.path.getsize(path))
+                quality_report = get_admitted_export_report(path, quality_plan,
+                    quality_reports[-1] if quality_reports else None, cancel_check, progress_callback)
+                row.update(output_sha256=quality_report['sha256'], output_bytes=quality_report['output_bytes'],
+                           export_quality_plan=quality_plan, export_quality_report=quality_report)
+                publication_outputs.append((path, quality_report))
                 written += 1
             else:
                 if old is not None:
                     return False, (f"Chapter {index + 1} has an invalid or unverified retained output; "
-                                   "select it for export or export all chapters.")
+                                   "select it for export or export all chapters to rebuild its independent frame proof.")
                 if durations is None:
                     return None
                 row, duration = None, durations[index]
@@ -2344,7 +2477,7 @@ class ProjectManager:
         return True, note
 
     def _export_changed_chapters(self, chunks, options, chapters,
-                                 progress_callback=None, cancel_check=None):
+                                 progress_callback=None, cancel_check=None, *, source_snapshot):
         """Return None for incomplete/old exports, otherwise decode changed groups only."""
         if not chunks:
             return None
@@ -2361,7 +2494,7 @@ class ProjectManager:
         if manifest.get("chapter_plan_version") != options["chapter_plan_version"]:
             return None
         previous = {row["index"]: row for row in get_chapter_export_rows(manifest)}
-        pause_defaults = self._load_pause_defaults()
+        pause_defaults = source_snapshot.pause_defaults
         try:
             plans = self._get_chapter_export_plans(chunks, options, pause_defaults)
         except ValueError as exc:
@@ -2382,23 +2515,36 @@ class ProjectManager:
 
         return self._apply_chapter_export_plans(
             plans, chunks, options, pause_defaults, previous, chapters, True,
-            get_pairs, progress_callback=progress_callback, cancel_check=cancel_check)
+            get_pairs, progress_callback=progress_callback, cancel_check=cancel_check,
+            source_snapshot=source_snapshot)
 
-    def export_chapters(self, *args, mastering=None, mastering_callback=None, **kwargs):
-        result = self._export_chapters(*args, **kwargs, mastering=mastering)
-        if result and result[0] and mastering_callback:
+    def export_chapters(self, *args, mastering=None, mastering_callback=None,
+                        export_quality=None, export_quality_callback=None, **kwargs):
+        from export_quality import notify_completed_export
+        result = self._export_chapters(*args, **kwargs, mastering=mastering,
+                                       export_quality=export_quality)
+        if result and result[0] and (mastering_callback or export_quality_callback):
             manifest = safe_load_json(os.path.join(self.root_dir, CHAPTER_EXPORT_DIR, 'manifest.json'), {})
             for row in get_chapter_export_rows(manifest):
+                filename = CHAPTER_EXPORT_DIR + '/' + row['file']
+                report = row.get('export_quality_report')
+                if report and export_quality_callback:
+                    notify_completed_export(os.path.join(self.root_dir, filename), filename,
+                                            report, export_quality_callback)
                 report = row.get('mastering_report')
-                if report:
-                    mastering_callback({**report, 'file': CHAPTER_EXPORT_DIR + '/' + row['file']})
+                if report and mastering_callback:
+                    try:
+                        mastering_callback({**report, 'file': filename})
+                    except Exception:
+                        logger.warning('Chapters were published, but their mastering callback failed.', exc_info=True)
         return result
 
     def _export_chapters(self, fmt="mp3", per_chunk_chapters=False,
                         template=DEFAULT_CHAPTER_TEMPLATE, padding=2,
                         book_name="", series_name="", volume_number="",
                         chapters=None, changed_only=False,
-                        progress_callback=None, cancel_check=None, mastering=None):
+                        progress_callback=None, cancel_check=None, mastering=None,
+                        export_quality=None):
         """Write selected chapter files and shared source/timing metadata.
 
         Changed-only exports decode only changed groups when the prior manifest
@@ -2406,7 +2552,8 @@ class ProjectManager:
         """
         if fmt not in ("mp3", "wav"):
             return False, f"Unsupported format: {fmt}"
-        options = {"format": fmt, "template": template, "padding": padding,
+        from export_quality import get_export_quality_options, ExportQualityError
+        options = {"export_quality": get_export_quality_options(export_quality), "format": fmt, "template": template, "padding": padding,
                    "per_chunk_chapters": per_chunk_chapters, "book_name": book_name,
                    "series_name": series_name, "volume_number": volume_number,
                    "chapter_plan_version": 1}
@@ -2415,7 +2562,9 @@ class ProjectManager:
             options["mastering"] = get_mastering_options(mastering)
         with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
             try:
-                captured_chunks = self.load_chunks()
+                from export_publication import ExportSourceSnapshot
+                source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check)
+                captured_chunks = source_snapshot.chunks
                 selected_sources = None
                 if chapters is not None:
                     # Match preview numbering before a decoder can remove rows.
@@ -2438,10 +2587,11 @@ class ProjectManager:
                         return False, CHAPTER_SELECTION_AUDIO_ERROR
                     return self._export_indexed_chapters(
                         indexed, sources, options, chapters, changed_only,
-                        progress_callback, cancel_check)
+                        progress_callback, cancel_check, source_snapshot=source_snapshot)
                 if changed_only and (selected_sources is None or captured_chunks == selected_sources):
                     incremental = self._export_changed_chapters(
-                        captured_chunks, options, chapters, progress_callback, cancel_check)
+                        captured_chunks, options, chapters, progress_callback, cancel_check,
+                        source_snapshot=source_snapshot)
                     if incremental is not None:
                         return incremental
                 pairs, skipped = self._load_chunks_with_audio(
@@ -2452,7 +2602,7 @@ class ProjectManager:
                     return False, CHAPTER_SELECTION_AUDIO_ERROR
                 if not pairs:
                     return False, "No audio segments found"
-                pause_defaults = self._load_pause_defaults()
+                pause_defaults = source_snapshot.pause_defaults
                 decoded = ((chunk, sources.load_segment(segment)) for chunk, segment in pairs)
                 timeline = []
                 for chunk, segment, start in iter_timeline(
@@ -2461,33 +2611,36 @@ class ProjectManager:
                     del segment
                 chunks = [chunk for chunk, _, _ in timeline]
                 plans = self._get_chapter_export_plans(chunks, options, pause_defaults)
+                from chapter_export_quality import get_chapter_durations_ms
+                durations = get_chapter_durations_ms(plans,
+                    [(row, segment) for row, segment, _ in timeline], pause_defaults, cancel_check)
             except ExportCancelled:
                 return False, "Export cancelled"
+            except ExportQualityError:
+                raise
             except ValueError as exc:
                 return False, str(exc)
             out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
             os.makedirs(out_dir, exist_ok=True)
             manifest = safe_load_json(os.path.join(out_dir, "manifest.json"), {})
             previous = {row["index"]: row for row in get_chapter_export_rows(manifest)}
-            durations = [timeline[last][2] + get_audio_duration_ms(timeline[last][1]) - timeline[first][2]
-                         for first, last in (plan["chunks"] for plan in plans)]
             result = self._apply_chapter_export_plans(
                 plans, chunks, options, pause_defaults, previous, chapters,
                 changed_only and manifest.get("chapter_plan_version") == 1,
                 lambda first, last: ([(chunk, sources.load_segment(segment))
                                       for chunk, segment in pairs[first:last + 1]], 0), durations,
-                progress_callback, cancel_check)
+                progress_callback, cancel_check, source_snapshot=source_snapshot)
             if result and result[0] and skipped:
                 return True, result[1] + f" ({skipped} chunk(s) skipped - missing/corrupt audio)"
             return result
 
     def _export_indexed_chapters(self, indexed, sources, options, chapters,
-                                  changed_only, progress_callback, cancel_check):
+                                  changed_only, progress_callback, cancel_check, *, source_snapshot):
         """Use verified trimmed shapes for offsets, decoding selected groups only."""
         from chapter_timing_cache import read_source_identity
         if not indexed.pairs:
             return False, "No audio segments found"
-        pause_defaults = self._load_pause_defaults()
+        pause_defaults = source_snapshot.pause_defaults
         timeline = list(iter_timeline(indexed.pairs, *pause_defaults,
                                       cancel_check=cancel_check, already_trimmed=True))
         chunks = [chunk for chunk, _, _ in timeline]
@@ -2497,8 +2650,8 @@ class ProjectManager:
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         manifest = safe_load_json(os.path.join(out_dir, "manifest.json"), {})
         previous = {row["index"]: row for row in get_chapter_export_rows(manifest)}
-        durations = [timeline[last][2] + get_audio_duration_ms(timeline[last][1]) - timeline[first][2]
-                     for first, last in (plan["chunks"] for plan in plans)]
+        from chapter_export_quality import get_chapter_durations_ms
+        durations = get_chapter_durations_ms(plans, indexed.pairs, pause_defaults, cancel_check)
 
         def get_audio(chunk):
             path = self.get_chunk_audio_path(chunk['audio_path'])
@@ -2511,11 +2664,18 @@ class ProjectManager:
             return self._load_chunks_with_audio(
                 cancel_check=cancel_check, chunks=chunks[first:last + 1], audio_provider=get_audio)
 
+        def get_current_quality_plan(first, last):
+            from chapter_export_quality import get_chapter_pcm_plan, get_chapter_quality_plan
+            pcm_plan = get_chapter_pcm_plan(indexed.pairs[first:last + 1], pause_defaults,
+                                            cancel_check, already_trimmed=True)
+            return get_chapter_quality_plan(pcm_plan, options['format'], options['export_quality'])
+
         result = self._apply_chapter_export_plans(
             plans, chunks, options, pause_defaults, previous, chapters,
             changed_only and manifest.get('chapter_plan_version') == 1,
             get_pairs, durations, progress_callback, cancel_check,
-            source_check=indexed.verify_sources)
+            source_check=indexed.verify_sources, source_snapshot=source_snapshot,
+            get_current_quality_plan=get_current_quality_plan)
         if result is None:
             return False, 'Selected chapter audio could not be decoded; retry the export.'
         if result[0] and indexed.skipped:
