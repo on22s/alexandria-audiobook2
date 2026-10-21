@@ -58,12 +58,19 @@ def get_mastering_filter(options, measured=None, *, output_channels=None):
         raise ValueError('Unsupported mastering channel conversion.')
     value = f"loudnorm=I={options['loudness']}:TP={options['true_peak']}:LRA=11"
     if measured is not None:
-        # Only numeric values from our strict record parser enter this filter.
-        for option, key in [('measured_I', 'input_i'), ('measured_TP', 'input_tp'),
-                            ('measured_LRA', 'input_lra'), ('measured_thresh', 'input_thresh'),
-                            ('offset', 'target_offset')]:
-            value += f':{option}={float(measured[key])}'
-        value += ':linear=true'
+        measurements = [(option, float(measured[key]), low, high) for option, key, low, high in [
+            ('measured_I', 'input_i', -99, 0), ('measured_TP', 'input_tp', -99, 99),
+            ('measured_LRA', 'input_lra', 0, 99), ('measured_thresh', 'input_thresh', -99, 0),
+            ('offset', 'target_offset', -99, 99)]]
+        if not all(math.isfinite(number) for _, number, _, _ in measurements):
+            raise ValueError('Audio has no finite loudness measurement (silence or invalid audio).')
+        # Valid observations can exceed FFmpeg's measured-option domains. Keep
+        # them in the report; use an unmeasured pass instead of clamping them or
+        # feeding only part of the measured bundle into the render filter.
+        if all(low <= number <= high for _, number, low, high in measurements):
+            for option, number, _, _ in measurements:
+                value += f':{option}={number}'
+            value += ':linear=true'
     prefix = ('aformat=channel_layouts=' + ('mono' if output_channels == 1 else 'stereo') + ','
               if output_channels is not None else '')
     return prefix + value + ':print_format=json'

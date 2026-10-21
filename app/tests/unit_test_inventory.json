@@ -5738,6 +5738,13 @@
     "tests.test_mastering_js.MasteringJsTests.test_failed_terminal_export_also_invalidates_report_epoch",
     "tests.test_mastering_js.MasteringJsTests.test_off_bounds_and_export_start_invalidate_old_and_pending_measurements"
   ],
+  "test_mastering_measurement_ranges": [
+    "tests.test_mastering_measurement_ranges.MasteringMeasurementRangeTests.test_malformed_nonfinite_and_missing_measurements_still_refuse",
+    "tests.test_mastering_measurement_ranges.MasteringMeasurementRangeTests.test_measured_bundle_uses_all_inclusive_domains_or_omits_every_field",
+    "tests.test_mastering_measurement_ranges.MasteringMeasurementRangeTests.test_positive_fallback_report_failure_or_late_cancel_keeps_previous_pcm_export",
+    "tests.test_mastering_measurement_ranges.MasteringMeasurementRangeTests.test_real_positive_m4b_preserves_source_chapters_and_previous_file_on_late_cancel",
+    "tests.test_mastering_measurement_ranges.MasteringMeasurementRangeTests.test_real_positive_pcm_exports_keep_actual_measurements_and_encoded_loudness"
+  ],
   "test_mastering_output_layout": [
     "tests.test_mastering_output_layout.MasteringOutputLayoutTests.test_bad_layout_values_refuse_instead_of_reinterpreting_source_pcm",
     "tests.test_mastering_output_layout.MasteringOutputLayoutTests.test_real_mastered_lossless_wav_retains_source_rate_and_frame_count",
