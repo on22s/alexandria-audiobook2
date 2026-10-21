@@ -411,7 +411,7 @@ def backup_file_with_timestamp(path):
 
 
 @contextlib.contextmanager
-def file_lock(target_path, timeout=10, stale_after=120):
+def file_lock(target_path, timeout=10, stale_after=120, *, lock_handle=None):
     """Hold a kernel-owned advisory lock for a read-modify-write operation.
 
     The sibling .lock file remains on disk so every waiter locks the same
@@ -420,11 +420,18 @@ def file_lock(target_path, timeout=10, stale_after=120):
     stale_after is retained for caller compatibility, but is no longer used.
     Existing application processes must be restarted when upgrading from the
     old exclusive-create marker protocol; the two protocols cannot coordinate.
+
+    A caller that securely opened the sibling lock file may supply its binary
+    lock_handle. That caller owns its lifetime and must open an independent
+    descriptor for each admission; sharing/nesting one descriptor is unsupported.
+    target_path remains the diagnostic name in this case; no path is reopened.
     """
     lock_path = os.fspath(target_path) + ".lock"
     deadline = time.monotonic() + timeout
     acquired = False
-    with open(lock_path, "a+b") as handle:
+    handle_context = (open(lock_path, "a+b") if lock_handle is None
+                      else contextlib.nullcontext(lock_handle))
+    with handle_context as handle:
         if os.name == "nt":
             import msvcrt
             # Windows byte-range locks need a byte and always start at offset 0.
@@ -544,3 +551,7 @@ def character_voice_seed(character):
     # 31 bits: comfortably inside torch.manual_seed's accepted range and
     # never negative, so it cannot be mistaken for the -1 sentinel.
     return int.from_bytes(digest[:4], "big") & 0x7FFFFFFF
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

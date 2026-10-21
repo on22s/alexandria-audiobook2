@@ -239,3 +239,50 @@ class TaskClaimOwnershipTests(unittest.TestCase):
                 self.assertEqual(before,(active.read_bytes(),voices.read_bytes()));self.assertTrue(core.is_task_running('audacity_export'))
         finally:release.set();worker.join(5);self.assertFalse(worker.is_alive())
         self.assertFalse(core.is_task_running('audacity_export'))
+
+    def test_audio_claim_metadata_survives_thread_transfer_and_never_authorizes_stale_owner(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from audio_generation_owner import (AudioGenerationCancelled, get_audio_generation_claim_id,
+            get_audio_generation_owner, ensure_audio_generation_publication, run_with_audio_generation_owner)
+        tasks = BackgroundTasks()
+        observations = []
+        retained = []
+        def callback():
+            owner = get_audio_generation_owner()
+            retained.append(owner)
+            self.assertEqual(core._task_claims['audio']['id'], get_audio_generation_claim_id())
+            def worker():
+                with ensure_audio_generation_publication():
+                    observations.append((get_audio_generation_owner(), get_audio_generation_claim_id()))
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(run_with_audio_generation_owner, owner, worker) for _ in range(2)]
+                for future in futures:
+                    future.result(timeout=5)
+        claim = core.schedule_claimed_background_task(tasks, 'audio', callback)
+        asyncio.run(tasks())
+        self.assertEqual([(retained[0], claim)] * 2, observations)
+        self.assertTrue(all(owner is retained[0] for owner, _ in observations))
+        self.assertIsNone(get_audio_generation_claim_id())
+        with self.assertRaises(AudioGenerationCancelled):
+            with retained[0]():
+                self.fail('claim metadata cannot revive released task')
+
+    def test_legacy_callable_owners_have_no_inferred_recovery_claim(self):
+        from contextlib import contextmanager
+        from audio_generation_owner import (AudioGenerationOwner, get_audio_generation_claim_id,
+            ensure_audio_generation_owner, ensure_audio_generation_publication)
+        calls = []
+        @contextmanager
+        def legacy(*, allow_cancelled=False):
+            calls.append(allow_cancelled)
+            yield
+        with ensure_audio_generation_owner(legacy):
+            self.assertIsNone(get_audio_generation_claim_id())
+            with ensure_audio_generation_publication(allow_cancelled=True):
+                pass
+        self.assertEqual([True], calls)
+        for claim in ('', 'new-owner', 'A' * 32, 'a' * 31, None):
+            with self.subTest(claim=claim), self.assertRaises(ValueError):
+                AudioGenerationOwner(claim, legacy)
+        with self.assertRaises(ValueError):
+            AudioGenerationOwner('a' * 32, None)

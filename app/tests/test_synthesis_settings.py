@@ -8,8 +8,57 @@ from pydantic import ValidationError
 from config_settings import TTSConfig, load_app_config_result, _get_field_adapter
 from lora_evidence import get_tts_model_settings
 from synthesis_settings import (get_synthesis_budget_keys, get_synthesis_window_settings,
-                                get_enabled_synthesis_window_settings)
+                                get_enabled_synthesis_window_settings,
+                                get_synthesis_recovery_settings,
+                                get_enabled_synthesis_recovery_settings)
 from tts import TTSEngine
+
+
+class SynthesisRecoverySettingsTests(unittest.TestCase):
+    def test_default_recovery_is_off_and_saved_controls_are_independent_copies(self):
+        self.assertEqual({'enabled': False, 'max_audio_mb': 256}, get_synthesis_recovery_settings())
+        value = {'enabled': True, 'max_audio_mb': 64}; original = copy.deepcopy(value)
+        settings = get_enabled_synthesis_recovery_settings(value)
+        self.assertEqual(original, value)
+        settings['max_audio_mb'] = 128
+        self.assertEqual(original, value)
+        self.assertEqual(original, get_enabled_synthesis_recovery_settings(value))
+        self.assertIsNone(get_enabled_synthesis_recovery_settings({'max_audio_mb': 64}))
+
+    def test_recovery_policy_requires_bounded_integer_budget_and_boolean_enable(self):
+        for budget in (16, 4096):
+            self.assertEqual(budget, get_synthesis_recovery_settings({'max_audio_mb': budget})['max_audio_mb'])
+        for value in ([], '', 1, {'enabled': 1}, {'enabled': 'true'}, {'unknown': 1},
+                      *({'max_audio_mb': budget} for budget in (True, 0, 15, 4097, 16.0, '16', None))):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                get_synthesis_recovery_settings(value)
+
+    def test_execution_policy_never_changes_acoustic_or_lora_model_identity(self):
+        expected = get_tts_model_settings({'tts': {}})
+        for value in (None, {}, {'enabled': True, 'max_audio_mb': 16}, {'max_audio_mb': 4096}):
+            with self.subTest(value=value):
+                config = {'tts': {'synthesis_recovery': value}}
+                self.assertEqual(expected, get_tts_model_settings(config))
+                self.assertEqual(expected, TTSEngine(config).get_model_settings())
+
+    def test_recovery_schema_and_shape_safe_loader_preserve_strict_policy(self):
+        value = {'enabled': True, 'max_audio_mb': 32}
+        adapter = _get_field_adapter(TTSConfig, 'synthesis_recovery')
+        self.assertEqual(get_synthesis_recovery_settings(), TTSConfig().synthesis_recovery)
+        self.assertEqual(value, adapter.validate_python(value))
+        for bad in ({'enabled': 'true'}, {'max_audio_mb': 16.0}, {'max_audio_mb': '16'}):
+            with self.subTest(value=bad), self.assertRaises(ValidationError):
+                adapter.validate_python(bad)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'config.json'
+            path.write_text(json.dumps({'tts': {'synthesis_recovery': value, 'language': 'French'}}))
+            result = load_app_config_result(str(path))
+            self.assertEqual(value, result.data['tts']['synthesis_recovery'])
+            path.write_text(json.dumps({'tts': {'synthesis_recovery': {'max_audio_mb': 0}, 'language': 'French'}}))
+            result = load_app_config_result(str(path))
+            self.assertNotIn('synthesis_recovery', result.data['tts'])
+            self.assertEqual('French', result.data['tts']['language'])
+            self.assertIn('tts.synthesis_recovery', {warning.field for warning in result.warnings})
 
 
 class SynthesisSettingsTests(unittest.TestCase):

@@ -33,6 +33,10 @@ from speech_text import normalize_for_speech, get_speech_preparation
 from audio_generation_owner import is_audio_generation_cancelled, ensure_audio_generation_active
 from synthesis_render import (ensure_synthesis_receipts, get_synthesis_window_plan,
                               render_synthesis_windows)
+from synthesis_recovery_context import ensure_synthesis_recovery_batch_parent
+from synthesis_settings import get_enabled_synthesis_recovery_settings
+from synthesis_recovery_serving import (ensure_native_recovery_serving_current,
+                                        SynthesisRecoveryDependencyChanged)
 from pronunciation import ensure_occurrence_pronunciation_context, get_pronunciation_model_context
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
@@ -364,6 +368,22 @@ def anchored_instruct(voice_data, instruct_text):
     if anchor and line:
         return f"{anchor} {line}"
     return anchor or line or (voice_data.get("default_style") or "").strip() or "neutral"
+
+
+@dataclass(frozen=True)
+class CustomVoiceRequest:
+    voice: str
+    seed: int
+    instruct: str
+
+
+def get_custom_voice_request(voice_config, speaker, instruct_text):
+    """The actual native speaker, seed and anchored instruction selection."""
+    voice_data = voice_config.get(speaker)
+    if not voice_data:
+        return None
+    return CustomVoiceRequest(voice_data.get("voice", "Ryan"), int(voice_data.get("seed", -1)),
+                              anchored_instruct(voice_data, instruct_text))
 
 
 def voice_is_set(voice_data):
@@ -726,6 +746,9 @@ class TTSEngine:
         tts_config = config.get("tts", {})
         self._mode = model_settings["mode"]
         self._synthesis_windows = copy.deepcopy(model_settings.get("synthesis_windows"))
+        # Recovery changes execution/retention, never the acoustic model or LoRA
+        # evidence identity returned by get_model_settings.
+        self._synthesis_recovery = get_enabled_synthesis_recovery_settings(tts_config.get("synthesis_recovery"))
         self._url = tts_config.get("url", "http://127.0.0.1:7860")
         # Each endpoint has one lazily created client per configured worker.
         # Every client keeps its own lock: gradio_client cannot be shared
@@ -1186,14 +1209,31 @@ class TTSEngine:
         local_path = TTSEngine._resolve_local_model_path(model_id)
         if local_path:
             print(f"  Loading from local cache: {local_path}")
+            from synthesis_recovery_native import (capture_native_recovery_load,
+                complete_native_recovery_load)
+            from synthesis_recovery_identity import RecoveryIdentityUnavailable
+            proposal = None
             try:
-                model = model_cls.from_pretrained(local_path, **load_kwargs)
+                proposal = capture_native_recovery_load(model_cls, model_id, local_path, load_kwargs)
+            except (RecoveryIdentityUnavailable, OSError, ValueError, RecursionError) as error:
+                print(f"  Recovery model identity unavailable: {type(error).__name__}")
+            try:
+                # Use the exact canonical directory whose names/bytes were
+                # captured. A cache ref alias cannot redirect the admitted load.
+                source = proposal.snapshot.root if proposal is not None else local_path
+                model = model_cls.from_pretrained(source, **load_kwargs)
             except Exception as e:
+                proposal = None
                 import traceback
                 print(f"  Warning: Failed to load from local cache: {e}")
                 traceback.print_exc()
                 print(f"  Retrying with model ID (may download missing files)...")
                 model = model_cls.from_pretrained(model_id, **load_kwargs)
+            if proposal is not None:
+                try:
+                    complete_native_recovery_load(model, proposal)
+                except (RecoveryIdentityUnavailable, OSError, ValueError, RecursionError) as error:
+                    print(f"  Recovery loaded model is unproven: {type(error).__name__}")
         else:
             print(f"  Model not cached locally, downloading {model_id}...")
             model = model_cls.from_pretrained(model_id, **load_kwargs)
@@ -1591,6 +1631,9 @@ class TTSEngine:
             settings["synthesis_windows"] = copy.deepcopy(self._synthesis_windows)
         return settings
 
+    def get_synthesis_recovery_policy(self):
+        return copy.deepcopy(getattr(self, "_synthesis_recovery", None))
+
     def _get_synthesis_window_plan(self, text, category, voice_data=None, voice_config=None):
         settings = getattr(self, "_synthesis_windows", None)
         if settings is None:
@@ -1603,14 +1646,17 @@ class TTSEngine:
         return get_synthesis_window_plan(text, settings, keys)
 
     def _render_synthesis_windows(self, text, category, render, output_path,
-                                  voice_data=None, voice_config=None):
+                                  voice_data=None, voice_config=None, recovery_request=None):
         try:
             ensure_audio_generation_active()
             plan = self._get_synthesis_window_plan(text, category, voice_data, voice_config)
             if plan is None:
                 return None
-            render_synthesis_windows(plan, render, output_path, self._synthesis_windows,
-                                     cancel_check=is_audio_generation_cancelled)
+            from synthesis_recovery import ensure_synthesis_recovery
+            with ensure_synthesis_recovery(self, category, plan, self._synthesis_windows,
+                                           recovery_request) as recovery:
+                render_synthesis_windows(plan, render, output_path, self._synthesis_windows,
+                                         cancel_check=is_audio_generation_cancelled, recovery=recovery)
             return True
         except Exception as error:
             apply_tts_failure(error)
@@ -1688,7 +1734,9 @@ class TTSEngine:
         """Render explicitly prepared input; public callers use the raw wrapper."""
         windowed = self._render_synthesis_windows(
             text, "custom", lambda span, path: self._generate_custom_voice_prepared(
-                span, instruct_text, speaker, voice_config, path), output_path)
+                span, instruct_text, speaker, voice_config, path), output_path,
+            recovery_request=(get_custom_voice_request(voice_config, speaker, instruct_text)
+                              if getattr(self, '_synthesis_recovery', None) else None))
         if windowed is not None:
             return windowed
         if self.get_voice_backend("custom") == "local":
@@ -2153,7 +2201,8 @@ class TTSEngine:
         idx = chunk["index"]
         output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
         resolved = get_batch_voice_config(voice_config, chunk.get("speaker"), idx, batch_seed)
-        with ensure_synthesis_receipts() as receipts:
+        with (ensure_synthesis_recovery_batch_parent(chunk.get("uid")),
+              ensure_synthesis_receipts() as receipts):
             success = self._dispatch_prepared_voice(
                 chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path)
         return success, receipts[-1] if success and receipts else None
@@ -2394,17 +2443,14 @@ class TTSEngine:
         try:
             import torch
 
-            voice_data = voice_config.get(speaker)
-            if not voice_data:
+            request = get_custom_voice_request(voice_config, speaker, instruct_text)
+            if request is None:
                 print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
                 apply_tts_failure(f"No voice configuration for '{speaker}'.", "missing_configuration",
                                   "Assign a voice to this speaker before retrying.")
                 return False
 
-            voice = voice_data.get("voice", "Ryan")
-            seed = int(voice_data.get("seed", -1))
-
-            instruct = anchored_instruct(voice_data, instruct_text)
+            voice, seed, instruct = request.voice, request.seed, request.instruct
 
             import time
 
@@ -2412,6 +2458,7 @@ class TTSEngine:
 
             model = self._init_local_custom()
 
+            ensure_native_recovery_serving_current(self, request)
             if seed >= 0:
                 torch.manual_seed(seed)
 
@@ -2440,6 +2487,8 @@ class TTSEngine:
             self._save_wav(audio, sr, output_path)
             return True
 
+        except SynthesisRecoveryDependencyChanged:
+            raise
         except Exception as e:
             import traceback
             print(f"Error generating custom voice for '{speaker}': {e}")
@@ -3269,6 +3318,18 @@ class TTSEngine:
         return result
 
 
+# Immutable references qualify the native recovery serving path. A public or
+# internal override remains an ordinary temporary renderer.
+_RAW_RECOVERY_METHODS = {name: getattr(TTSEngine, name) for name in (
+    'generate_voice_result', 'generate_voice', '_dispatch_prepared_voice', '_generate_voice_prepared',
+    'generate_custom_voice', '_generate_custom_voice_prepared', '_render_synthesis_windows',
+    '_get_synthesis_window_plan', '_generate_prepared_batch_parent', '_local_generate_custom',
+    'get_voice_backend', 'get_synthesis_recovery_policy',
+    '_init_local_custom', '_load_model', '_resolve_local_model_path', '_resolve_device', '_save_wav')}
+_RAW_RECOVERY_FUNCTIONS = {name: globals()[name] for name in (
+    'get_custom_voice_request', 'anchored_instruct', 'get_memory_bounded_codec_decode')}
+
+
 # Capture native wrappers once so class/instance replacements take the fallback.
 _RAW_CUSTOM_VOICE = TTSEngine.generate_custom_voice
 _RAW_CLONE_VOICE = TTSEngine.generate_clone_voice
@@ -3276,3 +3337,7 @@ _RAW_LORA_VOICE = TTSEngine.generate_lora_voice
 _RAW_DESIGN_VOICE = TTSEngine.generate_design_voice
 _RAW_ENSEMBLE_VOICE = TTSEngine.generate_ensemble_voice
 _RAW_GENERATE_VOICE = TTSEngine.generate_voice
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

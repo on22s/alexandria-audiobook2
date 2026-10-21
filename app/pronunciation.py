@@ -545,3 +545,7 @@ def ensure_speech_pronunciation_result(text):
         return get_occurrence_pronunciation_resolution(
             text, entries, pattern, rules=scoped['rules'], uid=scoped['uid'],
             text_digest=scoped['text_digest'], context=scoped['context'])
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

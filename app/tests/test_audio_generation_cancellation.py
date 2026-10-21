@@ -280,3 +280,80 @@ class AudioGenerationCancellationTests(unittest.TestCase):
             self.assertFalse(worker.is_alive()); self.assertEqual([], errors); self.assertTrue(acknowledged.is_set())
             self.assertEqual(['restored', 'cancel_acknowledged'], events)
             self.assertEqual([(1, [])], results); self.assertEqual(captured, manager.load_chunks()[0])
+
+    def test_recovery_parent_renews_exact_book_uid_inputs_and_live_owner(self):
+        from synthesis_recovery_identity import get_recovery_digest
+        with self.fixture(1) as (root, manager, before, state):
+            engine = SimpleNamespace(get_synthesis_recovery_policy=lambda: {'enabled': True})
+            parents = []
+            def callback():
+                parent = manager._capture_synthesis_recovery_parent(engine, 0, before[0])
+                parents.append(parent)
+                self.assertEqual(get_recovery_digest('line-0'), parent.uid_sha256)
+                with parent.admit():
+                    pass
+                from synthesis_recovery_context import RecoveryAdmissionError
+                with patch.object(manager, '_get_status_journal_locked', side_effect=OSError('book read')):
+                    with self.assertRaises(RecoveryAdmissionError):
+                        with parent.admit():
+                            self.fail('unreadable authority must abort')
+                with self.assertRaisesRegex(OSError, 'cache body'):
+                    with parent.admit():
+                        raise OSError('cache body')
+                for field, replacement in (('text', 'Changed words.'), ('take', 1), ('voice_revision', 'changed')):
+                    changed = copy.deepcopy(before)
+                    changed[0][field] = replacement
+                    manager.save_chunks(changed)
+                    with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'generation inputs changed'):
+                        with parent.admit():
+                            self.fail('stale chunk must not admit recovery IO')
+                    manager.save_chunks(before)
+                (root/'state.json').write_text(json.dumps({'active_book_id': 'different-book'}))
+                with self.assertRaisesRegex(ValueError, 'generation inputs changed'):
+                    with parent.admit():
+                        self.fail('different book must not admit recovery IO')
+                (root/'state.json').write_text(json.dumps({'active_book_id': 'synthetic-cancel'}))
+                with parent.admit():
+                    pass
+            tasks = BackgroundTasks()
+            core.schedule_claimed_background_task(tasks, 'audio', callback)
+            asyncio.run(tasks())
+            with self.assertRaises(AudioGenerationCancelled):
+                with parents[0].admit():
+                    self.fail('released claim must not authorize recovery')
+            self.assertIsNone(manager._capture_synthesis_recovery_parent(engine, 0, before[0]))
+
+    def test_actual_single_parallel_native_callbacks_receive_their_own_recovery_parent(self):
+        from synthesis_recovery_context import (get_synthesis_recovery_parent,
+                                                ensure_synthesis_recovery_batch_parent)
+        from synthesis_recovery_identity import get_recovery_digest
+        for mode in ('single', 'parallel', 'native'):
+            with self.subTest(mode=mode), self.fixture(2) as (root, manager, before, state):
+                seen = []
+                def voice(text, instruct, speaker, voices, path):
+                    parent = get_synthesis_recovery_parent()
+                    self.assertIsNotNone(parent)
+                    with parent.admit():
+                        pass
+                    seen.append(parent.uid_sha256)
+                    self.write_audio(path)
+                    return True
+                def batch(chunks, voices, output, seed):
+                    self.assertIsNone(get_synthesis_recovery_parent())
+                    for row in chunks:
+                        with ensure_synthesis_recovery_batch_parent(row['uid']):
+                            voice(row['text'], row['instruct'], row['speaker'], voices,
+                                  Path(output)/f"temp_batch_{row['index']}.wav")
+                    self.assertIsNone(get_synthesis_recovery_parent())
+                    return {'completed': [row['index'] for row in chunks], 'failed': []}
+                manager.engine = SimpleNamespace(generate_voice=voice, generate_batch=batch,
+                    get_synthesis_recovery_policy=lambda: {'enabled': True})
+                async def exercise():
+                    tasks = BackgroundTasks()
+                    await self.start(mode, tasks, [0] if mode == 'single' else [0, 1])
+                    await tasks()
+                asyncio.run(exercise())
+                expected = [get_recovery_digest(row['uid']) for row in before[:1 if mode == 'single' else 2]]
+                self.assertCountEqual(expected, seen)
+                self.assertTrue(all(row['status'] == 'done' for row in manager.load_chunks()))
+                self.assertIsNone(get_synthesis_recovery_parent())

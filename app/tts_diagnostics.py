@@ -157,3 +157,7 @@ def get_tts_diagnostics_bundle():
         'timing_note': 'Nested and concurrent stage times overlap; do not sum them. Inference includes decoding. Null means unavailable.',
         'records': records,
     }})
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

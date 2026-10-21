@@ -25,7 +25,7 @@ class SynthesisWindowControlsTests(unittest.TestCase):
                 str(app/'static/js/app-synthesis-windows.js'), str(fixture), str(app/'static/js/app-core.js')],
                 capture_output=True, text=True, timeout=20, check=True)
         evidence = json.loads(result.stdout)
-        self.assertEqual(11, evidence['passed'])
+        self.assertEqual(19, evidence['passed'])
         self.assertEqual(settings, get_synthesis_window_settings(evidence['roundtrip']))
         changed = get_synthesis_window_settings(evidence['changed'])
         self.assertEqual(777, changed['budgets']['local.custom']['max_chars'])

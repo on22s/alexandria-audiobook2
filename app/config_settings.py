@@ -12,7 +12,7 @@ from typing import Annotated, Dict, List, Literal, Optional, Union, get_args, ge
 from types import UnionType
 
 from pydantic import AfterValidator, BaseModel, Field, JsonValue, TypeAdapter, ValidationError
-from synthesis_settings import get_synthesis_window_settings
+from synthesis_settings import get_synthesis_window_settings, get_synthesis_recovery_settings
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,8 @@ class TTSConfig(BaseModel):
     reproducible_takes: bool = False
     # Explicit per-backend internal windows; no automatic budget or seam changes.
     synthesis_windows: Annotated[Dict[str, JsonValue], AfterValidator(get_synthesis_window_settings)] = Field(default_factory=get_synthesis_window_settings)
+    # Execution policy only; excluded from voice/acoustic identity.
+    synthesis_recovery: Annotated[Dict[str, JsonValue], AfterValidator(get_synthesis_recovery_settings)] = Field(default_factory=get_synthesis_recovery_settings)
     compile_codec: bool = False
     max_new_tokens: int = Field(default=2048, ge=256, le=8192)
     sub_batch_enabled: bool = True

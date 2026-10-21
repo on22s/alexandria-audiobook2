@@ -218,3 +218,7 @@ def get_speech_preparation(text, instruct=None):
         additions = [hint for hint in hints if hint not in existing]
         instruction = " ".join(filter(None, [existing] + additions))
     return {"text": normalized["text"], "instruct": instruction}
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

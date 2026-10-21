@@ -931,6 +931,20 @@
         "title": "ChunkUpdate",
         "type": "object"
       },
+      "ClearSynthesisRecoveryRequest": {
+        "properties": {
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token"
+        ],
+        "title": "ClearSynthesisRecoveryRequest",
+        "type": "object"
+      },
       "ContentRepairRequest": {
         "properties": {
           "direction_changes": {
@@ -3803,6 +3817,13 @@
             "minimum": 1.0,
             "title": "Sub Batch Ratio",
             "type": "number"
+          },
+          "synthesis_recovery": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Synthesis Recovery",
+            "type": "object"
           },
           "synthesis_windows": {
             "additionalProperties": {
@@ -11090,6 +11111,42 @@
           }
         },
         "summary": "Get Tts Diagnostics"
+      }
+    },
+    "/api/tts/recovery/clear": {
+      "post": {
+        "operationId": "clear_synthesis_recovery_api_tts_recovery_clear_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearSynthesisRecoveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Synthesis Recovery"
       }
     },
     "/api/upload": {

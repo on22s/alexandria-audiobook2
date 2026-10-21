@@ -5,13 +5,14 @@ import logging
 import os
 import time
 import traceback
+from contextlib import nullcontext
 from datetime import datetime
 from typing import Any, Optional
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig, PromptVariant,
                              TTSConfig, backup_damaged_app_config, load_app_config,
@@ -68,7 +69,7 @@ from book_state_transaction import ensure_book_state
 from chunk_status_journal import get_chunk_status_journal_path
 from lora_evidence import get_tts_model_settings
 from pronunciation import get_pronunciation_model_context, is_pronunciation_settings_dependent
-from synthesis_settings import get_enabled_synthesis_window_settings
+from synthesis_settings import get_enabled_synthesis_window_settings, get_enabled_synthesis_recovery_settings
 from project import ProjectManager
 from core import ensure_book_switch_allowed
 
@@ -1019,6 +1020,13 @@ def is_synthesis_window_config_change(before, after):
             get_synthesis_window_model_context(get_tts_model_settings(after)))
 
 
+def is_synthesis_recovery_config_change(before, after, engine):
+    saved = get_enabled_synthesis_recovery_settings(before.get('tts', {}).get('synthesis_recovery'))
+    proposed = get_enabled_synthesis_recovery_settings(after.get('tts', {}).get('synthesis_recovery'))
+    active = get_enabled_synthesis_recovery_settings(getattr(engine, '_synthesis_recovery', None))
+    return saved != proposed or engine is not None and active != proposed
+
+
 def save_config_document(config):
     """Fence effective window policies and conditional pronunciation dependencies."""
     manager = project_manager
@@ -1070,6 +1078,7 @@ def apply_pronunciation_config_change(config, manager):
             normalized = get_config_to_save(config, existing.data)
             after = get_tts_model_settings(normalized.model_dump())
             requires_fence = (
+                is_synthesis_recovery_config_change(existing.data, normalized.model_dump(), manager.engine) or
                 dependent and (is_pronunciation_config_change(existing.data, normalized.model_dump()) or
                                get_pronunciation_model_context(before) != get_pronunciation_model_context(after)) or
                 is_synthesis_window_config_change(existing.data, normalized.model_dump()) or
@@ -1081,7 +1090,7 @@ def apply_pronunciation_config_change(config, manager):
             manager.reset_engine()
             return True
 
-    with ensure_book_switch_allowed(operation="change synthesis window or conditional pronunciation settings"):
+    with ensure_book_switch_allowed(operation="change synthesis window, recovery or conditional pronunciation settings"):
         with ensure_book_state(root, recover=False):
             before = manager.get_pronunciation_preview_settings()["settings"]
             try:
@@ -1110,3 +1119,39 @@ async def save_config(config: AppConfig):
     if not reset:
         await asyncio.to_thread(project_manager.reset_engine)
     return {"status": "saved"}
+
+
+class ClearSynthesisRecoveryRequest(BaseModel):
+    expected_book_token: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
+@router.post('/api/tts/recovery/clear')
+async def clear_synthesis_recovery(request: ClearSynthesisRecoveryRequest):
+    return await asyncio.to_thread(_clear_synthesis_recovery_sync, request.expected_book_token)
+
+
+def _clear_synthesis_recovery_sync(expected_book_token):
+    from book_state_transaction import get_book_operation_identity
+    from editor_poll_snapshot import get_snapshot_digest
+    from synthesis_recovery_cache import CACHE_DIRECTORY, RecoveryCacheStorage, RecoveryCacheUnavailable
+    root = project_manager.root_dir
+    with ensure_book_switch_allowed(operation='clear retained synthesis recovery windows'):
+        with ensure_book_state(root):
+            if get_snapshot_digest(get_book_operation_identity(root)) != expected_book_token:
+                raise HTTPException(status_code=409, detail='Active book changed; reload Editor before clearing recovery windows.')
+            removed = 0
+            if os.path.lexists(os.path.join(root, CACHE_DIRECTORY)):
+                try:
+                    # The task/startup fence and book lock remain live across
+                    # this admission. No audio-owner callback may reenter them.
+                    with RecoveryCacheStorage(root, nullcontext) as storage:
+                        with storage.read_transaction() as transaction:
+                            keys = list(transaction.data['requests'])
+                        for key in keys:
+                            storage.retire_request(key)
+                            removed += 1
+                except (RecoveryCacheUnavailable, OSError) as error:
+                    raise HTTPException(status_code=409, detail=(
+                        'Recovery cache could not be cleared safely. Existing takes were kept; '
+                        'damaged or unknown cache files require inspection.')) from error
+            return {'status': 'cleared', 'removed_requests': removed, 'book_token': expected_book_token}

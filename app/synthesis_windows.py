@@ -238,3 +238,7 @@ def plan_synthesis_windows(text, *, max_chars, max_words=None):
     if ''.join(window.text for window in result) != text:
         raise RuntimeError('Synthesis windows lost source coverage')
     return SynthesisPlan(digest, max_chars, max_words, tuple(result))
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

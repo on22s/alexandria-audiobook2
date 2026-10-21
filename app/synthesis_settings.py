@@ -5,6 +5,35 @@ from synthesis_audio import SynthesisJoinPolicy
 from synthesis_windows import MAX_WINDOW_SOURCE_CHARS
 from tts_capabilities import get_tts_capability_modes
 
+RECOVERY_DEFAULT_AUDIO_MB = 256
+RECOVERY_MIN_AUDIO_MB = 16
+RECOVERY_MAX_AUDIO_MB = 4096
+
+
+def get_synthesis_recovery_settings(value=None):
+    """Validate copied execution controls, separate from acoustic model identity.
+
+    The budget covers stored audio payloads, including charged reservations.
+    Bounded index/scratch metadata overhead is accounted separately by the cache.
+    """
+    if value is None:
+        value = {}
+    if not isinstance(value, dict) or set(value) - {'enabled', 'max_audio_mb'}:
+        raise ValueError('Invalid synthesis recovery settings')
+    enabled = value.get('enabled', False)
+    budget = value.get('max_audio_mb', RECOVERY_DEFAULT_AUDIO_MB)
+    if type(enabled) is not bool:
+        raise ValueError('Synthesis recovery enabled must be a boolean')
+    if type(budget) is not int or not RECOVERY_MIN_AUDIO_MB <= budget <= RECOVERY_MAX_AUDIO_MB:
+        raise ValueError('Synthesis recovery audio budget must be an integer from 16 to 4096 MiB')
+    return dict(enabled=enabled, max_audio_mb=budget)
+
+
+def get_enabled_synthesis_recovery_settings(value=None):
+    """Return an optional copied execution policy; never add it to model identity."""
+    settings = get_synthesis_recovery_settings(value)
+    return settings if settings['enabled'] else None
+
 
 def get_synthesis_budget_keys():
     return tuple(f'{mode}.{category}' for mode, capabilities in get_tts_capability_modes().items()
@@ -54,3 +83,7 @@ def get_enabled_synthesis_window_settings(value=None):
     """Omit disabled controls from model identity to preserve legacy evidence."""
     settings = get_synthesis_window_settings(value)
     return settings if settings['enabled'] else None
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

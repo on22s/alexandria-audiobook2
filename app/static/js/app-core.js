@@ -1923,6 +1923,7 @@
                 applyPauseSupport(config.capabilities);
                 window.setTtsCapabilityModes?.(config.capabilities?.tts_modes);
                 window.setSynthesisWindowControls?.(config.tts?.synthesis_windows, config.capabilities?.tts_modes);
+                window.setSynthesisRecoveryControls?.(config.tts?.synthesis_recovery);
                 // Local/Remote LLM profiles: keep both in memory, show the active one.
                 llmProfiles.local = config.llm_local || config.llm || {base_url:'', api_key:'local', model_name:''};
                 llmProfiles.remote = config.llm_remote || {base_url:'', api_key:'local', model_name:''};
@@ -2123,6 +2124,7 @@
                     sub_batch_enabled: document.getElementById('sub-batch-enabled').checked,
                     reproducible_takes: document.getElementById('reproducible-takes').checked,
                     ...(typeof getSynthesisWindowConfig === 'function' ? getSynthesisWindowConfig() : {}),
+                    ...(typeof getSynthesisRecoveryConfig === 'function' ? getSynthesisRecoveryConfig() : {}),
                     sub_batch_min_size: getNumFieldValue('sub-batch-min-size', 4, true),
                     sub_batch_ratio: getNumFieldValue('sub-batch-ratio', 5),
                     sub_batch_max_items: getNumFieldValue('sub-batch-max-items', 0, true),
@@ -7237,6 +7239,22 @@
                 isCurrent: () => book === currentBookFilename && token === chunkSnapshotBookToken
             };
         }
+
+        window.clearSynthesisRecoveryWindows = async () => {
+            const book = currentBookFilename;
+            const token = chunkSnapshotBookToken;
+            try {
+                if (!token || chunkSnapshotBook !== book) {
+                    throw new Error('Open Editor to load the current book before clearing recovery windows.');
+                }
+                await API.post('/api/tts/recovery/clear', {expected_book_token: token});
+                if (book === currentBookFilename && token === chunkSnapshotBookToken) {
+                    showToast('Retained recovery windows cleared. Saved takes were kept.', 'success');
+                }
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        };
 
         window.differentTake = async (id) => {
             try {

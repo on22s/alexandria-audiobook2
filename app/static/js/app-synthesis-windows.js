@@ -1,5 +1,6 @@
 /* Explicit future-render controls; server capabilities own the budget categories. */
 let synthesisWindowControlsLoaded = false;
+let synthesisRecoveryControlsLoaded = false;
 const synthesisSeamFields = {
     sentence_gap_ms: ['synthesis-sentence-gap', null, 0, 5000],
     clause_gap_ms: ['synthesis-clause-gap', null, 0, 5000],
@@ -85,4 +86,22 @@ function getSynthesisWindowConfig() {
         seams[key] = getSynthesisWindowNumber(document.getElementById(id), fallback, minimum, maximum, key !== 'quiet_threshold_db');
     }
     return {synthesis_windows: {enabled, budgets, seams}};
+}
+
+function setSynthesisRecoveryControls(settings) {
+    const enabled = document.getElementById('synthesis-recovery-enabled');
+    const budget = document.getElementById('synthesis-recovery-budget');
+    if (!enabled || !budget) { return; }
+    enabled.checked = settings?.enabled === true;
+    budget.value = settings?.max_audio_mb ?? 256;
+    enabled.disabled = budget.disabled = false;
+    synthesisRecoveryControlsLoaded = true;
+}
+
+function getSynthesisRecoveryConfig() {
+    if (!synthesisRecoveryControlsLoaded) { return {}; }
+    return {synthesis_recovery: {
+        enabled: document.getElementById('synthesis-recovery-enabled').checked,
+        max_audio_mb: getSynthesisWindowNumber(document.getElementById('synthesis-recovery-budget'), 256, 16, 4096),
+    }};
 }

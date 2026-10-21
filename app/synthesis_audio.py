@@ -295,3 +295,7 @@ def assemble_synthesis_windows(plan, results, output_path, *, policy=None, cance
                 channels=layout[0], sample_rate=layout[1], sample_width=layout[2],
                 input_promoted_frames=sum(frames), output_frames=expected_frames,
                 seams=seams, outer_edges_preserved=True)
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

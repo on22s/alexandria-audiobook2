@@ -14,6 +14,57 @@ from utils import file_lock
 
 
 class FileLockOwnershipTests(unittest.TestCase):
+    def test_preopened_lock_preserves_caller_handle_and_never_reopens_a_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = str(Path(tmp, "state"))
+            with open(target + ".lock", "a+b") as handle:
+                with patch("builtins.open", side_effect=AssertionError("must use captured handle")):
+                    with file_lock(target, timeout=0, lock_handle=handle):
+                        self.assertFalse(handle.closed)
+                self.assertFalse(handle.closed)
+                with file_lock(target, timeout=0):
+                    pass
+
+    def test_independent_preopened_handle_contends_with_ordinary_admission(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = str(Path(tmp, "state"))
+            with open(target + ".lock", "a+b") as handle:
+                with file_lock(target, timeout=0):
+                    with self.assertRaises(TimeoutError):
+                        with file_lock(target, timeout=0, lock_handle=handle):
+                            self.fail("another descriptor owns the lock")
+                with self.assertRaisesRegex(ValueError, "caller failed"):
+                    with file_lock(target, timeout=0, lock_handle=handle):
+                        with self.assertRaises(TimeoutError):
+                            with file_lock(target, timeout=0):
+                                self.fail("captured descriptor owns the lock")
+                        raise ValueError("caller failed")
+                self.assertFalse(handle.closed)
+                with file_lock(target, timeout=0):
+                    pass
+
+    def test_preopened_descriptor_excludes_a_real_child_process(self):
+        code = """import sys
+from utils import file_lock
+try:
+ with file_lock(sys.argv[1], timeout=0):
+  print('acquired')
+except TimeoutError:
+ print('blocked')
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            target = str(Path(tmp, "state"))
+            def child_result():
+                return subprocess.run([sys.executable, "-c", code, target],
+                                      capture_output=True, text=True, check=True,
+                                      timeout=5).stdout.strip()
+            with open(target + ".lock", "a+b") as handle:
+                inode = Path(target + ".lock").stat().st_ino
+                with file_lock(target, timeout=0, lock_handle=handle):
+                    self.assertEqual("blocked", child_result())
+                self.assertEqual("acquired", child_result())
+                self.assertEqual(inode, Path(target + ".lock").stat().st_ino)
+
     def test_aged_live_holder_cannot_be_reaped_and_timeout_does_not_remove_lock(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = str(Path(tmp, "state.json"))

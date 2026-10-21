@@ -182,3 +182,7 @@ def validate_generated_audio(path, context="audio generation", *, expected_text=
                 f"{context} wrote truncated audio: header declares {declared} "
                 f"bytes, file is {size} ({declared - size} missing)")
     return path
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

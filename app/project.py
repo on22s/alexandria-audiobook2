@@ -1,5 +1,6 @@
 import os
 import copy
+from contextlib import contextmanager, ExitStack
 from collections import Counter
 import tempfile
 import hashlib
@@ -40,6 +41,9 @@ from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationC
                                     ensure_audio_generation_active, ensure_audio_generation_publication,
                                     get_audio_generation_owner, is_audio_generation_cancelled,
                                     run_with_audio_generation_owner)
+from synthesis_recovery_context import (RecoveryParent, RecoveryAdmissionError, get_recovery_claim_digest,
+    ensure_synthesis_recovery_parent, ensure_synthesis_recovery_batch)
+from synthesis_recovery_identity import get_recovery_digest
 from tts import (
     TTSEngine,
     get_chunk_seed,
@@ -1307,7 +1311,7 @@ class ProjectManager:
                     self._save_chunks_locked(chunks, uids_backfilled=bool(chunk.get("uid")))
             return chunk
 
-    def _publish_generated_chunk_audio(self, chunk, temp_path, speaker):
+    def _publish_generated_chunk_audio(self, chunk, temp_path, speaker, recovery_parent=None):
         """Convert privately, then attach/promote audio only to unchanged inputs."""
         ensure_audio_generation_active()
         with ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context")):
@@ -1344,6 +1348,9 @@ class ProjectManager:
                     status="done", audio_revision=revision, error=None, drift=None, **evidence)
             if updated is None:
                 raise ValueError(GENERATION_INPUTS_CHANGED)
+            if recovery_parent is not None:
+                from synthesis_recovery import retire_committed_synthesis_recovery
+                retire_committed_synthesis_recovery(recovery_parent, synthesis_receipt)
             return updated["audio_path"]
         finally:
             if staged_path:
@@ -1353,6 +1360,47 @@ class ProjectManager:
         with ensure_audio_generation_publication():
             return self._update_chunk_fields_by_uid(
                 chunk.get("uid"), expected_chunk=chunk, **fields)
+
+    def _capture_synthesis_recovery_parent(self, engine, index, chunk):
+        """Capture optional metadata; every later cache write renews exact admission."""
+        policy_reader = getattr(engine, "get_synthesis_recovery_policy", None)
+        policy = policy_reader() if callable(policy_reader) else None
+        claim_digest = get_recovery_claim_digest()
+        if not policy or not policy.get("enabled") or claim_digest is None or not chunk.get("uid"):
+            return None
+        owner = get_audio_generation_owner()
+        captured = copy.deepcopy(chunk)
+        with owner():
+            with self._chunks_lock, file_lock(self.chunks_path):
+                journal = self._get_status_journal_locked()
+                book = copy.deepcopy(journal.book_identity)
+                current = journal.get_row(captured["uid"])
+                if current is None or get_chunk_generation_inputs(current) != get_chunk_generation_inputs(captured):
+                    raise ValueError(GENERATION_INPUTS_CHANGED)
+        if not isinstance(book.get("active_book_id"), str) or not book["active_book_id"]:
+            return None
+
+        @contextmanager
+        def admit():
+            # Use the captured owner, never a new ContextVar owner or serialized
+            # claim. Kernel cache admission acquired inside this scope is try-only.
+            with owner():
+                with self._chunks_lock, ExitStack() as stack:
+                    try:
+                        stack.enter_context(file_lock(self.chunks_path))
+                        journal = self._get_status_journal_locked()
+                        current = journal.get_row(captured["uid"])
+                    except OSError as error:
+                        raise RecoveryAdmissionError('Recovery book authority is unavailable') from error
+                    if (journal.book_identity != book or current is None
+                            or get_chunk_generation_inputs(current) != get_chunk_generation_inputs(captured)):
+                        raise ValueError(GENERATION_INPUTS_CHANGED)
+                    yield
+
+        return RecoveryParent(str(self.root_dir), get_recovery_digest(captured["uid"]),
+                              get_recovery_digest(book), get_recovery_digest({
+                                  "index": index, "inputs": get_chunk_generation_inputs(captured)}),
+                              claim_digest, admit)
 
     def _restore_cancelled_generation(self, chunk):
         try:
@@ -1488,7 +1536,9 @@ class ProjectManager:
             generation_args = (text, instruct, speaker_to_use, chunk_voice_config, temp_path)
             failure = None
             ensure_audio_generation_active()
-            with ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context")):
+            recovery_parent = self._capture_synthesis_recovery_parent(engine, index, chunk)
+            with (ensure_synthesis_recovery_parent(recovery_parent),
+                  ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context"))):
                 if callable(getattr(engine, "generate_voice_result", None)):
                     result = engine.generate_voice_result(*generation_args)
                     success, failure = result.success, result.failure
@@ -1506,7 +1556,8 @@ class ProjectManager:
                 print(f"Generated WAV size: {os.path.getsize(temp_path)} bytes")
 
                 audio_path = self._publish_generated_chunk_audio(
-                    chunk, temp_path, speaker_to_use)
+                    chunk, temp_path, speaker_to_use,
+                    **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}))
 
                 return True, audio_path
             else:
@@ -2689,7 +2740,7 @@ class ProjectManager:
                 else:
                     print(f"Warning: Could not delete temp file {temp_path}")
 
-    def _finalize_completed_chunk(self, idx, chunks):
+    def _finalize_completed_chunk(self, idx, chunks, recovery_parent=None):
         """Finalize from a captured row, conditionally publishing to the live UID.
 
         Returns (outcome, original_index, audio_path_or_error); never mutates the
@@ -2705,7 +2756,8 @@ class ProjectManager:
                 raise ValueError("Temp audio file not found")
             validate_generated_audio(temp_path, f"batch chunk {idx}")
             audio_path = self._publish_generated_chunk_audio(
-                chunk, temp_path, chunk.get("speaker", "unknown"))
+                chunk, temp_path, chunk.get("speaker", "unknown"),
+                **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}))
             print(f"Chunk {idx} completed: {audio_path}")
             return "completed", idx, audio_path
         except Exception as e:
@@ -2870,13 +2922,13 @@ class ProjectManager:
                         captured[idx] = chunk
                     batch_chunk = {
                         "index": idx,
+                        "uid": chunk.get("uid"),
                         "text": chunk.get("text", ""),
                         "instruct": chunk.get("instruct", ""),
                         "speaker": canonical
                     }
                     if chunk.get("pronunciation_rules"):
-                        batch_chunk.update(uid=chunk.get("uid"),
-                                           pronunciation_rules=copy.deepcopy(chunk["pronunciation_rules"]),
+                        batch_chunk.update(pronunciation_rules=copy.deepcopy(chunk["pronunciation_rules"]),
                                            _source_speaker=speaker)
                     # Preserve narrator-selection metadata through the
                     # project boundary; the TTS engine uses these fields to
@@ -2887,9 +2939,15 @@ class ProjectManager:
             # Call batch TTS with single seed. If stale-output cleanup rejected
             # every row, there is nothing safe to dispatch.
             try:
-                batch_results = (engine.generate_batch(
-                    batch_chunks, voice_config, self.root_dir, batch_seed)
-                    if batch_chunks and not is_audio_generation_cancelled() else {"completed": [], "failed": []})
+                recovery_parents = {}
+                for row in batch_chunks:
+                    parent = self._capture_synthesis_recovery_parent(engine, row["index"], captured[row["index"]])
+                    if parent is not None:
+                        recovery_parents[row["uid"]] = parent
+                with ensure_synthesis_recovery_batch(recovery_parents):
+                    batch_results = (engine.generate_batch(
+                        batch_chunks, voice_config, self.root_dir, batch_seed)
+                        if batch_chunks and not is_audio_generation_cancelled() else {"completed": [], "failed": []})
             except Exception:
                 if is_audio_generation_cancelled():
                     for idx in batch_indices:
@@ -2908,7 +2966,9 @@ class ProjectManager:
                 receipt = batch_results.get("synthesis_receipts", {}).get(idx)
                 if receipt is not None and idx in captured:
                     captured[idx] = {**captured[idx], "_synthesis_receipt": copy.deepcopy(receipt)}
-                outcome, out_idx, payload = self._finalize_completed_chunk(idx, captured)
+                recovery_parent = recovery_parents.get(captured[idx].get('uid')) if idx in captured else None
+                outcome, out_idx, payload = self._finalize_completed_chunk(idx, captured,
+                    **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}))
                 if outcome == "completed":
                     results["completed"].append(out_idx)
                 elif outcome != "cancelled":
@@ -2943,3 +3003,7 @@ class ProjectManager:
         print(f"Batch generation complete: {len(results['completed'])} succeeded, "
               f"{len(results['failed'])} failed, {results['cancelled']} cancelled")
         return results
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

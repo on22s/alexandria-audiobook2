@@ -211,7 +211,7 @@ def stage_index_scripts(tmp):
     pkg = os.path.join(tmp, "app", "experiments")
     os.makedirs(pkg, exist_ok=True)
     for name in ("generation_checkpoint_deltas.py", "generation_checkpoint_shards.py",
-                 "utils.py", "adapter_publication.py"):
+                 "utils.py", "loaded_module_code.py", "adapter_publication.py"):
         shutil.copy2(os.path.join(APP, name), os.path.join(tmp, "app", name))
     shutil.copy2(os.path.join(APP, "..", "gpu_stats.py"), os.path.join(tmp, "gpu_stats.py"))
     for name in ("__init__.py", "manifest.py"):

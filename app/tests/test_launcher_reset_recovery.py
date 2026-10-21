@@ -52,7 +52,7 @@ const events=[],kernel={which:()=>python,api:{stop:async r=>{events.push('stop:'
 class LauncherResetRecoveryTests(unittest.TestCase):
     def prepare(self, root):
         (root / 'app').mkdir()
-        for name in ('book_state_transaction.py', 'utils.py', 'adapter_publication.py',
+        for name in ('book_state_transaction.py', 'utils.py', 'loaded_module_code.py', 'adapter_publication.py',
                      'editor_poll_snapshot.py', 'chunk_status_journal.py'):
             shutil.copyfile(ROOT / 'app' / name, root / 'app' / name)
         shutil.copyfile(ROOT / 'gpu_stats.py', root / 'gpu_stats.py')

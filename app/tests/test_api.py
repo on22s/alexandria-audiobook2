@@ -311,6 +311,43 @@ def test_synthesis_window_config_roundtrip():
             raise TestFailure('Config test cleanup did not restore the complete configuration')
 
 
+def test_synthesis_recovery_config_roundtrip():
+    """Execution controls persist independently and reject invalid cache budgets."""
+    with ensure_config_roundtrip() as base:
+        policy = {'enabled': True, 'max_audio_mb': 64}
+        assert_status(post('/api/config', json={**base, 'tts': {**base['tts'],
+            'synthesis_recovery': policy}}), 200)
+        response = get('/api/config'); assert_status(response, 200)
+        if response.json()['tts'].get('synthesis_recovery') != policy:
+            raise TestFailure('Recovery controls did not round-trip')
+        omitted = {key: value for key, value in base['tts'].items() if key != 'synthesis_recovery'}
+        assert_status(post('/api/config', json={**base, 'tts': omitted}), 200)
+        response = get('/api/config'); assert_status(response, 200)
+        if response.json()['tts'].get('synthesis_recovery') != policy:
+            raise TestFailure('Omitting recovery controls erased the saved policy')
+        for invalid in ({'enabled': 'true'}, {'max_audio_mb': 15}, {'max_audio_mb': 4097}):
+            assert_status(post('/api/config', json={**base, 'tts': {**base['tts'],
+                'synthesis_recovery': invalid}}), 422)
+        disabled = {**policy, 'enabled': False}
+        assert_status(post('/api/config', json={**base, 'tts': {**base['tts'],
+            'synthesis_recovery': disabled}}), 200)
+        response = get('/api/config'); assert_status(response, 200)
+        if response.json()['tts'].get('synthesis_recovery') != disabled:
+            raise TestFailure('Disabling recovery lost its saved budget')
+
+
+def test_clear_synthesis_recovery_is_book_bound():
+    response = get('/api/chunks/status'); assert_status(response, 200)
+    token = response.json()['book_token']
+    response = post('/api/tts/recovery/clear', json={'expected_book_token': token})
+    assert_status(response, 200)
+    if response.json().get('book_token') != token or response.json().get('status') != 'cleared':
+        raise TestFailure('Recovery clear did not bind the active book')
+    stale = ('0' if token[0] != '0' else '1') + token[1:]
+    assert_status(post('/api/tts/recovery/clear', json={'expected_book_token': stale}), 409)
+    assert_status(post('/api/tts/recovery/clear', json={}), 422)
+
+
 def test_repeated_config_save_with_inactive_profile():
     response = get('/api/config'); assert_status(response, 200)
     original = response.json()
@@ -1488,6 +1525,8 @@ def run_all_tests():
     run_test("save_pause_config_roundtrip", test_save_pause_config_roundtrip)
     run_test("pause_config_defaults", test_pause_config_defaults)
     run_test("synthesis_window_config_roundtrip", test_synthesis_window_config_roundtrip)
+    run_test("synthesis_recovery_config_roundtrip", test_synthesis_recovery_config_roundtrip)
+    run_test("clear_synthesis_recovery_is_book_bound", test_clear_synthesis_recovery_is_book_bound)
     run_test("repeated_config_save_with_inactive_profile", test_repeated_config_save_with_inactive_profile)
     run_test("save_review_prompts_roundtrip", test_save_review_prompts_roundtrip)
     run_test("save_persona_prompts_roundtrip", test_save_persona_prompts_roundtrip)

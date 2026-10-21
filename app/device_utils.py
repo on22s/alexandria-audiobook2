@@ -139,3 +139,7 @@ def enable_rocm_optimizations():
             triton_compiler.triton_key = lambda: f"triton-rocm-{triton.__version__}"
     except ImportError:
         pass
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

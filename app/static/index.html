@@ -1486,6 +1486,17 @@
             <div class="col-md-3"><label class="form-label" for="synthesis-quiet-threshold">Quiet threshold (dBFS, optional)</label><input class="form-control" type="number" id="synthesis-quiet-threshold" title="Optional silence detection threshold from -120 to 0 dBFS. Blank uses the existing threshold. Quiet speech can require a lower value." min="-120" max="0" step="any" placeholder="Use existing threshold"></div>
         </div>
     </fieldset>
+    <h6 class="mt-3">Resume interrupted renders (experimental)</h6>
+    <p class="form-text">Keep verified internal windows for retrying an unchanged line. Currently available for local stock voices with a fixed seed on Linux, using the native codec without compilation. Other renders continue normally. Existing takes stay selected until the complete replacement is saved.</p>
+    <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="synthesis-recovery-enabled" disabled>
+        <label class="form-check-label" for="synthesis-recovery-enabled">Keep verified windows for recovery</label>
+    </div>
+    <label class="form-label" for="synthesis-recovery-budget">Maximum retained recovery audio (MiB)</label>
+    <input class="form-control" type="number" id="synthesis-recovery-budget" min="16" max="4096" step="1" value="256" disabled>
+    <p class="form-text">Off by default. Save Configuration to apply. The limit covers this workspace's recovery audio. Completed replacements release their windows; older interrupted renders may be removed when capacity is reached. Disabling keeps retained windows.</p>
+    <button class="btn btn-sm btn-outline-secondary" type="button" onclick="clearSynthesisRecoveryWindows()">Clear retained recovery windows</button>
+    <p class="form-text">Open Editor first to load the current book. Clearing requires idle tasks and keeps all saved takes. Damaged or unknown cache files are preserved for inspection.</p>
 </details>
                         <div class="row mb-3">
                             <div class="col-md-2">
