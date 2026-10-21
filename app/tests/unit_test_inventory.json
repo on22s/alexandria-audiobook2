@@ -5738,6 +5738,12 @@
     "tests.test_mastering_js.MasteringJsTests.test_failed_terminal_export_also_invalidates_report_epoch",
     "tests.test_mastering_js.MasteringJsTests.test_off_bounds_and_export_start_invalidate_old_and_pending_measurements"
   ],
+  "test_mastering_output_layout": [
+    "tests.test_mastering_output_layout.MasteringOutputLayoutTests.test_bad_layout_values_refuse_instead_of_reinterpreting_source_pcm",
+    "tests.test_mastering_output_layout.MasteringOutputLayoutTests.test_real_mastered_lossless_wav_retains_source_rate_and_frame_count",
+    "tests.test_mastering_output_layout.MasteringOutputLayoutTests.test_real_mastered_m4b_supports_192k_source_and_retains_aac_multichannel_layout",
+    "tests.test_mastering_output_layout.MasteringOutputLayoutTests.test_real_mastered_mp3_supports_high_nonstandard_rates_and_multichannel_sources"
+  ],
   "test_measure_pauses_arms": [
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_a_term_missing_from_one_arm_is_dropped_not_half_counted",
     "tests.test_measure_pauses_arms.ArmSelectionTest.test_requested_arms_do_not_drag_in_the_built_in_ones",

@@ -2035,8 +2035,10 @@ class ProjectManager:
                 mastering_before = get_loudness_measurements(['-i', temp_wav], mastering, cancel_check)
                 import soundfile
                 info = soundfile.info(temp_wav)
+                from audio_encoding_layout import get_audio_encoding_layout
+                output_layout = get_audio_encoding_layout('m4b', info.samplerate, info.channels)
                 cmd += ['-af', get_mastering_filter(mastering, mastering_before),
-                        '-ar', str(info.samplerate), '-ac', str(info.channels)]
+                        '-ar', str(output_layout['frame_rate']), '-ac', str(output_layout['channels'])]
             cmd += [
                 "-c:a", "aac",
                 "-b:a", "128k",

@@ -52,8 +52,10 @@ def run_mastering_ffmpeg(arguments, cancel_check=None, timeout=600):
     return run_audio_ffmpeg(arguments, cancel_check, timeout=timeout)
 
 
-def get_mastering_filter(options, measured=None):
+def get_mastering_filter(options, measured=None, *, output_channels=None):
     options = get_mastering_options(options)
+    if output_channels is not None and (type(output_channels) is not int or output_channels not in (1, 2)):
+        raise ValueError('Unsupported mastering channel conversion.')
     value = f"loudnorm=I={options['loudness']}:TP={options['true_peak']}:LRA=11"
     if measured is not None:
         # Only numeric values from our strict record parser enter this filter.
@@ -62,12 +64,15 @@ def get_mastering_filter(options, measured=None):
                             ('offset', 'target_offset')]:
             value += f':{option}={float(measured[key])}'
         value += ':linear=true'
-    return value + ':print_format=json'
+    prefix = ('aformat=channel_layouts=' + ('mono' if output_channels == 1 else 'stereo') + ','
+              if output_channels is not None else '')
+    return prefix + value + ':print_format=json'
 
 
-def get_loudness_measurements(input_args, options, cancel_check=None):
+def get_loudness_measurements(input_args, options, cancel_check=None, *, output_channels=None):
     return get_loudnorm_record(run_mastering_ffmpeg(
-        [*input_args, '-map', '0:a:0', '-vn', '-af', get_mastering_filter(options), '-f', 'null', '-'], cancel_check))
+        [*input_args, '-map', '0:a:0', '-vn', '-af', get_mastering_filter(options, output_channels=output_channels),
+         '-f', 'null', '-'], cancel_check))
 
 
 def get_mastering_report(path, options, before, encoded_stderr, cancel_check=None):
@@ -91,13 +96,16 @@ def export_mastered_pcm(raw_path, output_path, settings, options, cancel_check=N
         raise ValueError('Mastering PCM snapshot has an incomplete frame.')
     formats = {1: 's8', 2: 's16le', 4: 's32le'}
     input_args = ['-f', formats[width], '-ar', str(rate), '-ac', str(channels), '-i', str(raw_path)]
-    before = get_loudness_measurements(input_args, options, cancel_check)
     fmt = settings['format']
     if fmt not in ('wav', 'mp3'):
         raise ValueError('Mastering supports MP3 and WAV PCM export.')
     codec = 'libmp3lame' if fmt == 'mp3' else {1: 'pcm_u8', 2: 'pcm_s16le', 4: 'pcm_s32le'}[width]
-    args = [*input_args, '-map', '0:a:0', '-af', get_mastering_filter(options, before),
-            '-ar', str(rate), '-ac', str(channels), '-c:a', codec]
+    from audio_encoding_layout import get_audio_encoding_layout
+    output_layout = get_audio_encoding_layout(fmt, rate, channels)
+    mix_channels = output_layout['channels'] if output_layout['channels'] != channels else None
+    before = get_loudness_measurements(input_args, options, cancel_check, output_channels=mix_channels)
+    args = [*input_args, '-map', '0:a:0', '-af', get_mastering_filter(options, before, output_channels=mix_channels),
+            '-ar', str(output_layout['frame_rate']), '-ac', str(output_layout['channels']), '-c:a', codec]
     if fmt == 'mp3':
         args += ['-b:a', settings['options'].get('bitrate', '192k')]
     else:
