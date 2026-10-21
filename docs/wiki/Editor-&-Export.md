@@ -76,6 +76,34 @@ audio revision, so later review notes cannot relabel an earlier performance.
 
   Both are set in the Setup tab.
 
+## Saved take snapshots
+
+Inspect a rendered line and open **Saved take snapshots**. Choose **Save this take**
+before changing its words, voice or seed, or regenerating it. This saves an immutable
+copy of the selected audio plus its recorded text, delivery, seed counter and available
+evidence. Use **This line's snapshots** to compare copies, or **All project snapshots**
+to find copies from earlier lines and book generations. Playback verifies the saved
+bytes and leaves the selected line audio unchanged.
+
+**Protect** prevents deletion. **Delete with undo** hides a snapshot from playback but
+keeps its bytes; **Undo deletion** restores it. **Remove permanently…** is a separate,
+confirmed action that frees storage and cannot be undone. Current, referenced and
+protected snapshot files cannot be removed. No automatic pruning runs.
+
+The project archive permits 16 records per book/line identity, 4,096 records and 1 GiB
+of payload in total. Each copy is limited to 64 MiB, mono/stereo and ten minutes.
+Metadata is limited to 128 KiB per record and 16 MiB per manifest, plus one bounded
+16 MiB pending metadata write. Deleted and interrupted copies count until explicitly
+removed. A failed or interrupted copy never replaces the selected audio; its charged
+incomplete record remains visible for cleanup. Unknown or damaged archive metadata
+is preserved for inspection instead of being silently repaired or pruned.
+
+Saving is explicit in this version. Automatic retention and restoring a snapshot as
+the selected take are not yet available. Legacy recordings may lack exact generation
+dependencies, so snapshots remain audition-only rather than certifying a voice/model
+match. Loading a saved script creates new line identities; old snapshots remain in
+**All project snapshots** and are never assigned to new lines by position or text.
+
 ## Merging
 
 Click **Merge All** to join all chunks that have valid audio into one audiobook, in order,

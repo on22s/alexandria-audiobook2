@@ -660,6 +660,25 @@ def test_occurrence_pronunciation_roundtrip():
                 'expected_book_token': snapshot['book_token'], 'expected_uid': uid}))
 
 
+def test_take_snapshot_contract():
+    snapshot = get('/api/chunks/status').json()
+    token = snapshot['book_token']
+    response = get('/api/take_snapshots', params={'expected_book_token': token})
+    assert_status(response)
+    result = response.json()
+    if not isinstance(result.get('records'), list) or len(result['records']) > 50 or 'usage' not in result:
+        raise TestFailure('Take history must return bounded records and charged archive usage')
+    stale = ('0' if token[0] != '0' else '1') + token[1:]
+    assert_status(get('/api/take_snapshots', params={'expected_book_token': stale}), 409)
+    assert_status(get('/api/take_snapshots', params={'expected_book_token': token, 'offset': -1}), 422)
+    assert_status(post('/api/chunks/0/take_snapshots', json={'expected_book_token': token,
+        'expected_uid': 'nonexistent-snapshot-target', 'expected_audio_revision': 'stale'}), 409)
+    assert_status(post('/api/take_snapshots/action', json={'expected_book_token': token,
+        'version': 'a' * 32, 'sha256': 'b' * 64, 'action': 'promote'}), 422)
+    assert_status(get('/api/take_snapshots/not-a-version/audio', params={
+        'expected_book_token': token, 'sha256': 'b' * 64}), 422)
+
+
 def test_update_chunk():
     if not shared.get("has_chunks"):
         raise TestFailure("SKIP: no chunks available")
@@ -1572,6 +1591,7 @@ def run_all_tests():
 
     section("Chunks")
     run_test("get_chunks", test_get_chunks)
+    run_test("take_snapshot_contract", test_take_snapshot_contract)
     run_test("occurrence_pronunciation_roundtrip", test_occurrence_pronunciation_roundtrip)
     run_test("update_chunk", test_update_chunk)
     run_test("update_chunk_pause_after", test_update_chunk_pause_after)

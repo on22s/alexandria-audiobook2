@@ -3932,6 +3932,84 @@
         "title": "TTSConfig",
         "type": "object"
       },
+      "TakeHistoryAction": {
+        "properties": {
+          "action": {
+            "pattern": "^(protect|unprotect|delete|undo|purge)$",
+            "title": "Action",
+            "type": "string"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "source_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source Book Token",
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "source_book_token",
+          "expected_uid",
+          "version",
+          "sha256",
+          "action"
+        ],
+        "title": "TakeHistoryAction",
+        "type": "object"
+      },
+      "TakeSnapshotRequest": {
+        "properties": {
+          "expected_audio_revision": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Audio Revision"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "expected_uid"
+        ],
+        "title": "TakeSnapshotRequest",
+        "type": "object"
+      },
       "TextPromptPreset": {
         "description": "Named system/user text for one numbered generation pass.",
         "properties": {
@@ -6349,6 +6427,53 @@
           }
         },
         "summary": "Recheck Chunk Speech"
+      }
+    },
+    "/api/chunks/{index}/take_snapshots": {
+      "post": {
+        "operationId": "save_take_snapshot_api_chunks__index__take_snapshots_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakeSnapshotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Take Snapshot"
       }
     },
     "/api/chunks/{index}/word_timing": {
@@ -11286,6 +11411,199 @@
           }
         },
         "summary": "Get System Stats"
+      }
+    },
+    "/api/take_snapshots": {
+      "get": {
+        "operationId": "list_take_snapshots_api_take_snapshots_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "uid",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Uid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "all_books",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All Books",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 4096,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Take Snapshots"
+      }
+    },
+    "/api/take_snapshots/action": {
+      "post": {
+        "operationId": "change_take_snapshot_api_take_snapshots_action_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakeHistoryAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Take Snapshot"
+      }
+    },
+    "/api/take_snapshots/{version}/audio": {
+      "get": {
+        "operationId": "audition_take_snapshot_api_take_snapshots__version__audio_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Version",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_book_token",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Source Book Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_uid",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Expected Uid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sha256",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Audition Take Snapshot"
       }
     },
     "/api/tts/diagnostics": {

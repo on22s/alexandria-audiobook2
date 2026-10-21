@@ -48,7 +48,7 @@ function renderEditorLineInspector() {
     document.getElementById('editor-line-empty').hidden = !!target;
     document.getElementById('editor-line-content').hidden = !target;
     document.querySelectorAll('#chunks-table-body .editor-selected-line').forEach(row => row.classList.remove('editor-selected-line'));
-    if (!target) { editorReviewSelection = null; window.applyWordTimingInspector?.(); window.applySpeechVerificationInspector?.(); return; }
+    if (!target) { editorReviewSelection = null; window.applyWordTimingInspector?.(); window.applySpeechVerificationInspector?.(); window.applyTakeHistoryInspector?.(); return; }
     const {chunk, row} = target;
     row.classList.add('editor-selected-line');
     const selectors = {speaker: 'select', text: '.chunk-text', instruct: '.chunk-instruct', pause_after: '.chunk-pause-after'};
@@ -73,7 +73,7 @@ function renderEditorLineInspector() {
     document.getElementById('editor-line-play').disabled = !audio?.getAttribute('src') || (fact && fact.audio === 'missing');
     document.getElementById('editor-line-generate').disabled = chunk.status === 'generating';
     window.applyWordTimingInspector?.();
-    window.applySpeechVerificationInspector?.();
+    window.applySpeechVerificationInspector?.(); window.applyTakeHistoryInspector?.();
 }
 
 function renderEditorSpeechEvidence(chunk, fact) {

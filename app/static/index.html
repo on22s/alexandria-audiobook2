@@ -3220,6 +3220,18 @@
                                        <button type="button" class="btn btn-outline-primary btn-sm" id="editor-line-play" onclick="playEditorReviewLine()">Play line</button>
                                        <button type="button" class="btn btn-outline-success btn-sm" id="editor-line-generate" onclick="generateEditorReviewLine()">Generate line…</button>
                                    </div>
+                                   <details class="mb-3"><summary title="Save and audition immutable copies of earlier performances without changing the selected audio.">Saved take snapshots</summary>
+                                       <p class="small mt-2">Save a copy of a good performance before regenerating it. Snapshots keep their original bytes for audition. They do not change which take is selected. Save explicitly; automatic history and restoring a snapshot are not available yet.</p>
+                                       <div class="d-flex flex-wrap gap-2 mb-2">
+                                           <button type="button" id="editor-take-save" class="btn btn-outline-primary btn-sm" onclick="saveEditorTakeSnapshot()" title="Save an immutable copy of the selected saved performance, including its recorded metadata.">Save this take</button>
+                                           <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorTakeSnapshots(false)" title="List the saved snapshots for this stable line in the current book generation.">This line's snapshots</button>
+                                           <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorTakeSnapshots(true)" title="Browse snapshots across project books and line identities, including deleted and interrupted copies.">All project snapshots</button>
+                                       </div>
+                                       <p id="editor-take-status" class="small" role="status" aria-live="polite">No snapshots loaded. Up to 16 per line, 4,096 records and 1 GiB per project. Deleted and incomplete copies count until permanently removed.</p>
+                                       <div id="editor-take-list"></div>
+                                       <button type="button" id="editor-take-first" class="btn btn-outline-secondary btn-sm" onclick="loadEditorTakeSnapshots(takeHistoryAll, 0)" title="Return to the first page of this snapshot list without changing selected audio." hidden>First page</button>
+                                       <button type="button" id="editor-take-more" class="btn btn-outline-secondary btn-sm" title="Show the next fifty snapshots in the current archive view." hidden>Next 50</button>
+                                   </details>
                                    <details class="mb-3"><summary>Word-timed listening (English audio)</summary>
                                        <p class="small mt-2">Estimated ASR timing mapped to the current spoken-text preparation, including pronunciation rules. Older takes may differ. Untimed words stay plain. Timing does not certify accuracy. Use the existing line controls to edit or regenerate.</p>
                                        <div class="d-flex flex-wrap gap-2 mb-2"><button type="button" id="editor-word-timing" class="btn btn-outline-primary btn-sm" onclick="createEditorWordTiming()" title="Time only this saved English line with an already installed CPU ASR model.">Time this line</button><button type="button" id="editor-word-cancel" class="btn btn-outline-secondary btn-sm" onclick="cancelEditorWordTiming()" disabled title="Request cancellation and retain the existing audio.">Cancel timing</button></div>
@@ -3617,6 +3629,7 @@
     <script src="/static/js/app-editor-repair.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-word-timing.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-take-history.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-pronunciation.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-training.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-tts-capabilities.js?v=__APP_BUILD__"></script>

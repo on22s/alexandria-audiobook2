@@ -707,6 +707,26 @@
     "tests.test_audio_publication_admission.AudioPublicationAdmissionTests.test_independent_process_publication_waits_for_the_same_kernel_admission",
     "tests.test_audio_publication_admission.AudioPublicationAdmissionTests.test_lock_namespace_is_bounded_alias_stable_and_does_not_pollute_audio_folders"
   ],
+  "test_audio_take_history": [
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_capacity_includes_deleted_and_pending_and_metadata_is_bounded",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_concurrent_capture_deduplicates_and_book_generations_stay_distinct",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_corruption_wrong_identity_aliases_and_unknown_files_refuse",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_delete_undo_protection_reference_fence_and_explicit_purge",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_empty_pending_and_failed_cleanup_remain_charged_until_retry",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_exact_immutable_deduplicated_descriptor_and_retained_metadata",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_exact_persisted_metadata_bytes_are_bounded_and_pending_write_retries",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_failed_decode_retains_charged_pending_copy",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_fd_wrapper_failure_closes_raw_file_and_pending_metadata_descriptors",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_full_unicode_record_is_bounded_before_reservation",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_lossless_non_wav_capture_audition_and_undo_preserve_exact_payload",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_malformed_identity_types_and_huge_timestamps_refuse_without_repair",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_process_death_reservation_copy_and_purge_are_recoverable",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_ready_metadata_failure_preserves_selected_bytes_and_pending_charge",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_small_manifest_read_does_not_allocate_the_full_archive_limit",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_source_alias_hardlink_nonfinite_and_oversize_refuse",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_source_and_decoded_copy_mutation_refuse_without_selecting_partial_audio",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_truncated_wav_header_is_not_reinterpreted_as_a_valid_short_take"
+  ],
   "test_audit_adapter_training_split": [
     "tests.test_audit_adapter_training_split.SplitAuditTests.test_a_stale_manifest_does_not_override_the_adapters_own_record",
     "tests.test_audit_adapter_training_split.SplitAuditTests.test_actual_verify_hash_cli_refuses_unverifiable_weights",
@@ -3280,6 +3300,16 @@
     "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_recheck_binds_exact_original_input_and_retains_audio_even_when_content_difference_found",
     "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_unavailable_recheck_cannot_clear_a_known_content_difference",
     "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_unavailable_recheck_is_explicit_and_prior_audio_is_unchanged"
+  ],
+  "test_editor_take_history": [
+    "tests.test_editor_take_history.EditorTakeHistoryTests.test_archive_actions_and_audition_refuse_wrong_source_book_or_uid",
+    "tests.test_editor_take_history.EditorTakeHistoryTests.test_corrupt_audio_and_invalid_route_action_boundaries",
+    "tests.test_editor_take_history.EditorTakeHistoryTests.test_damaged_missing_and_legacy_uid_state_is_not_repaired_by_snapshot_refusal",
+    "tests.test_editor_take_history.EditorTakeHistoryTests.test_old_book_archive_is_discoverable_but_never_attached_to_new_rows",
+    "tests.test_editor_take_history.EditorTakeHistoryTests.test_real_roundtrip_both_backends_keeps_current_revision_source_and_audio",
+    "tests.test_editor_take_history.EditorTakeHistoryTests.test_selected_archive_reference_and_alias_source_cannot_be_deleted_or_captured",
+    "tests.test_editor_take_history.EditorTakeHistoryTests.test_stale_book_uid_revision_and_edited_line_refuse_before_copy",
+    "tests.test_editor_take_history.EditorTakeHistoryTests.test_undecodable_selected_audio_returns_conflict_and_preserves_pending_charge"
   ],
   "test_editor_validation_findings": [
     "tests.test_editor_validation_findings.EditorValidationFindingTests.test_empty_persisted_row_gets_uid_and_missing_identity_target_is_409",
@@ -9752,6 +9782,15 @@
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_gating_on_type_finds_nothing",
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_the_experiment_gates_on_speaker",
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_the_schema_has_no_type_key"
+  ],
+  "test_take_history_js": [
+    "tests.test_take_history_js.TakeHistoryJsTests.test_deleted_and_pending_copies_have_no_audio_and_remain_visible_in_usage",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_old_list_reply_and_old_audio_clear_when_line_or_book_changes",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_permanent_removal_rechecks_target_after_confirmation",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_save_is_uid_revision_bound_duplicate_clicks_block_and_drafts_refuse",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_save_never_retargets_after_line_book_or_take_changes_during_render_barrier",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_snapshot_labels_are_literal_and_actions_use_exact_version_hash",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_two_saves_waiting_on_the_same_render_barrier_issue_one_request"
   ],
   "test_task_claim_ownership": [
     "tests.test_task_claim_ownership.TaskClaimOwnershipTests.test_actual_book_load_keeps_started_export_reserved_after_legacy_flag_clears",

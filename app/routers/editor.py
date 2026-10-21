@@ -20,7 +20,7 @@ import zipfile
 from contextlib import contextmanager
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Query
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Query, Path as PathParameter
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field, StrictInt, field_validator
@@ -152,6 +152,64 @@ def get_word_timing_audio(index: int,
         stream, size, suffix = open_verified_word_audio(project_manager, index, expected_book_token,
             expected_uid, expected_audio_revision, sha256, check_chunk_identity)
     except (ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return WordTimingAudioResponse(stream, size, suffix)
+
+
+class TakeSnapshotRequest(WordTimingRequest):
+    pass
+
+
+class TakeHistoryAction(BaseModel):
+    expected_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_uid: str = Field(min_length=1, max_length=128)
+    version: str = Field(pattern=r"^[0-9a-f]{32}$")
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    action: str = Field(pattern=r"^(protect|unprotect|delete|undo|purge)$")
+
+
+@router.post("/api/chunks/{index}/take_snapshots")
+async def save_take_snapshot(index: int, request: TakeSnapshotRequest):
+    from editor_take_history import capture_editor_take
+    try:
+        return await asyncio.to_thread(capture_editor_take, project_manager, index, request)
+    except (ValueError, OSError, KeyError, TypeError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.get("/api/take_snapshots")
+async def list_take_snapshots(
+    expected_book_token: Annotated[str, Query(pattern=r"^[0-9a-f]{64}$")],
+    uid: Annotated[Optional[str], Query(min_length=1, max_length=128)] = None,
+    all_books: bool = False, offset: Annotated[int, Query(ge=0, le=4096)] = 0):
+    from editor_take_history import get_editor_takes
+    try:
+        return await asyncio.to_thread(get_editor_takes, project_manager, expected_book_token,
+            uid, all_books=all_books, offset=offset)
+    except (ValueError, OSError, KeyError, TypeError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.post("/api/take_snapshots/action")
+async def change_take_snapshot(request: TakeHistoryAction):
+    from editor_take_history import change_editor_take
+    try:
+        return await asyncio.to_thread(change_editor_take, project_manager, request)
+    except (ValueError, OSError, KeyError, TypeError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.get("/api/take_snapshots/{version}/audio")
+def audition_take_snapshot(version: Annotated[str, PathParameter(pattern=r"^[0-9a-f]{32}$")],
+    expected_book_token: Annotated[str, Query(pattern=r"^[0-9a-f]{64}$")],
+    source_book_token: Annotated[str, Query(pattern=r"^[0-9a-f]{64}$")],
+    expected_uid: Annotated[str, Query(min_length=1, max_length=128)],
+    sha256: Annotated[str, Query(pattern=r"^[0-9a-f]{64}$")]):
+    from editor_take_history import open_editor_take
+    try:
+        stream, size, suffix = open_editor_take(project_manager, expected_book_token, version, sha256, source_book_token, expected_uid)
+    except (ValueError, OSError, KeyError, TypeError) as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     return WordTimingAudioResponse(stream, size, suffix)
 
