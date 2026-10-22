@@ -64,7 +64,7 @@ def run_owned_continuity_pair(core, raw, packet, row, voices, destination):
                     # Even a full disk must not route through claim release.
                     os._exit(70)
 
-    claim = core.claim_gpu_task('audio')
+    claim = core.reserve_background_task('audio')
     worker = core.start_claimed_task_thread('audio', claim, render)
     while worker.is_alive():
         try:

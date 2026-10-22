@@ -3054,6 +3054,8 @@
   "test_dialogue_continuity_controller": [
     "tests.test_dialogue_continuity_controller.ContinuityControllerTests.test_cleanup_failure_exits_owned_process_without_releasing_early",
     "tests.test_dialogue_continuity_controller.ContinuityControllerTests.test_output_cannot_dirty_the_source_checkout",
+    "tests.test_dialogue_continuity_controller.ContinuityControllerTests.test_real_reservation_rolls_back_when_worker_thread_cannot_start",
+    "tests.test_dialogue_continuity_controller.ContinuityControllerTests.test_real_reservation_starts_admitted_owner_and_releases_after_cleanup",
     "tests.test_dialogue_continuity_controller.ContinuityControllerTests.test_worker_cleanup_precedes_claim_release_on_success_and_failure"
   ],
   "test_dialogue_continuity_experiment": [
