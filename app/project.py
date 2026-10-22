@@ -1274,7 +1274,7 @@ class ProjectManager:
 
     def _update_chunk_fields_by_uid(self, uid, expected_chunk=None, required_status=None,
                                     audio_source=None, expected_fields=None, expected_related_chunks=None,
-                                    require_target=False, publication_audio=None, **kwargs):
+                                    require_target=False, publication_audio=None, restore_speech_receipt=False, **kwargs):
         """Conditionally publish to the live UID under one lock, preserving other rows.
 
         Generation compares only captured render inputs. An owned converted temp
@@ -1338,10 +1338,18 @@ class ProjectManager:
                     os.fsync(handle.fileno())
                 publish_audio_output(audio_source, self.get_chunk_audio_path(candidate))
                 sync_adapter_directory(self.voicelines_dir)
+                publication_version = None
                 if publication_audio is not None:
                     from take_publication import validate_published_take_audio
-                    validate_published_take_audio(self.root_dir, self.get_chunk_audio_path(candidate),
+                    publication_version = validate_published_take_audio(self.root_dir, self.get_chunk_audio_path(candidate),
                         publication_audio, ensure_audio_generation_active)
+                if restore_speech_receipt:
+                    receipt = kwargs.get('speech_verification')
+                    if publication_audio is None or receipt is None or receipt.get('audio') != {
+                            key: publication_audio[key] for key in ('sha256', 'size')}:
+                        raise ValueError('Saved speech evidence differs from the restored audio.')
+                    kwargs['speech_verification'] = {**receipt,
+                        'audio_file_version': list(publication_version[:4])}
             if kwargs:
                 if journal:
                     if audio_source is None and RETAINED_TAKE_KEY not in kwargs:
@@ -1423,8 +1431,8 @@ class ProjectManager:
                 self._remove_temp_file(staged_path)
 
     @contextmanager
-    def _ensure_automatic_predecessor(self, chunk):
-        if not get_take_history_policy(self.root_dir)['enabled']:
+    def _ensure_automatic_predecessor(self, chunk, *, required=False):
+        if not required and not get_take_history_policy(self.root_dir)['enabled']:
             yield {}
             return
         with ensure_audio_generation_book_work(self.root_dir):
@@ -1502,6 +1510,18 @@ class ProjectManager:
                 raise ValueError(GENERATION_INPUTS_CHANGED)
             return capture_take_publication_admission(engine, parent, token, chunk['uid'], index,
                 get_chunk_generation_inputs(chunk), voice_config, speaker)
+
+    def get_chunk_render_voice_config(self, voices, speaker, chunk, index, *, batch_seed=None):
+        """Materialize the same voice selection for rendering and take comparison."""
+        resolved = resolve_narrator_voice_config(speaker, voices, chunk)
+        if batch_seed is not None:
+            from tts import get_batch_voice_config
+            return get_batch_voice_config(resolved, speaker, index, batch_seed)
+        resolved = voice_config_for_chunk(resolved, speaker, index)
+        if self._load_tts_config().get('reproducible_takes') is True:
+            resolved = get_reproducible_voice_config(resolved,
+                get_chunk_seed(chunk['text'], chunk.get('take', 0)), take=chunk.get('take', 0))
+        return resolved
 
     def _capture_speech_verification_admission(self, engine):
         requested = get_enabled_speech_verification_settings(self._load_tts_config().get('speech_verification'))
@@ -1742,13 +1762,8 @@ class ProjectManager:
             # Pass canonical speaker to the TTS engine so it uses the aliased config;
             # the identity anchor in force at this line (a character can change
             # from a point in the book - tts.active_character_style)
-            chunk_voice_config = voice_config_for_chunk(
-                resolve_narrator_voice_config(speaker_to_use, voice_config, chunk),
-                speaker_to_use, index)
-            if self._load_tts_config().get("reproducible_takes") is True:
-                chunk_voice_config = get_reproducible_voice_config(
-                    chunk_voice_config, get_chunk_seed(text, chunk.get("take", 0)),
-                    take=chunk.get("take", 0))
+            chunk_voice_config = self.get_chunk_render_voice_config(
+                voice_config, speaker_to_use, chunk, index)
             generation_args = (text, instruct, speaker_to_use, chunk_voice_config, temp_path)
             chunk={**chunk,'_speech_input':None,
                    '_speech_verification_admission':self._capture_speech_verification_admission(engine)}
@@ -3349,10 +3364,8 @@ class ProjectManager:
                     parent = self._capture_synthesis_recovery_parent(engine, row["index"], captured[row["index"]])
                     if parent is not None:
                         recovery_parents[row["uid"]] = parent
-                        from tts import get_batch_voice_config
-                        materialized = get_batch_voice_config(
-                            resolve_narrator_voice_config(row['speaker'], voice_config, row),
-                            row['speaker'], row['index'], batch_seed)
+                        materialized = self.get_chunk_render_voice_config(
+                            voice_config, row['speaker'], row, row['index'], batch_seed=batch_seed)
                         admission = self._capture_take_publication_admission(engine, parent, row['index'],
                             captured[row['index']], materialized, row['speaker'])
                         if admission is not None:

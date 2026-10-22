@@ -22,7 +22,7 @@ class EditorPollSnapshots:
         structure = [(row.get('uid'), row.get('id')) for row in chunks]
         row_hashes = [get_snapshot_digest(row) for row in chunks]
         content = get_snapshot_digest([{key: value for key, value in row.items()
-            if key not in FIELDS} for row in chunks])
+            if key not in FIELDS or key == 'take'} for row in chunks])
         book = get_snapshot_digest(book_identity)
         revision = get_snapshot_digest([book, structure, row_hashes])
         with self._lock:

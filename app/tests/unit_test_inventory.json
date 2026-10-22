@@ -3239,6 +3239,7 @@
     "tests.test_editor_index_selection.EditorIndexSelectionTests.test_generation_workers_receive_unique_source_order_and_correct_total"
   ],
   "test_editor_poll_delta": [
+    "tests.test_editor_poll_delta.EditorPollDeltaTests.test_atomic_journal_take_selection_resynchronizes_authored_controls",
     "tests.test_editor_poll_delta.EditorPollDeltaTests.test_book_content_uid_deletion_and_eviction_force_full_resynchronization",
     "tests.test_editor_poll_delta.EditorPollDeltaTests.test_invalid_persisted_ids_are_consistently_refused_without_losing_progress_or_audio",
     "tests.test_editor_poll_delta.EditorPollDeltaTests.test_native_journal_changes_invalidate_revision_without_snapshot_rewrite",
@@ -3336,6 +3337,13 @@
     "tests.test_editor_take_history.EditorTakeHistoryTests.test_selected_archive_reference_and_alias_source_cannot_be_deleted_or_captured",
     "tests.test_editor_take_history.EditorTakeHistoryTests.test_stale_book_uid_revision_and_edited_line_refuse_before_copy",
     "tests.test_editor_take_history.EditorTakeHistoryTests.test_undecodable_selected_audio_returns_conflict_and_preserves_pending_charge"
+  ],
+  "test_editor_take_restoration": [
+    "tests.test_editor_take_restoration.EditorTakeRestorationTests.test_cancel_during_final_native_check_retains_lease_until_worker_cleanup",
+    "tests.test_editor_take_restoration.EditorTakeRestorationTests.test_queued_restore_excludes_other_audio_then_acknowledged_cancel_avoids_engine",
+    "tests.test_editor_take_restoration.EditorTakeRestorationTests.test_real_route_selects_proven_bytes_and_releases_its_audio_lease",
+    "tests.test_editor_take_restoration.EditorTakeRestorationTests.test_request_refusal_rolls_back_reservation_without_loading_engine_or_repairing_rows",
+    "tests.test_editor_take_restoration.EditorTakeRestorationTests.test_worker_dependency_refusal_is_failed_status_with_prior_selection_preserved"
   ],
   "test_editor_validation_findings": [
     "tests.test_editor_validation_findings.EditorValidationFindingTests.test_empty_persisted_row_gets_uid_and_missing_identity_target_is_409",
@@ -9825,9 +9833,13 @@
     "tests.test_take_history_js.TakeHistoryJsTests.test_damaged_policy_can_be_disabled_without_a_selected_line_or_saved_drafts",
     "tests.test_take_history_js.TakeHistoryJsTests.test_deleted_and_pending_copies_have_no_audio_and_remain_visible_in_usage",
     "tests.test_take_history_js.TakeHistoryJsTests.test_failed_policy_read_or_write_requires_refresh_before_retry",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_late_restore_admission_reply_preserves_another_lines_status_and_still_releases_busy",
     "tests.test_take_history_js.TakeHistoryJsTests.test_old_list_reply_and_old_audio_clear_when_line_or_book_changes",
     "tests.test_take_history_js.TakeHistoryJsTests.test_permanent_removal_rechecks_target_after_confirmation",
     "tests.test_take_history_js.TakeHistoryJsTests.test_policy_refresh_and_change_are_serialized_and_use_admitted_book_revision",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_restore_controls_require_supported_same_book_uid_and_recorded_evidence",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_restore_rechecks_render_barrier_and_late_completion_cannot_retarget_selected_line",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_restore_request_binds_current_path_counter_and_source_then_waits_for_audio_task",
     "tests.test_take_history_js.TakeHistoryJsTests.test_save_is_uid_revision_bound_duplicate_clicks_block_and_drafts_refuse",
     "tests.test_take_history_js.TakeHistoryJsTests.test_save_never_retargets_after_line_book_or_take_changes_during_render_barrier",
     "tests.test_take_history_js.TakeHistoryJsTests.test_snapshot_labels_are_literal_and_actions_use_exact_version_hash",
@@ -9854,6 +9866,26 @@
     "tests.test_take_publication.TakePublicationTests.test_stage_mutation_after_binding_refuses_publication_and_cancel_propagates",
     "tests.test_take_publication.TakePublicationTests.test_unknown_overridden_unowned_and_random_renderers_remain_unproven",
     "tests.test_take_publication.TakePublicationTests.test_valid_output_outside_snapshot_limits_still_publishes_without_proof"
+  ],
+  "test_take_restoration": [
+    "tests.test_take_restoration.TakeRestorationTests.test_cancelled_or_replaced_owner_at_final_capture_cannot_select",
+    "tests.test_take_restoration.TakeRestorationTests.test_capacity_refuses_before_loading_engine",
+    "tests.test_take_restoration.TakeRestorationTests.test_changed_dependencies_and_corrupt_saved_bindings_never_replace_selected_audio",
+    "tests.test_take_restoration.TakeRestorationTests.test_edits_during_native_initialization_are_preserved",
+    "tests.test_take_restoration.TakeRestorationTests.test_failed_final_metadata_keeps_displaced_bytes_revision_and_take",
+    "tests.test_take_restoration.TakeRestorationTests.test_late_original_timing_result_cannot_attach_after_distinct_take_and_restore",
+    "tests.test_take_restoration.TakeRestorationTests.test_later_shared_pronunciation_saver_waits_for_selection_without_holding_owner",
+    "tests.test_take_restoration.TakeRestorationTests.test_protected_source_can_restore_but_deleted_legacy_and_unproven_sources_refuse_cheaply",
+    "tests.test_take_restoration.TakeRestorationTests.test_real_encoded_formats_restore_identical_bytes_with_original_suffix_and_shape",
+    "tests.test_take_restoration.TakeRestorationTests.test_restore_selects_original_bytes_counter_and_complete_proof_in_both_stores",
+    "tests.test_take_restoration.TakeRestorationTests.test_saved_speech_evidence_rebinds_only_verified_installed_file_version",
+    "tests.test_take_restoration.TakeRestorationTests.test_shared_pronunciation_save_before_final_admission_refuses_even_with_inherited_snapshot",
+    "tests.test_take_restoration.TakeRestorationTests.test_source_replacement_links_and_stage_aliases_refuse_without_overwriting_current_or_outside_bytes",
+    "tests.test_take_restoration.TakeRestorationTests.test_stale_current_counter_or_path_is_refused_without_loading_engine",
+    "tests.test_take_restoration.TakeRestorationTests.test_unsupported_workspace_host_refuses_before_engine_or_archive_mutation"
+  ],
+  "test_take_restoration_recovery": [
+    "tests.test_take_restoration_recovery.TakeRestorationRecoveryTests.test_hard_exits_preserve_selected_and_archived_bytes_then_allow_idle_cleanup_and_retry"
   ],
   "test_take_retention_process_death": [
     "tests.test_take_retention_process_death.TakeRetentionProcessDeathTests.test_actual_process_death_preserves_original_take_and_allows_explicit_retry"

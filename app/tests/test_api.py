@@ -673,6 +673,11 @@ def test_take_snapshot_contract():
     assert_status(get('/api/take_snapshots', params={'expected_book_token': token, 'offset': -1}), 422)
     assert_status(post('/api/chunks/0/take_snapshots', json={'expected_book_token': token,
         'expected_uid': 'nonexistent-snapshot-target', 'expected_audio_revision': 'stale'}), 409)
+    restore = dict(expected_book_token=token, source_book_token=token,
+        expected_uid='nonexistent-snapshot-target', expected_audio_revision='stale',
+        expected_audio_path=None, expected_take=None, version='a'*32, sha256='b'*64)
+    assert_status(post('/api/chunks/0/take_restore', json={**restore, 'expected_take': True}), 422)
+    assert_status(post('/api/chunks/0/take_restore', json=restore), 409)
     assert_status(post('/api/take_snapshots/action', json={'expected_book_token': token,
         'version': 'a' * 32, 'sha256': 'b' * 64, 'action': 'promote'}), 422)
     assert_status(get('/api/take_snapshots/not-a-version/audio', params={

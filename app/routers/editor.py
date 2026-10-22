@@ -193,6 +193,47 @@ class TakeHistoryAction(BaseModel):
     action: str = Field(pattern=r"^(protect|unprotect|delete|undo|purge)$")
 
 
+class TakeRestoreRequest(WordTimingRequest):
+    source_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+    version: str = Field(pattern=r"^[0-9a-f]{32}$")
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_audio_path: Optional[str] = Field(..., max_length=4096)
+    expected_take: Optional[StrictInt] = Field(..., ge=0)
+
+
+@router.post("/api/chunks/{index}/take_restore")
+async def restore_take_snapshot(index: int, request: TakeRestoreRequest, background_tasks: BackgroundTasks):
+    from audio_generation_owner import AudioGenerationCancelled
+    from take_restoration import capture_restore_target, restore_editor_take
+    with ensure_audio_generation_claim() as claim_id:
+        try:
+            expected = await asyncio.to_thread(capture_restore_target, project_manager, index, request)
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+        def task():
+            state = process_state['audio']
+            state.update(start_time=time.time(), logs=[f'Checking saved take for line {index}...'],
+                         status='running', error=None)
+            try:
+                restore_editor_take(project_manager, index, request, expected)
+                state['status'] = 'done'
+                state['logs'].append('Restore complete. Original saved bytes selected; displaced take retained.')
+            except AudioGenerationCancelled:
+                state['status'] = 'cancelled'
+                state['logs'].append('Restoration cancelled. Selected line audio was preserved.')
+            except Exception as error:
+                logger.exception('Saved take restoration failed')
+                state['status'] = 'failed'
+                state['error'] = str(error)
+                state['logs'].append('Restoration refused: ' + str(error))
+            finally:
+                state['running'] = False
+
+        register_claimed_background_task(background_tasks, 'audio', claim_id, task)
+        return {'status': 'started'}
+
+
 @router.post("/api/chunks/{index}/take_snapshots")
 async def save_take_snapshot(index: int, request: TakeSnapshotRequest):
     from editor_take_history import capture_editor_take

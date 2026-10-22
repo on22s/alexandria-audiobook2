@@ -29,10 +29,12 @@ def capture_editor_take(manager, index, request):
                 book_label=get_book_operation_identity(manager.root_dir)[1] or '')
 
 def get_editor_takes(manager, book_token, uid=None, *, all_books=False, offset=0):
+    from synthesis_workspace import is_synthesis_workspace_supported
     with ensure_book_state(manager.root_dir):
         if get_book_operation_token(manager.root_dir) != book_token:
             raise ValueError('Active book changed. Refresh Editor.')
-        return AudioTakeHistory(manager.root_dir).list(None if all_books else book_token, uid, offset)
+        return {**AudioTakeHistory(manager.root_dir).list(None if all_books else book_token, uid, offset),
+                'restore_supported':is_synthesis_workspace_supported()}
 
 
 def open_editor_take(manager, book_token, version, sha256, source_book_token, uid):

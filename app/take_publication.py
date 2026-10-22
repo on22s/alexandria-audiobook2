@@ -145,9 +145,10 @@ def _read_audio(root, path, cancel_check, *, decode=True):
 
 def validate_published_take_audio(root, path, expected, cancel_check=None):
     """Check the installed slot before its proof and selection are committed."""
-    actual, _ = _read_audio(Path(root).resolve(), path, cancel_check, decode=False)
+    actual, version = _read_audio(Path(root).resolve(), path, cancel_check, decode=False)
     if actual != {key:expected[key] for key in ('sha256','size')}:
         raise ValueError('Finished audio changed during take evidence publication')
+    return version
 
 
 def get_take_publication_receipt(admission, inputs, preparation, speech_input, synthesis,

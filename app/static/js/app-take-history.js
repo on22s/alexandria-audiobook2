@@ -1,4 +1,4 @@
-/* Explicit snapshots never change the Editor's selected performance. */
+/* Audition is separate from explicit, dependency-checked restoration. */
 let takeHistoryIdentity = null;
 let takeHistoryRequest = 0;
 let takeHistoryBusy = false;
@@ -8,7 +8,8 @@ let takeHistoryOffset = 0;
 function getTakeHistoryIdentity() {
     const target = getEditorReviewTarget();
     return target && JSON.stringify([chunkSnapshotBookToken, target.chunk.uid,
-        getChunkAudioIdentity(target.chunk), target.chunk.text, target.chunk.instruct, target.chunk.speaker]);
+        getChunkAudioIdentity(target.chunk), target.chunk.take ?? null,
+        target.chunk.text, target.chunk.instruct, target.chunk.speaker]);
 }
 
 function resetTakeHistoryView() {
@@ -59,7 +60,7 @@ function renderEditorTakeSnapshots(result, book, identity) {
     const list = document.getElementById('editor-take-list');
     list.replaceChildren();
     const usage = result.usage;
-    document.getElementById('editor-take-status').textContent = `${result.total} saved snapshot(s) in this view. Project archive: ${usage.records}/${usage.max_records} records, ${(usage.bytes / 1048576).toFixed(1)} MiB/${usage.max_bytes / 1048576} MiB. Deleted and incomplete copies count. Snapshots are for audition; they do not certify generation dependencies or change the selected take.`;
+    document.getElementById('editor-take-status').textContent = `${result.total} saved snapshot(s) in this view. Project archive: ${usage.records}/${usage.max_records} records, ${(usage.bytes / 1048576).toFixed(1)} MiB/${usage.max_bytes / 1048576} MiB. Deleted and incomplete copies count. Audition keeps selected audio. Restoration checks eligibility when requested.${result.restore_supported ? '' : ' Verified restoration is not qualified on this host.'}`;
     for (const record of result.records) {
         const item = document.createElement('div');
         item.className = 'border rounded p-2 mb-2';
@@ -84,6 +85,15 @@ function renderEditorTakeSnapshots(result, book, identity) {
         }
         const buttons = document.createElement('div');
         buttons.className = 'd-flex flex-wrap gap-2 mt-1';
+        if (result.restore_supported && record.state === 'ready' && record.has_restore_evidence
+                && !otherBook && record.uid === getEditorReviewTarget()?.chunk.uid) {
+            const restore = document.createElement('button');
+            restore.type = 'button'; restore.className = 'btn btn-outline-primary btn-sm';
+            restore.textContent = 'Check & restore';
+            restore.title = 'Verify original dependencies and select these saved bytes. Retain the displaced take; refuse incompatible snapshots.';
+            restore.onclick = () => restoreEditorTakeSnapshot(record, identity, book);
+            buttons.append(restore);
+        }
         const actions = record.state === 'ready' ? [[record.protected ? 'unprotect' : 'protect', record.protected ? 'Unprotect' : 'Protect'], ...(!record.protected ? [['delete', 'Delete with undo']] : [])] : record.state === 'deleted' ? [['undo', 'Undo deletion'], ['purge', 'Remove permanently…']] : [['purge', 'Remove incomplete copy…']];
         for (const [action, text] of actions) {
             const button = document.createElement('button');
@@ -98,6 +108,59 @@ function renderEditorTakeSnapshots(result, book, identity) {
     more.hidden = result.next_offset === null;
     more.onclick = () => loadEditorTakeSnapshots(takeHistoryAll, result.next_offset);
     document.getElementById('editor-take-first').hidden = takeHistoryOffset === 0;
+}
+
+async function restoreEditorTakeSnapshot(record, identity, book) {
+    if (takeHistoryBusy || identity !== getTakeHistoryIdentity() || book !== chunkSnapshotBookToken || isEditorEditPending()) { return; }
+    try { await ensureEditorRenderSnapshot(); }
+    catch (error) { showActionError('Cannot restore snapshot', error, 'Save pending edits and refresh Editor.'); return; }
+    const target = getEditorReviewTarget();
+    if (takeHistoryBusy || identity !== getTakeHistoryIdentity() || book !== chunkSnapshotBookToken
+            || isEditorEditPending() || !target || record.book_token !== book || record.uid !== target.chunk.uid) { return; }
+    takeHistoryRequest++;
+    takeHistoryBusy = true; window.applyTakeHistoryInspector();
+    const cancel = document.getElementById('editor-take-cancel');
+    cancel.hidden = false; cancel.disabled = false;
+    try {
+        await API.post(`/api/chunks/${target.chunk.id}/take_restore`, {
+            expected_book_token: book, source_book_token: record.book_token,
+            expected_uid: target.chunk.uid, expected_audio_revision: target.chunk.audio_revision || null,
+            expected_audio_path: target.chunk.audio_path || null, expected_take: target.chunk.take ?? null,
+            version: record.version, sha256: record.sha256,
+        });
+        if (identity === getTakeHistoryIdentity() && book === chunkSnapshotBookToken && !isEditorEditPending()) {
+            document.getElementById('editor-take-status').textContent = 'Restoration requested. Checking saved audio and current voice dependencies; follow the audio task below.';
+        }
+        _startPolling('take_restore', () => API.get('/api/status/audio'), {
+            displayLabel: 'Saved take restoration',
+            doneCheck: status => status.running === false,
+            onTick: status => {
+                if (typeof status.running !== 'boolean') { throw new Error('Audio task status is unavailable.'); }
+                if (status.running && identity === getTakeHistoryIdentity()) {
+                    document.getElementById('editor-take-status').textContent = 'Audio task is checking restoration. Cancel audio task to request cancellation.';
+                }
+            },
+            onDone: status => {
+                takeHistoryBusy = false; cancel.hidden = true;
+                window.applyTakeHistoryInspector();
+                if (identity === getTakeHistoryIdentity()) {
+                    document.getElementById('editor-take-status').textContent = status.error || `Audio task ${status.status || 'finished'}. Refresh snapshots to inspect the selected performance.`;
+                    void loadChunks(true);
+                }
+            },
+        });
+    } catch (error) {
+        takeHistoryBusy = false; cancel.hidden = true; window.applyTakeHistoryInspector();
+        showActionError('Cannot start restoration', error, 'Check audio task status and refresh snapshots before retrying.');
+    }
+}
+
+async function cancelEditorTakeRestore() {
+    if (!takeHistoryBusy) { return; }
+    const cancel = document.getElementById('editor-take-cancel');
+    cancel.disabled = true;
+    try { await API.post('/api/cancel_audio', {}); }
+    catch (error) { cancel.disabled = false; showActionError('Cannot cancel audio task', error, 'Check audio task status before retrying.'); }
 }
 
 async function saveEditorTakeSnapshot() {

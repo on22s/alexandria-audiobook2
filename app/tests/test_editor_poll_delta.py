@@ -104,3 +104,20 @@ class EditorPollDeltaTests(unittest.TestCase):
         self.assertLessEqual(len(state._history),8)
         report=state.ensure_snapshot(rows,['book',1],old)
         self.assertTrue(report['full']);self.assertEqual(rows,report['chunks'])
+
+    def test_atomic_journal_take_selection_resynchronizes_authored_controls(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);manager=ProjectManager(tmp)
+            manager.save_chunks([dict(id=0,uid='line',text='Synthetic words.',speaker='NARRATOR',
+                                      status='pending',take=1)])
+            manager._get_status_journal_locked().ensure_writable()
+            app=FastAPI();app.include_router(editor.router)
+            with patch.object(editor,'project_manager',manager), \
+                    patch.object(editor,'SCRIPT_PATH',str(root/'annotated_script.json')),TestClient(app) as client:
+                first=client.get('/api/chunks/status').json()
+                original=(root/'chunks.json').read_bytes()
+                manager._update_chunk_fields_by_uid('line',take=2)
+                selected=client.get('/api/chunks/status',params={'revision':first['revision']}).json()
+                self.assertTrue(selected['full'])
+                self.assertEqual(selected['chunks'][0]['take'],2)
+                self.assertEqual((root/'chunks.json').read_bytes(),original)

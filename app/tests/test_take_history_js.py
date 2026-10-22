@@ -11,7 +11,7 @@ Element.prototype.replaceChildren=function(...nodes){for(const child of [...this
 Element.prototype.append=function(...nodes){for(const child of nodes){this.appendChild(child);}};
 Element.prototype.pause=function(){this.paused=true;};Element.prototype.load=function(){this.loaded=true;};
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(v){if(v){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
-for(const id of ['editor-take-save','editor-take-list','editor-take-more','editor-take-first','editor-take-status','editor-auto-take-refresh','editor-auto-take-on','editor-auto-take-off','editor-auto-take-status']){body.appendChild(new Element('div',{id}));}
+for(const id of ['editor-take-save','editor-take-list','editor-take-more','editor-take-first','editor-take-status','editor-take-cancel','editor-auto-take-refresh','editor-auto-take-on','editor-auto-take-off','editor-auto-take-status']){body.appendChild(new Element('div',{id}));}
 let selected={chunk:{id:0,uid:'u',text:'Synthetic words.',instruct:'',speaker:'Hero',audio_path:'line.wav',audio_revision:'r1'}};
 context.chunkSnapshotBookToken='a'.repeat(64);context.getEditorReviewTarget=()=>selected;
 context.getChunkAudioIdentity=c=>JSON.stringify([c.audio_path,c.audio_revision]);
@@ -22,6 +22,8 @@ context.API={post:(url,body)=>{let resolve,reject;const promise=new Promise((a,b
 const sample=(state='ready')=>({version:'b'.repeat(32),book_token:context.chunkSnapshotBookToken,uid:'<img onerror=bad()>',created:1,take:3,state,protected:false,sha256:'c'.repeat(64)});
 const result=(records=[sample()])=>({records,total:records.length,next_offset:null,usage:{records:records.length,bytes:4800,max_records:4096,max_bytes:1073741824}});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));load();
+const polls=[];context._startPolling=(key,fetch,options)=>polls.push({key,fetch,...options});
+const redraws=[];context.loadChunks=async force=>redraws.push(force);
 '''
 
 
@@ -126,4 +128,66 @@ gets[0].resolve(policy);await pending;
 assert.equal(document.getElementById('editor-auto-take-status').textContent,policy.error);assert(!document.getElementById('editor-auto-take-off').disabled);
 const change=context.changeAutomaticTakePolicy(false);await tick();assert.equal(posts.length,1);assert.equal(posts[0].body.enabled,false);
 posts[0].resolve({...policy,enabled:false,error:null});await change;assert.equal(toasts.length,1);assert.equal(errors.length,0);
+''')
+
+    def test_restore_controls_require_supported_same_book_uid_and_recorded_evidence(self):
+        self.run_js(r'''
+const eligible={...sample(),uid:'u',has_restore_evidence:true};
+for(const [records,supported,count] of [
+    [[eligible],true,1], [[{...eligible,book_token:'e'.repeat(64)}],true,0],
+    [[{...eligible,uid:'other'}],true,0], [[{...eligible,has_restore_evidence:false}],true,0],
+    [[{...eligible,state:'deleted'}],true,0], [[eligible],false,0],
+]) {
+    context.renderEditorTakeSnapshots({...result(records),restore_supported:supported},context.chunkSnapshotBookToken,context.getTakeHistoryIdentity());
+    assert.equal(document.getElementById('editor-take-list').querySelectorAll('button').filter(b=>b.textContent==='Check & restore').length,count);
+}
+''')
+
+    def test_restore_request_binds_current_path_counter_and_source_then_waits_for_audio_task(self):
+        self.run_js(r'''
+selected.chunk.take=5;const record={...sample(),uid:'u',has_restore_evidence:true};
+const identity=context.getTakeHistoryIdentity();const restore=context.restoreEditorTakeSnapshot(record,identity,context.chunkSnapshotBookToken);
+await tick();assert.equal(posts.length,1);assert.equal(posts[0].url,'/api/chunks/0/take_restore');
+assert.equal(posts[0].body.expected_take,5);assert.equal(posts[0].body.expected_audio_path,'line.wav');
+assert.equal(posts[0].body.expected_audio_revision,'r1');assert.equal(posts[0].body.version,record.version);
+assert.equal(posts[0].body.sha256,record.sha256);assert.equal(posts[0].body.expected_uid,'u');
+await context.restoreEditorTakeSnapshot(record,identity,context.chunkSnapshotBookToken);assert.equal(posts.length,1);
+posts[0].resolve({status:'started'});await restore;assert.equal(polls.length,1);assert.equal(vm.runInContext('takeHistoryBusy',context),true);
+assert.equal(polls[0].doneCheck({running:true}),false);assert.equal(polls[0].doneCheck({running:false}),true);
+polls[0].onTick({running:true});assert(document.getElementById('editor-take-status').textContent.includes('checking restoration'));
+const cancel=context.cancelEditorTakeRestore();await tick();assert.equal(posts[1].url,'/api/cancel_audio');
+posts[1].resolve({status:'cancelling'});await cancel;assert.equal(vm.runInContext('takeHistoryBusy',context),true);
+polls[0].onDone({running:false,status:'cancelled'});await tick();assert.deepEqual(redraws,[true]);
+assert.equal(vm.runInContext('takeHistoryBusy',context),false);assert.equal(document.getElementById('editor-take-cancel').hidden,true);
+assert.equal(selected.chunk.audio_revision,'r1');assert.equal(selected.chunk.take,5);
+''')
+
+    def test_restore_rechecks_render_barrier_and_late_completion_cannot_retarget_selected_line(self):
+        self.run_js(r'''
+const record={...sample(),uid:'u',has_restore_evidence:true};selected.chunk.take=3;
+for(const change of [()=>{selected.chunk.take++;},()=>{selected.chunk.audio_path='other.wav';},()=>{selected.chunk.uid='other';},()=>{context.chunkSnapshotBookToken='e'.repeat(64);},()=>{edits=true;}]) {
+    selected.chunk={id:0,uid:'u',text:'Synthetic words.',instruct:'',speaker:'Hero',audio_path:'line.wav',audio_revision:'r1',take:3};
+    context.chunkSnapshotBookToken='a'.repeat(64);edits=false;let release;
+    context.ensureEditorRenderSnapshot=()=>new Promise(resolve=>release=resolve);
+    const pending=context.restoreEditorTakeSnapshot(record,context.getTakeHistoryIdentity(),context.chunkSnapshotBookToken);
+    await tick();change();release();await pending;assert.equal(posts.length,0);
+}
+edits=false;context.ensureEditorRenderSnapshot=async()=>{};selected.chunk.uid='u';
+const pending=context.restoreEditorTakeSnapshot(record,context.getTakeHistoryIdentity(),context.chunkSnapshotBookToken);await tick();
+posts[0].resolve({status:'started'});await pending;selected.chunk.uid='different';polls[0].onDone({running:false,status:'done'});
+assert.equal(redraws.length,0);assert.equal(selected.chunk.uid,'different');assert.equal(vm.runInContext('takeHistoryBusy',context),false);
+''')
+
+    def test_late_restore_admission_reply_preserves_another_lines_status_and_still_releases_busy(self):
+        self.run_js(r'''
+const record={...sample(),uid:'u',has_restore_evidence:true};
+const pending=context.restoreEditorTakeSnapshot(record,context.getTakeHistoryIdentity(),context.chunkSnapshotBookToken);
+await tick();assert.equal(posts.length,1);
+selected.chunk.uid='other';document.getElementById('editor-take-status').textContent='Other line: refresh snapshots.';
+posts[0].resolve({status:'started'});await pending;
+assert.equal(document.getElementById('editor-take-status').textContent,'Other line: refresh snapshots.');
+assert.equal(polls.length,1);assert.equal(vm.runInContext('takeHistoryBusy',context),true);
+polls[0].onDone({running:false,status:'done'});
+assert.equal(document.getElementById('editor-take-status').textContent,'Other line: refresh snapshots.');
+assert.equal(redraws.length,0);assert.equal(vm.runInContext('takeHistoryBusy',context),false);
 ''')

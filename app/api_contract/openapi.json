@@ -4002,6 +4002,83 @@
         "title": "TakeHistoryPolicyRequest",
         "type": "object"
       },
+      "TakeRestoreRequest": {
+        "properties": {
+          "expected_audio_path": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Audio Path"
+          },
+          "expected_audio_revision": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Audio Revision"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_take": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Take"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "source_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source Book Token",
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "expected_uid",
+          "source_book_token",
+          "version",
+          "sha256",
+          "expected_audio_path",
+          "expected_take"
+        ],
+        "title": "TakeRestoreRequest",
+        "type": "object"
+      },
       "TakeSnapshotRequest": {
         "properties": {
           "expected_audio_revision": {
@@ -6452,6 +6529,53 @@
           }
         },
         "summary": "Recheck Chunk Speech"
+      }
+    },
+    "/api/chunks/{index}/take_restore": {
+      "post": {
+        "operationId": "restore_take_snapshot_api_chunks__index__take_restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakeRestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Take Snapshot"
       }
     },
     "/api/chunks/{index}/take_snapshots": {

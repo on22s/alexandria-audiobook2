@@ -288,12 +288,20 @@ class AudioTakeHistory:
 
     @staticmethod
     def _summary(row):
+        from take_publication import KEY, validate_take_publication
         result = {key: copy.deepcopy(row.get(key)) for key in (
             'version', 'book_token', 'book_label', 'uid', 'sha256', 'bytes', 'state',
             'protected', 'created', 'take', 'audio_revision', 'shape')}
         captured = row['captured']
         result['text'] = captured.get('text', '')[:160] if isinstance(captured.get('text'), str) else ''
         result['speaker'] = captured.get('speaker', '')[:128] if isinstance(captured.get('speaker'), str) else ''
+        # A metadata hint only. Current dependencies and actual bytes are
+        # checked exclusively by the explicit restoration worker.
+        try:
+            result['has_restore_evidence'] = validate_take_publication({
+                'uid':row['uid'], 'audio_revision':row.get('audio_revision'), KEY:captured.get(KEY)}) is not None
+        except ValueError:
+            result['has_restore_evidence'] = False
         return result
 
     def list(self, book_token=None, uid=None, offset=0):
@@ -306,7 +314,7 @@ class AudioTakeHistory:
                         usage=dict(records=len(records), bytes=sum(r['bytes'] for r in records),
                                    max_records=MAX_RECORDS, max_bytes=MAX_PAYLOAD_BYTES,
                                    max_line_records=MAX_LINE_RECORDS),
-                        notice='Saved snapshots are for audition. Exact generation dependencies are not certified; selection is unchanged.')
+                        notice='Snapshots retain originating metadata. Browsing alone does not establish current restoration eligibility or change selection.')
 
     def capture(self, path, book_token, uid, captured, *, book_label='',
                 expected_source_version=None, cancel_check=None):
@@ -423,6 +431,16 @@ class AudioTakeHistory:
             if row['state'] != 'ready':
                 raise ValueError('Undo deletion or finish the snapshot before auditioning it.')
             return self._open_verified(row), row['bytes'], row['suffix']
+
+    def open_for_restore(self, version, sha256, book_token, uid, *, cancel_check=None):
+        """Pin verified bytes and originating metadata under the archive lock."""
+        with self._locked(cancel_check=cancel_check) as document:
+            if document['version'] != 2:
+                raise ValueError('This archive has no supported restoration evidence.')
+            row = self._find(document, version, sha256, book_token, uid)
+            if row['state'] != 'ready':
+                raise ValueError('Only a complete, undeleted snapshot can be restored.')
+            return copy.deepcopy(row), self._open_verified(row, cancel_check=cancel_check)
 
     def change(self, version, sha256, action, is_referenced, *, book_token=None, uid=None):
         """Caller keeps current chunk references locked throughout mutation."""

@@ -247,13 +247,36 @@ class SynthesisWorkspaceRegistry:
         self.save()
         return True
 
+    def create_encoded_parent(self, name, suffix):
+        """Return an exclusive output descriptor inside a pinned registration.
+
+        Caller owns admission while opening and closes the returned descriptor.
+        Copying can then release the task mutex without following mutable paths.
+        """
+        if suffix not in ('.wav', '.mp3', '.flac', '.ogg'):
+            raise SynthesisWorkspaceUnavailable('Unsupported encoded parent format')
+        row = self.body['rows'].get(name)
+        if row is None or row['identity'] is None:
+            raise SynthesisWorkspaceUnavailable('Encoded parent has no registered workspace')
+        self._check_root()
+        workspace_fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=self.fd)
+        try:
+            if _identity(os.fstat(workspace_fd)) != row['identity']:
+                raise SynthesisWorkspaceUnavailable('Workspace directory changed before parent creation')
+            return os.open('assembled-parent' + suffix,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=workspace_fd)
+        finally:
+            os.close(workspace_fd)
+
     def _delete_contents(self, name, row):
         workspace_fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=self.fd)
         join_fd = None
         try:
             if _identity(os.fstat(workspace_fd)) != row['identity']:
                 raise SynthesisWorkspaceUnavailable('Workspace directory changed')
-            allowed = {f'window-{index}.wav' for index in range(row['windows'])} | {'assembled-parent.wav', 'join'}
+            allowed = ({f'window-{index}.wav' for index in range(row['windows'])}
+                       | {f'assembled-parent{suffix}' for suffix in ('.wav', '.mp3', '.flac', '.ogg')}
+                       | {'join'})
             entries = self._get_names(workspace_fd, len(allowed))
             if not set(entries) <= allowed:
                 raise SynthesisWorkspaceUnavailable('Unknown workspace contents preserved')
