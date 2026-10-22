@@ -1475,6 +1475,12 @@
     "tests.test_cast_list.CastListTest.test_source_over_the_limit_is_refused_before_any_request",
     "tests.test_cast_list.CastListTest.test_unparseable_reply_writes_nothing"
   ],
+  "test_cast_list_async_routes": [
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_delete_waits_for_real_lock_without_blocking_ping",
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_get_reads_cast_in_worker_and_preserves_response",
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_refusals_and_missing_list_preserve_existing_behavior",
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_save_waits_for_real_lock_without_blocking_ping"
+  ],
   "test_cast_list_safeguards_js": [
     "tests.test_cast_list_safeguards_js.CastListSafeguardsJsTests.test_actual_book_loaders_refuse_dirty_cast_and_refresh_after_accept",
     "tests.test_cast_list_safeguards_js.CastListSafeguardsJsTests.test_delete_cancel_book_switch_and_confirm",
