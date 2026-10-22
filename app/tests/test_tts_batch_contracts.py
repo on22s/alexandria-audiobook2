@@ -170,7 +170,8 @@ class BatchContractsTests(unittest.TestCase):
                     renders.append(kwargs['max_new_tokens'])
                     weight = float(self.model.talker.layer.q_proj.weight.detach().mean())
                     return [np.full(2400, weight / 100, dtype=np.float32) for _ in kwargs['text']], 24000
-            def load(*args):
+            def load(*args, release_for_oom=None):
+                self.assertTrue(callable(release_for_oom))
                 gc.collect()
                 # CPU providers simulate one 5 GB family within an 8 GB budget.
                 if (len(live) + 1) * 5e9 > 8e9:

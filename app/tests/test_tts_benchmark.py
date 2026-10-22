@@ -264,7 +264,8 @@ class LoraBenchmarkLoadTimingTests(unittest.TestCase):
         import tts
         clock = [0.0]
         loads, merges, prompts = [], [], []
-        def load_model(*args):
+        def load_model(*args, release_for_oom=None):
+            self.assertTrue(callable(release_for_oom))
             loads.append(args)
             clock[0] += 5.0
             pcm = (0.2 * np.sin(np.arange(4800) * (0.08 + 0.01 * len(loads)))).astype(np.float32)
@@ -287,7 +288,7 @@ class LoraBenchmarkLoadTimingTests(unittest.TestCase):
         fake_qwen.Qwen3TTSModel = object()
         fake_peft = ModuleType("peft")
         fake_peft.PeftModel = SimpleNamespace(from_pretrained=merge)
-        engine = tts.TTSEngine.__new__(tts.TTSEngine)
+        engine = tts.TTSEngine({"tts": {"mode": "local"}})
         engine._mode = "local"
         engine._local_lora_model = None
         engine._lora_adapter_path = None

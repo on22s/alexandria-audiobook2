@@ -788,6 +788,9 @@ def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources
                 task_lease = acquire_task_lease(DATA_DIR, task_name, conflicts, **lease_options)
             if needs_local_gpu:
                 handle = acquire_gpu_lock()
+                if task_name != "audio" and not project_manager.ensure_idle_local_models_released():
+                    raise HTTPException(status_code=409, detail=(
+                        "The local TTS engine is still in use. Wait for it to finish before starting GPU work."))
             if handle is not None:
                 _gpu_leases[task_name] = handle
                 if len(_gpu_leases) == 1:

@@ -8,7 +8,8 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import promote_adapters as promotion
 from adapter_publication import CLI_PUBLICATION_JOURNAL
@@ -429,7 +430,8 @@ class HttpPublicationAdmissionTests(unittest.TestCase):
             state = copy.deepcopy(core.process_state)
             for entry in state.values():
                 entry["running"] = False
-            engine = object()
+            release_idle = Mock(return_value=True)
+            engine = SimpleNamespace(ensure_idle_local_models_released=release_idle)
             app = FastAPI(); app.include_router(lora.router)
             operations = (("post", "promote"), ("post", "rollback-promotion"),
                           ("post", "recover-checkpoint-swap"), ("delete", "rollback-backup"),
@@ -449,3 +451,4 @@ class HttpPublicationAdmissionTests(unittest.TestCase):
                         self.assertFalse(state["lora_training"]["running"])
                         self.assertIs(engine, lora.project_manager.engine)
                         self.assertEqual(before, _files(models))
+                self.assertEqual(4, release_idle.call_count)

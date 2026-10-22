@@ -137,6 +137,23 @@ class RecoveryServingTests(unittest.TestCase):
             with self.assertRaisesRegex(RecoveryIdentityUnavailable, 'overridden_engine_function'):
                 serving._capture_engine_methods(engine, {}, [])
 
+    def test_new_loader_release_and_allocation_policy_overrides_are_unqualified(self):
+        import gpu_stats
+        import device_utils
+        engine = tts.TTSEngine.__new__(tts.TTSEngine)
+        for name in ('_load_model_attempt', '_release_inactive_models_after_oom',
+                     '_release_local_model_families', '_release_local_model_family', '_clear_gpu_cache'):
+            with self.subTest(method=name), patch.object(engine, name, lambda *args: None):
+                with self.assertRaisesRegex(RecoveryIdentityUnavailable, 'overridden_engine_method'):
+                    serving._capture_engine_methods(engine, {}, [])
+        changed = dict(engine._LOCAL_MODEL_IDS, custom='changed/model')
+        for target, name, value in [(engine, '_LOCAL_MODEL_IDS', changed),
+                (device_utils, 'is_allocation_failure', lambda error: False),
+                (gpu_stats, 'OOM_MARKERS', ('changed',))]:
+            with self.subTest(field=name), patch.object(target, name, value):
+                with self.assertRaisesRegex(RecoveryIdentityUnavailable, 'overridden_model_load_policy'):
+                    serving._capture_engine_methods(engine, {}, [])
+
     def test_unsupported_generation_modes_are_refused_and_config_paths_do_not_define_semantics(self):
         data = {'_name_or_path': '/private/loader', '_original_object_hash': 5678,
                 'num_beams': 1, 'top_p': .9}

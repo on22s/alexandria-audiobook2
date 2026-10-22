@@ -37,7 +37,8 @@ class BaseTalker(torch.nn.Module):
 class LoraGenerationCacheTests(unittest.TestCase):
     @contextlib.contextmanager
     def providers(self,engine,loads,prompts,load_gate=None):
-        def load(*args):
+        def load(*args, release_for_oom=None):
+            self.assertTrue(callable(release_for_oom))
             if load_gate:load_gate()
             model=SimpleNamespace(model=SimpleNamespace(talker=BaseTalker()))
             def prompt(**kwargs):

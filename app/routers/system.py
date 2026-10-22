@@ -83,7 +83,12 @@ router = APIRouter()
 def get_tts_diagnostics():
     """Read bounded operational observations without initializing a model."""
     from tts_diagnostics import get_tts_diagnostics_bundle
-    return get_tts_diagnostics_bundle()
+    from tts import TTSEngine
+    from device_utils import get_loaded_torch_device_observation
+    return get_tts_diagnostics_bundle(residency=project_manager.get_model_residency(),
+                                      runtime=get_runtime_info(ROOT_DIR),
+                                      assets=TTSEngine.get_local_model_inventory(),
+                                      device=get_loaded_torch_device_observation())
 
 
 def _builtin_prompt_presets() -> list[dict]:

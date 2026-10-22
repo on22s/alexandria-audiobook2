@@ -5596,6 +5596,11 @@
   "test_local_gpu_job": [
     "tests.test_local_gpu_job.LocalGpuJobTests.test_runner_uses_one_approved_lock_queue_and_checked_timeout"
   ],
+  "test_local_model_inventory": [
+    "tests.test_local_model_inventory.LocalModelInventoryTests.test_absent_and_failed_cache_never_load_or_download",
+    "tests.test_local_model_inventory.LocalModelInventoryTests.test_device_observation_does_not_import_torch_and_keeps_mps_separate",
+    "tests.test_local_model_inventory.LocalModelInventoryTests.test_inventory_uses_loader_ids_and_collapses_shared_base"
+  ],
   "test_local_tts_concurrency": [
     "tests.test_local_tts_concurrency.GeneratedStereoFrameTests.test_invalid_channel_rank_fails_instead_of_inventing_a_long_mono_clip",
     "tests.test_local_tts_concurrency.GeneratedStereoFrameTests.test_mono_and_one_channel_arrays_keep_duration",
@@ -5983,6 +5988,20 @@
   "test_model_list_endpoint_policy": [
     "tests.test_model_list_endpoint_policy.ModelListEndpointPolicyTests.test_existing_loopback_and_thunder_hosts_keep_model_list_behavior",
     "tests.test_model_list_endpoint_policy.ModelListEndpointPolicyTests.test_untrusted_urls_reject_before_client_or_saved_secret_lookup"
+  ],
+  "test_model_load_allocation_retry": [
+    "tests.test_model_load_allocation_retry.ModelLoadAllocationRetryTests.test_cached_allocation_failure_retries_same_source_once_after_cleanup",
+    "tests.test_model_load_allocation_retry.ModelLoadAllocationRetryTests.test_exhaustion_nonallocation_and_cancellation_do_not_add_cleanup_retries",
+    "tests.test_model_load_allocation_retry.ModelLoadAllocationRetryTests.test_failed_cleanup_prevents_retry",
+    "tests.test_model_load_allocation_retry.ModelLoadAllocationRetryTests.test_failed_loader_frame_is_released_before_cleanup",
+    "tests.test_model_load_allocation_retry.ModelLoadAllocationRetryTests.test_real_engine_retry_evicts_retained_inactive_family"
+  ],
+  "test_model_residency": [
+    "tests.test_model_residency.ModelResidencyTests.test_active_nested_exceptional_scopes_refuse_reentrant_release",
+    "tests.test_model_residency.ModelResidencyTests.test_busy_read_and_release_do_not_wait_for_active_worker",
+    "tests.test_model_residency.ModelResidencyTests.test_loaded_device_idle_release_and_reload",
+    "tests.test_model_residency.ModelResidencyTests.test_sync_failure_retains_models_and_cache_then_releases_locks",
+    "tests.test_model_residency.ModelResidencyTests.test_unknown_device_refuses_and_mps_uses_its_own_sync_and_cache"
   ],
   "test_modernbooknlp_adapter": [],
   "test_morning_chain": [
@@ -7902,6 +7921,26 @@
     "tests.test_research_chain_pause.ResearchChainPauseTests.test_legacy_hold_refuses_without_removing_flag_or_starting_worker",
     "tests.test_research_chain_pause.ResearchChainPauseTests.test_unpaused_queue_starts_worker_without_wait"
   ],
+  "test_residency_diagnostics": [
+    "tests.test_residency_diagnostics.ResidencyDiagnosticsTests.test_actual_http_report_keeps_uninitialized_engine_unloaded",
+    "tests.test_residency_diagnostics.ResidencyDiagnosticsTests.test_busy_construction_is_reported_without_wait_or_mutation",
+    "tests.test_residency_diagnostics.ResidencyDiagnosticsTests.test_load_capture_is_historical_and_absent_capture_stays_unknown"
+  ],
+  "test_residency_release_failures": [
+    "tests.test_residency_release_failures.ResidencyReleaseFailureTests.test_cache_failure_after_drop_stays_pending_until_actual_cleanup",
+    "tests.test_residency_release_failures.ResidencyReleaseFailureTests.test_cache_family_failure_is_retried_even_after_model_slot_is_empty",
+    "tests.test_residency_release_failures.ResidencyReleaseFailureTests.test_cuda_rocm_and_apple_counters_keep_separate_meanings",
+    "tests.test_residency_release_failures.ResidencyReleaseFailureTests.test_missing_or_invalid_memory_readings_are_unknown",
+    "tests.test_residency_release_failures.ResidencyReleaseFailureTests.test_release_history_is_bounded_and_returns_independent_copies"
+  ],
+  "test_residency_task_admission": [
+    "tests.test_residency_task_admission.ResidencyTaskAdmissionTests.test_active_engine_refuses_child_and_releases_admission_handles",
+    "tests.test_residency_task_admission.ResidencyTaskAdmissionTests.test_cpu_audio_and_remote_llm_admission_preserve_warm_resident",
+    "tests.test_residency_task_admission.ResidencyTaskAdmissionTests.test_gpu_child_admission_releases_idle_resident_after_host_acquisition",
+    "tests.test_residency_task_admission.ResidencyTaskAdmissionTests.test_manager_reads_do_not_create_engine_and_busy_construction_refuses_release",
+    "tests.test_residency_task_admission.ResidencyTaskAdmissionTests.test_partial_allocator_cleanup_failure_refuses_each_admission_until_fixed",
+    "tests.test_residency_task_admission.ResidencyTaskAdmissionTests.test_sync_failure_preserves_resident_and_releases_claim"
+  ],
   "test_resolve_generated": [
     "tests.test_resolve_generated.ResolveGeneratedTest.test_goals_pointer_conflict_with_prose_is_refused",
     "tests.test_resolve_generated.ResolveGeneratedTest.test_it_refuses_a_conflict_in_real_code",
@@ -9698,9 +9737,13 @@
   ],
   "test_synthesis_recovery_identity": [
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_added_removed_replaced_or_missing_assets_are_ineligible",
+    "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_asset_observation_checks_required_files_without_opening_or_hashing_weights",
+    "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_asset_observation_refuses_mutation_during_metadata_validation",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_each_serving_asset_changes_digest_and_invalidates_prior_admission",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_equal_content_at_different_roots_has_equal_semantic_identity",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_inventory_and_hash_limits_fail_closed",
+    "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_metadata_reader_bounds_regular_files_and_refuses_fifo",
+    "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_metadata_reader_closes_raw_descriptor_on_wrapper_failure_success_and_parse_failure",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_restored_external_blob_directory_name_invalidates_load_admission",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_restored_hf_link_and_directory_names_invalidate_load_admission",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_sharded_weight_index_requires_local_bounded_references",
@@ -9720,6 +9763,7 @@
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_actual_engine_method_and_module_function_overrides_are_unqualified",
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_equal_proven_identity_after_reload_continues_but_changed_or_unproven_aborts",
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_guard_scope_is_not_transferred_to_unrelated_threads",
+    "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_new_loader_release_and_allocation_policy_overrides_are_unqualified",
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_processor_identity_binds_effective_call_policy",
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_random_external_compiled_or_unsupported_requests_skip_model_initialization",
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_runtime_normalizes_known_torch_version_subclass",

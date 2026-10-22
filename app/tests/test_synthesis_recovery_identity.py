@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import synthesis_recovery_identity as identity
 
@@ -29,6 +29,77 @@ class RecoveryModelIdentityTests(unittest.TestCase):
         self.assertEqual(first.sha256, second.sha256)
         self.assertNotEqual(first.root, second.root)
         self.assertNotIn(str(self.root), first.sha256)
+
+    def test_asset_observation_checks_required_files_without_opening_or_hashing_weights(self):
+        original_open = os.open
+        def metadata_only(path, *args, **kwargs):
+            self.assertFalse(str(path).endswith('.safetensors'), 'weights must remain unopened')
+            return original_open(path, *args, **kwargs)
+        with patch.object(identity.os, 'open', side_effect=metadata_only), \
+             patch.object(identity.hashlib, 'sha256', side_effect=AssertionError('no content hashing')):
+            report = identity.get_model_asset_observation(self.root)
+        self.assertEqual('required_assets_observed', report['state'])
+        self.assertIsNone(report['content_sha256'])
+        self.assertIsNone(report['snapshot_revision'])
+        self.assertGreater(report['bytes'], 0)
+        self.assertNotIn(str(self.root), json.dumps(report))
+        (self.root / 'model.safetensors').unlink()
+        with self.assertRaisesRegex(identity.RecoveryIdentityUnavailable, 'missing_local_weights'):
+            identity.get_model_asset_observation(self.root)
+
+    def test_asset_observation_refuses_mutation_during_metadata_validation(self):
+        validate = identity._validate_model_inventory
+        def changed(root, files):
+            validate(root, files)
+            (root / 'model.safetensors').write_bytes(b'changed after validation')
+        with patch.object(identity, '_validate_model_inventory', side_effect=changed):
+            with self.assertRaisesRegex(identity.RecoveryIdentityUnavailable, 'model_asset_changed'):
+                identity.get_model_asset_observation(self.root)
+
+    def test_metadata_reader_closes_raw_descriptor_on_wrapper_failure_success_and_parse_failure(self):
+        original_open = os.open
+        original_fdopen = os.fdopen
+        for mode in ('allocation_failure', 'success', 'invalid_json', 'read_failure'):
+            with self.subTest(mode=mode):
+                path = self.root / 'config.json'
+                path.write_text('not JSON' if mode == 'invalid_json' else '{}')
+                opened = []
+                def record_open(*args, **kwargs):
+                    fd = original_open(*args, **kwargs)
+                    opened.append(fd)
+                    return fd
+                with patch.object(identity.os, 'open', side_effect=record_open):
+                    if mode == 'allocation_failure':
+                        with patch.object(identity.os, 'fdopen', side_effect=MemoryError('wrapper allocation')):
+                            with self.assertRaises(MemoryError):
+                                identity._get_bounded_model_json(path)
+                    elif mode == 'read_failure':
+                        def failed_read(*args, **kwargs):
+                            stream = original_fdopen(*args, **kwargs)
+                            stream.read = Mock(side_effect=OSError('fixture read failed'))
+                            return stream
+                        with patch.object(identity.os, 'fdopen', side_effect=failed_read):
+                            with self.assertRaisesRegex(OSError, 'fixture read failed'):
+                                identity._get_bounded_model_json(path)
+                    elif mode == 'invalid_json':
+                        with self.assertRaises(json.JSONDecodeError):
+                            identity._get_bounded_model_json(path)
+                    else:
+                        self.assertEqual({}, identity._get_bounded_model_json(path))
+                self.assertEqual(1, len(opened))
+                with self.assertRaises(OSError):
+                    os.fstat(opened[0])
+
+    def test_metadata_reader_bounds_regular_files_and_refuses_fifo(self):
+        path = self.root / 'config.json'
+        path.write_bytes(b' ' * (1024 * 1024 + 1))
+        with self.assertRaisesRegex(identity.RecoveryIdentityUnavailable, 'model_metadata_limit'):
+            identity._get_bounded_model_json(path)
+        if hasattr(os, 'mkfifo'):
+            path.unlink()
+            os.mkfifo(path)
+            with self.assertRaisesRegex(identity.RecoveryIdentityUnavailable, 'model_metadata_limit'):
+                identity._get_bounded_model_json(path)
 
     def test_each_serving_asset_changes_digest_and_invalidates_prior_admission(self):
         first = identity.capture_recovery_model_snapshot(self.root)

@@ -155,9 +155,18 @@ def _get_aa2_loaded_code():
 
 def _capture_engine_methods(engine, callbacks, code_files):
     import tts
+    import device_utils
+    import gpu_stats
     references = getattr(tts, '_RAW_RECOVERY_METHODS', None)
     if type(engine) is not tts.TTSEngine or not isinstance(references, dict):
         raise RecoveryIdentityUnavailable('unqualified_native_engine')
+    if (type(engine._LOCAL_MODEL_IDS) is not dict or engine._LOCAL_MODEL_IDS != tts._RAW_RECOVERY_MODEL_IDS
+            or device_utils.is_allocation_failure is not tts._RAW_RECOVERY_ALLOCATION_FAILURE
+            or gpu_stats.is_allocation_failure is not tts._RAW_RECOVERY_ALLOCATION_FAILURE
+            or gpu_stats.OOM_MARKERS != tts._RAW_RECOVERY_ALLOCATION_MARKERS):
+        raise RecoveryIdentityUnavailable('overridden_model_load_policy')
+    callbacks['actual.allocation_failure'] = device_utils.is_allocation_failure
+    code_files.append(gpu_stats.__file__)
     for name, expected in references.items():
         callback = getattr(engine, name)
         function = callback.__func__ if type(callback) is MethodType else callback

@@ -71,10 +71,13 @@ class LoraMergeTests(unittest.TestCase):
     def _load(self, adapter=None):
         adapter = self.adapter if adapter is None else adapter
         engine = tts_module.TTSEngine({"tts": {"mode": "local"}})
+        def load_model(cls, model_id, kw, *, release_for_oom=None):
+            self.assertTrue(callable(release_for_oom))
+            return _fake_model()
         with patch.dict(sys.modules, {"torch": self.fake_torch, "qwen_tts": self.fake_qwen,
                                   "peft": self.fake_peft}), \
              patch.object(tts_module.TTSEngine, "_load_model",
-                          staticmethod(lambda cls, model_id, kw: _fake_model())), \
+                          staticmethod(load_model)), \
              patch.object(engine, "_enable_rocm_optimizations"), \
              patch.object(engine, "_resolve_device", return_value="cpu"):
             return engine, engine._init_local_lora(adapter)

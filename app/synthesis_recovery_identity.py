@@ -114,6 +114,23 @@ def _get_model_inventory(root):
     return (tuple(sorted(files, key=lambda item: item.name)), tuple(sorted(directory_versions.items())))
 
 
+def _get_bounded_model_json(path):
+    """Read model metadata through a bounded regular-file descriptor."""
+    fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0))
+    try:
+        # Keep raw ownership even if constructing the buffered wrapper fails.
+        with os.fdopen(fd, 'rb', closefd=False) as handle:
+            before = os.fstat(handle.fileno())
+            if not stat.S_ISREG(before.st_mode) or before.st_size > 1024 * 1024:
+                raise RecoveryIdentityUnavailable('model_metadata_limit')
+            data = handle.read(1024 * 1024 + 1)
+            if len(data) > 1024 * 1024 or _get_stat_identity(os.fstat(handle.fileno())) != _get_stat_identity(before):
+                raise RecoveryIdentityUnavailable('model_metadata_changed')
+    finally:
+        os.close(fd)
+    return json.loads(data)
+
+
 def _validate_model_inventory(root, files):
     names = {item.name for item in files}
     if not _REQUIRED_ASSETS.issubset(names):
@@ -128,7 +145,7 @@ def _validate_model_inventory(root, files):
                 and item.name.count('/') <= 1):
             if item.identity[2] > 1024 * 1024:
                 raise RecoveryIdentityUnavailable('model_config_limit')
-            document = json.loads((root / item.name).read_bytes())
+            document = _get_bounded_model_json(root / item.name)
             if not isinstance(document, dict):
                 raise RecoveryIdentityUnavailable('invalid_model_config')
             _ensure_conventional_asset_references(document)
@@ -143,7 +160,7 @@ def _validate_model_inventory(root, files):
         path = root / index_name
         if path.stat().st_size > 1024 * 1024:
             raise RecoveryIdentityUnavailable('weight_index_limit')
-        document = json.loads(path.read_bytes())
+        document = _get_bounded_model_json(path)
         weight_map = document.get('weight_map') if isinstance(document, dict) else None
         if not isinstance(weight_map, dict) or not weight_map or len(weight_map) > 100000:
             raise RecoveryIdentityUnavailable('invalid_weight_index')
@@ -167,6 +184,25 @@ def _ensure_conventional_asset_references(value, depth=0):
     elif isinstance(value, list):
         for item in value:
             _ensure_conventional_asset_references(item, depth + 1)
+
+
+def get_model_asset_observation(local_path):
+    """Observe required local assets, without reading weights or proving bytes.
+
+    This reuses the known loader inventory limits and required-file contract.
+    A successful observation is not a native-load or recovery certificate.
+    """
+    root = Path(local_path).resolve(strict=True)
+    files, directories = _get_model_inventory(root)
+    _validate_model_inventory(root, files)
+    if _get_model_inventory(root) != (files, directories):
+        raise RecoveryIdentityUnavailable('model_asset_changed')
+    revision = root.name
+    if len(revision) not in (40, 64) or any(c not in '0123456789abcdef' for c in revision):
+        revision = None
+    return {'state': 'required_assets_observed', 'snapshot_revision': revision,
+            'files': len(files), 'bytes': sum(item.identity[2] for item in files),
+            'content_sha256': None, 'scope': 'local_metadata_only_not_load_or_content_proof'}
 
 
 def capture_recovery_model_snapshot(local_path, *, check_active=None):

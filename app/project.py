@@ -864,6 +864,27 @@ class ProjectManager:
                 self._config_mtime = mtime
             return self._config_cache
 
+    def get_model_residency(self):
+        """Read only the retained engine; never construct it for diagnostics."""
+        if not self._engine_lock.acquire(blocking=False):
+            return {"state": "busy", "active_leases": None, "residents": None}
+        try:
+            if self.engine is None:
+                return {"state": "not_initialized", "active_leases": 0, "residents": []}
+            return {**self.engine.get_model_residency(), "mode": self.engine.mode,
+                    "configured_device": self.engine._device}
+        finally:
+            self._engine_lock.release()
+
+    def ensure_idle_local_models_released(self):
+        """Release the current engine only while its identity is stable."""
+        if not self._engine_lock.acquire(blocking=False):
+            return False
+        try:
+            return self.engine is None or self.engine.ensure_idle_local_models_released()
+        finally:
+            self._engine_lock.release()
+
     def get_engine(self):
         with self._engine_lock:
             if self.engine:

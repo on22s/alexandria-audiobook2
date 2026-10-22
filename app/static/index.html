@@ -1339,9 +1339,9 @@
 <section id="settings-tts" class="settings-section" data-settings-section="Speech engine" aria-labelledby="settings-tts-heading" hidden>
 <h5 id="settings-tts-heading" tabindex="-1">Speech engine</h5>
 <details class="mb-3 border rounded p-3">
-    <summary>TTS timing and support report</summary>
+    <summary>TTS timing, loaded models and support report</summary>
     <p class="small text-muted mt-2">Recent operations in this app process, across books. Timings show observed work; unavailable stages are not zero. Nested and worker stage times can overlap. The report excludes text, names, paths, URLs and raw errors.</p>
-    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="refreshTtsDiagnostics()">Refresh timings</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="refreshTtsDiagnostics()">Refresh report</button>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="tts-diagnostics-download" onclick="downloadTtsDiagnostics()" disabled>Download support report</button>
     <p id="tts-diagnostics-status" class="small mt-2" role="status">No timings requested.</p>
     <div id="tts-diagnostics-records" class="small text-break"></div>

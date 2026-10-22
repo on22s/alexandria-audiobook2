@@ -32,7 +32,8 @@ from adapter_checkpoint_transaction import (ensure_adapter_generation_snapshot, 
 from lora_evidence import get_file_sha256, get_tts_model_settings
 from audio_validation import GeneratedAudioError, publish_audio_output
 from speech_text import normalize_for_speech, get_speech_preparation
-from audio_generation_owner import is_audio_generation_cancelled, ensure_audio_generation_active
+from audio_generation_owner import (is_audio_generation_cancelled, ensure_audio_generation_active,
+                                    AudioGenerationCancelled)
 from synthesis_render import (ensure_synthesis_receipts, get_synthesis_window_plan,
                               render_synthesis_windows)
 from synthesis_recovery_context import ensure_synthesis_recovery_batch_parent
@@ -135,8 +136,7 @@ def apply_tts_failure(error, category=None, next_action=None):
         if isinstance(error, UnsupportedVoiceBackendError):
             category = "unsupported_backend"
             next_action = "Select local TTS for this voice or choose a supported external voice."
-        elif isinstance(error, MemoryError) or any(
-                cls.__name__ == "OutOfMemoryError" for cls in type(error).__mro__):
+        elif device_utils.is_allocation_failure(error):
             category = "out_of_memory"
             next_action = "Free GPU memory or reduce the workload before retrying."
         elif isinstance(error, GeneratedAudioError):
@@ -164,7 +164,15 @@ def ensure_local_tts_serialized(method):
     @wraps(method)
     def run(*args, **kwargs):
         with _LOCAL_TTS_LOCK:
-            return method(*args, **kwargs)
+            owner = args[0] if args else None
+            tracked = hasattr(owner, '_local_model_active_leases')
+            if tracked:
+                owner._local_model_active_leases += 1
+            try:
+                return method(*args, **kwargs)
+            finally:
+                if tracked:
+                    owner._local_model_active_leases -= 1
     return run
 
 
@@ -764,6 +772,13 @@ class TTSEngine:
     Models and clients are lazily initialized on first use.
     """
 
+    _LOCAL_MODEL_IDS = {
+        "custom": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+        "clone": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+        "design": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+        "lora": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+    }
+
     def __init__(self, config):
         model_settings = get_tts_model_settings(config)
         tts_config = config.get("tts", {})
@@ -799,6 +814,11 @@ class TTSEngine:
 
         # Lazy-loaded backends (guarded by _model_lock to prevent concurrent loads)
         self._model_lock = threading.Lock()
+        self._local_model_active_leases = 0
+        self._local_model_devices = {}
+        self._local_release_pending_devices = set()
+        self._local_release_pending_families = set()
+        self._local_model_release_events = []
         self._local_custom_model = None
         self._local_clone_model = None
         self._local_design_model = None
@@ -1224,7 +1244,25 @@ class TTSEngine:
         return None
 
     @staticmethod
-    def _load_model(model_cls, model_id, load_kwargs):
+    def _load_model(model_cls, model_id, load_kwargs, *, release_for_oom=None):
+        """Retry one allocation failure after cleanup, preserving cache repair."""
+        for attempt in range(2):
+            ensure_audio_generation_active()
+            try:
+                return TTSEngine._load_model_attempt(model_cls, model_id, load_kwargs)
+            except AudioGenerationCancelled:
+                raise
+            except Exception as error:
+                if attempt or not device_utils.is_allocation_failure(error):
+                    raise
+            # Leave the exception scope before cleanup: failed loader frames may
+            # retain partially allocated models. Never interpret a retry differently.
+            ensure_audio_generation_active()
+            cleanup = release_for_oom or TTSEngine._clear_gpu_cache
+            cleanup()
+
+    @staticmethod
+    def _load_model_attempt(model_cls, model_id, load_kwargs):
         """Load a model, preferring local cache to avoid network issues.
 
         Checks if the model snapshot exists in the HF cache and loads from
@@ -1250,6 +1288,8 @@ class TTSEngine:
                 source = proposal.snapshot.root if proposal is not None else local_path
                 model = model_cls.from_pretrained(source, **load_kwargs)
             except Exception as e:
+                if device_utils.is_allocation_failure(e):
+                    raise
                 proposal = None
                 import traceback
                 print(f"  Warning: Failed to load from local cache: {e}")
@@ -1270,6 +1310,124 @@ class TTSEngine:
             decoder = codec_model.decoder
             decoder.chunked_decode = get_memory_bounded_codec_decode(decoder.chunked_decode)
         return model
+
+    @staticmethod
+    def get_local_model_inventory():
+        """Observe known cached base assets; never construct an engine or load."""
+        from synthesis_recovery_identity import get_model_asset_observation
+        records = []
+        for model_id in dict.fromkeys(TTSEngine._LOCAL_MODEL_IDS.values()):
+            families = [name for name, value in TTSEngine._LOCAL_MODEL_IDS.items() if value == model_id]
+            try:
+                path = TTSEngine._resolve_local_model_path(model_id)
+                observation = get_model_asset_observation(path) if path else {'state': 'not_cached'}
+            except (ImportError, OSError, ValueError, RuntimeError, RecursionError):
+                observation = {'state': 'unavailable'}
+            records.append({'model_id': model_id, 'families': families, **observation})
+        return records
+
+    def get_model_residency(self):
+        """Observe this engine without loading models or waiting for inference."""
+        if not _LOCAL_TTS_LOCK.acquire(blocking=False):
+            return {"state": "busy", "active_leases": None, "residents": None}
+        try:
+            native = sys.modules.get('synthesis_recovery_native')
+            observe_load = getattr(native, 'get_native_recovery_load_observation', None)
+            return {"state": "observed", "active_leases": self._local_model_active_leases,
+                    "cleanup_pending": bool(self._local_release_pending_devices),
+                    "release_events": copy.deepcopy(self._local_model_release_events),
+                    "residents": [{"family": name, "device": self._local_model_devices.get(name),
+                                   "load_capture": observe_load(getattr(self, f"_local_{name}_model"))
+                                   if observe_load is not None else None}
+                                  for name in ("custom", "clone", "design", "lora")
+                                  if getattr(self, f"_local_{name}_model") is not None]}
+        finally:
+            _LOCAL_TTS_LOCK.release()
+
+    def _release_local_model_family(self, name):
+        """Drop one serialized family and its dependent caches."""
+        setattr(self, f"_local_{name}_model", None)
+        self._local_model_devices.pop(name, None)
+        if name == "custom":
+            self._custom_warmup_needed = True
+        elif name == "clone":
+            self._clear_clone_reference_caches()
+        elif name == "lora":
+            self._lora_adapter_path = None
+            self._lora_generation_sha256 = None
+            self._lora_prompt_cache.clear()
+
+    def ensure_idle_local_models_released(self):
+        """Release idle residents under the existing serialization boundary.
+
+        Callers still need task/host ownership before admitting GPU work.
+        Synchronization failure leaves model references and caches intact.
+        """
+        if not _LOCAL_TTS_LOCK.acquire(blocking=False):
+            return False
+        try:
+            if self._local_model_active_leases or not self._model_lock.acquire(blocking=False):
+                return False
+            try:
+                families = [name for name in ("custom", "clone", "design", "lora")
+                            if getattr(self, f"_local_{name}_model") is not None]
+                return self._release_local_model_families(families)
+            finally:
+                self._model_lock.release()
+        finally:
+            _LOCAL_TTS_LOCK.release()
+
+    def _release_local_model_families(self, families, *, extra_devices=()):
+        """Caller holds local serialization/model lock; failed cleanup stays fenced."""
+        families = sorted(set(families) | self._local_release_pending_families)
+        devices = ({self._local_model_devices.get(name) for name in families
+                    if getattr(self, f"_local_{name}_model") is not None}
+                   | self._local_release_pending_devices | set(extra_devices))
+        if not families and not devices:
+            return True
+        if None in devices:
+            return False
+        devices = sorted(devices)
+        started = time.monotonic()
+        event = {"families": list(families), "result": "failed", "phase": "synchronize",
+                 "before": [device_utils.get_loaded_torch_memory_observation(d) for d in devices]}
+        torch = sys.modules.get("torch")
+        try:
+            for device in devices:
+                if device.startswith("cuda"):
+                    if torch is None:
+                        return False
+                    torch.cuda.synchronize(device)
+                elif device == "mps":
+                    if torch is None:
+                        return False
+                    torch.mps.synchronize()
+                elif device != "cpu":
+                    return False
+            self._local_release_pending_devices.update(devices)
+            self._local_release_pending_families.update(families)
+            event["phase"] = "drop_models"
+            for name in families:
+                self._release_local_model_family(name)
+            event["phase"] = "clear_cache"
+            self._clear_gpu_cache()
+            if "mps" in devices:
+                torch.mps.empty_cache()
+            self._local_release_pending_devices.clear()
+            self._local_release_pending_families.clear()
+            event.update(result="released", phase="complete")
+            return True
+        finally:
+            event["after"] = [device_utils.get_loaded_torch_memory_observation(d) for d in devices]
+            event["elapsed_seconds"] = max(0, time.monotonic() - started)
+            self._local_model_release_events.append(event)
+            del self._local_model_release_events[:-8]
+
+    def _release_inactive_models_after_oom(self, family, device):
+        families = [name for name in ("custom", "clone", "design", "lora")
+                    if name != family and getattr(self, f"_local_{name}_model") is not None]
+        if not self._release_local_model_families(families, extra_devices=(device,)):
+            raise RuntimeError("Cannot release inactive models with unknown loaded devices")
 
     def _release_inactive_local_models(self, family, device, dtype):
         """Keep cached families only when another load has ample headroom.
@@ -1301,15 +1459,7 @@ class TTSEngine:
                 print(f"Cannot size local model capacity: {exc}; releasing inactive families.")
         for name in inactive:
             print(f"Releasing inactive local {name} model before loading {family}...")
-            setattr(self, f"_local_{name}_model", None)
-            if name == "custom":
-                self._custom_warmup_needed = True
-            elif name == "clone":
-                self._clear_clone_reference_caches()
-            elif name == "lora":
-                self._lora_adapter_path = None
-                self._lora_generation_sha256 = None
-                self._lora_prompt_cache.clear()
+            self._release_local_model_family(name)
         self._clear_gpu_cache()
 
     @ensure_local_tts_serialized
@@ -1339,8 +1489,10 @@ class TTSEngine:
             if device != "cpu":
                 load_kwargs["device_map"] = device
             self._local_custom_model = self._load_model(
-                Qwen3TTSModel, "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", load_kwargs,
+                Qwen3TTSModel, self._LOCAL_MODEL_IDS["custom"], load_kwargs,
+                release_for_oom=lambda: self._release_inactive_models_after_oom("custom", device),
             )
+            self._local_model_devices["custom"] = device
             vram_after = self._vram_snapshot("post-load")
             model_gb = vram_after.get("allocated_gb", 0) - vram_before.get("allocated_gb", 0)
             print(f"CustomVoice model loaded: {model_gb:.2f} GB VRAM footprint")
@@ -1374,8 +1526,10 @@ class TTSEngine:
             if device != "cpu":
                 load_kwargs["device_map"] = device
             self._local_clone_model = self._load_model(
-                Qwen3TTSModel, "Qwen/Qwen3-TTS-12Hz-1.7B-Base", load_kwargs,
+                Qwen3TTSModel, self._LOCAL_MODEL_IDS["clone"], load_kwargs,
+                release_for_oom=lambda: self._release_inactive_models_after_oom("clone", device),
             )
+            self._local_model_devices["clone"] = device
             if self._compile_codec_enabled:
                 self._compile_codec(self._local_clone_model)
             print("Base model (voice cloning) loaded.")
@@ -1407,8 +1561,10 @@ class TTSEngine:
             if device != "cpu":
                 load_kwargs["device_map"] = device
             self._local_design_model = self._load_model(
-                Qwen3TTSModel, "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", load_kwargs,
+                Qwen3TTSModel, self._LOCAL_MODEL_IDS["design"], load_kwargs,
+                release_for_oom=lambda: self._release_inactive_models_after_oom("design", device),
             )
+            self._local_model_devices["design"] = device
             if self._compile_codec_enabled:
                 self._compile_codec(self._local_design_model)
             print("VoiceDesign model loaded.")
@@ -1462,7 +1618,8 @@ class TTSEngine:
                 load_kwargs["device_map"] = device
 
             model = self._load_model(
-                Qwen3TTSModel, "Qwen/Qwen3-TTS-12Hz-1.7B-Base", load_kwargs,
+                Qwen3TTSModel, self._LOCAL_MODEL_IDS["lora"], load_kwargs,
+                release_for_oom=lambda: self._release_inactive_models_after_oom("lora", device),
             )
 
             # Apply the adapter, then fold it into the base weights.
@@ -1490,6 +1647,7 @@ class TTSEngine:
                 self._compile_codec(model)
 
             self._local_lora_model = model
+            self._local_model_devices["lora"] = device
             self._lora_adapter_path = source_adapter_path
             self._lora_generation_sha256 = generation_sha256
             print(f"LoRA adapter loaded from {source_adapter_path}")
@@ -3486,7 +3644,12 @@ _RAW_RECOVERY_METHODS = {name: getattr(TTSEngine, name) for name in (
     'generate_custom_voice', '_generate_custom_voice_prepared', '_render_synthesis_windows',
     '_get_synthesis_window_plan', '_generate_prepared_batch_parent', '_local_generate_custom',
     'get_voice_backend', 'get_synthesis_recovery_policy', 'get_model_settings', 'generate_batch',
-    '_init_local_custom', '_load_model', '_resolve_local_model_path', '_resolve_device', '_save_wav')}
+    '_init_local_custom', '_load_model', '_load_model_attempt', '_release_inactive_models_after_oom',
+    '_release_inactive_local_models', '_release_local_model_families', '_release_local_model_family',
+    '_clear_gpu_cache', '_resolve_local_model_path', '_resolve_device', '_save_wav')}
+_RAW_RECOVERY_MODEL_IDS = dict(TTSEngine._LOCAL_MODEL_IDS)
+_RAW_RECOVERY_ALLOCATION_FAILURE = device_utils.is_allocation_failure
+from gpu_stats import OOM_MARKERS as _RAW_RECOVERY_ALLOCATION_MARKERS
 _RAW_RECOVERY_FUNCTIONS = {name: globals()[name] for name in (
     'get_custom_voice_request', 'anchored_instruct', 'get_memory_bounded_codec_decode')}
 

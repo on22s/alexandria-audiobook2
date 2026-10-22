@@ -99,6 +99,14 @@ OOM_MARKERS = (
 )
 
 
+def is_allocation_failure(err) -> bool:
+    """Recognize allocation failures without treating every CUDA/HIP error as OOM."""
+    return (isinstance(err, MemoryError)
+            or any(cls.__name__ == 'OutOfMemoryError' for cls in type(err).__mro__)
+            or any(marker in str(err).lower() for marker in OOM_MARKERS
+                   if marker not in ('cuda error', 'hip error')))
+
+
 def is_oom_failure(err) -> bool:
     """True if an error message looks like a GPU/VRAM out-of-memory condition,
     so the caller can step concurrency down and retry rather than give up.

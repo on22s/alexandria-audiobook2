@@ -455,6 +455,25 @@ def test_get_default_prompts():
 
 # ── Section 2b: System Stats ───────────────────────────────
 
+def test_tts_diagnostics_inventory():
+    response = get('/api/tts/diagnostics')
+    assert_status(response)
+    report = response.json()['sections']['tts']
+    for key in ('records', 'residency', 'runtime', 'assets', 'device'):
+        assert_key(report, key)
+    if report['residency']['state'] not in ('busy', 'not_initialized', 'observed'):
+        raise TestFailure('Unexpected residency state')
+    if not isinstance(report['assets'], list) or len(report['assets']) != 3:
+        raise TestFailure('Expected the three known base-model inventories')
+    for model in report['assets']:
+        if model['state'] not in ('required_assets_observed', 'not_cached', 'unavailable'):
+            raise TestFailure('Unexpected cache observation state')
+        if model.get('content_sha256') is not None:
+            raise TestFailure('Diagnostics must not certify model bytes')
+    if report['device']['state'] not in ('runtime_not_loaded', 'observed', 'unavailable'):
+        raise TestFailure('Unexpected runtime availability state')
+
+
 def test_system_stats():
     r = get("/api/system/stats")
     assert_status(r, 200)
@@ -1610,6 +1629,7 @@ def run_all_tests():
 
     section("System Stats")
     run_test("system_stats", test_system_stats)
+    run_test("tts_diagnostics_inventory", test_tts_diagnostics_inventory)
 
     section("Upload")
     run_test("upload_file", test_upload_file)

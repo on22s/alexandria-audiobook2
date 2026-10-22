@@ -166,13 +166,17 @@ def record_tts_audio(path):
             observation.audio_files += 1
 
 
-def get_tts_diagnostics_bundle():
+def get_tts_diagnostics_bundle(*, residency=None, runtime=None, assets=None, device=None):
     with _LOCK:
         records = list(_RECORDS)
     return build_diagnostics({'tts': {
         'scope': 'Recent operations in this app process, across books',
         'timing_note': 'Nested and concurrent stage times overlap; do not sum them. Inference includes decoding. Null means unavailable.',
         'records': records,
+        'residency': residency,
+        'runtime': runtime,
+        'assets': assets,
+        'device': device,
     }})
 
 

@@ -329,5 +329,16 @@ def complete_native_recovery_load(model, proposal):
         proposal.snapshot.sha256, proposal.code_sha256, get_recovery_digest(dict(proposal.options)))
 
 
+def get_native_recovery_load_observation(model):
+    """Read historical load evidence without certifying current model state."""
+    capture = getattr(model, '__dict__', {}).get('_aa2_recovery_loaded_model')
+    if type(capture) is not NativeRecoveryLoadedModel:
+        return None
+    return {'scope': 'captured_at_load_not_revalidated',
+            'asset_sha256': capture.asset_sha256,
+            'loader_code_sha256': capture.loader_code_sha256,
+            'options_sha256': capture.options_sha256}
+
+
 from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
 _LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()
