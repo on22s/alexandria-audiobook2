@@ -1956,10 +1956,8 @@ async def cast_list_cancel():
     return _cancel_task("cast_list", "No cast list is being built.", "Cast list build already exited.")
 
 
-@router.get("/api/cast_list")
-async def get_cast_list():
-    """The selected book's cast list, or {"cast": null} when it has none."""
-    _, path = await asyncio.to_thread(get_current_cast_list_target)
+def get_current_cast_list():
+    _, path = get_current_cast_list_target()
     document = safe_load_json(path, default=None)
     if not isinstance(document, dict) or not isinstance(document.get("cast"), list):
         return {"cast": None}
@@ -1969,11 +1967,14 @@ async def get_cast_list():
             "edited": bool(provenance.get("edited"))}
 
 
-@router.post("/api/cast_list")
-async def save_cast_list_endpoint(update: CastListUpdate):
-    """Save a hand-edited list. Refused, and nothing written, if generation
-    would refuse it."""
-    _, path = await asyncio.to_thread(get_current_cast_list_target)
+@router.get("/api/cast_list")
+async def get_cast_list():
+    """The selected book's cast list, or {"cast": null} when it has none."""
+    return await asyncio.to_thread(get_current_cast_list)
+
+
+def save_current_cast_list(update: CastListUpdate):
+    _, path = get_current_cast_list_target()
     previous = safe_load_json(path, default={})
     provenance = dict((previous.get("provenance") or {}) if isinstance(previous, dict) else {})
     provenance["edited"] = time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -1986,14 +1987,25 @@ async def save_cast_list_endpoint(update: CastListUpdate):
     return {"status": "saved", "count": len(update.cast)}
 
 
-@router.delete("/api/cast_list")
-async def delete_cast_list():
-    _, path = await asyncio.to_thread(get_current_cast_list_target)
+@router.post("/api/cast_list")
+async def save_cast_list_endpoint(update: CastListUpdate):
+    """Save a hand-edited list. Refused, and nothing written, if generation
+    would refuse it."""
+    return await asyncio.to_thread(save_current_cast_list, update)
+
+
+def delete_current_cast_list():
+    _, path = get_current_cast_list_target()
     if not os.path.isfile(path):
         return {"status": "deleted"}
     with file_lock(path):
         Path(path).unlink(missing_ok=True)
     return {"status": "deleted"}
+
+
+@router.delete("/api/cast_list")
+async def delete_cast_list():
+    return await asyncio.to_thread(delete_current_cast_list)
 
 
 @router.post("/api/review_script/batch/start")

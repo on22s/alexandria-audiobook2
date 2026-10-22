@@ -1475,6 +1475,12 @@
     "tests.test_cast_list.CastListTest.test_source_over_the_limit_is_refused_before_any_request",
     "tests.test_cast_list.CastListTest.test_unparseable_reply_writes_nothing"
   ],
+  "test_cast_list_async_routes": [
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_delete_waits_for_real_lock_without_blocking_ping",
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_get_reads_cast_in_worker_and_preserves_response",
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_refusals_and_missing_list_preserve_existing_behavior",
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_save_waits_for_real_lock_without_blocking_ping"
+  ],
   "test_cast_list_safeguards_js": [
     "tests.test_cast_list_safeguards_js.CastListSafeguardsJsTests.test_actual_book_loaders_refuse_dirty_cast_and_refresh_after_accept",
     "tests.test_cast_list_safeguards_js.CastListSafeguardsJsTests.test_delete_cancel_book_switch_and_confirm",
@@ -2476,6 +2482,10 @@
   "test_cpu_fixture_lock": [
     "tests.test_cpu_fixture_lock.CpuFixtureLockTests.test_exception_restores_the_callers_inherited_claim_without_borrowing_it",
     "tests.test_cpu_fixture_lock.CpuFixtureLockTests.test_private_lease_is_native_and_external_lease_stays_protected"
+  ],
+  "test_cpu_speaker_windows_archive": [
+    "tests.test_cpu_speaker_windows_archive.CpuSpeakerWindowsArchiveTests.test_actual_archive_passes_with_and_without_optimization",
+    "tests.test_cpu_speaker_windows_archive.CpuSpeakerWindowsArchiveTests.test_duplicate_or_missing_cell_is_rejected_even_if_private_copy_checksum_is_updated"
   ],
   "test_cpu_task_claims": [
     "tests.test_cpu_task_claims.CpuTaskClaimTests.test_cancelled_request_keeps_started_cpu_owner_until_worker_exits",
@@ -8544,6 +8554,21 @@
     "tests.test_roster_order_bias.StratificationTest.test_both_names_recently_mentioned_is_a_close_call",
     "tests.test_roster_order_bias.StratificationTest.test_correct_rows_never_enter_either_stratum",
     "tests.test_roster_order_bias.StratificationTest.test_neither_name_mentioned_is_no_local_signal"
+  ],
+  "test_roster_source_evidence": [
+    "tests.test_roster_source_evidence.RosterSourceEvidenceCliTests.test_escaped_invalid_unicode_is_a_clear_cli_refusal_without_output",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceCliTests.test_existing_output_and_invalid_input_never_overwrite_recoverable_files",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceCliTests.test_real_cli_preserves_inputs_and_binds_report_to_captured_bytes",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_absent_quote_with_offsets_is_unsupported_rather_than_relocatable",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_invalid_unicode_is_refused_before_source_searches",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_malformed_structures_ids_and_numeric_ranges_are_rejected",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_repeated_quote_requires_its_exact_anchor_and_overlaps_are_ambiguous",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_source_entry_evidence_and_quote_limits_refuse_before_scanning",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_source_evidence_is_never_an_identity_or_alias_approval",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_stale_source_is_refused_even_when_its_quote_survives",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_unanchored_matches_distinguish_unique_ambiguous_and_unsupported",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_unicode_character_offsets_and_crlf_are_exact_without_mutating_input",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_wrong_offsets_never_silently_relocate_a_quote"
   ],
   "test_run_history": [
     "tests.test_run_history.RunHistoryTests.test_artifact_records_output_source_and_config_hashes",

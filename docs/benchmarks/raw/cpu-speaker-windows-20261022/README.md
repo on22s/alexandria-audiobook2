@@ -23,6 +23,14 @@ Input IDs, durations, SHA-256 hashes, model identity, per-window scores, and
 execution logs are retained. Archive JSON and frozen scripts are byte-identical
 to the measured originals. `SHA256SUMS.json` covers those original files.
 
+## Report erratum
+
+The off-grid description in `SUMMARY.md` and `RESULTS_4S.md` is too broad.
+All 32 two-second injections start at 12 or 24 seconds, on the two-second
+scoring grid. The four- and eight-second injections are off-grid. This corrects
+only the description; the measured scores and both NO-GO decisions stand.
+The frozen reports and their checksums are preserved.
+
 ## Reproduce scoring
 
 Use the Apache-2.0 AISHELL-3 corpus from [OpenSLR 93](https://www.openslr.org/93/)
