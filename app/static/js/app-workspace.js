@@ -53,7 +53,8 @@ function renderBookWorkspace(data) {
         ? `${exported.verified_at_export} passed at export; ${exported.review_at_export} needed review; ${exported.unavailable} receipts no longer match output metadata; ${exported.failed_attempts} failed attempts; ${exported.running} running. Checks are from this app session. Current script and voice inputs have not been rechecked; confirm book content before sharing.`
         : 'Saved export checks are unavailable. Check that each output belongs to this book before sharing it.';
     const outputs = data.outputs.map(row => `${row.format}: ${row.status === 'present_unverified'
-        ? 'file present; book match unverified' : row.status === 'unavailable' ? 'could not inspect' : 'no file found'}`).join(' · ');
+        ? 'file present; book match unverified' : row.status === 'historical_source_scope'
+            ? 'older scope; rebuild before download' : row.status === 'unavailable' ? 'could not inspect' : 'no file found'}`).join(' · ');
     document.getElementById('workspace-stages').replaceChildren(
         renderWorkspaceStage('Script', data.script.entries ? `${data.script.entries} entries saved` : 'Not started', data.script.recovery?.status === 'candidate'
             ? 'Interrupted script run has saved recovery evidence. Inspect it in Script; source and settings eligibility must be rechecked before resuming.'
@@ -113,7 +114,7 @@ function isWorkspaceSnapshotValid(data) {
         && ['total', 'present', 'failed', 'missing', 'generating'].every(key => count(data.audio[key]))
         && data.audio.present <= data.audio.total
         && Array.isArray(data.outputs) && data.outputs.every(row => row && typeof row.format === 'string'
-            && ['present_unverified', 'not_found', 'unavailable'].includes(row.status))
+            && ['present_unverified', 'historical_source_scope', 'not_found', 'unavailable'].includes(row.status))
         && ['script', 'voices', 'editor', 'audio'].includes(data.next?.tab)
         && typeof data.next.label === 'string' && typeof data.next.reason === 'string';
 }

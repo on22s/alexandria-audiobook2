@@ -7197,6 +7197,103 @@
     "tests.test_project_narrator_context.ProjectNarratorContextTests.test_selected_timelines_and_fallbacks_match_invalidation_and_all_render_modes",
     "tests.test_project_narrator_context.ProjectNarratorContextTests.test_single_parallel_and_fast_batch_use_every_supported_selector_and_narrator_alias"
   ],
+  "test_project_scope_admission": [
+    "tests.test_project_scope_admission.ScopeAdmissionTests.test_local_activity_and_foreign_lease_refuse_admission_then_release",
+    "tests.test_project_scope_admission.ScopeAdmissionTests.test_slow_scope_keeps_task_fence_without_blocking_request_mutex"
+  ],
+  "test_project_scope_api": [
+    "tests.test_project_scope_api.ScopeAPITests.test_busy_requests_refuse_and_stale_undo_can_be_explicitly_discarded",
+    "tests.test_project_scope_api.ScopeAPITests.test_preview_apply_generation_fence_and_exact_undo_through_http"
+  ],
+  "test_project_scope_apply": [
+    "tests.test_project_scope_apply.ScopeApplyTests.test_book_lock_alone_does_not_authorize_mutation",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_compound_apply_and_exact_undo_preserve_original_bytes_and_stable_uids",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_corrupt_saved_bytes_stale_undo_and_changed_source_are_refused",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_exports_are_preserved_and_new_delivery_refuses_exact_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_removed_prefix_file_is_preserved_and_changed_bytes_refuse_exact_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_stale_apply_and_changed_project_undo_are_refused_without_clobbering"
+  ],
+  "test_project_scope_assets": [
+    "tests.test_project_scope_assets.ScopeAssetTests.test_missing_alias_oversized_and_unreadable_subtree_are_refused",
+    "tests.test_project_scope_assets.ScopeAssetTests.test_real_reference_and_adapter_tree_bind_changed_bytes_without_writes"
+  ],
+  "test_project_scope_audio": [
+    "tests.test_project_scope_audio.ScopeAudioTests.test_change_between_snapshot_and_decode_is_refused",
+    "tests.test_project_scope_audio.ScopeAudioTests.test_missing_corrupt_or_escaping_audio_cannot_be_retained",
+    "tests.test_project_scope_audio.ScopeAudioTests.test_pending_without_audio_is_explicit_and_completed_missing_is_refused",
+    "tests.test_project_scope_audio.ScopeAudioTests.test_real_audio_is_bound_without_rewriting_rows_files_or_receipts",
+    "tests.test_project_scope_audio.ScopeAudioTests.test_saved_publication_must_match_actual_bytes_and_remains_immutable"
+  ],
+  "test_project_scope_exports": [
+    "tests.test_project_scope_exports.ScopeExportTests.test_preserved_mp3_and_chapters_are_fenced_until_their_file_identity_changes"
+  ],
+  "test_project_scope_failures": [
+    "tests.test_project_scope_failures.ScopeFailureTests.test_real_process_death_recovers_precommit_and_preserves_committed_apply_and_undo",
+    "tests.test_project_scope_failures.ScopeFailureTests.test_staged_write_and_partial_replace_failures_restore_exact_originals"
+  ],
+  "test_project_scope_files": [
+    "tests.test_project_scope_files.ScopeFileTests.test_cancellation_precedes_open_and_leaves_bytes_intact",
+    "tests.test_project_scope_files.ScopeFileTests.test_missing_and_empty_are_distinct_and_do_not_initialize_anything",
+    "tests.test_project_scope_files.ScopeFileTests.test_missing_root_and_in_place_changes_are_refused",
+    "tests.test_project_scope_files.ScopeFileTests.test_path_replacement_after_hash_is_not_an_accepted_snapshot",
+    "tests.test_project_scope_files.ScopeFileTests.test_paths_size_special_files_and_aliases_are_refused",
+    "tests.test_project_scope_files.ScopeFileTests.test_raw_and_streaming_authority_match_without_writes",
+    "tests.test_project_scope_files.ScopeFileTests.test_raw_read_refuses_growth_after_the_descriptor_is_admitted",
+    "tests.test_project_scope_files.ScopeFileTests.test_tiny_metadata_read_does_not_allocate_the_whole_file_limit"
+  ],
+  "test_project_scope_history": [
+    "tests.test_project_scope_history.ScopeHistoryTests.test_absent_history_does_not_initialize_archive_or_locks",
+    "tests.test_project_scope_history.ScopeHistoryTests.test_retained_and_removed_versions_preserve_manifest_and_changed_payload_is_refused",
+    "tests.test_project_scope_history.ScopeHistoryTests.test_retained_predecessor_slot_is_fenced_to_original_file_version"
+  ],
+  "test_project_scope_js": [
+    "tests.test_project_scope_js.ScopeJSTests.test_preview_is_read_only_safe_and_mutations_use_exact_reviewed_revisions",
+    "tests.test_project_scope_js.ScopeJSTests.test_stale_reply_cannot_enable_apply_and_conflict_stays_visible"
+  ],
+  "test_project_scope_lifecycle": [
+    "tests.test_project_scope_lifecycle.ScopeLifecycleTests.test_repeated_plain_and_literal_scopes_keep_absolute_ranges_and_exact_undo"
+  ],
+  "test_project_scope_literal": [
+    "tests.test_project_scope_literal.ScopeLiteralTests.test_batch_validation_hashes_lineage_once_and_rechecks_changed_policy",
+    "tests.test_project_scope_literal.ScopeLiteralTests.test_changed_uid_words_marker_and_source_cannot_inherit_retained_lineage",
+    "tests.test_project_scope_literal.ScopeLiteralTests.test_selected_policy_admits_unchanged_retained_marker_without_rewriting_generation_inputs"
+  ],
+  "test_project_scope_partition": [
+    "tests.test_project_scope_partition.ScopePartitionTests.test_exact_suffix_provenance_preserves_all_caller_bytes_and_take_fields",
+    "tests.test_project_scope_partition.ScopePartitionTests.test_identity_or_authored_drift_and_invalid_selection_are_refused",
+    "tests.test_project_scope_partition.ScopePartitionTests.test_literal_boundary_requires_a_new_scope_proof_and_retains_original_policy",
+    "tests.test_project_scope_partition.ScopePartitionTests.test_long_entry_splits_keep_each_exact_source_owner",
+    "tests.test_project_scope_partition.ScopePartitionTests.test_malformed_script_text_is_a_refusal_before_grouping",
+    "tests.test_project_scope_partition.ScopePartitionTests.test_merged_entry_boundary_is_refused_instead_of_regenerating_saved_audio",
+    "tests.test_project_scope_partition.ScopePartitionTests.test_scene_split_and_narrator_context_are_retained_and_checked"
+  ],
+  "test_project_scope_plan": [
+    "tests.test_project_scope_plan.ScopePlanSizeTests.test_streamed_revision_matches_canonical_bytes_and_refuses_expanded_limit",
+    "tests.test_project_scope_plan.ScopePlanTests.test_composite_preview_binds_partition_source_and_native_book_identity_without_writes",
+    "tests.test_project_scope_plan.ScopePlanTests.test_explicit_book_selection_clears_old_scope_and_scope_hides_full_book_recovery",
+    "tests.test_project_scope_plan.ScopePlanTests.test_missing_admission_and_metadata_changed_during_planning_are_refused",
+    "tests.test_project_scope_plan.ScopePlanTests.test_source_integrity_uses_only_a_bound_range_and_refuses_stale_or_bad_authority"
+  ],
+  "test_project_scope_restoration": [
+    "tests.test_project_scope_restoration.ScopeRestorationTests.test_saved_take_remains_restorable_after_plain_literal_scope_and_exact_undo"
+  ],
+  "test_project_scope_source": [
+    "tests.test_project_scope_source.SourceScopeTests.test_bounded_snapshot_decodes_native_source_and_preserves_raw_identity",
+    "tests.test_project_scope_source.SourceScopeTests.test_complete_ordered_source_binds_exact_word_range_without_mutation",
+    "tests.test_project_scope_source.SourceScopeTests.test_existing_quote_policy_is_used_and_byte_identity_detects_punctuation_changes",
+    "tests.test_project_scope_source.SourceScopeTests.test_invalid_and_wordless_authority_is_refused",
+    "tests.test_project_scope_source.SourceScopeTests.test_missing_and_foreign_or_unknown_preparation_cannot_authorize_scope",
+    "tests.test_project_scope_source.SourceScopeTests.test_missing_extra_and_reordered_source_words_are_refused",
+    "tests.test_project_scope_source.SourceScopeTests.test_repeated_headings_have_an_ordinal_proof_instead_of_a_fuzzy_text_match",
+    "tests.test_project_scope_source.SourceScopeTests.test_saved_preparation_removes_native_publisher_matter_before_scope_comparison"
+  ],
+  "test_project_scope_voices": [
+    "tests.test_project_scope_voices.ScopeVoiceTests.test_aliases_ensembles_and_dynamic_narrator_preserve_native_dispatch",
+    "tests.test_project_scope_voices.ScopeVoiceTests.test_equal_boundary_points_use_native_last_point_and_keep_future_changes",
+    "tests.test_project_scope_voices.ScopeVoiceTests.test_malformed_timelines_and_alias_cycles_are_refused_without_changes",
+    "tests.test_project_scope_voices.ScopeVoiceTests.test_repeated_effective_voice_metadata_refuses_expanded_preview_limit",
+    "tests.test_project_scope_voices.ScopeVoiceTests.test_versions_and_styles_carry_boundary_state_and_shift_future_points"
+  ],
   "test_project_status_journal": [
     "tests.test_project_status_journal.ProjectStatusJournalTests.test_cancelled_queued_generation_is_counted_without_changing_prior_state",
     "tests.test_project_status_journal.ProjectStatusJournalTests.test_changed_book_refuses_publication_and_preserves_old_journal",

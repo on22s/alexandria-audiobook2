@@ -1826,6 +1826,7 @@
             window.resetExportMasteringView?.(); window.resetExportQualityView?.();
             window.resetEditorRepairPreview?.();
             window.invalidateBookWorkspace?.();
+            window.resetSourceScopeBook?.();
         }
         function enqueueBookSelection(request, action) {
             const previous = window._existingUploadSelectionPending || Promise.resolve();

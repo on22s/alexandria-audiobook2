@@ -1,7 +1,7 @@
 import json
 import asyncio
 import contextvars
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 import functools
 import logging
 import math
@@ -716,10 +716,12 @@ def ensure_saved_book_destination_available(path):
 
 
 @contextmanager
-def ensure_book_switch_allowed(*, operation="switch books"):
+def ensure_book_switch_allowed(*, operation="switch books", hold_task_mutex=True):
     """Exclude local and foreign task admission until a book switch commits."""
     try:
-        with _gpu_lock, ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
+        with ExitStack() as task_mutex, ExitStack() as admission:
+            task_mutex.enter_context(_gpu_lock)
+            idle = admission.enter_context(ensure_startup_recovery(DATA_DIR, timeout=0))
             busy = [name for name in process_state if is_task_running(name)]
             if busy:
                 raise HTTPException(status_code=409, detail=(
@@ -728,6 +730,11 @@ def ensure_book_switch_allowed(*, operation="switch books"):
             if not idle:
                 raise HTTPException(status_code=409, detail=(
                     f"Cannot {operation} while another process owns a task. Wait for it to finish or cancel it."))
+            # Short existing book switches retain their waiting task behavior.
+            # Long scope scans release only this mutex: the kernel admission
+            # barrier still excludes every task claim through the entire yield.
+            if not hold_task_mutex:
+                task_mutex.close()
             yield
     except TimeoutError as exc:
         raise HTTPException(status_code=409, detail="Book is busy; try switching again.") from exc

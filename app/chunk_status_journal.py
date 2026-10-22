@@ -75,6 +75,20 @@ class ChunkStatusJournal:
             return
         self._versions = None
         raw = self.snapshot.read_bytes()
+        journal = self.path.read_bytes() if self.path.exists() else None
+        self._load_bytes(raw, journal)
+        if versions != self._get_versions():
+            self._rows = None
+            raise ValueError("Chunk status files changed while reading")
+        self._versions = versions
+
+    def get_rows_from_bytes(self, snapshot_bytes, journal_bytes):
+        """Replay caller-bound immutable file snapshots using the native rules."""
+        self._versions = None
+        self._load_bytes(snapshot_bytes, journal_bytes)
+        return copy.deepcopy(self._rows)
+
+    def _load_bytes(self, raw, journal):
         rows = json.loads(raw)
         if (not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows)
                 or any(not isinstance(row.get("uid"), str) or not row["uid"] for row in rows)
@@ -82,8 +96,7 @@ class ChunkStatusJournal:
             raise ValueError("Chunk status snapshot requires unique nonempty UIDs")
         by_uid = {row["uid"]: row for row in rows}
         sequence, prefix, compacted = 0, None, False
-        if self.path.exists():
-            journal = self.path.read_bytes()
+        if journal is not None:
             complete = journal[:journal.rfind(b"\n") + 1]
             lines = complete.splitlines()
             if not lines:
@@ -124,8 +137,6 @@ class ChunkStatusJournal:
                 logger.warning("Ignoring uncommitted trailing chunk status bytes: %s", self.path)
                 if prefix is None:
                     prefix = complete
-        if versions != self._get_versions():
-            raise ValueError("Chunk status files changed while reading")
         self._rows, self._by_uid = rows, by_uid
         self._audio_references = Counter(
             get_chunk_audio_key(self.snapshot, path) for row in rows
@@ -134,7 +145,6 @@ class ChunkStatusJournal:
         if self._retained_bytes > MAX_BOOK_RECEIPT_BYTES:
             raise ValueError('Retained prior-take metadata exceeds its book limit.')
         self._sequence, self._prefix, self._compacted = sequence, prefix, compacted
-        self._versions = versions
 
     def get_rows(self):
         self._load()

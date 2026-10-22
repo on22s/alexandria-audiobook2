@@ -1267,10 +1267,17 @@ def discard_script_progress(*, locked=False):
     return removed
 
 
+def require_whole_source_generation(state):
+    if isinstance(state, dict) and '_source_scope' in state:
+        raise HTTPException(status_code=409, detail=(
+            'A shortened source scope is active. Undo it or select the full source again before whole-book generation or recovery.'))
+
+
 def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                             request: Optional[GenerateScriptRequest],
                             require_recovery: bool = False):
     """Queue the one production generation command, optionally from a checkpoint."""
+    require_whole_source_generation(safe_load_json(os.path.join(DATA_DIR, 'state.json'), {}))
     if require_recovery and ensure_script_recovery_manifest() is None:
         raise HTTPException(
             status_code=409,
@@ -1331,6 +1338,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
     try:
         with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
             current_state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+            require_whole_source_generation(current_state)
             if current_state.get("input_file_path") != input_file:
                 raise HTTPException(status_code=409, detail="Selected source changed before generation started.")
             if require_recovery and get_script_recovery_manifest() is None:

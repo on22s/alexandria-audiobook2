@@ -1873,6 +1873,28 @@
 
         <!-- Script Tab -->
         <div id="script-tab" class="tab-content" style="display:none;">
+            <details class="card mb-3" id="source-scope-panel" ontoggle="onSourceScopePanelToggle()">
+                <summary class="card-header">Keep a later part of this book</summary>
+                <div class="card-body">
+                    <p class="small">Remove a prefix from the current saved script while keeping unaffected voices, audio and take history. Preview the exact changes first. The original source stays on disk.</p>
+                    <label for="source-scope-search" class="form-label">Find the first entry to keep</label>
+                    <div class="input-group mb-2">
+                        <input id="source-scope-search" class="form-control" maxlength="200" placeholder="Chapter heading or exact words">
+                        <button class="btn btn-outline-secondary" id="source-scope-find" type="button" onclick="refreshSourceScope()">Find / refresh</button>
+                        <button class="btn btn-outline-secondary" id="source-scope-next" type="button" onclick="loadNextSourceScopeEntries()" disabled>Next entries</button>
+                    </div>
+                    <select id="source-scope-entry" class="form-select mb-2" aria-label="First saved entry to keep" onchange="invalidateSourceScopePreview()"><option value="">Find an entry first</option></select>
+                    <div class="d-flex gap-2 flex-wrap mb-2">
+                        <button class="btn btn-outline-primary" id="source-scope-preview" type="button" onclick="previewSourceScope()" disabled>Preview scope</button>
+                        <button class="btn btn-primary" id="source-scope-apply" type="button" onclick="applySourceScope()" disabled>Apply reviewed scope</button>
+                        <button class="btn btn-outline-primary" id="source-scope-undo" type="button" onclick="undoSourceScope()" disabled>Undo scope change</button>
+                        <button class="btn btn-outline-danger" id="source-scope-discard" type="button" onclick="discardSourceScopeUndo()" disabled>Discard undo; keep current scope</button>
+                    </div>
+                    <p id="source-scope-feedback" class="small" role="status" aria-live="polite"></p>
+                    <p id="source-scope-undo-status" class="small"></p>
+                    <div id="source-scope-review"></div>
+                </div>
+            </details>
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="m-0"><span class="step-indicator step-active">2</span>Generate Script</h4>
@@ -3636,6 +3658,7 @@
     <button id="task-guide-return" type="button" class="btn btn-secondary shadow" onclick="returnToTaskGuide()" title="Return to the same guide step without changing your selected book" hidden>Return to guide</button>
     <script src="/static/js/app-core.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-scripts.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-project-scope.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-speaker-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-repair.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-review.js?v=__APP_BUILD__"></script>

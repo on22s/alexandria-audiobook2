@@ -15,6 +15,7 @@ def get_saved_script_recovery_manifest(data_dir, manifest_path):
     """
     state = safe_load_json(str(Path(data_dir) / "state.json"), {})
     if (not isinstance(state, dict)
+            or '_source_scope' in state
             or state.get("script_generation_input_file") != state.get("input_file_path")):
         return None
     try:

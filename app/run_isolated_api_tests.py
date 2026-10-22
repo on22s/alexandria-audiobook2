@@ -69,6 +69,7 @@ def main(argv=None):
             (data_path / "voice_config.json").write_text(
                 json.dumps({"NARRATOR": entry, "Hero": entry}), encoding="utf-8")
         env = dict(os.environ, ALEXANDRIA_DATA_DIR=data_dir,
+                   ALEXANDRIA_ISOLATED_API_FIXTURE=data_dir,
                    ALEXANDRIA_PORT="0", ALEXANDRIA_HOST="127.0.0.1")
         headers = get_api_test_headers(environ=env)
         server = start_owned_subprocess(

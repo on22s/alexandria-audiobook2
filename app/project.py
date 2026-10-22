@@ -35,7 +35,7 @@ from adapter_publication import sync_adapter_directory
 from config_settings import load_app_config
 from lora_evidence import get_tts_model_settings
 from literal_policy import (ensure_literal_narration, bind_literal_chunks,
-                            ensure_literal_chunk, CHUNK_POLICY_KEY)
+                            ensure_literal_chunk, ensure_literal_chunks, CHUNK_POLICY_KEY)
 from audio_validation import publish_audio_output, remove_stale_audio, validate_generated_audio
 from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationCancelled,
                                     ensure_audio_generation_active, ensure_audio_generation_publication,
@@ -1731,11 +1731,10 @@ class ProjectManager:
                 self._literal_script_policy = policy
                 self._literal_script_version = current
             policy = self._literal_script_policy
-        for index in indices:
-            if 0 <= index < len(chunks):
-                if policy is None and CHUNK_POLICY_KEY in chunks[index]:
-                    raise ValueError("Literal chunks have no matching source-policy script")
-                ensure_literal_chunk(chunks[index], policy)
+        selected = [chunks[index] for index in indices if 0 <= index < len(chunks)]
+        if policy is None and any(CHUNK_POLICY_KEY in chunk for chunk in selected):
+            raise ValueError("Literal chunks have no matching source-policy script")
+        ensure_literal_chunks(selected, policy)
 
     @ensure_pronunciation_snapshot()
     def _generate_captured_chunk_audio(self, index, chunk):

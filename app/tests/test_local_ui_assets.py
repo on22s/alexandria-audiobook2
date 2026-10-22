@@ -53,6 +53,7 @@ class LocalUiAssetTests(unittest.TestCase):
                           '/static/js/app-export-quality.js?v=__APP_BUILD__',
                           '/static/js/app-editor-repair.js?v=__APP_BUILD__',
                           '/static/js/app-workspace.js?v=__APP_BUILD__',
+                          '/static/js/app-project-scope.js?v=__APP_BUILD__',
                           '/static/js/app-pronunciation.js?v=__APP_BUILD__',
                           '/static/js/app-editor-review.js?v=__APP_BUILD__',
                           '/static/js/app-take-history.js?v=__APP_BUILD__',

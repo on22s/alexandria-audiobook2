@@ -11,6 +11,8 @@ import argparse
 from contextlib import contextmanager
 import io
 import json
+import os
+from pathlib import Path
 import sys
 import time
 import requests
@@ -1367,6 +1369,82 @@ def test_get_audacity_export():
     assert_status(r, 200)
 
 
+def test_project_scope_contract():
+    assert_status(get('/api/project/scope/entries', params={'offset':0}), 422)
+    assert_status(post('/api/project/scope/preview', json={'start_entry':True}), 422)
+    assert_status(post('/api/project/scope/undo', json={'expected_revision':'bad'}), 422)
+    response=get('/api/project/scope/undo');assert_status(response)
+    if type(response.json().get('available')) is not bool:
+        raise TestFailure('Scope undo must report explicit availability')
+    marker=os.environ.get('ALEXANDRIA_ISOLATED_API_FIXTURE')
+    if not marker:
+        print('           Read contract checked; disposable roundtrip is exercised by run_isolated_api_tests.')
+        return
+    import tempfile
+    import uuid
+    from book_state_transaction import ensure_book_state
+    from project import group_into_chunks
+    root=Path(marker).resolve()
+    if (root != Path(os.environ.get('ALEXANDRIA_DATA_DIR','')).resolve()
+            or root.parent != Path(tempfile.gettempdir()).resolve()
+            or not root.name.startswith('alexandria-api-test-')):
+        raise TestFailure('Scope roundtrip requires the runner-owned disposable data directory')
+    names=('state.json','annotated_script.json','voice_config.json','chunks.json',
+           'chunks.json.status.jsonl','cloned_audiobook.mp3','scope-live-source.txt','.project_scope_undo.json')
+    before={name:(root/name).read_bytes() if (root/name).exists() else None for name in names}
+    try:
+        script=[{'speaker':speaker,'text':text,'instruct':''} for speaker,text in
+                [('NARRATOR','Removed synthetic prefix.'),('Hero','Retained synthetic words.')]]
+        source=root/'scope-live-source.txt'
+        rows=[dict(row,id=i,uid=f'scope-live-{i}',status='pending',audio_path=None)
+              for i,row in enumerate(group_into_chunks(script))]
+        state={'active_book_id':'scope-live-fixture','book_generation':uuid.uuid4().hex,
+               'input_file_path':str(source)}
+        with ensure_book_state(root):
+            for name,value in [('state.json',state),('annotated_script.json',script),
+                               ('voice_config.json',{}),('chunks.json',rows)]:
+                (root/name).write_text(json.dumps(value,indent=2),encoding='utf-8')
+            source.write_text('\n'.join(row['text'] for row in script),encoding='utf-8')
+            (root/'cloned_audiobook.mp3').write_bytes(b'synthetic historical delivery; not decoded')
+            for name in ('chunks.json.status.jsonl','.project_scope_undo.json'):(root/name).unlink(missing_ok=True)
+        fixture_before={name:(root/name).read_bytes() if (root/name).exists() else None for name in names}
+        response=get('/api/project/scope/entries',params={'search':'Retained','offset':1});assert_status(response)
+        if [row['start_entry'] for row in response.json()['entries']] != [1]:
+            raise TestFailure('Scope choices must retain exact saved entry ordinals')
+        response=post('/api/project/scope/preview',json={'start_entry':1});assert_status(response)
+        preview=response.json()
+        if preview['removed_uids'] != ['scope-live-0'] or preview['retained'][0]['uid'] != 'scope-live-1':
+            raise TestFailure('Scope preview changed retained/removed UID identity')
+        assert_status(post('/api/project/scope/apply',json={'start_entry':1,'expected_revision':'0'*64}),409)
+        request={'start_entry':1,'expected_revision':preview['revision']}
+        response=post('/api/project/scope/apply',json=request);assert_status(response)
+        assert_status(get('/api/audiobook'),409)
+        response=get('/api/workspace');assert_status(response)
+        if not any(row['status']=='historical_source_scope' for row in response.json()['outputs']):
+            raise TestFailure('Workspace must identify unchanged older-scope exports')
+        for route in ('/api/generate_script','/api/generate_script/retry'):
+            assert_status(post(route,json={}),409)
+        response=get('/api/project/scope/undo');assert_status(response);undo=response.json()
+        if not undo.get('can_undo'):raise TestFailure('Fresh scope must expose exact undo')
+        assert_status(post('/api/project/scope/undo',json={'expected_revision':'0'*64}),409)
+        assert_status(post('/api/project/scope/undo',json={'expected_revision':undo['revision']}))
+        restored={name:(root/name).read_bytes() if (root/name).exists() else None for name in names}
+        if restored != fixture_before:raise TestFailure('Live scope undo did not restore exact fixture bytes')
+        response=post('/api/project/scope/preview',json={'start_entry':1});assert_status(response)
+        assert_status(post('/api/project/scope/apply',json={'start_entry':1,'expected_revision':response.json()['revision']}))
+        response=get('/api/project/scope/undo');assert_status(response)
+        assert_status(post('/api/project/scope/discard_undo',json={'expected_revision':response.json()['revision']}))
+        response=get('/api/project/scope/undo');assert_status(response)
+        if response.json()['available']:raise TestFailure('Reviewed discard left its undo record')
+    finally:
+        with ensure_book_state(root):
+            for name,raw in before.items():
+                if raw is None:(root/name).unlink(missing_ok=True)
+                else:(root/name).write_bytes(raw)
+    if {name:(root/name).read_bytes() if (root/name).exists() else None for name in names} != before:
+        raise TestFailure('Scope API fixture cleanup changed earlier test state')
+
+
 def test_workspace_readiness_contract():
     """Opening the workspace exposes observations without starting work."""
     response = get('/api/workspace'); assert_status(response)
@@ -1762,6 +1840,7 @@ def run_all_tests():
     run_test("get_audiobook_m4b", test_get_audiobook_m4b)
     run_test("get_audacity_export", test_get_audacity_export)
     run_test("workspace_readiness_contract", test_workspace_readiness_contract)
+    run_test("project_scope_contract", test_project_scope_contract)
     run_test("export_quality_contract", test_export_quality_contract)
 
     section("Generation (TTS/LLM)")

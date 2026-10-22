@@ -3422,6 +3422,54 @@
         "title": "ReviewSubmitRequest",
         "type": "object"
       },
+      "ScopeApply": {
+        "properties": {
+          "expected_revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Revision",
+            "type": "string"
+          },
+          "start_entry": {
+            "minimum": 1.0,
+            "title": "Start Entry",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "start_entry"
+        ],
+        "title": "ScopeApply",
+        "type": "object"
+      },
+      "ScopeRevision": {
+        "properties": {
+          "expected_revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "ScopeRevision",
+        "type": "object"
+      },
+      "ScopeSelection": {
+        "properties": {
+          "start_entry": {
+            "minimum": 1.0,
+            "title": "Start Entry",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start_entry"
+        ],
+        "title": "ScopeSelection",
+        "type": "object"
+      },
       "ScriptLoadRequest": {
         "properties": {
           "name": {
@@ -9873,6 +9921,214 @@
           }
         },
         "summary": "Preparer Start"
+      }
+    },
+    "/api/project/scope/apply": {
+      "post": {
+        "operationId": "apply_scope_api_project_scope_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScopeApply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Scope"
+      }
+    },
+    "/api/project/scope/discard_undo": {
+      "post": {
+        "operationId": "discard_scope_undo_api_project_scope_discard_undo_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScopeRevision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discard Scope Undo"
+      }
+    },
+    "/api/project/scope/entries": {
+      "get": {
+        "operationId": "get_scope_entries_api_project_scope_entries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Search",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Scope Entries"
+      }
+    },
+    "/api/project/scope/preview": {
+      "post": {
+        "operationId": "preview_source_scope_api_project_scope_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScopeSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Source Scope"
+      }
+    },
+    "/api/project/scope/undo": {
+      "get": {
+        "operationId": "get_scope_undo_api_project_scope_undo_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Scope Undo"
+      },
+      "post": {
+        "operationId": "undo_scope_api_project_scope_undo_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScopeRevision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Undo Scope"
       }
     },
     "/api/prompts/attribution_preview": {

@@ -241,6 +241,8 @@ def _load_script_sync(request: ScriptLoadRequest):
         state = safe_load_json(state_path, default={})
         state.update(active_book_id=_get_saved_book_id(safe_name), input_file_path=src,
                      book_generation=uuid.uuid4().hex)
+        state.pop('_source_scope', None)
+        state.pop('_source_scope_exports', None)
         replacements = {os.path.relpath(SCRIPT_PATH, DATA_DIR): script_bytes,
                         "state.json": json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8")}
         removals = [AUDIOBOOK_PATH, M4B_PATH, os.path.join(DATA_DIR, "audacity_export.zip"),

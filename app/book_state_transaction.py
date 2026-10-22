@@ -266,6 +266,8 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10):
                 input_path = state.get("input_file_path")
             state.update(input_file_path=input_path, active_book_id=book_id,
                          book_generation=uuid.uuid4().hex)
+            state.pop('_source_scope', None)
+            state.pop('_source_scope_exports', None)
             save_adapter_publication_bytes(str(state_path), json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8"))
 
 

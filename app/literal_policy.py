@@ -36,7 +36,7 @@ def get_literal_policy(entries):
     policy = policies[0]
     if (not isinstance(policy, dict) or policy.get("version") != POLICY_VERSION
             or policy.get("prompt_version") != PROMPT_VERSION
-            or policy.get("boundary") != "preprocessed_source_v1"
+            or policy.get("boundary") not in ("preprocessed_source_v1", "selected_source_words_v1")
             or any(other != policy for other in policies)):
         raise ValueError("Invalid or conflicting literal-source policy")
     identity = policy.get("source_words")
@@ -52,6 +52,19 @@ def get_literal_policy(entries):
         raise ValueError("Invalid literal input-file identity")
     if "strip_front_matter" in policy and type(policy["strip_front_matter"]) is not bool:
         raise ValueError("Invalid literal preprocessing choice")
+    if policy['boundary'] == 'selected_source_words_v1':
+        scope, chunks = policy.get('scope_source'), policy.get('scope_chunks')
+        if (not isinstance(scope, dict) or set(scope) != {'parent_policy_sha256',
+                'prepared_source_sha256', 'start_word', 'end_word', 'total_words'}
+                or any(not isinstance(scope[key], str) or not re.fullmatch(r'[0-9a-f]{64}', scope[key])
+                       for key in ('parent_policy_sha256', 'prepared_source_sha256'))
+                or any(type(scope[key]) is not int for key in ('start_word','end_word','total_words'))
+                or not 0 < scope['start_word'] < scope['end_word'] == scope['total_words']
+                or identity['words'] != scope['end_word'] - scope['start_word']
+                or not isinstance(chunks, dict) or not chunks
+                or any(not isinstance(uid, str) or not uid or not isinstance(marker, dict)
+                       for uid, marker in chunks.items())):
+            raise ValueError('Invalid selected literal-source lineage')
     return copy.deepcopy(policy)
 
 
@@ -96,15 +109,28 @@ def get_literal_policy_identity(policy):
 def bind_literal_chunks(chunks, policy):
     if policy is None:
         return chunks
+    policy_identity = get_literal_policy_identity(policy)
     return [{**chunk, CHUNK_POLICY_KEY: {
         "version": POLICY_VERSION,
-        "source_policy_sha256": get_literal_policy_identity(policy),
+        "source_policy_sha256": policy_identity,
         "narration_words": get_word_identity([chunk["text"]]),
         "projection": "existing_project_speakable_entries_v1",
         "boundary": "before_speech_preparation"}} for chunk in chunks]
 
 
 def ensure_literal_chunk(chunk, policy=None):
+    identity = get_literal_policy_identity(policy) if policy is not None else None
+    _ensure_literal_chunk(chunk, policy, identity)
+
+
+def ensure_literal_chunks(chunks, policy=None):
+    """Validate a batch against one freshly computed policy identity."""
+    identity = get_literal_policy_identity(policy) if policy is not None else None
+    for chunk in chunks:
+        _ensure_literal_chunk(chunk, policy, identity)
+
+
+def _ensure_literal_chunk(chunk, policy, policy_identity):
     marker = chunk.get(CHUNK_POLICY_KEY)
     if marker is None and policy is None:
         return
@@ -112,5 +138,7 @@ def ensure_literal_chunk(chunk, policy=None):
             or marker.get("boundary") != "before_speech_preparation"
             or marker.get("narration_words") != get_word_identity([chunk.get("text")])):
         raise ValueError("Literal narration chunk changed or lacks provenance; regenerate chunks")
-    if policy is not None and marker.get("source_policy_sha256") != get_literal_policy_identity(policy):
-        raise ValueError("Literal narration chunk belongs to a different source policy")
+    if policy is not None and marker.get("source_policy_sha256") != policy_identity:
+        if (policy.get('boundary') != 'selected_source_words_v1'
+                or policy.get('scope_chunks', {}).get(chunk.get('uid')) != marker):
+            raise ValueError("Literal narration chunk belongs to a different source policy")

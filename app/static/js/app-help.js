@@ -122,6 +122,8 @@
             'persona-advanced-prompt': {what: 'Template for the advanced persona compilation. It uses {character_ref}.'},
 
             // Script tab
+            'source-scope-search': {what: 'Find a saved entry by its heading or words. Search does not change the book.'},
+            'source-scope-entry': {what: 'Choose the first saved entry to retain. Preview checks the exact source words, chunk boundary, voices and saved audio before any change.'},
             'script-batch-mode': {what: 'Generate scripts for several books in one run instead of one.'},
             'file-upload': {what: 'The book to annotate: plain text, Markdown or EPUB.'},
             'existing-upload-select': {what: 'Reuse a book uploaded earlier instead of uploading it again.'},
@@ -280,6 +282,12 @@
         };
 
         const ACTION_HELP = {
+            'refreshSourceScope': 'Refresh matching saved entries and current undo availability. Does not change the book.',
+            'loadNextSourceScopeEntries': 'Show the next page of matching saved entries without changing the book.',
+            'previewSourceScope': 'Check the selected source boundary and review removed wording, retained chunks, voices and verified audio. Does not apply the change.',
+            'applySourceScope': 'Apply the reviewed shorter source scope if the book still matches the preview. Keeps retained audio and one exact undo; older exports need rebuilding.',
+            'undoSourceScope': 'Restore the exact previous scope if the saved undo and protected files still match. Later edits can prevent undo.',
+            'discardSourceScopeUndo': 'After confirmation, remove the saved scope undo and keep the current book. This ends the ability to undo that scope change.',
             'previewSetupChanges': 'Compare the current form with normalized saved settings. Preview does not save, reset the engine or contact a model. Credentials and prompt contents are hidden.',
             'closeSetupPreview': 'Close the settings preview without saving or changing form values.',
             'openSetupSettingsSection': 'Display this settings category while keeping edits in every category. Jump to this Setup section without changing or saving settings.',

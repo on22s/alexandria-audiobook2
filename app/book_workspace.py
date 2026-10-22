@@ -12,6 +12,7 @@ from book_state_transaction import get_book_operation_token, get_book_snapshot
 from chunk_status_journal import ChunkStatusJournal
 from editor_review_facts import get_editor_review_facts
 from export_quality_session import get_session_evidence
+from project_scope_exports import is_scope_export_historical
 from script_recovery_facts import get_saved_script_recovery_manifest, three_pass_manifest_path
 
 
@@ -82,6 +83,8 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *
             file = Path(path)
             present = file.is_file() and file.stat().st_size > 0
             status = 'present_unverified' if present else 'not_found'
+            if present and is_scope_export_historical(root, path):
+                status = 'historical_source_scope'
         except OSError:
             status = 'unavailable'
         outputs.append({'format': label, 'status': status})

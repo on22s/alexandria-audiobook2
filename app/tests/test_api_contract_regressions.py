@@ -326,6 +326,7 @@ class ApiContractTests(unittest.TestCase):
             "editor_router",
             "pronunciation_router",
             "scripts_library_router",
+            "project_scope_router",
             "voice_library_router",
             "voice_design_router",
             "lora_router",

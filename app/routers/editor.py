@@ -28,6 +28,7 @@ from config_settings import load_app_config
 from audio_mastering import MasteringOptions, get_audio_sha256
 from export_quality import ExportQualityOptions
 from export_quality_session import ExportQualityAttempt, get_session_evidence
+from project_scope_exports import require_scope_export_current
 
 from core import (
     AUDIOBOOK_PATH,
@@ -424,6 +425,7 @@ class DriftCheckRequest(BaseModel):
 async def get_audiobook():
     if not os.path.exists(AUDIOBOOK_PATH):
         raise HTTPException(status_code=404, detail="Audiobook not found")
+    require_scope_export_current(DATA_DIR, AUDIOBOOK_PATH)
     return FileResponse(AUDIOBOOK_PATH, filename="audiobook.mp3", media_type="audio/mpeg")
 
 # --- Chunk Management Endpoints ---
@@ -1017,6 +1019,8 @@ def _build_export_zip_response():
                if os.path.exists(path)]
     if not members:
         raise HTTPException(status_code=404, detail="No exported audio found. Merge or export first.")
+    for path, _name in members:
+        require_scope_export_current(DATA_DIR, path)
     return build_zip_download(members, "alexandria_export.zip")
 
 @router.get("/api/export_audacity")
@@ -1024,6 +1028,7 @@ async def get_audacity_export():
     zip_path = os.path.join(DATA_DIR, "audacity_export.zip")
     if not os.path.exists(zip_path):
         raise HTTPException(status_code=404, detail="Audacity export not found. Generate it first.")
+    require_scope_export_current(DATA_DIR, zip_path)
     return FileResponse(zip_path, filename="audacity_export.zip", media_type="application/zip")
 
 def get_unready_export_speakers():
@@ -1269,6 +1274,7 @@ def _exported_chapter_path(name):
             or not is_path_inside(path, _chapter_export_dir())
             or not os.path.isfile(path)):
         raise HTTPException(status_code=404, detail="No such exported chapter")
+    require_scope_export_current(DATA_DIR, path)
     return path, safe
 
 
@@ -1314,6 +1320,7 @@ def _build_chapter_zip_response(names: Optional[str] = None):
 async def get_audiobook_m4b():
     if not os.path.exists(M4B_PATH):
         raise HTTPException(status_code=404, detail="M4B audiobook not found. Export it first.")
+    require_scope_export_current(DATA_DIR, M4B_PATH)
     return FileResponse(M4B_PATH, filename="audiobook.m4b", media_type="audio/mp4")
 
 def _apply_m4b_cover(cover_tmp, cover_path):

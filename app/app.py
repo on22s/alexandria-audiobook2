@@ -180,6 +180,10 @@ from routers.scripts_library import router as scripts_library_router
 
 app.include_router(scripts_library_router)
 
+from routers.project_scope import router as project_scope_router
+
+app.include_router(project_scope_router)
+
 from routers.voice_library import router as voice_library_router
 
 app.include_router(voice_library_router)
