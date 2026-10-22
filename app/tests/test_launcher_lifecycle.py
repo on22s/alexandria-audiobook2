@@ -105,7 +105,7 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
     try{
       const steps=require(path.join(root,'reset.js')).run;
       fs.mkdirSync(path.join(tmp,'app'));
-      for(const name of ['book_state_transaction.py','utils.py','loaded_module_code.py','adapter_publication.py','editor_poll_snapshot.py','chunk_status_journal.py','take_retention.py','take_publication.py','audio_take_history.py','audio_generation_owner.py','audio_validation.py']){fs.copyFileSync(path.join(root,'app',name),path.join(tmp,'app',name))}
+      for(const name of ['book_state_transaction.py','utils.py','loaded_module_code.py','adapter_publication.py','editor_poll_snapshot.py','chunk_status_journal.py','take_retention.py','take_publication.py','audio_take_history.py','take_metadata_pool.py','audio_generation_owner.py','audio_validation.py']){fs.copyFileSync(path.join(root,'app',name),path.join(tmp,'app',name))}
       fs.copyFileSync(path.join(root,'gpu_stats.py'),path.join(tmp,'gpu_stats.py'));
       fs.copyFileSync(path.join(root,'launcher_lifecycle.js'),path.join(tmp,'launcher_lifecycle.js'));
       const scratchHelper=new(require(path.join(tmp,'launcher_lifecycle.js')))();

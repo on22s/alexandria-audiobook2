@@ -68,3 +68,30 @@ still apply. Valid first-pass audio outside the receipt's 64 MiB, mono/stereo,
 192 kHz and ten-minute bounds can publish without proof. New generation replaces its prior receipt atomically with the audio
 selection, or clears it when complete proof is unavailable. History browsing does
 not load a model, hash selected audio or run speech verification.
+
+## Compact metadata
+
+Archive writes can store repeated text, generation inputs, provenance and synthesis
+policy once, addressed by their content hash. The compact format is used only
+when it saves at least 4 KiB and 5% of manifest bytes. Complete originating
+receipts and selected audio retain their meaning. The same record, audio, depth
+and fully expanded 16 MiB manifest limits apply. This reduces repeated metadata;
+each save still validates and replaces the whole manifest.
+
+Existing v1/v2 archives remain readable. Compact archives use format v3, which
+older applications refuse to rewrite. Before returning to an older application,
+expand the metadata using the current application. From `app/`, with the
+application's Python environment active:
+
+```sh
+python -m audio_take_history /path/to/project-data --expand-metadata
+python -m audio_take_history /path/to/project-data --compact-metadata
+```
+
+Use the data directory containing `take_history/`. Both commands hold the archive
+lock and use its existing pending-file/atomic replacement boundary. Conversion
+preserves the original v1/v2 writer fence, snapshots, receipts and current audio
+selection. A later archive write may compact expanded metadata again. Missing,
+changed or invalid referenced payloads refuse conversion; preserve the archive
+for inspection instead of editing references manually. Removing a snapshot drops
+only payloads no longer used by any retained, deleted or incomplete record.

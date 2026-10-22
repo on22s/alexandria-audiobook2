@@ -6737,6 +6737,14 @@
   "test_polling_recovery_guidance_js": [
     "tests.test_polling_recovery_guidance_js.PollingRecoveryGuidanceJsTests.test_native_warning_cadence_labels_recovery_and_stop"
   ],
+  "test_pooled_take_restoration": [
+    "tests.test_pooled_take_restoration.PooledTakeRestorationTests.test_cancelled_and_replaced_owner",
+    "tests.test_pooled_take_restoration.PooledTakeRestorationTests.test_changed_dependencies_refuse",
+    "tests.test_pooled_take_restoration.PooledTakeRestorationTests.test_failed_selection_keeps_current",
+    "tests.test_pooled_take_restoration.PooledTakeRestorationTests.test_hard_exits_recover_pooled_proofs_and_actual_archives_in_both_stores",
+    "tests.test_pooled_take_restoration.PooledTakeRestorationTests.test_original_bytes_and_full_proof",
+    "tests.test_pooled_take_restoration.PooledTakeRestorationTests.test_saved_speech_receipt_binding"
+  ],
   "test_pr_check_completeness": [
     "tests.test_pr_check_completeness.PullRequestCheckCompletenessTests.test_actual_main_blocks_later_checks_and_legacy_failures_and_accepts_recovery",
     "tests.test_pr_check_completeness.PullRequestCheckCompletenessTests.test_api_errors_and_malformed_pages_are_not_success",
@@ -9852,6 +9860,25 @@
     "tests.test_take_history_policy.TakeHistoryPolicyTests.test_deleted_chunk_undo_protects_archive_until_restore_or_expiration",
     "tests.test_take_history_policy.TakeHistoryPolicyTests.test_public_editor_view_redacts_private_receipt_without_mutating_saved_rows",
     "tests.test_take_history_policy.TakeHistoryPolicyTests.test_real_routes_default_enable_strict_boolean_and_stale_revision"
+  ],
+  "test_take_metadata_pool": [
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_actual_child_exit_before_and_after_conversion_replace_retries_in_both_directions",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_actual_pooled_archive_roundtrip_and_explicit_legacy_conversion",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_cached_records_cannot_bypass_validation_or_survive_failed_conversion_as_current",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_cli_expansion_and_compaction_preserve_actual_archive",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_compaction_encodes_each_eligible_field_at_most_once_per_save_attempt",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_duplicate_recapture_leaves_pool_and_manifest_identical",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_expanded_manifest_and_record_bounds_cannot_be_bypassed_by_references",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_failed_conversion_replace_preserves_authority_and_retries_pending",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_late_aggregate_guards_exhaust_validation_before_file_or_cache_commit",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_missing_tampered_conflicting_wrong_type_unknown_and_orphan_payload_refuse",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_mutable_expanded_payloads_do_not_alias_other_records_or_input",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_new_wrapper_does_not_make_valid_deep_legacy_metadata_unwritable",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_partial_purge_preserves_deleted_and_protected_last_payload_references",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_protection_delete_undo_and_final_purge_remove_only_unreferenced_values",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_savings_shortcut_never_discards_a_candidate_meeting_the_whole_file_threshold",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_unchanged_record_bytes_reuse_requires_fresh_complete_semantic_fingerprints",
+    "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_unchanged_row_gets_new_compact_bytes_when_only_its_reference_choices_change"
   ],
   "test_take_publication": [
     "tests.test_take_publication.TakePublicationTests.test_captured_book_fences_publication_after_history_is_disabled",

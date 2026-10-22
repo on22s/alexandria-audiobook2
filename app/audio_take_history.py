@@ -14,6 +14,7 @@ from adapter_publication import sync_adapter_directory
 from audio_generation_owner import AudioGenerationCancelled
 from audio_validation import GeneratedAudioError, validate_wav_container
 from utils import file_lock
+from take_metadata_pool import compact_metadata, expand_metadata
 
 MAX_RECORDS = 4096
 MAX_LINE_RECORDS = 16
@@ -41,6 +42,7 @@ def _ensure_metadata_depth(value):
     # cannot. Admit bounded structure before any recursive record operation.
     # Iterator frames use memory proportional to depth, not record breadth.
     frames = [iter((value,))]
+    deepest = 0
     while frames:
         try:
             item = next(frames[-1])
@@ -55,7 +57,9 @@ def _ensure_metadata_depth(value):
             continue
         if len(frames) > MAX_METADATA_DEPTH:
             raise ValueError('Take history metadata is too deeply nested; existing audio was preserved.')
+        deepest = max(deepest, len(frames))
         frames.append(children)
+    return deepest
 
 
 def _version(info):
@@ -150,6 +154,7 @@ class AudioTakeHistory:
         self.directory = self.root / 'take_history'
         self.manifest = self.directory / 'manifest.json'
         self.pending = self.directory / 'manifest.pending'
+        self._compact_records = {}
 
     @contextmanager
     def _locked(self, *, cancel_check=None):
@@ -203,17 +208,30 @@ class AudioTakeHistory:
             document = json.loads(data)
         except RecursionError as error:
             raise ValueError('Take history manifest is too deeply nested; existing audio was preserved.') from error
+        if type(document) is dict and document.get('version') == 3:
+            document = expand_metadata(document, encode=_encode, max_records=MAX_RECORDS,
+                                       max_record_bytes=MAX_RECORD_BYTES,
+                                       max_manifest_bytes=MAX_MANIFEST_BYTES,
+                                       check_depth=_ensure_metadata_depth)
         return self._validate(document)
 
     def _validate(self, document):
-        _ensure_metadata_depth(document)
+        for _ in self._iter_validated_record_bytes(document):
+            pass
+        return document
+
+    def _iter_validated_record_bytes(self, document):
+        depth = _ensure_metadata_depth(document)
         if (type(document) is not dict or set(document) != {'version', 'records'}
                 or type(document['version']) is not int or document['version'] not in (1, 2) or type(document['records']) is not list
                 or len(document['records']) > MAX_RECORDS):
             raise ValueError('Take history manifest is invalid; existing audio was preserved.')
         seen, counts, total = set(), {}, 0
         for row in document['records']:
-            if (type(row) is not dict or len(_encode(row)) > MAX_RECORD_BYTES
+            if type(row) is not dict:
+                raise ValueError('Take history record is invalid; existing audio was preserved.')
+            raw = _encode(row)
+            if (len(raw) > MAX_RECORD_BYTES
                     or type(row.get('version')) is not str or not _VERSION.fullmatch(row['version'])
                     or type(row.get('sha256')) is not str or not _DIGEST.fullmatch(row['sha256'])
                     or type(row.get('book_token')) is not str or not _DIGEST.fullmatch(row['book_token'])
@@ -227,15 +245,27 @@ class AudioTakeHistory:
                 raise ValueError('Take history record is invalid; existing audio was preserved.')
             seen.add(row['version']); total += row['bytes']
             key = (row['book_token'], row['uid']); counts[key] = counts.get(key, 0) + 1
+            yield raw, depth
         if total > MAX_PAYLOAD_BYTES or any(n > MAX_LINE_RECORDS for n in counts.values()):
             raise ValueError('Take history exceeds its storage limits; existing audio was preserved.')
-        return document
 
-    def _save(self, document):
-        self._validate(document)
+    def _save(self, document, *, pooled=True):
+        fingerprints, depth = [], 0
+        for raw, depth in self._iter_validated_record_bytes(document):
+            fingerprints.append(hashlib.sha256(raw).digest())
         data = _encode(document)
         if len(data) > MAX_MANIFEST_BYTES:
             raise ValueError('Take history metadata is full. Remove an unneeded snapshot before saving another.')
+        current_records = {}
+        # Compact record wrappers add one level. Preserve deeply nested valid
+        # legacy records in their original representation rather than widening
+        # the parser/deepcopy bound or retaining an unreadable candidate.
+        if pooled and depth < MAX_METADATA_DEPTH:
+            minimum_saving = max(4096, (len(data) + 19) // 20)
+            candidate = compact_metadata(document, encode=_encode, minimum_saving=minimum_saving,
+                                         fingerprints=tuple(fingerprints), previous_records=self._compact_records)
+            if candidate is not None and len(data) - len(candidate.encoded) >= minimum_saving:
+                data, current_records = candidate.encoded, candidate.records
         # One declared, bounded pending name can be overwritten after interruption.
         # Its bytes never authorize payload creation until the manifest replaces.
         _ensure_plain_path(self.pending, self.root)
@@ -253,6 +283,19 @@ class AudioTakeHistory:
             stream.write(data); stream.flush(); os.fsync(stream.fileno())
         os.replace(self.pending, self.manifest)
         sync_adapter_directory(str(self.directory))
+        # Only one successfully published snapshot is retained. Cached content
+        # is immutable bytes/tuples and is never an admission or validation gate.
+        self._compact_records = current_records
+
+    def apply_metadata_format(self, *, pooled):
+        """Explicit reversible metadata conversion under the archive lock."""
+        if type(pooled) is not bool:
+            raise ValueError('Choose compact or expanded take metadata.')
+        with self._locked() as document:
+            if not self.manifest.exists():
+                raise ValueError('There is no saved take metadata to convert.')
+            self._ensure_inventory(document)
+            self._save(document, pooled=pooled)
 
     def enable_automatic_format(self, *, cancel_check=None):
         """Fence older manual-only writers before any automatic hold is saved."""
@@ -473,3 +516,15 @@ class AudioTakeHistory:
                 raise ValueError('This action is unavailable for the current snapshot state.')
             self._save(document)
             return dict(version=version, action=action)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Convert existing take metadata without changing audio selection.')
+    parser.add_argument('project_directory', help='Project data directory containing take_history/')
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--compact-metadata', action='store_true')
+    mode.add_argument('--expand-metadata', action='store_true')
+    args = parser.parse_args()
+    AudioTakeHistory(args.project_directory).apply_metadata_format(pooled=args.compact_metadata)
+    print('Metadata saved. Compact storage is used only when it produces a substantial saving.')
