@@ -33,6 +33,11 @@ class CapHitTest(unittest.TestCase):
     def test_one_token_short_is_still_a_hit(self):
         self.assertTrue(sfr.get_cap_hit(2047 * 1920, RATE, 2048))
 
+    def test_the_measured_hit_length_is_flagged(self):
+        # Real takes forced to cap 40 were exactly 74,880 frames (39 x 1920).
+        self.assertTrue(sfr.get_cap_hit(74880, RATE, 40))
+        self.assertFalse(sfr.get_cap_hit(74880, RATE, 40 + 2))
+
     def test_two_tokens_short_is_not(self):
         self.assertFalse(sfr.get_cap_hit(2046 * 1920, RATE, 2048))
 
@@ -112,6 +117,17 @@ class TakeAndReportTest(unittest.TestCase):
         self.assertIsNone(flags["content"])
         self.assertTrue(flags["internal_silence"])
         self.assertFalse(flags["cap_hit"])
+
+    def test_real_take_flags_serialize_to_json(self):
+        # The report is written with json; numpy scalars once broke it.
+        import json
+        path = self.write("b.wav", np.concatenate([tone(1), silence(2.0), tone(1), silence(1.5)]))
+        flags = sfr.get_take_flags({"uid": "u2", "audio_path": path}, self.dir.name, 2048, False)
+        report = sfr.get_report([flags])
+        json.dumps({"rows": [flags], "summary": report})
+        self.assertIs(type(flags["internal_silence"]), bool)
+        self.assertIs(type(flags["trailing_silence"]), bool)
+        self.assertIs(type(flags["cap_hit"]), bool)
 
     def test_union_counts_a_take_with_two_reasons_once(self):
         rows = [{"content": None, "all_silent": False, "cap_hit": True,

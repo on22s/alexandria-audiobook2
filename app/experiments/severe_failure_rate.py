@@ -21,8 +21,12 @@ WHAT THIS ADDS is the three things nothing recorded:
     cap hit     Every generation path saves the model's raw output through
                 `TTSEngine._save_wav`; nothing trims at save time. The codec
                 decodes 1920 samples per token at 24 kHz, so a take that used
-                all `max_new_tokens` is (almost) exactly cap x 1920 samples
-                long. Synthesis windows join several generations into one take,
+                all `max_new_tokens` has a known length. MEASURED 2026-10-22
+                (three lines forced to cap 40 on the RX 9070 XT): each came
+                out at exactly 74,880 frames = 39 x 1920, ONE TOKEN SHORT of
+                the cap, so a strict cap x 1920 rule misses every hit. The
+                same lines at cap 2048 were whole token counts (113, 105,
+                105) and not flagged. Synthesis windows join several generations into one take,
                 so the cap applies per window and the rule cannot be used: such
                 takes are unmeasured.
     silences    trailing >= 1.2 s and longest internal >= 1.5 s, LoCA's
@@ -52,7 +56,7 @@ from utils import atomic_json_write
 
 CODEC_SAMPLE_RATE = 24000
 CODEC_UPSAMPLE = 1920
-CAP_TOLERANCE_TOKENS = 1
+CAP_TOLERANCE_TOKENS = 1  # a real hit lands at cap - 1 tokens (measured, see docstring)
 TRAILING_SILENCE_SECONDS = 1.2
 INTERNAL_SILENCE_SECONDS = 1.5
 FRAME_SECONDS = 0.01
@@ -84,10 +88,12 @@ def get_silence_flags(samples, rate, threshold_dbfs=None):
         return {"all_silent": True, "leading_silence_s": round(count * FRAME_SECONDS, 3),
                 "trailing_silence_s": None, "longest_internal_silence_s": None,
                 "trailing_silence": False, "internal_silence": False}
-    leading = loud[0] * FRAME_SECONDS
-    trailing = (count - 1 - loud[-1]) * FRAME_SECONDS
+    # Plain Python numbers: numpy scalars are not JSON-serializable, and the
+    # report is written as JSON.
+    leading = int(loud[0]) * FRAME_SECONDS
+    trailing = int(count - 1 - loud[-1]) * FRAME_SECONDS
     gaps = np.diff(loud) - 1
-    internal = float(gaps.max()) * FRAME_SECONDS if gaps.size else 0.0
+    internal = int(gaps.max()) * FRAME_SECONDS if gaps.size else 0.0
     return {"all_silent": False, "leading_silence_s": round(leading, 3),
             "trailing_silence_s": round(trailing, 3), "longest_internal_silence_s": round(internal, 3),
             "trailing_silence": trailing >= TRAILING_SILENCE_SECONDS,

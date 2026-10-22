@@ -9075,6 +9075,7 @@
     "tests.test_severe_failure_rate.CapHitTest.test_an_unknown_cap_is_unmeasured",
     "tests.test_severe_failure_rate.CapHitTest.test_exactly_the_cap_is_a_hit",
     "tests.test_severe_failure_rate.CapHitTest.test_one_token_short_is_still_a_hit",
+    "tests.test_severe_failure_rate.CapHitTest.test_the_measured_hit_length_is_flagged",
     "tests.test_severe_failure_rate.CapHitTest.test_two_tokens_short_is_not",
     "tests.test_severe_failure_rate.CapHitTest.test_windowed_takes_are_unmeasured",
     "tests.test_severe_failure_rate.SilenceTest.test_a_quiet_tone_above_the_threshold_is_not_silence",
@@ -9085,6 +9086,7 @@
     "tests.test_severe_failure_rate.SilenceTest.test_short_tail_is_not",
     "tests.test_severe_failure_rate.SilenceTest.test_threshold_is_the_shared_export_one",
     "tests.test_severe_failure_rate.TakeAndReportTest.test_missing_audio_is_unmeasured_on_every_reason",
+    "tests.test_severe_failure_rate.TakeAndReportTest.test_real_take_flags_serialize_to_json",
     "tests.test_severe_failure_rate.TakeAndReportTest.test_take_without_a_receipt_has_unmeasured_content",
     "tests.test_severe_failure_rate.TakeAndReportTest.test_union_counts_a_take_with_two_reasons_once",
     "tests.test_severe_failure_rate.TakeAndReportTest.test_unmeasured_never_counts_as_severe_or_as_clean"
