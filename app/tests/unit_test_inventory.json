@@ -3039,6 +3039,38 @@
     "tests.test_dialogue_attribution_gate.GateTest.test_spoken_false_counts_as_recorded_too",
     "tests.test_dialogue_attribution_gate.GateTest.test_the_recorded_fact_overrides_the_punctuation_gate"
   ],
+  "test_dialogue_continuity": [
+    "tests.test_dialogue_continuity.DialogueContinuityTests.test_ambiguous_instruction_origins_are_rejected",
+    "tests.test_dialogue_continuity.DialogueContinuityTests.test_attached_tag_and_resumed_sentence_keep_exact_words_speakers_and_inputs",
+    "tests.test_dialogue_continuity.DialogueContinuityTests.test_bounds_invalid_shapes_and_duplicate_identity_refuse_before_a_plan",
+    "tests.test_dialogue_continuity.DialogueContinuityTests.test_ellipsis_terminal_cadence_interruption_and_independent_narration",
+    "tests.test_dialogue_continuity.DialogueContinuityTests.test_explicit_instruction_empty_zero_and_cleared_pause_win",
+    "tests.test_dialogue_continuity.DialogueContinuityTests.test_generated_notes_can_receive_hints_but_manual_notes_remain_authoritative",
+    "tests.test_dialogue_continuity.DialogueContinuityTests.test_independent_indirect_ambiguous_and_other_speaker_tags_do_not_attach",
+    "tests.test_dialogue_continuity.DialogueContinuityTests.test_material_delivery_identity_ignores_metadata_and_post_render_pause",
+    "tests.test_dialogue_continuity.DialogueContinuityTests.test_resumed_sentence_preserves_interruption_into_another_speaker",
+    "tests.test_dialogue_continuity.DialogueContinuityTests.test_resumed_speech_can_also_lead_into_another_attribution"
+  ],
+  "test_dialogue_continuity_controller": [
+    "tests.test_dialogue_continuity_controller.ContinuityControllerTests.test_cleanup_failure_exits_owned_process_without_releasing_early",
+    "tests.test_dialogue_continuity_controller.ContinuityControllerTests.test_output_cannot_dirty_the_source_checkout",
+    "tests.test_dialogue_continuity_controller.ContinuityControllerTests.test_worker_cleanup_precedes_claim_release_on_success_and_failure"
+  ],
+  "test_dialogue_continuity_experiment": [
+    "tests.test_dialogue_continuity_experiment.ContinuityExperimentTests.test_actual_cli_exports_bound_exact_text_plan_without_rendering",
+    "tests.test_dialogue_continuity_experiment.ContinuityExperimentTests.test_actual_output_limit_refuses_before_publication",
+    "tests.test_dialogue_continuity_experiment.ContinuityExperimentTests.test_bare_relative_cli_output_succeeds_and_preserves_existing_symlinks",
+    "tests.test_dialogue_continuity_experiment.ContinuityExperimentTests.test_changed_input_and_failed_publication_do_not_leave_a_partial_plan",
+    "tests.test_dialogue_continuity_experiment.ContinuityExperimentTests.test_existing_output_input_alias_and_invalid_input_preserve_prior_bytes"
+  ],
+  "test_dialogue_continuity_render": [
+    "tests.test_dialogue_continuity_render.ContinuityRenderTests.test_actual_pair_files_bind_requests_captured_text_seed_and_audio",
+    "tests.test_dialogue_continuity_render.ContinuityRenderTests.test_alias_target_timeline_is_selected_before_seed_validation",
+    "tests.test_dialogue_continuity_render.ContinuityRenderTests.test_effective_alias_and_ensemble_seeds_are_validated_and_receipted",
+    "tests.test_dialogue_continuity_render.ContinuityRenderTests.test_failed_stale_and_cancelled_audio_never_publish_a_pair",
+    "tests.test_dialogue_continuity_render.ContinuityRenderTests.test_materialized_timeline_seed_is_the_mapping_passed_to_both_arms",
+    "tests.test_dialogue_continuity_render.ContinuityRenderTests.test_unowned_stale_plan_and_random_seed_refuse_before_inference"
+  ],
   "test_dialogue_map_compare": [
     "tests.test_dialogue_map_compare.AttributionTest.test_a_missing_or_blank_speaker_is_not_an_attribution",
     "tests.test_dialogue_map_compare.AttributionTest.test_a_named_character_is",

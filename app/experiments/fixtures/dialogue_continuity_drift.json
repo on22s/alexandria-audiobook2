@@ -1,0 +1,708 @@
+{
+  "version": 1,
+  "narrator_speakers": [
+    "NARRATOR"
+  ],
+  "entries": [
+    {
+      "uid": "drift-000",
+      "speaker": "Anna",
+      "text": "When the rain stops, I will walk to the station.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-001",
+      "speaker": "Anna",
+      "text": "When the rain stops, we can check the map.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-002",
+      "speaker": "Anna",
+      "text": "When the rain stops, please bring the blue umbrella.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-003",
+      "speaker": "Anna",
+      "text": "When the rain stops, will you wait by the gate?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-004",
+      "speaker": "Anna",
+      "text": "When the rain stops, I will carry the small bag.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-005",
+      "speaker": "Anna",
+      "text": "When the rain stops, we should leave a message.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-006",
+      "speaker": "Anna",
+      "text": "When the rain stops, keep the lantern near the door.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-007",
+      "speaker": "Anna",
+      "text": "When the rain stops, we can follow the river.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-008",
+      "speaker": "Anna",
+      "text": "When the rain stops, will the road be quiet?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-009",
+      "speaker": "Anna",
+      "text": "When the rain stops, I hope the wind settles.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-010",
+      "speaker": "Anna",
+      "text": "When the rain stops, please remember the spare key.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-011",
+      "speaker": "Anna",
+      "text": "When the rain stops, we will meet beside the fountain.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-012",
+      "speaker": "Anna",
+      "text": "When the rain stops, I can hear the bell again.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-013",
+      "speaker": "Anna",
+      "text": "When the rain stops, look for the red wooden sign.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-014",
+      "speaker": "Anna",
+      "text": "When the rain stops, we should ask the station keeper.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-015",
+      "speaker": "Anna",
+      "text": "When the rain stops, please close the window gently.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-016",
+      "speaker": "Anna",
+      "text": "When the rain stops, I will count the empty seats.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-017",
+      "speaker": "Anna",
+      "text": "When the rain stops, will there be room for us?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-018",
+      "speaker": "Anna",
+      "text": "When the rain stops, we can take the longer path.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-019",
+      "speaker": "Anna",
+      "text": "When the rain stops, I will tell you the whole story.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-020",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, I will walk to the station.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-021",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, we can check the map.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-022",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, please bring the blue umbrella.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-023",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, will you wait by the gate?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-024",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, I will carry the small bag.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-025",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, we should leave a message.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-026",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, keep the lantern near the door.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-027",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, we can follow the river.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-028",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, will the road be quiet?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-029",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, I hope the wind settles.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-030",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, please remember the spare key.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-031",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, we will meet beside the fountain.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-032",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, I can hear the bell again.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-033",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, look for the red wooden sign.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-034",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, we should ask the station keeper.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-035",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, please close the window gently.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-036",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, I will count the empty seats.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-037",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, will there be room for us?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-038",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, we can take the longer path.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-039",
+      "speaker": "Anna",
+      "text": "After the clock strikes six, I will tell you the whole story.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-040",
+      "speaker": "Anna",
+      "text": "Before the train arrives, I will walk to the station.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-041",
+      "speaker": "Anna",
+      "text": "Before the train arrives, we can check the map.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-042",
+      "speaker": "Anna",
+      "text": "Before the train arrives, please bring the blue umbrella.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-043",
+      "speaker": "Anna",
+      "text": "Before the train arrives, will you wait by the gate?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-044",
+      "speaker": "Anna",
+      "text": "Before the train arrives, I will carry the small bag.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-045",
+      "speaker": "Anna",
+      "text": "Before the train arrives, we should leave a message.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-046",
+      "speaker": "Anna",
+      "text": "Before the train arrives, keep the lantern near the door.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-047",
+      "speaker": "Anna",
+      "text": "Before the train arrives, we can follow the river.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-048",
+      "speaker": "Anna",
+      "text": "Before the train arrives, will the road be quiet?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-049",
+      "speaker": "Anna",
+      "text": "Before the train arrives, I hope the wind settles.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-050",
+      "speaker": "Anna",
+      "text": "Before the train arrives, please remember the spare key.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-051",
+      "speaker": "Anna",
+      "text": "Before the train arrives, we will meet beside the fountain.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-052",
+      "speaker": "Anna",
+      "text": "Before the train arrives, I can hear the bell again.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-053",
+      "speaker": "Anna",
+      "text": "Before the train arrives, look for the red wooden sign.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-054",
+      "speaker": "Anna",
+      "text": "Before the train arrives, we should ask the station keeper.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-055",
+      "speaker": "Anna",
+      "text": "Before the train arrives, please close the window gently.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-056",
+      "speaker": "Anna",
+      "text": "Before the train arrives, I will count the empty seats.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-057",
+      "speaker": "Anna",
+      "text": "Before the train arrives, will there be room for us?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-058",
+      "speaker": "Anna",
+      "text": "Before the train arrives, we can take the longer path.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-059",
+      "speaker": "Anna",
+      "text": "Before the train arrives, I will tell you the whole story.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-060",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, I will walk to the station.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-061",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, we can check the map.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-062",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, please bring the blue umbrella.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-063",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, will you wait by the gate?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-064",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, I will carry the small bag.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-065",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, we should leave a message.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-066",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, keep the lantern near the door.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-067",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, we can follow the river.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-068",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, will the road be quiet?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-069",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, I hope the wind settles.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-070",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, please remember the spare key.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-071",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, we will meet beside the fountain.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-072",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, I can hear the bell again.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-073",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, look for the red wooden sign.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-074",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, we should ask the station keeper.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-075",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, please close the window gently.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-076",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, I will count the empty seats.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-077",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, will there be room for us?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-078",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, we can take the longer path.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-079",
+      "speaker": "Anna",
+      "text": "Once the bridge opens, I will tell you the whole story.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-080",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, I will walk to the station.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-081",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, we can check the map.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-082",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, please bring the blue umbrella.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-083",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, will you wait by the gate?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-084",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, I will carry the small bag.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-085",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, we should leave a message.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-086",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, keep the lantern near the door.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-087",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, we can follow the river.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-088",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, will the road be quiet?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-089",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, I hope the wind settles.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-090",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, please remember the spare key.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-091",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, we will meet beside the fountain.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-092",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, I can hear the bell again.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-093",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, look for the red wooden sign.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-094",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, we should ask the station keeper.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-095",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, please close the window gently.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-096",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, I will count the empty seats.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-097",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, will there be room for us?",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-098",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, we can take the longer path.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "drift-099",
+      "speaker": "Anna",
+      "text": "While the lamps are still lit, I will tell you the whole story.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    }
+  ]
+}

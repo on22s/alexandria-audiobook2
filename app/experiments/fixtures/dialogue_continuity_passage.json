@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "narrator_speakers": [
+    "NARRATOR"
+  ],
+  "entries": [
+    {
+      "uid": "passage-000",
+      "speaker": "NARRATOR",
+      "text": "The station clock struck six.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-001",
+      "speaker": "Anna",
+      "text": "I will go,",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-002",
+      "speaker": "NARRATOR",
+      "text": "Anna said,",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-003",
+      "speaker": "Anna",
+      "text": "when the rain stops,",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-004",
+      "speaker": "NARRATOR",
+      "text": "Anna added,",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-005",
+      "speaker": "Anna",
+      "text": "and the road clears.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-006",
+      "speaker": "Ben",
+      "text": "Will you wait?",
+      "instruct": "",
+      "instruction_origin": "manual",
+      "pause_after": 0
+    },
+    {
+      "uid": "passage-007",
+      "speaker": "NARRATOR",
+      "text": "Ben asked.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-008",
+      "speaker": "Anna",
+      "text": "Of course!",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-009",
+      "speaker": "NARRATOR",
+      "text": "Anna replied.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-010",
+      "speaker": "Ben",
+      "text": "I thought\u2026",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-011",
+      "speaker": "NARRATOR",
+      "text": "Ben whispered,",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-012",
+      "speaker": "Ben",
+      "text": "that you had already left.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-013",
+      "speaker": "Anna",
+      "text": "But I\u2014",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-014",
+      "speaker": "Ben",
+      "text": "Listen.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-015",
+      "speaker": "NARRATOR",
+      "text": "Anna walked away, then said nothing.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-016",
+      "speaker": "Anna",
+      "text": "We can leave tomorrow.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-017",
+      "speaker": "NARRATOR",
+      "text": "She said,",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-018",
+      "speaker": "Anna",
+      "text": "if the bridge is open.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    },
+    {
+      "uid": "passage-019",
+      "speaker": "NARRATOR",
+      "text": "The empty platform grew quiet.",
+      "instruct": "Speak naturally.",
+      "instruction_origin": "generated"
+    }
+  ]
+}
