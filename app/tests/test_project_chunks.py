@@ -59,7 +59,8 @@ class SpeakableEntryTests(unittest.TestCase):
     def test_sentence_endings_inside_closing_marks_and_unicode_merge(self):
         for texts in [('"Okay."', '"Continue."'), ('“Okay!”', '“Continue?”'),
                       ('はい。', '続けて。'), ('好的！', '继续？'),
-                      ('「はい。」', '『続けて。』'), ('(Okay.)', '[Continue.]')]:
+                      ('「はい。」', '『続けて。』'), ('(Okay.)', '[Continue.]'),
+                      ('« Pourquoi ? »', '« Oui ! »'), ('(Okay. )', '[Continue? ]')]:
             with self.subTest(texts=texts):
                 chunks = group_into_chunks([
                     {'speaker': 'ALICE', 'text': text, 'instruct': 'neutral'}
@@ -68,7 +69,8 @@ class SpeakableEntryTests(unittest.TestCase):
                 self.assertEqual(' '.join(texts), chunks[0]['text'])
 
     def test_structural_fragments_and_explicit_pauses_keep_boundaries(self):
-        for texts in [('Chapter 1', 'The Awakening'), ('"The Awakening"', 'Chapter 2')]:
+        for texts in [('Chapter 1', 'The Awakening'), ('"The Awakening"', 'Chapter 2'),
+                      ('« The Awakening »', 'Chapter 2')]:
             with self.subTest(texts=texts):
                 chunks = group_into_chunks([
                     {'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}

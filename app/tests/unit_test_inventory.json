@@ -6302,7 +6302,11 @@
     "tests.test_normalize_for_speech.TestStructuralMarks.test_inline_asterisks_and_underscores_are_not_scene_breaks",
     "tests.test_normalize_for_speech.TestStructuralMarks.test_runs_of_marks_collapse",
     "tests.test_normalize_for_speech.TestStructuralMarks.test_standalone_asterisk_and_underscore_scene_breaks_still_work",
-    "tests.test_normalize_for_speech.TestStructuralMarks.test_the_measured_defect"
+    "tests.test_normalize_for_speech.TestStructuralMarks.test_the_measured_defect",
+    "tests.test_normalize_for_speech.TestTerminalBoundaryEvidence.test_authored_terminal_marks_survive_with_closing_marks_and_second_pass_is_clean",
+    "tests.test_normalize_for_speech.TestTerminalBoundaryEvidence.test_existing_full_stop_is_retained_and_not_reported_as_new",
+    "tests.test_normalize_for_speech.TestTerminalBoundaryEvidence.test_unterminated_prose_and_quoted_fragments_keep_existing_period_policy",
+    "tests.test_normalize_for_speech.TestTerminalBoundaryEvidence.test_whitespace_trim_reports_no_added_period_for_terminated_question"
   ],
   "test_numbered_chapter_boundaries": [
     "tests.test_numbered_chapter_boundaries.NumberedChapterBoundariesTests.test_a_heading_inside_an_open_single_quote_still_stays_joined",
@@ -9981,6 +9985,7 @@
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_processor_identity_binds_effective_call_policy",
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_random_external_compiled_or_unsupported_requests_skip_model_initialization",
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_runtime_normalizes_known_torch_version_subclass",
+    "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_speech_policy_loaded_code_is_bound_and_missing_certificate_refuses_recovery",
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_tokenizer_working_padding_changes_do_not_relabel_vocabulary",
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_unknown_loaded_object_is_not_labeled_from_current_model_files",
     "tests.test_synthesis_recovery_serving.RecoveryServingTests.test_unsupported_generation_modes_are_refused_and_config_paths_do_not_define_semantics",
@@ -10988,6 +10993,7 @@
     "tests.test_tts_speech_input.TTSSpeechInputTests.test_native_batch_missing_waveform_and_save_failure_do_not_lend_receipts",
     "tests.test_tts_speech_input.TTSSpeechInputTests.test_project_single_parallel_and_native_routes_carry_input_to_shared_publication",
     "tests.test_tts_speech_input.TTSSpeechInputTests.test_split_batch_parents_get_complete_original_index_input",
+    "tests.test_tts_speech_input.TTSSpeechInputTests.test_terminal_punctuation_reaches_each_builtin_provider_and_capture_unchanged",
     "tests.test_tts_speech_input.TTSSpeechInputTests.test_unknown_successful_override_and_disabled_capture_have_no_guessed_input"
   ],
   "test_tts_validation_manifest": [

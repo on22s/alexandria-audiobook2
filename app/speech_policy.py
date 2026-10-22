@@ -51,6 +51,14 @@ def get_spoken_text_spacing(text):
     return re.subn(r"[ \t]+(?=[,;:.!?])", "", text)
 
 
+def is_sentence_terminated(text):
+    """Recognize a sentence end inside supported closing marks and whitespace."""
+    end = len(text)
+    while end and (text[end - 1] in '\"\'”’»」』)）]】' or text[end - 1].isspace()):
+        end -= 1
+    return bool(end) and text[end - 1] in '.!?。！？'
+
+
 UNSPEAKABLE_CATEGORIES = frozenset({"So", "Sm", "Sk", "Co", "Cn", "Cs", "Cc"})
 REPLACEMENT_CHARACTER = "�"
 
@@ -197,3 +205,7 @@ def get_scene_break_text(text):
     """Fold decorative runs and contextual dividers to one shared marker."""
     value, _ = strip_emoji_dividers(text)
     return _SCENE_BREAK_RE.sub(" " + SCENE_BREAK_MARKER + " ", value)
+
+
+from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
+_LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()
