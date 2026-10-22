@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "seed": 20261022,
+  "device": "cpu",
+  "cpu_threads": 2,
+  "corpus": "AISHELL-3",
+  "license": "Apache-2.0",
+  "source": "https://www.openslr.org/93/",
+  "model_snapshot": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+  "sample_rate": 16000,
+  "window_seconds": 8,
+  "stride_seconds": 4,
+  "durations_seconds": [
+    24,
+    48
+  ],
+  "arms": [
+    "clean",
+    "same_speaker_splice",
+    "gain_change",
+    "swap_2s",
+    "swap_4s",
+    "swap_8s"
+  ],
+  "speakers": {
+    "calibration": [
+      {
+        "speaker": "SSB0535",
+        "gender": "male"
+      },
+      {
+        "speaker": "SSB0407",
+        "gender": "male"
+      },
+      {
+        "speaker": "SSB1100",
+        "gender": "male"
+      },
+      {
+        "speaker": "SSB1831",
+        "gender": "male"
+      },
+      {
+        "speaker": "SSB0133",
+        "gender": "female"
+      },
+      {
+        "speaker": "SSB1437",
+        "gender": "female"
+      },
+      {
+        "speaker": "SSB1625",
+        "gender": "female"
+      },
+      {
+        "speaker": "SSB1253",
+        "gender": "female"
+      }
+    ],
+    "test": [
+      {
+        "speaker": "SSB0609",
+        "gender": "male"
+      },
+      {
+        "speaker": "SSB0590",
+        "gender": "male"
+      },
+      {
+        "speaker": "SSB0629",
+        "gender": "male"
+      },
+      {
+        "speaker": "SSB0241",
+        "gender": "male"
+      },
+      {
+        "speaker": "SSB1806",
+        "gender": "female"
+      },
+      {
+        "speaker": "SSB0299",
+        "gender": "female"
+      },
+      {
+        "speaker": "SSB0760",
+        "gender": "female"
+      },
+      {
+        "speaker": "SSB1161",
+        "gender": "female"
+      }
+    ]
+  },
+  "calibration_rule": "maximize four-second swap recall at <=5% control false alarms; ties prefer fewer false alarms, then lower threshold",
+  "primary_go_rule": "test window-min four-second recall strictly exceeds whole-clip recall, with <=5% combined control false alarms",
+  "limitations": [
+    "controlled human-speech instrument test, not generated audiobook quality",
+    "one language and corpus",
+    "eight held-out speakers; clips are clustered by speaker",
+    "concatenation and splice boundaries are artificial",
+    "energy coverage is not speech VAD",
+    "Wilson intervals describe clip counts and ignore speaker clustering"
+  ],
+  "script_sha256": "8a303a84a731ea9efc62af4a6244b5b71376b87a295b58bedd1ef168a4444aca",
+  "python": "3.10.20 (main, May 10 2026, 19:27:29) [Clang 22.1.3 ]",
+  "host": "mitch-linux",
+  "expected_rows_per_split": 96
+}

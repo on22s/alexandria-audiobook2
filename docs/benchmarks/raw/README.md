@@ -1,5 +1,9 @@
 # Raw benchmark reports
 
+- [CPU speaker-window experiments, 2026-10-22](cpu-speaker-windows-20261022/README.md):
+  384 controlled ECAPA measurements, frozen calibration/test protocols, and
+  both failed pilot decisions, with an offline evidence checker.
+
 Full `reports/benchmarks/<preflight_id>.json` files, archived here before
 they could be cleaned up from the scratch `reports/` directory. Each one
 fully encodes the exact fixtures (source text hashes, chunk numbers, entry

@@ -1,0 +1,44 @@
+{
+  "checks": "passed",
+  "required_measured_cells": 192,
+  "per_test_speaker": [
+    {
+      "speaker": "SSB0407",
+      "primary_recall_difference": 1
+    },
+    {
+      "speaker": "SSB0603",
+      "primary_recall_difference": 0
+    },
+    {
+      "speaker": "SSB0609",
+      "primary_recall_difference": -0.5
+    },
+    {
+      "speaker": "SSB0623",
+      "primary_recall_difference": 0
+    },
+    {
+      "speaker": "SSB0778",
+      "primary_recall_difference": -0.5
+    },
+    {
+      "speaker": "SSB1096",
+      "primary_recall_difference": 0
+    },
+    {
+      "speaker": "SSB1115",
+      "primary_recall_difference": -0.5
+    },
+    {
+      "speaker": "SSB1699",
+      "primary_recall_difference": 0
+    }
+  ],
+  "primary_recall_difference": -0.0625,
+  "speaker_cluster_bootstrap95": [
+    -0.3125,
+    0.3125
+  ],
+  "note": "Small controlled sample; bootstrap is exploratory, not evidence of generated-audio performance."
+}

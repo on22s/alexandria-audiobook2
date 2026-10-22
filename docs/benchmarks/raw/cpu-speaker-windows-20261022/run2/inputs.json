@@ -1,0 +1,2824 @@
+{
+  "SSB0241": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410278.wav",
+      "sha256": "a211f551d592e865a466ec89998351e728aa97c0c0fc1144aad46af91bdc9c67",
+      "seconds": 2.5980625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410371.wav",
+      "sha256": "9e6af04266596e54b27e7e62db50304726bdf1b8fdf0c2aa2b018508e127c604",
+      "seconds": 2.421
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410456.wav",
+      "sha256": "c4e34419cf9353e6402bb5a47fd5974255894bd0593dca0f06ecf0b7bf085428",
+      "seconds": 4.344
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410470.wav",
+      "sha256": "363246e4013a278a7ea98314f9d6d0cc20f4e9d5186fa0b1f78fc21bdc1e6d50",
+      "seconds": 2.186
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410181.wav",
+      "sha256": "e875cab06a950744e19c329053803967eb222a72a56dde7551b5c0fe0cb84d8b",
+      "seconds": 3.5840625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410246.wav",
+      "sha256": "f41f06afa9dcd3193fd8beca9c0c31f83e13821286f6e18df8865db9fe846736",
+      "seconds": 2.871
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410051.wav",
+      "sha256": "32172c07b4931e5a95dfb73cf890c3afb4141473a10fe664cac4333a9e01b2ac",
+      "seconds": 5.6280625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410381.wav",
+      "sha256": "3dc60849340c4be819b22c069009ea3897c04e9806c9d1010eef97bff16dba78",
+      "seconds": 3.236125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410268.wav",
+      "sha256": "e4bda1e83ddca5bcf0fabcf71e5a03e2920e5a30e5d732865629ba7ca30623c9",
+      "seconds": 1.6040625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410020.wav",
+      "sha256": "e9529206cd6912053d04994e4b3230459748ff9e24d235b482ce40941b5f4aa9",
+      "seconds": 3.584
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410434.wav",
+      "sha256": "6a6619a4b6b56d211a8d071948bd5020fe9c23cfe6d8b48b82de6e34ff8516b9",
+      "seconds": 4.1279375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410103.wav",
+      "sha256": "74d57a65911700614a7f58aeacc2d082a0399240058ac2a526df02ea558ada56",
+      "seconds": 3.912125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410213.wav",
+      "sha256": "5fa849269b8357688ed3f8da641e91e7b746452e2b90582302c529881ebd13b5",
+      "seconds": 3.3490625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410267.wav",
+      "sha256": "05b9edf1fa31c8485631b4c0fefc5ab9e347c2635bb497e50fdad1c7228497f5",
+      "seconds": 5.291
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410045.wav",
+      "sha256": "725c84ba5f862cfaa05e03f06529766c409ae58768dc2bc17ad3cbda000e3b14",
+      "seconds": 3.658
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410062.wav",
+      "sha256": "da9c25f183cdedbe47c9c1c9b94f61af5e0db81d2b55d2b3babf001de8308576",
+      "seconds": 3.527
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410119.wav",
+      "sha256": "53547062d0fe8f8946e8b642546456d227302ad21e33a979cd41d5214e1721e6",
+      "seconds": 6.867
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410389.wav",
+      "sha256": "8bd2167898e9968018baa713d6bdd0bb0aaa6f9910f1edb1496e6998e6c6d694",
+      "seconds": 6.2570625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410291.wav",
+      "sha256": "1bbee6ae59d6b01cbe08c6fd88cab1a16cc6ef95a4c82ae9fb27a4f522a403e7",
+      "seconds": 3.9690625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410196.wav",
+      "sha256": "36682638d26f1954f8ad91095e3d3a92908ce7736776340861c832fba45e4ec3",
+      "seconds": 4.8220625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410413.wav",
+      "sha256": "a9cfe5865baa6df858b1893ade9689e0f8f24017359049f07ee32467eda4b6af",
+      "seconds": 2.87
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410171.wav",
+      "sha256": "1d3e14dc18f84bb01a28bdd18d1111b247c4e9b2ec46f868cf8e05553559c69a",
+      "seconds": 3.142
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410056.wav",
+      "sha256": "d37aa04363e752653fb4d1a4ff720d2b4401b0da4e9fe57a4531e4c522b2ac0c",
+      "seconds": 4.0620625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410073.wav",
+      "sha256": "a98c602c93ac3d841b4d70a49e3fafbd7d74ed372423a4731ae9098cc4912203",
+      "seconds": 5.122
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410366.wav",
+      "sha256": "4be629b1281a6c0b9e88b3a219b206f257b3e13893cc6542eb2421a7e465fc8b",
+      "seconds": 2.664125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410140.wav",
+      "sha256": "0b23198ee4a283ea3307cb93df573ade676a9408dc754b9ce0e08bac479a09b0",
+      "seconds": 5.553
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410257.wav",
+      "sha256": "9e27931ab8ef353220f4b995ec150b81b6335c89e5ba5d2f305edacc13017178",
+      "seconds": 7.804
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410284.wav",
+      "sha256": "0261723d7071550ca05c0473c78d1147712657c8576d4699fbaedc44b00941ca",
+      "seconds": 6.0790625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410247.wav",
+      "sha256": "5fd6503afdaae9f7ab7f84b8c007b7afd7bc5db22c8aabe68c0246b9505261e2",
+      "seconds": 2.626
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0241/SSB02410353.wav",
+      "sha256": "9f7d5cba94674c7a92ad6be624b36c0bdd52cdd5ea058be56fa617674ff23141",
+      "seconds": 2.9358125
+    }
+  ],
+  "SSB1448": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480037.wav",
+      "sha256": "4c2f9634887fe24d309b9673546390ebe756d1650d7007d7b3a06b4927a3eeb5",
+      "seconds": 5.959
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480176.wav",
+      "sha256": "12a5a77d398f197918d5363780406f27d076f2c81537274e61499707e2870881",
+      "seconds": 6.364
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480199.wav",
+      "sha256": "426b67299d6d3021868078e60cafc2c596336e8a3db9002d19240a53aee03178",
+      "seconds": 4.127
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480234.wav",
+      "sha256": "fef226c0304f964c340bd40e11ca0d119137f407550a1591d21feeacb02970d2",
+      "seconds": 3.62
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480140.wav",
+      "sha256": "0c087cb83f321381be135f2c0eedf3691116675f34b98973ae22b07624c03cbc",
+      "seconds": 4.9360625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480051.wav",
+      "sha256": "f6775aefa8cbb6a1b3498d347db747fa160ac37f99139292aec59b5963777232",
+      "seconds": 4.115
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480230.wav",
+      "sha256": "987d0339a8d05c90fc8f94ffa2628288a10200a7b2ec06489c88c0feb3485a45",
+      "seconds": 7.995125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480287.wav",
+      "sha256": "62c6f72233540021c4439f4dc7f72ab094be678dc5ad1a509fd60c0424b6b86e",
+      "seconds": 3.126
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480296.wav",
+      "sha256": "b415cd73213342be56d4ca30b470dfb80febdbc9ecdd44def858a6e790c6bab6",
+      "seconds": 6.0040625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480214.wav",
+      "sha256": "016a6de2e48bdf70a86761b944001b2162d09589d0c241af40be242f590e5959",
+      "seconds": 2.8891875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480387.wav",
+      "sha256": "b495e847c390a61a9b93bd30dd09964be1dd8029cb718522ffb390cea22eee79",
+      "seconds": 4.5090625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480431.wav",
+      "sha256": "3015acc08a4db3bc8b666f47cff7b8967a08ae8b12faf97937a78fa065016d6c",
+      "seconds": 5.5661875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480157.wav",
+      "sha256": "2c69dce66aa6190d4ee0aed4260a87cac5faff54dfd33ffe9d5f421eed352748",
+      "seconds": 3.4300625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480128.wav",
+      "sha256": "b5c1a3628967aebb32147d5acd751af7d528f8926c4d8af2f4f52d6056e2d96a",
+      "seconds": 3.6090625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480218.wav",
+      "sha256": "951afad430f2bb97663377550f5315a9e5885a8bfc5e4001640bd307c27ffb10",
+      "seconds": 4.0370625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480366.wav",
+      "sha256": "5ebe39759ae35b283bf0583ff9cf28e8c7d77b25f1469b4a02a5e032ef5bd95a",
+      "seconds": 6.409125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480261.wav",
+      "sha256": "c7d93bda91c88782a42fb601187d7fe03642dec28c0a9c2460834bc7ba940787",
+      "seconds": 6.8930625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480326.wav",
+      "sha256": "941f5a4b1a454130f70203f2feb1803bada75cbb2fbcd76c6f8b298953d0cfee",
+      "seconds": 6.611125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480136.wav",
+      "sha256": "df15f3ddc45e220976e9e259e6e8fa02949a01824e979c8ff3f27f4052501b6e",
+      "seconds": 5.251
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480408.wav",
+      "sha256": "cb5aaf7deb09370fafba6cbb5e0897480da2b3baef259a8bbaf3d474468b8d79",
+      "seconds": 4.464
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480195.wav",
+      "sha256": "bc0ea6fa4b07219def72a93d94f8711bf48f9cb7d99d66701c9ab8b3aa550f0c",
+      "seconds": 8.299125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480059.wav",
+      "sha256": "71596f0219c78d251707732d91d026d26e3e3f929755077c25293efdea58cada",
+      "seconds": 3.598875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480485.wav",
+      "sha256": "e037ae2dd7a4574a13143ecc1fd1eff9d77dbe3652b790424d9738d84da3b41d",
+      "seconds": 6.095
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1448/SSB14480010.wav",
+      "sha256": "d13e3e474bde107eee688af51aa6829ffbf01c5fbc4845a2286433edcb4fe13b",
+      "seconds": 6.027
+    }
+  ],
+  "SSB0966": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660304.wav",
+      "sha256": "d03723dcb15af7c4fdfba933ea2273a399ef6cd55565cda0298520559844919d",
+      "seconds": 4.88
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660510.wav",
+      "sha256": "b22f130188b9f49fdbe2db22595cb21bf96c906399a45dc659fcd0411a2885c6",
+      "seconds": 2.69
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660477.wav",
+      "sha256": "aa2d50344616ba82325fdeedfc1fe9d6764428e223f6d0bd6d1df91d6d949af4",
+      "seconds": 2.705375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660153.wav",
+      "sha256": "56df99c19abb8e35c4d31f6b1c527eb42bf15a6cbb8904777c3e9c1a4b1bb329",
+      "seconds": 4.6700625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660470.wav",
+      "sha256": "1df3d07b4dafd8d06554c8db695de395b259ca011300b5061ff63507f1ed7036",
+      "seconds": 2.330125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660171.wav",
+      "sha256": "9c5ac553afdebc433f235465735b6745e2c1e88603dcb3aed5b52443ef8596e6",
+      "seconds": 4.49
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660433.wav",
+      "sha256": "2a397a44f1b0d99976709f7535026cffb8c55be43348f13f3e0dd6fe65d3d174",
+      "seconds": 2.5669375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660418.wav",
+      "sha256": "ce31f14b88875409dfafe9f7d27c132483767a1e5d75db8525bb6a265239954d",
+      "seconds": 4.5485625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660357.wav",
+      "sha256": "68f4690c20db1e4bab3101c66b6cd1b24cfee0fcc7019924f671a383eef89a00",
+      "seconds": 2.839875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660155.wav",
+      "sha256": "1edaf1c97d46692a4a528001995ec0f9573c67c534f62e10601c50eafb7f5966",
+      "seconds": 2.93
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660252.wav",
+      "sha256": "4f14e53079e31239c0ba6f1f56192452d5fce1a8540f4f59a3445bb7de1140bb",
+      "seconds": 3.44
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660208.wav",
+      "sha256": "5f104903e70871d96751d78a1906c9d0887222070723cbfd1cce4586249297b8",
+      "seconds": 2.6301875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660402.wav",
+      "sha256": "022c47fdc8a1bdd2bd51bec78cf8f0edd328e3650b17050201ad1aa3602e7bd3",
+      "seconds": 5.162
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660446.wav",
+      "sha256": "da77d0c7097abb3ce02ba04cd4db2dc84abbc042650269ca78fd72700a97ed36",
+      "seconds": 2.1499375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660106.wav",
+      "sha256": "3efe87ef5a240f10ffb7e4db288eaec2a973a4aed5e80a64a82923fd95bb59aa",
+      "seconds": 3.2600625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660241.wav",
+      "sha256": "0f936ea9a20c88b788123c12c89cc98eecb57d85c46db42cafbbe81f146b8706",
+      "seconds": 2.39
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660152.wav",
+      "sha256": "d3f55ce1347178d98e84394b2caffe5d273a58c453dd2dd6cc7ef6fb8e5a5079",
+      "seconds": 3.949
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660230.wav",
+      "sha256": "8066393686d6596819c3e79121badb944a0212369b786560edd7894752408d4a",
+      "seconds": 4.79
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660328.wav",
+      "sha256": "8327e376fa06a28f21f9f921425918867637ee9a9af61716eb01892f86f3c48e",
+      "seconds": 2.810125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660014.wav",
+      "sha256": "ff87cbf46fad47334a5d1ba66cced9a20738248951ac9843ae9fc7852da0534b",
+      "seconds": 5.51
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660392.wav",
+      "sha256": "dea1035bb0d9a9f65e3ef927e60b1de2a6235e7390a2bcb5592f304397673636",
+      "seconds": 2.96
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660275.wav",
+      "sha256": "4b09a53870269f0b2bdf267c0627730afee51ec06ff6d3900e42a76582401a9e",
+      "seconds": 4.34
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660255.wav",
+      "sha256": "dce8e9f08a0983e717f64252e04e51b039841ccbfc4bccae6e243cea35855c5d",
+      "seconds": 2.6
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660341.wav",
+      "sha256": "e432cd6301a0e76378467a1542f392651d152fd413e91c446b235ec21b98e539",
+      "seconds": 2.9
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660012.wav",
+      "sha256": "7cf4f10adfa22e391650cacbf37b0e045bb84f5694b14abf4307995c3b46593d",
+      "seconds": 2.51
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660173.wav",
+      "sha256": "d1acc1160320a7ddca07aef8e93b02fb5bda570f1973767dbee5a8f1fe5e34ca",
+      "seconds": 3.5
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660088.wav",
+      "sha256": "536653ca5c9cd5baf169e6bc6698316b32932d8201e05e7f0236a36d709f4b8d",
+      "seconds": 2.599875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660412.wav",
+      "sha256": "feef674c68b07f5db1ef5c2149ce0c3227c258e3c382cea467eec2aea09b3765",
+      "seconds": 2.66
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660214.wav",
+      "sha256": "e0cf6e066e845b2b4eb2a6bd6c49be461a0bcccd61f4a653367283e12ab19c47",
+      "seconds": 1.9119375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660051.wav",
+      "sha256": "18b3a63422a3056eaebb5ab70aa79e4946d93f80f00bd8772020b7001c93e65b",
+      "seconds": 2.0300625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660175.wav",
+      "sha256": "417b1d9a9c6c371b7915cba20cda33986d9e746479937c2538c7414a83386fb5",
+      "seconds": 2.599875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660183.wav",
+      "sha256": "3076ac54461ab59d3fc081e6cabc9366386f5069cc2e1148d45b36727f9c48b1",
+      "seconds": 2.569875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660394.wav",
+      "sha256": "64d231f6d8a4446730622e89318fd4fc7019fcab55daec8193451da520e6227f",
+      "seconds": 2.6899375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660245.wav",
+      "sha256": "a00e0c37b62743a0214851fa2dcc894ae7ce1e549dc0451c302a38d9c19b9a21",
+      "seconds": 4.1599375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660420.wav",
+      "sha256": "d150bdcca8b94dc06eabecb32fbf8e90e36a993ee04e23cc7fa41799d07a2eb7",
+      "seconds": 3.41
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660085.wav",
+      "sha256": "42da47bd01cf3598035903cc52133c58f58a5b6ee07595660488aabf96fe1120",
+      "seconds": 2.7800625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660113.wav",
+      "sha256": "147c1e0c6b71803be9a02d775c334426562da5ac2c672f739f8027505a08cceb",
+      "seconds": 2.570125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0966/SSB09660147.wav",
+      "sha256": "f608e2591e70a0e15f9d1eb20e53f03997d26775629e88fb1e7474f0168838e1",
+      "seconds": 2.6081875
+    }
+  ],
+  "SSB0784": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840179.wav",
+      "sha256": "13628a79aa3db365cacacecb416e55a091720fce58e0a9abf4c726c50fa0a3ce",
+      "seconds": 3.0200625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840508.wav",
+      "sha256": "d8ba737a81a247b1e964329222df5daf85936ba23882d1419c822111a6e34047",
+      "seconds": 2.5520625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840239.wav",
+      "sha256": "1b0b8191f0e786d998466fe8b302b5bced61414b3f28e011f4837a6de847c91d",
+      "seconds": 2.8100625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840243.wav",
+      "sha256": "6beefb44be3305e6b7ad8875b7273e85e5ec03aab3f4caeb059291bd469fef75",
+      "seconds": 6.11
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840017.wav",
+      "sha256": "17ee5faa61634ccafe89bbb2e03797a8d97ea9336f5300b164ef217eeabeac38",
+      "seconds": 1.82
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840352.wav",
+      "sha256": "33c593908d640b716a005c7013ac47ee9deb4ff68cc1c94faa9c63348c34faea",
+      "seconds": 2.1801875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840096.wav",
+      "sha256": "69aee4cb68120fb9ac62a98d601e639e3110b5c4e8c60f81e17c0de37617633a",
+      "seconds": 3.6499375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840390.wav",
+      "sha256": "403649148f994612ee5932bc7b89e085019ff72043471558d1a04d729b524489",
+      "seconds": 2.570125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840109.wav",
+      "sha256": "16e5d5c6b562908a93c099f6fa7bae0cf8045d9dbd195d668b3f901bae72779f",
+      "seconds": 3.4840625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840258.wav",
+      "sha256": "0c5c386e9da4dc09aaa5f22e2b4871aba8239eca11fd0446604ed9d28101d41d",
+      "seconds": 1.76
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840434.wav",
+      "sha256": "0f9d5af0b0b6f0b29525d554bd151ad15ff43055a9ffae63a4fab87871a2e61a",
+      "seconds": 3.26
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840483.wav",
+      "sha256": "36e7f1894279d257a033c227869fbbca2861bd4de8d0679b80e95beeb3691eb0",
+      "seconds": 3.74
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840082.wav",
+      "sha256": "e2e96b89d4597e210ca738d0fb1e3fdcf81e44f566113481b6dbb946daee9855",
+      "seconds": 2.1500625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840156.wav",
+      "sha256": "9ced474f4d2776a8cdd3dac354e6474cdbfb871f343fd98b590ebe03cb0382e5",
+      "seconds": 2.09
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840282.wav",
+      "sha256": "49a3776d33865188bcd2027317c1b6ce70db84c56f39e746981b7f4e2a1af83b",
+      "seconds": 4.01
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840439.wav",
+      "sha256": "2ce2bbc1124067fcdf7585405d991f0a6d51fbde374250b35136d2b54c497adc",
+      "seconds": 2.810125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840364.wav",
+      "sha256": "eb3bf4a9ac7e068d92abee72c0c18bc38806fc263114ec33e366ea1db8b77124",
+      "seconds": 3.9501875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840488.wav",
+      "sha256": "c490bebfc54896eca3c9ecf7eba05298b4b99e352ed78e0d629d439328b92432",
+      "seconds": 3.1401875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840438.wav",
+      "sha256": "d79f57defb0939b31cda2460dc798236863227196d2c0e3768c1d2157d8f7844",
+      "seconds": 2.15
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840365.wav",
+      "sha256": "a03de1da7e7fd1d10688e78c5719dad0f27fa17c34f059b3931741446672aa3a",
+      "seconds": 3.0200625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840320.wav",
+      "sha256": "e7271e2e6dca8d65f615495c2ab86e768311aae6fb07696445710c6d5c8a2f7f",
+      "seconds": 3.3801875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840272.wav",
+      "sha256": "90c90117e7bc0095c55848957a4574dc414c0777e9eecc28bf9c4b8c82bbb9c8",
+      "seconds": 2.2700625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840169.wav",
+      "sha256": "7f2a56cbd58b3043f7f7591d9e87bbd8c2e8a4f5f0e311f4aa4b0bc413ff3f3e",
+      "seconds": 3.1400625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840495.wav",
+      "sha256": "3545abf3843befe5842e59ee8e355eeb718e28d01ef116ca8d33c375500ff5ea",
+      "seconds": 2.6600625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840346.wav",
+      "sha256": "dbb77e6f9ec8cc33b1b05c2536524e2c8c103d55e8a0d2f182c9582be29164ef",
+      "seconds": 3.5
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840265.wav",
+      "sha256": "c27b5420e4931aaa73e56f6cb786ea4faef129c2f54e00277abc87dc7944614b",
+      "seconds": 4.22
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840363.wav",
+      "sha256": "1e8bf73f1a90f7d7d1afa60a820f761764a7ef37a8ead2403ba18862d0dd5384",
+      "seconds": 3.804
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840098.wav",
+      "sha256": "21c1b4548e7eb0a50b87bcdbe0fd8ad8b8bbfc0b18430514f26df958936e1963",
+      "seconds": 3.2600625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840123.wav",
+      "sha256": "74b8119e9c442ba4c4604b72a33cbd9c3b34f307b5f9cc9b462be6a4045794f4",
+      "seconds": 4.9100625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840437.wav",
+      "sha256": "5ca2458d00064a9206b93aef5c74a3fc8e2a339ea402ab1aacf0fc4496886ab5",
+      "seconds": 1.73
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840035.wav",
+      "sha256": "049ca9bee959ccb3f6b36fc987e9d35d66208d5a2058b0c1ca00ab90ec7cccc9",
+      "seconds": 4.46025
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840482.wav",
+      "sha256": "03bb673cc8d283a53d97adad99b9ddcfd19c3aed111b90f81233404f5255eef7",
+      "seconds": 4.691625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840081.wav",
+      "sha256": "6e0d459ff38dd6e42f1cea7f35aa98742bf9b35db2e9a5e986ca873ce9a2376c",
+      "seconds": 2.9299375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840284.wav",
+      "sha256": "2bf780211203c4541b550d32fae3829490c2d476a7d4b55ea1cbedfb5d91f609",
+      "seconds": 5.3
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840460.wav",
+      "sha256": "33e0882321afa1986498af9eb49cdee70e7d8547bbfb6812562a236e4d926ab6",
+      "seconds": 3.0500625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840256.wav",
+      "sha256": "6f4d8b94030d8540bcd8780da10e0c0adfaf90c73eb53dc86a95405593e79922",
+      "seconds": 2.48
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840411.wav",
+      "sha256": "dbc2b330b0ca9dcd26d93ce0bdb2cb565c0456ece96c10fa4a4ad9fedc9f71b0",
+      "seconds": 3.59
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0784/SSB07840324.wav",
+      "sha256": "3af6ab871e4b4f2895f5cd843dc8efa2b16e0672f36747540f07a7ea3dba6bb5",
+      "seconds": 2.1201875
+    }
+  ],
+  "SSB0379": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790204.wav",
+      "sha256": "df5b5927bd623657b163cf334ae4590d904ae0e777166aed913ca798c5ac3cb6",
+      "seconds": 2.88
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790429.wav",
+      "sha256": "e63f7bfbc576ff13da93c0b63584178d38fcfe23eebb7d195b72d24a806907a6",
+      "seconds": 4.74
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790118.wav",
+      "sha256": "a62d52129b56d47986f29b754597e223d1e6c30c6c392e95f176820a6409fdc4",
+      "seconds": 2.970125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790384.wav",
+      "sha256": "2dcd2ac953ce2f7674a31c376d37b1516b99eabc5dfed95455d768c2656488f2",
+      "seconds": 2.580125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790406.wav",
+      "sha256": "3237f0bbf29701696eca98403eb5748ff3e98c13f1ffb2a6c2d623dc1bc25cd4",
+      "seconds": 2.4375625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790113.wav",
+      "sha256": "66676dcdfbb23916fbdef73da2c3f7237d4c759a6c2ae24ed0effcd92ba243f7",
+      "seconds": 3.6300625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790344.wav",
+      "sha256": "6f2dfa2ad8285495bf87e945b8a0582a65058edaab8fa7aafdf8a95174cfceaa",
+      "seconds": 4.86
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790160.wav",
+      "sha256": "f46174a7f990b5bcf80458ea14efa392f2229bbcc3e7fc8f6e7049d96c00f8e2",
+      "seconds": 2.4299375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790056.wav",
+      "sha256": "c1c75c99f0aaee09159cdec67f094e43a2f961044065f7014ff352829d8b9495",
+      "seconds": 2.6425625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790079.wav",
+      "sha256": "74b92192bf242135cc8a5856a87e0b1ef19c480d87e597291ebe2e65f770a635",
+      "seconds": 2.49025
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790388.wav",
+      "sha256": "57b2c5fc7a0288097336ecc03db9523b5aa091f7198f6bf75252a3a7659f922d",
+      "seconds": 3.329125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790435.wav",
+      "sha256": "663af795d6fe61d362c9691fb255677d6ae8345a2eda72b06ab476ba9b6c92f1",
+      "seconds": 3.24
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790289.wav",
+      "sha256": "69e0b3cb84670d607f36a7a8e8b5c686b611a99189161fc9b3c5ce6e66da61e5",
+      "seconds": 2.4876875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790361.wav",
+      "sha256": "ad7b64581b60aa545843d648afb1be2c1fcc80be8d0305bfce20a29df5121bb1",
+      "seconds": 2.911875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790042.wav",
+      "sha256": "2d6ea079defb7bc9ebfd4dd504f3a779f0df7aa9f1e238246c100155368264b7",
+      "seconds": 5.82
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790341.wav",
+      "sha256": "227a73d78c2ebb85f88d28e384cfd9513ea4e8fc3625783bd92a8ceaa23a67d2",
+      "seconds": 5.460125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790413.wav",
+      "sha256": "aadc44442d51e6650ff0efd3c53ffcbd3b11b2beb0f763e37555279013aff0ff",
+      "seconds": 5.7900625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790119.wav",
+      "sha256": "e9809b1cea1bb5da528bdef646ca571cb10be9f3330747dc2f79ecd17adc40af",
+      "seconds": 2.19
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790127.wav",
+      "sha256": "152acde73ae668e395bb9bb32bc30cf6146919f9c363370d1fb948852626a7e7",
+      "seconds": 5.539125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790074.wav",
+      "sha256": "79a9c753cd355ffadd63cf812a3cf6af8d5fe268e7b6379859362c1b3ad33e88",
+      "seconds": 1.804
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790333.wav",
+      "sha256": "6cd4e6ced684c003de433ba09704610ef5bf5727343845ff1b5e1c381f2ce28e",
+      "seconds": 2.7898125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790403.wav",
+      "sha256": "0b51b975c34e7629870863bde891f668d90894f8d7ef6db343bd84d49a07f981",
+      "seconds": 2.6034375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790345.wav",
+      "sha256": "0c8ba1a4c027be707ca8fa24b520001cdc872e8e332ad29e58e4dd6be436ca15",
+      "seconds": 2.825
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790269.wav",
+      "sha256": "c8d3e1c6ef1713f0f1b8b8608c8500701e1f9fb9d5456ce15af8ca52977fff90",
+      "seconds": 2.032375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790322.wav",
+      "sha256": "69ad81cd626a39a56a14fad68b7cd4b2afcea166c65849203307b24283f4b4aa",
+      "seconds": 2.8000625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790449.wav",
+      "sha256": "2a16d339d430db5463142af5b89f9147bbeaa69edfa82bc886a50b15e0d6facb",
+      "seconds": 4.9199375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790463.wav",
+      "sha256": "ae98ec843942f6156d8f3701cb272d9b4e1c9800462447760bacd0bc510f7459",
+      "seconds": 1.9905
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790266.wav",
+      "sha256": "cc8ba908ea7e161e1fd47b6d16ab9cb0f3818898c876e6f779fa607136a038c7",
+      "seconds": 2.444375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790382.wav",
+      "sha256": "8766a1c3f36ca4716a976b80b62b46bdaeb0835e49d6fb8dea2ea3e7d400418d",
+      "seconds": 1.6638125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790240.wav",
+      "sha256": "3de861af7bd941ae930c083bd67ce5b74e7cd1b561577ce5dc0ed1d16d8cfcc6",
+      "seconds": 2.3274375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790401.wav",
+      "sha256": "976de9f50a7856d0b368cd356881374a6af779219a1f88985eca95e22754a082",
+      "seconds": 2.1900625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790153.wav",
+      "sha256": "facc19d05159a29afaa7b36924e141ad47a2940d5fb505bc3187bc2705da4602",
+      "seconds": 3.090125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790253.wav",
+      "sha256": "1dd1728e9c126176e1ec83086656eea93792928928ee5dc0461400ab81c8474f",
+      "seconds": 5.9100625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790243.wav",
+      "sha256": "4f808f95d99a7b9393fd313047e8220982a5b6f160bcbfdd88563d58f5af9eb4",
+      "seconds": 2.7
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790318.wav",
+      "sha256": "8df539f05f3f3f283518ec6a2d3040ce80aca842edeb1b32ac7892ccb692b085",
+      "seconds": 2.443375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790488.wav",
+      "sha256": "313a79e89345af7c03dfd2dd427f24b10100b62c6119e875c391c8773c2b6e08",
+      "seconds": 3.5091875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790075.wav",
+      "sha256": "b511cd8ccc535401fd63e57931197ffe8b2152e705d15259cbbe3b49e9be9146",
+      "seconds": 2.340125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0379/SSB03790061.wav",
+      "sha256": "e6afdfbdbd6abc1866032584c41a79cfbc85d881ec07a0b0b79643b3f69865af",
+      "seconds": 2.28
+    }
+  ],
+  "SSB0323": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230094.wav",
+      "sha256": "6443b230393b37a69acd96f90748efc28f37f57cc503e9d183229f6a40b542d1",
+      "seconds": 4.1611875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230276.wav",
+      "sha256": "b62cb5015bc10d01621c73d1ad51f5966452b39e66924133a97762991808608c",
+      "seconds": 5.846
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230441.wav",
+      "sha256": "b8a5f3baf0132c8b9bd433793f7ee3ec8d5659e6cb5de08d0e561193b575c713",
+      "seconds": 4.565
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230129.wav",
+      "sha256": "f9bfdfb858bc4a2f48bd24a8727389a60ff7ed1b10e55f9acb3d99fd2ac4162f",
+      "seconds": 3.9609375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230083.wav",
+      "sha256": "0efc4ec60cba7cf4f940b078de61ee89a9146f83a30580cd50f4c5e70c03a527",
+      "seconds": 3.298
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230140.wav",
+      "sha256": "161b1bb0b483f943dd6b98cfe5f9b73fb8e460668a932f3d7c94256ab6e9d550",
+      "seconds": 6.3480625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230380.wav",
+      "sha256": "8e6c985f24373ac4fef6cc560285d2489e1fd35967977379c83f9ddab4802526",
+      "seconds": 5.299125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230305.wav",
+      "sha256": "0524c02d442697595b5c5a393b07bf7e4ce0e148ed199b2181d38935e7aafe70",
+      "seconds": 4.361
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230244.wav",
+      "sha256": "6e1ca15bb885b822a25b01351bffef1b62e7ff720f1f1d2d962fc2e3feecb776",
+      "seconds": 4.4849375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230196.wav",
+      "sha256": "f06d5a83e099d6af5df736b3f9a7bfd901297dde79999c1b992fcdb9fcff5ee5",
+      "seconds": 3.1690625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230214.wav",
+      "sha256": "d638384b04aa9ae0d319f45ee23f25104ee224331b21cf800913631f5cbf026c",
+      "seconds": 2.201
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230033.wav",
+      "sha256": "e5dc487e7f37127a122ce571f60037567de40744eebd0db28770f6e6966f9620",
+      "seconds": 6.1538125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230121.wav",
+      "sha256": "5fd692b56dfe61810d09b1901344899e130994fe02ca639527ba4bc4bb4faa5e",
+      "seconds": 5.787125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230394.wav",
+      "sha256": "c24b36e6b502d0400093ed29d087afb71a426c369df1a7d22196783191f12213",
+      "seconds": 2.963
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230263.wav",
+      "sha256": "6df04eee1031dcad99f28225fef2a83fb1bb10c3960bab609645c96033927ca2",
+      "seconds": 3.643
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230039.wav",
+      "sha256": "5db3ac18a94f98223b6af834b40613dc908e027d464057eb99febfa5f4986a27",
+      "seconds": 4.3490625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230104.wav",
+      "sha256": "22174b9108916bd265541f42d372420b3cc525f127921c85174a0a4fc0cd8286",
+      "seconds": 4.0240625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230113.wav",
+      "sha256": "b3d287f78357ba58a0544701982a74b20aa46955607c2a9098379fadb2d879c7",
+      "seconds": 4.47
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230210.wav",
+      "sha256": "47dcc936f98351ed6edcf3835ecd6cd36d32e5ac9d1053813c6a72cb01772a15",
+      "seconds": 4.296875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230443.wav",
+      "sha256": "f8f7a3f691f1a0ec05b215dbbfde51f73eccb75223c9489152dbcc64f829718f",
+      "seconds": 4.256875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230116.wav",
+      "sha256": "d804bd5d0a52859f14a1f10a4f50fb6d1ed2e11bedff29e9536ee7296291072b",
+      "seconds": 5.157
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230164.wav",
+      "sha256": "c8b9b3af18117ba52a61753cff87477b39047c32ac830adacce85a0fed39ca1d",
+      "seconds": 6.5569375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230352.wav",
+      "sha256": "41879ea62dcda96aa525ae6a30eaf4e4560390714437066938b119a96ab98ceb",
+      "seconds": 3.1560625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230025.wav",
+      "sha256": "d6505df0fc86a8fa78ec6bc312f9eb27abdd0c998c15266dbc9d9c9bf42a54b2",
+      "seconds": 3.0
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230402.wav",
+      "sha256": "ea9c6da27f96c460dbdb3310d4e6d460578d674b8be05a68868a463df49d552f",
+      "seconds": 3.789125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230052.wav",
+      "sha256": "37ff61fac765130d5e9d63d4d3acdedd4cdc177f902385611f0a93ba9f736dc1",
+      "seconds": 3.8000625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230377.wav",
+      "sha256": "98c3cb16738e7465bc76e460414b0ee6799d90a53fd520b9a62ebe32dbd356fd",
+      "seconds": 5.89
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0323/SSB03230370.wav",
+      "sha256": "28b1b31f51a0f718897912f507847bea866d7f7d7954342936fcef193f5dc71c",
+      "seconds": 5.992
+    }
+  ],
+  "SSB0935": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350460.wav",
+      "sha256": "8ca057ff833685261218556789951583aa17913b7974621cd84428535728e949",
+      "seconds": 4.090125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350187.wav",
+      "sha256": "3dc26f4acfbcc0394b255947250f61bbfea731724006915acc39686059e3a1e1",
+      "seconds": 5.922
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350444.wav",
+      "sha256": "3edda2ccbf966dc4b9e9e236466f318255d1430b0680e730e041f096ebbf2c7e",
+      "seconds": 3.8940625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350336.wav",
+      "sha256": "0963698c6a8de57a1d64681cffa368466748baa616881f44ef138627de99079b",
+      "seconds": 5.5360625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350305.wav",
+      "sha256": "424d4787e215ac758a2ddaf41dbbd84362e12e4ab94b88b820e793468ebe8d9d",
+      "seconds": 3.756
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350164.wav",
+      "sha256": "65e8a633ef68f45e44eb29254e8bfa4f829fe188d5412b37806bc7cd6cee4ac4",
+      "seconds": 3.671
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350105.wav",
+      "sha256": "09b17718d14bf7000e5f3cb6e30203b4a36300c0f617e75ed38865d40a3bf3dd",
+      "seconds": 2.074
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350212.wav",
+      "sha256": "90267d8515b1455d5e7a1e96482e380b127041cd87d9fd4fb62dfc68018d4c3b",
+      "seconds": 3.49
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350129.wav",
+      "sha256": "f5b3ed2ebec88c2f75bd411b877ef08ca3868782dd92f4733c1300fe2e212e51",
+      "seconds": 1.7090625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350139.wav",
+      "sha256": "4c757784d475d643d9b0b6784d2cff2a2c1626214896423e861d68059260013d",
+      "seconds": 5.766125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350078.wav",
+      "sha256": "be1e08d5e48e9a4df8d7164802d936bdaae7c96f62c037ff33c62a7a4198bb21",
+      "seconds": 4.26
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350442.wav",
+      "sha256": "f1ff3b8a6be2f3a986fce360e3ee0829163ea2cc98af1f43667581a9fb80ba7b",
+      "seconds": 3.386
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350357.wav",
+      "sha256": "858fa79f644850b78d6dfacdf0e366f680cffb66dd5af9c429acaddcc14c53ba",
+      "seconds": 4.9939375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350376.wav",
+      "sha256": "f3b619d2092318160ffc765b9810c0ce006eef0f6956d59168178589f2c9d8b9",
+      "seconds": 4.5341875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350276.wav",
+      "sha256": "babe415906920669dc44927ceafbf0aee2b6680eb79d6fc48cf053069b4a18f2",
+      "seconds": 5.2690625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350342.wav",
+      "sha256": "8983f2a95439399acc623c9dd07e1cfe2eb487fcd301e05bcc95a05312122b77",
+      "seconds": 5.5
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350426.wav",
+      "sha256": "0f5c691569f989a65cef920fdf6394a66bbc0b47742aa3b0459acf33eb9b7be5",
+      "seconds": 4.579125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350313.wav",
+      "sha256": "bd7aaf902976e88c0faa30065ffee1a320dd37484573544d98b0ba2bf5a5d6de",
+      "seconds": 3.897
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350191.wav",
+      "sha256": "99a733a3073a5b0d7ae1810d29cc640559cfb43f43d958871cfeed24773dc464",
+      "seconds": 3.7319375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350261.wav",
+      "sha256": "cb69252ba6ce52c92fe57e36a1a455f374941bf871c5986e9b518e9c452dcc5e",
+      "seconds": 4.172125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350301.wav",
+      "sha256": "6b5ae81bcd9718cfda8a8a564342c6a8cc492e87c6d3f9fcb50d34f39656c707",
+      "seconds": 4.9199375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350416.wav",
+      "sha256": "cb7eb999b8af1066cd42dcfa8e4148e6d87f8e859eb1009eefffaaa2ecbafebb",
+      "seconds": 3.402
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350215.wav",
+      "sha256": "7550e48fd5e9ab4dca4d752117c0fb64f2fbcc122935ed27ac8952c541451d76",
+      "seconds": 3.376
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350053.wav",
+      "sha256": "3f10298caa8d4daccb42676fe19a82b3e91d77d0dbdc863355782eed18225005",
+      "seconds": 2.272
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350251.wav",
+      "sha256": "47e6456d8c42b843508a03a0ef3dc3aa1d7d3ef4d09555047be7732a13085a7e",
+      "seconds": 3.5400625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350470.wav",
+      "sha256": "abb37b48a7b6dbbb2eadd14a32dc814413c5c4d8504465835a150839d60477a1",
+      "seconds": 4.846
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350058.wav",
+      "sha256": "2990b4366f213c7e0745f4b43aafea89c5a94d1a37cdbf302ca27811fa0583c3",
+      "seconds": 3.3840625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350061.wav",
+      "sha256": "f86d3208c6d30f2a441ae13445575b489ee786d9263df255319d52a8d3703f54",
+      "seconds": 3.3059375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350111.wav",
+      "sha256": "565bf9813602a09d9995ae3ff46efa357a1dfe7e8dedd0732bfa0256d93ec220",
+      "seconds": 4.2131875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0935/SSB09350384.wav",
+      "sha256": "b7861e213b75363af8b95f0fd0e2ade8bba04b1e1dabecb90e9ff3008ab88468",
+      "seconds": 4.0
+    }
+  ],
+  "SSB0382": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820047.wav",
+      "sha256": "9ef231955faba43a9ef31866b7c5cbc2639d7245bd78600f162f2ffa83400351",
+      "seconds": 3.1950625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820178.wav",
+      "sha256": "50cc20f0d1a2cfb3231ac6efc56d7d24ec64ed64becd088bfbbcde043fe015ee",
+      "seconds": 5.2235625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820133.wav",
+      "sha256": "1668bdb5b7ff72812e615a15baf8c3e7f0c0527d192d0d32080171b9a7d0b29b",
+      "seconds": 2.6831875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820360.wav",
+      "sha256": "95ef7bf57e31ee81897493fcbcae1e70b0aee15305a7820b801fdeba435cc596",
+      "seconds": 4.4285
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820132.wav",
+      "sha256": "fc0ae2e3106808d7f9b60cc7140f326948e41207f6fe2783824f0ca9463f1cca",
+      "seconds": 4.4859375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820307.wav",
+      "sha256": "886b8820f54fa57fced507a60c8357a499aced8c825299aaa38e9b48630e8f07",
+      "seconds": 2.3795
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820398.wav",
+      "sha256": "763aa921877312b1ce3e4d9e2b8607195a5cb254b112c9018cb5fcf2a3ce89c0",
+      "seconds": 3.138375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820245.wav",
+      "sha256": "acb4cc8671cfee4429ba6b45264b91bd8afa43a29e36361da79cd16fb8b159cb",
+      "seconds": 5.861875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820223.wav",
+      "sha256": "bab03966324256b0be9b9317307beffee5dd32b8fd492acf93f258f16521750f",
+      "seconds": 3.72025
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820452.wav",
+      "sha256": "4b889cb2e59edead91d182f3b748cbe33881dfc0300cd6f2f2dc11f5b75825b8",
+      "seconds": 5.7326875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820217.wav",
+      "sha256": "decaa7d3b8f7fffef5e65b6bd949167261cfee7745a99608aaada0fe86d83f90",
+      "seconds": 2.6775
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820286.wav",
+      "sha256": "0b9c7abd62d13a950ef1333e04826a0c2e4d1f397f3ba5f291314fcff9e70e50",
+      "seconds": 3.2255
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820021.wav",
+      "sha256": "82fc0701545a9cb18699c46fd94863945fd1e7686f3b4125e799a1108a0324eb",
+      "seconds": 3.4793125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820090.wav",
+      "sha256": "70b1cd6c1f51806f7640141a5b5a566e77552d022b66a4bbea38b69a77dc53ea",
+      "seconds": 3.4395
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820373.wav",
+      "sha256": "d3f4f25a7821ba6924ea8cd13087d8067ac5fe047fa8af1d2892cb68ae8d0946",
+      "seconds": 2.968125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820225.wav",
+      "sha256": "912e31299e795674b55eb3922106bb26bf5417f0cf9bc1f14c7b29f926b90a03",
+      "seconds": 2.046125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820110.wav",
+      "sha256": "fc76ea5b5bb230015d064af08533e85b7d1be392e20960dae13301859e88df2f",
+      "seconds": 7.9578125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820202.wav",
+      "sha256": "59ceaef65794cce4705b6cae38107cb7710908817e76c6a35ff9523f5769f04c",
+      "seconds": 3.21625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820359.wav",
+      "sha256": "b6114b6954881279a513767740801a9c1db812925e2011d4f002d9ebdb122d7a",
+      "seconds": 3.189625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820260.wav",
+      "sha256": "828ca35416460afc82d414d29bebd84f7b18e225e9e21b78d33dd89d46f1e846",
+      "seconds": 3.0620625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820481.wav",
+      "sha256": "73f8f7e4f15d905f964f591c67d08ef0eecefd39d3cfc130d86c66ed6fecc4ff",
+      "seconds": 3.025125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820279.wav",
+      "sha256": "2a53fe9e4329ba240d303fb29fa6fae8897fce31cc2f15980230fcb008a41c85",
+      "seconds": 4.2730625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820232.wav",
+      "sha256": "e63570ab5bc568b298077b3091d102a5b19f0d0793926df6f96a5c7c4a9db46d",
+      "seconds": 3.4220625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820366.wav",
+      "sha256": "42da9c33bdf19a783c9026901277273e14a228996759c33a89c2444ec360c7e7",
+      "seconds": 5.5338125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820073.wav",
+      "sha256": "9fbc0e85e4d267c7f69afdaba677847e69e4ccf91b9ee5214276a9026a2449f7",
+      "seconds": 4.205625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820436.wav",
+      "sha256": "64eb820248d67690d593e5b92739e79173c903321344c820ea3d891cb07c374a",
+      "seconds": 2.9396875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820380.wav",
+      "sha256": "3efae2f96a4d9df52f3a32244c37160d545b5279634278e6f52206b0eb06d1a5",
+      "seconds": 4.9790625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820273.wav",
+      "sha256": "ef101b3f34ada461bac7c36dd8155cf02fb700825d74136e3409da5023ef1689",
+      "seconds": 5.3738125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820134.wav",
+      "sha256": "05aac7e6ec0c64fdba0da4137adddcc91423c193497953a6f18a81753c801980",
+      "seconds": 4.9824375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0382/SSB03820417.wav",
+      "sha256": "10bdeb1ebaa1f95940fe2bbb90b9450624437188d76e0a9172cd0a95295116e2",
+      "seconds": 7.5779375
+    }
+  ],
+  "SSB0603": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030208.wav",
+      "sha256": "d08112542404f9474fa8c7becbabdf544ac1ea68778b7ea8343e5a356b60a5ab",
+      "seconds": 1.64
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030296.wav",
+      "sha256": "7058a59140d5282b3d98483b97c69d8dcce5fe4c629b95707e1715ddb68b6a88",
+      "seconds": 2.18
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030072.wav",
+      "sha256": "f7b8c3df7ef504720a61135b814d4a3cb5b8c41c470dd812209410e64dbb21bc",
+      "seconds": 2.72
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030435.wav",
+      "sha256": "e6c19a179a9ae0c0e3b7c6d735fbda544daac815256170adde555ffbbe8b7411",
+      "seconds": 2.66
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030153.wav",
+      "sha256": "fdcd04eaad83ec95da7e6f39653c5ffef7ec3582559714633dd096d4270b2b5e",
+      "seconds": 1.88
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030444.wav",
+      "sha256": "07cc70b83562ac4bf71ed5b5e7c53de0e2e2e17db7f0f1ef4ae622282adee6c6",
+      "seconds": 3.109875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030076.wav",
+      "sha256": "8ee0c510c6ab824638173e6d1259698591f9c0568c36a530fbc6c152d6181ef3",
+      "seconds": 2.51
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030330.wav",
+      "sha256": "ee9406c84f967bf9c41e5d54a9299d25abf09942eca5df0f229c02c376b4bca9",
+      "seconds": 3.23025
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030079.wav",
+      "sha256": "91e49511f96e71a9584815fc0554eb490b5a18b2ff27f8f8a6a63f713e18a106",
+      "seconds": 2.5400625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030158.wav",
+      "sha256": "4cd9f97f4d399864337c73e419b703b5c813bdb51cce3fb400101450731c88f5",
+      "seconds": 3.8630625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030064.wav",
+      "sha256": "9e3114497077f1e5547a5c1863d3f179467982c19618cc62c26e59c39b628456",
+      "seconds": 2.6900625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030216.wav",
+      "sha256": "298fbe384fd65b9412e7bd513b495e4a05b78a4d521bfb7339a22ca43ab7451f",
+      "seconds": 2.925625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030285.wav",
+      "sha256": "016332783c15f34e7497199119b8fe9d6c1feaa7ff4e215f55fd7b8c5ac86c80",
+      "seconds": 2.72
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030389.wav",
+      "sha256": "719374dab57cd98555e45b8f5e55f6fbe8eb14d48bc51588dd1f7c1a51967cef",
+      "seconds": 1.7963125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030183.wav",
+      "sha256": "6641e078bf71391988b1740e7ed1ab5c3ae174fed730cfb58c5eaf5a74c8ab6c",
+      "seconds": 4.069875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030337.wav",
+      "sha256": "8e41ba8f3e42f518f30fd543fc7908d3b6c24930c30e37c59b3054b76ee11efe",
+      "seconds": 1.94025
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030464.wav",
+      "sha256": "7fb6b30bed2d6aea2b3f776815bb1196f9da2b235f64407149076902976f80f3",
+      "seconds": 3.14
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030006.wav",
+      "sha256": "574e402c3bf2d3ad701fffe4f8134941149c48105e511d272feff87a378685c0",
+      "seconds": 3.5
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030169.wav",
+      "sha256": "ffccb567e87bc5d90458c853a5be5cc6e57f514fbc3670d93ae3ac7ffbdef22d",
+      "seconds": 2.12
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030043.wav",
+      "sha256": "d50666c183c17fe2faa26a7e59afbe292d0c4cd74edb9ce6baf1d3de693dc28b",
+      "seconds": 1.67
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030415.wav",
+      "sha256": "27775de036a6906357de04e691a5a309e694d232106e893e714ddf4ecdad068d",
+      "seconds": 2.7443125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030117.wav",
+      "sha256": "1af940d88b18e4e65670fe0eb811ebee3b865d23f2539475b9bb0b6b503cb432",
+      "seconds": 5.81
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030323.wav",
+      "sha256": "ef39066d0cd8e9692ee5d41c9fe6ad82892240382275325d0286ee81df03eea1",
+      "seconds": 3.9679375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030077.wav",
+      "sha256": "3139c13bc58d1c495a0b611eb11afd17e87d1b44c6a6de06dcd20c2f0ba134a8",
+      "seconds": 2.4199375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030318.wav",
+      "sha256": "59b61b1e9b4ed605a45fdf2d1b20cf8fbed196a35ccd5d3daa633db2588180d5",
+      "seconds": 2.330125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030115.wav",
+      "sha256": "c1ac3e52789dad12d127f6906970719cab39673cccfaf5a23c6680d491854dcb",
+      "seconds": 2.3901875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030105.wav",
+      "sha256": "4cec6d84e6c79feaf1c07a647004fee7dd908fa063363ea37fcc31284c239e54",
+      "seconds": 3.0500625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030030.wav",
+      "sha256": "b9cbbae332b04599e476e29c936100a5aff1be1e650abe6b819468584dac14cc",
+      "seconds": 3.5
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030225.wav",
+      "sha256": "59d6800edbd0b88a9a924987c3bf1d438b2e75aca850b8e343066c0c73fce0e3",
+      "seconds": 2.9000625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030304.wav",
+      "sha256": "2cba81c8dae2fa2bda9cc3abda6340a71f7a877ff9e8dfa096b6d58f8a805891",
+      "seconds": 2.870125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030019.wav",
+      "sha256": "467dd529474de1a9110a8d0ed4b775ec0eeb9591d156f6c3895513e798302c96",
+      "seconds": 2.18
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030230.wav",
+      "sha256": "4c25af673f39a0d0dce93e2c919f98b38010c8345b3d032e0405329fdfbaf756",
+      "seconds": 1.88
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030306.wav",
+      "sha256": "88ac5d4052aee44f78bc84a7aac14483910462028061600f99c5f9b9e6283ea4",
+      "seconds": 2.1500625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030036.wav",
+      "sha256": "fdd60465e410186d5b27e6c19dc6962a3c64b21adb9857eea4c182d1bbf50274",
+      "seconds": 3.110125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030313.wav",
+      "sha256": "6175bea55307f412a012479030092e38b02ad91266502ddfc936336274ca655b",
+      "seconds": 2.5100625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030456.wav",
+      "sha256": "5805f16eca461c2a0dd23fec6ff4c796daaa2d589a06a490b9936c6ffc592cd5",
+      "seconds": 4.45725
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030059.wav",
+      "sha256": "7431ce3d5b2e5ce2b5207c73dad95808eae048d558538d9f3d2d6bea1092c89e",
+      "seconds": 2.6299375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030403.wav",
+      "sha256": "ac47433e4f25c2fba01f4b6f30952940ccbbadcc87e2cfa3016ad26554aee60f",
+      "seconds": 4.2800625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030276.wav",
+      "sha256": "6e27e79230fb349589e8a58410e0a0d5fff4524e1870718ac3333c9756b0b5f8",
+      "seconds": 2.87
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030470.wav",
+      "sha256": "bfe428edc5b121dfe264e4661f7d0bbf73ec81f7747d9e5752f3bffe9f76d895",
+      "seconds": 2.5400625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030264.wav",
+      "sha256": "7dd1e14c085a6bf965d214ea79804d900f99f2f2f1407505fabe1a58dd25d67f",
+      "seconds": 2.9
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030420.wav",
+      "sha256": "69cdfbfae0a46a2c39c228d715e297c12a025d6512ae6f0a69ee0f2d64b8d2cd",
+      "seconds": 3.05
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0603/SSB06030315.wav",
+      "sha256": "5ffefeb443c041b7df2346655b567f9c9ad856723fb9cd72cf558d43d79caa14",
+      "seconds": 2.9
+    }
+  ],
+  "SSB0407": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070393.wav",
+      "sha256": "f0dff3eddb0ae5637061d2ce9e823af117358f4761d5c20b5ab5e3949bde3bd8",
+      "seconds": 1.7688125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070002.wav",
+      "sha256": "2b8779a54715aa56c3a90bdf47e099af9cffcd3ccec845c513383d10d27eb912",
+      "seconds": 2.2683125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070312.wav",
+      "sha256": "605884ee530d3ac0a16ee9309e7af59625d548121d485dbd07b62033086959d9",
+      "seconds": 4.319625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070435.wav",
+      "sha256": "ad901f4c3bb1b00eb5d272828745055f752beef7937bae608f575e314b411195",
+      "seconds": 2.1853125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070356.wav",
+      "sha256": "90f5f9ac1f590e4de1e39459fecb45038f51ffff8783a7254efd4ba05f873cda",
+      "seconds": 3.8505
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070305.wav",
+      "sha256": "23df2064e8e854bba442337bd4dcca5652bed001d7e1b80df4b4607d230f031a",
+      "seconds": 4.63025
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070112.wav",
+      "sha256": "5d65659647c48a6fb099139c8c655a752e0dd6635c80415fbbe3ff72ad641a4f",
+      "seconds": 2.1606875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070499.wav",
+      "sha256": "67173929daac6e8438bfb83d189976d6fdd30d085cd9334febb4df0843d04f2f",
+      "seconds": 2.1960625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070292.wav",
+      "sha256": "41ab4961c8930b35bee3567646c39a9afddfb5fd962629d96b2ee921d767f7f4",
+      "seconds": 2.850375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070301.wav",
+      "sha256": "e994cbaf3c7f7d04ad6146e999fb114d8d9dba7e8ff4389377374a2b0d4f9753",
+      "seconds": 2.16875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070481.wav",
+      "sha256": "f9a51a0b16ccf703683d3082114cf13ffa3ab26d23b98c7d0486efdd0135d2c3",
+      "seconds": 1.9780625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070064.wav",
+      "sha256": "79e2f2c3af45c631338db24bcb61b4ef042adef1574222e4cddd810ce7ecce50",
+      "seconds": 2.45575
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070076.wav",
+      "sha256": "98c8837b6382210cced21fe5001528f9646ae74105967a977db3a9482ad9c0ca",
+      "seconds": 2.156625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070446.wav",
+      "sha256": "f0adaee6140e4479eb77335e1825a4c424ffd6108761f4d2cda0daba3809a25f",
+      "seconds": 1.9838125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070427.wav",
+      "sha256": "2d460cf215c266f01a72c6fc3ff5dc50838f3550551147cdcf7e65616d10b53b",
+      "seconds": 2.3051875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070214.wav",
+      "sha256": "46a7a8d9bc64575bf8b957a64ac4b26def08dc6b6f315fe53a2e43b087a0a211",
+      "seconds": 1.89075
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070334.wav",
+      "sha256": "c9ce665efddbf72057b348ad8515187b727ade9c8ac5bd0386737fa8f19fb62f",
+      "seconds": 3.0766875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070318.wav",
+      "sha256": "b77e7b72ef53d0ca23f2ca7f67ebed9e21078dd792e67e5bd50cc8b262f767ca",
+      "seconds": 2.814625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070243.wav",
+      "sha256": "98e45a7ea87bac56f0f308d775993fe5fa33a6024a6a92f1cdb02aadad9728e4",
+      "seconds": 1.9111875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070179.wav",
+      "sha256": "a2429948dca20f47926c88109938092f085c6427d2f00719a563e31abadd97b6",
+      "seconds": 2.0015
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070034.wav",
+      "sha256": "38a484f1158930f614e576a76b9b2286aeb236dcb76fd07745cbb8ad3ca27286",
+      "seconds": 1.8474375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070338.wav",
+      "sha256": "b6c945006c8e7207bb56294e228f246a35cf8d1226ec6872c5e74d8a835b5d84",
+      "seconds": 3.12525
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070087.wav",
+      "sha256": "e8e8928d6b6d175dc2d9e0ccf2b9b5fd7760db64f2a4c50e053fcef2d7d21b4f",
+      "seconds": 1.6045
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070376.wav",
+      "sha256": "503079a7185402ea82f110e0cb8d20ff0de06b93c6ba0319fbd54c14f1435dd9",
+      "seconds": 1.876375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070055.wav",
+      "sha256": "6228a4f0f57f89efc2568824a74a62a3089a7c9f9a736b26a7d47c39097f2d02",
+      "seconds": 2.3204375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070359.wav",
+      "sha256": "61d148c911172b0a3862d5d1b28ebde0d974f13805134895ff26d83da0dd284e",
+      "seconds": 1.6369375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070133.wav",
+      "sha256": "475d7a2d9beb58d942beeda25367d2c055493fd2784bc203a898b3a23335c206",
+      "seconds": 1.877
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070022.wav",
+      "sha256": "b49ebb5ae087e02104bd8dc126e4bde1e1ff78e38e82382de28de2d3d5e2693f",
+      "seconds": 2.8693125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070225.wav",
+      "sha256": "6b862e1198d671a578b66e88a513227101536d82b01d4928d966aeefab20ce10",
+      "seconds": 2.79725
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070185.wav",
+      "sha256": "7fa14cfcac6c2de3e12caf27d4a9fb9e50d31c5dee59b703693fa2c7a8139e8c",
+      "seconds": 3.4991875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070474.wav",
+      "sha256": "8230a037304e1a25fddfebe98508d6bed8e75af771d999ddf4c7482cc339eb81",
+      "seconds": 2.823
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070400.wav",
+      "sha256": "76b0347367ced07ac893c07af224baf302a189d46c37efaf13c11e0411d316e1",
+      "seconds": 2.1233125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070102.wav",
+      "sha256": "df643c77b3030047dc7390116cab660f453b961ac2303d3d246337f6989dfb7f",
+      "seconds": 2.5235625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070053.wav",
+      "sha256": "c85ae17c721b57a08bbbbbfa80d1b57b60e911f785180953380fbec2f29d9356",
+      "seconds": 2.9214375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070443.wav",
+      "sha256": "2649b4d58e577031b54eaab3dfba7bd328c21428d6fb82a0daa87012a5c70e2d",
+      "seconds": 4.1031875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070192.wav",
+      "sha256": "2edae2dc1b817fcf1078791af9368d343214c53cbfa2aab5697fc6650bb66c4e",
+      "seconds": 2.5146875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070325.wav",
+      "sha256": "0aeb084fab44e80aeff92cc4285b1add408aca0e0cb5dea395528bc58406845f",
+      "seconds": 2.1596875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070255.wav",
+      "sha256": "9236450c0796897fcb7e09903e22a4a8666d4788cd8a154da8119cd2cf1df299",
+      "seconds": 1.7340625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070154.wav",
+      "sha256": "1fab1430037d3b7601b406d3fe820480f41e2eb8357587e272fccc663c7bd2b7",
+      "seconds": 2.1960625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070066.wav",
+      "sha256": "dced63953cd0a74eb30871b55783a24e7f04ebd6393c1191391ec53425eb3875",
+      "seconds": 2.933
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070330.wav",
+      "sha256": "2ec990c46f32224ee104b479e0218fe3ca7fe03df55a6c1ea627686c527fcc60",
+      "seconds": 1.84375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070404.wav",
+      "sha256": "2f30b6e348788561ec3e820f18b3cffab83534d78cd1e880f38a591cfab632b8",
+      "seconds": 3.9404375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070221.wav",
+      "sha256": "f3e662bf8bf3d2c5c757e3a3bd5158add1ac518e3f3e7385a7aeb8c356125e5a",
+      "seconds": 1.698625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070307.wav",
+      "sha256": "b4c13eb0d07c7f872c7a37814fd3b01f5bb565b2c396347ffbb233755cd8d4cc",
+      "seconds": 2.65075
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070388.wav",
+      "sha256": "f905b7ca1c00093f287a10c68e6db5d5bfd0b0c4ef077055ebe8d9bf367d1924",
+      "seconds": 1.763875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070298.wav",
+      "sha256": "245ad3c253833a77d5c22bc58d4e637eb28be991517a3e6e88315ceb20bf0cee",
+      "seconds": 2.203625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070480.wav",
+      "sha256": "f779645f32630846cb45ead71d428d623d1cef94026f66afdb69cc7d4d0f7f26",
+      "seconds": 2.7113125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070263.wav",
+      "sha256": "641f12a81b58f07d21a77eb97a8d39423902079248952726f6baf789f02b37db",
+      "seconds": 1.7234375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0407/SSB04070258.wav",
+      "sha256": "db54daaf839f2bd8cc4c57466b47fb84e98ed592bb5119e0f47ac9efa7d54cb5",
+      "seconds": 3.278375
+    }
+  ],
+  "SSB0623": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230496.wav",
+      "sha256": "e00cfb894abe0ec29ed73e718c7edaaf61b9b163949c8a73e6c150d6c5ac23cc",
+      "seconds": 1.9505
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230500.wav",
+      "sha256": "89afcc7c5ee64433ad6d9d3c150cc0a4a78edfb5b219b56376a05df6eae37579",
+      "seconds": 4.179625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230390.wav",
+      "sha256": "174207f41edeac5f8c9824bab2a89a19daef5535d80dbf2e2511efcb30a4bb0e",
+      "seconds": 3.575875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230157.wav",
+      "sha256": "66e537e2c8d13e148c57acb27fe00107ae14ca119f485ccb8cac53a3c59e8155",
+      "seconds": 2.9721875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230478.wav",
+      "sha256": "96aa6c3387d2ab36d037b59e934dd7ee2b0e3698a9dcbe0089d60c40ac4aeebd",
+      "seconds": 3.390125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230351.wav",
+      "sha256": "8b1fac7ce3f6bde2f9f70aa038dc1b12de4bfe78718e4cfdb0604e8d54347643",
+      "seconds": 2.8793125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230299.wav",
+      "sha256": "67c2633687114951429bd1a2a7314f435f6d6024aa9f6d1e597abd80e83eb5ba",
+      "seconds": 2.9721875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230019.wav",
+      "sha256": "eecd8e47b561cd5547687a724e645aaeeab37caf291be7a3798167c53fe989f0",
+      "seconds": 2.2755625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230477.wav",
+      "sha256": "053f7f6c38c10cc70fb8ef11b989908f78c9984e2607eba735d1a0ddcfe38215",
+      "seconds": 2.13625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230282.wav",
+      "sha256": "276107e978205c0f7e292c9fde237f331891e603c2a84eabface91ad11f7ef45",
+      "seconds": 2.461375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230029.wav",
+      "sha256": "1fa41943167b7c95d905613457aae2a2fac1b2786128def45e32293205c7251c",
+      "seconds": 2.55425
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230251.wav",
+      "sha256": "d8d4374474c92e90c393a83cb16429d327667d6908b86cc10971c9e800d2e246",
+      "seconds": 2.2755625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230447.wav",
+      "sha256": "99c2c01ff51ac8874d82587a6b21fbecc3e5715acace2eb950cc819064fd0243",
+      "seconds": 2.0898125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230101.wav",
+      "sha256": "cc2f5ac417b04fb8932dc946bfd6805fc664a8a84aeb2dd9600fc15571fff0a6",
+      "seconds": 2.0898125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230312.wav",
+      "sha256": "280a332f1bb9ebe50c4314247ccf0ec68e6b553855167fa481d629e7523cddfa",
+      "seconds": 3.2508125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230002.wav",
+      "sha256": "fae1d5e5af453e889f07294f9bc1a5021fc0fccbe3fd5d940a5a15031cbd7932",
+      "seconds": 2.1826875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230206.wav",
+      "sha256": "2e8d8ee6c8aff38623ff35f38ab0ba5ec429f5d9abb1842ba4569c8cfd363730",
+      "seconds": 2.4149375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230228.wav",
+      "sha256": "9841ed94f4c14f940a50d6f04a1ca2c8132f5ebb84c7833d82cfefc8ff452cc5",
+      "seconds": 2.322
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230055.wav",
+      "sha256": "b69b891566b7d627a97aee0622aa550245fb4b0a3244329b9047eb81150291db",
+      "seconds": 2.043375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230257.wav",
+      "sha256": "f0e6197ee0b35cda63feaec3a87262f1a618c28b9b82bed45ece7c491296e280",
+      "seconds": 1.857625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230110.wav",
+      "sha256": "2a473d0f342e90aff2527ec6c40cd72a4ef7186925ad3e0bfaf028668e3b392a",
+      "seconds": 2.5078125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230445.wav",
+      "sha256": "9687684dcfc180af714300f068d7bc0425087cc69e3b47b394adaf4223dbe3ea",
+      "seconds": 1.9969375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230484.wav",
+      "sha256": "fb024ba814e923e73d37740cf4e80a5af216eee0343287334a0bf34f56d961f9",
+      "seconds": 2.832875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230291.wav",
+      "sha256": "370422888b2e60ba219650a1f58edae486ecf4ba5d44f62b66e2b1da509d82af",
+      "seconds": 2.6006875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230309.wav",
+      "sha256": "a834ee129e13586740683e124051ec3da4f9127f9c002d15c432425b42d4066f",
+      "seconds": 3.808125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230353.wav",
+      "sha256": "1df286df6e0aeb9ce580c7b9421186e6d143c8c51f5123afff4a352f9ff1e5ae",
+      "seconds": 2.7864375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230216.wav",
+      "sha256": "d8069d69fdf83b256b6ad5328bb4782920191a2efb6de4c049594a461b6d9f5f",
+      "seconds": 2.7864375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230432.wav",
+      "sha256": "770f248589e9132c035e3b21bae139941d4408340f1e521bafdddb49ae8feb3c",
+      "seconds": 1.671875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230443.wav",
+      "sha256": "0143da48a17dd38d2e46466ec855eb7c28c533d0e90eed50235e45ef1957b8ac",
+      "seconds": 1.9040625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230138.wav",
+      "sha256": "de9156ac01df5ee7e9d4de90a7c3045ff404a6aa0790adfc09d8a8e50b8ba363",
+      "seconds": 8.034125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230202.wav",
+      "sha256": "8b3e8b14390788645927baea1b96b8bd9eca8b334646a6fde9611adc081140e7",
+      "seconds": 3.575875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230411.wav",
+      "sha256": "46b041cb4217b56683ec5bc3d449697f06d825249f765c293f758c631f3980ab",
+      "seconds": 2.55425
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230340.wav",
+      "sha256": "8bff59f53cc3e0e5d6079d6487e9fd0f7bb66d7dfb9ac9911676cb5bb69ca0a9",
+      "seconds": 3.29725
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230416.wav",
+      "sha256": "4dd1e2073f8eccfabfef128adfe320d85bb6714f84ac35bcbe77281deffe7dfe",
+      "seconds": 2.2755625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230347.wav",
+      "sha256": "21414f0324425aa4210f8eabde1d4a7b12a202588ab3285046202d54fd068d32",
+      "seconds": 2.647125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230400.wav",
+      "sha256": "e0d16a979e3ca4405170ba2009ea9a686d0606c49fe34027cb9e03e9fdac5480",
+      "seconds": 2.0898125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230486.wav",
+      "sha256": "85c686abface498ff546b0d776cf79877965ae8284ef0543360788871bda77bc",
+      "seconds": 4.5046875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230258.wav",
+      "sha256": "0b761edd61f405bcfe0b8026fb6c5940c33b465f5cb91a6650b09db715777be0",
+      "seconds": 3.018625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230510.wav",
+      "sha256": "af5956c6df6706db827ef0c5c616a3be84986764a8c64bcc15243585290d31cd",
+      "seconds": 2.0898125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230267.wav",
+      "sha256": "915f1d637a831c6c58e1eb7c6b4cce2db2da40469229588022a0c9157a93091f",
+      "seconds": 2.0898125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230165.wav",
+      "sha256": "610701e245f87735ce65eaaebd86d84ea000b8a91dd8f8a24d4f900d9d32b1d0",
+      "seconds": 3.0650625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230249.wav",
+      "sha256": "5b5e594680928980f9a57b8691fe76624b183c28eca5d85abdb74c58556dd880",
+      "seconds": 3.4365625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0623/SSB06230046.wav",
+      "sha256": "faf42ed86ac22592081da1b9fca45f3b92b95ddbbddee77298ca80367fa7ec0f",
+      "seconds": 3.204375
+    }
+  ],
+  "SSB0609": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090380.wav",
+      "sha256": "540a5c5dfd4cfae3f9eb7207cd90c34bda07af3e095da2702e77fc779e3c93c1",
+      "seconds": 3.09
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090163.wav",
+      "sha256": "4fd48711bb1b575578713e33b16bfd7424fa7d97e015462351414a856536dc40",
+      "seconds": 4.003
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090262.wav",
+      "sha256": "200b48d240f1a56771700c74ef49558c3a043125da07bd3315c2b955d5a251d9",
+      "seconds": 4.937
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090024.wav",
+      "sha256": "1a7abbbcc9b79f320016829bb8e8570093c485231d4966256453793b19c6ee65",
+      "seconds": 7.8930625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090290.wav",
+      "sha256": "b623966484507c7c783d86f3e45339ecf6190e85a9e19f5daca1a0d67a066333",
+      "seconds": 6.617
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090412.wav",
+      "sha256": "c4d8d81f1263137a05ff51519b759f6bd0ad78994d5340482e4101bf4c0b5680",
+      "seconds": 6.5720625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090152.wav",
+      "sha256": "ccd4026f11898238feb7ff808fbff5735eec637866652b4479679c18c6fb8647",
+      "seconds": 7.881
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090208.wav",
+      "sha256": "f3c4159206cc71a1853a20c456a378f7268a767bf57707aaebb02a7b3c301c50",
+      "seconds": 6.37
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090015.wav",
+      "sha256": "aba1e2c33328f9223c975b2399c64b6e4f2750f911fdcb962e00d562e7836894",
+      "seconds": 5.094
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090189.wav",
+      "sha256": "68a6dc7219108335691d95667069664b7a8362973fda19c5ff9a6a033046572a",
+      "seconds": 3.818125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090060.wav",
+      "sha256": "0eca55af1d1964281e4ce3bace9c39391c0eba515f9e4aa3e678e0855ac0ec6e",
+      "seconds": 3.762
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090064.wav",
+      "sha256": "0e520787bcb4fdfe44b22440c10cf001a8ba276b460a52dcf7d788ca264cf25a",
+      "seconds": 4.288125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090218.wav",
+      "sha256": "99328b4ea96178516b17d84757bcdfd2673ed34d2301dd5fde85a5f0bfbe78a7",
+      "seconds": 4.7580625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090396.wav",
+      "sha256": "3cbedf59c000111e4e636d283a75957407dd3abffb704d3148e2ca9c3102ecd3",
+      "seconds": 4.651125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090100.wav",
+      "sha256": "7e65eb692dc693e2cb4f81793889f2b3024d72125c64373e8f0a659d23f26ea1",
+      "seconds": 4.179
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090457.wav",
+      "sha256": "f13a3ff41abea1056e5d95711f3a498a12ec73e4c7ee19221b99ffb30cda246c",
+      "seconds": 9.104
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090134.wav",
+      "sha256": "13908dfd01ad90ac9c575c7446e2ef49951f38bb9fe465ac31cba9afbbb4ac81",
+      "seconds": 4.948
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090105.wav",
+      "sha256": "c1db889a80d5888d960df40f31951ab256e302700ab507860e52a4d315a2e6c9",
+      "seconds": 3.784
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090384.wav",
+      "sha256": "e891674223c0406b7346eef1163cafe544fd331f9035e48b1726b976b737fb4a",
+      "seconds": 5.867
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090429.wav",
+      "sha256": "71042b9c2ff2ee1f983561ad1e0fa17516eb2ece1a5ee8c9b27c08446748ff6b",
+      "seconds": 8.548375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090114.wav",
+      "sha256": "8d7a444ab1410c60335692b4e5fea532be45c39a8f081cb04abbaddb70b07f78",
+      "seconds": 5.9473125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0609/SSB06090048.wav",
+      "sha256": "f2957badb0cac3356da38c07cd4f59c521923e63e0bd6afd89e195bc1647f72d",
+      "seconds": 4.892
+    }
+  ],
+  "SSB1699": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990023.wav",
+      "sha256": "3bae806bb0fbd45dcc5453959ee4202ae77da1eaacbe7a818cfad6ac6f5e2c58",
+      "seconds": 3.0610625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990353.wav",
+      "sha256": "1885a0dc6b2a7b990278c57ecbdd7c84aea318df1a1598624e3fa40805c8b916",
+      "seconds": 3.757125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990158.wav",
+      "sha256": "ed6dd6652b589a7973da4b4e03f25cb77cbffffcab0d8c23096caabfd3bc1ff1",
+      "seconds": 4.022
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990350.wav",
+      "sha256": "2bf5f9bf32cd2f17baf909813c6309c22f76243bc0154251a1961cd14a095b9e",
+      "seconds": 2.9730625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990195.wav",
+      "sha256": "810a98eeb22678cf113c09f7a8c2428a041d6bd1518d3eeb0c759b0a84c7b731",
+      "seconds": 4.012
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990239.wav",
+      "sha256": "82e15ccd3fd3b98003404567951bb1fb567cfbe614bb6d637a022f7cffa27ef7",
+      "seconds": 7.5310625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990215.wav",
+      "sha256": "5aa4cec2fad32f0952e53734bf94307c9118870665a43b510b01e6f284d65ff5",
+      "seconds": 4.9949375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990146.wav",
+      "sha256": "70837f38da651ea1c4c493df151f38f3cd4abedb6ee67d9feeaecdd60edea32b",
+      "seconds": 3.443
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990375.wav",
+      "sha256": "6d6c0976969bfb3f71f103325d4c1dc5d9f8940af2a529e0132361e2323fd8f2",
+      "seconds": 5.7380625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990327.wav",
+      "sha256": "5000ae86314bdda702d0079401897a63b1498b933de4810e09bb3b2ccdeb067e",
+      "seconds": 3.246125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990101.wav",
+      "sha256": "997b97408ab847eb36d86f2d2aa355ed6ab8b4d15951aa7e38748ae414830221",
+      "seconds": 3.5300625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990318.wav",
+      "sha256": "a7e932b338463e22b731e23ab65f0e21fa00e30aa4e8a683743def301cdb29a1",
+      "seconds": 4.46
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990114.wav",
+      "sha256": "c046b5c46ea74583c4a3274e9a277b3fe7631552289a8e1a9879425dad89df7a",
+      "seconds": 3.1910625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990032.wav",
+      "sha256": "75d3eaedadddf317558d22f1c92e334a2b0074f494bd4ef609b2383d0d20b998",
+      "seconds": 8.5260625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990100.wav",
+      "sha256": "3572ac6406cc9e69cc5ac39c747585edf425f60294c8a92a4bb05ac00ca486f9",
+      "seconds": 3.694
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990173.wav",
+      "sha256": "07651cdcc496611d2e2b21ce6c154a7192c81b028aadc67e35e416c9c673f2d3",
+      "seconds": 4.2850625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990380.wav",
+      "sha256": "e46d21a6957481b9ce2df5adf04a5281b636e3400fb02beb2f64b13d89befc10",
+      "seconds": 3.782
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990194.wav",
+      "sha256": "41c209bbb87fa1f49da699cdae3ce88fd8c068b12feaa4c9ab1406a9f2a9e5b9",
+      "seconds": 3.3120625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990311.wav",
+      "sha256": "6f6d820f9edab9092fca13935ed71a9579e342f39eaeb5227bd57815aab25151",
+      "seconds": 3.6291875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990388.wav",
+      "sha256": "9fb69dc116abfa94c45825e20dd5541b8c41d0806d4db9197ab28ff0f52f8129",
+      "seconds": 3.0170625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990021.wav",
+      "sha256": "599b828ef3390d822b2170f13b662f34719cc65323c8d7495663dc9f8a255c28",
+      "seconds": 2.940125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990221.wav",
+      "sha256": "1bd9bb9962a1c206137d84aa8fbe3efafe68970ee58ed96c3425c0dabfc08b45",
+      "seconds": 7.443125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990369.wav",
+      "sha256": "c01ceb38753ed2b03ad2c0b38d421155b4ee9e4cbc220ca5305e4307374f4943",
+      "seconds": 4.0661875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990233.wav",
+      "sha256": "da7b10fc1bda7cf583ae7e5c7bde4f485e2426cf0e29c5b2daf13d71098dc3f8",
+      "seconds": 3.5080625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990412.wav",
+      "sha256": "474260bb97be1bdc85d12a9e609257f0fddbc1b45b5664eff2b2b51c7de5665b",
+      "seconds": 3.465125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990386.wav",
+      "sha256": "a7a78a92ddde0df3badf869c4dac1503b9724740a66d57b1b80b971654d1f81f",
+      "seconds": 3.771
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990019.wav",
+      "sha256": "b4b1137a3140bb49c1b904c57ffc563f37e3b481f2a01f2e676f8c321fc6ff53",
+      "seconds": 3.924
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990372.wav",
+      "sha256": "08122fa641b45e11e052668e39569450e64ca3215f161453a34d6c0a5e43b89b",
+      "seconds": 2.6450625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990231.wav",
+      "sha256": "875edbf1380cf1e0d4cd9e0bc57608522e72b9c061e21b4c1cf0822d9547b8cd",
+      "seconds": 3.563125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1699/SSB16990188.wav",
+      "sha256": "59763aa8a737690b635883c1fdfe4d5bcfe4819b0623227ac5d8a6329c3c0548",
+      "seconds": 3.618
+    }
+  ],
+  "SSB0778": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780135.wav",
+      "sha256": "d040406e4d3391d4fbcf6e48c9db5cb3f5dc6999dbbf339f11a8e2a43431a764",
+      "seconds": 2.365
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780204.wav",
+      "sha256": "89af8c9bc85760542b2a61c9ef517f4c1a72413ba5eee9a8c2c0bd913926a40e",
+      "seconds": 1.99075
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780390.wav",
+      "sha256": "29c4d4677f312010c4169e16ebfe9d8bd6e2260f5aa3a486af2e930cf4ab45aa",
+      "seconds": 3.3728125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780382.wav",
+      "sha256": "2cbb6274d7c4ecabd51418b2723148da7a878151d4d4a0829eead273c276934e",
+      "seconds": 5.324375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780255.wav",
+      "sha256": "21dcdaee4267cccd2c73aa4f1673b5e660065395feff955ec6129626165e6fe5",
+      "seconds": 3.417
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780106.wav",
+      "sha256": "8c976fad71172aa10ca5c113d167908f7bf9b63ca1e4645949df9c4d3bd790d3",
+      "seconds": 2.619875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780291.wav",
+      "sha256": "8ee8e1b35909bbcd8128b32dc5b1bb16525772514f9e100ed538b4a2322fd320",
+      "seconds": 3.7814375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780362.wav",
+      "sha256": "2d3fb08aba7943bd65e7a198dfc26d905517365d67c54ac5f57e808d96994bdf",
+      "seconds": 2.224
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780249.wav",
+      "sha256": "ab65fbe70bb8a78f8a9c100dcb873d78f8cca2c638464812b46735030e0efa59",
+      "seconds": 2.4571875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780476.wav",
+      "sha256": "d8fe2affbbbdf3cb0076e19db042c21b056fd8c88c49a0a6bc8b22a9e72be1b0",
+      "seconds": 3.662125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780365.wav",
+      "sha256": "2507a72fbab96e47442b64363cf0333951bbc279373d8d57621883ae13398387",
+      "seconds": 2.0969375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780430.wav",
+      "sha256": "0768489310eef6ef1b650a2f882b9533adfe74c17301210a2be0bafc33a3e73b",
+      "seconds": 4.557375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780318.wav",
+      "sha256": "56b189edcb4b97233cbe63aee992918c87cf94d56a88cb3cc3f2b249054e2f3a",
+      "seconds": 2.486
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780381.wav",
+      "sha256": "e3c76ca762ef9654e4cd27f5003e5840bb11785562f3e405c5bc71f2f1a48aaf",
+      "seconds": 5.4111875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780158.wav",
+      "sha256": "79e6dd27abf6cc673742267cea106acfdf5abb3e59283046903802cab1d42607",
+      "seconds": 4.6385625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780219.wav",
+      "sha256": "1dc751a291b146d5483af0ba5b62d55fb33e176b83e886773b466af4fd73396e",
+      "seconds": 3.1780625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780163.wav",
+      "sha256": "87cad649d663d84fea210461ad77fbd7f002d1d2bcc67fe2ee709e03741a2603",
+      "seconds": 3.45025
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780247.wav",
+      "sha256": "583b82676a49e4c8eeef85a67a21c8e5302a5e1300207088caba79fef0a4ea68",
+      "seconds": 4.543375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780331.wav",
+      "sha256": "6fd59772d4690714598d3e5fe68d86f34c773eebfc56eda3d747e98f2169ba66",
+      "seconds": 1.9145
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780170.wav",
+      "sha256": "0531545ab9b79b3818d0ca6e615610f355aa9a37ae580ce062c160c916be4e45",
+      "seconds": 5.66225
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780262.wav",
+      "sha256": "e69a3c09737cad63a825850631436292980713026810ec79080764f7d521f1da",
+      "seconds": 2.6765625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780072.wav",
+      "sha256": "f5956bba3fa6b2ba978de5602c9b0524b4170c9ecda652fa5ade7f2c1fc3aee4",
+      "seconds": 3.4194375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780196.wav",
+      "sha256": "94d73fda5eec393a66f781b51c2d792fd2b430b8cbc6988bbfa54784155c8ec7",
+      "seconds": 2.5828125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780342.wav",
+      "sha256": "e829605abcb149d23be8fe23b0468c0345f7f468618b24bdb911aec22777966a",
+      "seconds": 3.8838125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780438.wav",
+      "sha256": "bd110740af6b5536774c322c8a7d3b3352a8441729e873a06cd1a8f5f20220f4",
+      "seconds": 3.0566875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780448.wav",
+      "sha256": "1ae3e852b32ee175ec73a412f7318db8728327b988cf84586f84d0cf32ebd58b",
+      "seconds": 2.69325
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780337.wav",
+      "sha256": "67e3996a118c3f484eea85fb3c5f5d71434feb067a0dc857024008ff56b64a1d",
+      "seconds": 2.2193125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780353.wav",
+      "sha256": "787d899a5a0ddfc4d444016d61c8ab24ab246ee834b5672d93c22b88303c1d05",
+      "seconds": 2.5435
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780182.wav",
+      "sha256": "4d5ed7f8473cb12222915fad1f1a58526e540c7530ca90afe17251bc55b4f26f",
+      "seconds": 2.4939375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780484.wav",
+      "sha256": "853066e96ae88c87b59a72f8bb4a2f85652a700ba58dd6f47d59614e9c17465d",
+      "seconds": 2.433375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780354.wav",
+      "sha256": "e68dab914c0fc45da14d4faffbe073bc13c5ac8c2c92977c6f7dd798b84d0e98",
+      "seconds": 1.96525
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780275.wav",
+      "sha256": "6b72b67107b4ec9171811147c4cb28b790d814594fe1c18ab0d4cd8c9bc1564c",
+      "seconds": 3.349375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780261.wav",
+      "sha256": "8a6679b519804c6b97f7a5f812dd976327e4f3bd493c0e3c568e929f784cb818",
+      "seconds": 3.2014375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780145.wav",
+      "sha256": "e4b19a976091026b13e8f701005e8600253256adfd4b5f4d0129690f93e6c264",
+      "seconds": 2.2954375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780264.wav",
+      "sha256": "54106d62dec6adce888369c90e848fcc668cbb9c6f955e64d41c1dcc6237352e",
+      "seconds": 2.61625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780433.wav",
+      "sha256": "66b9a71b075983c55fed2f979afd8f4a645cbe35470cd29544851791e2390ecb",
+      "seconds": 2.194375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780419.wav",
+      "sha256": "43a5f51189c97fb69c6912811a06b867d7438159126e115493bc4350d8bbdd70",
+      "seconds": 1.8576875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780184.wav",
+      "sha256": "e4959f19a4dc22cbc466202801d0ae7efdb95714ec999aab38014893b51c10ba",
+      "seconds": 2.025625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB0778/SSB07780031.wav",
+      "sha256": "195546fe888252580cf2f05a672281480f43e8b840de5e78537311077d07e2c3",
+      "seconds": 5.8141875
+    }
+  ],
+  "SSB1096": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960311.wav",
+      "sha256": "3842355778f66597fb246c809105211834922d37e4819d5f10ac579f1c3c2207",
+      "seconds": 2.67
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960475.wav",
+      "sha256": "e22990670ffe382b319a310548548d2e00f6977fd8837e71163f40585d7ccc6a",
+      "seconds": 2.7
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960287.wav",
+      "sha256": "3b83b66f7b62ff0bf5a022b826457dfbcccfbef29514ec27d5ca64851471fa51",
+      "seconds": 3.9600625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960015.wav",
+      "sha256": "fd149e1957f86f4219f4ebff65ce8dc798c9c1c33635e68070e26b3dc4c20c0f",
+      "seconds": 2.6630625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960054.wav",
+      "sha256": "94cfb01997acb84036834fd074ee5883d50f2313b64585e206ec3bbbe0c8068b",
+      "seconds": 5.5500625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960059.wav",
+      "sha256": "4101b5e75a7e4e461e77f3467b01ede7dcfba4402481f45522da6d88b2c7aca5",
+      "seconds": 3.5100625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960164.wav",
+      "sha256": "561460dd09e588eb68fa294212e496d0fb372cca3c22f04f66f29b92ab375e75",
+      "seconds": 2.25
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960190.wav",
+      "sha256": "21ab87eaa802e281ed1e3c28ffccb8c4bced2a6373dc3deb19704e90c7f58860",
+      "seconds": 2.4299375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960189.wav",
+      "sha256": "500a6e6630a969a636b14e1b490fd019a380d96e8e8d8fea401a84299eb46d06",
+      "seconds": 3.12
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960482.wav",
+      "sha256": "2f5839027e40116017c3f5431a92439d8091f2ae5a843666be0841f3b117af33",
+      "seconds": 3.39
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960202.wav",
+      "sha256": "a29a84dfe325d3ef45d2c7e89bf027e3420724eae337c9ddb1456b47ad438760",
+      "seconds": 2.58
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960119.wav",
+      "sha256": "30cb109cea6b3bb2b281539532a30840b0c656fca56665719b7a0e55a6989e80",
+      "seconds": 3.69
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960465.wav",
+      "sha256": "c6e6169c2f849ce0b2f2f00019e1c42ce90c29d9231e14e78d21f61ebef95bce",
+      "seconds": 2.76
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960350.wav",
+      "sha256": "3ad3fdbce9bc6731689fca62702e9b8566c3eb4b61a692ddc200057298998d73",
+      "seconds": 2.7
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960269.wav",
+      "sha256": "a8d89958ff488bd545af3fc76bb0100e72026701ab963a83ad536a3c035a670b",
+      "seconds": 2.7900625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960201.wav",
+      "sha256": "5a408c9a36389ed1770f0d74d36b34b1089043dd9a79694aaaf800380c9de6e8",
+      "seconds": 5.3100625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960397.wav",
+      "sha256": "2af366f71582fa83b013aba3fbf89a3d007c93f0d905b28ff69da0f9417b7725",
+      "seconds": 2.748625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960241.wav",
+      "sha256": "516466435f53b4ceccbb62c087fbea56b7c26521e22028d2608dc67d31e8d47c",
+      "seconds": 4.6443125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960346.wav",
+      "sha256": "ae63eec64414e2923ebb3ad43a4e71b7b43720bbeb8d0b645a1ad8d28d8aaf7a",
+      "seconds": 4.32
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960264.wav",
+      "sha256": "01240b376f441d17939caf2e196bb82ad9c9f8eaa7a89cbe4522f2982194359b",
+      "seconds": 6.180125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960156.wav",
+      "sha256": "c5f6a864b0b8a90d16a396e1c2194806dacbf96f30cb96999f56f2741b608ee5",
+      "seconds": 2.7
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960345.wav",
+      "sha256": "f139d7f02ae788bc3cc3b373f559493ba5b48edd0e4fca147b3a5aaa0d7be70f",
+      "seconds": 2.5200625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960305.wav",
+      "sha256": "4092cbb65aa813ab47522254e2679b9b7956bda2c09bcdff438f925d9de4af03",
+      "seconds": 2.9399375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960451.wav",
+      "sha256": "aad9e94615a630425263d1938df3c7997b51273fc2e55f64297e53d9a503d919",
+      "seconds": 2.0699375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960213.wav",
+      "sha256": "080fce6940aa218107a200bffd77f6ac606a46e4f205ed4dfb43282b173b0b68",
+      "seconds": 3.66
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960386.wav",
+      "sha256": "540bab0d323efde6e167099a47c4064190674cc6339386331181fc96d1e00c20",
+      "seconds": 3.3
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960320.wav",
+      "sha256": "6eb8abba88f174f9c1c7016477892392aa9577cd7a25cd7d133f594a71e61248",
+      "seconds": 3.4200625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960003.wav",
+      "sha256": "a037dd47ac14a58023a1f5840453303616f18f41a9beddc969d5aa7f4d7f2895",
+      "seconds": 3.960125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960414.wav",
+      "sha256": "7f56ee371b77d3add4b85dd01ec7586f659c80d08725c078b8ae4c0ba3f0eebd",
+      "seconds": 2.5499375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960075.wav",
+      "sha256": "42d2361baaf653881b23d1fbc21392cd4fd6146dc0e3383d7971fc318ab8be1c",
+      "seconds": 4.08
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960014.wav",
+      "sha256": "e850199b49f0a36b2e52b025e771441c3ae2c313c2d129df54adf178b86cef5a",
+      "seconds": 2.610125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960464.wav",
+      "sha256": "de9b6b9e668d71b2ba0bc2272daa2f91fedd878a541cd4f8defb5ef2d1d81b88",
+      "seconds": 1.98
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960017.wav",
+      "sha256": "1e59cdba95787bec5b54e6a78abb8f98994c1a6c2983c6db1262dd68e82af60e",
+      "seconds": 2.82
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960342.wav",
+      "sha256": "d89b11aeca330268749d72f8ebc1760a794bc3c306d1da94b3570779f7c7ee70",
+      "seconds": 1.9913125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960366.wav",
+      "sha256": "c999166e39281d9cd890e0f44c3416d261ab2fb051dcdac5cc743efb3943bf1b",
+      "seconds": 3.9209375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960135.wav",
+      "sha256": "4cc69f15cff446a942ff22ed192a768b799fc57e106ca3c30f4968f9adb74838",
+      "seconds": 3.39
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1096/SSB10960258.wav",
+      "sha256": "59648c205e1fccbc16f5de75241dccdcaaaff14bfca999782e14311d4e018728",
+      "seconds": 2.424375
+    }
+  ],
+  "SSB1115": [
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150182.wav",
+      "sha256": "4b69f191c2bb838d062a448544512422ac8b56ee8333740c041686607c8d5209",
+      "seconds": 3.204375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150168.wav",
+      "sha256": "f4a8896afa79d169a50afbc41934a07a3e77d3c3532301fa15e46d7f15946b65",
+      "seconds": 4.4118125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150421.wav",
+      "sha256": "0477b466b886fe30d2f0d8f7a3b683a66072e9505b6d60ccdf2a0913135057f1",
+      "seconds": 1.857625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150228.wav",
+      "sha256": "e6ded9f10bc69d21f2f87c04c11b785973b1c657192103d0c9189240d0ad126e",
+      "seconds": 2.13625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150235.wav",
+      "sha256": "70d81b86c8ca7e06d3694fdde2caf60a444c6890b3dee7ad6afdfc51b5b22f00",
+      "seconds": 2.647125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150363.wav",
+      "sha256": "d746cbaf9ed491edeb2fd52c36bbd3b86adb9c1eb67f04ae1b5145dc54f6d11b",
+      "seconds": 3.4365625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150325.wav",
+      "sha256": "bfdce02c0ae234cfb2a85aba524967c8714761f96a50c590c1f1d323d40fae60",
+      "seconds": 2.5078125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150145.wav",
+      "sha256": "a62bcc5605e24d6bba699ab2965b5a08ee208812fb774d8809a9d48a8a90290e",
+      "seconds": 6.03725
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150341.wav",
+      "sha256": "9f39d8a6c772dd9893c24b1a63fb50d3cf81b0b9ba638a9a082fd26a707bc6b0",
+      "seconds": 4.45825
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150079.wav",
+      "sha256": "25530bb569409085f76a8ac72ddf4c6ee107f8a20c0e2f796bbb55acc734f5e0",
+      "seconds": 3.29725
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150104.wav",
+      "sha256": "c9641cdec6a8d72cda0b351508ac43d5d15bdc327f9c7ade6124537b540280aa",
+      "seconds": 1.8111875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150091.wav",
+      "sha256": "40fef21e9325d7e5f1f581de35e1244f28a19716f4ab09f1d62025199e3db7f5",
+      "seconds": 3.7616875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150178.wav",
+      "sha256": "8884888d122f12589bb64409efe90bda78d59f8958748645a9955b443b836849",
+      "seconds": 3.018625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150342.wav",
+      "sha256": "d0ca9558ceeb598c8d91ca586e173b47fb6c3cfe43e04b679f909f1f5e7dcd88",
+      "seconds": 2.0898125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150295.wav",
+      "sha256": "d7121f0195cdb3b003543dbcb6bfe3a72175cbb541880f7bfbc94ec4d7b67ecb",
+      "seconds": 4.551125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150309.wav",
+      "sha256": "2f8540d2fb60e39821aae68822afed2fd5780d93148c2a495f93dc96b19c88d2",
+      "seconds": 3.390125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150224.wav",
+      "sha256": "d49349e6cc02920d1c4e819a77270d1baa0c1193e8ce30251cc0ba5bed644a93",
+      "seconds": 1.8111875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150436.wav",
+      "sha256": "89b500c3c98bad9d316dd0038e2693c8588ca54c17c48e14717343de6c753ef6",
+      "seconds": 3.5294375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150154.wav",
+      "sha256": "f7287ccc5308c552d19e2e8204890efe9f0b446de0bedd2f78da182582a47940",
+      "seconds": 5.526375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150152.wav",
+      "sha256": "59d89ea75e9f87f83a88a8abeb9b5ee8366d2123b62c3e327f8fd7de09b83eac",
+      "seconds": 1.9969375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150480.wav",
+      "sha256": "3b886cb1b25908b1c7eb35b23e57abdf6be66e861b478ba06154212176b6e59c",
+      "seconds": 2.6006875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150351.wav",
+      "sha256": "d2e3632bc8acc1972bad3ecc4afaf3ac576b3e92775f20bfabea8529a55bd4e9",
+      "seconds": 3.622375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150002.wav",
+      "sha256": "44527edfd615635caf4d2b1e895ecd040f33fe7c09088e686e292c2d97d04e74",
+      "seconds": 2.647125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150016.wav",
+      "sha256": "0f9d2f45a5573c1e4e95112eac10d5bbe7f321194b1867fa86ec69b9293c6142",
+      "seconds": 3.1115
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150244.wav",
+      "sha256": "9e15f1bfb73238a546b14b2d340039c01ed76852f9943928a06935b678b5ea0e",
+      "seconds": 3.71525
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150175.wav",
+      "sha256": "1bc87c71ea44fe503166e7f871fda6b2fd88969067b68dbb569f8ca0c39e386f",
+      "seconds": 2.461375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150069.wav",
+      "sha256": "05a91aa3e93e97f20af0a363ca76688cf5d0a62b682f9f02412f9b62547a970f",
+      "seconds": 3.0650625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150301.wav",
+      "sha256": "c7207c37439b3170e6dbc79767cae90f7404e2525deebb2eeb510745b18bb10e",
+      "seconds": 3.993875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150028.wav",
+      "sha256": "3f774df3b0e8b0816bc0dc95beef128b31d6dc5f366b51129ddac98132e5465e",
+      "seconds": 3.622375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150380.wav",
+      "sha256": "cf93b1efef75fd3cf15e4921d0efdb94c8919dc52fc711239f1f18e0a7716a4d",
+      "seconds": 3.390125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150324.wav",
+      "sha256": "919b0b3ac7dfe62975d4a6f950d9663cf10c0525f767085201724aa1b2033bf8",
+      "seconds": 2.92575
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150489.wav",
+      "sha256": "d8ff1b76f343c678cd6bc2aa40fcf308cf6b5d64e4281d30abc11ad8cb22ad11",
+      "seconds": 2.1826875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150181.wav",
+      "sha256": "4e1ce1c69cc4265a4a5f46827986dc26bff17427e7922bc91dc94433d49ed152",
+      "seconds": 2.0898125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150184.wav",
+      "sha256": "46660f6fb077c23cb15097409b5960c3444f8d06eff94fa747cf7ab67065f36f",
+      "seconds": 2.647125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150108.wav",
+      "sha256": "e46e060a0590f004f50bcab6fd25a3a8b908f158af355dfdbddc7d505a5aed5a",
+      "seconds": 2.1826875
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150382.wav",
+      "sha256": "7330cf33763e648b13c675349e14afe244923840fff0a23209f3e3fcad7f04f3",
+      "seconds": 3.9474375
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150319.wav",
+      "sha256": "f758ed5326dbd1fc4df476ce9c965d5dd33805db692eb6d78d233ff189f62243",
+      "seconds": 2.0898125
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150358.wav",
+      "sha256": "88ff9c8ab9a96a1388a8d13a502b84c529ed18db1609a63b9d5f3a2d5a48ebc6",
+      "seconds": 2.13625
+    },
+    {
+      "path": "/home/fakemitch/pinokio/api/alexandria-audiobook2.git/ab_test_runtime/corpora/aishell3/train/wav/SSB1115/SSB11150206.wav",
+      "sha256": "8569ca40d275bb0c972b95b7512be3e238eea094501fb18f5aa157d936d66224",
+      "seconds": 3.5294375
+    }
+  ]
+}

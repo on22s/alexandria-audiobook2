@@ -1,0 +1,6962 @@
+[
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 24,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8950958847999573,
+    "window_min": 0.8195505738258362,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7567578125,
+        "rms": 0.051336824893951416,
+        "score": 0.8195505738258362
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7771484375,
+        "rms": 0.053684547543525696,
+        "score": 0.8320069313049316
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.703171875,
+        "rms": 0.046675484627485275,
+        "score": 0.8714526295661926
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75209375,
+        "rms": 0.04852193593978882,
+        "score": 0.8644893169403076
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 24,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8872177004814148,
+    "window_min": 0.8036359548568726,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7430390625,
+        "rms": 0.04787491261959076,
+        "score": 0.8186830878257751
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.796171875,
+        "rms": 0.05176170915365219,
+        "score": 0.8036359548568726
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7359140625,
+        "rms": 0.04815918579697609,
+        "score": 0.8412495255470276
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75209375,
+        "rms": 0.04852193593978882,
+        "score": 0.8644893169403076
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 24,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8944087624549866,
+    "window_min": 0.8134959936141968,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7377890625,
+        "rms": 0.03805111348628998,
+        "score": 0.8134959936141968
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.73153125,
+        "rms": 0.026842273771762848,
+        "score": 0.8320069909095764
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.6765234375,
+        "rms": 0.03470822423696518,
+        "score": 0.8707564473152161
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75209375,
+        "rms": 0.04852193593978882,
+        "score": 0.8644893169403076
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 24,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      11.0,
+      13.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8882287740707397,
+    "window_min": 0.7954530715942383,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7254140625,
+        "rms": 0.04858608916401863,
+        "score": 0.8139066696166992
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.715953125,
+        "rms": 0.0517171248793602,
+        "score": 0.7954530715942383
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.6733203125,
+        "rms": 0.047392964363098145,
+        "score": 0.8573302030563354
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75209375,
+        "rms": 0.04852193593978882,
+        "score": 0.8644893169403076
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 24,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      10.0,
+      14.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8700941801071167,
+    "window_min": 0.6979631185531616,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7508671875,
+        "rms": 0.04994843527674675,
+        "score": 0.7820224761962891
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.81603125,
+        "rms": 0.05585551634430885,
+        "score": 0.6979631185531616
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7479453125,
+        "rms": 0.050567105412483215,
+        "score": 0.7734397649765015
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75209375,
+        "rms": 0.04852193593978882,
+        "score": 0.8644893169403076
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 24,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      8.0,
+      16.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8350722789764404,
+    "window_min": 0.36122944951057434,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7241015625,
+        "rms": 0.04861610010266304,
+        "score": 0.6203023195266724
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7043515625,
+        "rms": 0.049089379608631134,
+        "score": 0.36122944951057434
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.66303125,
+        "rms": 0.04447788745164871,
+        "score": 0.728364109992981
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75209375,
+        "rms": 0.04852193593978882,
+        "score": 0.8644893169403076
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 48,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.9060764908790588,
+    "window_min": 0.8195505738258362,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7567578125,
+        "rms": 0.051336824893951416,
+        "score": 0.8195505738258362
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7771484375,
+        "rms": 0.053684547543525696,
+        "score": 0.8320069313049316
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.703171875,
+        "rms": 0.046675484627485275,
+        "score": 0.8714526295661926
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75209375,
+        "rms": 0.04852193593978882,
+        "score": 0.8644893169403076
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.7546796875,
+        "rms": 0.051140137016773224,
+        "score": 0.8456704020500183
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.7604453125,
+        "rms": 0.04944122955203056,
+        "score": 0.8422649502754211
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.83128125,
+        "rms": 0.05069088190793991,
+        "score": 0.830398678779602
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.79284375,
+        "rms": 0.04857950657606125,
+        "score": 0.8336037993431091
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.704796875,
+        "rms": 0.047749634832143784,
+        "score": 0.8506349921226501
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7490625,
+        "rms": 0.05291574448347092,
+        "score": 0.8965071439743042
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 48,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8968216776847839,
+    "window_min": 0.8036359548568726,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7567578125,
+        "rms": 0.051336824893951416,
+        "score": 0.8195505738258362
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7771484375,
+        "rms": 0.053684547543525696,
+        "score": 0.8320069313049316
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.703171875,
+        "rms": 0.046675484627485275,
+        "score": 0.8714526295661926
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7478828125,
+        "rms": 0.04604339972138405,
+        "score": 0.8467418551445007
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.796171875,
+        "rms": 0.05176170915365219,
+        "score": 0.8036359548568726
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.8061484375,
+        "rms": 0.0523715503513813,
+        "score": 0.8196628093719482
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.83128125,
+        "rms": 0.05069088190793991,
+        "score": 0.830398678779602
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.79284375,
+        "rms": 0.04857950657606125,
+        "score": 0.8336037993431091
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.704796875,
+        "rms": 0.047749634832143784,
+        "score": 0.8506349921226501
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7490625,
+        "rms": 0.05291574448347092,
+        "score": 0.8965071439743042
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 48,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.9057382345199585,
+    "window_min": 0.8195505738258362,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7567578125,
+        "rms": 0.051336824893951416,
+        "score": 0.8195505738258362
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7771484375,
+        "rms": 0.053684547543525696,
+        "score": 0.8320069313049316
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.703171875,
+        "rms": 0.046675484627485275,
+        "score": 0.8714526295661926
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.726734375,
+        "rms": 0.03533560410141945,
+        "score": 0.8641248345375061
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.6967890625,
+        "rms": 0.025570068508386612,
+        "score": 0.8456703424453735
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.7279140625,
+        "rms": 0.03985879197716713,
+        "score": 0.8353687524795532
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.83128125,
+        "rms": 0.05069088190793991,
+        "score": 0.830398678779602
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.79284375,
+        "rms": 0.04857950657606125,
+        "score": 0.8336037993431091
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.704796875,
+        "rms": 0.047749634832143784,
+        "score": 0.8506349921226501
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7490625,
+        "rms": 0.05291574448347092,
+        "score": 0.8965071439743042
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 48,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      23.0,
+      25.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.9040611386299133,
+    "window_min": 0.7898080945014954,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7567578125,
+        "rms": 0.051336824893951416,
+        "score": 0.8195505738258362
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7771484375,
+        "rms": 0.053684547543525696,
+        "score": 0.8320069313049316
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.703171875,
+        "rms": 0.046675484627485275,
+        "score": 0.8714526295661926
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.722375,
+        "rms": 0.04671633988618851,
+        "score": 0.844232439994812
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.683421875,
+        "rms": 0.04849696531891823,
+        "score": 0.7898080945014954
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.71890625,
+        "rms": 0.04850813373923302,
+        "score": 0.815373420715332
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.83128125,
+        "rms": 0.05069088190793991,
+        "score": 0.830398678779602
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.79284375,
+        "rms": 0.04857950657606125,
+        "score": 0.8336037993431091
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.704796875,
+        "rms": 0.047749634832143784,
+        "score": 0.8506349921226501
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7490625,
+        "rms": 0.05291574448347092,
+        "score": 0.8965071439743042
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 48,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      22.0,
+      26.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8971371650695801,
+    "window_min": 0.6798461675643921,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7567578125,
+        "rms": 0.051336824893951416,
+        "score": 0.8195505738258362
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7771484375,
+        "rms": 0.053684547543525696,
+        "score": 0.8320069313049316
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.703171875,
+        "rms": 0.046675484627485275,
+        "score": 0.8714526295661926
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7461171875,
+        "rms": 0.04836059734225273,
+        "score": 0.8251329660415649
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.7904375,
+        "rms": 0.05299434810876846,
+        "score": 0.6798461675643921
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.8021796875,
+        "rms": 0.051508769392967224,
+        "score": 0.7556149959564209
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.83128125,
+        "rms": 0.05069088190793991,
+        "score": 0.830398678779602
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.79284375,
+        "rms": 0.04857950657606125,
+        "score": 0.8336037993431091
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.704796875,
+        "rms": 0.047749634832143784,
+        "score": 0.8506349921226501
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7490625,
+        "rms": 0.05291574448347092,
+        "score": 0.8965071439743042
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0603",
+    "gender": "male",
+    "donor": "SSB0407",
+    "duration": 48,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      20.0,
+      28.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8843481540679932,
+    "window_min": 0.36122944951057434,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7219765625,
+        "rms": 0.04932285100221634,
+        "score": 0.8243961930274963
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7567578125,
+        "rms": 0.051336824893951416,
+        "score": 0.8195505738258362
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7771484375,
+        "rms": 0.053684547543525696,
+        "score": 0.8320069313049316
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.703171875,
+        "rms": 0.046675484627485275,
+        "score": 0.8714526295661926
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7289453125,
+        "rms": 0.04681359604001045,
+        "score": 0.7113265991210938
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.7043515625,
+        "rms": 0.049089379608631134,
+        "score": 0.36122944951057434
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.733265625,
+        "rms": 0.04900769889354706,
+        "score": 0.7197625637054443
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.83128125,
+        "rms": 0.05069088190793991,
+        "score": 0.830398678779602
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.79284375,
+        "rms": 0.04857950657606125,
+        "score": 0.8336037993431091
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.704796875,
+        "rms": 0.047749634832143784,
+        "score": 0.8506349921226501
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7490625,
+        "rms": 0.05291574448347092,
+        "score": 0.8965071439743042
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 24,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.9240788221359253,
+    "window_min": 0.8801069259643555,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8412578125,
+        "rms": 0.05096597597002983,
+        "score": 0.9105815291404724
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.78084375,
+        "rms": 0.04775463789701462,
+        "score": 0.9010542631149292
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7516953125,
+        "rms": 0.04796261340379715,
+        "score": 0.88083815574646
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7781484375,
+        "rms": 0.05091731622815132,
+        "score": 0.8801069259643555
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 24,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.9131457805633545,
+    "window_min": 0.8588709831237793,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.807890625,
+        "rms": 0.05213652551174164,
+        "score": 0.8970842361450195
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7043515625,
+        "rms": 0.049089379608631134,
+        "score": 0.868445873260498
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7085703125,
+        "rms": 0.04805193096399307,
+        "score": 0.8588709831237793
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7781484375,
+        "rms": 0.05091731622815132,
+        "score": 0.8801069259643555
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 24,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.9232046008110046,
+    "window_min": 0.8784202933311462,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.822578125,
+        "rms": 0.04128463938832283,
+        "score": 0.90714031457901
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7346640625,
+        "rms": 0.02387731894850731,
+        "score": 0.9010542631149292
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7241953125,
+        "rms": 0.03851158916950226,
+        "score": 0.8784202933311462
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7781484375,
+        "rms": 0.05091731622815132,
+        "score": 0.8801069259643555
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 24,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      11.0,
+      13.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.9090439081192017,
+    "window_min": 0.7669106721878052,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.81603125,
+        "rms": 0.04932686313986778,
+        "score": 0.8715479373931885
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.786671875,
+        "rms": 0.04848035052418709,
+        "score": 0.7669106721878052
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.78275,
+        "rms": 0.05034523457288742,
+        "score": 0.8496907949447632
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7781484375,
+        "rms": 0.05091731622815132,
+        "score": 0.8801069259643555
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 24,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      10.0,
+      14.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8850594758987427,
+    "window_min": 0.5273079872131348,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.868265625,
+        "rms": 0.05162721127271652,
+        "score": 0.8232489824295044
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8265078125,
+        "rms": 0.04857984185218811,
+        "score": 0.5273079872131348
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7703515625,
+        "rms": 0.04808398336172104,
+        "score": 0.7994509935379028
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7781484375,
+        "rms": 0.05091731622815132,
+        "score": 0.8801069259643555
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 24,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      8.0,
+      16.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.6965101957321167,
+    "window_min": 0.04647153615951538,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8444765625,
+        "rms": 0.052727051079273224,
+        "score": 0.5569150447845459
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.819484375,
+        "rms": 0.05257640779018402,
+        "score": 0.04647153615951538
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7871171875,
+        "rms": 0.05100563168525696,
+        "score": 0.43468233942985535
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7781484375,
+        "rms": 0.05091731622815132,
+        "score": 0.8801069259643555
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 48,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.9270729422569275,
+    "window_min": 0.8535588979721069,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8412578125,
+        "rms": 0.05096597597002983,
+        "score": 0.9105815291404724
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.78084375,
+        "rms": 0.04775463789701462,
+        "score": 0.9010542631149292
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7516953125,
+        "rms": 0.04796261340379715,
+        "score": 0.88083815574646
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7781484375,
+        "rms": 0.05091731622815132,
+        "score": 0.8801069259643555
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.75603125,
+        "rms": 0.05125005543231964,
+        "score": 0.8879203796386719
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.737546875,
+        "rms": 0.04979388788342476,
+        "score": 0.8961915969848633
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.730390625,
+        "rms": 0.04822427034378052,
+        "score": 0.8535588979721069
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7762578125,
+        "rms": 0.050140734761953354,
+        "score": 0.8707872033119202
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.793,
+        "rms": 0.051337435841560364,
+        "score": 0.8722145557403564
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.756671875,
+        "rms": 0.04778391495347023,
+        "score": 0.863524317741394
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 48,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.9233250617980957,
+    "window_min": 0.8535588979721069,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8412578125,
+        "rms": 0.05096597597002983,
+        "score": 0.9105815291404724
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.78084375,
+        "rms": 0.04775463789701462,
+        "score": 0.9010542631149292
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7516953125,
+        "rms": 0.04796261340379715,
+        "score": 0.88083815574646
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.774484375,
+        "rms": 0.05022169277071953,
+        "score": 0.8651318550109863
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.7043515625,
+        "rms": 0.049089379608631134,
+        "score": 0.868445873260498
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.68953125,
+        "rms": 0.048300985246896744,
+        "score": 0.8778778314590454
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.730390625,
+        "rms": 0.04822427034378052,
+        "score": 0.8535588979721069
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7762578125,
+        "rms": 0.050140734761953354,
+        "score": 0.8707872033119202
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.793,
+        "rms": 0.051337435841560364,
+        "score": 0.8722145557403564
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.756671875,
+        "rms": 0.04778391495347023,
+        "score": 0.863524317741394
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 48,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.9266350865364075,
+    "window_min": 0.8535588979721069,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8412578125,
+        "rms": 0.05096597597002983,
+        "score": 0.9105815291404724
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.78084375,
+        "rms": 0.04775463789701462,
+        "score": 0.9010542631149292
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7516953125,
+        "rms": 0.04796261340379715,
+        "score": 0.88083815574646
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.76378125,
+        "rms": 0.03944848105311394,
+        "score": 0.8766472339630127
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.7218203125,
+        "rms": 0.02562502771615982,
+        "score": 0.8879204392433167
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.717703125,
+        "rms": 0.03931787610054016,
+        "score": 0.8866927623748779
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.730390625,
+        "rms": 0.04822427034378052,
+        "score": 0.8535588979721069
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7762578125,
+        "rms": 0.050140734761953354,
+        "score": 0.8707872033119202
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.793,
+        "rms": 0.051337435841560364,
+        "score": 0.8722145557403564
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.756671875,
+        "rms": 0.04778391495347023,
+        "score": 0.863524317741394
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 48,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      23.0,
+      25.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.9250332117080688,
+    "window_min": 0.7890501022338867,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8412578125,
+        "rms": 0.05096597597002983,
+        "score": 0.9105815291404724
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.78084375,
+        "rms": 0.04775463789701462,
+        "score": 0.9010542631149292
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7516953125,
+        "rms": 0.04796261340379715,
+        "score": 0.88083815574646
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7537265625,
+        "rms": 0.05216790735721588,
+        "score": 0.8416131734848022
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.79,
+        "rms": 0.053968846797943115,
+        "score": 0.7890501022338867
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.7959375,
+        "rms": 0.051347654312849045,
+        "score": 0.86690753698349
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.730390625,
+        "rms": 0.04822427034378052,
+        "score": 0.8535588979721069
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7762578125,
+        "rms": 0.050140734761953354,
+        "score": 0.8707872033119202
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.793,
+        "rms": 0.051337435841560364,
+        "score": 0.8722145557403564
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.756671875,
+        "rms": 0.04778391495347023,
+        "score": 0.863524317741394
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 48,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      22.0,
+      26.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.9175392985343933,
+    "window_min": 0.5171356201171875,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8412578125,
+        "rms": 0.05096597597002983,
+        "score": 0.9105815291404724
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.78084375,
+        "rms": 0.04775463789701462,
+        "score": 0.9010542631149292
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7516953125,
+        "rms": 0.04796261340379715,
+        "score": 0.88083815574646
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.78284375,
+        "rms": 0.05073009431362152,
+        "score": 0.746942400932312
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.796421875,
+        "rms": 0.05139609053730965,
+        "score": 0.5171356201171875
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.7732421875,
+        "rms": 0.0501343235373497,
+        "score": 0.8123601675033569
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.730390625,
+        "rms": 0.04822427034378052,
+        "score": 0.8535588979721069
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7762578125,
+        "rms": 0.050140734761953354,
+        "score": 0.8707872033119202
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.793,
+        "rms": 0.051337435841560364,
+        "score": 0.8722145557403564
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.756671875,
+        "rms": 0.04778391495347023,
+        "score": 0.863524317741394
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0407",
+    "gender": "male",
+    "donor": "SSB0623",
+    "duration": 48,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      20.0,
+      28.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8803349733352661,
+    "window_min": 0.04647153615951538,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.7978125,
+        "rms": 0.05264865234494209,
+        "score": 0.9020422697067261
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8412578125,
+        "rms": 0.05096597597002983,
+        "score": 0.9105815291404724
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.78084375,
+        "rms": 0.04775463789701462,
+        "score": 0.9010542631149292
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7516953125,
+        "rms": 0.04796261340379715,
+        "score": 0.88083815574646
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8110703125,
+        "rms": 0.05083446949720383,
+        "score": 0.4785664677619934
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.819484375,
+        "rms": 0.05257640779018402,
+        "score": 0.04647153615951538
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.768078125,
+        "rms": 0.05124032869935036,
+        "score": 0.4636618494987488
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.730390625,
+        "rms": 0.04822427034378052,
+        "score": 0.8535588979721069
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7762578125,
+        "rms": 0.050140734761953354,
+        "score": 0.8707872033119202
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.793,
+        "rms": 0.051337435841560364,
+        "score": 0.8722145557403564
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.756671875,
+        "rms": 0.04778391495347023,
+        "score": 0.863524317741394
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 24,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8363817930221558,
+    "window_min": 0.7403296232223511,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8616640625,
+        "rms": 0.04771677404642105,
+        "score": 0.7403296232223511
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.868921875,
+        "rms": 0.049558673053979874,
+        "score": 0.7747281789779663
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8353984375,
+        "rms": 0.05088197439908981,
+        "score": 0.7872292995452881
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.823,
+        "rms": 0.048407647758722305,
+        "score": 0.830836296081543
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 24,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8438937067985535,
+    "window_min": 0.7643818855285645,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8467421875,
+        "rms": 0.05008490011096001,
+        "score": 0.7678439617156982
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.819484375,
+        "rms": 0.05257640779018402,
+        "score": 0.7643818855285645
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8008828125,
+        "rms": 0.05162930488586426,
+        "score": 0.8057963848114014
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.823,
+        "rms": 0.048407647758722305,
+        "score": 0.830836296081543
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 24,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8366683721542358,
+    "window_min": 0.7454439997673035,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8374921875,
+        "rms": 0.03768988698720932,
+        "score": 0.7454439997673035
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8154140625,
+        "rms": 0.024779336526989937,
+        "score": 0.7747280597686768
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8060625,
+        "rms": 0.04004112258553505,
+        "score": 0.7801635265350342
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.823,
+        "rms": 0.048407647758722305,
+        "score": 0.830836296081543
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 24,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      11.0,
+      13.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.836859941482544,
+    "window_min": 0.7328964471817017,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.828234375,
+        "rms": 0.048716869205236435,
+        "score": 0.7328964471817017
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.852515625,
+        "rms": 0.05188803747296333,
+        "score": 0.7748875021934509
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.852421875,
+        "rms": 0.05223828926682472,
+        "score": 0.8039150238037109
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.823,
+        "rms": 0.048407647758722305,
+        "score": 0.830836296081543
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 24,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      10.0,
+      14.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8309049606323242,
+    "window_min": 0.6613305807113647,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8270234375,
+        "rms": 0.0498586930334568,
+        "score": 0.7145829796791077
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8337890625,
+        "rms": 0.04886477813124657,
+        "score": 0.6613305807113647
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.83490625,
+        "rms": 0.04807994142174721,
+        "score": 0.773711085319519
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.823,
+        "rms": 0.048407647758722305,
+        "score": 0.830836296081543
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 24,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      8.0,
+      16.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.7950841188430786,
+    "window_min": 0.21225373446941376,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.852796875,
+        "rms": 0.0497499480843544,
+        "score": 0.6418426632881165
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.846328125,
+        "rms": 0.052810996770858765,
+        "score": 0.21225373446941376
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.821671875,
+        "rms": 0.05218953639268875,
+        "score": 0.5993121862411499
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.823,
+        "rms": 0.048407647758722305,
+        "score": 0.830836296081543
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 48,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8715193271636963,
+    "window_min": 0.7403296232223511,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8616640625,
+        "rms": 0.04771677404642105,
+        "score": 0.7403296232223511
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.868921875,
+        "rms": 0.049558673053979874,
+        "score": 0.7747281789779663
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8353984375,
+        "rms": 0.05088197439908981,
+        "score": 0.7872292995452881
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.823,
+        "rms": 0.048407647758722305,
+        "score": 0.830836296081543
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.831953125,
+        "rms": 0.048730868846178055,
+        "score": 0.8214700222015381
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.8272734375,
+        "rms": 0.04990360885858536,
+        "score": 0.8050522804260254
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.8361015625,
+        "rms": 0.04952628165483475,
+        "score": 0.8190793991088867
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8920390625,
+        "rms": 0.05130787566304207,
+        "score": 0.8602084517478943
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8955390625,
+        "rms": 0.051632288843393326,
+        "score": 0.8280042409896851
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8642890625,
+        "rms": 0.05168173834681511,
+        "score": 0.8075648546218872
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 48,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8621022701263428,
+    "window_min": 0.7403296232223511,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8616640625,
+        "rms": 0.04771677404642105,
+        "score": 0.7403296232223511
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.868921875,
+        "rms": 0.049558673053979874,
+        "score": 0.7747281789779663
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8353984375,
+        "rms": 0.05088197439908981,
+        "score": 0.7872292995452881
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8248359375,
+        "rms": 0.05146022140979767,
+        "score": 0.8020341992378235
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.819484375,
+        "rms": 0.05257640779018402,
+        "score": 0.7643818855285645
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.81296875,
+        "rms": 0.05074542388319969,
+        "score": 0.8001318573951721
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.8361015625,
+        "rms": 0.04952628165483475,
+        "score": 0.8190793991088867
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8920390625,
+        "rms": 0.05130787566304207,
+        "score": 0.8602084517478943
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8955390625,
+        "rms": 0.051632288843393326,
+        "score": 0.8280042409896851
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8642890625,
+        "rms": 0.05168173834681511,
+        "score": 0.8075648546218872
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 48,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8725501298904419,
+    "window_min": 0.7403296232223511,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8616640625,
+        "rms": 0.04771677404642105,
+        "score": 0.7403296232223511
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.868921875,
+        "rms": 0.049558673053979874,
+        "score": 0.7747281789779663
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8353984375,
+        "rms": 0.05088197439908981,
+        "score": 0.7872292995452881
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7793359375,
+        "rms": 0.039266690611839294,
+        "score": 0.8347129821777344
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.762734375,
+        "rms": 0.024365434423089027,
+        "score": 0.8214701414108276
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.80171875,
+        "rms": 0.03886868804693222,
+        "score": 0.8026982545852661
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.8361015625,
+        "rms": 0.04952628165483475,
+        "score": 0.8190793991088867
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8920390625,
+        "rms": 0.05130787566304207,
+        "score": 0.8602084517478943
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8955390625,
+        "rms": 0.051632288843393326,
+        "score": 0.8280042409896851
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8642890625,
+        "rms": 0.05168173834681511,
+        "score": 0.8075648546218872
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 48,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      23.0,
+      25.0
+    ],
+    "worst_window_overlaps_injection": false,
+    "status": "measured",
+    "whole": 0.8741247057914734,
+    "window_min": 0.7403296232223511,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8616640625,
+        "rms": 0.04771677404642105,
+        "score": 0.7403296232223511
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.868921875,
+        "rms": 0.049558673053979874,
+        "score": 0.7747281789779663
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8353984375,
+        "rms": 0.05088197439908981,
+        "score": 0.7872292995452881
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8190546875,
+        "rms": 0.051303088665008545,
+        "score": 0.8372622728347778
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8291015625,
+        "rms": 0.052955929189920425,
+        "score": 0.8343720436096191
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.8283671875,
+        "rms": 0.0512961708009243,
+        "score": 0.8223131895065308
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.8361015625,
+        "rms": 0.04952628165483475,
+        "score": 0.8190793991088867
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8920390625,
+        "rms": 0.05130787566304207,
+        "score": 0.8602084517478943
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8955390625,
+        "rms": 0.051632288843393326,
+        "score": 0.8280042409896851
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8642890625,
+        "rms": 0.05168173834681511,
+        "score": 0.8075648546218872
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 48,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      22.0,
+      26.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8665354251861572,
+    "window_min": 0.7210221290588379,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8616640625,
+        "rms": 0.04771677404642105,
+        "score": 0.7403296232223511
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.868921875,
+        "rms": 0.049558673053979874,
+        "score": 0.7747281789779663
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8353984375,
+        "rms": 0.05088197439908981,
+        "score": 0.7872292995452881
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8161328125,
+        "rms": 0.051924243569374084,
+        "score": 0.8053069114685059
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8374375,
+        "rms": 0.049909576773643494,
+        "score": 0.7210221290588379
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.839625,
+        "rms": 0.04747433215379715,
+        "score": 0.8051939010620117
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.8361015625,
+        "rms": 0.04952628165483475,
+        "score": 0.8190793991088867
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8920390625,
+        "rms": 0.05130787566304207,
+        "score": 0.8602084517478943
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8955390625,
+        "rms": 0.051632288843393326,
+        "score": 0.8280042409896851
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8642890625,
+        "rms": 0.05168173834681511,
+        "score": 0.8075648546218872
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0623",
+    "gender": "male",
+    "donor": "SSB0609",
+    "duration": 48,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      20.0,
+      28.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8523842096328735,
+    "window_min": 0.21225373446941376,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.870046875,
+        "rms": 0.05171693116426468,
+        "score": 0.7730450630187988
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8616640625,
+        "rms": 0.04771677404642105,
+        "score": 0.7403296232223511
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.868921875,
+        "rms": 0.049558673053979874,
+        "score": 0.7747281789779663
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8353984375,
+        "rms": 0.05088197439908981,
+        "score": 0.7872292995452881
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.830890625,
+        "rms": 0.05113427713513374,
+        "score": 0.6611937880516052
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.846328125,
+        "rms": 0.052810996770858765,
+        "score": 0.21225373446941376
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.8337578125,
+        "rms": 0.0513153076171875,
+        "score": 0.6478344202041626
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.8361015625,
+        "rms": 0.04952628165483475,
+        "score": 0.8190793991088867
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8920390625,
+        "rms": 0.05130787566304207,
+        "score": 0.8602084517478943
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8955390625,
+        "rms": 0.051632288843393326,
+        "score": 0.8280042409896851
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8642890625,
+        "rms": 0.05168173834681511,
+        "score": 0.8075648546218872
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 24,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8467144966125488,
+    "window_min": 0.7710590362548828,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8761796875,
+        "rms": 0.04818553104996681,
+        "score": 0.7880719900131226
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8514140625,
+        "rms": 0.04934987798333168,
+        "score": 0.773869514465332
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.78665625,
+        "rms": 0.04813811182975769,
+        "score": 0.7837108969688416
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75778125,
+        "rms": 0.05281339958310127,
+        "score": 0.7856956720352173
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 24,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8350000977516174,
+    "window_min": 0.7461457252502441,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8582734375,
+        "rms": 0.04618988186120987,
+        "score": 0.7755420804023743
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.846328125,
+        "rms": 0.052810996770858765,
+        "score": 0.7631609439849854
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7994765625,
+        "rms": 0.05347156152129173,
+        "score": 0.7461457252502441
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75778125,
+        "rms": 0.05281339958310127,
+        "score": 0.7856956720352173
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 24,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8456422090530396,
+    "window_min": 0.7710590362548828,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8446796875,
+        "rms": 0.03428705781698227,
+        "score": 0.7914411425590515
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7760234375,
+        "rms": 0.02467493899166584,
+        "score": 0.7738695740699768
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.742765625,
+        "rms": 0.040459390729665756,
+        "score": 0.7853307723999023
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75778125,
+        "rms": 0.05281339958310127,
+        "score": 0.7856956720352173
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 24,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      11.0,
+      13.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8204982876777649,
+    "window_min": 0.7092573642730713,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.842953125,
+        "rms": 0.048156291246414185,
+        "score": 0.7427684664726257
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8179296875,
+        "rms": 0.05002380907535553,
+        "score": 0.7092573642730713
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7863984375,
+        "rms": 0.04885759577155113,
+        "score": 0.7680633664131165
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75778125,
+        "rms": 0.05281339958310127,
+        "score": 0.7856956720352173
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 24,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      10.0,
+      14.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.7852462530136108,
+    "window_min": 0.5837715864181519,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8436328125,
+        "rms": 0.04785003885626793,
+        "score": 0.6777410507202148
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.768171875,
+        "rms": 0.047257933765649796,
+        "score": 0.5837715864181519
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7359609375,
+        "rms": 0.04634002968668938,
+        "score": 0.7111989259719849
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75778125,
+        "rms": 0.05281339958310127,
+        "score": 0.7856956720352173
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 24,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      8.0,
+      16.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.7147563695907593,
+    "window_min": 0.32677751779556274,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8345703125,
+        "rms": 0.04509437084197998,
+        "score": 0.5439716577529907
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.796171875,
+        "rms": 0.05176170915365219,
+        "score": 0.32677751779556274
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7730234375,
+        "rms": 0.053380560129880905,
+        "score": 0.5801067352294922
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75778125,
+        "rms": 0.05281339958310127,
+        "score": 0.7856956720352173
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 48,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8558125495910645,
+    "window_min": 0.7471385598182678,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8761796875,
+        "rms": 0.04818553104996681,
+        "score": 0.7880719900131226
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8514140625,
+        "rms": 0.04934987798333168,
+        "score": 0.773869514465332
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.78665625,
+        "rms": 0.04813811182975769,
+        "score": 0.7837108969688416
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.75778125,
+        "rms": 0.05281339958310127,
+        "score": 0.7856956720352173
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.790609375,
+        "rms": 0.051885638386011124,
+        "score": 0.8124221563339233
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.758046875,
+        "rms": 0.05012892559170723,
+        "score": 0.7835896015167236
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.685671875,
+        "rms": 0.045140430331230164,
+        "score": 0.751224935054779
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7957109375,
+        "rms": 0.049287099391222,
+        "score": 0.7471385598182678
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8421875,
+        "rms": 0.05276968330144882,
+        "score": 0.787520170211792
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7401953125,
+        "rms": 0.04867114499211311,
+        "score": 0.806307315826416
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 48,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8549977540969849,
+    "window_min": 0.7471385598182678,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8761796875,
+        "rms": 0.04818553104996681,
+        "score": 0.7880719900131226
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8514140625,
+        "rms": 0.04934987798333168,
+        "score": 0.773869514465332
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.78665625,
+        "rms": 0.04813811182975769,
+        "score": 0.7837108969688416
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8086953125,
+        "rms": 0.05244211107492447,
+        "score": 0.8039167523384094
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.846328125,
+        "rms": 0.052810996770858765,
+        "score": 0.7631609439849854
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.7628515625,
+        "rms": 0.05146718770265579,
+        "score": 0.7650598883628845
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.685671875,
+        "rms": 0.045140430331230164,
+        "score": 0.751224935054779
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7957109375,
+        "rms": 0.049287099391222,
+        "score": 0.7471385598182678
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8421875,
+        "rms": 0.05276968330144882,
+        "score": 0.787520170211792
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7401953125,
+        "rms": 0.04867114499211311,
+        "score": 0.806307315826416
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 48,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8543556928634644,
+    "window_min": 0.7471385598182678,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8761796875,
+        "rms": 0.04818553104996681,
+        "score": 0.7880719900131226
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8514140625,
+        "rms": 0.04934987798333168,
+        "score": 0.773869514465332
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.78665625,
+        "rms": 0.04813811182975769,
+        "score": 0.7837108969688416
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.70678125,
+        "rms": 0.04189220443367958,
+        "score": 0.7844333648681641
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.70875,
+        "rms": 0.025942819193005562,
+        "score": 0.8124222159385681
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.7271875,
+        "rms": 0.03909114748239517,
+        "score": 0.784564197063446
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.685671875,
+        "rms": 0.045140430331230164,
+        "score": 0.751224935054779
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7957109375,
+        "rms": 0.049287099391222,
+        "score": 0.7471385598182678
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8421875,
+        "rms": 0.05276968330144882,
+        "score": 0.787520170211792
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7401953125,
+        "rms": 0.04867114499211311,
+        "score": 0.806307315826416
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 48,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      23.0,
+      25.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8486738204956055,
+    "window_min": 0.7394596338272095,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8761796875,
+        "rms": 0.04818553104996681,
+        "score": 0.7880719900131226
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8514140625,
+        "rms": 0.04934987798333168,
+        "score": 0.773869514465332
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.78665625,
+        "rms": 0.04813811182975769,
+        "score": 0.7837108969688416
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7435390625,
+        "rms": 0.054153840988874435,
+        "score": 0.7706310749053955
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8494765625,
+        "rms": 0.05665582790970802,
+        "score": 0.7394596338272095
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.83115625,
+        "rms": 0.053733501583337784,
+        "score": 0.7484766840934753
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.685671875,
+        "rms": 0.045140430331230164,
+        "score": 0.751224935054779
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7957109375,
+        "rms": 0.049287099391222,
+        "score": 0.7471385598182678
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8421875,
+        "rms": 0.05276968330144882,
+        "score": 0.787520170211792
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7401953125,
+        "rms": 0.04867114499211311,
+        "score": 0.806307315826416
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 48,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      22.0,
+      26.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8396202325820923,
+    "window_min": 0.6085911989212036,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8761796875,
+        "rms": 0.04818553104996681,
+        "score": 0.7880719900131226
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8514140625,
+        "rms": 0.04934987798333168,
+        "score": 0.773869514465332
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.78665625,
+        "rms": 0.04813811182975769,
+        "score": 0.7837108969688416
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.742703125,
+        "rms": 0.052174460142850876,
+        "score": 0.6994389295578003
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.796265625,
+        "rms": 0.04747404903173447,
+        "score": 0.6085911989212036
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.77878125,
+        "rms": 0.04627802595496178,
+        "score": 0.7351751327514648
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.685671875,
+        "rms": 0.045140430331230164,
+        "score": 0.751224935054779
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7957109375,
+        "rms": 0.049287099391222,
+        "score": 0.7471385598182678
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8421875,
+        "rms": 0.05276968330144882,
+        "score": 0.787520170211792
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7401953125,
+        "rms": 0.04867114499211311,
+        "score": 0.806307315826416
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0609",
+    "gender": "male",
+    "donor": "SSB0603",
+    "duration": 48,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      20.0,
+      28.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8090276718139648,
+    "window_min": 0.32677751779556274,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.880984375,
+        "rms": 0.04966478422284126,
+        "score": 0.7710590362548828
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8761796875,
+        "rms": 0.04818553104996681,
+        "score": 0.7880719900131226
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8514140625,
+        "rms": 0.04934987798333168,
+        "score": 0.773869514465332
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.78665625,
+        "rms": 0.04813811182975769,
+        "score": 0.7837108969688416
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7849921875,
+        "rms": 0.05147981643676758,
+        "score": 0.5913076400756836
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.796171875,
+        "rms": 0.05176170915365219,
+        "score": 0.32677751779556274
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.7363984375,
+        "rms": 0.05137263238430023,
+        "score": 0.5551185607910156
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.685671875,
+        "rms": 0.045140430331230164,
+        "score": 0.751224935054779
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.7957109375,
+        "rms": 0.049287099391222,
+        "score": 0.7471385598182678
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.8421875,
+        "rms": 0.05276968330144882,
+        "score": 0.787520170211792
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7401953125,
+        "rms": 0.04867114499211311,
+        "score": 0.806307315826416
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 24,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8441901206970215,
+    "window_min": 0.7577370405197144,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.9175,
+        "rms": 0.054330676794052124,
+        "score": 0.7687917947769165
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.93359375,
+        "rms": 0.051778946071863174,
+        "score": 0.7577370405197144
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.9228515625,
+        "rms": 0.0443003810942173,
+        "score": 0.7872951030731201
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8936171875,
+        "rms": 0.04865049198269844,
+        "score": 0.8342559933662415
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 24,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8474406003952026,
+    "window_min": 0.7565678358078003,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8631484375,
+        "rms": 0.04843350872397423,
+        "score": 0.7807044982910156
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8767734375,
+        "rms": 0.04993457347154617,
+        "score": 0.7565678358078003
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.9203828125,
+        "rms": 0.04879492521286011,
+        "score": 0.7817356586456299
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8936171875,
+        "rms": 0.04865049198269844,
+        "score": 0.8342559933662415
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 24,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.843147873878479,
+    "window_min": 0.7577369809150696,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.894046875,
+        "rms": 0.04038455709815025,
+        "score": 0.7689651846885681
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.87553125,
+        "rms": 0.025889473035931587,
+        "score": 0.7577369809150696
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8882421875,
+        "rms": 0.0356740839779377,
+        "score": 0.7851023077964783
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8936171875,
+        "rms": 0.04865049198269844,
+        "score": 0.8342559933662415
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 24,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      11.0,
+      13.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8549076318740845,
+    "window_min": 0.760844349861145,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8897890625,
+        "rms": 0.056019797921180725,
+        "score": 0.7677922248840332
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.869203125,
+        "rms": 0.05276022106409073,
+        "score": 0.760844349861145
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.886171875,
+        "rms": 0.04334409162402153,
+        "score": 0.7952485680580139
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8936171875,
+        "rms": 0.04865049198269844,
+        "score": 0.8342559933662415
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 24,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      10.0,
+      14.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8704657554626465,
+    "window_min": 0.7064470648765564,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8504296875,
+        "rms": 0.053881656378507614,
+        "score": 0.7345407605171204
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8512265625,
+        "rms": 0.05413471534848213,
+        "score": 0.7064470648765564
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.9075546875,
+        "rms": 0.04754600301384926,
+        "score": 0.8221156597137451
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8936171875,
+        "rms": 0.04865049198269844,
+        "score": 0.8342559933662415
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 24,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      8.0,
+      16.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8475960493087769,
+    "window_min": 0.37622490525245667,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.837078125,
+        "rms": 0.04986266791820526,
+        "score": 0.6856606006622314
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8154140625,
+        "rms": 0.04889577254652977,
+        "score": 0.37622490525245667
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.88509375,
+        "rms": 0.04623633995652199,
+        "score": 0.7359645962715149
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8936171875,
+        "rms": 0.04865049198269844,
+        "score": 0.8342559933662415
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 48,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8621980547904968,
+    "window_min": 0.7577370405197144,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.9175,
+        "rms": 0.054330676794052124,
+        "score": 0.7687917947769165
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.93359375,
+        "rms": 0.051778946071863174,
+        "score": 0.7577370405197144
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.9228515625,
+        "rms": 0.0443003810942173,
+        "score": 0.7872951030731201
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8936171875,
+        "rms": 0.04865049198269844,
+        "score": 0.8342559933662415
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.911953125,
+        "rms": 0.05346594750881195,
+        "score": 0.8400814533233643
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.9277734375,
+        "rms": 0.050582125782966614,
+        "score": 0.7665536403656006
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85528125,
+        "rms": 0.04612843319773674,
+        "score": 0.8115521669387817
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8731953125,
+        "rms": 0.049968913197517395,
+        "score": 0.8010891079902649
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.877046875,
+        "rms": 0.050728052854537964,
+        "score": 0.8124063014984131
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8758125,
+        "rms": 0.056094940751791,
+        "score": 0.796802818775177
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 48,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8441184163093567,
+    "window_min": 0.7565678358078003,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.9175,
+        "rms": 0.054330676794052124,
+        "score": 0.7687917947769165
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.93359375,
+        "rms": 0.051778946071863174,
+        "score": 0.7577370405197144
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.9228515625,
+        "rms": 0.0443003810942173,
+        "score": 0.7872951030731201
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.883515625,
+        "rms": 0.046881500631570816,
+        "score": 0.7784997224807739
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8767734375,
+        "rms": 0.04993457347154617,
+        "score": 0.7565678358078003
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.9026953125,
+        "rms": 0.04860454052686691,
+        "score": 0.7863568067550659
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85528125,
+        "rms": 0.04612843319773674,
+        "score": 0.8115521669387817
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8731953125,
+        "rms": 0.049968913197517395,
+        "score": 0.8010891079902649
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.877046875,
+        "rms": 0.050728052854537964,
+        "score": 0.8124063014984131
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8758125,
+        "rms": 0.056094940751791,
+        "score": 0.796802818775177
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 48,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8642086386680603,
+    "window_min": 0.7577370405197144,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.9175,
+        "rms": 0.054330676794052124,
+        "score": 0.7687917947769165
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.93359375,
+        "rms": 0.051778946071863174,
+        "score": 0.7577370405197144
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.9228515625,
+        "rms": 0.0443003810942173,
+        "score": 0.7872951030731201
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.842078125,
+        "rms": 0.03706382215023041,
+        "score": 0.8343148231506348
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8424765625,
+        "rms": 0.026732973754405975,
+        "score": 0.8400814533233643
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.9098359375,
+        "rms": 0.03751985728740692,
+        "score": 0.765082836151123
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85528125,
+        "rms": 0.04612843319773674,
+        "score": 0.8115521669387817
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8731953125,
+        "rms": 0.049968913197517395,
+        "score": 0.8010891079902649
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.877046875,
+        "rms": 0.050728052854537964,
+        "score": 0.8124063014984131
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8758125,
+        "rms": 0.056094940751791,
+        "score": 0.796802818775177
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 48,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      23.0,
+      25.0
+    ],
+    "worst_window_overlaps_injection": false,
+    "status": "measured",
+    "whole": 0.8564726114273071,
+    "window_min": 0.7577370405197144,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.9175,
+        "rms": 0.054330676794052124,
+        "score": 0.7687917947769165
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.93359375,
+        "rms": 0.051778946071863174,
+        "score": 0.7577370405197144
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.9228515625,
+        "rms": 0.0443003810942173,
+        "score": 0.7872951030731201
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8880625,
+        "rms": 0.05108220875263214,
+        "score": 0.8128376007080078
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8670859375,
+        "rms": 0.05116581916809082,
+        "score": 0.7996577620506287
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.8884609375,
+        "rms": 0.045556165277957916,
+        "score": 0.7680482268333435
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85528125,
+        "rms": 0.04612843319773674,
+        "score": 0.8115521669387817
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8731953125,
+        "rms": 0.049968913197517395,
+        "score": 0.8010891079902649
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.877046875,
+        "rms": 0.050728052854537964,
+        "score": 0.8124063014984131
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8758125,
+        "rms": 0.056094940751791,
+        "score": 0.796802818775177
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 48,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      22.0,
+      26.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8600139617919922,
+    "window_min": 0.7498797178268433,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.9175,
+        "rms": 0.054330676794052124,
+        "score": 0.7687917947769165
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.93359375,
+        "rms": 0.051778946071863174,
+        "score": 0.7577370405197144
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.9228515625,
+        "rms": 0.0443003810942173,
+        "score": 0.7872951030731201
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8773515625,
+        "rms": 0.04950980097055435,
+        "score": 0.803126335144043
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.875078125,
+        "rms": 0.05151278153061867,
+        "score": 0.7498797178268433
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.9071640625,
+        "rms": 0.04763571172952652,
+        "score": 0.7500509023666382
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85528125,
+        "rms": 0.04612843319773674,
+        "score": 0.8115521669387817
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8731953125,
+        "rms": 0.049968913197517395,
+        "score": 0.8010891079902649
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.877046875,
+        "rms": 0.050728052854537964,
+        "score": 0.8124063014984131
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8758125,
+        "rms": 0.056094940751791,
+        "score": 0.796802818775177
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1699",
+    "gender": "female",
+    "donor": "SSB0778",
+    "duration": 48,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      20.0,
+      28.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8529444932937622,
+    "window_min": 0.37622490525245667,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.84653125,
+        "rms": 0.0487261526286602,
+        "score": 0.821362316608429
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.9175,
+        "rms": 0.054330676794052124,
+        "score": 0.7687917947769165
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.93359375,
+        "rms": 0.051778946071863174,
+        "score": 0.7577370405197144
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.9228515625,
+        "rms": 0.0443003810942173,
+        "score": 0.7872951030731201
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8574453125,
+        "rms": 0.0483565479516983,
+        "score": 0.7498062252998352
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8154140625,
+        "rms": 0.04889577254652977,
+        "score": 0.37622490525245667
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.86740625,
+        "rms": 0.04603537917137146,
+        "score": 0.6621521711349487
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85528125,
+        "rms": 0.04612843319773674,
+        "score": 0.8115521669387817
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8731953125,
+        "rms": 0.049968913197517395,
+        "score": 0.8010891079902649
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.877046875,
+        "rms": 0.050728052854537964,
+        "score": 0.8124063014984131
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8758125,
+        "rms": 0.056094940751791,
+        "score": 0.796802818775177
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 24,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8362825512886047,
+    "window_min": 0.7261630296707153,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8515859375,
+        "rms": 0.05048126354813576,
+        "score": 0.7977843880653381
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7924765625,
+        "rms": 0.05049227550625801,
+        "score": 0.8324989676475525
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8185390625,
+        "rms": 0.05066962167620659,
+        "score": 0.7669212818145752
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8686484375,
+        "rms": 0.048739951103925705,
+        "score": 0.7261630296707153
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 24,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8375840187072754,
+    "window_min": 0.7261630296707153,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8394921875,
+        "rms": 0.053185366094112396,
+        "score": 0.8032628297805786
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8154140625,
+        "rms": 0.04889577254652977,
+        "score": 0.8261586427688599
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8535703125,
+        "rms": 0.046134721487760544,
+        "score": 0.7274881601333618
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8686484375,
+        "rms": 0.048739951103925705,
+        "score": 0.7261630296707153
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 24,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8298287987709045,
+    "window_min": 0.7261630296707153,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.823921875,
+        "rms": 0.04227108135819435,
+        "score": 0.7930504083633423
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7439296875,
+        "rms": 0.025246137753129005,
+        "score": 0.8324989080429077
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.79765625,
+        "rms": 0.03764069452881813,
+        "score": 0.7549175024032593
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8686484375,
+        "rms": 0.048739951103925705,
+        "score": 0.7261630296707153
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 24,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      11.0,
+      13.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8131977319717407,
+    "window_min": 0.7091182470321655,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8403984375,
+        "rms": 0.05235471948981285,
+        "score": 0.784191906452179
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8144296875,
+        "rms": 0.05276579037308693,
+        "score": 0.7551789879798889
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8516796875,
+        "rms": 0.05108337104320526,
+        "score": 0.7091182470321655
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8686484375,
+        "rms": 0.048739951103925705,
+        "score": 0.7261630296707153
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 24,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      10.0,
+      14.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.7876663208007812,
+    "window_min": 0.5991227626800537,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.84696875,
+        "rms": 0.050575822591781616,
+        "score": 0.7272696495056152
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7960546875,
+        "rms": 0.049513883888721466,
+        "score": 0.5991227626800537
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.826734375,
+        "rms": 0.049598485231399536,
+        "score": 0.6358528137207031
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8686484375,
+        "rms": 0.048739951103925705,
+        "score": 0.7261630296707153
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 24,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      8.0,
+      16.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.7414168119430542,
+    "window_min": 0.31156274676322937,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.87340625,
+        "rms": 0.05369362607598305,
+        "score": 0.5854819416999817
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.84171875,
+        "rms": 0.0552215501666069,
+        "score": 0.31156274676322937
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8459609375,
+        "rms": 0.05227535590529442,
+        "score": 0.6268261671066284
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8686484375,
+        "rms": 0.048739951103925705,
+        "score": 0.7261630296707153
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 48,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.848150372505188,
+    "window_min": 0.7261630296707153,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8515859375,
+        "rms": 0.05048126354813576,
+        "score": 0.7977843880653381
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7924765625,
+        "rms": 0.05049227550625801,
+        "score": 0.8324989676475525
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8185390625,
+        "rms": 0.05066962167620659,
+        "score": 0.7669212818145752
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8686484375,
+        "rms": 0.048739951103925705,
+        "score": 0.7261630296707153
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8270625,
+        "rms": 0.04983867332339287,
+        "score": 0.803783118724823
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.869921875,
+        "rms": 0.04955050349235535,
+        "score": 0.79697585105896
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.91553125,
+        "rms": 0.051440853625535965,
+        "score": 0.7437311410903931
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8735859375,
+        "rms": 0.04997194558382034,
+        "score": 0.7681426405906677
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.85025,
+        "rms": 0.04778142645955086,
+        "score": 0.7851731777191162
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8759296875,
+        "rms": 0.050125110894441605,
+        "score": 0.7985498309135437
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 48,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8555171489715576,
+    "window_min": 0.7437311410903931,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8515859375,
+        "rms": 0.05048126354813576,
+        "score": 0.7977843880653381
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7924765625,
+        "rms": 0.05049227550625801,
+        "score": 0.8324989676475525
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8185390625,
+        "rms": 0.05066962167620659,
+        "score": 0.7669212818145752
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.825921875,
+        "rms": 0.048259392380714417,
+        "score": 0.7656406164169312
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8154140625,
+        "rms": 0.04889577254652977,
+        "score": 0.8261586427688599
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.901,
+        "rms": 0.04907922074198723,
+        "score": 0.7830320596694946
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.91553125,
+        "rms": 0.051440853625535965,
+        "score": 0.7437311410903931
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8735859375,
+        "rms": 0.04997194558382034,
+        "score": 0.7681426405906677
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.85025,
+        "rms": 0.04778142645955086,
+        "score": 0.7851731777191162
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8759296875,
+        "rms": 0.050125110894441605,
+        "score": 0.7985498309135437
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 48,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8466055393218994,
+    "window_min": 0.7144347429275513,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8515859375,
+        "rms": 0.05048126354813576,
+        "score": 0.7977843880653381
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7924765625,
+        "rms": 0.05049227550625801,
+        "score": 0.8324989676475525
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8185390625,
+        "rms": 0.05066962167620659,
+        "score": 0.7669212818145752
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8464453125,
+        "rms": 0.03699817880988121,
+        "score": 0.7144347429275513
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.7673671875,
+        "rms": 0.024919336661696434,
+        "score": 0.8037831783294678
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.8324296875,
+        "rms": 0.03998813033103943,
+        "score": 0.797549843788147
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.91553125,
+        "rms": 0.051440853625535965,
+        "score": 0.7437311410903931
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8735859375,
+        "rms": 0.04997194558382034,
+        "score": 0.7681426405906677
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.85025,
+        "rms": 0.04778142645955086,
+        "score": 0.7851731777191162
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8759296875,
+        "rms": 0.050125110894441605,
+        "score": 0.7985498309135437
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 48,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      23.0,
+      25.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8395321369171143,
+    "window_min": 0.7075268030166626,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8515859375,
+        "rms": 0.05048126354813576,
+        "score": 0.7977843880653381
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7924765625,
+        "rms": 0.05049227550625801,
+        "score": 0.8324989676475525
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8185390625,
+        "rms": 0.05066962167620659,
+        "score": 0.7669212818145752
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.83590625,
+        "rms": 0.04764305055141449,
+        "score": 0.7075268030166626
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8372265625,
+        "rms": 0.05183493345975876,
+        "score": 0.720988929271698
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.912828125,
+        "rms": 0.05257321894168854,
+        "score": 0.7311054468154907
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.91553125,
+        "rms": 0.051440853625535965,
+        "score": 0.7437311410903931
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8735859375,
+        "rms": 0.04997194558382034,
+        "score": 0.7681426405906677
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.85025,
+        "rms": 0.04778142645955086,
+        "score": 0.7851731777191162
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8759296875,
+        "rms": 0.050125110894441605,
+        "score": 0.7985498309135437
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 48,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      22.0,
+      26.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8306026458740234,
+    "window_min": 0.597808301448822,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8515859375,
+        "rms": 0.05048126354813576,
+        "score": 0.7977843880653381
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7924765625,
+        "rms": 0.05049227550625801,
+        "score": 0.8324989676475525
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8185390625,
+        "rms": 0.05066962167620659,
+        "score": 0.7669212818145752
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8357109375,
+        "rms": 0.048979420214891434,
+        "score": 0.6367853879928589
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.822328125,
+        "rms": 0.05063600465655327,
+        "score": 0.597808301448822
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.898125,
+        "rms": 0.05011950060725212,
+        "score": 0.6931358575820923
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.91553125,
+        "rms": 0.051440853625535965,
+        "score": 0.7437311410903931
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8735859375,
+        "rms": 0.04997194558382034,
+        "score": 0.7681426405906677
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.85025,
+        "rms": 0.04778142645955086,
+        "score": 0.7851731777191162
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8759296875,
+        "rms": 0.050125110894441605,
+        "score": 0.7985498309135437
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB0778",
+    "gender": "female",
+    "donor": "SSB1096",
+    "duration": 48,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      20.0,
+      28.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8085975646972656,
+    "window_min": 0.31156274676322937,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8521953125,
+        "rms": 0.05242012068629265,
+        "score": 0.8011331558227539
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8515859375,
+        "rms": 0.05048126354813576,
+        "score": 0.7977843880653381
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7924765625,
+        "rms": 0.05049227550625801,
+        "score": 0.8324989676475525
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8185390625,
+        "rms": 0.05066962167620659,
+        "score": 0.7669212818145752
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8598359375,
+        "rms": 0.04881896823644638,
+        "score": 0.5455921292304993
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.84171875,
+        "rms": 0.0552215501666069,
+        "score": 0.31156274676322937
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.893390625,
+        "rms": 0.0548914410173893,
+        "score": 0.6196672916412354
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.91553125,
+        "rms": 0.051440853625535965,
+        "score": 0.7437311410903931
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8735859375,
+        "rms": 0.04997194558382034,
+        "score": 0.7681426405906677
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.85025,
+        "rms": 0.04778142645955086,
+        "score": 0.7851731777191162
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8759296875,
+        "rms": 0.050125110894441605,
+        "score": 0.7985498309135437
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 24,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8348221778869629,
+    "window_min": 0.7761859893798828,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.79203125,
+        "rms": 0.043432921171188354,
+        "score": 0.7761859893798828
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7095390625,
+        "rms": 0.05059007927775383,
+        "score": 0.7923812866210938
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.68646875,
+        "rms": 0.05301599204540253,
+        "score": 0.808371365070343
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7073515625,
+        "rms": 0.05210767686367035,
+        "score": 0.7933520674705505
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 24,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.844947099685669,
+    "window_min": 0.7855862379074097,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8815,
+        "rms": 0.04625494405627251,
+        "score": 0.7855862379074097
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.84171875,
+        "rms": 0.0552215501666069,
+        "score": 0.8264358043670654
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7291796875,
+        "rms": 0.05520559847354889,
+        "score": 0.8316001892089844
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7073515625,
+        "rms": 0.05210767686367035,
+        "score": 0.7933520674705505
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 24,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8377617001533508,
+    "window_min": 0.7779865264892578,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.7771953125,
+        "rms": 0.03261510655283928,
+        "score": 0.7779865264892578
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.672921875,
+        "rms": 0.025295039638876915,
+        "score": 0.792381227016449
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.6646875,
+        "rms": 0.04139868915081024,
+        "score": 0.8096910715103149
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7073515625,
+        "rms": 0.05210767686367035,
+        "score": 0.7933520674705505
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 24,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      11.0,
+      13.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.829330563545227,
+    "window_min": 0.7305413484573364,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.860890625,
+        "rms": 0.0499277263879776,
+        "score": 0.783649742603302
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.763609375,
+        "rms": 0.05527731776237488,
+        "score": 0.7305413484573364
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.6716796875,
+        "rms": 0.05196692794561386,
+        "score": 0.7913830280303955
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7073515625,
+        "rms": 0.05210767686367035,
+        "score": 0.7933520674705505
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 24,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      10.0,
+      14.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8371766805648804,
+    "window_min": 0.6934131383895874,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8244765625,
+        "rms": 0.052016716450452805,
+        "score": 0.760429859161377
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8028359375,
+        "rms": 0.056564513593912125,
+        "score": 0.6934131383895874
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.7473203125,
+        "rms": 0.05129877105355263,
+        "score": 0.7790229320526123
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7073515625,
+        "rms": 0.05210767686367035,
+        "score": 0.7933520674705505
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 24,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      8.0,
+      16.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8198106288909912,
+    "window_min": 0.41338205337524414,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8638046875,
+        "rms": 0.048247624188661575,
+        "score": 0.7216861844062805
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.833140625,
+        "rms": 0.049993280321359634,
+        "score": 0.41338205337524414
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.738296875,
+        "rms": 0.04805467650294304,
+        "score": 0.6890394687652588
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7073515625,
+        "rms": 0.05210767686367035,
+        "score": 0.7933520674705505
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 48,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8664143681526184,
+    "window_min": 0.750190794467926,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.79203125,
+        "rms": 0.043432921171188354,
+        "score": 0.7761859893798828
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7095390625,
+        "rms": 0.05059007927775383,
+        "score": 0.7923812866210938
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.68646875,
+        "rms": 0.05301599204540253,
+        "score": 0.808371365070343
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7073515625,
+        "rms": 0.05210767686367035,
+        "score": 0.7933520674705505
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.784484375,
+        "rms": 0.050400927662849426,
+        "score": 0.750190794467926
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.7276171875,
+        "rms": 0.04627159610390663,
+        "score": 0.7720276117324829
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.7074296875,
+        "rms": 0.0502459779381752,
+        "score": 0.810839831829071
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.768203125,
+        "rms": 0.05242675170302391,
+        "score": 0.8123661875724792
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.7893515625,
+        "rms": 0.049991536885499954,
+        "score": 0.7893784046173096
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7819296875,
+        "rms": 0.049576614052057266,
+        "score": 0.8572357892990112
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 48,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8791618347167969,
+    "window_min": 0.7761859893798828,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.79203125,
+        "rms": 0.043432921171188354,
+        "score": 0.7761859893798828
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7095390625,
+        "rms": 0.05059007927775383,
+        "score": 0.7923812866210938
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.68646875,
+        "rms": 0.05301599204540253,
+        "score": 0.808371365070343
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7430546875,
+        "rms": 0.051944550126791,
+        "score": 0.8036631345748901
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.84171875,
+        "rms": 0.0552215501666069,
+        "score": 0.8264358043670654
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.7491484375,
+        "rms": 0.051644954830408096,
+        "score": 0.8439993262290955
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.7074296875,
+        "rms": 0.0502459779381752,
+        "score": 0.810839831829071
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.768203125,
+        "rms": 0.05242675170302391,
+        "score": 0.8123661875724792
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.7893515625,
+        "rms": 0.049991536885499954,
+        "score": 0.7893784046173096
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7819296875,
+        "rms": 0.049576614052057266,
+        "score": 0.8572357892990112
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 48,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8678226470947266,
+    "window_min": 0.7501908540725708,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.79203125,
+        "rms": 0.043432921171188354,
+        "score": 0.7761859893798828
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7095390625,
+        "rms": 0.05059007927775383,
+        "score": 0.7923812866210938
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.68646875,
+        "rms": 0.05301599204540253,
+        "score": 0.808371365070343
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.691171875,
+        "rms": 0.041109371930360794,
+        "score": 0.7913263440132141
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.747,
+        "rms": 0.025200463831424713,
+        "score": 0.7501908540725708
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.7063125,
+        "rms": 0.035511985421180725,
+        "score": 0.7810960412025452
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.7074296875,
+        "rms": 0.0502459779381752,
+        "score": 0.810839831829071
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.768203125,
+        "rms": 0.05242675170302391,
+        "score": 0.8123661875724792
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.7893515625,
+        "rms": 0.049991536885499954,
+        "score": 0.7893784046173096
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7819296875,
+        "rms": 0.049576614052057266,
+        "score": 0.8572357892990112
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 48,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      23.0,
+      25.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8667338490486145,
+    "window_min": 0.7091798186302185,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.79203125,
+        "rms": 0.043432921171188354,
+        "score": 0.7761859893798828
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7095390625,
+        "rms": 0.05059007927775383,
+        "score": 0.7923812866210938
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.68646875,
+        "rms": 0.05301599204540253,
+        "score": 0.808371365070343
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7134296875,
+        "rms": 0.05152760446071625,
+        "score": 0.7901542782783508
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.755359375,
+        "rms": 0.05242517217993736,
+        "score": 0.7091798186302185
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.6924140625,
+        "rms": 0.049084845930337906,
+        "score": 0.7282736897468567
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.7074296875,
+        "rms": 0.0502459779381752,
+        "score": 0.810839831829071
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.768203125,
+        "rms": 0.05242675170302391,
+        "score": 0.8123661875724792
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.7893515625,
+        "rms": 0.049991536885499954,
+        "score": 0.7893784046173096
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7819296875,
+        "rms": 0.049576614052057266,
+        "score": 0.8572357892990112
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 48,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      22.0,
+      26.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8696311712265015,
+    "window_min": 0.6687594652175903,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.79203125,
+        "rms": 0.043432921171188354,
+        "score": 0.7761859893798828
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7095390625,
+        "rms": 0.05059007927775383,
+        "score": 0.7923812866210938
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.68646875,
+        "rms": 0.05301599204540253,
+        "score": 0.808371365070343
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.7454375,
+        "rms": 0.05444924533367157,
+        "score": 0.7711493968963623
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.89184375,
+        "rms": 0.054135724902153015,
+        "score": 0.6687594652175903
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.796890625,
+        "rms": 0.04777001589536667,
+        "score": 0.7487499713897705
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.7074296875,
+        "rms": 0.0502459779381752,
+        "score": 0.810839831829071
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.768203125,
+        "rms": 0.05242675170302391,
+        "score": 0.8123661875724792
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.7893515625,
+        "rms": 0.049991536885499954,
+        "score": 0.7893784046173096
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7819296875,
+        "rms": 0.049576614052057266,
+        "score": 0.8572357892990112
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1096",
+    "gender": "female",
+    "donor": "SSB1115",
+    "duration": 48,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      20.0,
+      28.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8753880262374878,
+    "window_min": 0.41338205337524414,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.836890625,
+        "rms": 0.05066162347793579,
+        "score": 0.8013855218887329
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.79203125,
+        "rms": 0.043432921171188354,
+        "score": 0.7761859893798828
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7095390625,
+        "rms": 0.05059007927775383,
+        "score": 0.7923812866210938
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.68646875,
+        "rms": 0.05301599204540253,
+        "score": 0.808371365070343
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.725359375,
+        "rms": 0.053726617246866226,
+        "score": 0.639238715171814
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.833140625,
+        "rms": 0.049993280321359634,
+        "score": 0.41338205337524414
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.758265625,
+        "rms": 0.04391806200146675,
+        "score": 0.6754050850868225
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.7074296875,
+        "rms": 0.0502459779381752,
+        "score": 0.810839831829071
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.768203125,
+        "rms": 0.05242675170302391,
+        "score": 0.8123661875724792
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.7893515625,
+        "rms": 0.049991536885499954,
+        "score": 0.7893784046173096
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.7819296875,
+        "rms": 0.049576614052057266,
+        "score": 0.8572357892990112
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 24,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8379423022270203,
+    "window_min": 0.7419561147689819,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8610390625,
+        "rms": 0.04854840412735939,
+        "score": 0.8249759078025818
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8726328125,
+        "rms": 0.05011318624019623,
+        "score": 0.7764667868614197
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.902328125,
+        "rms": 0.05046992376446724,
+        "score": 0.7784461379051208
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.92746875,
+        "rms": 0.050395917147397995,
+        "score": 0.7419561147689819
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 24,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8513891696929932,
+    "window_min": 0.7419561147689819,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8396484375,
+        "rms": 0.05182826146483421,
+        "score": 0.8202469944953918
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.833140625,
+        "rms": 0.049993280321359634,
+        "score": 0.7935808897018433
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8842265625,
+        "rms": 0.04696794971823692,
+        "score": 0.761826753616333
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.92746875,
+        "rms": 0.050395917147397995,
+        "score": 0.7419561147689819
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 24,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.841974139213562,
+    "window_min": 0.7419561147689819,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.82271875,
+        "rms": 0.03808055445551872,
+        "score": 0.832053542137146
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.7992890625,
+        "rms": 0.025056593120098114,
+        "score": 0.7764669060707092
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8673046875,
+        "rms": 0.03962995484471321,
+        "score": 0.7802362442016602
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.92746875,
+        "rms": 0.050395917147397995,
+        "score": 0.7419561147689819
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 24,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      11.0,
+      13.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8323341608047485,
+    "window_min": 0.7221871614456177,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.842625,
+        "rms": 0.04789629951119423,
+        "score": 0.8222780227661133
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.855265625,
+        "rms": 0.05023135617375374,
+        "score": 0.7221871614456177
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.903375,
+        "rms": 0.0512051060795784,
+        "score": 0.7306444048881531
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.92746875,
+        "rms": 0.050395917147397995,
+        "score": 0.7419561147689819
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 24,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      10.0,
+      14.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8043322563171387,
+    "window_min": 0.5921920537948608,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.863453125,
+        "rms": 0.05127415060997009,
+        "score": 0.7878921031951904
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8726171875,
+        "rms": 0.04913344606757164,
+        "score": 0.5921920537948608
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.8998984375,
+        "rms": 0.046667829155921936,
+        "score": 0.7018249034881592
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.92746875,
+        "rms": 0.050395917147397995,
+        "score": 0.7419561147689819
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 24,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      8.0,
+      16.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.7766222953796387,
+    "window_min": 0.29140031337738037,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8495,
+        "rms": 0.04799012467265129,
+        "score": 0.702519416809082
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8767734375,
+        "rms": 0.04993457347154617,
+        "score": 0.29140031337738037
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.9180078125,
+        "rms": 0.0508255735039711,
+        "score": 0.5894323587417603
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.92746875,
+        "rms": 0.050395917147397995,
+        "score": 0.7419561147689819
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 48,
+    "arm": "clean",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8609398603439331,
+    "window_min": 0.7419561147689819,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8610390625,
+        "rms": 0.04854840412735939,
+        "score": 0.8249759078025818
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8726328125,
+        "rms": 0.05011318624019623,
+        "score": 0.7764667868614197
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.902328125,
+        "rms": 0.05046992376446724,
+        "score": 0.7784461379051208
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.92746875,
+        "rms": 0.050395917147397995,
+        "score": 0.7419561147689819
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.898109375,
+        "rms": 0.05206159129738808,
+        "score": 0.7463674545288086
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.875078125,
+        "rms": 0.04989771544933319,
+        "score": 0.815280556678772
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85415625,
+        "rms": 0.050954777747392654,
+        "score": 0.8311329483985901
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8659296875,
+        "rms": 0.048269808292388916,
+        "score": 0.780508279800415
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.9005546875,
+        "rms": 0.04711400344967842,
+        "score": 0.7988320589065552
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8927578125,
+        "rms": 0.05196664109826088,
+        "score": 0.7687942981719971
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 48,
+    "arm": "same_speaker_splice",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8684247732162476,
+    "window_min": 0.7687942981719971,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8610390625,
+        "rms": 0.04854840412735939,
+        "score": 0.8249759078025818
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8726328125,
+        "rms": 0.05011318624019623,
+        "score": 0.7764667868614197
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.902328125,
+        "rms": 0.05046992376446724,
+        "score": 0.7784461379051208
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.8712890625,
+        "rms": 0.05275685712695122,
+        "score": 0.790196418762207
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.833140625,
+        "rms": 0.049993280321359634,
+        "score": 0.7935808897018433
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.8662890625,
+        "rms": 0.04511277750134468,
+        "score": 0.824212908744812
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85415625,
+        "rms": 0.050954777747392654,
+        "score": 0.8311329483985901
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8659296875,
+        "rms": 0.048269808292388916,
+        "score": 0.780508279800415
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.9005546875,
+        "rms": 0.04711400344967842,
+        "score": 0.7988320589065552
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8927578125,
+        "rms": 0.05196664109826088,
+        "score": 0.7687942981719971
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 48,
+    "arm": "gain_change",
+    "wrong_interval": null,
+    "worst_window_overlaps_injection": null,
+    "status": "measured",
+    "whole": 0.8601830005645752,
+    "window_min": 0.7363808155059814,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8610390625,
+        "rms": 0.04854840412735939,
+        "score": 0.8249759078025818
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8726328125,
+        "rms": 0.05011318624019623,
+        "score": 0.7764667868614197
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.902328125,
+        "rms": 0.05046992376446724,
+        "score": 0.7784461379051208
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.9087578125,
+        "rms": 0.039606399834156036,
+        "score": 0.7363808155059814
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.846953125,
+        "rms": 0.02603079564869404,
+        "score": 0.7463674545288086
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.8426328125,
+        "rms": 0.03778962790966034,
+        "score": 0.8067213296890259
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85415625,
+        "rms": 0.050954777747392654,
+        "score": 0.8311329483985901
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8659296875,
+        "rms": 0.048269808292388916,
+        "score": 0.780508279800415
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.9005546875,
+        "rms": 0.04711400344967842,
+        "score": 0.7988320589065552
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8927578125,
+        "rms": 0.05196664109826088,
+        "score": 0.7687942981719971
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 48,
+    "arm": "swap_2s",
+    "wrong_interval": [
+      23.0,
+      25.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.864559531211853,
+    "window_min": 0.7263959646224976,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8610390625,
+        "rms": 0.04854840412735939,
+        "score": 0.8249759078025818
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8726328125,
+        "rms": 0.05011318624019623,
+        "score": 0.7764667868614197
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.902328125,
+        "rms": 0.05046992376446724,
+        "score": 0.7784461379051208
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.9041875,
+        "rms": 0.04990129917860031,
+        "score": 0.7399882674217224
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.9057890625,
+        "rms": 0.05371164530515671,
+        "score": 0.7263959646224976
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.9060390625,
+        "rms": 0.05209531635046005,
+        "score": 0.7871295213699341
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85415625,
+        "rms": 0.050954777747392654,
+        "score": 0.8311329483985901
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8659296875,
+        "rms": 0.048269808292388916,
+        "score": 0.780508279800415
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.9005546875,
+        "rms": 0.04711400344967842,
+        "score": 0.7988320589065552
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8927578125,
+        "rms": 0.05196664109826088,
+        "score": 0.7687942981719971
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 48,
+    "arm": "swap_4s",
+    "wrong_interval": [
+      22.0,
+      26.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8692551255226135,
+    "window_min": 0.6704287528991699,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8610390625,
+        "rms": 0.04854840412735939,
+        "score": 0.8249759078025818
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8726328125,
+        "rms": 0.05011318624019623,
+        "score": 0.7764667868614197
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.902328125,
+        "rms": 0.05046992376446724,
+        "score": 0.7784461379051208
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.9034140625,
+        "rms": 0.05065903067588806,
+        "score": 0.7285292148590088
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8590390625,
+        "rms": 0.05007994920015335,
+        "score": 0.6704287528991699
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.8600625,
+        "rms": 0.047547705471515656,
+        "score": 0.7617632150650024
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85415625,
+        "rms": 0.050954777747392654,
+        "score": 0.8311329483985901
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8659296875,
+        "rms": 0.048269808292388916,
+        "score": 0.780508279800415
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.9005546875,
+        "rms": 0.04711400344967842,
+        "score": 0.7988320589065552
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8927578125,
+        "rms": 0.05196664109826088,
+        "score": 0.7687942981719971
+      }
+    ]
+  },
+  {
+    "split": "test",
+    "speaker": "SSB1115",
+    "gender": "female",
+    "donor": "SSB1699",
+    "duration": 48,
+    "arm": "swap_8s",
+    "wrong_interval": [
+      20.0,
+      28.0
+    ],
+    "worst_window_overlaps_injection": true,
+    "status": "measured",
+    "whole": 0.8495882749557495,
+    "window_min": 0.29140031337738037,
+    "windows": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "signal_coverage": 0.8675390625,
+        "rms": 0.050682250410318375,
+        "score": 0.851865828037262
+      },
+      {
+        "start": 4.0,
+        "end": 12.0,
+        "signal_coverage": 0.8610390625,
+        "rms": 0.04854840412735939,
+        "score": 0.8249759078025818
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "signal_coverage": 0.8726328125,
+        "rms": 0.05011318624019623,
+        "score": 0.7764667868614197
+      },
+      {
+        "start": 12.0,
+        "end": 20.0,
+        "signal_coverage": 0.902328125,
+        "rms": 0.05046992376446724,
+        "score": 0.7784461379051208
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "signal_coverage": 0.881140625,
+        "rms": 0.048991527408361435,
+        "score": 0.5897021293640137
+      },
+      {
+        "start": 20.0,
+        "end": 28.0,
+        "signal_coverage": 0.8767734375,
+        "rms": 0.04993457347154617,
+        "score": 0.29140031337738037
+      },
+      {
+        "start": 24.0,
+        "end": 32.0,
+        "signal_coverage": 0.9000703125,
+        "rms": 0.04911632090806961,
+        "score": 0.6219794154167175
+      },
+      {
+        "start": 28.0,
+        "end": 36.0,
+        "signal_coverage": 0.85415625,
+        "rms": 0.050954777747392654,
+        "score": 0.8311329483985901
+      },
+      {
+        "start": 32.0,
+        "end": 40.0,
+        "signal_coverage": 0.8659296875,
+        "rms": 0.048269808292388916,
+        "score": 0.780508279800415
+      },
+      {
+        "start": 36.0,
+        "end": 44.0,
+        "signal_coverage": 0.9005546875,
+        "rms": 0.04711400344967842,
+        "score": 0.7988320589065552
+      },
+      {
+        "start": 40.0,
+        "end": 48.0,
+        "signal_coverage": 0.8927578125,
+        "rms": 0.05196664109826088,
+        "score": 0.7687942981719971
+      }
+    ]
+  }
+]

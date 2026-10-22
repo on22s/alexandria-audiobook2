@@ -1,0 +1,9 @@
+PROTOCOL frozen; eight calibration and eight disjoint test speakers
+Traceback (most recent call last):
+  File "/home/fakemitch/Documents/ChatGPT/aa2/cpu-speaker-window-20261022/run_experiment.py", line 322, in <module>
+    run()
+  File "/home/fakemitch/Documents/ChatGPT/aa2/cpu-speaker-window-20261022/run_experiment.py", line 255, in run
+    blocks, files = load_stream(entry["speaker"])
+  File "/home/fakemitch/Documents/ChatGPT/aa2/cpu-speaker-window-20261022/run_experiment.py", line 93, in load_stream
+    raise ValueError("Insufficient independent audio for " + speaker)
+ValueError: Insufficient independent audio for SSB1831

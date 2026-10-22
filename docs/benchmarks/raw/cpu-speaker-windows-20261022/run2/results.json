@@ -1,0 +1,732 @@
+{
+  "status": "complete",
+  "thresholds": {
+    "whole": {
+      "threshold": 0.8138799071311952,
+      "controls": 48,
+      "false_positives": 2,
+      "primary_positives": 16,
+      "primary_detected": 2
+    },
+    "window_min": {
+      "threshold": 0.5810086131095887,
+      "controls": 48,
+      "false_positives": 0,
+      "primary_positives": 16,
+      "primary_detected": 8
+    }
+  },
+  "summaries": {
+    "calibration": {
+      "24": {
+        "whole": {
+          "clean": {
+            "flagged": 1,
+            "total": 8,
+            "rate": 0.125,
+            "wilson95": [
+              0.02241749145005667,
+              0.4708881822128535
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 1,
+            "total": 8,
+            "rate": 0.125,
+            "wilson95": [
+              0.02241749145005667,
+              0.4708881822128535
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_2s": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_4s": {
+            "flagged": 2,
+            "total": 8,
+            "rate": 0.25,
+            "wilson95": [
+              0.071479212752109,
+              0.5907245696898311
+            ]
+          },
+          "swap_8s": {
+            "flagged": 6,
+            "total": 8,
+            "rate": 0.75,
+            "wilson95": [
+              0.40927543031016883,
+              0.9285207872478909
+            ]
+          }
+        },
+        "window_min": {
+          "clean": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_2s": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_4s": {
+            "flagged": 4,
+            "total": 8,
+            "rate": 0.5,
+            "wilson95": [
+              0.21521606221387757,
+              0.7847839377861224
+            ]
+          },
+          "swap_8s": {
+            "flagged": 8,
+            "total": 8,
+            "rate": 1.0,
+            "wilson95": [
+              0.6755924351161198,
+              1
+            ]
+          }
+        }
+      },
+      "48": {
+        "whole": {
+          "clean": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_2s": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_4s": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_8s": {
+            "flagged": 1,
+            "total": 8,
+            "rate": 0.125,
+            "wilson95": [
+              0.02241749145005667,
+              0.4708881822128535
+            ]
+          }
+        },
+        "window_min": {
+          "clean": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_2s": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_4s": {
+            "flagged": 4,
+            "total": 8,
+            "rate": 0.5,
+            "wilson95": [
+              0.21521606221387757,
+              0.7847839377861224
+            ]
+          },
+          "swap_8s": {
+            "flagged": 8,
+            "total": 8,
+            "rate": 1.0,
+            "wilson95": [
+              0.6755924351161198,
+              1
+            ]
+          }
+        }
+      },
+      "all": {
+        "whole": {
+          "clean": {
+            "flagged": 1,
+            "total": 16,
+            "rate": 0.0625,
+            "wilson95": [
+              0.01111934476464252,
+              0.28328737570298945
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 1,
+            "total": 16,
+            "rate": 0.0625,
+            "wilson95": [
+              0.01111934476464252,
+              0.28328737570298945
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "swap_2s": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "swap_4s": {
+            "flagged": 2,
+            "total": 16,
+            "rate": 0.125,
+            "wilson95": [
+              0.03497748774324047,
+              0.36022827265758695
+            ]
+          },
+          "swap_8s": {
+            "flagged": 7,
+            "total": 16,
+            "rate": 0.4375,
+            "wilson95": [
+              0.23098652405492354,
+              0.6682144360118811
+            ]
+          }
+        },
+        "window_min": {
+          "clean": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "swap_2s": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "swap_4s": {
+            "flagged": 8,
+            "total": 16,
+            "rate": 0.5,
+            "wilson95": [
+              0.27999563610326017,
+              0.7200043638967398
+            ]
+          },
+          "swap_8s": {
+            "flagged": 16,
+            "total": 16,
+            "rate": 1.0,
+            "wilson95": [
+              0.8063923194655637,
+              1
+            ]
+          }
+        }
+      }
+    },
+    "test": {
+      "24": {
+        "whole": {
+          "clean": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_2s": {
+            "flagged": 1,
+            "total": 8,
+            "rate": 0.125,
+            "wilson95": [
+              0.02241749145005667,
+              0.4708881822128535
+            ]
+          },
+          "swap_4s": {
+            "flagged": 3,
+            "total": 8,
+            "rate": 0.375,
+            "wilson95": [
+              0.13684428582359742,
+              0.6942576053973727
+            ]
+          },
+          "swap_8s": {
+            "flagged": 5,
+            "total": 8,
+            "rate": 0.625,
+            "wilson95": [
+              0.30574239460262737,
+              0.8631557141764026
+            ]
+          }
+        },
+        "window_min": {
+          "clean": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_2s": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_4s": {
+            "flagged": 1,
+            "total": 8,
+            "rate": 0.125,
+            "wilson95": [
+              0.02241749145005667,
+              0.4708881822128535
+            ]
+          },
+          "swap_8s": {
+            "flagged": 8,
+            "total": 8,
+            "rate": 1.0,
+            "wilson95": [
+              0.6755924351161198,
+              1
+            ]
+          }
+        }
+      },
+      "48": {
+        "whole": {
+          "clean": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_2s": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_4s": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_8s": {
+            "flagged": 2,
+            "total": 8,
+            "rate": 0.25,
+            "wilson95": [
+              0.071479212752109,
+              0.5907245696898311
+            ]
+          }
+        },
+        "window_min": {
+          "clean": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_2s": {
+            "flagged": 0,
+            "total": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.32440756488388023
+            ]
+          },
+          "swap_4s": {
+            "flagged": 1,
+            "total": 8,
+            "rate": 0.125,
+            "wilson95": [
+              0.02241749145005667,
+              0.4708881822128535
+            ]
+          },
+          "swap_8s": {
+            "flagged": 8,
+            "total": 8,
+            "rate": 1.0,
+            "wilson95": [
+              0.6755924351161198,
+              1
+            ]
+          }
+        }
+      },
+      "all": {
+        "whole": {
+          "clean": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "swap_2s": {
+            "flagged": 1,
+            "total": 16,
+            "rate": 0.0625,
+            "wilson95": [
+              0.01111934476464252,
+              0.28328737570298945
+            ]
+          },
+          "swap_4s": {
+            "flagged": 3,
+            "total": 16,
+            "rate": 0.1875,
+            "wilson95": [
+              0.06591599071428142,
+              0.4300888096197414
+            ]
+          },
+          "swap_8s": {
+            "flagged": 7,
+            "total": 16,
+            "rate": 0.4375,
+            "wilson95": [
+              0.23098652405492354,
+              0.6682144360118811
+            ]
+          }
+        },
+        "window_min": {
+          "clean": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "same_speaker_splice": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "gain_change": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "swap_2s": {
+            "flagged": 0,
+            "total": 16,
+            "rate": 0.0,
+            "wilson95": [
+              0,
+              0.1936076805344365
+            ]
+          },
+          "swap_4s": {
+            "flagged": 2,
+            "total": 16,
+            "rate": 0.125,
+            "wilson95": [
+              0.03497748774324047,
+              0.36022827265758695
+            ]
+          },
+          "swap_8s": {
+            "flagged": 16,
+            "total": 16,
+            "rate": 1.0,
+            "wilson95": [
+              0.8063923194655637,
+              1
+            ]
+          }
+        }
+      }
+    }
+  },
+  "go": false,
+  "seconds": 266.44002282992005,
+  "test_window_control_false_positive_rate": 0.0,
+  "test_localization": {
+    "swap_2s": {
+      "overlapping_worst_windows": 14,
+      "total": 16
+    },
+    "swap_4s": {
+      "overlapping_worst_windows": 16,
+      "total": 16
+    },
+    "swap_8s": {
+      "overlapping_worst_windows": 16,
+      "total": 16
+    }
+  },
+  "stats": {
+    "forward_calls": 816,
+    "cache_hits": 928
+  },
+  "protocol_sha256": "7c4d0ae0c9bc9a3c5089ba6cd5f66850a3e95ac94eb5fd3234c098caeda49fa2",
+  "script_sha256": "00f6006a476c7ac9829d0538d2e50e7ee4c24f9ae20f2822dbf7c3f2742e6900"
+}

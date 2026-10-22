@@ -1,0 +1,10 @@
+[
+  {
+    "status": "not_measured",
+    "reason": "insufficient signal"
+  },
+  {
+    "status": "not_measured",
+    "reason": "shorter than eight seconds"
+  }
+]

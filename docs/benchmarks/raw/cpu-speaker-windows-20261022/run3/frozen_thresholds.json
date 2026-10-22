@@ -1,0 +1,16 @@
+{
+  "whole": {
+    "threshold": 0.8226457834243776,
+    "controls": 48,
+    "false_positives": 1,
+    "primary_positives": 16,
+    "primary_detected": 4
+  },
+  "window_min": {
+    "threshold": 0.48973467946052557,
+    "controls": 48,
+    "false_positives": 0,
+    "primary_positives": 16,
+    "primary_detected": 15
+  }
+}

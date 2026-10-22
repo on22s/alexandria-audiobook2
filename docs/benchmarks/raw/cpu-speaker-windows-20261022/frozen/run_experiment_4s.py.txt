@@ -1,0 +1,333 @@
+"""CPU-only controlled experiment; does not import or modify the live app."""
+import os
+
+for _key in ("CUDA_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES"):
+    os.environ[_key] = ""
+for _key in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+    os.environ[_key] = "2"
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+
+import hashlib
+import json
+import math
+from pathlib import Path
+import platform
+import random
+import sys
+import time
+
+import numpy as np
+from scipy.signal import resample_poly
+import soundfile as sf
+
+ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) == 2 else Path(__file__).resolve().parent
+ROOT.mkdir(parents=True, exist_ok=True)
+REPO = Path("/home/fakemitch/pinokio/api/alexandria-audiobook2.git")
+CORPUS = REPO / "ab_test_runtime/corpora/aishell3"
+MODEL = Path("/home/fakemitch/.cache/huggingface/hub/models--speechbrain--spkrec-ecapa-voxceleb/snapshots/0f99f2d0ebe89ac095bcc5903c4dd8f72b367286")
+RATE = 16000
+WINDOW = 4
+STRIDE = 2
+EXCLUDED = ['SSB0241', 'SSB0323', 'SSB0379', 'SSB0382', 'SSB0407', 'SSB0603', 'SSB0609', 'SSB0623', 'SSB0778', 'SSB0784', 'SSB0935', 'SSB0966', 'SSB1096', 'SSB1115', 'SSB1448', 'SSB1699']
+CONTROL_ARMS = ("clean", "same_speaker_splice", "gain_change")
+ARMS = CONTROL_ARMS + ("swap_2s", "swap_4s", "swap_8s")
+
+
+def write_json(name, data):
+    path = ROOT / name
+    temp = path.with_suffix(path.suffix + ".tmp")
+    temp.write_text(json.dumps(data, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
+    temp.replace(path)
+
+
+def digest(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def select_speakers():
+    groups = {"male": [], "female": []}
+    for line in (CORPUS / "spk-info.txt").read_text().splitlines():
+        fields = line.split()
+        if len(fields) == 4 and fields[2] in groups and fields[1] != "A" and fields[0] not in EXCLUDED:
+            paths = list((CORPUS / "train/wav" / fields[0]).glob("*.wav"))
+            if len(paths) < 12:
+                continue
+            seconds = 0
+            for path in paths:
+                seconds += sf.info(path).duration
+                if seconds >= 125:
+                    groups[fields[2]].append(fields[0])
+                    break
+    rng = random.Random(20261024)
+    for gender in groups:
+        groups[gender].sort()
+        rng.shuffle(groups[gender])
+        if len(groups[gender]) < 8:
+            raise RuntimeError("Need eight available speakers of each gender")
+    return {
+        split: [dict(speaker=s, gender=g) for g in groups
+                for s in groups[g][offset:offset + 4]]
+        for split, offset in (("calibration", 0), ("test", 4))
+    }
+
+
+def load_stream(speaker):
+    parts, files, seconds = [], [], 0.0
+    paths = sorted((CORPUS / "train/wav" / speaker).glob("*.wav"))
+    random.Random("20261022:" + speaker).shuffle(paths)
+    for path in paths:
+        audio, rate = sf.read(path, dtype="float32", always_2d=True)
+        audio = audio.mean(axis=1)
+        if not len(audio) or not np.isfinite(audio).all():
+            raise ValueError("Invalid source audio: " + str(path))
+        divisor = math.gcd(rate, RATE)
+        audio = resample_poly(audio, RATE // divisor, rate // divisor).astype("float32")
+        rms = float(np.sqrt(np.mean(audio ** 2)))
+        if rms < 1e-4:
+            continue
+        # Common preprocessing for every arm; removes gross loudness cues.
+        audio *= min(0.05 / rms, 0.95 / max(float(np.abs(audio).max()), 1e-9))
+        parts.append(audio)
+        files.append({"path": str(path), "sha256": digest(path), "seconds": len(audio) / RATE})
+        seconds += len(audio) / RATE
+        if seconds >= 120:
+            break
+    if seconds < 120:
+        raise ValueError("Insufficient independent audio for " + speaker)
+    # Separate utterances for reference, target and same-speaker replacement.
+    cursor = 0
+    blocks = []
+    for wanted in (8, 48, 8):
+        selected, length = [], 0
+        while cursor < len(parts) and length < wanted * RATE:
+            selected.append(parts[cursor])
+            length += len(parts[cursor])
+            cursor += 1
+        if length < wanted * RATE:
+            raise ValueError("Insufficient disjoint utterances for " + speaker)
+        blocks.append(np.concatenate(selected)[:wanted * RATE])
+    return blocks, files
+
+
+def replace_interval(audio, replacement, start, duration):
+    out = audio.copy()
+    a, size = round(start * RATE), round(duration * RATE)
+    if a < 0 or a + size > len(out) or len(replacement) < size:
+        raise ValueError("Invalid replacement interval")
+    out[a:a + size] = replacement[:size]
+    return out
+
+
+def measure_clip(audio, ref, embed):
+    if len(audio) < WINDOW * RATE:
+        return {"status": "not_measured", "reason": "shorter than scoring window"}
+    if float(np.sqrt(np.mean(audio ** 2))) < 1e-4:
+        return {"status": "not_measured", "reason": "insufficient signal"}
+    whole = float(np.dot(embed(audio), ref))
+    windows = []
+    for start in range(0, len(audio) - WINDOW * RATE + 1, STRIDE * RATE):
+        part = audio[start:start + WINDOW * RATE]
+        rms = float(np.sqrt(np.mean(part ** 2)))
+        if rms < 1e-4:
+            return {"status": "not_measured", "reason": "silent window"}
+        windows.append({"start": start / RATE, "end": start / RATE + WINDOW,
+                        "signal_coverage": float(np.mean(np.abs(part) > 0.001)),
+                        "rms": rms, "score": float(np.dot(embed(part), ref))})
+    if not math.isfinite(whole) or not all(math.isfinite(w["score"]) for w in windows):
+        raise ValueError("Non-finite speaker score")
+    return {"status": "measured", "whole": whole,
+            "window_min": min(w["score"] for w in windows), "windows": windows}
+
+
+def calibrate(rows, metric):
+    controls = [r for r in rows if r["arm"] in CONTROL_ARMS]
+    positives = [r for r in rows if r["arm"] == "swap_4s"]
+    candidates = [float(np.nextafter(x, math.inf)) for x in
+                  sorted({r[metric] for r in controls + positives})]
+    candidates.append(-1.0)
+    feasible = []
+    for threshold in candidates:
+        fp = sum(r[metric] < threshold for r in controls)
+        tp = sum(r[metric] < threshold for r in positives)
+        if fp / len(controls) <= 0.05:
+            feasible.append((tp, -fp, -threshold, threshold))
+    if not feasible:
+        raise RuntimeError("No calibration threshold")
+    threshold = max(feasible)[3]
+    return {"threshold": threshold, "controls": len(controls),
+            "false_positives": sum(r[metric] < threshold for r in controls),
+            "primary_positives": len(positives),
+            "primary_detected": sum(r[metric] < threshold for r in positives)}
+
+
+def wilson(hits, total):
+    if not total:
+        return None
+    z, p = 1.959963984540054, hits / total
+    denominator = 1 + z * z / total
+    center = (p + z * z / (2 * total)) / denominator
+    radius = z * math.sqrt(p * (1 - p) / total + z * z / (4 * total ** 2)) / denominator
+    return [max(0, center - radius), min(1, center + radius)]
+
+
+def summarize(rows, thresholds):
+    result = {}
+    for duration in (24, 48, "all"):
+        subset = [r for r in rows if duration == "all" or r["duration"] == duration]
+        result[str(duration)] = {}
+        for metric in ("whole", "window_min"):
+            threshold = thresholds[metric]["threshold"]
+            arms = {}
+            for arm in ARMS:
+                selected = [r for r in subset if r["arm"] == arm]
+                hits = sum(r[metric] < threshold for r in selected)
+                arms[arm] = {"flagged": hits, "total": len(selected),
+                             "rate": hits / len(selected), "wilson95": wilson(hits, len(selected))}
+            result[str(duration)][metric] = arms
+    return result
+
+
+def run():
+    start = time.monotonic()
+    if (ROOT / "protocol.json").exists():
+        raise RuntimeError("Run directory already has a protocol; use a fresh directory")
+    speakers = select_speakers()
+    protocol = {
+        "schema_version": 1, "seed": 20261024, "excluded_previous_speakers": EXCLUDED, "injection_offset_seconds": 1, "device": "cpu", "cpu_threads": 2,
+        "corpus": "AISHELL-3", "license": "Apache-2.0",
+        "source": "https://www.openslr.org/93/", "model_snapshot": MODEL.name,
+        "sample_rate": RATE, "window_seconds": WINDOW, "stride_seconds": STRIDE,
+        "durations_seconds": [24, 48], "arms": list(ARMS), "speakers": speakers,
+        "calibration_rule": "maximize four-second swap recall at <=5% control false alarms; ties prefer fewer false alarms, then lower threshold",
+        "primary_go_rule": "test window-min four-second recall strictly exceeds whole-clip recall, with <=5% combined control false alarms",
+        "limitations": ["controlled human-speech instrument test, not generated audiobook quality",
+                        "one language and corpus", "eight held-out speakers; clips are clustered by speaker",
+                        "concatenation and splice boundaries are artificial", "energy coverage is not speech VAD",
+                        "Wilson intervals describe clip counts and ignore speaker clustering"],
+        "script_sha256": digest(Path(__file__)), "python": sys.version,
+        "host": platform.node(), "expected_rows_per_split": 96,
+    }
+    write_json("protocol.json", protocol)
+    print("PROTOCOL frozen; eight calibration and eight disjoint test speakers", flush=True)
+
+    import torch
+    torch.set_num_threads(2)
+    torch.set_num_interop_threads(1)
+    from speechbrain.inference.speaker import EncoderClassifier
+    from speechbrain.utils.fetching import LocalStrategy
+    encoder = EncoderClassifier.from_hparams(
+        source=str(MODEL), savedir=str(ROOT / "model_cache"),
+        overrides={"pretrained_path": str(MODEL)},
+        local_strategy=LocalStrategy.SYMLINK, run_opts={"device": "cpu"})
+    if any(p.device.type != "cpu" for p in encoder.mods.parameters()):
+        raise RuntimeError("Scorer is not CPU-only")
+    write_json("model_identity.json", {
+        "torch": torch.__version__, "device": str(encoder.device),
+        "threads": torch.get_num_threads(),
+        "assets": {p.name: digest(p) for p in MODEL.iterdir() if p.is_file()},
+    })
+    cache = {}
+    stats = {"forward_calls": 0, "cache_hits": 0}
+
+    def embed(audio):
+        audio = np.ascontiguousarray(audio, dtype="float32")
+        key = hashlib.sha256(audio.tobytes()).hexdigest()
+        if key in cache:
+            stats["cache_hits"] += 1
+            return cache[key]
+        with torch.inference_mode():
+            tensor = torch.from_numpy(audio).unsqueeze(0)
+            vector = encoder.encode_batch(tensor).squeeze().detach().cpu().numpy()
+        norm = float(np.linalg.norm(vector))
+        if not math.isfinite(norm) or norm < 1e-8:
+            raise ValueError("Invalid embedding norm")
+        vector = vector / norm
+        cache[key] = vector
+        stats["forward_calls"] += 1
+        return vector
+
+    availability = [measure_clip(np.zeros(8 * RATE, dtype="float32"), None, embed),
+                    measure_clip(np.ones(2 * RATE, dtype="float32") * .05, None, embed)]
+    if any(r["status"] != "not_measured" for r in availability):
+        raise RuntimeError("Availability controls did not refuse scoring")
+    write_json("availability_controls.json", availability)
+    all_rows, manifest, thresholds = {}, {}, None
+    for split in ("calibration", "test"):
+        streams = {}
+        for entry in speakers[split]:
+            blocks, files = load_stream(entry["speaker"])
+            streams[entry["speaker"]] = blocks
+            manifest[entry["speaker"]] = files
+        write_json("inputs.json", manifest)
+        rows = []
+        for index, entry in enumerate(speakers[split]):
+            speaker = entry["speaker"]
+            peers = [x["speaker"] for x in speakers[split] if x["gender"] == entry["gender"]]
+            donor = peers[(peers.index(speaker) + 1) % len(peers)]
+            reference, base, alternate = streams[speaker]
+            ref = embed(reference)
+            for duration in (24, 48):
+                clean = base[:duration * RATE]
+                splice_start = duration / 2 - 4
+                gain = clean.copy()
+                a, b = round(splice_start * RATE), round((splice_start + 8) * RATE)
+                gain[a:b] *= 0.5
+                cases = {"clean": clean, "gain_change": gain,
+                         "same_speaker_splice": replace_interval(clean, alternate, splice_start, 8)}
+                for size in (2, 4, 8):
+                    cases[f"swap_{size}s"] = replace_interval(
+                        clean, streams[donor][2], duration / 2 - size / 2 + 1, size)
+                for arm in ARMS:
+                    measured = measure_clip(cases[arm], ref, embed)
+                    if measured["status"] != "measured":
+                        raise RuntimeError(f"Required case is unmeasured: {speaker}/{arm}")
+                    wrong = None if arm in CONTROL_ARMS else [duration / 2 - int(arm[5:-1]) / 2 + 1,
+                                                             duration / 2 + int(arm[5:-1]) / 2 + 1]
+                    worst = min(measured["windows"], key=lambda w: w["score"])
+                    rows.append({"split": split, **entry, "donor": donor,
+                                 "duration": duration, "arm": arm, "wrong_interval": wrong,
+                                 "worst_window_overlaps_injection": None if wrong is None else
+                                     max(worst["start"], wrong[0]) < min(worst["end"], wrong[1]),
+                                 **measured})
+            write_json(split + "_rows.json", rows)
+            write_json("progress.json", {"split": split, "speakers_done": index + 1,
+                       "seconds": time.monotonic() - start, **stats})
+            print(f"{split}: {index + 1}/8 speakers; {len(rows)} rows; {time.monotonic() - start:.1f}s", flush=True)
+        if len(rows) != protocol["expected_rows_per_split"]:
+            raise RuntimeError("Incomplete split")
+        all_rows[split] = rows
+        if split == "calibration":
+            thresholds = {metric: calibrate(rows, metric) for metric in ("whole", "window_min")}
+            write_json("frozen_thresholds.json", thresholds)
+            print("THRESHOLDS frozen before test scoring: " + json.dumps(thresholds), flush=True)
+
+    summaries = {split: summarize(rows, thresholds) for split, rows in all_rows.items()}
+    test = summaries["test"]["all"]
+    window = test["window_min"]
+    false_count = sum(window[a]["flagged"] for a in CONTROL_ARMS)
+    controls_count = sum(window[a]["total"] for a in CONTROL_ARMS)
+    go = (window["swap_4s"]["rate"] > test["whole"]["swap_4s"]["rate"]
+          and false_count / controls_count <= .05)
+    write_json("results.json", {"status": "complete", "thresholds": thresholds,
+        "summaries": summaries, "go": go, "seconds": time.monotonic() - start,
+        "test_window_control_false_positive_rate": false_count / controls_count,
+        "test_localization": {arm: {
+            "overlapping_worst_windows": sum(r["worst_window_overlaps_injection"] for r in all_rows["test"] if r["arm"] == arm),
+            "total": sum(r["arm"] == arm for r in all_rows["test"])}
+            for arm in ("swap_2s", "swap_4s", "swap_8s")},
+        "stats": stats, "protocol_sha256": digest(ROOT / "protocol.json"),
+        "script_sha256": digest(Path(__file__))})
+    print("COMPLETE " + json.dumps({"go": go, "seconds": time.monotonic() - start, **stats}), flush=True)
+
+
+if __name__ == "__main__":
+    try:
+        run()
+    except Exception as error:
+        write_json("failure.json", {"status": "failed", "type": type(error).__name__, "message": str(error)})
+        raise

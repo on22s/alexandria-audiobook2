@@ -1,0 +1,19 @@
+PROTOCOL frozen; eight calibration and eight disjoint test speakers
+calibration: 1/8 speakers; 12 rows; 18.3s
+calibration: 2/8 speakers; 24 rows; 33.4s
+calibration: 3/8 speakers; 36 rows; 48.4s
+calibration: 4/8 speakers; 48 rows; 63.9s
+calibration: 5/8 speakers; 60 rows; 78.9s
+calibration: 6/8 speakers; 72 rows; 93.9s
+calibration: 7/8 speakers; 84 rows; 109.0s
+calibration: 8/8 speakers; 96 rows; 124.3s
+THRESHOLDS frozen before test scoring: {"whole": {"threshold": 0.8226457834243776, "controls": 48, "false_positives": 1, "primary_positives": 16, "primary_detected": 4}, "window_min": {"threshold": 0.48973467946052557, "controls": 48, "false_positives": 0, "primary_positives": 16, "primary_detected": 15}}
+test: 1/8 speakers; 12 rows; 140.1s
+test: 2/8 speakers; 24 rows; 155.0s
+test: 3/8 speakers; 36 rows; 170.3s
+test: 4/8 speakers; 48 rows; 185.5s
+test: 5/8 speakers; 60 rows; 200.6s
+test: 6/8 speakers; 72 rows; 216.0s
+test: 7/8 speakers; 84 rows; 231.3s
+test: 8/8 speakers; 96 rows; 246.8s
+COMPLETE {"go": false, "seconds": 246.802864135243, "forward_calls": 1200, "cache_hits": 2272}
