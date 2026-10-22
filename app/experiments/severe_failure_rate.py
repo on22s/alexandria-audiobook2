@@ -28,19 +28,23 @@ WHAT THIS ADDS is the three things nothing recorded:
                 same lines at cap 2048 were whole token counts (113, 105,
                 105) and not flagged. Synthesis windows join several generations into one take,
                 so the cap applies per window and the rule cannot be used: such
-                takes are unmeasured.
+                takes are unmeasured. This is a calibration rule only: selected
+                takes do not retain a proven original cap/backend for this
+                calculation. The book report therefore leaves cap_hit unmeasured,
+                regardless of today's config. Capturing generation-time evidence
+                is follow-up work under #1520.
     silences    trailing >= 1.2 s and longest internal >= 1.5 s, LoCA's
                 thresholds, on takes of any length (the existing acoustic check
                 stops at 15 s and sets no threshold).
     the rate    per reason AND the union, each take counted once.
 
-UNMEASURED IS NEVER A PASS. No audio, no current receipt, a windowed take or a
-foreign sample rate is reported as unmeasured, separately (Rule 21: a fallback
+UNMEASURED IS NEVER A PASS. Missing audio or content evidence, and every
+unproven generation cap, are reported as unmeasured, separately (Rule 21: a fallback
 that returns a plausible value is the dangerous kind).
 
 Usage:
     python app/experiments/severe_failure_rate.py --chunks <book>/chunks.json \
-        --audio-root <book dir> --config app/config.json --out report.json
+        --audio-root <book dir> --out report.json
 """
 import argparse
 import json
@@ -64,8 +68,9 @@ REASONS = ("content", "all_silent", "cap_hit", "trailing_silence", "internal_sil
 
 
 def get_cap_hit(frames, sample_rate, max_new_tokens, windowed=False):
-    """True / False, or None (unmeasured) when the length rule cannot apply."""
-    if windowed or sample_rate != CODEC_SAMPLE_RATE or not max_new_tokens:
+    """Calibration only; caller must already know the original generation context."""
+    if (windowed or sample_rate != CODEC_SAMPLE_RATE
+            or type(max_new_tokens) is not int or max_new_tokens <= 1):
         return None
     return frames >= (max_new_tokens - CAP_TOLERANCE_TOKENS) * CODEC_UPSAMPLE
 
@@ -77,23 +82,36 @@ def get_silence_flags(samples, rate, threshold_dbfs=None):
     if threshold_dbfs is None:
         from tts import EDGE_SILENCE_THRESHOLD_DBFS as threshold_dbfs
     values = np.asarray(samples, dtype="float64")
+    if values.ndim == 1:
+        values = values[:, None]
+    if values.ndim != 2 or values.shape[1] not in (1, 2):
+        raise ValueError("Silence analysis requires mono or stereo frames")
     step = max(1, int(round(rate * FRAME_SECONDS)))
     count = math.ceil(len(values) / step) if len(values) else 0
-    padded = np.pad(values, (0, count * step - len(values))).reshape(count, step) if count else values.reshape(0, 1)
-    rms = np.sqrt(np.mean(padded * padded, axis=1)) if count else np.zeros(0)
+    # A bin is quiet only when every channel is quiet. Summing waveforms can
+    # cancel opposite-polarity channels; averaging powers can hide a quiet voice
+    # that is present on just one channel near the threshold.
+    # The final bin uses only real samples: zero padding changes its level.
+    full = len(values) // step
+    rms = np.empty(count)
+    if full:
+        blocks = values[:full * step].reshape(full, step, values.shape[1])
+        rms[:full] = np.sqrt(np.mean(blocks * blocks, axis=1)).max(axis=1)
+    if count > full:
+        rms[-1] = np.sqrt(np.mean(values[full * step:] ** 2, axis=0)).max()
     with np.errstate(divide="ignore"):
         dbfs = 20 * np.log10(rms)
     loud = np.flatnonzero(dbfs > threshold_dbfs)
     if not loud.size:
-        return {"all_silent": True, "leading_silence_s": round(count * FRAME_SECONDS, 3),
+        return {"all_silent": True, "leading_silence_s": round(len(values) / rate, 3),
                 "trailing_silence_s": None, "longest_internal_silence_s": None,
                 "trailing_silence": False, "internal_silence": False}
     # Plain Python numbers: numpy scalars are not JSON-serializable, and the
     # report is written as JSON.
-    leading = int(loud[0]) * FRAME_SECONDS
-    trailing = int(count - 1 - loud[-1]) * FRAME_SECONDS
+    leading = int(loud[0]) * step / rate
+    trailing = (len(values) - min((int(loud[-1]) + 1) * step, len(values))) / rate
     gaps = np.diff(loud) - 1
-    internal = int(gaps.max()) * FRAME_SECONDS if gaps.size else 0.0
+    internal = int(gaps.max()) * step / rate if gaps.size else 0.0
     return {"all_silent": False, "leading_silence_s": round(leading, 3),
             "trailing_silence_s": round(trailing, 3), "longest_internal_silence_s": round(internal, 3),
             "trailing_silence": trailing >= TRAILING_SILENCE_SECONDS,
@@ -114,7 +132,7 @@ def get_content_flag(chunk, resolve_audio):
     return "review"
 
 
-def get_take_flags(chunk, audio_root, max_new_tokens, windowed):
+def get_take_flags(chunk, audio_root):
     """Every reason for one take: True, False, or None (unmeasured)."""
     import soundfile
 
@@ -127,11 +145,10 @@ def get_take_flags(chunk, audio_root, max_new_tokens, windowed):
         samples, rate = soundfile.read(full, dtype="float64", always_2d=True)
     except (OSError, RuntimeError) as error:
         return {"audio": f"unreadable: {type(error).__name__}", **{reason: None for reason in REASONS}}
-    mono = samples.mean(axis=1)
-    silence = get_silence_flags(mono, rate)
-    return {"audio": "ok", "duration_s": round(len(mono) / rate, 3), "content_status": content,
+    silence = get_silence_flags(samples, rate)
+    return {"audio": "ok", "duration_s": round(len(samples) / rate, 3), "content_status": content,
             "content": None if content == "unmeasured" else content == "flagged",
-            "cap_hit": get_cap_hit(len(mono), rate, max_new_tokens, windowed),
+            "cap_hit": None, "cap_status": "unmeasured: original generation cap/backend not proven",
             **silence}
 
 
@@ -148,24 +165,22 @@ def get_report(rows):
 
 def main():
     from experiments.provenance import provenance
-    from synthesis_settings import get_enabled_synthesis_window_settings
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--chunks", required=True)
     parser.add_argument("--audio-root", required=True)
-    parser.add_argument("--config", default=os.path.join(REPO, "app", "config.json"))
+    parser.add_argument("--config", help="Legacy option; current settings never prove a take's original cap")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
-    tts = json.load(open(args.config, encoding="utf-8")).get("tts", {})
-    max_new_tokens = tts.get("max_new_tokens")
-    windowed = get_enabled_synthesis_window_settings(tts.get("synthesis_windows")) is not None
-    data = json.load(open(args.chunks, encoding="utf-8"))
+    with open(args.chunks, encoding="utf-8") as handle:
+        data = json.load(handle)
     chunks = data if isinstance(data, list) else data.get("chunks", [])
     rows = [{"uid": chunk.get("uid"), "audio_path": chunk.get("audio_path"),
-             **get_take_flags(chunk, args.audio_root, max_new_tokens, windowed)}
+             **get_take_flags(chunk, args.audio_root)}
             for chunk in chunks if chunk.get("audio_path")]
-    document = {"summary": get_report(rows), "max_new_tokens": max_new_tokens,
-                "synthesis_windows_enabled": windowed,
+    document = {"summary": get_report(rows),
+                "metric_scope": "selected takes; partial coverage, not the full LoCA evaluation metric",
+                "cap_status": "unmeasured: generation-time capture required; current config is not evidence",
                 "thresholds": {"trailing_silence_s": TRAILING_SILENCE_SECONDS,
                                "internal_silence_s": INTERNAL_SILENCE_SECONDS,
                                "cap_tolerance_tokens": CAP_TOLERANCE_TOKENS},
