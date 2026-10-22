@@ -8545,6 +8545,21 @@
     "tests.test_roster_order_bias.StratificationTest.test_correct_rows_never_enter_either_stratum",
     "tests.test_roster_order_bias.StratificationTest.test_neither_name_mentioned_is_no_local_signal"
   ],
+  "test_roster_source_evidence": [
+    "tests.test_roster_source_evidence.RosterSourceEvidenceCliTests.test_escaped_invalid_unicode_is_a_clear_cli_refusal_without_output",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceCliTests.test_existing_output_and_invalid_input_never_overwrite_recoverable_files",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceCliTests.test_real_cli_preserves_inputs_and_binds_report_to_captured_bytes",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_absent_quote_with_offsets_is_unsupported_rather_than_relocatable",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_invalid_unicode_is_refused_before_source_searches",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_malformed_structures_ids_and_numeric_ranges_are_rejected",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_repeated_quote_requires_its_exact_anchor_and_overlaps_are_ambiguous",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_source_entry_evidence_and_quote_limits_refuse_before_scanning",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_source_evidence_is_never_an_identity_or_alias_approval",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_stale_source_is_refused_even_when_its_quote_survives",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_unanchored_matches_distinguish_unique_ambiguous_and_unsupported",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_unicode_character_offsets_and_crlf_are_exact_without_mutating_input",
+    "tests.test_roster_source_evidence.RosterSourceEvidenceTests.test_wrong_offsets_never_silently_relocate_a_quote"
+  ],
   "test_run_history": [
     "tests.test_run_history.RunHistoryTests.test_artifact_records_output_source_and_config_hashes",
     "tests.test_run_history.RunHistoryTests.test_artifact_size_and_digest_use_the_same_opened_version",
