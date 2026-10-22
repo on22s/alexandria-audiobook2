@@ -40,8 +40,8 @@ class SpeechSymbolDispatchTests(unittest.TestCase):
                  ('Alpha‡Beta', 'Alpha Beta.'),
                  ('The value is ∞.', 'The value is infinity.'),
                  ('Value∞,now', 'Value infinity,now.'),
-                 ('3%!', '3 percent!.'),
-                 ('Tom&Jerry,3×5!', 'Tom and Jerry,3 times 5!.'))
+                 ('3%!', '3 percent!'),
+                 ('Tom&Jerry,3×5!', 'Tom and Jerry,3 times 5!'))
         for source, expected in cases:
             with self.subTest(source=source):
                 entry = {'speaker': 'A', 'text': source, 'instruct': 'Calm.'}

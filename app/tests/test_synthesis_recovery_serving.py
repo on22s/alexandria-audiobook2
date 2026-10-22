@@ -11,6 +11,36 @@ import tts
 
 
 class RecoveryServingTests(unittest.TestCase):
+    def test_speech_policy_loaded_code_is_bound_and_missing_certificate_refuses_recovery(self):
+        import speech_policy
+        from synthesis_recovery_identity import get_recovery_digest
+        first = serving._get_aa2_loaded_code()
+        digest = speech_policy._LOADED_RECOVERY_CODE_SHA256
+        self.assertEqual(64, len(digest))
+        self.assertEqual(digest, first['speech_policy'])
+        from pathlib import Path
+        source_path = Path(speech_policy.__file__)
+        source = source_path.read_text()
+        changed = source.replace("in '.!?。！？'", "in '.!?。！？…'", 1)
+        self.assertNotEqual(source, changed)
+        versions = []
+        for code in (source, changed):
+            namespace = {'__name__': 'speech_policy_identity_fixture'}
+            exec(compile(code, str(source_path), 'exec'), namespace)
+            versions.append(namespace)
+        self.assertFalse(versions[0]['is_sentence_terminated']('Wait…'))
+        self.assertTrue(versions[1]['is_sentence_terminated']('Wait…'))
+        self.assertNotEqual(versions[0]['_LOADED_RECOVERY_CODE_SHA256'],
+                            versions[1]['_LOADED_RECOVERY_CODE_SHA256'])
+        with patch.object(speech_policy, '_LOADED_RECOVERY_CODE_SHA256',
+                          versions[1]['_LOADED_RECOVERY_CODE_SHA256']):
+            second = serving._get_aa2_loaded_code()
+        self.assertNotEqual(get_recovery_digest(first), get_recovery_digest(second))
+        with patch.object(speech_policy, '_LOADED_RECOVERY_CODE_SHA256', None):
+            with self.assertRaisesRegex(RecoveryIdentityUnavailable, 'missing_loaded_aa2_code'):
+                serving._get_aa2_loaded_code()
+        self.assertEqual(first, serving._get_aa2_loaded_code())
+
     def test_processor_identity_binds_effective_call_policy(self):
         marker = object()
         processor = SimpleNamespace(_merge_kwargs=lambda kind, **kwargs: {

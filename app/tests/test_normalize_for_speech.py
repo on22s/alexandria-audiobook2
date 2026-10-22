@@ -108,7 +108,7 @@ class TestLeavesProseAlone(unittest.TestCase):
         for text in ("She had had enough.", "It was very very emphatic.",
                      "No no no!", "He said GO go.", "はい はい。"):
             with self.subTest(text=text):
-                expected = text if text.endswith(".") else text + "."
+                expected = text
                 self.assertEqual(expected, normalize_for_speech(text))
                 self.assertNotIn("duplicate_spoken_word", [
                     change["type"] for change in get_speech_normalization(text)["transformations"]])
@@ -137,6 +137,50 @@ class TestLeavesProseAlone(unittest.TestCase):
     def test_terminal_punctuation_is_not_duplicated(self):
         self.assertEqual(normalize_for_speech("Done."), "Done.")
         self.assertFalse(normalize_for_speech("Done.").endswith(".."))
+
+
+class TestTerminalBoundaryEvidence(unittest.TestCase):
+    def test_authored_terminal_marks_survive_with_closing_marks_and_second_pass_is_clean(self):
+        for text in ('Why?', 'Wait!', 'Really?!', 'Done.', 'はい。', '好的！', '继续？',
+                     '"Okay?"', '“Wait!”', "‘Why?’", '«Pourquoi ?»',
+                     '「はい。」', '『続けて？』', '(Okay!)', '[Continue?]',
+                     '【继续！】', '（继续？）', '“[Really?!]”',
+                     '« Pourquoi ? »', '« Pourquoi ?\u00a0»', '« Pourquoi ?\u202f»',
+                     '(Okay. )', '[Continue? ]', '"Why? "'):
+            with self.subTest(text=text):
+                first = get_speech_normalization(text)
+                self.assertEqual(text, first['text'])
+                self.assertFalse(first['changed'])
+                self.assertEqual([], first['transformations'])
+                self.assertEqual(first, get_speech_normalization(first['text']))
+
+    def test_whitespace_trim_reports_no_added_period_for_terminated_question(self):
+        result = get_speech_normalization('  Why? \n')
+        self.assertEqual('Why?', result['text'])
+        self.assertEqual([{'type': 'collapsed_spacing', 'count': 1},
+                          {'type': 'normalized_sentence_boundary',
+                           'trimmed_characters': 3, 'appended_period': False}],
+                         result['transformations'])
+        self.assertEqual([], get_speech_normalization(result['text'])['transformations'])
+
+    def test_existing_full_stop_is_retained_and_not_reported_as_new(self):
+        result = get_speech_normalization(' Hello. ')
+        self.assertEqual('Hello.', result['text'])
+        self.assertEqual([{'type': 'normalized_sentence_boundary',
+                          'trimmed_characters': 2, 'appended_period': False}],
+                         result['transformations'])
+        self.assertEqual([], get_speech_normalization(result['text'])['transformations'])
+        for source, expected in [(' . Hello. ', 'Hello.'), (' ... ', ''), ('.', '')]:
+            with self.subTest(source=source):
+                self.assertEqual(expected, normalize_for_speech(source))
+
+    def test_unterminated_prose_and_quoted_fragments_keep_existing_period_policy(self):
+        for text in ('Plain prose', '"A title"', '“A fragment”', '「見出し」', 'I will go,'):
+            with self.subTest(text=text):
+                result = get_speech_normalization(text)
+                self.assertEqual(text + '.', result['text'])
+                self.assertTrue(result['transformations'][-1]['appended_period'])
+                self.assertEqual([], get_speech_normalization(result['text'])['transformations'])
 
 
 class TestIdempotence(unittest.TestCase):

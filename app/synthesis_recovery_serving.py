@@ -25,7 +25,7 @@ MAX_TOKENIZER_BYTES = 16 * 1024 * 1024
 _ACTIVE_GUARD = ContextVar('native_recovery_serving_guard', default=None)
 _AA2_MODULES = (
     'tts', 'project', 'utils', 'audio_generation_owner', 'audio_validation',
-    'speech_text', 'pronunciation', 'synthesis_settings', 'synthesis_windows', 'synthesis_input',
+    'speech_text', 'speech_policy', 'pronunciation', 'synthesis_settings', 'synthesis_windows', 'synthesis_input',
     'synthesis_audio', 'synthesis_render', 'synthesis_workspace', 'synthesis_recovery_cache',
     'synthesis_recovery_identity', 'synthesis_recovery_context', 'synthesis_recovery_code',
     'loaded_module_code', 'synthesis_recovery_native', 'synthesis_recovery_serving', 'device_utils', 'tts_diagnostics',

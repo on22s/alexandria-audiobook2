@@ -23,7 +23,7 @@ from pronunciation import (ensure_pronunciation_snapshot, ensure_occurrence_pron
 from speech_text import get_speech_normalization
 from script_repair import EXPLICIT_SILENCE_MS
 from speech_policy import (get_spoken_symbol, get_spoken_word_text,
-                           get_spoken_text_spacing, get_scene_break_text)
+                           get_spoken_text_spacing, get_scene_break_text, is_sentence_terminated)
 from verbalization import (SET_APART_HINT, classify,
                            extract_delivery_cues, is_pictographic_kana,
                            split_bracketed_spans)
@@ -321,9 +321,8 @@ def _is_structural_text(text, max_length=80):
         return True
     if is_numbered_heading(stripped):
         return True
-    sentence = stripped.rstrip('\"\'”’»」』)）]】')
     # Very short and not a full sentence (no sentence-ending punctuation)
-    if (max_length is None or len(stripped) < max_length) and (not sentence or sentence[-1] not in '.!?。！？'):
+    if (max_length is None or len(stripped) < max_length) and not is_sentence_terminated(stripped):
         return True
     return False
 

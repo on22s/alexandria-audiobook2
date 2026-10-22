@@ -9,7 +9,7 @@ from speech_policy import (SPEECH_BREAKS, SPEECH_WORDS, VERBALIZED_SYMBOLS,
                            get_spoken_text_spacing, get_scene_break_text,
                            extract_delivery_cues, SCENE_BREAK_MARKER,
                            is_unspeakable_character, UNSPEAKABLE_CATEGORIES,
-                           REPLACEMENT_CHARACTER)
+                           REPLACEMENT_CHARACTER, is_sentence_terminated)
 
 # Unicode categories with no spoken form at all: symbols, private use,
 # unassigned, surrogates and non-whitespace controls. Currency (Sc) is deliberately excluded - "$" and
@@ -186,12 +186,13 @@ def get_speech_normalization(text):
         # A broken lexicon must never stop a book generating.
         logging.getLogger(__name__).warning(
             "Pronunciation processing failed; continuing without substitutions: %s", error)
-    stripped = normalized.strip(" .\t\n")
-    bounded = stripped + "." if stripped else ""
+    stripped = normalized.strip(" \t\n").lstrip(" .\t\n")
+    appended_period = bool(stripped) and not is_sentence_terminated(stripped)
+    bounded = stripped + "." if appended_period else stripped
     if bounded != normalized:
         transformations.append({"type": "normalized_sentence_boundary",
                                 "trimmed_characters": len(normalized) - len(stripped),
-                                "appended_period": bool(stripped)})
+                                "appended_period": appended_period})
     normalized = bounded
     result = {"text": normalized, "changed": normalized != original,
               "transformations": transformations,

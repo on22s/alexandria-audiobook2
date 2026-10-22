@@ -45,6 +45,31 @@ class TTSSpeechInputTests(unittest.TestCase):
                         self.assertNotIn('reference', result.speech_input['text'])
                         self.assertNotIn('instruction', result.speech_input['text'])
 
+    def test_terminal_punctuation_reaches_each_builtin_provider_and_capture_unchanged(self):
+        fixture = window_fixture.SynthesisWindowDispatchTests()
+        texts = ['Why?', 'Wait!', '“Why?”', '「はい。」', '« Pourquoi ? »']
+        for kind in ('custom', 'clone', 'design', 'lora', 'ensemble'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                with fixture.fixture(root, kind, chars=1000) as (engine, voices, seen, model):
+                    engine._speech_verification = {'enabled': True}
+                    rows = [dict(index=index, uid=str(index), speaker='A', text=text)
+                            for index, text in enumerate(texts)]
+                    for row in rows:
+                        output = root / f"single-{row['index']}.wav"
+                        result = engine.generate_voice_result(row['text'], '', 'A', voices, str(output))
+                        self.assertTrue(result.success, result.failure)
+                        self.assertEqual(row['text'], result.speech_input['text'])
+                    self.assertEqual(texts, fixture.texts(seen))
+                    seen.clear()
+                    batch = engine.generate_batch(rows, voices, directory, batch_seed=0)
+                    self.assertEqual([], batch['failed'])
+                    self.assertEqual(set(range(len(texts))), set(batch['completed']))
+                    self.assertCountEqual(texts, fixture.texts(seen))
+                    for row in rows:
+                        self.assertEqual(row['text'], batch['speech_inputs'][row['index']]['text'])
+                    self.assertEqual(texts, [row['text'] for row in rows])
+
     def test_native_batch_keeps_sorted_original_indices_and_exact_provider_texts(self):
         fixture = window_fixture.SynthesisWindowDispatchTests()
         for kind in ('custom', 'clone', 'lora', 'design', 'ensemble'):
