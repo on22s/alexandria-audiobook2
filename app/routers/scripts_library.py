@@ -11,6 +11,8 @@ import contextlib
 from pathlib import Path
 from book_state_transaction import (ensure_book_state, apply_book_state_locked,
                                     get_book_operation_token)
+from publication_source import (get_publication_source_path, get_publication_source_capture,
+                                get_saved_publication_source_bytes)
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -54,6 +56,7 @@ def _get_saved_book_companions(path):
     stem = os.path.splitext(path)[0]
     return list(dict.fromkeys([
         stem + ".voice_config.json", stem + ".meta.json",
+        get_publication_source_path(path),
         get_review_receipt_path(path),
         *get_generation_checkpoint_artifacts(_checkpoint_path(path)),
         *get_generation_checkpoint_artifacts(get_generation_checkpoint_path(path)),
@@ -187,6 +190,13 @@ def _save_script_sync(request):
         validate_book_json_bytes(script_bytes, list, 422, "Active script")
         replacements = {os.path.basename(dest): script_bytes,
             f"{safe_name}.meta.json": json.dumps({"book_id": get_active_book_id() or safe_name}).encode("utf-8")}
+        source_state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), default={})
+        try:
+            publication = get_saved_publication_source_bytes(source_state.get('input_file_path'), script_bytes)
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=f'Publication provenance cannot be saved: {error}') from error
+        if publication is not None:
+            replacements[os.path.basename(get_publication_source_path(dest))] = publication
         voice_name = f"{safe_name}.voice_config.json"
         if os.path.isfile(VOICE_CONFIG_PATH):
             voice_bytes = Path(VOICE_CONFIG_PATH).read_bytes()
@@ -237,6 +247,10 @@ def _load_script_sync(request: ScriptLoadRequest):
                 detail=f"Cannot load a script while these tasks are running: {', '.join(busy)}.")
         script_bytes = Path(src).read_bytes()
         validate_book_json_bytes(script_bytes, list, 400, "Saved script")
+        try:
+            get_publication_source_capture(src)
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=f'Saved publication provenance requires review: {error}') from error
         state_path = os.path.join(DATA_DIR, "state.json")
         state = safe_load_json(state_path, default={})
         state.update(active_book_id=_get_saved_book_id(safe_name), input_file_path=src,
@@ -488,7 +502,8 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
                 # Preserve the exact assignments for recovery, then require a
                 # fresh cast instead of carrying obsolete approvals forward.
                 removals = [os.path.basename(companion) for companion in _get_saved_book_companions(path)
-                            if companion != os.path.splitext(path)[0] + ".meta.json"]
+                            if companion not in (os.path.splitext(path)[0] + ".meta.json",
+                                                 get_publication_source_path(path))]
                 apply_book_state_locked(SCRIPTS_DIR, replacements, removals)
         except TimeoutError as exc:
             raise HTTPException(status_code=409, detail="Script is busy; preview it again.") from exc

@@ -3339,9 +3339,35 @@
                             </a>
                             <div class="collapse mt-2" id="m4b-options">
                                 <div class="border rounded p-3" style="background: var(--bg-card-header);">
+                                    <details class="mb-3" id="m4b-publication-panel">
+                                        <summary>Source metadata and cover suggestions</summary>
+                                        <p class="small text-muted mt-2">Review captured EPUB information before applying it. Entered or intentionally cleared fields are kept. Uploaded covers have priority.</p>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm mb-2" id="m4b-publication-review" onclick="previewM4bPublication()">Review source suggestions</button>
+                                        <label class="form-label small" for="m4b-publication-origin">Captured origin</label>
+                                        <select class="form-select form-select-sm mb-2" id="m4b-publication-origin" disabled></select>
+                                        <div id="m4b-publication-info" class="overflow-auto text-break" style="max-height:12rem"></div>
+                                        <img id="m4b-publication-image" alt="Captured source cover preview" class="img-thumbnail mb-2" style="max-height:160px" hidden>
+                                        <div class="row g-2 mb-2">
+                                            <div class="col-md-6"><label class="form-label small" for="m4b-publication-title-choice">Suggested title</label><select class="form-select form-select-sm" id="m4b-publication-title-choice" disabled></select></div>
+                                            <div class="col-md-6"><label class="form-label small" for="m4b-publication-author-choice">Suggested author</label><select class="form-select form-select-sm" id="m4b-publication-author-choice" disabled></select></div>
+                                        </div>
+                                        <label class="form-check small"><input class="form-check-input" type="checkbox" id="m4b-publication-cover-choice" disabled>Use this source cover for export</label>
+                                        <label class="form-check small"><input class="form-check-input" type="checkbox" id="m4b-publication-reviewed" disabled>I reviewed the source origin and any stale or ambiguous details</label>
+                                        <div class="small text-warning" id="m4b-publication-review-required" hidden>Explicit review is required for these choices.</div>
+                                        <div class="d-flex flex-wrap gap-2 mt-2">
+                                            <button type="button" class="btn btn-outline-primary btn-sm" id="m4b-publication-apply" onclick="applyM4bPublication()" disabled>Apply choices</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="m4b-publication-clear" onclick="clearM4bAppliedSuggestions()" disabled>Clear applied suggestions</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="m4b-publication-clear-cover" onclick="clearM4bSourceCover()" disabled>Clear source-cover choice</button>
+                                        </div>
+                                        <div class="small mt-2" id="m4b-publication-cover-status">No source cover selected.</div>
+                                        <div class="small mt-2" id="m4b-publication-feedback" role="status" aria-live="polite"></div>
+                                    </details>
                                     <div class="row g-2">
                                         <div class="col-md-6">
-                                            <label class="form-label small mb-1" for="m4b-title">Title</label>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <label class="form-label small mb-1" for="m4b-title">Title</label>
+                                                <button type="button" class="btn btn-link btn-sm py-0" id="m4b-title-clear" onclick="clearM4bTitle()">Leave empty</button>
+                                            </div>
                                             <input type="text" class="form-control form-control-sm" id="m4b-title" placeholder="Book title">
                                         </div>
                                         <div class="col-md-6">
@@ -3676,6 +3702,7 @@
     <script src="/static/js/app-workspace.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-mastering.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-export-quality.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-publication.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-reports.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-help.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-settings.js?v=__APP_BUILD__"></script>

@@ -13,7 +13,6 @@ import logging
 import os
 import posixpath
 import re
-import shutil
 import sys
 import tempfile
 import threading
@@ -70,6 +69,12 @@ from speaker_identity import stabilize_speaker_identities
 from generate_script import LLMGenParams
 from utils import file_lock
 from alexandria_alignment import validate_epub_archive
+from epub_package import get_epub_package
+from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
+from project_scope_files import capture_scope_file
+from publication_source import (PublicationSourceLimit, get_upload_publication_update,
+    apply_publication_source_update, restore_publication_source_update,
+    get_saved_publication_source_bytes, get_publication_source_path)
 
 from core import (
     _saved_book_meta_path,
@@ -115,6 +120,7 @@ from core import (
     _warn_corrupted_json,
     check_global_gpu_lock,
     claim_gpu_task, schedule_claimed_background_task, ensure_book_switch_allowed,
+    ensure_saved_book_destination_available,
     reserve_background_task, register_claimed_background_task, release_gpu_task_claim,
     process_state,
     run_process,
@@ -624,27 +630,8 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None) -> 
         validate_epub_archive(epub_path, archive_bytes=archive_bytes)
     source = io.BytesIO(archive_bytes) if archive_bytes is not None else epub_path
     with zipfile.ZipFile(source, 'r') as zf:
-        # 1. Find the OPF file path from container.xml
-        container_xml = zf.read('META-INF/container.xml')
-        container = ET.fromstring(container_xml)
-        ns = {'c': 'urn:oasis:names:tc:opendocument:xmlns:container'}
-        rootfile_el = container.find('.//c:rootfile', ns)
-        if rootfile_el is None:
-            raise ValueError("Invalid EPUB: no rootfile found in container.xml")
-        opf_path = rootfile_el.get('full-path')
-
-        # 2. Parse the OPF to get manifest (id->href) and spine (reading order)
-        opf_xml = zf.read(opf_path)
-        try:
-            opf = ET.fromstring(opf_xml)
-        except ET.ParseError:
-            # Two verified Sigil-generated books contain this exact duplicated,
-            # malformed metadata attribute. It is unrelated to the manifest or
-            # spine; remove only that known fragment and otherwise fail closed.
-            repaired_opf = opf_xml.replace(b' refines">"#pub-i"', b'')
-            if repaired_opf == opf_xml:
-                raise
-            opf = ET.fromstring(repaired_opf)
+        # Share the package parser with bounded publication metadata review.
+        opf_path, opf = get_epub_package(zf)
         # Detect OPF namespace (varies between EPUB 2 and 3)
         opf_ns = opf.tag.split('}')[0] + '}' if '}' in opf.tag else ''
 
@@ -864,6 +851,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
         storage_lock.__exit__(None, None, None)
         raise cancelled
     owned_paths = set()
+    publication = publication_update = None
     try:
         available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
         if available <= 0:
@@ -879,7 +867,14 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
             raise cancelled
         if file_path.lower().endswith('.epub'):
             try:
-                text, cancelled = await await_upload_operation(asyncio.to_thread(extract_epub_text, file_path))
+                captured, cancelled = await await_upload_operation(asyncio.to_thread(
+                    capture_scope_file, Path(file_path).parent.resolve(), os.path.basename(file_path),
+                    limit=MAX_SCRIPT_UPLOAD_BYTES, include_bytes=True))
+                if cancelled is not None:
+                    raise cancelled
+                _, archive_bytes = captured
+                text, cancelled = await await_upload_operation(asyncio.to_thread(
+                    extract_epub_text, file_path, archive_bytes=archive_bytes))
                 if cancelled is not None:
                     raise cancelled
             except Exception as error:
@@ -890,6 +885,18 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
             available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
             if len(text_bytes) > min(MAX_SCRIPT_UPLOAD_BYTES, available):
                 raise HTTPException(status_code=413, detail="Extracted EPUB text exceeds source upload storage limits.")
+            def capture_publication():
+                options = dict(filename=file.filename or safe_name,
+                               text_sha256=hashlib.sha256(text_bytes).hexdigest())
+                try:
+                    return get_epub_publication_candidate(archive_bytes, **options)
+                except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile, RuntimeError, ImportError) as error:
+                    result = get_epub_publication_origin(archive_bytes, **options)
+                    result['warnings'] = ['Publication suggestions unavailable: ' + str(error)[:2000]]
+                    return result
+            publication, cancelled = await await_upload_operation(asyncio.to_thread(capture_publication))
+            if cancelled is not None:
+                raise cancelled
             txt_name = os.path.basename(file_path).rsplit('.', 1)[0] + '.txt'
             txt_path, cancelled = await await_upload_operation(
                 asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, txt_name))
@@ -905,18 +912,40 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
         file_path, reused = result
         if cancelled is not None:
             raise cancelled
+        if publication is not None:
+            try:
+                remaining = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
+                publication_update, cancelled = await await_upload_operation(asyncio.to_thread(
+                    get_upload_publication_update, file_path, publication, remaining,
+                    source_limit=MAX_SCRIPT_UPLOAD_BYTES))
+                if cancelled is not None:
+                    raise cancelled
+                _, cancelled = await await_upload_operation(asyncio.to_thread(
+                    apply_publication_source_update, publication_update))
+                if cancelled is not None:
+                    raise cancelled
+            except PublicationSourceLimit as error:
+                raise HTTPException(status_code=413, detail=str(error)) from error
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
         if select_active:
             with ensure_book_switch_allowed():
                 apply_book_input_selection(DATA_DIR, file_path,
                                           secure_filename(os.path.splitext(os.path.basename(file_path))[0]), timeout=0)
         return {"filename": file.filename, "stored_filename": os.path.basename(file_path),
-                "path": file_path, "reused": reused}
+                "path": file_path, "reused": reused,
+                "publication_status": publication['metadata_status'] if publication is not None else 'not_captured',
+                "publication_warnings": publication['warnings'] if publication is not None else []}
     except BaseException:
-        for path in owned_paths:
-            try:
-                os.remove(path)
-            except FileNotFoundError:
-                pass
+        try:
+            if publication_update is not None:
+                await await_upload_operation(asyncio.to_thread(restore_publication_source_update, publication_update))
+        finally:
+            for path in owned_paths:
+                try:
+                    os.remove(path)
+                except FileNotFoundError:
+                    pass
         raise
     finally:
         storage_lock.__exit__(None, None, None)
@@ -1218,33 +1247,55 @@ async def snapshot_script(request: SnapshotRequest):
     same shape /api/scripts/save produces. The run keeps going; when it
     finishes it becomes the active script as usual, and the snapshot stays
     in the library."""
-    if not process_state["script"].get("running"):
-        raise HTTPException(status_code=409, detail="No script generation is running; use Save script instead.")
-    checkpoint = get_current_generation_checkpoint()
-    if not isinstance(checkpoint, dict):
-        raise HTTPException(status_code=409, detail="The run has not written a checkpoint yet.")
-    entries = completed_script_prefix(checkpoint)
-    if not entries:
-        raise HTTPException(status_code=409, detail="Nothing is fully finished yet - Step 3 has not completed a window.")
-    from routers.scripts_library import _require_saved_book_name
+    try:
+        return await asyncio.to_thread(_snapshot_script_sync, request)
+    except TimeoutError as error:
+        raise HTTPException(status_code=409, detail='Book or saved snapshot is busy; retry shortly.') from error
+
+
+def _snapshot_script_sync(request):
+    from routers.scripts_library import (_require_saved_book_name, _get_saved_book_companions,
+                                         validate_book_json_bytes)
     safe_name = _require_saved_book_name(request.name)
     dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     os.makedirs(SCRIPTS_DIR, exist_ok=True)
     companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
     metadata = _saved_book_meta_path(safe_name)
-    with file_lock(dest):
-        if any(os.path.exists(path) for path in (dest, companion, metadata)):
+    with ensure_saved_book_destination_available(dest), ensure_book_state(DATA_DIR), \
+            ensure_book_state(SCRIPTS_DIR), contextlib.ExitStack() as locks:
+        for path in (dest, VOICE_CONFIG_PATH, *_get_saved_book_companions(dest)):
+            locks.enter_context(file_lock(path))
+        if not process_state['script'].get('running'):
+            raise HTTPException(status_code=409, detail='No script generation is running; use Save script instead.')
+        checkpoint = get_current_generation_checkpoint()
+        if not isinstance(checkpoint, dict):
+            raise HTTPException(status_code=409, detail="The run has not written a checkpoint yet.")
+        entries = completed_script_prefix(checkpoint)
+        if not entries:
+            raise HTTPException(status_code=409, detail='Nothing is fully finished yet - Step 3 has not completed a window.')
+        if any(os.path.lexists(path) for path in (dest, *_get_saved_book_companions(dest))):
             raise HTTPException(status_code=409,
                                 detail="A saved script already uses that snapshot name.")
-        atomic_json_write(entries, dest)
+        script_bytes = json.dumps(entries, ensure_ascii=False, indent=2).encode('utf-8')
+        replacements = {os.path.basename(dest): script_bytes}
         if os.path.exists(VOICE_CONFIG_PATH):
-            shutil.copy2(VOICE_CONFIG_PATH, companion)
-        atomic_json_write({"book_id": get_active_book_id() or safe_name,
+            voice_bytes = Path(VOICE_CONFIG_PATH).read_bytes()
+            validate_book_json_bytes(voice_bytes, dict, 409, 'Active snapshot voices')
+            replacements[os.path.basename(companion)] = voice_bytes
+        source_state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), default={})
+        try:
+            publication = get_saved_publication_source_bytes(source_state.get('input_file_path'), script_bytes)
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=f'Publication provenance cannot be snapshotted: {error}') from error
+        if publication is not None:
+            replacements[os.path.basename(get_publication_source_path(dest))] = publication
+        replacements[os.path.basename(metadata)] = json.dumps({"book_id": get_active_book_id() or safe_name,
                            "snapshot": {"entries": len(entries),
                                         "segmented": len(checkpoint.get("segmented") or []),
                                         "chunks_done": checkpoint.get("chunks_done"),
                                         "stage": checkpoint.get("stage"), "taken": time.time()}},
-                          metadata)
+                          ensure_ascii=False, indent=2).encode('utf-8')
+        apply_book_state_locked(SCRIPTS_DIR, replacements, [])
     return {"status": "saved", "name": safe_name, "entries": len(entries),
             "segmented": len(checkpoint.get("segmented") or []),
             "chunks_done": checkpoint.get("chunks_done")}

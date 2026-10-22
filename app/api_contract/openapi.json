@@ -2472,14 +2472,40 @@
       "M4bExportRequest": {
         "properties": {
           "author": {
-            "default": "",
-            "title": "Author",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
           },
           "description": {
-            "default": "",
-            "title": "Description",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "expected_book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Book Token"
           },
           "export_quality": {
             "anyOf": [
@@ -2502,9 +2528,16 @@
             ]
           },
           "narrator": {
-            "default": "",
-            "title": "Narrator",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narrator"
           },
           "per_chunk_chapters": {
             "default": false,
@@ -2516,15 +2549,39 @@
             "title": "Require Ready",
             "type": "boolean"
           },
+          "source_cover": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicationCoverSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "title": {
-            "default": "",
-            "title": "Title",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           },
           "year": {
-            "default": "",
-            "title": "Year",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
           }
         },
         "title": "M4bExportRequest",
@@ -3358,6 +3415,101 @@
           "revision"
         ],
         "title": "PronunciationSave",
+        "type": "object"
+      },
+      "PublicationCoverSelection": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Revision",
+            "type": "string"
+          },
+          "origin_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Origin Id",
+            "type": "string"
+          },
+          "reviewed": {
+            "default": false,
+            "title": "Reviewed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "expected_revision",
+          "origin_id"
+        ],
+        "title": "PublicationCoverSelection",
+        "type": "object"
+      },
+      "PublicationSelectionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "author_index": {
+            "anyOf": [
+              {
+                "maximum": 31.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Index"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Revision",
+            "type": "string"
+          },
+          "origin_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Origin Id",
+            "type": "string"
+          },
+          "reviewed": {
+            "default": false,
+            "title": "Reviewed",
+            "type": "boolean"
+          },
+          "select_cover": {
+            "default": false,
+            "title": "Select Cover",
+            "type": "boolean"
+          },
+          "title_index": {
+            "anyOf": [
+              {
+                "maximum": 31.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Index"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "expected_revision",
+          "origin_id"
+        ],
+        "title": "PublicationSelectionRequest",
         "type": "object"
       },
       "ReportExplanationCancelRequest": {
@@ -9465,6 +9617,58 @@
           }
         },
         "summary": "Upload M4B Cover"
+      }
+    },
+    "/api/m4b_publication": {
+      "get": {
+        "operationId": "preview_m4b_publication_api_m4b_publication_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Preview M4B Publication"
+      }
+    },
+    "/api/m4b_publication/resolve": {
+      "post": {
+        "operationId": "resolve_m4b_publication_api_m4b_publication_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationSelectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve M4B Publication"
       }
     },
     "/api/manual_llm/pending": {

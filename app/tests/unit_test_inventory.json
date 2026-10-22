@@ -3500,6 +3500,27 @@
     "tests.test_epub_captured_bytes.EpubCapturedBytesTests.test_bytes_parser_preserves_path_output_without_reopening_source",
     "tests.test_epub_captured_bytes.EpubCapturedBytesTests.test_corpus_reads_epub_source_once_and_creates_no_scratch_snapshot"
   ],
+  "test_epub_package": [
+    "tests.test_epub_package.EpubPackageTests.test_missing_rootfile_fails_in_both_modes",
+    "tests.test_epub_package.EpubPackageTests.test_only_known_sigil_fragment_is_repaired",
+    "tests.test_epub_package.EpubPackageTests.test_package_preserves_epub2_and_epub3_namespaces",
+    "tests.test_epub_package.EpubPackageTests.test_review_bounds_container_and_opf_without_changing_default_parser",
+    "tests.test_epub_package.EpubPackageTests.test_review_confines_package_member_names_without_extracting",
+    "tests.test_epub_package.EpubPackageTests.test_review_refuses_duplicate_selected_member_instead_of_guessing",
+    "tests.test_epub_package.EpubPackageTests.test_text_extraction_first_root_is_preserved_but_review_refuses_ambiguity"
+  ],
+  "test_epub_publication": [
+    "tests.test_epub_publication.EpubPublicationTests.test_cover_expansion_guard_is_stricter_than_whole_archive_admission",
+    "tests.test_epub_publication.EpubPublicationTests.test_duplicate_members_and_conflicting_declarations_never_pick_a_cover",
+    "tests.test_epub_publication.EpubPublicationTests.test_epub2_and_epub3_capture_options_origin_and_complete_cover_without_writes",
+    "tests.test_epub_publication.EpubPublicationTests.test_epub3_marc_author_and_narrator_refinements_remain_distinct",
+    "tests.test_epub_publication.EpubPublicationTests.test_external_escaping_or_url_decorated_covers_are_refused_but_metadata_remains",
+    "tests.test_epub_publication.EpubPublicationTests.test_many_duplicate_creators_keep_author_and_role_ambiguity_semantics",
+    "tests.test_epub_publication.EpubPublicationTests.test_missing_declared_cover_does_not_hide_conflicting_declarations",
+    "tests.test_epub_publication.EpubPublicationTests.test_truncated_cover_and_small_output_budget_preserve_metadata_only",
+    "tests.test_epub_publication.EpubPublicationTests.test_unknown_role_scheme_and_ambiguous_creator_ids_do_not_invent_an_author",
+    "tests.test_epub_publication.EpubPublicationTests.test_xml_and_archive_limits_apply_before_suggestions_are_returned"
+  ],
   "test_evaluation_directory_containment": [
     "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_candidate_cleanup_rejects_escape_without_deleting_owned_or_outside_files",
     "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_escaped_ids_and_symlink_adapter_reject_before_generation",
@@ -5852,7 +5873,14 @@
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_accepted_covers_survive_actual_m4b_mux_as_attached_picture",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_decoder_pixel_limits_and_publication_failure_preserve_prior_cover",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_invalid_and_truncated_uploads_preserve_prior_cover_and_remove_owned_stage",
+    "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_missing_owned_stage_keeps_prior_cover_and_validation_status",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_validation_does_not_block_same_event_loop_http"
+  ],
+  "test_m4b_cover_bytes": [
+    "tests.test_m4b_cover_bytes.M4bCoverBytesTests.test_bad_or_truncated_bytes_cannot_become_cover_candidates",
+    "tests.test_m4b_cover_bytes.M4bCoverBytesTests.test_non_png_image_is_normalized_as_rgb_jpeg",
+    "tests.test_m4b_cover_bytes.M4bCoverBytesTests.test_pure_normalization_strips_payload_preserves_png_pixels_and_hashes_result",
+    "tests.test_m4b_cover_bytes.M4bCoverBytesTests.test_small_output_budget_refuses_before_returning_a_cover"
   ],
   "test_m4b_cover_trailing_payload": [
     "tests.test_m4b_cover_trailing_payload.M4bCoverTrailingPayloadTests.test_jpeg_orientation_is_applied_to_pixels_before_actual_m4b_export",
@@ -5865,6 +5893,16 @@
     "tests.test_m4b_export_quality.M4BExportQualityTests.test_native_legacy_and_mastered_aac_match_exact_source_clock_chapters_tags_and_one_decode",
     "tests.test_m4b_export_quality.M4BExportQualityTests.test_source_cover_mutation_and_late_cancel_preserve_prior_delivery",
     "tests.test_m4b_export_quality.M4BExportQualityTests.test_successful_encoder_with_short_audio_missing_moved_or_renamed_chapter_and_wrong_tags_is_refused"
+  ],
+  "test_m4b_source_publication": [
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_absent_and_intentionally_empty_title_differ_and_source_cover_is_opt_in",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_changed_dependencies_after_encode_preserve_prior_valid_output",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_encoder_failure_and_post_encode_cancellation_clean_cover_and_preserve_prior",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_final_publication_failure_preserves_valid_delivery_and_cleans_selected_cover",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_http_source_choice_uses_real_task_admission_result_and_clears_claims",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_invalid_cover_pixels_wrong_book_and_stale_choice_refuse_before_encoding",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_real_m4b_uses_explicit_source_cover_exact_bytes_and_manual_tags",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_uploaded_cover_wins_over_even_a_stale_source_selection"
   ],
   "test_macos_owner_protocol": [
     "tests.test_macos_owner_protocol.MacOwnerAdmissionTests.test_nonexclusive_and_unknown_scope_are_rejected",
@@ -7498,6 +7536,25 @@
     "tests.test_prune_chain.PruneChainTests.test_selected_checkout_manifest_and_whisper_paths_are_used"
   ],
   "test_prune_prosodic_clips": [],
+  "test_publication_js": [
+    "tests.test_publication_js.PublicationJSTests.test_actual_export_handler_sends_absent_empty_and_source_choices_with_book_fencing",
+    "tests.test_publication_js.PublicationJSTests.test_explicit_safe_preview_apply_cover_clear_and_typed_export_payload",
+    "tests.test_publication_js.PublicationJSTests.test_incomplete_resolve_and_export_options_changed_during_book_read_refuse",
+    "tests.test_publication_js.PublicationJSTests.test_late_book_preview_and_resolve_after_user_edit_or_cover_change_cannot_apply",
+    "tests.test_publication_js.PublicationJSTests.test_manual_entered_and_intentionally_empty_fields_win_and_book_reset_keeps_manual_edits",
+    "tests.test_publication_js.PublicationJSTests.test_readonly_refresh_preserves_accepted_cover_until_its_revision_changes",
+    "tests.test_publication_js.PublicationJSTests.test_stale_review_uploaded_precedence_and_untrusted_preview_image"
+  ],
+  "test_publication_preview_api": [
+    "tests.test_publication_preview_api.PublicationPreviewAPITests.test_companion_changed_during_resolution_refuses_the_partially_read_snapshot",
+    "tests.test_publication_preview_api.PublicationPreviewAPITests.test_every_changed_book_source_companion_or_cover_refuses_old_preview",
+    "tests.test_publication_preview_api.PublicationPreviewAPITests.test_invalid_indices_types_empty_choices_or_unknown_origin_cannot_resolve",
+    "tests.test_publication_preview_api.PublicationPreviewAPITests.test_pending_recovery_and_corrupt_provenance_refuse_without_repair",
+    "tests.test_publication_preview_api.PublicationPreviewAPITests.test_preview_and_explicit_choices_are_readonly_and_expose_origins_not_local_paths",
+    "tests.test_publication_preview_api.PublicationPreviewAPITests.test_same_event_loop_remains_responsive_during_bounded_source_read",
+    "tests.test_publication_preview_api.PublicationPreviewAPITests.test_stale_or_multiple_origins_require_explicit_review_of_current_preview",
+    "tests.test_publication_preview_api.PublicationPreviewAPITests.test_uploaded_cover_precedence_keeps_metadata_choices_and_requires_fresh_source_cover_choice"
+  ],
   "test_published_anchors": [
     "tests.test_published_anchors.PublishedAnchorsTest.test_anchor_actually_exceeds_every_arm",
     "tests.test_published_anchors.PublishedAnchorsTest.test_every_artifact_records_anchor_validity",
@@ -8656,6 +8713,14 @@
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_save_waits_for_real_generation_launch_without_holding_task_mutex",
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_selected_book_remains_owned_between_forward_and_backward_passes"
   ],
+  "test_saved_publication_source": [
+    "tests.test_saved_publication_source.SavedPublicationSourceTests.test_corrupt_hint_blocks_save_or_load_before_book_files_change",
+    "tests.test_saved_publication_source.SavedPublicationSourceTests.test_provenance_publication_failure_rolls_back_entire_saved_family",
+    "tests.test_saved_publication_source.SavedPublicationSourceTests.test_reader_rejects_forged_identity_invalid_shapes_and_cover_hashes",
+    "tests.test_saved_publication_source.SavedPublicationSourceTests.test_save_load_list_and_delete_keep_exact_origin_and_script_binding",
+    "tests.test_saved_publication_source.SavedPublicationSourceTests.test_speaker_repair_keeps_provenance_but_marks_its_script_binding_stale",
+    "tests.test_saved_publication_source.SavedPublicationSourceTests.test_stale_input_hints_are_preserved_without_certifying_the_new_script"
+  ],
   "test_saved_script_api_js": [
     "tests.test_saved_script_api_js.SavedScriptApiJsTests.test_html_http_errors_keep_status_message_and_do_not_apply_success_effects",
     "tests.test_saved_script_api_js.SavedScriptApiJsTests.test_save_refuses_book_or_generation_change_while_voice_flush_is_pending",
@@ -9011,6 +9076,14 @@
     "tests.test_snapshot_atomic_write.SnapshotAtomicWriteTests.test_failed_replacement_preserves_old_snapshot_and_cleans_temporary_file",
     "tests.test_snapshot_atomic_write.SnapshotAtomicWriteTests.test_partial_serialization_failure_preserves_old_snapshot",
     "tests.test_snapshot_atomic_write.SnapshotAtomicWriteTests.test_snapshot_bytes_preserve_deterministic_format"
+  ],
+  "test_snapshot_publication_source": [
+    "tests.test_snapshot_publication_source.SnapshotPublicationSourceTests.test_batch_review_destination_ownership_is_preserved",
+    "tests.test_snapshot_publication_source.SnapshotPublicationSourceTests.test_corrupt_source_provenance_or_voices_refuse_before_library_changes",
+    "tests.test_snapshot_publication_source.SnapshotPublicationSourceTests.test_finished_prefix_and_provenance_commit_together_without_changing_the_run",
+    "tests.test_snapshot_publication_source.SnapshotPublicationSourceTests.test_orphan_companion_collision_refuses_without_overwriting_it",
+    "tests.test_snapshot_publication_source.SnapshotPublicationSourceTests.test_provenance_publication_failure_restores_library_without_partial_snapshot",
+    "tests.test_snapshot_publication_source.SnapshotPublicationSourceTests.test_provenance_read_does_not_block_same_loop_http"
   ],
   "test_source_context": [
     "tests.test_source_context.LocateTest.test_a_line_that_is_not_in_the_book_is_not_found",
@@ -11133,6 +11206,17 @@
   "test_upload_hash_cache": [
     "tests.test_upload_hash_cache.UploadHashCacheTests.test_capacity_and_access_recency_evict_oldest_without_changing_file_bytes",
     "tests.test_upload_hash_cache.UploadHashCacheTests.test_native_versions_replace_historical_digest_for_the_same_path"
+  ],
+  "test_upload_publication_source": [
+    "tests.test_upload_publication_source.UploadPublicationSourceTests.test_cancelled_publication_waits_for_owned_worker_then_restores_prior_companion",
+    "tests.test_upload_publication_source.UploadPublicationSourceTests.test_capture_preserves_exact_origin_and_distinct_deduplicated_editions",
+    "tests.test_upload_publication_source.UploadPublicationSourceTests.test_changed_capture_of_same_origin_requires_review_without_overwriting_it",
+    "tests.test_upload_publication_source.UploadPublicationSourceTests.test_companion_staging_counts_against_actual_upload_quota",
+    "tests.test_upload_publication_source.UploadPublicationSourceTests.test_deep_corrupt_companion_refuses_reimport_without_changing_existing_source",
+    "tests.test_upload_publication_source.UploadPublicationSourceTests.test_failure_after_publication_and_failed_selection_restore_previous_bytes",
+    "tests.test_upload_publication_source.UploadPublicationSourceTests.test_missing_metadata_retains_readable_text_and_explicit_unavailable_origin",
+    "tests.test_upload_publication_source.UploadPublicationSourceTests.test_origin_cap_refusal_preserves_prior_companion_and_source",
+    "tests.test_upload_publication_source.UploadPublicationSourceTests.test_text_and_metadata_use_same_captured_bytes_even_if_stage_is_replaced"
   ],
   "test_ux_fixes_from_fork": [
     "tests.test_ux_fixes_from_fork.ExportProgressTests.test_loading_progress_is_none_without_callback",

@@ -48,6 +48,7 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
             with self.subTest(selections=selections),self.fixture() as (root,api),TestClient(api) as client:
                 path=root/'scripts/book.json';voice=root/'scripts/book.voice_config.json'
                 before_script=path.read_bytes();before_voice=voice.read_bytes();metadata=(root/'scripts/book.meta.json').read_bytes()
+                publication=Path(str(path)+'.publication.json');before_publication=publication.read_bytes()
                 response=client.post('/api/scripts/book/repair/speakers/apply',json=self.request(root,selections))
                 self.assertEqual(200,response.status_code,response.text)
                 self.assertFalse(voice.exists(),'obsolete assignments survived attribution repair')
@@ -58,8 +59,9 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
                 entries=json.loads(path.read_bytes())
                 for item in selections:self.assertEqual(item['new_speaker'],entries[item['entry_number']-1]['speaker'])
                 self.assertEqual(metadata,(root/'scripts/book.meta.json').read_bytes())
+                self.assertEqual(before_publication,publication.read_bytes())
                 for companion in routes._get_saved_book_companions(str(path)):
-                    if companion!=str(root/'scripts/book.meta.json'):self.assertFalse(Path(companion).exists())
+                    if companion not in (str(root/'scripts/book.meta.json'),str(publication)):self.assertFalse(Path(companion).exists())
                 self.assertFalse(client.get('/api/scripts').json()[0]['has_voice_config'])
 
     def test_missing_companion_is_reported_without_creating_a_voice_backup(self):

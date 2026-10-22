@@ -15,7 +15,6 @@ import soundfile
 import tempfile
 import time
 import uuid
-import warnings
 import zipfile
 from contextlib import contextmanager
 from typing import Annotated, List, Optional
@@ -23,7 +22,8 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Query, Path as PathParameter
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from starlette.background import BackgroundTask
-from pydantic import BaseModel, Field, StrictInt, field_validator
+from pydantic import BaseModel, Field, StrictInt, StrictBool, field_validator
+from publication_preview import get_publication_review, get_publication_preview, get_publication_selection
 from config_settings import load_app_config
 from audio_mastering import MasteringOptions, get_audio_sha256
 from export_quality import ExportQualityOptions
@@ -1078,15 +1078,51 @@ async def validate_export_readiness(require_ready):
                 "message": "Mark every speaker ready before exporting.", "speakers": missing})
 
 
+class PublicationCoverSelection(BaseModel):
+    model_config = {'extra': 'forbid'}
+    expected_book_token: str = Field(strict=True, pattern=r'^[0-9a-f]{64}$')
+    expected_revision: str = Field(strict=True, pattern=r'^[0-9a-f]{64}$')
+    origin_id: str = Field(strict=True, pattern=r'^[0-9a-f]{64}$')
+    reviewed: StrictBool = False
+
+
+class PublicationSelectionRequest(PublicationCoverSelection):
+    title_index: Annotated[int, Field(strict=True, ge=0, le=31)] | None = None
+    author_index: Annotated[int, Field(strict=True, ge=0, le=31)] | None = None
+    select_cover: StrictBool = False
+
+
+def _get_publication_review_sync(selection=None):
+    try:
+        with ensure_book_state(DATA_DIR, recover=False):
+            review = get_publication_review(DATA_DIR)
+            return (get_publication_selection(review, selection.model_dump()) if selection is not None
+                    else get_publication_preview(review))
+    except (OSError, ValueError, RecursionError) as error:
+        raise HTTPException(status_code=409, detail=str(error)[:500]) from error
+
+
+@router.get('/api/m4b_publication')
+async def preview_m4b_publication():
+    return await asyncio.to_thread(_get_publication_review_sync)
+
+
+@router.post('/api/m4b_publication/resolve')
+async def resolve_m4b_publication(request: PublicationSelectionRequest):
+    return await asyncio.to_thread(_get_publication_review_sync, request)
+
+
 class M4bExportRequest(BaseModel):
     export_quality: Optional[ExportQualityOptions] = None
     mastering: Optional[MasteringOptions] = None
     per_chunk_chapters: bool = False
-    title: str = ""
-    author: str = ""
-    narrator: str = ""
-    year: str = ""
-    description: str = ""
+    title: str | None = Field(default=None, max_length=20000)
+    author: str | None = Field(default=None, max_length=20000)
+    narrator: str | None = Field(default=None, max_length=20000)
+    year: str | None = Field(default=None, max_length=20000)
+    description: str | None = Field(default=None, max_length=20000)
+    source_cover: PublicationCoverSelection | None = None
+    expected_book_token: str | None = Field(default=None, strict=True, pattern=r'^[0-9a-f]{64}$')
     require_ready: bool = False
 
 @router.post("/api/merge_m4b")
@@ -1100,19 +1136,20 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
         quality_attempt = None
         try:
             quality_attempt = get_export_quality_attempt(request, process_state["m4b_export"])
-            meta = {
-                "title": request.title,
-                "author": request.author,
-                "narrator": request.narrator,
-                "year": request.year,
-                "description": request.description,
-                "cover_path": os.path.join(DATA_DIR, "m4b_cover.jpg") if os.path.exists(os.path.join(DATA_DIR, "m4b_cover.jpg")) else "",
-            }
+            meta = {name: getattr(request, name) for name in ('title', 'author', 'narrator', 'year', 'description')
+                    if getattr(request, name) is not None}
+            meta['cover_path'] = os.path.join(DATA_DIR, 'm4b_cover.jpg') if os.path.exists(os.path.join(DATA_DIR, 'm4b_cover.jpg')) else ''
+            publication_options = {}
+            if request.source_cover is not None:
+                publication_options['source_cover'] = request.source_cover.model_dump()
+            if request.expected_book_token is not None:
+                publication_options['expected_book_token'] = request.expected_book_token
             success, msg = project_manager.merge_m4b(
                 per_chunk_chapters=request.per_chunk_chapters, metadata=meta,
                 cancel_check=lambda: process_state["m4b_export"].get("cancel", False),
                 progress_callback=lambda message: process_state["m4b_export"]["logs"].append(message),
                 **ensure_export_mastering_context(request, process_state["m4b_export"]),
+                **publication_options,
                 **quality_attempt.kwargs)
             quality_attempt.finish(success, msg)
             process_state["m4b_export"]["result"] = get_export_task_result(success, msg)
@@ -1325,31 +1362,20 @@ async def get_audiobook_m4b():
 
 def _apply_m4b_cover(cover_tmp, cover_path):
     """Validate uploaded image data before publishing an MP4-compatible cover."""
-    from PIL import Image, ImageOps, UnidentifiedImageError
+    from m4b_cover import CoverValidationError, MAX_COVER_BYTES, get_normalized_cover
     normalized = cover_tmp + ".jpg"
     try:
         try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("error", Image.DecompressionBombWarning)
-                with Image.open(cover_tmp) as image:
-                    image.verify()
-                with Image.open(cover_tmp) as image:
-                    image.load()
-                    cover_format = "PNG" if image.format == "PNG" else "JPEG"
-                    converted = ImageOps.exif_transpose(image)
-                    if cover_format == "JPEG" and converted.mode != "RGB":
-                        try:
-                            rgb = converted.convert("RGB")
-                        finally:
-                            converted.close()
-                        converted = rgb
-        except (UnidentifiedImageError, OSError, ValueError,
-                Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+            with open(cover_tmp, 'rb') as source:
+                raw = source.read(MAX_COVER_BYTES + 1)
+        except OSError as exc:
             raise HTTPException(status_code=400, detail="Cover must contain a complete, decodable image") from exc
         try:
-            converted.save(normalized, format=cover_format)
-        finally:
-            converted.close()
+            cover = get_normalized_cover(raw)
+        except CoverValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        with open(normalized, 'wb') as output:
+            output.write(cover['data'])
         os.replace(normalized, cover_path)
     finally:
         for path in (cover_tmp, normalized):

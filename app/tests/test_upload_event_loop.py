@@ -88,12 +88,12 @@ class UploadEventLoopTests(unittest.IsolatedAsyncioTestCase):
             worker_ids = []
             extract = script.extract_epub_text
 
-            def paused_extract(path):
+            def paused_extract(path, **kwargs):
                 worker_ids.append(threading.get_ident())
                 attempted.set()
                 if not release.wait(3):
                     raise AssertionError('EPUB fixture was never released')
-                return extract(path)
+                return extract(path, **kwargs)
 
             with patch.object(script,'UPLOADS_DIR',str(uploads)), \
                  patch.object(script,'DATA_DIR',str(root)), \
@@ -102,7 +102,8 @@ class UploadEventLoopTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual('book.txt',result['stored_filename'])
             path = Path(result['path'])
             self.assertEqual('First paragraph.\n\nSecond paragraph.',path.read_text())
-            self.assertEqual(['book.txt'],[p.name for p in uploads.iterdir()])
+            self.assertEqual(['book.txt', 'book.txt.publication.json'], sorted(p.name for p in uploads.iterdir()))
+            self.assertEqual('unavailable', result['publication_status'])
             self.assertEqual(str(path),json.loads((root/'state.json').read_text())['input_file_path'])
 
     async def test_dataset_metadata_validation_leaves_other_http_requests_responsive_and_retains_audio(self):

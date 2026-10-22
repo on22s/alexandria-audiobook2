@@ -83,6 +83,16 @@ class M4bCoverAdmissionTests(unittest.TestCase):
                 self.assertEqual(original, cover.read_bytes())
                 self.assertFalse(list(root.glob('m4b_cover.jpg.upload.*')))
 
+    def test_missing_owned_stage_keeps_prior_cover_and_validation_status(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root); cover = root / 'cover.jpg'
+            original = image_bytes('PNG'); cover.write_bytes(original)
+            with self.assertRaises(editor.HTTPException) as error:
+                editor._apply_m4b_cover(str(root / 'missing.upload'), str(cover))
+            self.assertEqual(400, error.exception.status_code)
+            self.assertEqual(original, cover.read_bytes())
+            self.assertEqual([cover], list(root.iterdir()))
+
     def test_validation_does_not_block_same_event_loop_http(self):
         with tempfile.TemporaryDirectory() as root:
             app = FastAPI(); app.include_router(editor.router)

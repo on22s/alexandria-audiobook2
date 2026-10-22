@@ -2135,7 +2135,8 @@ class ProjectManager:
             return False, "Export cancelled"
 
     def merge_m4b(self, per_chunk_chapters=False, metadata=None, cancel_check=None, progress_callback=None,
-                  mastering=None, mastering_callback=None, export_quality=None, export_quality_callback=None):
+                  mastering=None, mastering_callback=None, export_quality=None, export_quality_callback=None,
+                  source_cover=None, expected_book_token=None):
         """Merge audio chunks into an M4B audiobook with chapter markers.
 
         Args:
@@ -2152,14 +2153,22 @@ class ProjectManager:
         from export_publication import ExportSourceSnapshot
         quality_options = get_export_quality_options(export_quality)
         metadata = copy.deepcopy(metadata or {})
-        tags = dict(title=metadata.get('title') or 'Audiobook', artist=metadata.get('author') or '',
+        tags = dict(title=metadata.get('title') if metadata.get('title') is not None else 'Audiobook', artist=metadata.get('author') or '',
             album_artist=metadata.get('narrator') or '', date=metadata.get('year') or '',
             comment=metadata.get('description') or '', genre='Audiobook')
         cleanup = []
+        publication = ExitStack()
         try:
             cover_path = metadata.get('cover_path') or ''
+            from m4b_publication import ensure_m4b_publication
+            resolved = publication.enter_context(ensure_m4b_publication(self.root_dir, cover_path,
+                source_cover, expected_book_token, cancel_check))
+            cover_path = resolved['cover_path']
             source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check,
-                additional_sources=[cover_path] if cover_path else [])
+                additional_sources=([cover_path] if cover_path else []) + list(resolved['expected_sources']))
+            if any(path not in source_snapshot.identities or source_snapshot.identities[path] != identity
+                   for path, identity in resolved['expected_sources'].items()):
+                raise ValueError('Publication source changed before M4B source capture')
             with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
                 chunks_with_audio, skipped = self._load_chunks_with_audio(cancel_check=cancel_check,
                         progress_callback=_loading_progress(progress_callback),
@@ -2299,6 +2308,7 @@ class ProjectManager:
                         os.remove(tmp)
                     except OSError:
                         pass
+            publication.close()
 
         if skipped:
             return True, f"audiobook.m4b ({skipped} chunk(s) skipped — missing/corrupt audio)"

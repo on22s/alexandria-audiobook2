@@ -54,6 +54,7 @@ class LocalUiAssetTests(unittest.TestCase):
                           '/static/js/app-editor-repair.js?v=__APP_BUILD__',
                           '/static/js/app-workspace.js?v=__APP_BUILD__',
                           '/static/js/app-project-scope.js?v=__APP_BUILD__',
+                          '/static/js/app-publication.js?v=__APP_BUILD__',
                           '/static/js/app-pronunciation.js?v=__APP_BUILD__',
                           '/static/js/app-editor-review.js?v=__APP_BUILD__',
                           '/static/js/app-take-history.js?v=__APP_BUILD__',
@@ -68,6 +69,7 @@ class LocalUiAssetTests(unittest.TestCase):
         self.assertIn(('/static/js/app-speaker-review.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-help.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-settings.js?v=__APP_BUILD__', None), resources)
+        self.assertIn(('/static/js/app-publication.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-take-history.js?v=__APP_BUILD__', None), resources)
         app = FastAPI()
         app.mount('/static', StaticFiles(directory=STATIC), name='static')

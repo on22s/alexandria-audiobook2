@@ -10,11 +10,13 @@ Usage:
 import argparse
 from contextlib import contextmanager
 import io
+import hashlib
 import json
 import os
 from pathlib import Path
 import sys
 import time
+import zipfile
 import requests
 
 from utils import atomic_json_write
@@ -509,6 +511,51 @@ def test_upload_file():
     assert_key(data, "path")
     if data["filename"] != f"{TEST_PREFIX}upload.txt":
         raise TestFailure(f"Unexpected filename: {data['filename']}")
+    shared['upload_filename'] = data['stored_filename']
+
+
+def test_m4b_publication_preview_contract():
+    response = get('/api/m4b_publication'); assert_status(response)
+    preview = response.json()
+    for key in ('book_token', 'revision', 'binding_status', 'candidates', 'uploaded_cover'):
+        assert_key(preview, key)
+    if not isinstance(preview['candidates'], list) or len(preview['candidates']) > 4:
+        raise TestFailure('Publication candidates must be a bounded list')
+    known = {row['id'] for row in preview['candidates']}
+    missing = next(f'{number:064x}' for number in range(5) if f'{number:064x}' not in known)
+    selection = {'expected_book_token': preview['book_token'], 'expected_revision': preview['revision'],
+                 'origin_id': missing, 'title_index': 0}
+    assert_status(post('/api/m4b_publication/resolve', json=selection), 409)
+    assert_status(post('/api/m4b_publication/resolve', json={**selection, 'title_index': True}), 422)
+
+
+def test_epub_publication_roundtrip():
+    original = shared.get('upload_filename')
+    if not original:
+        raise TestFailure('Source upload prerequisite is unavailable')
+    raw = io.BytesIO()
+    with zipfile.ZipFile(raw, 'w') as archive:
+        archive.writestr('META-INF/container.xml', '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfile full-path="book.opf"/></container>')
+        archive.writestr('book.opf', '<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/"><metadata><dc:title>Shareable API title</dc:title><dc:creator>Fixture Author</dc:creator></metadata><manifest><item id="body" href="body.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="body"/></spine></package>')
+        archive.writestr('body.xhtml', '<html><body><p>This source belongs to the publication API fixture.</p></body></html>')
+    captured = raw.getvalue()
+    response = post('/api/upload?select_active=false', files={
+        'file': (f'{TEST_PREFIX}publication.epub', captured, 'application/epub+zip')})
+    assert_status(response); uploaded = response.json()
+    try:
+        assert_status(post('/api/uploads/select', json={'filename': uploaded['stored_filename']}))
+        response = get('/api/m4b_publication'); assert_status(response); preview = response.json()
+        candidates = [row for row in preview['candidates'] if row['origin']['sha256'] == hashlib.sha256(captured).hexdigest()]
+        if len(candidates) != 1 or preview['binding_status'] != 'current':
+            raise TestFailure('Imported EPUB origin was not bound to the selected source')
+        response = post('/api/m4b_publication/resolve', json={'expected_book_token': preview['book_token'],
+            'expected_revision': preview['revision'], 'origin_id': candidates[0]['id'],
+            'title_index': 0, 'author_index': 0, 'reviewed': True})
+        assert_status(response)
+        if response.json()['fields'] != {'title': 'Shareable API title', 'author': 'Fixture Author'}:
+            raise TestFailure('Explicit publication choices did not match the captured EPUB')
+    finally:
+        assert_status(post('/api/uploads/select', json={'filename': original}))
 
 
 # ── Section 4: Annotated Script ─────────────────────────────
@@ -1747,6 +1794,8 @@ def run_all_tests():
 
     section("Upload")
     run_test("upload_file", test_upload_file)
+    run_test('m4b_publication_preview_contract', test_m4b_publication_preview_contract)
+    run_test('epub_publication_roundtrip', test_epub_publication_roundtrip)
 
     section("Annotated Script")
     run_test("get_annotated_script", test_get_annotated_script)

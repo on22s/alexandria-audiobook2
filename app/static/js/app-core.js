@@ -1827,6 +1827,7 @@
             window.resetEditorRepairPreview?.();
             window.invalidateBookWorkspace?.();
             window.resetSourceScopeBook?.();
+            window.resetM4bPublicationBook?.();
         }
         function enqueueBookSelection(request, action) {
             const previous = window._existingUploadSelectionPending || Promise.resolve();
@@ -8139,6 +8140,7 @@
             const file = e.target.files[0];
             const statusEl = document.getElementById('m4b-cover-status');
             if (!file) { return; }
+            window.invalidateM4bPublicationCover?.();
             const formData = new FormData();
             formData.append('file', file);
             try {
@@ -8154,6 +8156,7 @@
         });
 
         window.removeM4bCover = async () => {
+            window.invalidateM4bPublicationCover?.();
             const statusEl = document.getElementById('m4b-cover-status');
             try {
                 await API.del('/api/m4b_cover');
@@ -8176,6 +8179,7 @@
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Exporting M4B...</span>';
 
             try {
+                const publication = await window.getM4bPublicationPayload?.() || {};
                 window.resetExportMasteringView?.(); window.resetExportQualityView?.();
                 await API.post('/api/merge_m4b', {
                     per_chunk_chapters: perChunk,
@@ -8185,6 +8189,7 @@
                     year: document.getElementById('m4b-year').value,
                     description: document.getElementById('m4b-description').value,
                     require_ready: document.getElementById('m4b-require-ready').checked,
+                    ...publication,
                     ...(window.getExportMasteringOptions?.() ? {mastering: window.getExportMasteringOptions()} : {}),
                     ...(window.getExportQualityOptions?.() ? {export_quality: window.getExportQualityOptions()} : {})
                 });
