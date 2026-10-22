@@ -20,7 +20,7 @@ from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfi
 
 from default_prompts import load_default_prompts, load_instruct_prompts, load_segment_prompts
 from llm_provider import is_api_key_reference
-from device_utils import normalize_device
+from device_utils import get_available_gpu_device, normalize_device
 from review_prompts import load_review_prompts
 from persona_prompts import load_persona_prompts
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
@@ -385,11 +385,9 @@ def get_system_stats():
         pass
 
     gpu_name = gpu.get("name") if gpu else None
-    torch_cuda_ok = False
+    torch_gpu_ok = False
     try:
-        torch = _get_torch()
-        if torch is not None and torch.cuda.is_available():
-            torch_cuda_ok = True
+        torch_gpu_ok = get_available_gpu_device(_get_torch()) is not None
     except (RuntimeError, OSError, AttributeError):
         pass
     if gpu_name is None and gpu is not None:
@@ -410,7 +408,7 @@ def get_system_stats():
     # showing up as "everything is slow" with no clear cause.
     gpu_mismatch = False
     gpu_vendor = None
-    if not torch_cuda_ok:
+    if not torch_gpu_ok:
         has_gpu, gpu_vendor = system_has_gpu()
         gpu_mismatch = has_gpu
 

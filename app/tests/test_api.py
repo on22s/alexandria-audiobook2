@@ -461,6 +461,12 @@ def test_system_stats():
     data = r.json()
     assert_key(data, "gpu")
     assert_key(data, "disk")
+    assert_key(data, "gpu_mismatch")
+    assert_key(data, "gpu_mismatch_vendor")
+    if not isinstance(data["gpu_mismatch"], bool):
+        raise TestFailure("gpu_mismatch should be bool")
+    if data["gpu_mismatch_vendor"] is not None and not isinstance(data["gpu_mismatch_vendor"], str):
+        raise TestFailure("gpu_mismatch_vendor should be a string or null")
     disk = data["disk"]
     assert_key(disk, "free_gb")
     assert_key(disk, "low_space")

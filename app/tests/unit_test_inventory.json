@@ -9815,6 +9815,17 @@
     "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unowned_or_changed_claim_refused_before_registry_creation",
     "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unsafe_first_row_does_not_starve_later_abandoned_workspace"
   ],
+  "test_system_gpu_availability": [
+    "tests.test_system_gpu_availability.SystemGpuAvailabilityTests.test_auto_resolution_preserves_probe_errors_and_missing_torch_warning",
+    "tests.test_system_gpu_availability.SystemGpuAvailabilityTests.test_available_mps_matches_auto_resolution_and_actual_http_status",
+    "tests.test_system_gpu_availability.SystemGpuAvailabilityTests.test_cuda_and_rocm_keep_priority_and_original_memory_statistics",
+    "tests.test_system_gpu_availability.SystemGpuAvailabilityTests.test_device_helper_import_remains_independent_of_optional_torch",
+    "tests.test_system_gpu_availability.SystemGpuAvailabilityTests.test_explicit_device_selection_still_needs_no_torch_import",
+    "tests.test_system_gpu_availability.SystemGpuAvailabilityTests.test_missing_torch_unavailable_backends_and_no_gpu_controls",
+    "tests.test_system_gpu_availability.SystemGpuAvailabilityTests.test_mps_and_explicit_cpu_memory_remain_unknown_without_a_probe",
+    "tests.test_system_gpu_availability.SystemGpuAvailabilityTests.test_status_probe_errors_preserve_the_real_unavailable_gpu_warning",
+    "tests.test_system_gpu_availability.SystemGpuAvailabilityTests.test_workbench_uses_actual_status_to_clear_false_mps_warning"
+  ],
   "test_system_version": [
     "tests.test_system_version.VersionEndpointTests.test_version_endpoint_returns_runtime_info"
   ],

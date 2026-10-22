@@ -34,6 +34,17 @@ def normalize_device(device_str, allow_auto=True):
     raise ValueError(f"Unsupported device '{device_str}'; expected {allowed}")
 
 
+def get_available_gpu_device(torch):
+    """Read the supported Torch GPU backend, without loading a model."""
+    if torch is None:
+        return None
+    if torch.cuda.is_available():
+        return "cuda"
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return "mps"
+    return None
+
+
 def resolve_device(device_str):
     """Resolve 'auto' to the best available torch device: cuda > mps > cpu.
 
@@ -50,11 +61,10 @@ def resolve_device(device_str):
     torch_unavailable_reason = None
     try:
         import torch
-        if torch.cuda.is_available():
-            return "cuda"
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return "mps"
-        torch_unavailable_reason = "torch.cuda.is_available() is False"
+        available = get_available_gpu_device(torch)
+        if available is not None:
+            return available
+        torch_unavailable_reason = "no CUDA or MPS backend is available"
     except ImportError:
         torch_unavailable_reason = "torch isn't importable in this environment"
 
