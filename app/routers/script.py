@@ -1,3 +1,4 @@
+from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
                                     apply_book_state_locked)
@@ -1166,15 +1167,7 @@ def get_script_recovery_manifest() -> Optional[dict]:
     is a recovery candidate.  A completed manifest must never surface a
     misleading Retry action.
     """
-    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
-    if (not isinstance(state, dict)
-            or state.get("script_generation_input_file") != state.get("input_file_path")):
-        return None
-    manifest = safe_load_json(three_pass_manifest_path(SCRIPT_PATH), {})
-    if not isinstance(manifest, dict) or manifest.get("status") not in {
-            "failed", "incomplete"}:
-        return None
-    return manifest
+    return get_saved_script_recovery_manifest(DATA_DIR, three_pass_manifest_path(SCRIPT_PATH))
 
 
 def ensure_script_recovery_manifest():

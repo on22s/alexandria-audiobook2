@@ -157,6 +157,13 @@ routes._apply_speaker_repair_sync('book',request)
             process=subprocess.run([sys.executable,'-c',worker,str(root)],capture_output=True,text=True,timeout=30)
             self.assertEqual(77,process.returncode,process.stdout+process.stderr)
             self.assertTrue((root/'scripts'/books.JOURNAL).exists())
+            interrupted={str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*')
+                         if p.is_file() and not p.name.endswith('.lock')}
+            self.assertEqual(409,client.get('/api/scripts').status_code)
+            self.assertEqual(interrupted,{str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*')
+                                         if p.is_file() and not p.name.endswith('.lock')})
+            with books.ensure_book_state(str(root/'scripts')):
+                pass
             self.assertEqual(200,client.get('/api/scripts').status_code)
             self.assertEqual(before,self.snapshot(root))
             self.assertFalse((root/'scripts'/books.JOURNAL).exists())

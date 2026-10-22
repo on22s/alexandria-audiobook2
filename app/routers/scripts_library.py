@@ -119,8 +119,13 @@ def _build_saved_scripts_list():
 
 
 def _list_saved_scripts_sync():
-    with ensure_book_state(SCRIPTS_DIR):
-        return _build_saved_scripts_list()
+    try:
+        with ensure_book_state(SCRIPTS_DIR, recover=False):
+            return _build_saved_scripts_list()
+    except (OSError, ValueError, TypeError) as error:
+        raise HTTPException(status_code=409, detail=(
+            "Saved books could not be read. Complete any pending library recovery "
+            "before refreshing the list. No recovery was attempted.")) from error
 
 
 @router.get("/api/scripts", operation_id="list_saved_scripts")
@@ -133,15 +138,16 @@ def _get_book_workspace_sync():
     from routers.voices import get_voice_rows
     from core import project_manager
 
-    with ensure_book_state(DATA_DIR):
-        try:
+    try:
+        with ensure_book_state(DATA_DIR, recover=False):
             return get_book_workspace(DATA_DIR, {"MP3": AUDIOBOOK_PATH, "M4B": M4B_PATH},
-                                      get_voice_rows, project_manager.get_chunk_audio_path)
-        except (OSError, ValueError, TypeError) as error:
-            logger.warning("Book workspace inputs could not be read: %s", type(error).__name__)
-            raise HTTPException(status_code=409, detail=(
-                "Book workspace could not read the saved book. Inspect the script and voice settings; "
-                "No new chunks or audio were generated.")) from error
+                                      get_voice_rows, project_manager.get_chunk_audio_path, export_states=process_state)
+    except (OSError, ValueError, TypeError) as error:
+        logger.warning("Book workspace inputs could not be read: %s", type(error).__name__)
+        raise HTTPException(status_code=409, detail=(
+            "Book workspace could not read the saved book. Complete any pending book recovery "
+            "or inspect the script and voice settings. No recovery was attempted. "
+            "No new chunks or audio were generated.")) from error
 
 
 @router.get("/api/workspace")

@@ -2,6 +2,7 @@
 See docs/superpowers/specs/2026-07-21-three-pass-script-generation-design.md."""
 
 import argparse
+from script_recovery_facts import three_pass_manifest_path
 import hashlib
 import json
 import math
@@ -2347,10 +2348,6 @@ def get_preflight_sample_info(label, index, output_path, planned_calls,
 
 def three_pass_checkpoint_path(output_path):
     return output_path + ".threepass_checkpoint.json"
-
-
-def three_pass_manifest_path(output_path):
-    return output_path + ".threepass_manifest.json"
 
 
 def _resolution_counts(resolutions):

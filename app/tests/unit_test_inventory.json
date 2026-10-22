@@ -1350,11 +1350,19 @@
     "tests.test_book_state_transaction.SavedBookTransactionHttpTests.test_http_load_failure_preserves_prior_book_and_success_publishes_all"
   ],
   "test_book_workspace": [
+    "tests.test_book_workspace.BookWorkspaceTests.test_actual_route_maps_admission_timeout_without_reading_or_changing_book",
+    "tests.test_book_workspace.BookWorkspaceTests.test_actual_route_refuses_pending_book_publication_without_recovering_it",
+    "tests.test_book_workspace.BookWorkspaceTests.test_actual_route_refuses_terminal_and_malformed_journals_without_cleanup",
     "tests.test_book_workspace.BookWorkspaceTests.test_actual_route_returns_safe_conflict_for_corrupt_script_without_repair",
     "tests.test_book_workspace.BookWorkspaceTests.test_empty_and_missing_chunks_are_distinct_from_completed_audio_and_do_not_write",
     "tests.test_book_workspace.BookWorkspaceTests.test_existing_voice_eligibility_and_pending_state_versions_are_used",
+    "tests.test_book_workspace.BookWorkspaceTests.test_export_session_checks_remain_historical_after_edits_and_changed_files_are_refused",
+    "tests.test_book_workspace.BookWorkspaceTests.test_home_reads_refuse_library_recovery_without_touching_saved_books",
     "tests.test_book_workspace.BookWorkspaceTests.test_journal_progress_is_read_without_compaction_and_outputs_are_unverified",
     "tests.test_book_workspace.BookWorkspaceTests.test_missing_empty_and_escaping_audio_do_not_count_as_present",
+    "tests.test_book_workspace.BookWorkspaceTests.test_optional_deeply_corrupt_manifest_does_not_hide_the_book_or_repair_it",
+    "tests.test_book_workspace.BookWorkspaceTests.test_saved_script_recovery_uses_shared_candidate_policy_without_resuming_or_proving_source",
+    "tests.test_book_workspace.BookWorkspaceTests.test_saved_speech_evidence_distinguishes_current_absent_and_changed_inputs_without_audio_reads",
     "tests.test_book_workspace.BookWorkspaceTests.test_wrong_book_journal_and_corrupt_chunk_data_remain_unavailable_and_untouched"
   ],
   "test_book_workspace_js": [
@@ -1369,7 +1377,9 @@
     "tests.test_book_workspace_js.BookWorkspaceJsTests.test_malformed_counts_and_unsafe_next_destination_are_rejected",
     "tests.test_book_workspace_js.BookWorkspaceJsTests.test_monitor_ignores_obsolete_visit_and_invalid_registry_without_claiming_idle",
     "tests.test_book_workspace_js.BookWorkspaceJsTests.test_monitor_keeps_disclosure_nodes_and_withholds_eta_for_paused_manual_and_cancel",
-    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_read_failure_keeps_display_but_disables_continue_and_never_navigates"
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_read_failure_keeps_display_but_disables_continue_and_never_navigates",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_readiness_evidence_distinguishes_saved_metadata_and_historical_export_checks",
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_script_recovery_candidate_is_navigation_only_and_has_no_eligibility_promise"
   ],
   "test_boundary_conflict_audit": [],
   "test_build_accent_calibration": [],
@@ -8532,7 +8542,7 @@
     "tests.test_saved_book_publication.SavedBookPublicationTests.test_delete_move_failure_rolls_back_complete_family",
     "tests.test_saved_book_publication.SavedBookPublicationTests.test_delete_removes_every_known_companion_and_busy_jobs_refuse_without_changes",
     "tests.test_saved_book_publication.SavedBookPublicationTests.test_preflight_and_all_preview_analysis_leave_asgi_event_loop_responsive",
-    "tests.test_saved_book_publication.SavedBookPublicationTests.test_process_death_during_save_recovers_complete_previous_family_on_next_read",
+    "tests.test_saved_book_publication.SavedBookPublicationTests.test_process_death_during_save_refuses_read_then_explicitly_recovers_previous_family",
     "tests.test_saved_book_publication.SavedBookPublicationTests.test_real_metadata_publication_failure_restores_every_original_saved_artifact",
     "tests.test_saved_book_publication.SavedBookPublicationTests.test_reserved_companion_names_are_rejected_before_writing",
     "tests.test_saved_book_publication.SavedBookPublicationTests.test_save_replaces_complete_family_and_removes_stale_voice_and_checkpoints"

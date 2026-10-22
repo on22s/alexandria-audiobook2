@@ -44,15 +44,25 @@ function renderBookWorkspace(data) {
     button.textContent = data.next.label;
     button.disabled = workspaceContinuePending;
     const audio = data.audio;
+    const review = audio.review;
+    const speech = review?.status === 'observed'
+        ? ` Saved speech checks: ${review.speech_current_metadata} match current row/audio metadata; ${review.speech_not_current} no longer match; ${review.speech_not_checked} unchecked. ${review.speech_attention} need speech review; ${review.drift_flagged} have drift flags; ${review.unknown_speakers} have unknown speakers.`
+        : review?.status === 'unavailable' ? ' Saved review evidence could not be read.' : '';
+    const exported = data.export_review;
+    const exportNote = exported?.status === 'observed'
+        ? `${exported.verified_at_export} passed at export; ${exported.review_at_export} needed review; ${exported.unavailable} receipts no longer match output metadata; ${exported.failed_attempts} failed attempts; ${exported.running} running. Checks are from this app session. Current script and voice inputs have not been rechecked; confirm book content before sharing.`
+        : 'Saved export checks are unavailable. Check that each output belongs to this book before sharing it.';
     const outputs = data.outputs.map(row => `${row.format}: ${row.status === 'present_unverified'
         ? 'file present; book match unverified' : row.status === 'unavailable' ? 'could not inspect' : 'no file found'}`).join(' · ');
     document.getElementById('workspace-stages').replaceChildren(
-        renderWorkspaceStage('Script', data.script.entries ? `${data.script.entries} entries saved` : 'Not started', 'Saved annotations for the selected book.'),
+        renderWorkspaceStage('Script', data.script.entries ? `${data.script.entries} entries saved` : 'Not started', data.script.recovery?.status === 'candidate'
+            ? 'Interrupted script run has saved recovery evidence. Inspect it in Script; source and settings eligibility must be rechecked before resuming.'
+            : 'Saved annotations for the selected book.'),
         renderWorkspaceStage('Cast', `${data.cast.total} characters · ${data.cast.pending} need preparation`, 'Finish preparing characters in Voices, then listen to their samples.'),
         renderWorkspaceStage('Audio', audio.status === 'unavailable' ? 'Progress unavailable'
             : audio.total ? `${audio.present} / ${audio.total} files present` : 'Not prepared',
-            `${audio.message}${audio.failed || audio.missing ? ` ${audio.failed} failed; ${audio.missing} done rows have missing audio.` : ''}`),
-        renderWorkspaceStage('Output files', outputs || 'Not inspected', 'Check that each output belongs to this book before sharing it.')
+            `${audio.message}${speech}${audio.failed || audio.missing ? ` ${audio.failed} failed; ${audio.missing} done rows have missing audio.` : ''}`),
+        renderWorkspaceStage('Export', outputs || 'Not inspected', exportNote)
     );
 }
 
@@ -84,7 +94,18 @@ function renderWorkspaceLibrary(books) {
 
 function isWorkspaceSnapshotValid(data) {
     const count = value => Number.isSafeInteger(value) && value >= 0;
-    return !!data && typeof data.name === 'string' && /^[a-f0-9]{64}$/.test(data.book_token)
+    const review = data?.audio?.review;
+    const exported = data?.export_review;
+    const recovery = data?.script?.recovery;
+    const recoveryValid = !recovery || (['candidate', 'not_reported'].includes(recovery.status)
+        && recovery.eligibility === 'not_rechecked');
+    const reviewValid = !review || ['not_prepared', 'unavailable'].includes(review.status)
+        || (review.status === 'observed' && ['speech_current_metadata', 'speech_not_current',
+            'speech_not_checked', 'speech_attention', 'drift_flagged', 'unknown_speakers'].every(key => count(review[key])));
+    const exportValid = !exported || exported.status === 'unavailable'
+        || (exported.status === 'observed' && exported.current_inputs === 'not_rechecked'
+            && ['verified_at_export', 'review_at_export', 'unavailable', 'failed_attempts', 'running'].every(key => count(exported[key])));
+    return recoveryValid && reviewValid && exportValid && !!data && typeof data.name === 'string' && /^[a-f0-9]{64}$/.test(data.book_token)
         && count(data.script?.entries) && count(data.cast?.total) && count(data.cast?.pending)
         && data.cast.pending <= data.cast.total
         && ['not_started', 'files_present', 'needs_attention', 'unavailable'].includes(data.audio?.status)

@@ -132,7 +132,7 @@ class SavedBookPublicationTests(unittest.TestCase):
             self.assertEqual(500,response.status_code)
             self.assertEqual(before,self.artifacts(root))
 
-    def test_process_death_during_save_recovers_complete_previous_family_on_next_read(self):
+    def test_process_death_during_save_refuses_read_then_explicitly_recovers_previous_family(self):
         worker='''import os,sys
 from pathlib import Path
 import core,book_state_transaction as books
@@ -155,6 +155,14 @@ routes._save_script_sync(routes.ScriptSaveRequest(name='book'))
             result=subprocess.run([sys.executable,'-c',worker,str(root)],capture_output=True,text=True,timeout=30)
             self.assertEqual(77,result.returncode,result.stdout+result.stderr)
             self.assertTrue((root/'scripts'/books.JOURNAL).exists())
+            interrupted={str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*')
+                         if p.is_file() and not p.name.endswith('.lock')}
+            refused=client.get('/api/scripts')
+            self.assertEqual(409,refused.status_code,refused.text)
+            self.assertEqual(interrupted,{str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*')
+                                         if p.is_file() and not p.name.endswith('.lock')})
+            with books.ensure_book_state(str(root/'scripts')):
+                pass
             response=client.get('/api/scripts')
             self.assertEqual(200,response.status_code,response.text)
             self.assertEqual(before,self.artifacts(root))

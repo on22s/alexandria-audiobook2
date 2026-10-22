@@ -1367,6 +1367,42 @@ def test_get_audacity_export():
     assert_status(r, 200)
 
 
+def test_workspace_readiness_contract():
+    """Opening the workspace exposes observations without starting work."""
+    response = get('/api/workspace'); assert_status(response)
+    data = response.json()
+    token = data.get('book_token')
+    if not isinstance(token, str) or len(token) != 64 or any(c not in '0123456789abcdef' for c in token):
+        raise TestFailure('Workspace must bind facts to the selected book')
+    recovery = data.get('script', {}).get('recovery', {})
+    if recovery.get('status') not in ('candidate', 'not_reported') or recovery.get('eligibility') != 'not_rechecked':
+        raise TestFailure('Recovery candidates must not promise source/settings eligibility')
+    review = data.get('audio', {}).get('review', {})
+    if review.get('status') not in ('not_prepared', 'unavailable', 'observed'):
+        raise TestFailure('Workspace must distinguish unavailable and saved audio evidence')
+    if review['status'] == 'observed':
+        if review.get('identity_check') != 'metadata_only':
+            raise TestFailure('Workspace may only claim saved metadata checks')
+        for key in ('speech_current_metadata', 'speech_not_current', 'speech_not_checked',
+                    'speech_attention', 'drift_flagged', 'unknown_speakers'):
+            if type(review.get(key)) is not int or review[key] < 0:
+                raise TestFailure(f'Invalid workspace review count: {key}')
+    exported = data.get('export_review', {})
+    if (exported.get('status') != 'observed' or exported.get('identity_check') != 'metadata_only'
+            or exported.get('history_scope') != 'app_session' or exported.get('current_inputs') != 'not_rechecked'):
+        raise TestFailure('Export checks must remain historical session evidence')
+    for key in ('verified_at_export', 'review_at_export', 'unavailable', 'failed_attempts', 'running'):
+        if type(exported.get(key)) is not int or exported[key] < 0:
+            raise TestFailure(f'Invalid workspace export count: {key}')
+    if data.get('next', {}).get('tab') not in ('script', 'voices', 'editor', 'audio'):
+        raise TestFailure('Workspace must use existing book screens')
+    # A second observational request must remain book-bound without requiring
+    # Editor's mutating chunk initialization endpoint as a prerequisite.
+    again = get('/api/workspace'); assert_status(again)
+    if again.json().get('book_token') != token:
+        raise TestFailure('Workspace unexpectedly changed the selected book')
+
+
 def test_export_quality_contract():
     snapshot = get('/api/chunks/status')
     assert_status(snapshot)
@@ -1725,6 +1761,7 @@ def run_all_tests():
     run_test("get_audiobook", test_get_audiobook)
     run_test("get_audiobook_m4b", test_get_audiobook_m4b)
     run_test("get_audacity_export", test_get_audacity_export)
+    run_test("workspace_readiness_contract", test_workspace_readiness_contract)
     run_test("export_quality_contract", test_export_quality_contract)
 
     section("Generation (TTS/LLM)")

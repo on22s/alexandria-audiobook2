@@ -6,7 +6,7 @@ from speaker_traits import get_entry_speaker
 from speech_verification_receipt import get_current_speech_verification_receipt
 
 
-def get_editor_review_facts(chunks, resolve_audio_path, book_token=None):
+def get_editor_review_facts(chunks, resolve_audio_path, book_token=None, *, include_readiness=False):
     rows = []
     for chunk in chunks:
         issues = []
@@ -47,8 +47,14 @@ def get_editor_review_facts(chunks, resolve_audio_path, book_token=None):
             issues.append('speech_difference')
         if recheck and 'speech_unavailable' not in issues:
             issues.append('speech_unavailable')
-        rows.append({'id': chunk['id'], 'uid': chunk['uid'], 'issues': issues,
+        row = {'id': chunk['id'], 'uid': chunk['uid'], 'issues': issues,
                      'audio': audio, 'drift': drift_status,'speech':speech_status,
                      'speech_attempt':'rejected' if rejected else None,
-                     'speech_recheck':recheck['status'] if recheck else None})
+                     'speech_recheck':recheck['status'] if recheck else None}
+        if include_readiness:
+            # Reuse the receipt filter above: an old or malformed receipt is
+            # not a new check, and metadata currency is not a quality pass.
+            row['speech_evidence'] = ('current_metadata' if speech else
+                'not_current' if chunk.get('speech_verification') is not None else 'not_checked')
+        rows.append(row)
     return rows

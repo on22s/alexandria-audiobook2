@@ -79,6 +79,36 @@ assert.equal(context.getWorkspaceTaskTab('toString'),null);
 finished=true;
 ''')
 
+    def test_script_recovery_candidate_is_navigation_only_and_has_no_eligibility_promise(self):
+        self.run_js(r'''
+(async()=>{
+ const data=snapshot('Interrupted book','script');
+ data.script.recovery={status:'candidate',eligibility:'not_rechecked'};
+ responses['/api/workspace']=data;await context.refreshBookWorkspace();
+ assert(elements('workspace-stages').children[0].children[2].textContent.includes('must be rechecked'));
+ await context.continueBookWorkspace();assert.deepStrictEqual(activated,['script']);
+ assert(requests.every(path=>['/api/workspace','/api/scripts'].includes(path)));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_readiness_evidence_distinguishes_saved_metadata_and_historical_export_checks(self):
+        self.run_js(r'''
+(async()=>{
+ const data=snapshot();data.audio.review={status:'observed',speech_current_metadata:2,
+  speech_not_current:1,speech_not_checked:3,speech_attention:1,drift_flagged:0,unknown_speakers:0};
+ data.export_review={status:'observed',verified_at_export:1,review_at_export:0,unavailable:2,
+  failed_attempts:1,running:0,current_inputs:'not_rechecked'};
+ responses['/api/workspace']=data;await context.refreshBookWorkspace();
+ const cards=elements('workspace-stages').children;
+ assert(cards[2].children[2].textContent.includes('1 no longer match'));
+ assert(cards[2].children[2].textContent.includes('3 unchecked'));
+ assert.equal(cards[3].children[0].textContent,'Export');
+ assert(cards[3].children[2].textContent.includes('1 passed at export'));
+ assert(cards[3].children[2].textContent.includes('Current script and voice inputs have not been rechecked'));
+ assert(requests.every(path=>['/api/workspace','/api/scripts'].includes(path)));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
     def test_continue_refreshes_identity_and_navigates_without_any_mutating_api(self):
         self.run_js(r'''
 (async()=>{
@@ -128,7 +158,10 @@ finished=true;
         self.run_js(r'''
 (async()=>{
  for(const bad of [null,{...snapshot(),book_token:'missing'}, {...snapshot(),audio:{...snapshot().audio,total:-1}},
-  {...snapshot(),cast:{total:1,pending:2}},snapshot('Bad','training')]){
+  {...snapshot(),cast:{total:1,pending:2}},
+  {...snapshot(),audio:{...snapshot().audio,review:{status:'observed',speech_not_checked:-1}}},
+  {...snapshot(),export_review:{status:'observed',current_inputs:'certified'}},
+  {...snapshot(),script:{entries:1,recovery:{status:'candidate',eligibility:'certified'}}},snapshot('Bad','training')]){
   responses['/api/workspace']=bad;await context.continueBookWorkspace();assert(elements('workspace-continue').disabled);
  }
  assert.equal(activated.length,0);
