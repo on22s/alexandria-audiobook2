@@ -1,9 +1,9 @@
 # Sound-design cue foundation (#1444)
 
 This foundation defines immutable cue recipes, read-only exact-frame projection,
-a private asset-import store, and an owned-worker PCM mixer. Cue editing,
-reviewed mix approval and delivery are not yet connected to a production
-interface. Existing dry exports remain unchanged. The full enhancement remains open.
+a private asset-import store, an owned-worker PCM mixer, and versioned cue
+authoring in the Editor. Reviewed mix audition, approval and delivery integration
+remain required. The full enhancement remains open.
 
 ## Saved-book storage
 
@@ -27,7 +27,7 @@ old source/take bindings become stale rather than being silently rewritten.
 
 Loading a book still discards its runtime chunks under the existing contract.
 Historical cue metadata is retained without automatic reanchoring or approval.
-The later cue interface must show missing/stale dialogue bindings and require
+The cue interface shows missing/stale dialogue bindings and requires
 proof or explicit reanchoring before use.
 
 Upload selection runs on a worker with the existing kernel task barrier and
@@ -101,7 +101,8 @@ independent of the active book and saved-book selection. Ready assets are retain
 indefinitely so historical cue references remain usable. The asset API provides
 upload, listing, explicit incomplete-import cleanup and verified auditions.
 The Editor’s Sound asset library panel provides import/cancel, refresh, short
-audition and explicit incomplete-import cleanup. Cue editing is not yet connected.
+audition and explicit incomplete-import cleanup. The adjacent Sound cues panel
+uses these imported assets for versioned cue authoring.
 
 Admission fully decodes WAV, FLAC, MP3 or OGG through an owned FFmpeg process,
 preserving the probed rate and mono/stereo geometry. It rejects nonfinite or
@@ -160,6 +161,53 @@ cleanup handlers run in the framework's worker pool. An audition
 does not select a cue, approve a mix or change a book.
 
 ## Owned PCM mixing
+
+Registry edit helpers append immutable revisions and select or deselect saved
+versions without deleting history. Selected versions are detached in canonical
+cue-ID order before projection. These helpers preserve historical source bindings;
+they never reanchor stale recipes or approve audio. Their caller must construct
+current source/take facts and compare the expected book and registry revisions
+under the existing book admission before transactional publication. They do not
+provide cue editing routes or a user interface by themselves.
+
+The cue metadata API lists bounded dialogue pages at `GET /api/sound_design/cues`
+and captures one selected take at `GET /api/sound_design/cues/anchor`. The
+`/revise` and `/select` POST endpoints accept at most 16 KiB of strict JSON.
+Edits compare the expected context and registry revisions, construct book/take
+fingerprints on the server, verify the immutable asset, then use the existing
+book transaction. Deselection retains history; selecting stale history requires
+an explicit new revision. Source, selected-audio and metadata fences precede
+publication. Cancellation retains worker admission until synchronous work exits.
+These metadata endpoints do not approve audio or establish PCM timing.
+Anchor-only reviews finish with the same metadata/source/audio version fence as
+publication. Authoring and selection reject asset-dependent invalid loop
+extensions and fades using the planner's shared duration checks. Timeline bounds,
+channel promotion, output-clock agreement and scene scope still require the
+captured PCM projection before any audition or approval.
+
+The Editor's **Sound cues** panel pages through dialogue marked complete, creates
+new cue revisions, reviews selected-take bindings, selects historical revisions
+and excludes cues without deleting history. Timing is entered in seconds and
+rounded to the revision's sample clock; levels use decibels. New cues currently
+use a 48 kHz metadata clock; revisions retain their original clock. Mix integration
+must compare this with the captured dialogue PCM clock and require an explicit
+revision when they differ. Native length,
+explicit duration, ambience loop crossfade and fades remain explicit choices.
+An old source is visibly flagged, and **Review dialogue binding** checks current
+encoded take bytes. A mismatch requires an explicit revision; the UI never
+searches for replacement text or silently moves the cue. The metadata field
+`has_recorded_take` describes saved status/path presence only; the anchor check
+must still verify confined, nonempty, regular audio before saving or selecting.
+
+Context capture shares a 64 MiB logical byte allowance between captured metadata
+files and the serialized detached dialogue rows, before scanning original source.
+This is a logical metadata limit, not a Python RSS bound. Book-selection generation
+and source preparation facts fence each request through its context revision.
+Historical recipes retain stable book/source/script/take identity rather than a
+temporary selection nonce: reselecting an otherwise identical book requires a
+fresh context but can explicitly reuse an unchanged cue. Asset bytes are verified
+again after context/audio recapture, with file-exit checks completed before the
+book transaction. Uncertain save/cancellation outcomes require refresh.
 
 `write_sound_design_pcm` is a synchronous worker component. Its caller captures
 the dry `PCMSourceRange`, ordered selected dialogue, book identity and PCM plan
@@ -236,7 +284,7 @@ Saved-book load discards runtime chunks. Neither a raw-source cache key nor a
 temporary book-selection token provides saved-book isolation. Reloaded cues
 require provable source lineage or explicit reanchoring when runtime IDs change.
 
-Remaining work includes cue editing and scope-undo integration; connecting the
+Remaining work includes scope-undo integration; connecting the
 bounded mixer to captured dry exports and reviewed scene spans; a constrained
 review interface; dry/mixed audition; explicit candidate selection and delivery;
 completed-file validation; cancellation/crash/source-change controls; and

@@ -85,4 +85,4 @@ jobs:
           ffprobe -version
           python -c "import soundfile; print(soundfile.__version__, soundfile.__libsndfile_version__)"
       - name: Verify exact decoding, owned child cleanup and durable recovery
-        run: python -m unittest tests.test_sound_design_assets tests.test_sound_design_decode tests.test_media_output_sink tests.test_sound_design_mix -v
+        run: python -m unittest tests.test_sound_design_assets tests.test_sound_design_decode tests.test_media_output_sink tests.test_sound_design_mix tests.test_sound_design_cues -v

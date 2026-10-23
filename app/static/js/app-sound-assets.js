@@ -119,5 +119,5 @@ const SoundAssets = (() => {
             await refresh(false);
         }
     }
-    return {refresh, importFile, cancel: () => upload?.abort()};
+    return {refresh, importFile, validate, cancel: () => upload?.abort()};
 })();

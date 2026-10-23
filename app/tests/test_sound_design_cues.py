@@ -113,6 +113,20 @@ class SoundDesignCueTests(unittest.TestCase):
             self.assertEqual(original, path.read_bytes())
         self.assertEqual(before, (dialogue, plan)); self.assertEqual(dry, [s.raw_data for s in segments])
 
+    def test_real_resampler_overlap_envelopes_remain_valid_cue_geometry(self):
+        segments=[AudioSegment(data=b'\x01\x00'*11,frame_rate=rate,sample_width=2,channels=1)
+                  for rate in (8000,8000,16000)]
+        plan=get_combined_pcm_plan([get_pcm_source_shape(s) for s in segments],[0,0])
+        self.assertEqual([[0,21],[19,40],[40,51]],plan['source_frame_ranges'])
+        dialogue=[dict(SELECTION,chunk_uid=f'uid-{i}') for i in range(3)]
+        value=recipe();value.update(frame_rate=16000,selection=dialogue[1]);value['asset'].update(frames=1,frame_rate=16000)
+        result=self.project(value,dialogue=dialogue,plan=plan)
+        self.assertTrue(result['can_project']);self.assertEqual(19,result['cues'][0]['start_frame'])
+        with tempfile.TemporaryDirectory() as tmp:
+            target=Path(tmp)/'dry.pcm'
+            write_combined_pcm(segments,['A']*3,target,0,0,pause_overrides=[0,0,None])
+            self.assertEqual(51,len(target.read_bytes())//2)
+
     def test_selected_asset_native_length_not_an_unselected_candidate(self):
         first = self.project(); value = recipe(); value['asset'].update(asset_id='explicit-take-one', frames=1200)
         second = self.project(value)

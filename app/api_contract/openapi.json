@@ -11897,6 +11897,139 @@
         "summary": "Purge Incomplete Sound Asset"
       }
     },
+    "/api/sound_design/cues": {
+      "get": {
+        "operationId": "get_sound_design_cues_api_sound_design_cues_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Sound Design Cues"
+      }
+    },
+    "/api/sound_design/cues/anchor": {
+      "get": {
+        "operationId": "get_sound_design_cue_anchor_api_sound_design_cues_anchor_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "context_revision",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Context Revision",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "chunk_uid",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Chunk Uid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Sound Design Cue Anchor"
+      }
+    },
+    "/api/sound_design/cues/revise": {
+      "post": {
+        "operationId": "revise_sound_design_cue_api_sound_design_cues_revise_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Revise Sound Design Cue"
+      }
+    },
+    "/api/sound_design/cues/select": {
+      "post": {
+        "operationId": "select_sound_design_cue_api_sound_design_cues_select_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Select Sound Design Cue"
+      }
+    },
     "/api/speaker_review/options": {
       "get": {
         "operationId": "options_api_speaker_review_options_get",

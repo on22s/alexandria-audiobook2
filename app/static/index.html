@@ -3189,6 +3189,13 @@
                          <p id="sound-assets-status" class="small mt-2" role="status" aria-live="polite"></p>
                          <div id="sound-assets-list"></div>
                      </details>
+                     <details class="mb-3" ontoggle="if (this.open) { SoundCues.refresh(); }">
+                         <summary title="Place effects and ambience at stable dialogue anchors, preserve revisions, and review changed takes.">Sound cues</summary>
+                         <p class="small mt-2">Choose dialogue and imported sounds, then save explicit cue revisions. Mix audition and delivery approval are required before using cues in a finished audiobook.</p>
+                         <button id="sound-cues-refresh" type="button" class="btn btn-sm btn-outline-secondary" title="Reload current dialogue and cue history; this clears unsaved form edits." onclick="SoundCues.refresh()">Refresh cues</button>
+                         <p id="sound-cues-status" class="small mt-2" role="status" aria-live="polite"></p>
+                         <div id="sound-cues-content"></div>
+                     </details>
                      <!-- Full Progress Bar -->
                      <div class="progress mb-3" style="height: 25px;">
                          <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" style="width: 0%">0%</div>
@@ -3755,6 +3762,7 @@
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workspace.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-sound-assets.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-sound-cues.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-mastering.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-export-quality.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-publication.js?v=__APP_BUILD__"></script>

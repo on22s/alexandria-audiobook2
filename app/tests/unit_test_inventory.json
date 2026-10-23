@@ -9284,6 +9284,17 @@
     "tests.test_sound_assets_js.SoundAssetsJsTests.test_invalid_or_duplicate_entries_never_render_controls",
     "tests.test_sound_assets_js.SoundAssetsJsTests.test_newer_refresh_wins_and_labels_remain_literal"
   ],
+  "test_sound_cues_js": [
+    "tests.test_sound_cues_js.SoundCuesJsTests.test_changed_take_is_visible_and_never_silently_rewrites_history",
+    "tests.test_sound_cues_js.SoundCuesJsTests.test_invalid_history_and_asset_responses_do_not_enable_controls",
+    "tests.test_sound_cues_js.SoundCuesJsTests.test_invalid_values_are_refused_before_network_and_failed_anchor_cannot_publish",
+    "tests.test_sound_cues_js.SoundCuesJsTests.test_latest_refresh_wins_and_untrusted_labels_remain_literal",
+    "tests.test_sound_cues_js.SoundCuesJsTests.test_loop_and_fade_geometry_is_checked_against_converted_asset_length",
+    "tests.test_sound_cues_js.SoundCuesJsTests.test_page_navigation_uses_server_offset_and_resets_form",
+    "tests.test_sound_cues_js.SoundCuesJsTests.test_save_uses_server_anchor_and_frozen_context_and_suppresses_duplicate_click",
+    "tests.test_sound_cues_js.SoundCuesJsTests.test_stale_source_is_labeled_and_exclusion_keeps_exact_cue_identity",
+    "tests.test_sound_cues_js.SoundCuesJsTests.test_unicode_history_and_negative_subsample_fades_are_handled_explicitly"
+  ],
   "test_sound_design_asset_routes": [
     "tests.test_sound_design_asset_routes.SoundDesignAssetRoutesTests.test_explicit_cleanup_refuses_ready_and_removes_only_incomplete",
     "tests.test_sound_design_asset_routes.SoundDesignAssetRoutesTests.test_invalid_upload_is_retained_as_incomplete_without_a_ready_asset",
@@ -9309,6 +9320,39 @@
     "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_saved_incomplete_reservation_survives_store_reopen_and_counts_full_allowance",
     "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_source_hardlink_is_refused_without_copy"
   ],
+  "test_sound_design_context": [
+    "tests.test_sound_design_context.SoundDesignContextTests.test_aliases_inside_project_work_and_outside_source_is_refused",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_changed_audio_payload_changes_anchor_even_with_unchanged_chunk_metadata",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_context_and_anchor_are_read_only_and_bound_to_actual_encoded_bytes",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_duplicate_dialogue_identities_refuse_before_source_scan",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_existing_book_and_audio_revision_limits_are_preserved",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_external_metadata_mutation_mid_capture_is_refused",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_foreign_registry_and_nonfinite_saved_rows_are_preserved",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_joint_budget_counts_captured_files_and_detached_rows",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_malformed_script_refuses_before_source_scan",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_missing_uid_pending_take_missing_empty_and_nonregular_audio_refuse",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_native_journal_replay_uses_latest_selected_take_without_compacting",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_no_admission_and_joint_limits_fail_before_original_source_scan",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_source_script_state_voice_settings_and_rows_change_context_identity"
+  ],
+  "test_sound_design_cue_api": [
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_actual_create_revise_select_deselect_preserves_originals_and_history",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_anchor_only_review_refuses_late_source_metadata_and_audio_changes",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_asset_changed_during_final_context_recapture_never_publishes",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_asset_duration_errors_refuse_and_explicit_valid_loop_saves",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_book_selection_generation_fences_requests_but_preserves_matching_history",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_busy_task_guard_refuses_cue_metadata_without_source_scan",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_cancelled_async_request_waits_for_blocked_book_worker_and_keeps_loop_responsive",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_competing_same_revision_edits_cannot_silently_overwrite_each_other",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_failed_atomic_replacement_restores_previous_exact_registry",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_historical_invalid_loop_can_be_excluded_but_not_selected",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_hostile_body_fields_and_size_refuse_before_task_or_source_admission",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_public_metadata_and_errors_do_not_expose_paths_or_private_configuration",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_recorded_take_metadata_does_not_claim_current_audio_availability",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_source_changed_during_final_anchor_read_cannot_publish_old_context",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_stale_context_and_changed_audio_refuse_before_registry_publication",
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_stale_historical_selection_refuses_but_explicit_deselection_still_works"
+  ],
   "test_sound_design_cues": [
     "tests.test_sound_design_cues.SoundDesignCueTests.test_actual_selected_asset_conversion_matches_projected_frames_and_pcm",
     "tests.test_sound_design_cues.SoundDesignCueTests.test_both_incoming_and_outgoing_scope_crossings_require_review",
@@ -9328,6 +9372,7 @@
     "tests.test_sound_design_cues.SoundDesignCueTests.test_native_end_anchor_preserves_sub_millisecond_final_sample",
     "tests.test_sound_design_cues.SoundDesignCueTests.test_projection_matches_real_mixed_rate_pcm_writer_with_fractional_gaps",
     "tests.test_sound_design_cues.SoundDesignCueTests.test_projection_revision_binds_preceding_geometry_order_scope_and_layout",
+    "tests.test_sound_design_cues.SoundDesignCueTests.test_real_resampler_overlap_envelopes_remain_valid_cue_geometry",
     "tests.test_sound_design_cues.SoundDesignCueTests.test_revision_detaches_inputs_and_explicit_parent_changes_version",
     "tests.test_sound_design_cues.SoundDesignCueTests.test_same_source_in_another_saved_book_and_changed_script_are_stale",
     "tests.test_sound_design_cues.SoundDesignCueTests.test_selected_asset_native_length_not_an_unselected_candidate",
@@ -9390,6 +9435,16 @@
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_source_reset_process_death_rolls_back_or_finishes_committed_clear",
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_source_selection_clears_valid_cues_and_preserves_invalid_metadata",
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_two_named_snapshots_restore_their_exact_own_cue_bytes"
+  ],
+  "test_sound_design_registry_edits": [
+    "tests.test_sound_design_registry_edits.SoundDesignRegistryEditTests.test_append_edit_select_and_deselect_retain_detached_history",
+    "tests.test_sound_design_registry_edits.SoundDesignRegistryEditTests.test_explicit_historical_parent_allows_branch_without_erasing_other_revisions",
+    "tests.test_sound_design_registry_edits.SoundDesignRegistryEditTests.test_invalid_existing_history_refuses_even_deselection",
+    "tests.test_sound_design_registry_edits.SoundDesignRegistryEditTests.test_new_origins_wrong_parent_other_book_and_invalid_recipe_refused",
+    "tests.test_sound_design_registry_edits.SoundDesignRegistryEditTests.test_selected_count_limit_preserves_unselected_history",
+    "tests.test_sound_design_registry_edits.SoundDesignRegistryEditTests.test_selected_versions_use_stable_cue_order_and_do_not_reanchor_stale_data",
+    "tests.test_sound_design_registry_edits.SoundDesignRegistryEditTests.test_unknown_or_cross_cue_selection_never_changes_history",
+    "tests.test_sound_design_registry_edits.SoundDesignRegistryEditTests.test_version_and_joint_byte_limits_precede_new_revision_hashing"
   ],
   "test_sound_design_upload_ownership": [
     "tests.test_sound_design_upload_ownership.SoundDesignUploadOwnershipTests.test_cancel_after_ready_publication_retains_complete_reusable_asset",

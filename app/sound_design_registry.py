@@ -88,3 +88,67 @@ def capture_sound_design_registry(root, relative, *, expected_book_id=None):
         if expected_book_id is not None and document['book']['book_id'] != expected_book_id:
             raise ValueError('Cue metadata belongs to another book; existing files were preserved')
     return raw
+
+
+def get_selected_sound_design_versions(document):
+    """Detach selected revisions in canonical cue-ID order, without reanchoring.
+
+    Historical recipes may be stale. Only the captured PCM projection can
+    determine that; selecting a revision is never approval of media.
+    """
+    value = json.loads(get_sound_design_registry_bytes(document))
+    known = {row['version']: row for row in value['versions']}
+    return [known[value['selected'][cue_id]] for cue_id in sorted(value['selected'])]
+
+
+def get_sound_design_registry_edit(document, cue_id, recipe, parent_version=None):
+    """Append and select one immutable revision; leave the supplied history alone.
+
+    The caller constructs current book/source/selected-audio facts and owns
+    context/registry compare-and-swap plus transactional publication. This pure
+    helper validates history and bounds; it does not authenticate those facts.
+    """
+    from sound_design_cues import (MAX_CUES, get_sound_design_cue_version,
+                                   validate_sound_design_cue_version_structure)
+    get_sound_design_registry_bytes(document)
+    draft = dict(schema=1, cue_id=cue_id, parent_version=parent_version,
+                 recipe=recipe, version='0' * 64)
+    validate_sound_design_cue_version_structure(draft)
+    if recipe['book']['book_id'] != document['book']['book_id']:
+        raise ValueError('Cue revision belongs to another book')
+    history = document['versions']
+    if len(history) >= MAX_VERSIONS:
+        raise ValueError('Cue history exceeds its version limit')
+    previous = [row for row in history if row['cue_id'] == cue_id]
+    if ((previous and not any(row['version'] == parent_version for row in previous))
+            or (not previous and parent_version is not None)):
+        raise ValueError('Cue revision requires an earlier parent for the same cue')
+    if cue_id not in document['selected'] and len(document['selected']) >= MAX_CUES:
+        raise ValueError('Selected cues exceed their count limit')
+    candidate = {**document, 'versions': [*history, draft],
+                 'selected': {**document['selected'], cue_id: draft['version']}}
+    # Bound the complete proposed registry before copying or hashing the new
+    # recipe. Its real fingerprint has the same encoded length as this draft.
+    get_metadata_json_bytes(candidate, MAX_REGISTRY_BYTES, 'Cue registry')
+    version = get_sound_design_cue_version(cue_id, recipe, parent_version)
+    candidate['versions'][-1] = version
+    candidate['selected'][cue_id] = version['version']
+    return json.loads(get_sound_design_registry_bytes(candidate))
+
+
+def get_sound_design_registry_selection(document, cue_id, version):
+    """Select a saved revision or explicitly deselect, retaining every version."""
+    from source_evidence import _require_text
+    from sound_design_cues import _require_digest
+    get_sound_design_registry_bytes(document)
+    _require_text(cue_id, 128, 'Cue identity')
+    _require_digest(version, 'Selected cue version', nullable=True)
+    previous = [row for row in document['versions'] if row['cue_id'] == cue_id]
+    if not previous or (version is not None and not any(row['version'] == version for row in previous)):
+        raise ValueError('Selected version is absent or belongs to another cue')
+    selected = dict(document['selected'])
+    if version is None:
+        selected.pop(cue_id, None)
+    else:
+        selected[cue_id] = version
+    return json.loads(get_sound_design_registry_bytes({**document, 'selected': selected}))

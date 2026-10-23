@@ -59,11 +59,7 @@ def _validate_recipe(recipe):
                           'kind', 'asset', 'duration', 'mix'), 'Cue recipe')
     _validate_book(recipe['book'])
     _validate_selection(recipe['selection'])
-    _require_choice(recipe['boundary'], ('start', 'end'), 'cue boundary')
-    _require_int(recipe['frame_rate'], 1, MAX_RATE, 'Authored frame rate')
-    _require_int(recipe['offset_frames'], -MAX_RATE * MAX_SECONDS,
-                 MAX_RATE * MAX_SECONDS, 'Cue offset')
-    _require_choice(recipe['kind'], ('effect', 'ambience'), 'cue kind')
+    _validate_cue_placement(recipe)
     asset = recipe['asset']
     _require_keys(asset, ('asset_id', 'sha256', 'frames', 'frame_rate', 'channels',
                          'sample_width'), 'Selected cue asset')
@@ -74,6 +70,26 @@ def _validate_recipe(recipe):
     _require_int(asset['channels'], 1, 2, 'Asset channels')
     if type(asset['sample_width']) is not int or asset['sample_width'] not in (1, 2, 4):
         raise ValueError('Invalid asset sample width')
+    _validate_cue_duration_mix(recipe)
+
+
+def validate_sound_design_cue_parameters(parameters):
+    """Validate authored fields before acquiring book/asset/source authority."""
+    _require_keys(parameters, ('boundary','offset_frames','frame_rate','kind','duration','mix'),
+                  'Authored cue parameters')
+    _validate_cue_placement(parameters)
+    _validate_cue_duration_mix(parameters)
+
+
+def _validate_cue_placement(recipe):
+    _require_choice(recipe['boundary'], ('start', 'end'), 'cue boundary')
+    _require_int(recipe['frame_rate'], 1, MAX_RATE, 'Authored frame rate')
+    _require_int(recipe['offset_frames'], -MAX_RATE * MAX_SECONDS,
+                 MAX_RATE * MAX_SECONDS, 'Cue offset')
+    _require_choice(recipe['kind'], ('effect', 'ambience'), 'cue kind')
+
+
+def _validate_cue_duration_mix(recipe):
     duration = recipe['duration']
     _require_keys(duration, ('mode', 'frames', 'loop_crossfade_frames'), 'Cue duration')
     _require_choice(duration['mode'], ('native', 'fixed'), 'duration mode')
@@ -101,6 +117,20 @@ def _get_version_bytes(document):
     # All leaves and collection sizes have been checked before encoding.
     return json.dumps(document, ensure_ascii=False, allow_nan=False, sort_keys=True,
                       separators=(',', ':')).encode('utf-8')
+
+
+def get_sound_design_duration_error(cue, native_frames):
+    """Share asset-dependent timing checks for validated authoring/projection."""
+    duration = cue['duration']
+    frames = native_frames if duration['mode'] == 'native' else duration['frames']
+    crossfade = duration['loop_crossfade_frames']
+    if crossfade is not None and (crossfade >= native_frames or frames <= native_frames):
+        return 'invalid_loop_extension'
+    if frames > native_frames and crossfade is None:
+        return 'explicit_loop_required'
+    if cue['mix']['fade_in_frames'] + cue['mix']['fade_out_frames'] > frames:
+        return 'fades_exceed_duration'
+    return None
 
 
 def _get_projection_revision(versions, book, dialogue, pcm_plan, scope, check_active):
@@ -239,15 +269,11 @@ def get_sound_design_cue_plan(versions, book, dialogue, pcm_plan, *, scope=None,
         native = get_promoted_pcm_shape(shape, layout, reject_impossible_channels=True)[1]
         duration = cue['duration']
         frames = native if duration['mode'] == 'native' else duration['frames']
-        crossfade = duration['loop_crossfade_frames']
+        duration_error = get_sound_design_duration_error(cue, native)
         if span[0] == span[1]:
             reason = 'empty_dialogue_source'
-        elif crossfade is not None and (crossfade >= native or frames <= native):
-            reason = 'invalid_loop_extension'
-        elif frames > native and crossfade is None:
-            reason = 'explicit_loop_required'
-        elif cue['mix']['fade_in_frames'] + cue['mix']['fade_out_frames'] > frames:
-            reason = 'fades_exceed_duration'
+        elif duration_error is not None:
+            reason = duration_error
         elif start < 0 or start + frames > pcm_plan['frames']:
             reason = 'outside_dialogue_timeline'
         elif start + frames <= scope[0] or start >= scope[1]:
