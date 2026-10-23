@@ -1,5 +1,6 @@
 """Bounded owned media checks without model or export-policy imports."""
 from collections import deque
+import os
 import subprocess
 import threading
 import time
@@ -53,8 +54,12 @@ def run_owned_media_check(command, check_active, timeout, *, output_limit=0,
 
     try:
         check_active()
+        # FFREPORT would bypass bounded pipe diagnostics with an unbounded file.
+        environment = dict(os.environ)
+        environment.pop('FFREPORT', None)
         process = start_owned_subprocess(command, stdout=subprocess.PIPE if output_limit else subprocess.DEVNULL,
-                                         stderr=subprocess.PIPE, stdin=input_source, start_new_session=True)
+                                         stderr=subprocess.PIPE, stdin=input_source, start_new_session=True,
+                                         env=environment)
         for function in ([read_output, read_errors] if output_limit else [read_errors]):
             thread = threading.Thread(target=function, daemon=True)
             readers.append(thread)

@@ -6157,6 +6157,7 @@
   "test_media_process": [
     "tests.test_media_process.MediaProcessTests.test_callers_cancellation_type_survives_reader_cleanup",
     "tests.test_media_process.MediaProcessTests.test_import_needs_no_model_or_export_policy_modules",
+    "tests.test_media_process.MediaProcessTests.test_inherited_report_cannot_escape_pipe_diagnostics",
     "tests.test_media_process.MediaProcessTests.test_timeout_retains_callback_ownership_until_its_write_unwinds"
   ],
   "test_merge_integrity": [
