@@ -1823,6 +1823,7 @@
             window.resetPronunciationBook?.();
             // A reloaded script can change even when its filename stays the same.
             window.resetSpeakerLabelReview?.();
+            window.resetCharacterRosterBook?.();
             window.resetExportMasteringView?.(); window.resetExportQualityView?.();
             window.resetEditorRepairPreview?.();
             window.invalidateBookWorkspace?.();
@@ -3519,6 +3520,7 @@
         }
 
         async function ensureCastListEditsDiscardable() {
+            if (typeof globalThis.ensureCharacterRosterEditsDiscardable === 'function' && !await globalThis.ensureCharacterRosterEditsDiscardable()) { return false; }
             if (castListMutationPending) {
                 showToast('Wait for the cast-list request to finish before switching books.', 'warning');
                 return false;

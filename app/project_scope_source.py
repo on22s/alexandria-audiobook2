@@ -5,20 +5,25 @@ import os
 from pathlib import Path
 from text_diff import get_comparison_words
 from merge_integrity import get_source_preparation, get_prepared_source
-from project_scope_files import capture_scope_file
+from project_scope_files import capture_scope_file, MAX_SCOPE_METADATA_BYTES
 from source_encoding import get_decoded_source_text, get_normalized_source_newlines
 from audio_take_history import _check_cancelled
 
 
-def get_scope_source_snapshot(state, *, cancel_check=None):
+def get_scope_source_snapshot(state, *, cancel_check=None,
+                              byte_limit=MAX_SCOPE_METADATA_BYTES, character_limit=None):
     """Prepare one bounded source snapshot without rereading or writing it."""
+    if character_limit is not None and (type(character_limit) is not int or character_limit < 1):
+        raise ValueError('Source character limit must be a positive integer.')
     input_path, strip_front_matter = get_source_preparation(state)
     path = Path(os.path.abspath(input_path))
-    proof, raw = capture_scope_file(path.parent, path.name, include_bytes=True,
+    proof, raw = capture_scope_file(path.parent, path.name, include_bytes=True, limit=byte_limit,
                                     cancel_check=cancel_check)
     if not proof['exists']:
         raise ValueError('The selected original source is missing.')
     source, encoding = get_decoded_source_text(raw)
+    if character_limit is not None and len(source) > character_limit:
+        raise ValueError('Source exceeds the review character limit.')
     source = get_normalized_source_newlines(source)
     if strip_front_matter is not None:
         source = get_prepared_source(source, strip_front_matter)

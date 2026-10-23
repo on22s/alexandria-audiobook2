@@ -26,6 +26,12 @@ Each pass is checkpointed. A run can be paused, resumed after a crash or power c
 a snapshot of the finished part, or started over without losing your settings. The activity
 line under the Generate button shows the current step, unit, attempt and time left.
 
+Before generation, **Review character identities and source quotes** lets you
+approve stable character identities, aliases and source evidence for this book's
+cast. It supports explicit import reconciliation, merge/split decisions and exact
+undo. See the [character roster guide](../character-roster.md) for the workflow,
+source coordinates and recovery behavior.
+
 ## Script format
 
 The script is a JSON array:

@@ -10,6 +10,7 @@ import tempfile
 import unittest
 
 from experiments import roster_source_evidence as r
+from source_evidence import validate_source_evidence_packet
 
 
 def claim(quote, start=None, end=None):
@@ -120,6 +121,30 @@ class RosterSourceEvidenceTests(unittest.TestCase):
                 r.get_source_evidence_review(revision, original)
 
 
+class HistoricalEvidenceBoundaryTests(unittest.TestCase):
+    def test_historical_validation_checks_ranges_without_relocating_quotes(self):
+        source = 'Alice waited.'
+        value = packet(source, [claim('Nobody', 0, 6)])
+        before = copy.deepcopy(value)
+        # Structural validity is deliberately not an exact-quote or identity claim.
+        validate_source_evidence_packet(len(source), value['source_sha256'], value)
+        self.assertEqual(value, before)
+        value['entries'][0]['evidence'][0]['end_char'] = len(source) + 1
+        with self.assertRaisesRegex(ValueError, 'range'):
+            validate_source_evidence_packet(len(source), value['source_sha256'], value)
+
+    def test_malformed_recorded_source_coordinates_are_refused(self):
+        value = packet('Alice', [claim('Alice', 0, 5)])
+        for length in (True, 5.0, 0, -1, r.MAX_SOURCE_CHARS + 1):
+            with self.subTest(length=length), self.assertRaises(ValueError):
+                validate_source_evidence_packet(length, value['source_sha256'], value)
+        for digest in (None, 1, 'a' * 63, 'A' * 64, 'z' * 64):
+            with self.subTest(digest=digest), self.assertRaises(ValueError):
+                validate_source_evidence_packet(5, digest, {**value, 'source_sha256': digest})
+        with self.assertRaisesRegex(ValueError, 'fingerprint differs'):
+            validate_source_evidence_packet(5, 'b' * 64, value)
+
+
 class RosterSourceEvidenceCliTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
@@ -140,6 +165,9 @@ class RosterSourceEvidenceCliTests(unittest.TestCase):
         self.assertEqual(report['counts']['exact'], 1)
         self.assertEqual(report['provenance']['script'], 'roster_source_evidence.py')
         self.assertIn('git', report['provenance'])
+        shared = Path(r.__file__).resolve().parents[1] / 'source_evidence.py'
+        self.assertEqual(report['implementation'], {
+            'app/source_evidence.py': hashlib.sha256(shared.read_bytes()).hexdigest()})
         for key, path in [('source', self.source), ('packet', self.imported)]:
             self.assertEqual(path.read_bytes(), before[path])
             self.assertEqual(report['inputs'][key]['sha256'], hashlib.sha256(before[path]).hexdigest())

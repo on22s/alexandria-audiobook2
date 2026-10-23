@@ -1767,6 +1767,69 @@
     "tests.test_character_evidence.TestNarrationText.test_dialogue_is_excluded",
     "tests.test_character_evidence.TestNarrationText.test_handles_missing_fields"
   ],
+  "test_character_roster": [
+    "tests.test_character_roster.CharacterRosterTests.test_alias_conflicts_protected_labels_and_malformed_imports_are_refused",
+    "tests.test_character_roster.CharacterRosterTests.test_competing_decisions_cannot_steal_or_replace_existing_ids",
+    "tests.test_character_roster.CharacterRosterTests.test_import_requires_explicit_adds_and_returns_detached_records",
+    "tests.test_character_roster.CharacterRosterTests.test_merge_preserves_survivor_and_split_allocates_new_identity",
+    "tests.test_character_roster.CharacterRosterTests.test_rename_alias_and_retirement_are_explicit",
+    "tests.test_character_roster.CharacterRosterTests.test_retirement_history_and_decision_identity_lists_refuse_malformed_imports",
+    "tests.test_character_roster.CharacterRosterTests.test_revision_reconciles_same_ids_without_silent_offset_relocation",
+    "tests.test_character_roster.CharacterRosterTests.test_split_can_explicitly_retire_original_and_allocate_only_new_ids",
+    "tests.test_character_roster.CharacterRosterTests.test_unanchored_ambiguous_and_missing_claims_cannot_be_approved"
+  ],
+  "test_character_roster_api": [
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_actual_stream_limit_ignores_forged_content_length_and_blocks_worker_dispatch",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_book_a_metadata_cannot_authorize_fresh_book_b_undo_or_discard",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_changed_book_or_cast_refuses_stale_drafts_without_overwrite",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_current_roster_import_requires_explicit_mapping_retains_tombstones_and_exact_undo",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_http_approval_and_exact_undo_preserve_accepted_content_and_only_expose_public_fields",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_import_mapping_can_follow_an_explicit_merge_to_the_surviving_identity",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_invalid_imported_active_ids_are_refused_before_source_or_task_admission",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_malformed_body_refuses_before_admission_and_does_not_echo_private_cast_fields",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_missing_source_does_not_prevent_inspection_or_explicit_undo_discard",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_quote_body_preflight_rejects_invalid_fields_before_admission",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_quote_candidates_use_unicode_character_coordinates_and_never_approve_unanchored_claims",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_quote_limit_is_4000_unicode_characters_and_valid_non_bmp_export_roundtrips",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_same_book_source_revision_cannot_reuse_older_metadata_for_fresh_undo",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_source_revision_import_keeps_canonical_id_and_undo_preserves_user_source_revision",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_undo_inspection_redacts_operating_system_paths_and_diagnostics",
+    "tests.test_character_roster_api.CharacterRosterApiTests.test_worker_scan_keeps_other_http_requests_responsive"
+  ],
+  "test_character_roster_apply": [
+    "tests.test_character_roster_apply.CharacterRosterApplyTests.test_corrupt_undo_or_current_roster_can_be_inspected_and_explicitly_discarded",
+    "tests.test_character_roster_apply.CharacterRosterApplyTests.test_discard_rechecks_exact_undo_revision_and_keeps_a_replacement_record",
+    "tests.test_character_roster_apply.CharacterRosterApplyTests.test_injected_publication_and_undo_move_failures_restore_every_prior_byte",
+    "tests.test_character_roster_apply.CharacterRosterApplyTests.test_metadata_only_approval_preserves_cast_bytes_and_file_version",
+    "tests.test_character_roster_apply.CharacterRosterApplyTests.test_oversized_undo_returns_inspection_status_without_authorizing_discard",
+    "tests.test_character_roster_apply.CharacterRosterApplyTests.test_real_approval_and_exact_undo_preserve_script_voices_uid_audio_and_history",
+    "tests.test_character_roster_apply.CharacterRosterApplyTests.test_replaced_undo_during_snapshot_is_refused_and_replacement_is_preserved",
+    "tests.test_character_roster_apply.CharacterRosterApplyTests.test_scope_admission_alone_cannot_publish_without_cast_lock",
+    "tests.test_character_roster_apply.CharacterRosterApplyTests.test_stale_preview_unresolved_undo_and_external_cast_edit_refuse_without_clobber",
+    "tests.test_character_roster_apply.CharacterRosterApplyTests.test_stale_undo_can_be_discarded_with_missing_source_or_invalid_book_state"
+  ],
+  "test_character_roster_failures": [
+    "tests.test_character_roster_failures.CharacterRosterFailureTests.test_abrupt_process_death_rolls_back_precommit_and_keeps_committed_apply_and_undo",
+    "tests.test_character_roster_failures.CharacterRosterFailureTests.test_http_apply_refuses_real_foreign_task_book_and_cast_owners_then_succeeds"
+  ],
+  "test_character_roster_generation": [
+    "tests.test_character_roster_generation.CharacterRosterGenerationTests.test_evidence_only_keeps_dependency_and_material_alias_change_affects_new_runs_only"
+  ],
+  "test_character_roster_snapshot": [
+    "tests.test_character_roster_snapshot.CharacterRosterSnapshotTests.test_boundary_limits_and_symlinks_refuse_before_preprocessing_or_approval",
+    "tests.test_character_roster_snapshot.CharacterRosterSnapshotTests.test_import_requires_reconciliation_even_when_new_raw_bytes_prepare_identically",
+    "tests.test_character_roster_snapshot.CharacterRosterSnapshotTests.test_metadata_only_review_preserves_exact_cast_dependency_and_legacy_edits_mark_stale",
+    "tests.test_character_roster_snapshot.CharacterRosterSnapshotTests.test_new_raw_revision_can_explicitly_import_prior_ids_and_reconcile_offsets",
+    "tests.test_character_roster_snapshot.CharacterRosterSnapshotTests.test_preparation_binding_changes_require_explicit_review_even_if_prepared_text_matches",
+    "tests.test_character_roster_snapshot.CharacterRosterSnapshotTests.test_preview_creates_no_cast_or_roster_and_binds_changed_state_source_and_proposal",
+    "tests.test_character_roster_snapshot.CharacterRosterSnapshotTests.test_saved_binding_must_match_its_source_keyed_cache_and_preserve_bad_record"
+  ],
+  "test_character_roster_transport": [
+    "tests.test_character_roster_transport.CharacterRosterTransportTests.test_maximum_unicode_quote_crosses_real_fragmented_http_body"
+  ],
+  "test_character_roster_ui": [
+    "tests.test_character_roster_ui.CharacterRosterUiTests.test_identity_actions_import_mapping_and_request_book_fences"
+  ],
   "test_character_style_selector": [],
   "test_character_traits": [
     "tests.test_character_traits.TestDialogueIsNotEvidenceAboutItsSpeaker.test_dialogue_alone_yields_unknown",
@@ -8556,6 +8619,8 @@
     "tests.test_roster_order_bias.StratificationTest.test_neither_name_mentioned_is_no_local_signal"
   ],
   "test_roster_source_evidence": [
+    "tests.test_roster_source_evidence.HistoricalEvidenceBoundaryTests.test_historical_validation_checks_ranges_without_relocating_quotes",
+    "tests.test_roster_source_evidence.HistoricalEvidenceBoundaryTests.test_malformed_recorded_source_coordinates_are_refused",
     "tests.test_roster_source_evidence.RosterSourceEvidenceCliTests.test_escaped_invalid_unicode_is_a_clear_cli_refusal_without_output",
     "tests.test_roster_source_evidence.RosterSourceEvidenceCliTests.test_existing_output_and_invalid_input_never_overwrite_recoverable_files",
     "tests.test_roster_source_evidence.RosterSourceEvidenceCliTests.test_real_cli_preserves_inputs_and_binds_report_to_captured_bytes",

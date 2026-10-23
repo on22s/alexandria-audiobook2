@@ -8,6 +8,11 @@
         // has no entry, or if a recommendation has no source.
         /** @type {Object<string, {what: string, recommend?: string, source?: string}>} */
         const FIELD_HELP = {
+            'roster-import': {what: 'Choose an exported approved character roster. Review every imported identity and quote against the selected book before approval.'},
+            'roster-survivor': {what: 'Choose which selected existing identity survives a merge. Other merged identities are retired.'},
+            'roster-split-name': {what: 'Name the new character when splitting one selected identity. Supply a supporting source quote before approval.'},
+            'roster-split-new': {what: 'Retire the original identity and allocate two new identities for this split. Leave off to keep the original identity for one character.'},
+            'roster-consent': {what: 'Confirm that you reviewed the proposed identities and exact source locations. Edits invalidate this confirmation.'},
             'setup-settings-category': {what: 'Choose which Setup category to display. Edits in other categories are retained. Save Configuration applies all edited categories.'},
             'setup-settings-search': {what: 'Find available Setup settings by their labels and explanations, then jump to the original control. Does not search field values or save settings.'},
             // Setup: LLM connection
@@ -515,6 +520,20 @@
         };
 
         const ITEM_HELP = {
+            'roster-load': 'Load the selected source, cast, approved identities and saved undo. After an unconfirmed write, inspect saved state before another action.',
+            'roster-export': 'Download the approved character identities and evidence. Unsaved draft edits are excluded.',
+            'roster-recover': 'Restore the previous unsaved draft for this source and saved roster, then review it again.',
+            'roster-seed': 'Start an empty identity draft from this source’s current cast. Add and locate supporting quotes before approval.',
+            'roster-add': 'Add a character with a new identity to the draft. Supply its name and supporting source quote.',
+            'roster-merge': 'Merge selected draft characters into the chosen surviving identity. Review aliases and evidence before approval.',
+            'roster-split': 'Split one selected character into separate identities. Review each resulting character’s name and supporting quotes.',
+            'roster-retire': 'Remove selected characters from the draft while retaining their retired identity history after approval.',
+            'roster-previous': 'Show the previous page of draft characters.',
+            'roster-next': 'Show the next page of draft characters.',
+            'roster-preview': 'Check identity decisions and exact quotes against current saved inputs. Preview does not approve or change the cast.',
+            'roster-approve': 'Approve the exact reviewed draft for future script generation and save one exact undo. Changed inputs refuse approval.',
+            'roster-undo': 'Restore the cast and roster from before the last approval. Changed source or approved files prevent an unsafe rollback.',
+            'roster-discard': 'Explicitly remove the saved undo while keeping the current cast and roster. Resolve it before another approval.',
             'settings-llm-advanced-toggle': 'Show or hide request timeouts and retry backoff for the selected LLM location. Expanding this group does not change its settings.',
             'script-recovery-inject': 'Paste a replacement model reply for the failed chunk, then validate it before applying it.',
             'config-save-button-top': 'Save the current configuration so subsequent tasks use these settings.',

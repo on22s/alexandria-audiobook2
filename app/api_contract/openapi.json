@@ -6151,6 +6151,187 @@
         "summary": "Save Character Aliases"
       }
     },
+    "/api/character_roster": {
+      "get": {
+        "operationId": "get_character_roster_api_character_roster_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Character Roster"
+      }
+    },
+    "/api/character_roster/apply": {
+      "post": {
+        "operationId": "approve_character_roster_api_character_roster_apply_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Approve Character Roster"
+      }
+    },
+    "/api/character_roster/discard_undo": {
+      "post": {
+        "operationId": "discard_character_undo_api_character_roster_discard_undo_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Discard Character Undo"
+      }
+    },
+    "/api/character_roster/preview": {
+      "post": {
+        "operationId": "preview_character_roster_api_character_roster_preview_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Preview Character Roster"
+      }
+    },
+    "/api/character_roster/source": {
+      "get": {
+        "operationId": "get_character_source_api_character_roster_source_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "context_revision",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Context Revision",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "quote",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 4000,
+              "title": "Quote",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 1200000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length",
+            "required": false,
+            "schema": {
+              "default": 2000,
+              "maximum": 8000,
+              "minimum": 1,
+              "title": "Length",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Character Source"
+      },
+      "post": {
+        "operationId": "find_character_source_api_character_roster_source_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Find Character Source"
+      }
+    },
+    "/api/character_roster/undo": {
+      "get": {
+        "operationId": "get_character_undo_api_character_roster_undo_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Character Undo"
+      },
+      "post": {
+        "operationId": "undo_character_roster_api_character_roster_undo_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Undo Character Roster"
+      }
+    },
     "/api/chunks": {
       "get": {
         "operationId": "get_chunks_api_chunks_get",

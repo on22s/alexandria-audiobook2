@@ -14,98 +14,20 @@ Even an exact quote proves its location, not the claimed person's identity.
 Approvals, alias changes, imports and rollback remain outside this evaluator.
 """
 import argparse
-import hashlib
 import json
 from pathlib import Path
-import re
 
 from adapter_publication import save_adapter_publication_bytes
 from cast_list import MAX_SOURCE_CHARS
-from experiments.provenance import provenance
+from experiments.provenance import input_sha256, provenance
 from project_scope_files import capture_scope_file
 
-MAX_ENTRIES = 200
-MAX_EVIDENCE = 8
-MAX_QUOTE_CHARS = 4000
+# Re-export the evaluator API and limits for existing offline callers.
+from source_evidence import (MAX_ENTRIES, MAX_EVIDENCE, MAX_QUOTE_CHARS,
+                             get_source_evidence_review)
+
 MAX_PACKET_BYTES = 2 * 1024**2
 MAX_SOURCE_BYTES = 4 * MAX_SOURCE_CHARS
-
-
-def _require_keys(value, keys, label):
-    if not isinstance(value, dict) or len(value) != len(keys) or set(value) != set(keys):
-        raise ValueError(f'{label} has an invalid structure')
-
-
-def _require_text(value, limit, label):
-    if not isinstance(value, str) or len(value) > limit or not value.strip():
-        raise ValueError(f'{label} must be nonempty text within {limit} characters')
-    try:
-        value.encode('utf-8')
-    except UnicodeEncodeError:
-        raise ValueError(f'{label} must be valid UTF-8 text') from None
-
-
-def get_source_evidence_review(source_text, packet):
-    """Validate an evaluation packet, then return a detached, bounded report."""
-    _require_text(source_text, MAX_SOURCE_CHARS, 'Source')
-    _require_keys(packet, ('source_sha256', 'entries'), 'Packet')
-    fingerprint = hashlib.sha256(source_text.encode('utf-8')).hexdigest()
-    if packet['source_sha256'] != fingerprint:
-        raise ValueError('Source fingerprint differs; prepare a new review for this revision')
-    entries = packet['entries']
-    if not isinstance(entries, list) or not 1 <= len(entries) <= MAX_ENTRIES:
-        raise ValueError('Packet requires between 1 and 200 entries')
-    seen = set()
-    # Validate every claim before searching, so malformed imports never produce
-    # a plausible partial result or trigger unnecessary source scans.
-    for entry in entries:
-        _require_keys(entry, ('id', 'canonical_name', 'evidence'), 'Entry')
-        if (not isinstance(entry['id'], str)
-                or re.fullmatch(r'character_[0-9a-f]{20}', entry['id']) is None
-                or entry['id'] in seen):
-            raise ValueError('Entry IDs must be unique opaque character IDs')
-        seen.add(entry['id'])
-        _require_text(entry['canonical_name'], 1024, 'Canonical name')
-        evidence = entry['evidence']
-        if not isinstance(evidence, list) or not 1 <= len(evidence) <= MAX_EVIDENCE:
-            raise ValueError('Each entry requires between 1 and 8 evidence claims')
-        for claim in evidence:
-            _require_keys(claim, ('source_quote', 'start_char', 'end_char'), 'Evidence')
-            quote, start, end = (claim[key] for key in ('source_quote', 'start_char', 'end_char'))
-            _require_text(quote, MAX_QUOTE_CHARS, 'Evidence quote')
-            if start is None and end is None:
-                continue
-            if type(start) is not int or type(end) is not int or not 0 <= start < end <= len(source_text):
-                raise ValueError('Evidence requires two null offsets or a valid source character range')
-    rows = []
-    counts = {key: 0 for key in ('exact', 'unique_candidate', 'ambiguous', 'unsupported', 'offset_mismatch')}
-    for entry in entries:
-        evidence = []
-        for claim in entry['evidence']:
-            quote, start, end = (claim[key] for key in ('source_quote', 'start_char', 'end_char'))
-            candidates = []
-            if start is not None and source_text[start:end] == quote:
-                status = 'exact'
-            else:
-                position = source_text.find(quote)
-                # Two occurrences suffice to establish ambiguity. Include
-                # overlapping matches, and never silently relocate bad offsets.
-                while position >= 0 and len(candidates) < 2:
-                    candidates.append({'start_char': position, 'end_char': position + len(quote)})
-                    if len(candidates) == 2:
-                        break
-                    position = source_text.find(quote, position + 1)
-                status = ('unsupported' if not candidates else
-                          'offset_mismatch' if start is not None else
-                          'unique_candidate' if len(candidates) == 1 else 'ambiguous')
-            counts[status] += 1
-            evidence.append({**claim, 'status': status, 'candidate_locations': candidates})
-        rows.append({'id': entry['id'], 'canonical_name': entry['canonical_name'],
-                     'identity_status': 'not_evaluated', 'evidence': evidence})
-    return {'schema': 1, 'source_sha256': fingerprint, 'source_characters': len(source_text),
-            'counts': counts, 'entries': rows,
-            'qualification': 'Quote locations only; character identity and aliases are not approved. '
-                             'Candidate locations require explicit review; source changes require a new packet.'}
 
 
 def _read_input(path, limit):
@@ -131,7 +53,8 @@ def main(argv=None):
         if out == root or root in out.parents or out.resolve() != out:
             raise ValueError('Choose a new output directory outside the source checkout without path aliases')
         report.update(provenance=provenance(__file__, args),
-                      inputs={'source': source_receipt, 'packet': packet_receipt})
+                      inputs={'source': source_receipt, 'packet': packet_receipt},
+                      implementation=input_sha256([Path(__file__).resolve().parents[1] / 'source_evidence.py']))
         encoded = (json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + '\n').encode('utf-8')
         out.mkdir(mode=0o700, exist_ok=False)
         save_adapter_publication_bytes(str(out / 'report.json'), encoded)

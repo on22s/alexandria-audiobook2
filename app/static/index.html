@@ -1926,6 +1926,46 @@
                             </div>
                             <div class="form-text" id="cast-list-status">One request over the whole book lists everyone who speaks, including people the book never names (<em>THE DETECTIVE</em>, <em>THE OLD WOMAN</em>). Generation then gives them their own lines instead of UNKNOWN.</div>
                             <div id="cast-list-panel" class="mt-2" style="display:none;"></div>
+                            <details id="character-roster-panel" class="border rounded p-3 mt-3">
+                                <summary>Review character identities and source quotes</summary>
+                                <p class="small mt-2">Review recurring names, aliases and ambiguous characters before updating the cast for future script generation. Accepted text, voices and audio stay as they are.</p>
+                                <button type="button" id="roster-load" class="btn btn-sm btn-outline-secondary">Load or reload character review</button>
+                                <button type="button" id="roster-export" class="btn btn-sm btn-outline-secondary" disabled>Export approved roster</button>
+                                <button type="button" id="roster-recover" class="btn btn-sm btn-outline-secondary" hidden>Restore previous unsaved draft</button>
+                                <p id="roster-book" class="small mt-2"></p>
+                                <div id="roster-status" class="small mb-2" role="status" aria-live="polite">Load this book when you are ready.</div>
+                                <fieldset id="roster-fields" disabled>
+                                    <div class="d-flex gap-2 flex-wrap my-2">
+                                        <button type="button" id="roster-seed" class="btn btn-sm btn-outline-secondary">Use current cast as a draft</button>
+                                        <button type="button" id="roster-add" class="btn btn-sm btn-outline-secondary">Add character</button>
+                                        <label class="small">Import an exported roster <input type="file" id="roster-import" accept=".json,application/json" class="form-control form-control-sm"></label>
+                                    </div>
+                                    <div id="roster-import-review" class="my-2"></div>
+                                    <div class="border rounded p-2 mb-2">
+                                        <label class="small" for="roster-survivor">When merging selected characters, keep</label>
+                                        <select id="roster-survivor" class="form-select form-select-sm mb-2"></select>
+                                        <button type="button" id="roster-merge" class="btn btn-sm btn-outline-secondary">Merge selected</button>
+                                        <label class="small ms-2" for="roster-split-name">New character name for a split</label>
+                                        <input id="roster-split-name" class="form-control form-control-sm my-1" maxlength="2048">
+                                        <label class="small"><input type="checkbox" id="roster-split-new"> Give both split characters new identities</label>
+                                        <button type="button" id="roster-split" class="btn btn-sm btn-outline-secondary">Split selected character</button>
+                                        <button type="button" id="roster-retire" class="btn btn-sm btn-outline-danger">Retire selected</button>
+                                    </div>
+                                    <div id="roster-rows"></div>
+                                    <button type="button" id="roster-previous" class="btn btn-sm btn-outline-secondary">Previous characters</button>
+                                    <span id="roster-page" class="small mx-2"></span>
+                                    <button type="button" id="roster-next" class="btn btn-sm btn-outline-secondary">Next characters</button>
+                                    <button type="button" id="roster-preview" class="btn btn-sm btn-outline-info ms-2">Review draft changes</button>
+                                </fieldset>
+                                <div id="roster-review" class="my-3"></div>
+                                <label class="small"><input type="checkbox" id="roster-consent" disabled> I reviewed the character identities and quote locations.</label>
+                                <button type="button" id="roster-approve" class="btn btn-sm btn-primary" disabled>Approve reviewed roster</button>
+                                <div class="border-top mt-3 pt-2">
+                                    <p id="roster-undo-status" class="small"></p>
+                                    <button type="button" id="roster-undo" class="btn btn-sm btn-outline-secondary" disabled>Undo last approval</button>
+                                    <button type="button" id="roster-discard" class="btn btn-sm btn-outline-danger" disabled>Discard saved undo</button>
+                                </div>
+                            </details>
                         </div>
                     </div>
 
@@ -3686,6 +3726,7 @@
     <script src="/static/js/app-scripts.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-project-scope.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-speaker-review.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-character-roster.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-repair.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-word-timing.js?v=__APP_BUILD__"></script>
