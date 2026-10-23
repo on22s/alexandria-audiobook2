@@ -1510,12 +1510,12 @@
                         <div class="row mb-3">
                             <div class="col-md-2">
                                 <label class="form-label" for="pause-between-speakers">Speaker Change Pause (ms)</label>
-                                <input type="number" class="form-control" id="pause-between-speakers" value="500" min="0" step="50">
+                                <input type="number" class="form-control" id="pause-between-speakers" value="500" min="0" max="760000" step="50">
                                 <div class="form-text">Silence between different speakers on merge</div>
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label" for="pause-same-speaker">Same Speaker Pause (ms)</label>
-                                <input type="number" class="form-control" id="pause-same-speaker" value="250" min="0" step="50">
+                                <input type="number" class="form-control" id="pause-same-speaker" value="250" min="0" max="760000" step="50">
                                 <div class="form-text">Silence when same speaker continues on merge</div>
                             </div>
                             <div class="col-md-4">

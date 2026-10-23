@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, ValidationError
 from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig, PromptVariant,
                              TTSConfig, backup_damaged_app_config, load_app_config,
                              load_app_config_result)
+from export_limits import MAX_PAUSE_MS
 
 from default_prompts import load_default_prompts, load_instruct_prompts, load_segment_prompts
 from llm_provider import is_api_key_reference
@@ -797,6 +798,7 @@ async def get_config():
 
     # Always include current_file (null when no state or file missing)
     config["current_file"] = None
+    config["max_pause_ms"] = MAX_PAUSE_MS
     state_path = os.path.join(DATA_DIR, "state.json")
     if os.path.exists(state_path):
         try:

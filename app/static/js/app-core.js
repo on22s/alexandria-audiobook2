@@ -1493,6 +1493,7 @@
         let savedConfigRefreshPending = false;
         let savedConfigRefreshRequest = 0;
         let savedConfigPromptSnapshot = null;
+        let maxPauseMs = null;
         async function refreshSavedConfigFeedback(afterSave = false) {
             if (savedConfigRefreshPending && !afterSave) { return; }
             const request = ++savedConfigRefreshRequest;
@@ -1974,6 +1975,12 @@
                 }
                 if (config.tts.pause_same_speaker_ms != null) {
                     document.getElementById('pause-same-speaker').value = config.tts.pause_same_speaker_ms;
+                }
+                if (Number.isFinite(config.max_pause_ms)) {
+                    maxPauseMs = config.max_pause_ms;
+                    for (const id of ['pause-between-speakers', 'pause-same-speaker']) {
+                        document.getElementById(id).max = maxPauseMs;
+                    }
                 }
                 if (config.tts.design_text_min_chars != null) {
                     document.getElementById('design-text-min-chars').value = config.tts.design_text_min_chars;
@@ -7135,7 +7142,7 @@
                                 <textarea class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="Delivery instruction (3-8 words)">${escapeHtml(chunk.instruct || '')}</textarea>
                                 <div class="chunk-pause-row d-none mt-1 align-items-center gap-1">
                                     <small class="text-muted text-nowrap">Pause after (ms):</small>
-                                    <input type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="default" min="0" step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
+                                    <input type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="default" min="0"${typeof maxPauseMs !== 'undefined' && maxPauseMs != null ? ` max="${maxPauseMs}"` : ''} step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
                                 </div>
                             </td>
                             <td><span class="badge bg-${statusColor}">${escapeHtml(chunk.status)}</span>${_driftBadge(chunk)}</td>

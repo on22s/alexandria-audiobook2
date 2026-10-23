@@ -25,6 +25,7 @@ from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field, StrictInt, StrictBool, field_validator
 from publication_preview import get_publication_review, get_publication_preview, get_publication_selection
 from config_settings import load_app_config
+from export_limits import MAX_PAUSE_MS
 from audio_mastering import MasteringOptions, get_audio_sha256
 from export_quality import ExportQualityOptions
 from export_quality_session import ExportQualityAttempt, get_session_evidence
@@ -330,7 +331,7 @@ class ChunkUpdate(BaseModel):
     instruct: Optional[str] = None
     speaker: Optional[str] = None
     take: Optional[int] = Field(default=None, ge=0, le=1_000_000)
-    pause_after: Optional[int] = None
+    pause_after: Optional[int] = Field(default=None, le=MAX_PAUSE_MS)
 
     @field_validator("text", "instruct", "speaker", mode="before")
     @classmethod

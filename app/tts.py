@@ -46,6 +46,7 @@ from synthesis_recovery_serving import (ensure_native_recovery_serving_current,
 from pronunciation import ensure_occurrence_pronunciation_context, get_pronunciation_model_context
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
+from export_limits import ensure_pause_allowed
 from audio_pcm_producer import (get_pcm_source_shape, get_audio_duration_ms,
                                 get_joined_pcm_shape, get_promoted_pcm_shape, get_silence_pcm_shape)
 from voice_manifest import get_resolved_adapter_path, get_adapter_asset_snapshot
@@ -637,13 +638,16 @@ def trim_edge_silence(segment, threshold_db=EDGE_SILENCE_THRESHOLD_DBFS,
 
 def get_pause_duration_ms(previous_chunk, next_chunk, pause_ms=DEFAULT_PAUSE_MS,
                           same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS):
-    """Return the existing override-or-speaker-boundary pause rule."""
+    """Return the pause rule, rejecting values above the shared export limit."""
     override = previous_chunk.get("pause_after")
     if override is not None:
-        return int(override)
-    if next_chunk.get("speaker") == previous_chunk.get("speaker"):
-        return same_speaker_pause_ms
-    return pause_ms
+        duration = int(override)
+    elif next_chunk.get("speaker") == previous_chunk.get("speaker"):
+        duration = same_speaker_pause_ms
+    else:
+        duration = pause_ms
+    ensure_pause_allowed(duration)
+    return duration
 
 
 def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_MS,

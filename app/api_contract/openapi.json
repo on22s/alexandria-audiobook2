@@ -908,6 +908,7 @@
           "pause_after": {
             "anyOf": [
               {
+                "maximum": 760000.0,
                 "type": "integer"
               },
               {
@@ -4078,12 +4079,14 @@
           },
           "pause_between_speakers_ms": {
             "default": 500,
+            "maximum": 760000.0,
             "minimum": 0.0,
             "title": "Pause Between Speakers Ms",
             "type": "integer"
           },
           "pause_same_speaker_ms": {
             "default": 250,
+            "maximum": 760000.0,
             "minimum": 0.0,
             "title": "Pause Same Speaker Ms",
             "type": "integer"

@@ -12,6 +12,7 @@ from typing import Annotated, Dict, List, Literal, Optional, Union, get_args, ge
 from types import UnionType
 
 from pydantic import AfterValidator, BaseModel, Field, JsonValue, TypeAdapter, ValidationError
+from export_limits import MAX_PAUSE_MS
 from synthesis_settings import get_synthesis_window_settings, get_synthesis_recovery_settings
 from speech_verification_settings import get_speech_verification_settings
 
@@ -101,8 +102,8 @@ class TTSConfig(BaseModel):
     sub_batch_ratio: float = Field(default=5.0, ge=1)
     sub_batch_max_items: int = Field(default=0, ge=0)
     batch_group_by_type: bool = False
-    pause_between_speakers_ms: int = Field(default=500, ge=0)
-    pause_same_speaker_ms: int = Field(default=250, ge=0)
+    pause_between_speakers_ms: int = Field(default=500, ge=0, le=MAX_PAUSE_MS)
+    pause_same_speaker_ms: int = Field(default=250, ge=0, le=MAX_PAUSE_MS)
     # Voice Design text length (#1232): the persona line a voice is designed
     # from, and later cloned against, is chosen inside this character range.
     design_text_min_chars: int = Field(default=12, ge=1, le=500)
