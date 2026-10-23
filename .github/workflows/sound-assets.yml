@@ -8,9 +8,18 @@ on:
       - 'app/*subprocess_owner.py'
       - 'app/audio_take_history.py'
       - 'app/utils.py'
+      - 'app/audio_pcm_producer.py'
+      - 'app/audio_source_io.py'
+      - 'app/source_evidence.py'
+      - 'app/json_metadata.py'
+      - 'app/adapter_publication.py'
+      - 'app/project_scope_files.py'
+      - 'app/audio_generation_owner.py'
+      - 'app/tests/test_sound_design_cues.py'
       - 'app/tests/test_sound_design_assets.py'
       - 'app/tests/test_sound_design_decode.py'
       - 'app/tests/test_media_output_sink.py'
+      - 'app/tests/test_sound_design_mix.py'
       - '.github/workflows/sound-assets.yml'
 permissions:
   contents: read
@@ -47,4 +56,4 @@ jobs:
           ffprobe -version
           python -c "import soundfile; print(soundfile.__version__, soundfile.__libsndfile_version__)"
       - name: Verify exact decoding, owned child cleanup and durable recovery
-        run: python -m unittest tests.test_sound_design_assets tests.test_sound_design_decode tests.test_media_output_sink -v
+        run: python -m unittest tests.test_sound_design_assets tests.test_sound_design_decode tests.test_media_output_sink tests.test_sound_design_mix -v
