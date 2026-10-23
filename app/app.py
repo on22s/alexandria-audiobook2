@@ -177,6 +177,9 @@ from routers.editor import router as editor_router
 
 app.include_router(editor_router)
 
+from routers.sound_design import router as sound_design_router
+app.include_router(sound_design_router)
+
 from routers.pronunciation_panel import router as pronunciation_router
 app.include_router(pronunciation_router)
 

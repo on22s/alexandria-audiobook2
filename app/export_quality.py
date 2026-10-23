@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictBool
 from audio_encoding_layout import get_audio_encoding_layout
 from audio_export_plan import MAX_PLAN_REGIONS
 from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
-from tts import ensure_audio_export_active
+from tts import ExportCancelled, ensure_audio_export_active
 
 MAX_PROBE_BYTES = 32 * 1024 * 1024
 MAX_DIAGNOSTICS = 16
@@ -337,7 +337,7 @@ def get_export_format_matches(expected, codec, container):
 
 
 def _run_owned_check(command, cancel_check, timeout, *, output_limit=0,
-                     consume_line=None, progress_callback=None):
+                     consume_line=None, progress_callback=None, consume_output=None):
     """Drain finite chunks on both pipes while the caller controls lifetime."""
     output, errors = bytearray(), []
     diagnostics = deque(maxlen=12)
@@ -345,17 +345,28 @@ def _run_owned_check(command, cancel_check, timeout, *, output_limit=0,
     readers = []
     started = time.monotonic()
 
+    def raise_reader_error():
+        if errors:
+            if isinstance(errors[0], ExportCancelled):
+                raise errors[0]
+            raise ValueError(errors[0])
+
     def read_output():
+        size = 0
         try:
             while block := process.stdout.read(65536):
-                if len(output) + len(block) > output_limit:
+                size += len(block)
+                if size > output_limit:
                     if not errors:
                         errors.append('Media probe exceeded its bounded output allowance.')
                 elif not errors:
-                    output.extend(block)
+                    if consume_output is None:
+                        output.extend(block)
+                    else:
+                        consume_output(block)
         except BaseException as error:
             if not errors:
-                errors.append(str(error)[:240])
+                errors.append(error if isinstance(error, ExportCancelled) else str(error)[:240])
 
     def read_errors():
         try:
@@ -366,7 +377,7 @@ def _run_owned_check(command, cancel_check, timeout, *, output_limit=0,
                     consume_line(line)
         except BaseException as error:
             if not errors:
-                errors.append(str(error)[:240])
+                errors.append(error if isinstance(error, ExportCancelled) else str(error)[:240])
 
     try:
         ensure_audio_export_active(cancel_check)
@@ -379,8 +390,7 @@ def _run_owned_check(command, cancel_check, timeout, *, output_limit=0,
         next_progress = started + 2
         while True:
             ensure_audio_export_active(cancel_check)
-            if errors:
-                raise ValueError(errors[0])
+            raise_reader_error()
             elapsed = time.monotonic() - started
             if elapsed >= timeout:
                 raise subprocess.TimeoutExpired(command, timeout)
@@ -394,8 +404,9 @@ def _run_owned_check(command, cancel_check, timeout, *, output_limit=0,
                 continue
         for thread in readers:
             thread.join(timeout=2)
-        if errors or any(thread.is_alive() for thread in readers):
-            raise ValueError(errors[0] if errors else 'Media check retained an incomplete diagnostic stream.')
+        raise_reader_error()
+        if any(thread.is_alive() for thread in readers):
+            raise ValueError('Media check retained an incomplete diagnostic stream.')
         ensure_audio_export_active(cancel_check)
         if result:
             raise ValueError('Finished export could not be decoded: ' + '\n'.join(diagnostics)[-2048:])
@@ -407,6 +418,11 @@ def _run_owned_check(command, cancel_check, timeout, *, output_limit=0,
                     stop_owned_subprocess(process, timeout=1, force_after_grace=True)
                 for thread in readers:
                     thread.join(timeout=2)
+                if consume_output is not None:
+                    # A sink may still own a caller's file. Do not release its
+                    # worker/lease while that file operation is unwinding.
+                    for thread in readers:
+                        thread.join()
                 for pipe in (process.stdout, process.stderr):
                     if pipe is not None and not any(thread.is_alive() for thread in readers):
                         pipe.close()

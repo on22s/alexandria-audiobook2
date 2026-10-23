@@ -6110,6 +6110,15 @@
     "tests.test_measure_respellings_terms.RowsForTermsTest.test_a_term_that_does_not_romanise_is_refused",
     "tests.test_measure_respellings_terms.RowsForTermsTest.test_known_terms_keep_their_row_and_unknown_ones_are_built"
   ],
+  "test_media_output_sink": [
+    "tests.test_media_output_sink.MediaOutputSinkTests.test_cancellation_after_output_waits_for_sink_then_stops_child",
+    "tests.test_media_output_sink.MediaOutputSinkTests.test_cancellation_reaps_grandchild_holding_output_after_parent_exit",
+    "tests.test_media_output_sink.MediaOutputSinkTests.test_limit_is_cumulative_even_when_sink_does_not_retain_output",
+    "tests.test_media_output_sink.MediaOutputSinkTests.test_reader_cancellation_retains_its_type_after_child_cleanup",
+    "tests.test_media_output_sink.MediaOutputSinkTests.test_sink_failure_stops_child_and_releases_pipes",
+    "tests.test_media_output_sink.MediaOutputSinkTests.test_success_streams_bounded_pieces_without_retaining_output",
+    "tests.test_media_output_sink.MediaOutputSinkTests.test_timeout_stops_owned_child_without_sink_output"
+  ],
   "test_merge_integrity": [
     "tests.test_merge_integrity.MergeIntegrityAdmission.test_clean_annotation_does_not_hide_editor_change",
     "tests.test_merge_integrity.MergeIntegrityAdmission.test_clean_chunks_schedule_as_before_without_body",
@@ -9248,6 +9257,38 @@
     "tests.test_snapshot_publication_source.SnapshotPublicationSourceTests.test_provenance_publication_failure_restores_library_without_partial_snapshot",
     "tests.test_snapshot_publication_source.SnapshotPublicationSourceTests.test_provenance_read_does_not_block_same_loop_http"
   ],
+  "test_sound_assets_js": [
+    "tests.test_sound_assets_js.SoundAssetsJsTests.test_audition_uses_exact_identity_offset_and_refresh_stops_old_audio",
+    "tests.test_sound_assets_js.SoundAssetsJsTests.test_cleanup_requires_confirmation_and_targets_only_incomplete_identity",
+    "tests.test_sound_assets_js.SoundAssetsJsTests.test_duplicate_upload_click_and_cancel_preserve_uncertain_outcome_message",
+    "tests.test_sound_assets_js.SoundAssetsJsTests.test_invalid_or_duplicate_entries_never_render_controls",
+    "tests.test_sound_assets_js.SoundAssetsJsTests.test_newer_refresh_wins_and_labels_remain_literal"
+  ],
+  "test_sound_design_asset_routes": [
+    "tests.test_sound_design_asset_routes.SoundDesignAssetRoutesTests.test_explicit_cleanup_refuses_ready_and_removes_only_incomplete",
+    "tests.test_sound_design_asset_routes.SoundDesignAssetRoutesTests.test_invalid_upload_is_retained_as_incomplete_without_a_ready_asset",
+    "tests.test_sound_design_asset_routes.SoundDesignAssetRoutesTests.test_list_and_offset_audition_preserve_exact_frames_and_bound_duration",
+    "tests.test_sound_design_asset_routes.SoundDesignAssetRoutesTests.test_stale_hash_outside_range_and_corrupt_media_refuse_without_mutation",
+    "tests.test_sound_design_asset_routes.SoundDesignAssetRoutesTests.test_uploaded_audio_is_admitted_and_private_stage_is_released"
+  ],
+  "test_sound_design_assets": [
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_actual_process_death_preserves_reservations_or_complete_ready_assets",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_cancelled_decode_retains_charged_source_until_explicit_purge",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_damaged_canonical_refuses_read_and_dedupe_without_erasing_evidence",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_display_name_survives_reopen_without_changing_identity_on_duplicate",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_failed_decode_retains_charged_copy_until_explicit_recovery",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_import_reopen_dedupe_and_verified_read_preserve_original_and_canonical",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_incomplete_cannot_claim_ready_audio_and_unknown_artifacts_remain_for_recovery",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_interrupted_purge_keeps_reservation_until_retry_finishes",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_invalid_display_names_refuse_before_creating_store_or_decoding",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_late_ready_publication_error_retains_verifiable_asset",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_lowered_quota_allows_inspection_and_recovery_but_no_new_import",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_malformed_or_duplicate_metadata_never_overwrites_recoverable_bytes",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_quota_refuses_before_copy_or_decode",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_recovery_waits_for_live_import_and_cannot_purge_the_ready_result",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_saved_incomplete_reservation_survives_store_reopen_and_counts_full_allowance",
+    "tests.test_sound_design_assets.SoundDesignAssetStoreTests.test_source_hardlink_is_refused_without_copy"
+  ],
   "test_sound_design_cues": [
     "tests.test_sound_design_cues.SoundDesignCueTests.test_actual_selected_asset_conversion_matches_projected_frames_and_pcm",
     "tests.test_sound_design_cues.SoundDesignCueTests.test_both_incoming_and_outgoing_scope_crossings_require_review",
@@ -9272,12 +9313,23 @@
     "tests.test_sound_design_cues.SoundDesignCueTests.test_selected_asset_native_length_not_an_unselected_candidate",
     "tests.test_sound_design_cues.SoundDesignCueTests.test_take_generation_and_legacy_content_changes_each_invalidate_anchor"
   ],
+  "test_sound_design_decode": [
+    "tests.test_sound_design_decode.SoundDesignDecodeTests.test_actual_ffmpeg_sink_cancellation_preserves_original_and_partial_output",
+    "tests.test_sound_design_decode.SoundDesignDecodeTests.test_excess_pcm_refuses_without_overwriting_existing_output",
+    "tests.test_sound_design_decode.SoundDesignDecodeTests.test_integer_wav_and_flac_preserve_exact_samples_and_geometry",
+    "tests.test_sound_design_decode.SoundDesignDecodeTests.test_mp3_matches_independent_single_read_without_block_boundary_corruption",
+    "tests.test_sound_design_decode.SoundDesignDecodeTests.test_nonfinite_or_overrange_float_sources_are_refused",
+    "tests.test_sound_design_decode.SoundDesignDecodeTests.test_ogg_and_mp3_preserve_stereo_rate_and_full_length",
+    "tests.test_sound_design_decode.SoundDesignDecodeTests.test_source_change_after_decode_refuses_success_and_retains_recovery_bytes",
+    "tests.test_sound_design_decode.SoundDesignDecodeTests.test_truncated_wav_is_refused_before_starting_a_decoder"
+  ],
   "test_sound_design_registry": [
     "tests.test_sound_design_registry.SoundDesignRegistryTests.test_duplicate_nonfinite_invalid_unicode_deep_and_oversized_json_refuse",
     "tests.test_sound_design_registry.SoundDesignRegistryTests.test_immutable_history_and_exact_selected_version_survive_serialization",
     "tests.test_sound_design_registry.SoundDesignRegistryTests.test_joint_bytes_are_checked_before_version_hashing_or_copying",
     "tests.test_sound_design_registry.SoundDesignRegistryTests.test_unknown_parent_duplicate_origin_wrong_book_and_selection_refuse",
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_active_alias_hardlink_fifo_and_oversize_refuse_before_saved_family_changes",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_admitted_assets_and_historical_references_survive_book_save_reset_load",
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_checkpoint_snapshot_keeps_exact_cue_history_on_reload",
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_corrupt_or_foreign_saved_companion_does_not_switch_active_book",
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_destination_alias_refuses_without_overwriting_either_named_book",
@@ -9289,6 +9341,14 @@
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_source_reset_process_death_rolls_back_or_finishes_committed_clear",
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_source_selection_clears_valid_cues_and_preserves_invalid_metadata",
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_two_named_snapshots_restore_their_exact_own_cue_bytes"
+  ],
+  "test_sound_design_upload_ownership": [
+    "tests.test_sound_design_upload_ownership.SoundDesignUploadOwnershipTests.test_cancel_after_ready_publication_retains_complete_reusable_asset",
+    "tests.test_sound_design_upload_ownership.SoundDesignUploadOwnershipTests.test_cancel_while_waiting_for_staging_lease_preserves_holder",
+    "tests.test_sound_design_upload_ownership.SoundDesignUploadOwnershipTests.test_repeated_cancel_waits_for_decoder_then_retains_incomplete_record",
+    "tests.test_sound_design_upload_ownership.SoundDesignUploadOwnershipTests.test_slow_real_import_keeps_event_loop_free_and_staging_lease_owned",
+    "tests.test_sound_design_upload_ownership.SoundDesignUploadQuotaTests.test_crash_stages_count_toward_budget_and_failed_copy_preserves_them",
+    "tests.test_sound_design_upload_ownership.SoundDesignUploadQuotaTests.test_full_or_count_exhausted_staging_refuses_before_reading_upload"
   ],
   "test_sound_design_upload_selection": [
     "tests.test_sound_design_upload_selection.SoundDesignUploadSelectionTests.test_bad_metadata_refuses_selection_but_retains_publicly_visible_source",

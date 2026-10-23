@@ -3176,6 +3176,19 @@
                     </div>
                 </div>
                 <div class="card-body">
+                     <details class="mb-3" ontoggle="if (this.open) SoundAssets.refresh()">
+                         <summary>Sound asset library</summary>
+                         <p class="small mt-2">Import effects and ambience to keep for your books. Listen before choosing cues. Adding an asset does not change the book audio.</p>
+                         <label for="sound-assets-file" class="form-label">Audio file</label>
+                         <input id="sound-assets-file" type="file" accept=".wav,.flac,.mp3,.ogg" class="form-control form-control-sm mb-2">
+                         <div class="d-flex flex-wrap gap-2">
+                             <button id="sound-assets-import" type="button" class="btn btn-sm btn-primary" data-help-key="soundAssetsImport" onclick="SoundAssets.importFile()">Import audio</button>
+                             <button id="sound-assets-cancel" type="button" class="btn btn-sm btn-outline-danger" data-help-key="soundAssetsCancel" onclick="SoundAssets.cancel()" hidden>Cancel import</button>
+                             <button type="button" class="btn btn-sm btn-outline-secondary" data-help-key="soundAssetsRefresh" onclick="SoundAssets.refresh()">Refresh library</button>
+                         </div>
+                         <p id="sound-assets-status" class="small mt-2" role="status" aria-live="polite"></p>
+                         <div id="sound-assets-list"></div>
+                     </details>
                      <!-- Full Progress Bar -->
                      <div class="progress mb-3" style="height: 25px;">
                          <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" style="width: 0%">0%</div>
@@ -3741,6 +3754,7 @@
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workspace.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-sound-assets.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-mastering.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-export-quality.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-publication.js?v=__APP_BUILD__"></script>

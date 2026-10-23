@@ -98,6 +98,46 @@ class SoundDesignSavedBookTests(unittest.TestCase):
                 self.assertEqual(expected, (root / ACTIVE_CUES).read_bytes())
                 self.assertEqual(expected, Path(get_saved_sound_design_path(root / 'scripts' / (name + '.json'))).read_bytes())
 
+    def test_admitted_assets_and_historical_references_survive_book_save_reset_load(self):
+        import numpy as np
+        import soundfile as sf
+        from sound_design_assets import SoundDesignAssetStore
+        with self.fixture() as (root, api), TestClient(api) as client:
+            store = SoundDesignAssetStore(root, source_limit=65536, pcm_limit=65536,
+                                           total_limit=256000)
+            descriptors = []
+            for index, level in enumerate((.125, -.25)):
+                name = f'effect-{index}.wav'
+                sf.write(root / name, np.full(3000, level), 24000, subtype='PCM_16')
+                descriptors.append(store.import_asset(name))
+            value = recipe()
+            value['book']['book_id'] = 'new-book'
+            versions = []
+            for descriptor in descriptors:
+                value['asset'] = descriptor
+                versions.append(get_sound_design_cue_version('cue-a', value,
+                    versions[-1]['version'] if versions else None))
+            document = dict(schema=1, book=value['book'], versions=versions,
+                            selected={'cue-a': versions[-1]['version']})
+            raw = get_sound_design_registry_bytes(document)
+            (root / ACTIVE_CUES).write_bytes(raw)
+            response = client.post('/api/scripts/save', json={'name': 'effects'})
+            self.assertEqual(200, response.status_code, response.text)
+            preserved = {path.name: path.read_bytes() for path in store.directory.iterdir()
+                         if not path.name.endswith('.lock')}
+            apply_book_input_selection(root, 'new.txt', 'new')
+            self.assertFalse((root / ACTIVE_CUES).exists())
+            response = client.post('/api/scripts/load', json={'name': 'effects'})
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual(raw, (root / ACTIVE_CUES).read_bytes())
+            self.assertEqual(preserved, {path.name: path.read_bytes() for path in store.directory.iterdir()
+                                        if not path.name.endswith('.lock')})
+            restored = get_sound_design_registry((root / ACTIVE_CUES).read_bytes())
+            for version, descriptor in zip(restored['versions'], descriptors):
+                with SoundDesignAssetStore(root).open_canonical(descriptor['asset_id']) as (stream, actual):
+                    self.assertEqual(version['recipe']['asset'], actual)
+                    self.assertEqual(12000, len(stream.read()))
+
     def test_checkpoint_snapshot_keeps_exact_cue_history_on_reload(self):
         with self.fixture() as (root, api):
             api.include_router(script.router)

@@ -800,25 +800,7 @@ def get_upload_storage_bytes():
                    if entry.is_file(follow_symlinks=False))
 
 
-async def await_upload_operation(operation):
-    """Finish admitted I/O before reporting cancellation to its owner."""
-    task = asyncio.create_task(operation)
-    cancelled = None
-    while not task.done():
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError as error:
-            cancelled = error
-        except Exception:
-            break
-    try:
-        result = task.result()
-    except BaseException:
-        if cancelled is not None:
-            raise cancelled
-        raise
-    return result, cancelled
-
+from upload_operation import await_upload_operation
 
 @router.post("/api/upload")
 async def upload_file(file: UploadFile = File(...), select_active: bool = True):

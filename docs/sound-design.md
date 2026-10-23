@@ -1,8 +1,8 @@
 # Sound-design cue foundation (#1444)
 
 This foundation defines immutable cue recipes and read-only, exact-frame
-projection. It does not yet add a production sound-design interface, import
-assets, approve media, render loops or mixes, or change existing dry exports.
+projection, with a private asset-import store. It does not yet add a production
+sound-design interface, approve media, render loops or mixes, or change existing dry exports.
 The full enhancement remains open.
 
 ## Saved-book storage
@@ -92,6 +92,71 @@ The returned `projection_revision` binds the entire captured book, ordered
 dialogue selections, PCM geometry, scope and selected cue versions. A changed
 preceding clip or pause can move an unchanged cue version; future preview/cache
 and approval adapters must compare this overall revision as well.
+
+## Private asset store
+
+`SoundDesignAssetStore` retains original uploads and canonical signed 32-bit
+little-endian PCM in `.sound_design_assets` under the project root. Assets are
+independent of the active book and saved-book selection. Ready assets are retained
+indefinitely so historical cue references remain usable. The asset API provides
+upload, listing, explicit incomplete-import cleanup and verified auditions.
+The Editor’s Sound asset library panel provides import/cancel, refresh, short
+audition and explicit incomplete-import cleanup. Cue editing is not yet connected.
+
+Admission fully decodes WAV, FLAC, MP3 or OGG through an owned FFmpeg process,
+preserving the probed rate and mono/stereo geometry. It rejects nonfinite or
+out-of-range decoded samples. Canonical identity includes the exact PCM hash,
+frame count, rate, channels and sample width; deduplication also checks the
+original bytes and conversion version. `open_canonical` verifies both retained
+files and holds their descriptors through use. Consumers must finish this
+context successfully before publishing a result.
+
+Default limits are 256 assets, 256 MiB per original, 1 GiB per decoded asset and
+4 GiB total. Import reserves the original size and the full decoded allowance
+before writing media. Incomplete imports retain that charge, including after
+cancellation or process death; ready records charge actual retained bytes.
+Lowering a configured limit does not erase or invalidate existing records:
+inspection and incomplete-import recovery remain available, while new imports
+must fit the lower limit.
+Import and explicit incomplete-asset cleanup share one kernel lease, so cleanup
+cannot delete a live import. Callers must run these operations on a worker and
+retain ownership until the worker and decoder finish.
+Contending mutations wait at most ten seconds before refusing; retry after the
+active import finishes. Upload cancellation remains responsive while waiting
+for either lease, without releasing another operation's ownership.
+
+`purge_incomplete` removes only the selected incomplete record's two owned media
+files. Failed cleanup leaves its reservation until a successful retry. It
+refuses ready assets. Unknown artifacts, aliases, malformed metadata and damaged
+ready records stop mutations and preserve evidence. There is currently no
+automatic repair for those cases: retain the directory for inspection rather
+than deleting or rewriting its manifest. An interrupted atomic manifest write
+can leave an unknown `.publication-*` file requiring such inspection.
+
+Local tests cover exact integer PCM, independent compressed-audio comparisons,
+quota refusal, cancellation, process death, concurrent import/recovery and
+retry after interrupted cleanup. Native-platform, user-workflow and listening
+qualification remain outstanding. The separate MP3 block-decoding defect in
+the existing SoundFile path is tracked in #1536; this store does not repair it.
+
+`POST /api/sound_design/assets/import` accepts an audio file. Its worker holds a
+separate upload lease through copying and import. Private application stages in
+`.sound_design_uploads` share a 256 MiB budget and a 16-file cap, including files
+retained after process death. Those retained stages require inspection; they are
+not silently expired. These limits apply to application staging, separately from
+the HTTP server's multipart parsing. Cancellation waits for owned work before
+releasing its stage; a late or lost response can leave a complete ready asset,
+which remains visible in the library. Refresh before retrying an uncertain import.
+
+`GET /api/sound_design/assets` lists retained records and storage charges.
+`POST /api/sound_design/assets/{asset_id}/purge_incomplete` performs explicit
+recovery and refuses ready records. `GET /api/sound_design/assets/{asset_id}/audition`
+requires the selected canonical `sha256` and accepts a nonnegative `start_frame`.
+It verifies both retained files, then returns up to ten seconds of exact canonical
+PCM in a WAV with caching disabled. Positions beyond the asset are refused.
+The upload route dispatches owned work to a worker; the synchronous read and
+cleanup handlers run in the framework's worker pool. An audition
+does not select a cue, approve a mix or change a book.
 
 ## Required integration and qualification
 

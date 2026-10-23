@@ -172,6 +172,7 @@
             'cast-select': {what: 'The saved cast (character → voice mapping) applied to this book.'},
 
             // Editor tab
+            'sound-assets-file': {what: 'Choose WAV, FLAC, MP3 or OGG audio to retain in the sound asset library. Import verifies the complete file. It does not change book audio; use the library to audition it first.'},
             'editor-repair-chapter': {what: 'Choose one detected export chapter, or the entire book, for the audio repair preview. Without headings, each line is a chapter.'},
             'editor-repair-speakers': {what: 'Select one or more literal speaker labels to include in the repair preview. Preview shows the exact affected lines before audio replacement.'},
             'editor-quality-filter': {what: 'Filter saved unknown-speaker, failed-render, missing-file and voice-drift findings. No check is started.'},
@@ -292,6 +293,12 @@
         };
 
         const ACTION_HELP = {
+            'soundAssetsImport': 'Import and verify the selected audio for reuse. It does not select a cue or change book audio.',
+            'soundAssetsCancel': 'Request import cancellation. Cleanup may continue briefly; refresh the library before retrying.',
+            'soundAssetsRefresh': 'Read retained sound assets and incomplete imports. Refreshing stops any current asset audition.',
+            'soundAssetsCleanup': 'Remove only this incomplete import and release its reserved storage. Ready assets are retained.',
+            'soundAssetsStart': 'Choose the audition start time in seconds within this sound. The preview lasts at most ten seconds.',
+            'soundAssetsListen': 'Verify the retained sound and play up to ten seconds from the chosen start. Book audio is unchanged.',
             'clearM4bTitle': 'Intentionally leave the next M4B title empty. Clears this field and prevents a source suggestion or the default title from filling it.',
             'previewM4bPublication': 'Read captured EPUB metadata and cover suggestions for the selected book. Does not change project files or start generation.',
             'applyM4bPublication': 'Apply only your chosen suggestions to untouched fields and the source-cover selection. Export starts separately.',

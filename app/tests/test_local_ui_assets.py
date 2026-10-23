@@ -59,6 +59,7 @@ class LocalUiAssetTests(unittest.TestCase):
                           '/static/js/app-pronunciation.js?v=__APP_BUILD__',
                           '/static/js/app-editor-review.js?v=__APP_BUILD__',
                           '/static/js/app-take-history.js?v=__APP_BUILD__',
+                          '/static/js/app-sound-assets.js?v=__APP_BUILD__',
                           '/static/js/app-tts-capabilities.js?v=__APP_BUILD__',
                           '/static/js/app-synthesis-windows.js?v=__APP_BUILD__',
                           '/static/js/app-speech-verification.js?v=__APP_BUILD__',
@@ -72,6 +73,7 @@ class LocalUiAssetTests(unittest.TestCase):
         self.assertIn(('/static/js/app-settings.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-publication.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-take-history.js?v=__APP_BUILD__', None), resources)
+        self.assertIn(('/static/js/app-sound-assets.js?v=__APP_BUILD__', None), resources)
         app = FastAPI()
         app.mount('/static', StaticFiles(directory=STATIC), name='static')
         with TestClient(app) as client:

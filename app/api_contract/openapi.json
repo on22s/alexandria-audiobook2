@@ -566,6 +566,20 @@
         "title": "Body_clone_voices_upload_api_clone_voices_upload_post",
         "type": "object"
       },
+      "Body_import_sound_asset_api_sound_design_assets_import_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_sound_asset_api_sound_design_assets_import_post",
+        "type": "object"
+      },
       "Body_lora_upload_dataset_api_lora_upload_dataset_post": {
         "properties": {
           "file": {
@@ -11731,6 +11745,156 @@
           }
         },
         "summary": "Preview Speaker Repair"
+      }
+    },
+    "/api/sound_design/assets": {
+      "get": {
+        "operationId": "list_sound_assets_api_sound_design_assets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Sound Assets"
+      }
+    },
+    "/api/sound_design/assets/import": {
+      "post": {
+        "operationId": "import_sound_asset_api_sound_design_assets_import_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_sound_asset_api_sound_design_assets_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Sound Asset"
+      }
+    },
+    "/api/sound_design/assets/{asset_id}/audition": {
+      "get": {
+        "operationId": "audition_sound_asset_api_sound_design_assets__asset_id__audition_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_frame",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 16588800000,
+              "minimum": 0,
+              "title": "Start Frame",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Audition Sound Asset"
+      }
+    },
+    "/api/sound_design/assets/{asset_id}/purge_incomplete": {
+      "post": {
+        "operationId": "purge_incomplete_sound_asset_api_sound_design_assets__asset_id__purge_incomplete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Purge Incomplete Sound Asset"
       }
     },
     "/api/speaker_review/options": {

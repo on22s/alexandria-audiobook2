@@ -1528,6 +1528,28 @@ def test_workspace_readiness_contract():
         raise TestFailure('Workspace unexpectedly changed the selected book')
 
 
+def test_sound_asset_library_contract():
+    import uuid
+    response = get('/api/sound_design/assets')
+    assert_status(response)
+    library = response.json()
+    if (not isinstance(library, dict) or not isinstance(library.get('assets'), list)
+            or type(library.get('charged_bytes')) is not int or library['charged_bytes'] < 0):
+        raise TestFailure('Sound asset library did not return records and storage charges')
+    assert_status(post('/api/sound_design/assets/import',
+        files={'file': ('invalid.txt', b'Not audio', 'text/plain')}), 400)
+    assert_status(get('/api/sound_design/assets/invalid/audition',
+        params={'sha256': 'a' * 64}), 422)
+    missing = uuid.uuid4().hex
+    assert_status(get(f'/api/sound_design/assets/{missing}/audition',
+        params={'sha256': 'invalid'}), 422)
+    assert_status(get(f'/api/sound_design/assets/{missing}/audition',
+        params={'sha256': 'a' * 64, 'start_frame': -1}), 422)
+    assert_status(get(f'/api/sound_design/assets/{missing}/audition',
+        params={'sha256': 'a' * 64}), 409)
+    assert_status(post(f'/api/sound_design/assets/{missing}/purge_incomplete'), 409)
+
+
 def test_export_quality_contract():
     snapshot = get('/api/chunks/status')
     assert_status(snapshot)
@@ -1891,6 +1913,7 @@ def run_all_tests():
     run_test("workspace_readiness_contract", test_workspace_readiness_contract)
     run_test("project_scope_contract", test_project_scope_contract)
     run_test("export_quality_contract", test_export_quality_contract)
+    run_test("sound_asset_library_contract", test_sound_asset_library_contract)
 
     section("Generation (TTS/LLM)")
     run_test("gpu_lock_mutual_exclusion", test_gpu_lock_mutual_exclusion, requires_full=True)
