@@ -71,7 +71,7 @@ class M4BExportQualityTests(unittest.TestCase):
                     self.assert_clean(tmp)
 
     def test_successful_encoder_with_short_audio_missing_moved_or_renamed_chapter_and_wrong_tags_is_refused(self):
-        for fault in ('short', 'missing', 'time', 'title', 'book-tag', 'corrupt'):
+        for fault in ('short', 'missing', 'time', 'title', 'book-tag', 'corrupt', 'empty'):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
                 manager = self.fixture(tmp)
                 output = Path(tmp) / 'audiobook.m4b'
@@ -79,8 +79,8 @@ class M4BExportQualityTests(unittest.TestCase):
                 reports = []
                 encode = m4b_encode.encode_m4b
                 def faulty(command, *args, **kwargs):
-                    if fault == 'corrupt':
-                        Path(command[-1]).write_bytes(b'zero-exit corrupt output')
+                    if fault in ('corrupt','empty'):
+                        Path(command[-1]).write_bytes(b'' if fault == 'empty' else b'zero-exit corrupt output')
                         return 0, ''
                     metadata_path = Path(command[command.index('-map_metadata') - 1])
                     text = metadata_path.read_text()

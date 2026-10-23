@@ -5998,6 +5998,7 @@
   "test_m4b_cover_admission": [
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_accepted_covers_survive_actual_m4b_mux_as_attached_picture",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_decoder_pixel_limits_and_publication_failure_preserve_prior_cover",
+    "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_finished_cover_probe_rejects_duplicate_nonfinite_and_wrong_typed_data",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_invalid_and_truncated_uploads_preserve_prior_cover_and_remove_owned_stage",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_missing_owned_stage_keeps_prior_cover_and_validation_status",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_validation_does_not_block_same_event_loop_http"
@@ -6027,7 +6028,12 @@
     "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_final_publication_failure_preserves_valid_delivery_and_cleans_selected_cover",
     "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_http_source_choice_uses_real_task_admission_result_and_clears_claims",
     "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_invalid_cover_pixels_wrong_book_and_stale_choice_refuse_before_encoding",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_materialized_source_cover_change_before_snapshot_refuses_before_encoding",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_missing_or_substituted_finished_cover_preserves_prior_delivery",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_missing_uploaded_cover_with_source_selection_refuses_before_encoding",
     "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_real_m4b_uses_explicit_source_cover_exact_bytes_and_manual_tags",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_unexpected_finished_picture_refuses_no_cover_export",
+    "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_uploaded_cover_missing_before_snapshot_refuses_before_encoding",
     "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_uploaded_cover_wins_over_even_a_stale_source_selection"
   ],
   "test_macos_owner_protocol": [

@@ -23,6 +23,101 @@ from tests.test_upload_publication_source import epub, TEXT
 
 
 class M4bSourcePublicationTests(unittest.TestCase):
+    def test_materialized_source_cover_change_before_snapshot_refuses_before_encoding(self):
+        import export_publication
+        for fault in ('missing','substituted'):
+            with self.subTest(fault=fault), self.fixture() as (root,manager,row):
+                choice = self.selection(root)
+                before = self.prior(root,manager)
+                snapshot = export_publication.ExportSourceSnapshot
+                def changed(*args,**kwargs):
+                    selected = next(root.glob('.m4b-source-cover-*/cover.*'))
+                    if fault == 'missing':
+                        selected.unlink()
+                    else:
+                        selected.write_bytes(image_bytes('JPEG'))
+                    return snapshot(*args,**kwargs)
+                with patch.object(export_publication,'ExportSourceSnapshot',side_effect=changed), \
+                        patch.object(m4b_encode,'encode_m4b',wraps=m4b_encode.encode_m4b) as encode:
+                    with self.assertRaisesRegex(ValueError,'cover changed before M4B source capture|cover is missing before source capture'):
+                        manager.merge_m4b(source_cover=choice,
+                            expected_book_token=choice['expected_book_token'])
+                    encode.assert_not_called()
+                self.assertEqual(before,(root/'audiobook.m4b').read_bytes())
+                self.assert_clean(root)
+
+    def test_missing_uploaded_cover_with_source_selection_refuses_before_encoding(self):
+        with self.fixture() as (root,manager,row):
+            before = self.prior(root,manager)
+            choice = self.selection(root)
+            selected = root/'missing-uploaded.png'
+            with patch.object(m4b_encode,'encode_m4b',wraps=m4b_encode.encode_m4b) as encode:
+                with self.assertRaisesRegex(ValueError,'Selected M4B cover is missing'):
+                    manager.merge_m4b(metadata={'cover_path':str(selected)},source_cover=choice)
+                encode.assert_not_called()
+            self.assertEqual(before,(root/'audiobook.m4b').read_bytes())
+            self.assert_clean(root)
+
+    def test_uploaded_cover_missing_before_snapshot_refuses_before_encoding(self):
+        import export_publication
+        with self.fixture() as (root,manager,row):
+            before = self.prior(root,manager)
+            selected = root/'uploaded.png'
+            selected.write_bytes(image_bytes('PNG'))
+            snapshot = export_publication.ExportSourceSnapshot
+            def changed(*args,**kwargs):
+                selected.unlink()
+                return snapshot(*args,**kwargs)
+            with patch.object(export_publication,'ExportSourceSnapshot',side_effect=changed), \
+                    patch.object(m4b_encode,'encode_m4b',wraps=m4b_encode.encode_m4b) as encode:
+                with self.assertRaisesRegex(ValueError,'Selected M4B cover is missing'):
+                    manager.merge_m4b(metadata={'cover_path':str(selected)})
+                encode.assert_not_called()
+            self.assertEqual(before,(root/'audiobook.m4b').read_bytes())
+            self.assert_clean(root)
+
+    def test_missing_or_substituted_finished_cover_preserves_prior_delivery(self):
+        for fault in ('missing','substituted'):
+            with self.subTest(fault=fault), self.fixture() as (root,manager,row):
+                choice = self.selection(root)
+                before = self.prior(root,manager)
+                encode = m4b_encode.encode_m4b
+                substitute = root/'substitute.jpg'
+                substitute.write_bytes(image_bytes('JPEG'))
+                def changed(command,*args,**kwargs):
+                    command = list(command)
+                    if fault == 'missing':
+                        index = command.index('1:v')
+                        del command[index-1:index+1]
+                    else:
+                        selected = next(root.glob('.m4b-source-cover-*/cover.*'))
+                        command[command.index(str(selected))] = str(substitute)
+                    return encode(command,*args,**kwargs)
+                with patch.object(m4b_encode,'encode_m4b',side_effect=changed):
+                    with self.assertRaisesRegex(ValueError,'attached picture|cover differs'):
+                        manager.merge_m4b(source_cover=choice,
+                            expected_book_token=choice['expected_book_token'])
+                self.assertEqual(before,(root/'audiobook.m4b').read_bytes())
+                self.assert_clean(root)
+
+    def test_unexpected_finished_picture_refuses_no_cover_export(self):
+        with self.fixture() as (root,manager,row):
+            before = self.prior(root,manager)
+            extra = root/'unexpected.png'; extra.write_bytes(image_bytes('PNG'))
+            encode = m4b_encode.encode_m4b
+            def changed(command,*args,**kwargs):
+                command = list(command)
+                index = command.index('-map_metadata')
+                command[index+1] = '2'
+                command[4:4] = ['-i',str(extra)]
+                command[-1:-1] = ['-map','1:v','-c:v','copy','-disposition:v:0','attached_pic']
+                return encode(command,*args,**kwargs)
+            with patch.object(m4b_encode,'encode_m4b',side_effect=changed):
+                with self.assertRaisesRegex(ValueError,'Unapproved M4B cover'):
+                    manager.merge_m4b()
+            self.assertEqual(before,(root/'audiobook.m4b').read_bytes())
+            self.assert_clean(root)
+
     @contextmanager
     def fixture(self, fmt='PNG'):
         with source_fixture.SavedPublicationSourceTests().fixture() as (root, _):

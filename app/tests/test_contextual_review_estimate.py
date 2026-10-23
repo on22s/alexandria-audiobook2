@@ -70,6 +70,7 @@ class ContextualReviewEstimateTests(unittest.TestCase):
                         stack.enter_context(patch.object(module,'process_state',state))
                     stack.enter_context(patch.object(core,'acquire_gpu_lock',return_value=None))
                     stack.enter_context(patch.object(core,'_gpu_leases',{}))
+                    stack.enter_context(patch.object(core,'_task_claims',{}))
                     stack.enter_context(patch.object(core,'llm_is_on_this_gpu',return_value=True))
                     stack.enter_context(patch.object(script,'SCRIPT_PATH',str(source)))
                     stack.enter_context(patch.object(script,'CONFIG_PATH',str(config)))

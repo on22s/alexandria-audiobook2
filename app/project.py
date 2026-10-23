@@ -2165,6 +2165,13 @@ class ProjectManager:
             cover_path = resolved['cover_path']
             source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check,
                 additional_sources=([cover_path] if cover_path else []) + list(resolved['expected_sources']))
+            captured_cover = source_snapshot.identities.get(cover_path) if cover_path else None
+            if cover_path and captured_cover is None:
+                raise ValueError('Selected M4B cover is missing before source capture')
+            selected_digest = resolved.get('cover_sha256')
+            if selected_digest is not None:
+                if captured_cover is None or captured_cover['sha256'] != selected_digest:
+                    raise ValueError('Selected source cover changed before M4B source capture')
             if any(path not in source_snapshot.identities or source_snapshot.identities[path] != identity
                    for path, identity in resolved['expected_sources'].items()):
                 raise ValueError('Publication source changed before M4B source capture')
@@ -2246,7 +2253,7 @@ class ProjectManager:
                 f.write("\n".join(meta_lines))
 
             # Phase 5 — FFmpeg: WAV + chapters → M4B (AAC)
-            has_cover = cover_path and os.path.exists(cover_path)
+            has_cover = captured_cover is not None
 
             cmd = ["ffmpeg", "-y", "-i", temp_wav]
             if has_cover:
@@ -2283,6 +2290,12 @@ class ProjectManager:
                 mastering_report = get_mastering_report(pending_output, mastering, mastering_before, stderr, cancel_check)
             quality_report = get_admitted_export_report(pending_output, quality_plan,
                 cancel_check=cancel_check, progress_callback=progress_callback)
+            from m4b_cover import ensure_m4b_output_cover
+            cover_identity = ensure_m4b_output_cover(pending_output,
+                captured_cover['sha256'] if captured_cover is not None else None, cancel_check)
+            if any(quality_report[key] != cover_identity[key]
+                   for key in ('sha256', 'file_version', 'output_bytes')):
+                raise ValueError('M4B changed after cover validation.')
             ensure_export_stage_current(pending_output, quality_report, cancel_check)
             source_snapshot.verify_sources()
             with source_snapshot.ensure_publication(pending_output, quality_report):

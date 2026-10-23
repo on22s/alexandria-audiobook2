@@ -4,6 +4,11 @@ on:
     paths:
       - 'app/sound_design_*.py'
       - 'app/export_quality.py'
+      - 'app/m4b_cover.py'
+      - 'app/m4b_publication.py'
+      - 'app/project.py'
+      - 'app/tests/test_m4b_source_publication.py'
+      - 'tools/verify_m4b_cover_output.py'
       - 'app/subprocess_ownership.py'
       - 'app/*subprocess_owner.py'
       - 'app/audio_take_history.py'
@@ -86,3 +91,5 @@ jobs:
           python -c "import soundfile; print(soundfile.__version__, soundfile.__libsndfile_version__)"
       - name: Verify exact decoding, owned child cleanup and durable recovery
         run: python -m unittest tests.test_sound_design_assets tests.test_sound_design_decode tests.test_media_output_sink tests.test_sound_design_mix tests.test_sound_design_cues -v
+      - name: Verify selected cover pixels in actual finished M4B output
+        run: python ../tools/verify_m4b_cover_output.py

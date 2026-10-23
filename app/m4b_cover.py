@@ -1,6 +1,8 @@
 """Pure cover decoding shared by uploads and source publication review."""
 import hashlib
 import io
+import json
+import re
 import warnings
 
 MAX_COVER_BYTES = 25 * 1024**2
@@ -9,6 +11,48 @@ MAX_COVER_BYTES = 25 * 1024**2
 class CoverValidationError(ValueError):
     pass
 
+
+def ensure_m4b_output_cover(path, expected_sha256, cancel_check=None):
+    """Bind the exact attached picture (or its absence) to full-file identity."""
+    from export_quality import get_export_file_identity, get_export_file_version
+    from json_metadata import get_unique_json_object
+    from media_process import run_owned_media_check
+    from tts import ensure_audio_export_active
+    if expected_sha256 is not None and (not isinstance(expected_sha256,str)
+            or re.fullmatch(r'[0-9a-f]{64}',expected_sha256) is None):
+        raise CoverValidationError('Invalid expected M4B cover digest')
+    check = lambda: ensure_audio_export_active(cancel_check)
+    identity = get_export_file_identity(path,cancel_check)
+    raw = run_owned_media_check(['ffprobe','-v','error','-select_streams','v',
+        '-show_entries','stream=index,codec_type:stream_disposition=attached_pic',
+        '-of','json',str(path)],check,30,output_limit=1024**2)
+    try:
+        document = json.loads(raw,object_pairs_hook=get_unique_json_object,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Nonfinite cover probe')))
+    except (ValueError,UnicodeError,RecursionError) as error:
+        raise CoverValidationError('Invalid M4B cover probe') from error
+    if not isinstance(document,dict) or not isinstance(document.get('streams'),list):
+        raise CoverValidationError('Invalid M4B cover streams')
+    streams = document['streams']
+    if expected_sha256 is None:
+        if streams:
+            raise CoverValidationError('Unapproved M4B cover stream')
+    else:
+        if (len(streams) != 1 or not isinstance(streams[0],dict)
+                or streams[0].get('codec_type') != 'video'
+                or not isinstance(streams[0].get('disposition'),dict)
+                or type(streams[0]['disposition'].get('attached_pic')) is not int
+                or streams[0]['disposition']['attached_pic'] != 1):
+            raise CoverValidationError('M4B must contain exactly one approved attached picture')
+        digest = hashlib.sha256()
+        run_owned_media_check(['ffmpeg','-nostdin','-v','error','-i',str(path),
+            '-map','0:v:0','-c:v','copy','-f','image2pipe','-'],check,60,
+            output_limit=MAX_COVER_BYTES,consume_output=digest.update)
+        if digest.hexdigest() != expected_sha256:
+            raise CoverValidationError('Finished M4B cover differs from approval')
+    if get_export_file_version(path) != identity['file_version']:
+        raise CoverValidationError('M4B changed during cover validation')
+    return identity
 
 def _get_cover_image(raw):
     if not isinstance(raw, bytes) or not 0 < len(raw) <= MAX_COVER_BYTES:

@@ -9,6 +9,7 @@ from unittest.mock import patch
 from fastapi import BackgroundTasks
 
 import export_quality
+import core
 import export_quality_session as session
 from routers import editor
 from tests import test_export_task_results as tasks
@@ -27,6 +28,7 @@ class ExportQualityApiTests(unittest.TestCase):
             script = Path(root) / 'annotated_script.json'
             script.write_text(json.dumps(manager.load_chunks()))
             with patch.object(editor, 'SCRIPT_PATH', str(script)), \
+                    patch.object(core, 'acquire_gpu_lock', return_value=None), \
                     patch.object(editor, 'project_manager', manager):
                 token = editor.get_snapshot_digest(editor.get_editor_book_identity(root))
                 yield Path(root), manager, states, client, token

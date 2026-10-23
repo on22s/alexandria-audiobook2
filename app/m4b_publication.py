@@ -2,7 +2,6 @@
 import base64
 from contextlib import contextmanager
 import hashlib
-import os
 from pathlib import Path
 import tempfile
 
@@ -28,7 +27,7 @@ def ensure_m4b_publication(root_dir, cover_path, source_cover=None, expected_boo
                 raise ValueError('Selected book changed before M4B export')
             facts, _ = capture_scope_file(root_dir, 'state.json')
             expected_sources[str(Path(root_dir) / 'state.json')] = _get_identity(facts)
-    if source_cover is None or cover_path and os.path.exists(cover_path):
+    if source_cover is None or cover_path:
         yield {'cover_path': cover_path, 'expected_sources': expected_sources}
         return
     with ensure_book_state(root_dir, recover=False):
@@ -52,4 +51,5 @@ def ensure_m4b_publication(root_dir, cover_path, source_cover=None, expected_boo
         path = Path(directory) / ('cover.png' if cover['media_type'] == 'image/png' else 'cover.jpg')
         path.write_bytes(raw)
         ensure_audio_export_active(cancel_check)
-        yield {'cover_path': str(path), 'expected_sources': expected_sources}
+        yield {'cover_path': str(path), 'expected_sources': expected_sources,
+               'cover_sha256': cover['sha256']}
