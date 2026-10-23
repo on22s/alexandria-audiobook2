@@ -3,7 +3,6 @@ import hashlib
 import io
 import json
 import re
-import warnings
 
 MAX_COVER_BYTES = 25 * 1024**2
 
@@ -59,22 +58,28 @@ def _get_cover_image(raw):
         raise CoverValidationError('Cover must contain at most 25 MiB of image data')
     from PIL import Image, ImageOps, UnidentifiedImageError
 
+    limit = Image.MAX_IMAGE_PIXELS
+    def check_pixels(image):
+        width, height = image.size
+        if width <= 0 or height <= 0 or (limit is not None and width * height > limit):
+            raise CoverValidationError('Cover exceeds the configured image pixel limit')
+
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter('error', Image.DecompressionBombWarning)
-            with io.BytesIO(raw) as source, Image.open(source) as image:
-                image.verify()
-            with io.BytesIO(raw) as source, Image.open(source) as image:
-                image.load()
-                source_format = image.format
-                cover_format = 'PNG' if source_format == 'PNG' else 'JPEG'
-                converted = ImageOps.exif_transpose(image)
-                if cover_format == 'JPEG' and converted.mode != 'RGB':
-                    try:
-                        rgb = converted.convert('RGB')
-                    finally:
-                        converted.close()
-                    converted = rgb
+        with io.BytesIO(raw) as source, Image.open(source) as image:
+            check_pixels(image)
+            image.verify()
+        with io.BytesIO(raw) as source, Image.open(source) as image:
+            check_pixels(image)
+            image.load()
+            source_format = image.format
+            cover_format = 'PNG' if source_format == 'PNG' else 'JPEG'
+            converted = ImageOps.exif_transpose(image)
+            if cover_format == 'JPEG' and converted.mode != 'RGB':
+                try:
+                    rgb = converted.convert('RGB')
+                finally:
+                    converted.close()
+                converted = rgb
     except (UnidentifiedImageError, OSError, ValueError,
             Image.DecompressionBombError, Image.DecompressionBombWarning) as error:
         raise CoverValidationError('Cover must contain a complete, decodable image') from error

@@ -6001,6 +6001,7 @@
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_finished_cover_probe_rejects_duplicate_nonfinite_and_wrong_typed_data",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_invalid_and_truncated_uploads_preserve_prior_cover_and_remove_owned_stage",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_missing_owned_stage_keeps_prior_cover_and_validation_status",
+    "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_upload_pixel_limit_holds_when_pillow_warnings_are_ignored",
     "tests.test_m4b_cover_admission.M4bCoverAdmissionTests.test_validation_does_not_block_same_event_loop_http"
   ],
   "test_m4b_cover_bytes": [
@@ -6008,6 +6009,15 @@
     "tests.test_m4b_cover_bytes.M4bCoverBytesTests.test_non_png_image_is_normalized_as_rgb_jpeg",
     "tests.test_m4b_cover_bytes.M4bCoverBytesTests.test_pure_normalization_strips_payload_preserves_png_pixels_and_hashes_result",
     "tests.test_m4b_cover_bytes.M4bCoverBytesTests.test_small_output_budget_refuses_before_returning_a_cover"
+  ],
+  "test_m4b_cover_pixel_budget": [
+    "tests.test_m4b_cover_pixel_budget.CoverPixelBudgetTests.test_explicit_budget_is_captured_once_for_both_open_passes",
+    "tests.test_m4b_cover_pixel_budget.CoverPixelBudgetTests.test_media_type_mismatch_and_normalized_output_limit_remain_rejected",
+    "tests.test_m4b_cover_pixel_budget.CoverPixelBudgetTests.test_overlapping_validation_cannot_restore_a_permissive_pixel_filter",
+    "tests.test_m4b_cover_pixel_budget.CoverPixelBudgetTests.test_oversized_image_is_refused_before_verification_and_pixel_decode",
+    "tests.test_m4b_cover_pixel_budget.CoverPixelBudgetTests.test_pixel_boundary_formats_and_disabled_limit",
+    "tests.test_m4b_cover_pixel_budget.CoverPixelBudgetTests.test_shipping_default_limit_rejects_large_header_without_decoding_pixels",
+    "tests.test_m4b_cover_pixel_budget.CoverPixelBudgetTests.test_validated_source_bytes_remain_exact_and_corrupt_images_fail"
   ],
   "test_m4b_cover_trailing_payload": [
     "tests.test_m4b_cover_trailing_payload.M4bCoverTrailingPayloadTests.test_jpeg_orientation_is_applied_to_pixels_before_actual_m4b_export",
