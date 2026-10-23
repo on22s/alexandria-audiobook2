@@ -41,9 +41,38 @@ jobs:
           python-version: '3.10'
       - name: Install native CPU audio dependencies
         run: python -m pip install 'numpy==2.2.6' 'soundfile==0.14.0' 'pydub==0.25.1' 'pydantic==2.12.5'
+      - name: Cache FFmpeg packages on Linux
+        if: runner.os == 'Linux'
+        uses: actions/cache@v5
+        with:
+          path: ~/apt-archives
+          key: apt-ffmpeg-${{ runner.os }}-v1
       - name: Install FFmpeg on Linux
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        run: |
+          set -euo pipefail
+          if command -v ffmpeg && command -v ffprobe; then
+            exit 0
+          fi
+          # Reuse the established package cache from tests.yml. A slow mirror
+          # must not force every native audio job to download the same codecs.
+          mkdir -p ~/apt-archives/partial
+          if ls ~/apt-archives/*.deb >/dev/null 2>&1; then
+            sudo dpkg -i ~/apt-archives/*.deb || sudo apt-get install -f -y
+          else
+            for attempt in 1 2 3; do
+              if sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+                  -o Dir::Cache::archives="$HOME/apt-archives" ffmpeg; then
+                break
+              fi
+              echo "FFmpeg package setup attempt $attempt failed; retrying"
+              sleep "$((attempt * 10))"
+            done
+            sudo chown -R "$USER" ~/apt-archives
+            rm -rf ~/apt-archives/partial ~/apt-archives/lock
+          fi
+          command -v ffmpeg
+          command -v ffprobe
       - name: Install FFmpeg on macOS
         if: runner.os == 'macOS'
         run: command -v ffmpeg || brew install ffmpeg
