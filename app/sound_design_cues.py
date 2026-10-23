@@ -130,11 +130,19 @@ def get_sound_design_cue_version(cue_id, recipe, parent_version=None):
     return dict(copy.deepcopy(seed), version=hashlib.sha256(_get_version_bytes(seed)).hexdigest())
 
 
-def validate_sound_design_cue_version(document):
+def validate_sound_design_cue_version_structure(document):
+    """Bound all leaves before joint registry accounting, copying or hashing."""
     _require_keys(document, ('schema', 'cue_id', 'parent_version', 'recipe', 'version'), 'Cue version')
     if type(document['schema']) is not int or document['schema'] != 1:
         raise ValueError('Unsupported cue schema')
+    _require_text(document['cue_id'], 128, 'Cue identity')
+    _require_digest(document['parent_version'], 'Parent version', nullable=True)
+    _validate_recipe(document['recipe'])
     _require_digest(document['version'], 'Cue version')
+
+
+def validate_sound_design_cue_version(document):
+    validate_sound_design_cue_version_structure(document)
     expected = get_sound_design_cue_version(document['cue_id'], document['recipe'], document['parent_version'])
     if document['version'] != expected['version']:
         raise ValueError('Cue version fingerprint differs')

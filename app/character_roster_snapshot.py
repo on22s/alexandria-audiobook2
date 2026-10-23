@@ -13,6 +13,7 @@ from project_scope_admission import is_scope_admitted
 from project_scope_files import capture_scope_file
 from project_scope_source import get_scope_source_snapshot
 from source_evidence import MAX_SOURCE_CHARS, _require_keys
+from json_metadata import get_metadata_json_bytes
 
 MAX_ROSTER_BYTES = 2 * 1024**2
 MAX_CAST_BYTES = 8 * 1024**2
@@ -22,14 +23,7 @@ DOMAIN = 'prepared_source_unicode_characters_v1'
 
 def get_roster_json_bytes(value, limit=MAX_ROSTER_BYTES):
     """Encode a bounded JSON artifact without accepting NaN or invalid Unicode."""
-    parts, size = [], 0
-    for part in json.JSONEncoder(ensure_ascii=False, allow_nan=False, sort_keys=True,
-                                 separators=(',', ':')).iterencode(value):
-        raw = part.encode('utf-8'); size += len(raw)
-        if size > limit:
-            raise ValueError('Character review exceeds its byte limit')
-        parts.append(raw)
-    return b''.join(parts)
+    return get_metadata_json_bytes(value, limit, 'Character review')
 
 
 def get_roster_digest(raw):

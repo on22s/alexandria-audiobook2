@@ -151,7 +151,9 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(before, {p.name: p.read_bytes() for p in uploads.iterdir()})
             with patch.object(script, 'ensure_book_switch_allowed', return_value=nullcontext()), \
                  patch.object(script, 'apply_book_input_selection', side_effect=ValueError('fixture selection refusal')):
-                self.assertEqual(500, (await self.upload(client, epub('Different'), select=True)).status_code)
+                response = await self.upload(client, epub('Different'), select=True)
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertNotIn('fixture selection refusal', response.text)
             self.assertEqual(before, {p.name: p.read_bytes() for p in uploads.iterdir()})
 
     async def test_cancelled_publication_waits_for_owned_worker_then_restores_prior_companion(self):

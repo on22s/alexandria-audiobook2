@@ -9268,6 +9268,31 @@
     "tests.test_sound_design_cues.SoundDesignCueTests.test_selected_asset_native_length_not_an_unselected_candidate",
     "tests.test_sound_design_cues.SoundDesignCueTests.test_take_generation_and_legacy_content_changes_each_invalidate_anchor"
   ],
+  "test_sound_design_registry": [
+    "tests.test_sound_design_registry.SoundDesignRegistryTests.test_duplicate_nonfinite_invalid_unicode_deep_and_oversized_json_refuse",
+    "tests.test_sound_design_registry.SoundDesignRegistryTests.test_immutable_history_and_exact_selected_version_survive_serialization",
+    "tests.test_sound_design_registry.SoundDesignRegistryTests.test_joint_bytes_are_checked_before_version_hashing_or_copying",
+    "tests.test_sound_design_registry.SoundDesignRegistryTests.test_unknown_parent_duplicate_origin_wrong_book_and_selection_refuse",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_active_alias_hardlink_fifo_and_oversize_refuse_before_saved_family_changes",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_checkpoint_snapshot_keeps_exact_cue_history_on_reload",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_corrupt_or_foreign_saved_companion_does_not_switch_active_book",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_destination_alias_refuses_without_overwriting_either_named_book",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_invalid_active_save_refuses_without_overwriting_saved_family",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_legacy_missing_companion_clears_active_cues_in_book_transaction",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_load_cue_install_failure_restores_exact_active_book",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_private_companion_never_hides_preexisting_valid_book_names",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_snapshot_overwrite_without_cues_removes_only_its_own_companion",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_source_reset_process_death_rolls_back_or_finishes_committed_clear",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_source_selection_clears_valid_cues_and_preserves_invalid_metadata",
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_two_named_snapshots_restore_their_exact_own_cue_bytes"
+  ],
+  "test_sound_design_upload_selection": [
+    "tests.test_sound_design_upload_selection.SoundDesignUploadSelectionTests.test_bad_metadata_refuses_before_publication_and_cleans_only_new_uploads",
+    "tests.test_sound_design_upload_selection.SoundDesignUploadSelectionTests.test_cancel_after_selection_publication_waits_then_preserves_source_and_provenance",
+    "tests.test_sound_design_upload_selection.SoundDesignUploadSelectionTests.test_late_publication_error_preserves_selected_source_for_recovery",
+    "tests.test_sound_design_upload_selection.SoundDesignUploadSelectionTests.test_no_cue_late_atomic_state_error_preserves_selected_source",
+    "tests.test_sound_design_upload_selection.SoundDesignUploadSelectionTests.test_slow_metadata_runs_off_loop_and_releases_only_local_task_mutex"
+  ],
   "test_source_context": [
     "tests.test_source_context.LocateTest.test_a_line_that_is_not_in_the_book_is_not_found",
     "tests.test_source_context.LocateTest.test_a_repeated_line_is_ambiguous_not_the_first_hit",

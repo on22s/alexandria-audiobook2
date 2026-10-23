@@ -774,13 +774,27 @@ def _get_reusable_uploads() -> List[dict]:
     return uploads
 
 
+def _apply_upload_selection(path, before_publication=None):
+    # Retain the kernel task barrier while slow metadata/book I/O runs, without
+    # retaining the local task mutex on another ASGI handler's thread.
+    with ensure_book_switch_allowed(hold_task_mutex=False):
+        try:
+            options = {'timeout': 0}
+            if before_publication is not None:
+                options['before_publication'] = before_publication
+            apply_book_input_selection(DATA_DIR, path,
+                secure_filename(os.path.splitext(os.path.basename(path))[0]), **options)
+        except ValueError:
+            raise HTTPException(status_code=409, detail=(
+                'Book metadata requires inspection; existing book files were preserved.')) from None
+
+
 def _select_upload(filename: str) -> str:
     safe_name = _require_safe_filename(filename, "Invalid upload filename")
     path = os.path.join(UPLOADS_DIR, safe_name)
     if not os.path.isfile(path) or os.path.splitext(path)[1].lower() not in {".txt", ".md"}:
         raise HTTPException(status_code=404, detail=f"Reusable upload '{filename}' not found.")
-    with ensure_book_switch_allowed():
-        apply_book_input_selection(DATA_DIR, path, secure_filename(os.path.splitext(safe_name)[0]), timeout=0)
+    _apply_upload_selection(path)
     return path
 
 
@@ -851,6 +865,12 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
         storage_lock.__exit__(None, None, None)
         raise cancelled
     owned_paths = set()
+    selection = {'publication_started': False}
+    def retain_selected_source():
+        # Worker handoff: after publication starts its outcome may be unknown.
+        # Preserve valid uploaded files/provenance even if cancellation or an I/O
+        # error arrives after a book-state rename. They remain quota-accounted.
+        selection['publication_started'] = True
     publication = publication_update = None
     try:
         available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
@@ -929,19 +949,20 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
             except ValueError as error:
                 raise HTTPException(status_code=409, detail=str(error)) from error
         if select_active:
-            with ensure_book_switch_allowed():
-                apply_book_input_selection(DATA_DIR, file_path,
-                                          secure_filename(os.path.splitext(os.path.basename(file_path))[0]), timeout=0)
+            _, cancelled = await await_upload_operation(asyncio.to_thread(
+                _apply_upload_selection, file_path, retain_selected_source))
+            if cancelled is not None:
+                raise cancelled
         return {"filename": file.filename, "stored_filename": os.path.basename(file_path),
                 "path": file_path, "reused": reused,
                 "publication_status": publication['metadata_status'] if publication is not None else 'not_captured',
                 "publication_warnings": publication['warnings'] if publication is not None else []}
     except BaseException:
         try:
-            if publication_update is not None:
+            if publication_update is not None and not selection['publication_started']:
                 await await_upload_operation(asyncio.to_thread(restore_publication_source_update, publication_update))
         finally:
-            for path in owned_paths:
+            for path in owned_paths if not selection['publication_started'] else ():
                 try:
                     os.remove(path)
                 except FileNotFoundError:
@@ -1255,7 +1276,8 @@ async def snapshot_script(request: SnapshotRequest):
 
 def _snapshot_script_sync(request):
     from routers.scripts_library import (_require_saved_book_name, _get_saved_book_companions,
-                                         validate_book_json_bytes)
+                                         validate_book_json_bytes, _capture_cue_companion)
+    from sound_design_registry import ACTIVE_CUES, get_saved_sound_design_path
     safe_name = _require_saved_book_name(request.name)
     dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     os.makedirs(SCRIPTS_DIR, exist_ok=True)
@@ -1276,8 +1298,12 @@ def _snapshot_script_sync(request):
         if any(os.path.lexists(path) for path in (dest, *_get_saved_book_companions(dest))):
             raise HTTPException(status_code=409,
                                 detail="A saved script already uses that snapshot name.")
+        book_id = get_active_book_id() or safe_name
+        cue_bytes = _capture_cue_companion(DATA_DIR, ACTIVE_CUES, book_id)
         script_bytes = json.dumps(entries, ensure_ascii=False, indent=2).encode('utf-8')
         replacements = {os.path.basename(dest): script_bytes}
+        if cue_bytes is not None:
+            replacements[os.path.basename(get_saved_sound_design_path(dest))] = cue_bytes
         if os.path.exists(VOICE_CONFIG_PATH):
             voice_bytes = Path(VOICE_CONFIG_PATH).read_bytes()
             validate_book_json_bytes(voice_bytes, dict, 409, 'Active snapshot voices')
@@ -1289,7 +1315,7 @@ def _snapshot_script_sync(request):
             raise HTTPException(status_code=409, detail=f'Publication provenance cannot be snapshotted: {error}') from error
         if publication is not None:
             replacements[os.path.basename(get_publication_source_path(dest))] = publication
-        replacements[os.path.basename(metadata)] = json.dumps({"book_id": get_active_book_id() or safe_name,
+        replacements[os.path.basename(metadata)] = json.dumps({"book_id": book_id,
                            "snapshot": {"entries": len(entries),
                                         "segmented": len(checkpoint.get("segmented") or []),
                                         "chunks_done": checkpoint.get("chunks_done"),

@@ -253,9 +253,15 @@ def require_book_snapshot_current(data_dir, snapshot):
 
 
 
-def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10):
-    """Select an input under the same book-operation contract as load/jobs."""
+def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, before_publication=None):
+    """Select an input under the same book-operation contract as load/jobs.
+
+    `before_publication` notifies an upload owner after validation and before
+    the first write. After that handoff, errors may have an unknown commit
+    outcome; uploaded source/provenance must remain available for recovery.
+    """
     from utils import safe_load_json
+    from sound_design_registry import ACTIVE_CUES, capture_sound_design_registry
     with ensure_book_state(data_dir, timeout=timeout):
         state_path = Path(data_dir) / "state.json"
         with file_lock(str(state_path)):
@@ -268,7 +274,20 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10):
                          book_generation=uuid.uuid4().hex)
             state.pop('_source_scope', None)
             state.pop('_source_scope_exports', None)
-            save_adapter_publication_bytes(str(state_path), json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8"))
+            # An explicit input selection starts a new book context. Validate
+            # optional old metadata before clearing it in the same transaction;
+            # malformed/recoverable files must not disappear on a failed switch.
+            has_cues = os.path.lexists(Path(data_dir) / ACTIVE_CUES)
+            if has_cues:
+                capture_sound_design_registry(data_dir, ACTIVE_CUES)
+            if before_publication is not None:
+                before_publication()
+            if has_cues:
+                apply_book_state_locked(data_dir, {
+                    'state.json': json.dumps(state, ensure_ascii=False, indent=2).encode('utf-8')},
+                    [ACTIVE_CUES])
+            else:
+                save_adapter_publication_bytes(str(state_path), json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8"))
 
 
 

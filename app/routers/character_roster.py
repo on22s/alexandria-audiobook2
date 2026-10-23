@@ -16,17 +16,9 @@ from character_roster_snapshot import (MAX_ROSTER_BYTES, DOMAIN, get_character_r
     get_character_roster_preview, get_roster_json_bytes, is_character_roster_approval_current)
 from project_scope_admission import ensure_scope_admission
 from source_evidence import MAX_SOURCE_CHARS, MAX_QUOTE_CHARS, _require_keys, _require_text
+from json_metadata import get_unique_json_object as _get_unique_object
 
 router = APIRouter(prefix='/api/character_roster')
-
-
-def _get_unique_object(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError('Duplicate JSON fields are not supported')
-        result[key] = value
-    return result
 
 
 def _require_revision(value):

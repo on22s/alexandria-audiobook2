@@ -5,6 +5,38 @@ projection. It does not yet add a production sound-design interface, import
 assets, approve media, render loops or mixes, or change existing dry exports.
 The full enhancement remains open.
 
+## Saved-book storage
+
+Cue registries retain immutable history and one explicitly selected revision
+per cue. The boundary accepts at most 2 MiB, 1,024 historical versions and 128
+selected cues. It rejects duplicate JSON fields, nonfinite values, invalid text,
+unknown structures, conflicting origins, missing parents and foreign selections
+before publication. Checksums detect changed metadata and do not authenticate it.
+
+The active manifest is `.sound_design_cues.json`. Named snapshots use private
+companions such as `.example.sound_design.json`; these do not reserve or hide
+previously valid book names such as `example.sound_design`. Save captures exact
+validated bytes using the existing native book identity. Checkpoint-prefix
+snapshots also retain exact history; old script/take bindings stay stale until
+explicitly reviewed, rather than being rebound to the partial script. Load restores its own
+companion in the existing book transaction. A legacy snapshot without a companion
+clears active cues. Explicit source selection also clears valid active cues.
+Malformed or unsafe metadata refuses the operation and remains available for
+inspection; named snapshots preserve cue history across script repairs, where
+old source/take bindings become stale rather than being silently rewritten.
+
+Loading a book still discards its runtime chunks under the existing contract.
+Historical cue metadata is retained without automatic reanchoring or approval.
+The later cue interface must show missing/stale dialogue bindings and require
+proof or explicit reanchoring before use.
+
+Upload selection runs on a worker with the existing kernel task barrier and
+book admission. The local task mutex is released during slow metadata work.
+Cancellation waits for that worker to finish. Once book-state publication begins,
+uploaded sources and provenance remain quota-accounted and available for
+recovery even if an error or cancellation makes the commit outcome uncertain.
+Failures before that handoff clean up only files owned by the failed upload.
+
 ## Identity and selected sources
 
 `get_sound_design_cue_version` returns a detached schema-1 document with a
@@ -61,14 +93,12 @@ and approval adapters must compare this overall revision as well.
 
 ## Required integration and qualification
 
-Saved-book load currently discards runtime chunks. Persist an active cue manifest
-and an exact named-library companion using the existing book transaction; a
-missing companion must clear active cues. Neither a raw-source cache key nor a
+Saved-book load discards runtime chunks. Neither a raw-source cache key nor a
 temporary book-selection token provides saved-book isolation. Reloaded cues
 require provable source lineage or explicit reanchoring when runtime IDs change.
 
 Remaining work includes immutable asset admission and reference protection;
-saved-book/undo/recovery integration; bounded overlap mixing; actual gain,
+cue editing and scope-undo integration; bounded overlap mixing; actual gain,
 ducking, fades, explicit ambience loops and reviewed scene spans; a constrained
 review interface; dry/mixed audition; explicit candidate selection and delivery;
 completed-file validation; cancellation/crash/source-change controls; and
