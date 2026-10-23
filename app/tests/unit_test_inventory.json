@@ -4030,17 +4030,21 @@
   ],
   "test_external_tts_engine_lifetime": [
     "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_clone_snapshot_lives_until_owned_sdk_stops_then_cleans_after_timeout",
+    "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_close_waits_for_worker_diagnostics_after_owned_sdk_stops",
     "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_default_clone_transport_preserves_public_file_data_and_private_result_lifetime",
     "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_default_transport_recovers_single_and_batch_deadlines_with_bounded_pool",
     "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_engine_reset_stops_actual_active_sdk_and_preserves_prior_audio",
     "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_native_parent_exit_reaps_default_engine_sdk_work",
     "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_reset_failure_retains_engine_ownership_and_closes_other_cached_clients",
+    "tests.test_external_tts_engine_lifetime.ExternalEngineLifetimeTests.test_worker_drain_timeout_keeps_engine_and_finalizer_for_retry",
     "tests.test_external_tts_engine_lifetime.NativeSDKConstructorDeadlineTests.test_installed_gradio_sdk_constructor_http_stall_is_bounded_and_reaped"
   ],
   "test_external_tts_executor": [
+    "tests.test_external_tts_executor.ExternalExecutorTests.test_bounded_shutdown_reports_live_worker_and_can_be_retried",
     "tests.test_external_tts_executor.ExternalExecutorTests.test_native_interpreter_can_exit_with_an_unreleased_application_worker",
     "tests.test_external_tts_executor.ExternalExecutorTests.test_repeated_timeouts_keep_one_pool_and_remove_cancelled_queue_entries",
-    "tests.test_external_tts_executor.ExternalExecutorTests.test_success_exception_and_shutdown_preserve_real_future_semantics"
+    "tests.test_external_tts_executor.ExternalExecutorTests.test_success_exception_and_shutdown_preserve_real_future_semantics",
+    "tests.test_external_tts_executor.ExternalExecutorTests.test_worker_can_close_its_own_pool_without_self_join"
   ],
   "test_external_tts_worker_bounds": [
     "tests.test_external_tts_worker_bounds.ExternalWorkerBoundsTests.test_repeated_single_and_batch_timeouts_share_a_bounded_worker_pool"

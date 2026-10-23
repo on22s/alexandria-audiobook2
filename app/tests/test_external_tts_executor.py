@@ -1,5 +1,6 @@
 """Real blocked workers, queue cancellation and a native interpreter-exit proof."""
 from concurrent.futures import TimeoutError
+import builtins
 from pathlib import Path
 import subprocess
 import sys
@@ -63,3 +64,30 @@ class ExternalExecutorTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("native-exit-ready", result.stdout)
+
+    def test_bounded_shutdown_reports_live_worker_and_can_be_retried(self):
+        started, release = threading.Event(), threading.Event()
+        pool = ExternalTTSExecutor(1)
+        def blocked():
+            started.set()
+            release.wait(5)
+        work = pool.submit(blocked)
+        try:
+            self.assertTrue(started.wait(2))
+            with self.assertRaisesRegex(builtins.TimeoutError, 'shutdown cleanup'):
+                pool.shutdown(timeout=.05)
+            self.assertTrue(pool._threads[0].is_alive())
+            with self.assertRaisesRegex(RuntimeError, 'closed'):
+                pool.submit(lambda: None)
+        finally:
+            release.set()
+            pool.shutdown(timeout=2)
+        self.assertIsNone(work.result())
+        self.assertFalse(pool._threads[0].is_alive())
+
+    def test_worker_can_close_its_own_pool_without_self_join(self):
+        pool = ExternalTTSExecutor(1)
+        try:
+            self.assertIsNone(pool.submit(lambda: pool.shutdown(timeout=1)).result(2))
+        finally:
+            pool.shutdown(timeout=2)

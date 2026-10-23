@@ -2,6 +2,8 @@
 from collections import OrderedDict
 from concurrent.futures import Future
 import threading
+import math
+import time
 
 
 class ExternalTTSExecutor:
@@ -67,7 +69,10 @@ class ExternalTTSExecutor:
                 # so engine finalization can shut down this otherwise idle pool.
                 del future, job, function, args, kwargs
 
-    def shutdown(self, wait=True, *, cancel_futures=False):
+    def shutdown(self, wait=True, *, cancel_futures=False, timeout=None):
+        if timeout is not None and (type(timeout) not in (int, float)
+                or not math.isfinite(timeout) or timeout < 0):
+            raise ValueError('External TTS shutdown timeout must be finite and nonnegative')
         with self._condition:
             self._closed = True
             if cancel_futures:
@@ -75,6 +80,10 @@ class ExternalTTSExecutor:
                     future.cancel()
             self._condition.notify_all()
         if wait:
+            deadline = None if timeout is None else time.monotonic() + timeout
             for thread in self._threads:
                 if thread is not threading.current_thread():
-                    thread.join()
+                    thread.join(None if deadline is None else max(0, deadline - time.monotonic()))
+            if any(thread is not threading.current_thread() and thread.is_alive()
+                   for thread in self._threads):
+                raise TimeoutError('External TTS workers did not finish shutdown cleanup')

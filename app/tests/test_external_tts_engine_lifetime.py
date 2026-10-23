@@ -123,6 +123,66 @@ class ExternalEngineLifetimeTests(unittest.TestCase):
         manager.reset_engine()
         self.assertIsNone(manager.engine)
 
+    def test_close_waits_for_worker_diagnostics_after_owned_sdk_stops(self):
+        self.assertTrue(self.render('single', 'warm')[0])
+        prior = (self.root / 'audio.wav').read_bytes()
+        self.engine._external_timeout = 30
+        diagnosing, release, closed = threading.Event(), threading.Event(), threading.Event()
+        close_errors = []
+        def diagnostic():
+            diagnosing.set()
+            if not release.wait(5):
+                raise RuntimeError('Diagnostic fixture was not released')
+        def close():
+            try:
+                self.engine.close_external()
+            except BaseException as error:
+                close_errors.append(error)
+            finally:
+                closed.set()
+        with patch('traceback.print_exc', side_effect=diagnostic), concurrent.futures.ThreadPoolExecutor(1) as callers:
+            rendering = callers.submit(self.render, 'single', 'hang')
+            pids = self.wait_blocked()
+            closer = threading.Thread(target=close)
+            closer.start()
+            try:
+                self.assertTrue(diagnosing.wait(3), 'Worker never reached cancellation diagnostics')
+                self.assert_stopped(pids)
+                self.assertFalse(closed.wait(.1), 'Close returned while its worker still owned diagnostics')
+            finally:
+                release.set()
+                closer.join(5)
+                self.assertFalse(closer.is_alive())
+                self.assertFalse(rendering.result(5)[0])
+        self.assertEqual([], close_errors)
+        self.assertFalse(any(worker.is_alive() for worker in self.engine._external_executor._threads))
+        self.assertEqual(prior, (self.root / 'audio.wav').read_bytes())
+        self.assertEqual([], list(self.root.glob('*.pending.*')))
+
+    def test_worker_drain_timeout_keeps_engine_and_finalizer_for_retry(self):
+        started, release = threading.Event(), threading.Event()
+        cancelled = threading.Event()
+        manager = ProjectManager(str(self.root / 'runtime'))
+        manager.engine = self.engine
+        def custom_callback():
+            started.set()
+            release.wait(10)
+        work = self.engine._submit_external(custom_callback, cancelled)
+        try:
+            self.assertTrue(started.wait(2))
+            with self.assertRaisesRegex(TimeoutError, 'shutdown cleanup'):
+                manager.reset_engine()
+            self.assertIs(manager.engine, self.engine)
+            self.assertTrue(self.engine._external_finalizer.alive)
+            self.assertTrue(cancelled.is_set())
+            self.assertTrue(any(worker.is_alive() for worker in self.engine._external_executor._threads))
+        finally:
+            release.set()
+            manager.reset_engine()
+        self.assertIsNone(work.result(2))
+        self.assertIsNone(manager.engine)
+        self.assertFalse(self.engine._external_finalizer.alive)
+
     def test_default_clone_transport_preserves_public_file_data_and_private_result_lifetime(self):
         reference = self.root / 'reference.wav'
         with wave.open(str(reference), 'wb') as audio:

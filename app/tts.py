@@ -89,6 +89,11 @@ def _close_external_runtime(lock, calls, clients, executor):
                 failure = failure or error
     if failure is not None:
         raise failure
+    if executor is not None:
+        # Closing the owned SDK wakes workers into diagnostics and private-file
+        # cleanup. Keep that work alive until it finishes, before finalization
+        # can tear down buffered output. A stuck caller retains failed ownership.
+        executor.shutdown(wait=True, cancel_futures=True, timeout=2)
 
 
 @dataclass(frozen=True)
