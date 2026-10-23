@@ -106,21 +106,11 @@ def _check_cancelled(cancel_check):
 
 
 def _hash(stream, limit, *, cancel_check=None):
-    digest, size = hashlib.sha256(), 0
-    stream.seek(0)
-    while True:
-        _check_cancelled(cancel_check)
-        block = stream.read(1024**2)
-        if not block:
-            break
-        size += len(block)
-        if size > limit:
-            raise ValueError('Take audio grew beyond its size limit.')
-        digest.update(block)
-    return digest.hexdigest(), size
+    from audio_source_io import read_bounded_audio_hash
+    return read_bounded_audio_hash(stream, limit, lambda: _check_cancelled(cancel_check))
 
 
-def _decode(stream, *, cancel_check=None):
+def _decode(stream, *, cancel_check=None, source_path=None):
     import numpy as np
     import soundfile as sf
     try:
@@ -134,6 +124,14 @@ def _decode(stream, *, cancel_check=None):
         rate, channels, expected = audio.samplerate, audio.channels, audio.frames
         if not 0 < rate <= 192000 or channels not in (1, 2) or not 0 < expected <= rate * 600:
             raise TakeAudioOutsideSnapshotBounds('Take snapshots support mono/stereo audio of at most ten minutes.')
+        if audio.format == 'MP3':
+            from audio_pcm_decode import decode_audio_pcm
+            if source_path is None:
+                raise ValueError('MPEG validation needs its admitted seekable source path.')
+            return decode_audio_pcm(stream, source_path, frames=expected,
+                sample_rate=rate, channels=channels, source_limit=MAX_AUDIO_BYTES,
+                check_active=lambda: _check_cancelled(cancel_check),
+                cancellation_errors=(AudioGenerationCancelled,))
         frames = 0
         while True:
             _check_cancelled(cancel_check)
@@ -433,7 +431,7 @@ class AudioTakeHistory:
                 if _hash(copied, MAX_AUDIO_BYTES, cancel_check=cancel_check) != (digest, size):
                     raise ValueError('Snapshot bytes do not match the selected take.')
                 try:
-                    row['shape'] = _decode(copied, cancel_check=cancel_check)
+                    row['shape'] = _decode(copied, cancel_check=cancel_check, source_path=target)
                 except AudioGenerationCancelled:
                     raise
                 except RuntimeError as error:

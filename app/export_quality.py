@@ -1,5 +1,4 @@
 """Bounded, owned checks of finished media against an independent PCM plan."""
-from collections import deque
 from contextlib import contextmanager
 import copy
 import hashlib
@@ -11,14 +10,12 @@ from pathlib import Path
 import re
 import stat
 import subprocess
-import threading
 import time
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictBool
 
 from audio_encoding_layout import get_audio_encoding_layout
 from audio_export_plan import MAX_PLAN_REGIONS
-from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
 from tts import ExportCancelled, ensure_audio_export_active
 
 MAX_PROBE_BYTES = 32 * 1024 * 1024
@@ -338,98 +335,12 @@ def get_export_format_matches(expected, codec, container):
 
 def _run_owned_check(command, cancel_check, timeout, *, output_limit=0,
                      consume_line=None, progress_callback=None, consume_output=None):
-    """Drain finite chunks on both pipes while the caller controls lifetime."""
-    output, errors = bytearray(), []
-    diagnostics = deque(maxlen=12)
-    process = None
-    readers = []
-    started = time.monotonic()
-
-    def raise_reader_error():
-        if errors:
-            if isinstance(errors[0], ExportCancelled):
-                raise errors[0]
-            raise ValueError(errors[0])
-
-    def read_output():
-        size = 0
-        try:
-            while block := process.stdout.read(65536):
-                size += len(block)
-                if size > output_limit:
-                    if not errors:
-                        errors.append('Media probe exceeded its bounded output allowance.')
-                elif not errors:
-                    if consume_output is None:
-                        output.extend(block)
-                    else:
-                        consume_output(block)
-        except BaseException as error:
-            if not errors:
-                errors.append(error if isinstance(error, ExportCancelled) else str(error)[:240])
-
-    def read_errors():
-        try:
-            while raw := process.stderr.readline(4097):
-                line = raw.decode('utf-8', errors='replace').rstrip()
-                diagnostics.append(line[-512:])
-                if consume_line is not None:
-                    consume_line(line)
-        except BaseException as error:
-            if not errors:
-                errors.append(error if isinstance(error, ExportCancelled) else str(error)[:240])
-
-    try:
-        ensure_audio_export_active(cancel_check)
-        process = start_owned_subprocess(command, stdout=subprocess.PIPE if output_limit else subprocess.DEVNULL,
-                                         stderr=subprocess.PIPE, start_new_session=True)
-        for function in ([read_output, read_errors] if output_limit else [read_errors]):
-            thread = threading.Thread(target=function, daemon=True)
-            readers.append(thread)
-            thread.start()
-        next_progress = started + 2
-        while True:
-            ensure_audio_export_active(cancel_check)
-            raise_reader_error()
-            elapsed = time.monotonic() - started
-            if elapsed >= timeout:
-                raise subprocess.TimeoutExpired(command, timeout)
-            if progress_callback and time.monotonic() >= next_progress:
-                progress_callback(f'Checking finished export: {elapsed:.1f} seconds elapsed')
-                next_progress = time.monotonic() + 2
-            try:
-                result = process.wait(timeout=min(.1, timeout - elapsed))
-                break
-            except subprocess.TimeoutExpired:
-                continue
-        for thread in readers:
-            thread.join(timeout=2)
-        raise_reader_error()
-        if any(thread.is_alive() for thread in readers):
-            raise ValueError('Media check retained an incomplete diagnostic stream.')
-        ensure_audio_export_active(cancel_check)
-        if result:
-            raise ValueError('Finished export could not be decoded: ' + '\n'.join(diagnostics)[-2048:])
-        return bytes(output)
-    finally:
-        if process is not None:
-            try:
-                if process.poll() is None or any(thread.is_alive() for thread in readers):
-                    stop_owned_subprocess(process, timeout=1, force_after_grace=True)
-                for thread in readers:
-                    thread.join(timeout=2)
-                if consume_output is not None:
-                    # A sink may still own a caller's file. Do not release its
-                    # worker/lease while that file operation is unwinding.
-                    for thread in readers:
-                        thread.join()
-                for pipe in (process.stdout, process.stderr):
-                    if pipe is not None and not any(thread.is_alive() for thread in readers):
-                        pipe.close()
-            finally:
-                control = getattr(process, '_alexandria_control', None)
-                if control is not None:
-                    control.close()
+    """Apply export cancellation to the shared owned streaming media runner."""
+    from media_process import run_owned_media_check
+    return run_owned_media_check(command, lambda: ensure_audio_export_active(cancel_check),
+        timeout, output_limit=output_limit, consume_line=consume_line,
+        progress_callback=progress_callback, consume_output=consume_output,
+        cancellation_errors=(ExportCancelled,))
 
 
 class _DecodeEvidence:

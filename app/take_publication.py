@@ -135,7 +135,7 @@ def _read_audio(root, path, cancel_check, *, decode=True):
     stream, before = _open_regular(Path(path), root, MAX_AUDIO_BYTES)
     with stream:
         digest, size = _hash(stream, MAX_AUDIO_BYTES, cancel_check=cancel_check)
-        shape = _decode(stream, cancel_check=cancel_check) if decode else {}
+        shape = _decode(stream, cancel_check=cancel_check, source_path=path) if decode else {}
         if _version(os.fstat(stream.fileno())) != _version(before):
             raise ValueError('Take audio changed while binding publication evidence.')
     if _version(_ensure_plain_path(path, root).stat()) != _version(before):

@@ -3,6 +3,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -47,6 +48,7 @@ class TrainingAudioAdmissionTests(unittest.TestCase):
         script = '''
 import importlib, sys, tempfile, unittest
 from pathlib import Path
+import subprocess
 from tests.test_training_audio_admission import TrainingAudioAdmissionTests, librosa
 from tests.test_unvoiced_profile import UnvoicedProfileTests
 case = TrainingAudioAdmissionTests()
@@ -261,6 +263,32 @@ with patch.object(librosa, '__getattr__', side_effect=reject_decoder_resolution)
                 self.assertEqual(get_file_sha256(adapter / 'ref_sample.wav'), meta['reference_audio_sha256'])
             self.assertEqual((output / 'ref_sample.wav').read_bytes(), (candidate / 'ref_sample.wav').read_bytes())
             self.assertEqual(original, {p.name: p.read_bytes() for p in root.iterdir()})
+
+    def test_stereo_mp3_checkpoint_reference_matches_independent_seekable_decode(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = root / 'reference.mp3'
+            samples = np.arange(70001)
+            signal = np.column_stack((.1 * np.sin(samples * 2 * np.pi * 440 / 24000),
+                                      .06 * np.sin(samples * 2 * np.pi * 730 / 24000)))
+            sf.write(source, signal, 24000, format='MP3', subtype='MPEG_LAYER_III')
+            original = source.read_bytes()
+            decoded = subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-i', str(source),
+                '-c:a', 'pcm_f64le', '-f', 'f64le', 'pipe:1'],
+                check=True, capture_output=True, timeout=30).stdout
+            expected = np.frombuffer(decoded, dtype='<f8').reshape(-1, 2).mean(axis=1)
+            self.assertEqual(70001, len(expected))
+            output = root / 'adapter'
+            write_test_adapter(output)
+            train_lora.save_training_checkpoint(None, str(output), str(source),
+                'A completely synthetic reference sentence.', {}, [], 0, 1, 4.5)
+            actual, rate = sf.read(output / 'ref_sample.wav', dtype='float64')
+            self.assertEqual((70001, 24000), (len(actual), rate))
+            # A 65,536-frame SoundFile read used to alter this converted PCM
+            # by about 0.082 while the ordinary frame/finite validator passed.
+            np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-6)
+            self.assertEqual(original, source.read_bytes())
+            validate_adapter_checkpoint_generation(output)
 
     def test_mono_reference_keeps_original_bytes_and_stereo_conversion_reads_blocks(self):
         with tempfile.TemporaryDirectory() as tmp:

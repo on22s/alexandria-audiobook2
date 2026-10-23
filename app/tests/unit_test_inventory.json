@@ -699,6 +699,21 @@
     "tests.test_audio_mastering.AudioMasteringTests.test_report_endpoint_refuses_stale_bytes_books_paths_and_active_tasks",
     "tests.test_audio_mastering.AudioMasteringTests.test_silence_failure_and_cancellation_preserve_previous_export"
   ],
+  "test_audio_pcm_decode": [
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_borrowed_buffered_input_stays_open_and_keeps_its_position",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_cancellation_in_actual_mpeg_decode_preserves_pending_archive",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_changed_source_with_unchanged_stat_version_refuses_after_real_decode",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_duplicate_external_geometry_is_refused",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_independent_geometry_disagreement_is_refused",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_invalid_geometry_cannot_start_expensive_work",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_mpeg_archives_preserve_original_bytes_and_use_actual_format",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_mpeg_matrix_preserves_full_geometry_and_reference_pcm",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_nonfinite_is_refused_and_finite_out_of_range_is_preserved",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_partial_frame_output_is_refused",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_path_swap_cannot_feed_unadmitted_pcm_to_the_sink",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_truncated_mpeg_cannot_satisfy_the_admitted_frame_count",
+    "tests.test_audio_pcm_decode.AudioPCMDecodeTests.test_unavailable_decoder_keeps_pending_copy_and_explains_requirement"
+  ],
   "test_audio_publication_admission": [
     "tests.test_audio_publication_admission.AudioPublicationAdmissionTests.test_absent_output_and_broken_symlink_are_cleared_without_following_target",
     "tests.test_audio_publication_admission.AudioPublicationAdmissionTests.test_cancellation_is_rechecked_after_waiting_for_publication_admission",
@@ -6119,6 +6134,11 @@
     "tests.test_media_output_sink.MediaOutputSinkTests.test_success_streams_bounded_pieces_without_retaining_output",
     "tests.test_media_output_sink.MediaOutputSinkTests.test_timeout_stops_owned_child_without_sink_output"
   ],
+  "test_media_process": [
+    "tests.test_media_process.MediaProcessTests.test_callers_cancellation_type_survives_reader_cleanup",
+    "tests.test_media_process.MediaProcessTests.test_import_needs_no_model_or_export_policy_modules",
+    "tests.test_media_process.MediaProcessTests.test_timeout_retains_callback_ownership_until_its_write_unwinds"
+  ],
   "test_merge_integrity": [
     "tests.test_merge_integrity.MergeIntegrityAdmission.test_clean_annotation_does_not_hide_editor_change",
     "tests.test_merge_integrity.MergeIntegrityAdmission.test_clean_chunks_schedule_as_before_without_body",
@@ -10959,6 +10979,7 @@
     "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_same_audioread_fallback_supplies_duration_and_bounded_pcm",
     "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_standalone_compressed_audio_keeps_native_duration_admission",
     "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_stereo_first_sample_and_explicit_later_reference_keep_the_matching_transcript",
+    "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_stereo_mp3_checkpoint_reference_matches_independent_seekable_decode",
     "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_stereo_reference_publishes_matching_mono_production_and_candidate",
     "tests.test_training_audio_admission.TrainingAudioAdmissionTests.test_stereo_source_change_between_admission_and_conversion_preserves_generation"
   ],

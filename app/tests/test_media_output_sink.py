@@ -7,19 +7,20 @@ import unittest
 from unittest.mock import patch
 
 import export_quality as quality
+import media_process
 from tts import ExportCancelled
 
 
 class MediaOutputSinkTests(unittest.TestCase):
     def run_check(self, code, sink, *, limit=131072, timeout=5, cancel=None):
         processes = []
-        start = quality.start_owned_subprocess
+        start = media_process.start_owned_subprocess
         def capture(*args, **kwargs):
             process = start(*args, **kwargs)
             processes.append(process)
             return process
         try:
-            with patch.object(quality, 'start_owned_subprocess', side_effect=capture):
+            with patch.object(media_process, 'start_owned_subprocess', side_effect=capture):
                 return quality._run_owned_check([sys.executable, '-c', code],
                     cancel, timeout, output_limit=limit, consume_output=sink)
         finally:

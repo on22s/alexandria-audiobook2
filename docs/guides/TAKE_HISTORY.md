@@ -69,6 +69,26 @@ still apply. Valid first-pass audio outside the receipt's 64 MiB, mono/stereo,
 selection, or clears it when complete proof is unavailable. History browsing does
 not load a model, hash selected audio or run speech verification.
 
+## MPEG validation and decoder availability
+
+MPEG snapshots are independently checked with FFprobe and FFmpeg before becoming
+ready. The decoder reads the admitted open file through seekable descriptor input,
+checks the complete PCM frame count and geometry, and rechecks source content.
+It does not resample, normalize or replace the archived original. WAV, FLAC and
+OGG snapshots retain their existing validation path; finite float WAV samples
+outside the normalized range remain accepted.
+
+This requires working FFprobe and FFmpeg builds with seekable `fd` input support.
+If they are missing or unsupported, update the decoder tools. A failed or cancelled
+capture preserves its pending copy and quota charge; explicitly remove the
+incomplete copy before retrying. The selected current performance is preserved.
+
+The shared decoder also protects stereo MPEG training-reference conversion:
+private checkpoint staging receives a complete mono conversion before publication,
+while the original reference remains unchanged. Decoder timeouts stop and reap
+owned processes. A caller's file-writing callback retains ownership until its
+write unwinds; a blocked filesystem write is not abandoned after a timeout.
+
 ## Compact metadata
 
 Archive writes can store repeated text, generation inputs, provenance and synthesis
