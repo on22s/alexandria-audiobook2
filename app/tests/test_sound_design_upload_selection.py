@@ -125,14 +125,15 @@ class SoundDesignUploadSelectionTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(Path(str(selected) + '.publication.json').is_file())
             self.assertGreaterEqual(script.get_upload_storage_bytes(), len(TEXT))
 
-    async def test_bad_metadata_refuses_before_publication_and_cleans_only_new_uploads(self):
+    async def test_bad_metadata_refuses_selection_but_retains_publicly_visible_source(self):
         async with self.fixture() as (root, uploads, client):
             before = (root / 'state.json').read_bytes(); (root / ACTIVE_CUES).write_bytes(b'{invalid')
             response = await client.post('/api/upload', files={'file': ('new.txt', b'Synthetic source.')})
             self.assertEqual(409, response.status_code, response.text)
             self.assertEqual(before, (root / 'state.json').read_bytes())
             self.assertEqual(b'{invalid', (root / ACTIVE_CUES).read_bytes())
-            self.assertEqual([], list(uploads.iterdir()))
+            self.assertEqual(['new.txt'], [p.name for p in uploads.iterdir()])
+            self.assertEqual(b'Synthetic source.', (uploads / 'new.txt').read_bytes())
 
 
 if __name__ == '__main__':

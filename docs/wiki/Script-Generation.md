@@ -32,6 +32,38 @@ cast. It supports explicit import reconciliation, merge/split decisions and exac
 undo. See the [character roster guide](../character-roster.md) for the workflow,
 source coordinates and recovery behavior.
 
+## Upload completion and recovery
+
+An upload becomes reusable only after its text is fully written. EPUB imports
+also finish their provenance companion before making the text available. Pending
+files stay private and count against the upload storage limit. Existing uploads
+are reused by content or preserved under their original names when names collide.
+
+Once a completed source is visible, cancelling its upload request or failing to
+select it as the active book leaves that source available. Another request may
+already have selected it. A completed provenance update to a reused source is
+also retained; a failure before writing it preserves the previous provenance.
+The error response does not mean the source was deleted. Check reusable uploads
+before uploading again. Selection validation failures leave the prior book unchanged.
+A late disk error or cancellation can arrive after a selection was saved; refresh
+and check the current book before retrying.
+
+A process crash before publication can leave a private `.source-upload-*.part`
+file and an unpaired `*.publication.json` companion. They remain quota-counted,
+are not offered as reusable sources, and are not automatically deleted. A retry
+skips an orphaned companion instead of attaching it to unrelated text. To recover,
+stop AA2 and preserve copies of these files for inspection, then re-upload the
+original source. Do not rename a private stage into the reusable library: it may
+contain only part of the upload. Remove retained files only after confirming no
+active or saved work depends on them and preserving anything needed for recovery.
+
+Publication requires an atomic move that refuses an existing destination. The
+implementation uses Windows rename, Linux `renameat2(RENAME_NOREPLACE)`, or
+macOS `renamex_np(RENAME_EXCL)`. An unavailable operation or unsupported filesystem
+fails without falling back to an overwrite or a partially visible copy. Native
+CI exercises complete publication, collisions and process-death boundaries on
+Linux, Windows and macOS; this is not a power-loss or every-filesystem guarantee.
+
 ## Script format
 
 The script is a JSON array:

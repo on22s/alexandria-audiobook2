@@ -32,10 +32,12 @@ proof or explicit reanchoring before use.
 
 Upload selection runs on a worker with the existing kernel task barrier and
 book admission. The local task mutex is released during slow metadata work.
-Cancellation waits for that worker to finish. Once book-state publication begins,
-uploaded sources and provenance remain quota-accounted and available for
-recovery even if an error or cancellation makes the commit outcome uncertain.
-Failures before that handoff clean up only files owned by the failed upload.
+Cancellation waits for that worker to finish. Completed uploads become
+library-owned when made publicly reusable, before active-book selection.
+They and their published provenance remain quota-accounted and available even
+if selection fails or cancellation makes its outcome uncertain. Cleanup removes
+only the request's private stages. See [upload completion and recovery](wiki/Script-Generation.md#upload-completion-and-recovery)
+for retained crash artifacts and filesystem requirements.
 
 ## Identity and selected sources
 

@@ -117,15 +117,15 @@ class ScriptUploadQuotaTests(unittest.IsolatedAsyncioTestCase):
             uploads.mkdir()
             source = UploadFile(filename='cancelled.txt', file=io.BytesIO(b'cancelled content'))
             entered, release = threading.Event(), threading.Event()
-            original = script._claim_unique_path
-            def paused_claim(directory, filename):
-                path = original(directory, filename)
+            original = script.create_source_upload_stage
+            def paused_claim(directory):
+                path = original(directory)
                 entered.set()
                 if not release.wait(2):
                     raise AssertionError('path-claim fixture was not released')
                 return path
             with patch.object(script, 'UPLOADS_DIR', str(uploads)), patch.object(script, 'DATA_DIR', tmp), \
-                 patch.object(script, '_claim_unique_path', side_effect=paused_claim):
+                 patch.object(script, 'create_source_upload_stage', side_effect=paused_claim):
                 task = asyncio.create_task(script.upload_file(source))
                 try:
                     self.assertTrue(await asyncio.to_thread(entered.wait, 2))

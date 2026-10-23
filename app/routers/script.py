@@ -72,6 +72,7 @@ from alexandria_alignment import validate_epub_archive
 from epub_package import get_epub_package
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
 from project_scope_files import capture_scope_file
+from source_upload_publication import create_source_upload_stage, publish_completed_upload
 from publication_source import (PublicationSourceLimit, get_upload_publication_update,
     apply_publication_source_update, restore_publication_source_update,
     get_saved_publication_source_bytes, get_publication_source_path)
@@ -688,35 +689,6 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None) -> 
     return normalize_extracted_text('\n\n'.join(chapters))
 
 
-def _claim_unique_path(directory: str, filename: str) -> str:
-    """Atomically reserve a unique path in directory for filename, returning the
-    path to a newly-created empty file the caller should now write/truncate into.
-
-    A directory scan picks a good starting candidate (avoiding O(n) O_EXCL
-    failures when the directory is large), then os.O_EXCL claims it -
-    closing the TOCTOU race a scan-then-write approach has under concurrent
-    uploads of the same filename. Caps at 1000 attempts to prevent a DoS
-    from a maliciously pre-populated directory.
-    """
-    existing = {e.name for e in os.scandir(directory) if e.is_file()}
-    base, ext = os.path.splitext(filename)
-    candidate = filename
-    counter = 1
-    while True:
-        if candidate not in existing:
-            path = os.path.join(directory, candidate)
-            try:
-                fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-                os.close(fd)
-                return path
-            except FileExistsError:
-                pass  # lost the race - fall through and try the next candidate
-        if counter > 1000:
-            raise RuntimeError(f"Too many collisions for filename: {filename}")
-        counter += 1
-        candidate = f"{base}_{counter}{ext}"
-
-
 def _get_upload_hash(path: str) -> str:
     """Return SHA-256 from a bounded cache of current upload versions."""
     stat = os.stat(path)
@@ -866,7 +838,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
         raise cancelled
     owned_paths = set()
     selection = {'publication_started': False}
-    def retain_selected_source():
+    def retain_selected_source(path=None):
         # Worker handoff: after publication starts its outcome may be unknown.
         # Preserve valid uploaded files/provenance even if cancellation or an I/O
         # error arrives after a book-state rename. They remain quota-accounted.
@@ -877,7 +849,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
         if available <= 0:
             raise HTTPException(status_code=413, detail="Source upload storage limit reached.")
         file_path, cancelled = await await_upload_operation(
-            asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, safe_name))
+            asyncio.to_thread(create_source_upload_stage, UPLOADS_DIR))
         owned_paths.add(file_path)
         if cancelled is not None:
             raise cancelled
@@ -885,7 +857,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
             _save_upload_limited(file, file_path, min(MAX_SCRIPT_UPLOAD_BYTES, available)))
         if cancelled is not None:
             raise cancelled
-        if file_path.lower().endswith('.epub'):
+        if safe_name.lower().endswith('.epub'):
             try:
                 captured, cancelled = await await_upload_operation(asyncio.to_thread(
                     capture_scope_file, Path(file_path).parent.resolve(), os.path.basename(file_path),
@@ -917,9 +889,9 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
             publication, cancelled = await await_upload_operation(asyncio.to_thread(capture_publication))
             if cancelled is not None:
                 raise cancelled
-            txt_name = os.path.basename(file_path).rsplit('.', 1)[0] + '.txt'
+            safe_name = os.path.splitext(safe_name)[0] + '.txt'
             txt_path, cancelled = await await_upload_operation(
-                asyncio.to_thread(_claim_unique_path, UPLOADS_DIR, txt_name))
+                asyncio.to_thread(create_source_upload_stage, UPLOADS_DIR))
             owned_paths.add(txt_path)
             if cancelled is not None:
                 raise cancelled
@@ -940,14 +912,25 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                     source_limit=MAX_SCRIPT_UPLOAD_BYTES))
                 if cancelled is not None:
                     raise cancelled
-                _, cancelled = await await_upload_operation(asyncio.to_thread(
-                    apply_publication_source_update, publication_update))
-                if cancelled is not None:
-                    raise cancelled
+                if reused:
+                    # This source is already library-owned. A reader may observe
+                    # the atomic provenance update before this request returns.
+                    retain_selected_source()
+                    _, cancelled = await await_upload_operation(asyncio.to_thread(
+                        apply_publication_source_update, publication_update))
+                    if cancelled is not None:
+                        raise cancelled
             except PublicationSourceLimit as error:
                 raise HTTPException(status_code=413, detail=str(error)) from error
             except ValueError as error:
                 raise HTTPException(status_code=409, detail=str(error)) from error
+        if not reused:
+            file_path, cancelled = await await_upload_operation(asyncio.to_thread(
+                publish_completed_upload, file_path, safe_name, retain_selected_source,
+                limit=MAX_SCRIPT_UPLOAD_BYTES,
+                companion_bytes=publication_update['new_bytes'] if publication_update else None))
+            if cancelled is not None:
+                raise cancelled
         if select_active:
             _, cancelled = await await_upload_operation(asyncio.to_thread(
                 _apply_upload_selection, file_path, retain_selected_source))
@@ -962,7 +945,10 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
             if publication_update is not None and not selection['publication_started']:
                 await await_upload_operation(asyncio.to_thread(restore_publication_source_update, publication_update))
         finally:
-            for path in owned_paths if not selection['publication_started'] else ():
+            # Only private stages belong to this request. Public sources were
+            # handed off at visibility and must survive another reader selecting
+            # them, including cancellation before our own book selection.
+            for path in owned_paths:
                 try:
                     os.remove(path)
                 except FileNotFoundError:

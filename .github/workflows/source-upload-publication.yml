@@ -1,0 +1,30 @@
+name: source upload publication
+on:
+  pull_request:
+    paths:
+      - 'app/source_upload_publication.py'
+      - 'app/publication_source.py'
+      - 'app/adapter_publication.py'
+      - 'app/routers/script.py'
+      - 'app/tests/test_source_upload_publication.py'
+      - '.github/workflows/source-upload-publication.yml'
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+      - name: Verify native exclusive publication and process-death boundaries
+        run: python -S -m unittest tests.test_source_upload_publication -v
