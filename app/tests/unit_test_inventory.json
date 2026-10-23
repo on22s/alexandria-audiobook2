@@ -6021,6 +6021,10 @@
     "tests.test_m4b_export_quality.M4BExportQualityTests.test_source_cover_mutation_and_late_cancel_preserve_prior_delivery",
     "tests.test_m4b_export_quality.M4BExportQualityTests.test_successful_encoder_with_short_audio_missing_moved_or_renamed_chapter_and_wrong_tags_is_refused"
   ],
+  "test_m4b_source_cleanup": [
+    "tests.test_m4b_source_cleanup.M4bSourceCleanupTests.test_cleanup_oserror_preserves_success_original_error_and_cancellation",
+    "tests.test_m4b_source_cleanup.M4bSourceCleanupTests.test_non_oserror_cleanup_failure_still_surfaces_after_owned_cleanup"
+  ],
   "test_m4b_source_publication": [
     "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_absent_and_intentionally_empty_title_differ_and_source_cover_is_opt_in",
     "tests.test_m4b_source_publication.M4bSourcePublicationTests.test_changed_dependencies_after_encode_preserve_prior_valid_output",

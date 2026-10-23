@@ -2320,7 +2320,11 @@ class ProjectManager:
                         os.remove(tmp)
                     except OSError:
                         pass
-            publication.close()
+            try:
+                publication.close()
+            except OSError:
+                logging.getLogger('AlexandriaUI').warning(
+                    'M4B source-cover temporary files could not be removed.', exc_info=True)
 
         if skipped:
             return True, f"audiobook.m4b ({skipped} chunk(s) skipped — missing/corrupt audio)"
