@@ -30,6 +30,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
 
     def test_saved_incomplete_reservation_survives_store_reopen_and_counts_full_allowance(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             store = SoundDesignAssetStore(directory)
             with store._locked() as document:
                 document['assets'].append(self.incomplete())
@@ -43,6 +44,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
                     b'{"schema":1,"assets":[NaN]}', b'{"schema":true,"assets":[]}',
                     b'{"schema":1,"assets":[],"unknown":1}'):
             with self.subTest(raw=raw), tempfile.TemporaryDirectory() as directory:
+                directory = str(Path(directory).resolve())
                 store = SoundDesignAssetStore(directory)
                 store.directory.mkdir()
                 store.manifest.write_bytes(raw)
@@ -56,6 +58,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_sound_asset_manifest_bytes({'schema': 1, 'assets': [row]})
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             store = SoundDesignAssetStore(directory)
             store.directory.mkdir()
             orphan = store.directory / '.publication-interrupted'
@@ -66,6 +69,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
 
     def test_import_reopen_dedupe_and_verified_read_preserve_original_and_canonical(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             source = self.source(directory)
             original = source.read_bytes()
             store = self.store(directory)
@@ -83,6 +87,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
 
     def test_damaged_canonical_refuses_read_and_dedupe_without_erasing_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             self.source(directory)
             store = self.store(directory)
             descriptor = store.import_asset('input.wav')
@@ -98,6 +103,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
     def test_failed_decode_retains_charged_copy_until_explicit_recovery(self):
         import sound_design_decode
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             source = self.source(directory)
             store = self.store(directory)
             with patch.object(sound_design_decode, 'decode_sound_design_asset', side_effect=ValueError('Decoder fixture')):
@@ -116,6 +122,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
     def test_quota_refuses_before_copy_or_decode(self):
         import sound_design_decode
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             self.source(directory)
             store = self.store(directory, total_limit=65536)
             with patch.object(sound_design_decode, 'decode_sound_design_asset') as decode:
@@ -127,6 +134,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
 
     def test_display_name_survives_reopen_without_changing_identity_on_duplicate(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             self.source(directory)
             store = self.store(directory)
             name = 'Rain & thunder <night>.wav'
@@ -140,6 +148,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
     def test_invalid_display_names_refuse_before_creating_store_or_decoding(self):
         for value in ('', ' ', 'x'*129, 'line\nbreak', 'nul\0name', '\ud800', 123):
             with self.subTest(value=repr(value)), tempfile.TemporaryDirectory() as directory:
+                directory = str(Path(directory).resolve())
                 self.source(directory)
                 store = self.store(directory)
                 with self.assertRaises(ValueError):
@@ -149,6 +158,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
     def test_lowered_quota_allows_inspection_and_recovery_but_no_new_import(self):
         import sound_design_decode
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             source = self.source(directory)
             store = self.store(directory)
             with patch.object(sound_design_decode, 'decode_sound_design_asset', side_effect=ValueError('Synthetic decode failure')):
@@ -168,6 +178,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
     def test_recovery_waits_for_live_import_and_cannot_purge_the_ready_result(self):
         import sound_design_decode
         with tempfile.TemporaryDirectory() as directory, ThreadPoolExecutor(max_workers=2) as workers:
+            directory = str(Path(directory).resolve())
             self.source(directory)
             store = self.store(directory)
             entered, release, recovery_started = threading.Event(), threading.Event(), threading.Event()
@@ -202,6 +213,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
         import sound_design_decode
         from tts import ExportCancelled
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             source = self.source(directory)
             store = self.store(directory)
             cancelled = threading.Event()
@@ -221,6 +233,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
 
     def test_late_ready_publication_error_retains_verifiable_asset(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             self.source(directory)
             store = self.store(directory)
             save = store._save
@@ -240,6 +253,7 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
         import sound_design_decode
         for boundary in ('second_unlink', 'metadata_save'):
             with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as directory:
+                directory = str(Path(directory).resolve())
                 source = self.source(directory)
                 original = source.read_bytes()
                 store = self.store(directory)
@@ -291,6 +305,7 @@ store.import_asset('input.wav')
 '''
         for boundary in ('incomplete', 'decoded', 'ready'):
             with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as directory:
+                directory = str(Path(directory).resolve())
                 source = self.source(directory)
                 original = source.read_bytes()
                 result = subprocess.run([sys.executable, '-c', child, directory, boundary],
@@ -313,6 +328,7 @@ store.import_asset('input.wav')
 
     def test_source_hardlink_is_refused_without_copy(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             source = self.source(directory)
             linked = Path(directory) / 'linked.wav'
             os.link(source, linked)

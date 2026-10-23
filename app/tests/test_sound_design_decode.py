@@ -24,7 +24,7 @@ class SoundDesignDecodeTests(unittest.TestCase):
                 ('WAV', 'PCM_24', 8), ('WAV', 'PCM_32', 0), ('FLAC', 'PCM_24', 8)]:
             for channels in (1, 2):
                 with self.subTest(format=format, subtype=subtype, channels=channels), tempfile.TemporaryDirectory() as directory:
-                    root = Path(directory)
+                    root = Path(directory).resolve()
                     values = np.tile(np.array([-123, -1, 0, 1, 123], dtype=np.int64), 8001)[:24001]
                     expected = np.repeat((values * 2**shift).astype('<i4')[:, None], channels, axis=1)
                     sf.write(root/'source', expected, 24000, format=format, subtype=subtype)
@@ -37,7 +37,7 @@ class SoundDesignDecodeTests(unittest.TestCase):
 
     def test_mp3_matches_independent_single_read_without_block_boundary_corruption(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             signal = .1 * np.sin(np.arange(24001) * 2 * np.pi * 440 / 24000)
             sf.write(root/'source.mp3', signal, 24000, format='MP3', subtype='MPEG_LAYER_III')
             expected, rate = sf.read(root/'source.mp3', dtype='float64')
@@ -51,7 +51,7 @@ class SoundDesignDecodeTests(unittest.TestCase):
     def test_nonfinite_or_overrange_float_sources_are_refused(self):
         for value in (float('nan'), float('inf'), 1.01, -1.01):
             with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 sf.write(root/'source.wav', np.array([0., value, 0.]), 24000, subtype='FLOAT')
                 before = (root/'source.wav').read_bytes()
                 with self.assertRaises(ValueError):
@@ -60,7 +60,7 @@ class SoundDesignDecodeTests(unittest.TestCase):
 
     def test_excess_pcm_refuses_without_overwriting_existing_output(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             sf.write(root/'source.wav', np.zeros(24001), 24000)
             with self.assertRaises(ValueError):
                 self.decode(root, 'source.wav', pcm_limit=128)
@@ -74,7 +74,7 @@ class SoundDesignDecodeTests(unittest.TestCase):
         for format, subtype in [('OGG', 'VORBIS'), ('MP3', 'MPEG_LAYER_III')]:
             for rate in (24000, 48000):
                 with self.subTest(format=format, rate=rate), tempfile.TemporaryDirectory() as directory:
-                    root = Path(directory)
+                    root = Path(directory).resolve()
                     signal = .1 * np.sin(np.arange(70001) * 2 * np.pi * 440 / rate)
                     sf.write(root/'source', np.column_stack([signal, -signal]), rate,
                              format=format, subtype=subtype)
@@ -87,7 +87,7 @@ class SoundDesignDecodeTests(unittest.TestCase):
 
     def test_truncated_wav_is_refused_before_starting_a_decoder(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             sf.write(root/'source.wav', np.zeros(24001), 24000)
             original = (root/'source.wav').read_bytes()[:-1]
             (root/'source.wav').write_bytes(original)
@@ -99,7 +99,7 @@ class SoundDesignDecodeTests(unittest.TestCase):
 
     def test_source_change_after_decode_refuses_success_and_retains_recovery_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             sf.write(root/'source.wav', np.zeros(24001), 24000)
             run = decoder._run_owned_check
             def mutate(command, *args, **kwargs):
@@ -113,7 +113,7 @@ class SoundDesignDecodeTests(unittest.TestCase):
 
     def test_actual_ffmpeg_sink_cancellation_preserves_original_and_partial_output(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             sf.write(root/'source.wav', np.zeros(70001), 24000)
             original = (root/'source.wav').read_bytes()
             caller = threading.get_ident()
