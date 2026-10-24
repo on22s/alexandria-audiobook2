@@ -11,15 +11,16 @@ from media_process import run_owned_media_check
 
 
 def decode_audio_pcm(stream, path, *, frames, sample_rate, channels, source_limit,
-                     check_active, consume_pcm=None, cancellation_errors=(), timeout=300):
+                     check_active, consume_pcm=None, cancellation_errors=(), timeout=300, exact_frames=True):
     """Visit finite float64 PCM while retaining the caller's admitted source.
 
     The caller confines and admits the file and owns its publication decision.
     Sink output is private until this call and the caller's own fences succeed.
     No resampling, downmixing, clipping or original-byte rewriting occurs here.
+    With exact_frames=False, frames is an upper bound; the returned count is actual.
     """
     import numpy as np
-    if (type(sample_rate) is not int or not 0 < sample_rate <= 384000
+    if (type(exact_frames) is not bool or type(sample_rate) is not int or not 0 < sample_rate <= 384000
             or type(channels) is not int or channels not in (1, 2)
             or type(frames) is not int or not 0 < frames <= sample_rate * 3600
             or type(source_limit) is not int or not 0 < source_limit <= 1024**3
@@ -102,7 +103,7 @@ def decode_audio_pcm(stream, path, *, frames, sample_rate, channels, source_limi
     run(['ffmpeg', '-nostdin', '-v', 'error', '-xerror', '-err_detect',
         'explode', '-i', 'fd:', '-map', '0:a:0', '-vn', '-sn', '-dn', '-threads', '1',
         '-c:a', 'pcm_f64le', '-f', 'f64le', 'pipe:1'], timeout, output_limit=frames * channels * 8, consume_output=consume)
-    if pending or decoded_frames != frames:
+    if pending or not decoded_frames or (exact_frames and decoded_frames != frames):
         raise ValueError('Decoded audio has incomplete frames or a different frame count')
     if fingerprint() != admitted_content:
         raise ValueError('Audio source changed during independent decoding')

@@ -12,6 +12,29 @@ from tts import ExportCancelled
 
 
 class CancellableAudioExportTests(unittest.TestCase):
+    def test_fresh_wav_worker_needs_no_application_or_model_import(self):
+        import subprocess
+        code = '''
+import importlib.abc,sys,tempfile,wave
+from pathlib import Path
+class Reject(importlib.abc.MetaPathFinder):
+ def find_spec(self,fullname,path=None,target=None):
+  if fullname.split('.')[0] in ('tts','torch','pydantic'):
+   raise ImportError('Forbidden application import: '+fullname)
+sys.meta_path.insert(0,Reject())
+from audio_export import write_pcm_wav
+with tempfile.TemporaryDirectory() as tmp:
+ raw=Path(tmp)/'input.pcm';raw.write_bytes(b'\\x01\\x00'*24000)
+ output=Path(tmp)/'output.wav'
+ if not write_pcm_wav(raw,output,dict(format='wav',options={},sample_width=2,channels=1,frame_rate=24000)):
+  raise RuntimeError('Native writer refused')
+ with wave.open(str(output),'rb') as stream:
+  if stream.readframes(24000) != raw.read_bytes():raise RuntimeError('PCM changed')
+'''
+        result = subprocess.run([sys.executable,'-c',code],capture_output=True,text=True,timeout=15)
+        self.assertEqual(0,result.returncode,result.stderr)
+
+
     def test_real_wav_encoding_preserves_pcm_and_cleans_temporary_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'chapter.wav'
@@ -63,13 +86,18 @@ time.sleep(60)
     def test_real_mp3_encoding_produces_decodable_audio(self):
         from pydub.generators import Sine
         with tempfile.TemporaryDirectory() as tmp:
-            path=Path(tmp)/'chapter.mp3'
+            directory=Path(tmp)/'book';directory.mkdir()
+            path=directory/'chapter.mp3'
+            report=Path(tmp)/'external-report.log'
+            report_name=str(report).replace('\\','\\\\').replace(':','\\:').replace("'","\\'")
             segment=Sine(220,sample_rate=24000).to_audio_segment(duration=600)
-            audio_export.export_audio_segment(segment,path,'mp3',lambda:False,bitrate='192k')
+            with patch.dict(os.environ,{'FFREPORT':'file='+report_name+':level=48'}):
+                audio_export.export_audio_segment(segment,path,'mp3',lambda:False,bitrate='192k')
             with path.open('rb') as stream:loaded=AudioSegment.from_mp3(stream)
             self.assertAlmostEqual(len(segment),len(loaded),delta=2)
             self.assertGreater(loaded.rms,100)
-            self.assertEqual(['chapter.mp3'],sorted(p.name for p in Path(tmp).iterdir()))
+            self.assertEqual(['chapter.mp3'],sorted(p.name for p in directory.iterdir()))
+            self.assertFalse(report.exists())
 
     @unittest.skipUnless(sys.platform=='linux','native Linux descendant ownership test')
     def test_full_and_incremental_chapter_encoder_cancel_preserves_outputs_and_manifest(self):

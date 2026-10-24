@@ -33,12 +33,19 @@ class AudioPCMDecodeTests(unittest.TestCase):
 
     def test_invalid_geometry_cannot_start_expensive_work(self):
         for field, value in [('frames', True), ('sample_rate', True), ('channels', True),
-                             ('source_limit', True), ('timeout', float('nan'))]:
+                             ('source_limit', True), ('timeout', float('nan')), ('exact_frames', 1)]:
             with self.subTest(field=field):
                 with patch.object(decoder, 'run_owned_media_check') as run:
                     with self.assertRaises(ValueError):
                         self.decode(**{field: value})
                     run.assert_not_called()
+
+    def test_frame_ceiling_returns_actual_count_but_default_stays_exact(self):
+        with self.assertRaisesRegex(ValueError,'frame count'):
+            self.decode(frames=70002)
+        self.assertEqual(70001,self.decode(frames=70002,exact_frames=False)['frames'])
+        with self.assertRaises(ValueError):
+            self.decode(frames=70000,exact_frames=False)
 
     def test_duplicate_external_geometry_is_refused(self):
         metadata = b'{"streams":[{"sample_rate":"24000","channels":2,"channels":1}]}'

@@ -10,11 +10,11 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import httpx
+from routers import editor
 from epub_publication import get_epub_publication_candidate
 from publication_source import (get_publication_source_path, get_upload_publication_update,
                                 apply_publication_source_update)
 import publication_preview
-from routers import editor
 from tests import test_saved_publication_source as fixtures
 from tests.test_m4b_cover_admission import image_bytes
 from tests.test_upload_publication_source import epub, TEXT
@@ -46,6 +46,152 @@ class PublicationPreviewAPITests(unittest.TestCase):
     def choice(self, preview, **options):
         return {'expected_book_token': preview['book_token'], 'expected_revision': preview['revision'],
                 'origin_id': preview['candidates'][0]['id'], **options}
+
+    def uploaded_preview_params(self, client):
+        preview = client.get('/api/m4b_publication').json()
+        return {'expected_book_token': preview['book_token'],
+                'sha256': preview['uploaded_cover']['sha256']}
+
+    def test_uploaded_image_preview_returns_exact_bytes_without_mutation(self):
+        for fmt, media_type in (('PNG', 'image/png'), ('JPEG', 'image/jpeg')):
+            with self.subTest(fmt=fmt), self.fixture() as (root, api), TestClient(api) as client:
+                raw = image_bytes(fmt)
+                (root / 'm4b_cover.jpg').write_bytes(raw)
+                params = self.uploaded_preview_params(client)
+                before = self.payloads(root)
+                result = client.get('/api/m4b_cover/preview', params={**params,
+                    'path': 'uploads/source.txt'})
+                self.assertEqual(200, result.status_code, result.text)
+                self.assertEqual(raw, result.content)
+                self.assertEqual(params['sha256'], hashlib.sha256(result.content).hexdigest())
+                self.assertEqual(media_type, result.headers['content-type'])
+                self.assertEqual('no-store', result.headers['cache-control'])
+                self.assertEqual('nosniff', result.headers['x-content-type-options'])
+                self.assertEqual(before, self.payloads(root))
+                uploaded = client.get('/api/m4b_publication').json()['uploaded_cover']
+                self.assertEqual({'present': True, 'sha256': params['sha256'],
+                    'validation': 'not_rechecked'}, uploaded)
+
+    def test_uploaded_image_preview_rejects_invalid_or_stale_authority(self):
+        for fault in ('missing', 'empty', 'corrupt', 'oversized', 'book', 'cover', 'symlink'):
+            with self.subTest(fault=fault), self.fixture() as (root, api), TestClient(api) as client:
+                cover = root / 'm4b_cover.jpg'; cover.write_bytes(image_bytes('PNG'))
+                params = self.uploaded_preview_params(client)
+                if fault == 'missing':
+                    cover.unlink()
+                elif fault == 'empty':
+                    cover.write_bytes(b''); params['sha256'] = hashlib.sha256(b'').hexdigest()
+                elif fault == 'corrupt':
+                    cover.write_bytes(b'bad image'); params['sha256'] = hashlib.sha256(b'bad image').hexdigest()
+                elif fault == 'oversized':
+                    with cover.open('wb') as stream:
+                        stream.truncate(25 * 1024**2 + 1)
+                elif fault == 'book':
+                    state = json.loads((root / 'state.json').read_bytes())
+                    state['book_generation'] = 'new-book'; (root / 'state.json').write_text(json.dumps(state))
+                elif fault == 'cover':
+                    cover.write_bytes(image_bytes('JPEG'))
+                else:
+                    cover.unlink()
+                    try:
+                        cover.symlink_to(root / 'uploads/source.txt')
+                    except (OSError, NotImplementedError):
+                        self.skipTest('Host does not permit symbolic links')
+                result = client.get('/api/m4b_cover/preview', params=params)
+                self.assertEqual(409, result.status_code, result.text)
+                self.assertNotIn(str(root), result.text)
+                self.assertEqual('no-store', result.headers['cache-control'])
+                self.assertEqual('nosniff', result.headers['x-content-type-options'])
+                self.assertEqual('Selected cover is unavailable or changed. Refresh cover options.',
+                    result.json()['detail'])
+
+    def test_uploaded_preview_pixel_and_recovery_failures_are_generic_and_readonly(self):
+        from PIL import Image
+        for fault in ('pixels', 'pending', 'state'):
+            with self.subTest(fault=fault), self.fixture() as (root, api), TestClient(api) as client:
+                (root/'m4b_cover.jpg').write_bytes(image_bytes('PNG'))
+                params = self.uploaded_preview_params(client)
+                if fault == 'pending':
+                    (root/'.active_book_transaction.json').write_bytes(b'broken transaction')
+                elif fault == 'state':
+                    (root/'state.json').write_bytes(b'broken state')
+                before = self.payloads(root)
+                with patch.object(Image, 'MAX_IMAGE_PIXELS', 400 if fault == 'pixels' else Image.MAX_IMAGE_PIXELS):
+                    response = client.get('/api/m4b_cover/preview', params=params)
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertEqual('Selected cover is unavailable or changed. Refresh cover options.', response.json()['detail'])
+                self.assertEqual(before, self.payloads(root))
+
+    def test_uploaded_preview_oversized_matching_digest_refuses_before_pixel_decode(self):
+        import m4b_cover
+        with self.fixture() as (root, api), TestClient(api) as client:
+            cover = root/'m4b_cover.jpg'; cover.write_bytes(image_bytes('PNG'))
+            params = self.uploaded_preview_params(client)
+            with cover.open('wb') as stream:
+                stream.truncate(m4b_cover.MAX_COVER_BYTES + 1)
+            digest = hashlib.sha256()
+            with cover.open('rb') as stream:
+                for block in iter(lambda: stream.read(65536), b''):
+                    digest.update(block)
+            params['sha256'] = digest.hexdigest()
+            with patch.object(m4b_cover, 'get_validated_cover_bytes',
+                    side_effect=AssertionError('Oversized cover reached pixel validation')):
+                result = client.get('/api/m4b_cover/preview', params=params)
+            self.assertEqual(409, result.status_code, result.text)
+            self.assertEqual(m4b_cover.MAX_COVER_BYTES + 1, cover.stat().st_size)
+
+    def test_uploaded_preview_query_is_validated_before_worker(self):
+        with self.fixture() as (_, api), TestClient(api) as client, patch.object(
+                editor, '_get_uploaded_cover_preview_sync', side_effect=AssertionError('Invalid query reached worker')):
+            valid = {'expected_book_token': 'a'*64, 'sha256': 'b'*64}
+            for params in ({}, {'sha256': 'b'*64}, {**valid, 'sha256': '../cover'},
+                    {**valid, 'expected_book_token': 'A'*64}, {**valid, 'sha256': 'b'*65}):
+                self.assertEqual(422, client.get('/api/m4b_cover/preview', params=params).status_code)
+
+    def test_uploaded_preview_rechecks_cover_and_book_after_pixel_validation(self):
+        import m4b_cover
+        for change in ('cover', 'book'):
+            with self.subTest(change=change), self.fixture() as (root, api), TestClient(api) as client:
+                cover = root / 'm4b_cover.jpg'; cover.write_bytes(image_bytes('PNG'))
+                params = self.uploaded_preview_params(client)
+                original = m4b_cover.get_validated_cover_bytes
+                def changed(raw, media_type):
+                    result = original(raw, media_type)
+                    if change == 'cover':
+                        cover.write_bytes(image_bytes('JPEG'))
+                    else:
+                        state = json.loads((root / 'state.json').read_bytes())
+                        state['book_generation'] = 'changed'; (root / 'state.json').write_text(json.dumps(state))
+                    return result
+                with patch.object(m4b_cover, 'get_validated_cover_bytes', side_effect=changed):
+                    result = client.get('/api/m4b_cover/preview', params=params)
+                self.assertEqual(409, result.status_code, result.text)
+
+    def test_uploaded_preview_validation_runs_off_the_event_loop(self):
+        import m4b_cover
+        with self.fixture() as (root, api), TestClient(api) as sync_client:
+            (root / 'm4b_cover.jpg').write_bytes(image_bytes('PNG'))
+            params = self.uploaded_preview_params(sync_client)
+            entered, release = threading.Event(), threading.Event()
+            original = m4b_cover.get_validated_cover_bytes
+            def paused(*args):
+                entered.set()
+                if not release.wait(3):
+                    raise TimeoutError('Fixture validator not released')
+                return original(*args)
+            async def run():
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(api), base_url='http://fixture') as client:
+                    task = asyncio.create_task(client.get('/api/m4b_cover/preview', params=params))
+                    watchdog = threading.Timer(1, release.set); watchdog.start()
+                    try:
+                        self.assertTrue(await asyncio.to_thread(entered.wait, 2))
+                        self.assertEqual({'ok': True}, (await client.get('/ping')).json())
+                        self.assertFalse(release.is_set()); self.assertFalse(task.done())
+                    finally:
+                        release.set(); watchdog.cancel(); result = await task
+                    self.assertEqual(200, result.status_code, result.text)
+            with patch.object(m4b_cover, 'get_validated_cover_bytes', side_effect=paused):
+                asyncio.run(run())
 
     def test_preview_and_explicit_choices_are_readonly_and_expose_origins_not_local_paths(self):
         with self.fixture() as (root, api), TestClient(api) as client:

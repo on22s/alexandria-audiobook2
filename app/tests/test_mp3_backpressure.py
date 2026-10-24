@@ -152,8 +152,8 @@ class Mp3BackpressureTests(unittest.TestCase):
 
     def test_mp3_cancel_reaps_real_encoder_tree_and_preserves_previous_output(self):
         import json, os, sys, time
-        import audio_ffmpeg
-        real_start = audio_ffmpeg.start_owned_subprocess
+        import media_process
+        real_start = media_process.start_owned_subprocess
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); marker = root / 'started.json'
             segment = Sine(317, sample_rate=24000).to_audio_segment(duration=300)
@@ -168,7 +168,7 @@ class Mp3BackpressureTests(unittest.TestCase):
             def cancel():
                 if time.monotonic() > deadline: self.fail('encoder did not reach the cancellation boundary')
                 return marker.exists()
-            with patch.object(audio_ffmpeg, 'start_owned_subprocess', side_effect=start):
+            with patch.object(media_process, 'start_owned_subprocess', side_effect=start):
                 with self.assertRaises(ExportCancelled):
                     export_pcm_mp3(root / 'input.pcm', output, settings, cancel)
             self.assertEqual(b'previous verified MP3', output.read_bytes())

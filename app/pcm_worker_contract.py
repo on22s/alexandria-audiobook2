@@ -1,0 +1,87 @@
+"""Shared strict PCM geometry and captured file identity for media workers."""
+import math
+from typing import Annotated
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator, model_validator
+
+from audio_mastering_filter import MasteringOptions, get_mastering_options
+
+MAX_PCM_BYTES = 4 * 1024**3
+MAX_PCM_SECONDS = 86400
+Filename = Annotated[StrictStr, Field(pattern=r'^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$')]
+VersionPart = Annotated[StrictInt, Field(ge=0, le=2**64-1)]
+
+
+class WorkerFileIdentity(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    version: list[VersionPart] = Field(min_length=5, max_length=5)
+    sha256: StrictStr = Field(pattern=r'^[0-9a-f]{64}$')
+
+
+class PCMInputShape(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    raw_name: Filename
+    frames: StrictInt = Field(ge=1, le=192000 * MAX_PCM_SECONDS)
+    frame_rate: StrictInt = Field(ge=1, le=192000)
+    sample_width: StrictInt
+    channels: StrictInt = Field(ge=1, le=2)
+    output_rate: StrictInt = Field(ge=1, le=192000)
+    output_channels: StrictInt = Field(ge=1, le=2)
+
+    @model_validator(mode='after')
+    def validate_pcm_shape(self):
+        if (self.sample_width not in (1,2,4)
+                or self.frames > self.frame_rate * MAX_PCM_SECONDS
+                or self.frames*self.channels*self.sample_width > MAX_PCM_BYTES):
+            raise ValueError('Invalid worker PCM shape')
+        return self
+
+
+def get_pcm_encode_timeout(shape):
+    """Finite per-encode allowance, not an entire multi-pass route deadline."""
+    shape = PCMInputShape.model_validate(shape)
+    return max(600, 2*shape.frames/shape.frame_rate + 30)
+
+
+def get_pcm_output_shape(format_name, shape, output_limit):
+    """Apply the existing output-clock policy and reject impossible WAV quotas."""
+    from audio_encoding_layout import get_audio_encoding_layout
+    shape = PCMInputShape.model_validate(shape)
+    layout = get_audio_encoding_layout(format_name,shape.frame_rate,shape.channels)
+    if (shape.output_rate != layout['frame_rate'] or shape.output_channels != layout['channels']):
+        raise ValueError('PCM output differs from the approved encoding layout')
+    # WAV keeps original PCM geometry. This is a necessary minimum, not an
+    # estimate replacing the guarded writer's exact header/write allowance.
+    if format_name == 'wav' and shape.frames*shape.channels*shape.sample_width + 44 > output_limit:
+        raise ValueError('Insufficient WAV output allowance')
+    return shape
+
+
+class PCMWorkerMastering(BaseModel):
+    """JSON-only measured mastering contract shared by native media workers."""
+    model_config = ConfigDict(extra='forbid', strict=True)
+    mastering: MasteringOptions | None = None
+    measured: dict[StrictStr, float] | None = None
+
+    @field_validator('mastering', 'measured', mode='before')
+    @classmethod
+    def validate_finite_numbers(cls, value):
+        try:
+            valid = value is None or (type(value) is dict and all(
+                type(number) in (int, float) and math.isfinite(number)
+                for number in value.values()))
+        except OverflowError:
+            valid = False
+        if not valid:
+            raise ValueError('Mastering settings and observations require finite numbers')
+        return value
+
+    @model_validator(mode='after')
+    def validate_mastering_pair(self):
+        if (self.mastering is None) != (self.measured is None):
+            raise ValueError('Mastering requires its complete measurement pass')
+        if self.mastering is not None:
+            get_mastering_options(self.mastering.model_dump())
+        if self.measured is not None and set(self.measured) != {
+                'input_i','input_tp','input_lra','input_thresh','target_offset'}:
+            raise ValueError('Invalid worker mastering observations')
+        return self

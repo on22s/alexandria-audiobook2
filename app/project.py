@@ -2152,9 +2152,8 @@ class ProjectManager:
         from export_publication import ExportSourceSnapshot
         quality_options = get_export_quality_options(export_quality)
         metadata = copy.deepcopy(metadata or {})
-        tags = dict(title=metadata.get('title') if metadata.get('title') is not None else 'Audiobook', artist=metadata.get('author') or '',
-            album_artist=metadata.get('narrator') or '', date=metadata.get('year') or '',
-            comment=metadata.get('description') or '', genre='Audiobook')
+        from m4b_metadata import get_m4b_tags, get_m4b_source_chapters, get_m4b_metadata_text
+        tags = get_m4b_tags(metadata)
         cleanup = []
         publication = ExitStack()
         try:
@@ -2221,15 +2220,8 @@ class ProjectManager:
                     if len(pcm_plans) != 1:
                         raise ValueError('WAV assembler did not provide an independent source-frame plan.')
                     pcm_plan = pcm_plans[0]
-                ranges = pcm_plan['source_frame_ranges']
-                if len(ranges) != len(timeline):
-                    raise ValueError('M4B source-frame ranges do not match its chapter sources.')
                 groups = self._chapter_groups([chunk for chunk, _, _ in timeline], per_chunk_chapters)
-                # MP4 represents ends by the next chapter start. This also
-                # assigns the authored inter-chapter pause to its preceding part.
-                starts = [ranges[first][0] for _, first, _ in groups] + [pcm_plan['frames']]
-                chapters = [(title, starts[index] / pcm_plan['frame_rate'],
-                    starts[index + 1] / pcm_plan['frame_rate']) for index, (title, _, _) in enumerate(groups)]
+                chapters = get_m4b_source_chapters(pcm_plan, groups, len(timeline))
                 quality_plan = get_pcm_export_encoding_plan(pcm_plan, format_name='m4b',
                     options=quality_options, chapters=chapters, chapter_time_base=1, expected_tags=tags)
                 print(f"  M4B: {len(chapters)} chapters")
@@ -2237,20 +2229,8 @@ class ProjectManager:
 
             ensure_audio_export_active(cancel_check)
             # Phase 4 — Write FFmpeg metadata file with book metadata
-            meta_lines = [";FFMETADATA1"]
-            meta_lines.extend(f'{key}={self._escape_ffmeta(value)}' for key, value in tags.items())
-            meta_lines.append("")
-            for title, start_seconds, end_seconds in chapters:
-                safe_title = self._escape_ffmeta(title)
-                meta_lines.append("[CHAPTER]")
-                meta_lines.append("TIMEBASE=1/1000")
-                meta_lines.append(f"START={round(start_seconds * 1000)}")
-                meta_lines.append(f"END={round(end_seconds * 1000)}")
-                meta_lines.append(f"title={safe_title}")
-                meta_lines.append("")
-
             with open(meta_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(meta_lines))
+                f.write(get_m4b_metadata_text(tags, chapters, self._escape_ffmeta))
 
             # Phase 5 — FFmpeg: WAV + chapters → M4B (AAC)
             has_cover = captured_cover is not None
@@ -2333,13 +2313,8 @@ class ProjectManager:
     @staticmethod
     def _escape_ffmeta(text):
         """Escape special characters for FFmpeg metadata format."""
-        text = text.replace("\\", "\\\\")
-        text = text.replace("=", "\\=")
-        text = text.replace(";", "\\;")
-        text = text.replace("#", "\\#")
-        text = text.replace("\n", " ")
-        text = text.replace("\r", " ")  # CRLF (e.g. pasted description) would else corrupt the key=value line
-        return text
+        from m4b_metadata import escape_m4b_metadata
+        return escape_m4b_metadata(text)
 
     def _chapter_groups(self, chunks, per_chunk_chapters):
         """Chapter boundaries from headings and narrator fragments: list of

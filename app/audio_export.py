@@ -10,6 +10,7 @@ import tempfile
 import wave
 
 from subprocess_ownership import start_owned_subprocess
+from media_process import get_media_process_environment
 
 
 def is_easy_wav_export(format_name, options):
@@ -126,7 +127,7 @@ def export_audio_segment(segment, path, format_name, cancel_check, mastering=Non
         encoder_temp = Path(directory) / 'encoder-temp'
         encoder_temp.mkdir()
         # Only this reaper/encoder tree inherits the private temp location.
-        environment = dict(os.environ)
+        environment = get_media_process_environment()
         for name in ('TMPDIR', 'TEMP', 'TMP'):
             environment[name] = str(encoder_temp.resolve())
         data = memoryview(segment.raw_data)
@@ -231,7 +232,7 @@ def export_pcm_mp3(raw_path, output_path, settings, cancel_check, mastering=None
     with tempfile.TemporaryDirectory(prefix='.pcm-encode-', dir=destination.parent) as directory:
         output = Path(directory) / 'output.mp3'
         encoder_temp = Path(directory) / 'encoder-temp'; encoder_temp.mkdir()
-        environment = dict(os.environ)
+        environment = get_media_process_environment()
         for key in ('TMPDIR', 'TEMP', 'TMP'):
             environment[key] = str(encoder_temp.resolve())
         if mastering is not None:

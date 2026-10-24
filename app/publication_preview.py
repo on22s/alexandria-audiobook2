@@ -81,7 +81,8 @@ def get_publication_selection(review, selection):
         if row['cover_status'] != 'available':
             raise ValueError('The chosen source has no usable cover')
         cover_selection = {key: selection[key] for key in (
-            'expected_book_token', 'expected_revision', 'origin_id', 'reviewed')}
+            'expected_book_token', 'expected_revision', 'origin_id')}
+        cover_selection['reviewed'] = selection.get('reviewed', False)
     if not fields and cover_selection is None:
         raise ValueError('Choose at least one suggested field or cover')
     return {'book_token': review['book_token'], 'revision': review['revision'], 'origin_id': row['id'],

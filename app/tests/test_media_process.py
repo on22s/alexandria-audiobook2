@@ -54,29 +54,36 @@ class MediaProcessTests(unittest.TestCase):
             with self.assertRaises(subprocess.TimeoutExpired):
                 future.result(timeout=5)
 
-    def test_inherited_report_cannot_escape_pipe_diagnostics(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            report=Path(tmp)/'unexpected.log'
-            report_name=str(report).replace('\\','\\\\').replace(':','\\:').replace("'","\\'")
-            original={**os.environ,'FFREPORT':'file='+report_name+':level=48',
-                      'AA2_TEST_MARKER':'preserved'}
-            command=['ffmpeg','-nostdin','-v','error','-f','lavfi',
-                '-i','anullsrc=r=24000:cl=mono','-t','0.01','-f','null','-']
-            # Native integration prerequisite: FFmpeg with documented FFREPORT.
-            subprocess.run(command,env=original,cwd=tmp,check=True,
-                           capture_output=True,timeout=10)
-            self.assertTrue(report.is_file())
-            self.assertGreater(report.stat().st_size,0)
-            report.unlink()
-            with patch.dict(os.environ,original,clear=True):
-                result=run_owned_media_check([sys.executable,'-c',
-                    'import os;print(os.environ.get("FFREPORT","absent"));'
-                    'print(os.environ["AA2_TEST_MARKER"])'],lambda:None,10,output_limit=1024)
-                self.assertEqual(b'absent\npreserved\n',result.replace(b'\r\n',b'\n'))
-                # Exercise FFmpeg's actual report writer, not only environment
-                # forwarding. The external path must remain absent.
-                run_owned_media_check(['ffmpeg','-nostdin','-v','error','-f','lavfi',
-                    '-i','anullsrc=r=24000:cl=mono','-t','0.01','-f','null','-'],lambda:None,10)
-                self.assertFalse(report.exists())
-                self.assertEqual(original['FFREPORT'],os.environ['FFREPORT'])
-                self.assertIn('FFREPORT',original)
+    def test_inherited_and_explicit_reports_cannot_escape_pipe_diagnostics(self):
+        for explicit in (False,True):
+            with self.subTest(explicit=explicit),tempfile.TemporaryDirectory() as tmp:
+                report=Path(tmp)/'unexpected.log'
+                report_name=str(report).replace('\\','\\\\').replace(':','\\:').replace("'","\\'")
+                setting='file='+report_name+':level=48'
+                original={**os.environ,'FFREPORT':setting,'ffreport':setting,'FfReport':setting,
+                          'AA2_TEST_MARKER':'preserved'}
+                command=['ffmpeg','-nostdin','-v','error','-f','lavfi',
+                    '-i','anullsrc=r=24000:cl=mono','-t','0.01','-f','null','-']
+                # Native integration prerequisite: FFmpeg with documented FFREPORT.
+                control={key:value for key,value in original.items() if key not in ('ffreport','FfReport')}
+                subprocess.run(command,env=control,cwd=tmp,check=True,
+                               capture_output=True,timeout=10)
+                self.assertTrue(report.is_file())
+                self.assertGreater(report.stat().st_size,0)
+                report.unlink()
+                with patch.dict(os.environ,original,clear=True):
+                    environment=original if explicit else None
+                    result=run_owned_media_check([sys.executable,'-c',
+                        'import os;print("present" if any(k.upper()=="FFREPORT" for k in os.environ) else "absent");'
+                        'print(os.environ["AA2_TEST_MARKER"])'],lambda:None,10,
+                        output_limit=1024,environment=environment)
+                    self.assertEqual(b'absent\npreserved\n',result.replace(b'\r\n',b'\n'))
+                    # Also exercise the actual FFmpeg report writer, rather than
+                    # merely trusting that an absent variable suppresses it.
+                    run_owned_media_check(['ffmpeg','-nostdin','-v','error','-f','lavfi',
+                        '-i','anullsrc=r=24000:cl=mono','-t','0.01','-f','null','-'],
+                        lambda:None,10,environment=environment)
+                    self.assertFalse(report.exists())
+                    self.assertEqual(original['FFREPORT'],os.environ['FFREPORT'])
+                    self.assertEqual(setting,original['ffreport'])
+                    self.assertIn('FFREPORT',original)

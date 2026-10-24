@@ -1,5 +1,5 @@
 from audio_generation_owner import AUDIO_GENERATION_CANCELLED
-from merge_integrity import get_source_integrity
+from merge_integrity import get_source_integrity, is_source_integrity_admitted
 from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
 from book_state_transaction import ensure_book_state, get_book_operation_identity
@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Query, Path as PathParameter
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse, Response
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field, StrictInt, StrictBool, field_validator
 from publication_preview import get_publication_review, get_publication_preview, get_publication_selection
@@ -123,24 +123,7 @@ async def create_chunk_word_timing(index: int, request: WordTimingRequest):
     return await run_claimed_task_worker('word_timing', run, cpu_only=True)
 
 
-class WordTimingAudioResponse(StreamingResponse):
-    def __init__(self, stream, size, suffix):
-        self.stream = stream
-        def chunks():
-            try:
-                yield from iter(lambda: stream.read(65536), b'')
-            finally:
-                stream.close()
-        import mimetypes
-        media = mimetypes.guess_type('audio' + suffix)[0] or 'application/octet-stream'
-        super().__init__(chunks(), media_type=media,
-            headers={'Content-Length': str(size), 'Cache-Control': 'no-store'})
-
-    async def __call__(self, scope, receive, send):
-        try:
-            return await super().__call__(scope, receive, send)
-        finally:
-            self.stream.close()
+from audio_stream_response import AudioStreamResponse as WordTimingAudioResponse
 
 
 @router.get("/api/chunks/{index}/word_timing/audio")
@@ -927,8 +910,7 @@ def _start_merge_audio(background_tasks, request):
     with ensure_book_state(DATA_DIR):
         report, _chunks = _ensure_editor_integrity_locked()
         confirmation = request.integrity_confirmation if request is not None else None
-        if ((confirmation is not None and confirmation != report["snapshot"])
-                or (report["status"] != "verified" and confirmation is None)):
+        if not is_source_integrity_admitted(report, confirmation):
             raise HTTPException(status_code=409, detail=report)
         admitted_snapshot = report["snapshot"]
 
@@ -1079,12 +1061,7 @@ async def validate_export_readiness(require_ready):
                 "message": "Mark every speaker ready before exporting.", "speakers": missing})
 
 
-class PublicationCoverSelection(BaseModel):
-    model_config = {'extra': 'forbid'}
-    expected_book_token: str = Field(strict=True, pattern=r'^[0-9a-f]{64}$')
-    expected_revision: str = Field(strict=True, pattern=r'^[0-9a-f]{64}$')
-    origin_id: str = Field(strict=True, pattern=r'^[0-9a-f]{64}$')
-    reviewed: StrictBool = False
+from m4b_metadata import PublicationCoverSelection
 
 
 class PublicationSelectionRequest(PublicationCoverSelection):
@@ -1106,6 +1083,41 @@ def _get_publication_review_sync(selection=None):
 @router.get('/api/m4b_publication')
 async def preview_m4b_publication():
     return await asyncio.to_thread(_get_publication_review_sync)
+
+
+def _get_uploaded_cover_preview_sync(data_dir, expected_book_token, sha256):
+    from book_state_transaction import get_book_operation_token
+    from m4b_cover import MAX_COVER_BYTES, get_validated_cover_bytes
+    from project_scope_files import capture_scope_file
+    try:
+        with ensure_book_state(data_dir, recover=False):
+            if get_book_operation_token(data_dir) != expected_book_token:
+                raise ValueError('Selected book changed')
+            facts, raw = capture_scope_file(data_dir, 'm4b_cover.jpg',
+                limit=MAX_COVER_BYTES, include_bytes=True)
+            if not raw or facts['sha256'] != sha256:
+                raise ValueError('Selected cover changed')
+            media_type = 'image/png' if raw.startswith(b'\x89PNG\r\n\x1a\n') else 'image/jpeg'
+            get_validated_cover_bytes(raw, media_type)
+            current, _ = capture_scope_file(data_dir, 'm4b_cover.jpg', limit=MAX_COVER_BYTES)
+            if current != facts or get_book_operation_token(data_dir) != expected_book_token:
+                raise ValueError('Selected cover or book changed')
+            return raw, media_type
+    except (OSError, ValueError, RecursionError) as error:
+        raise HTTPException(status_code=409,
+            detail='Selected cover is unavailable or changed. Refresh cover options.',
+            headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}) from error
+
+
+@router.get('/api/m4b_cover/preview')
+async def preview_uploaded_m4b_cover(
+        expected_book_token: str = Query(pattern=r'^[0-9a-f]{64}$', max_length=64),
+        sha256: str = Query(pattern=r'^[0-9a-f]{64}$', max_length=64)):
+    data_dir = DATA_DIR
+    raw, media_type = await asyncio.to_thread(_get_uploaded_cover_preview_sync,
+        data_dir, expected_book_token, sha256)
+    return Response(raw, media_type=media_type,
+        headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
 
 
 @router.post('/api/m4b_publication/resolve')

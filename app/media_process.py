@@ -8,9 +8,23 @@ import time
 from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
 
 
+class MediaProcessError(ValueError):
+    """An owned media child exited unsuccessfully."""
+
+
+def get_media_process_environment(environment=None):
+    """Copy child settings without report paths escaping bounded diagnostics.
+
+    Explicit Windows environment mappings can use case aliases even though
+    inherited os.environ normally normalizes their names.
+    """
+    return {key:value for key,value in (os.environ if environment is None else environment).items()
+            if key.upper() != 'FFREPORT'}
+
+
 def run_owned_media_check(command, check_active, timeout, *, output_limit=0,
                          consume_line=None, progress_callback=None, consume_output=None,
-                         cancellation_errors=(), input_source=None):
+                         cancellation_errors=(), input_source=None, environment=None):
     """Drain finite chunks on both pipes while the caller controls lifetime."""
     output, errors = bytearray(), []
     diagnostics = deque(maxlen=12)
@@ -54,12 +68,12 @@ def run_owned_media_check(command, check_active, timeout, *, output_limit=0,
 
     try:
         check_active()
-        # FFREPORT would bypass bounded pipe diagnostics with an unbounded file.
-        environment = dict(os.environ)
-        environment.pop('FFREPORT', None)
+        # FFREPORT can create an unbounded report in any inherited directory.
+        # Diagnostics for owned checks belong exclusively to the drained pipes.
+        child_environment = get_media_process_environment(environment)
         process = start_owned_subprocess(command, stdout=subprocess.PIPE if output_limit else subprocess.DEVNULL,
                                          stderr=subprocess.PIPE, stdin=input_source, start_new_session=True,
-                                         env=environment)
+                                         env=child_environment)
         for function in ([read_output, read_errors] if output_limit else [read_errors]):
             thread = threading.Thread(target=function, daemon=True)
             readers.append(thread)
@@ -69,13 +83,13 @@ def run_owned_media_check(command, check_active, timeout, *, output_limit=0,
             check_active()
             raise_reader_error()
             elapsed = time.monotonic() - started
-            if elapsed >= timeout:
+            if timeout is not None and elapsed >= timeout:
                 raise subprocess.TimeoutExpired(command, timeout)
             if progress_callback and time.monotonic() >= next_progress:
                 progress_callback(f'Checking finished export: {elapsed:.1f} seconds elapsed')
                 next_progress = time.monotonic() + 2
             try:
-                result = process.wait(timeout=min(.1, timeout - elapsed))
+                result = process.wait(timeout=min(.1, timeout - elapsed) if timeout is not None else .1)
                 break
             except subprocess.TimeoutExpired:
                 continue
@@ -86,7 +100,7 @@ def run_owned_media_check(command, check_active, timeout, *, output_limit=0,
             raise ValueError('Media check retained an incomplete diagnostic stream.')
         check_active()
         if result:
-            raise ValueError('Finished export could not be decoded: ' + '\n'.join(diagnostics)[-2048:])
+            raise MediaProcessError('Finished export could not be decoded: ' + '\n'.join(diagnostics)[-2048:])
         return bytes(output)
     finally:
         if process is not None:

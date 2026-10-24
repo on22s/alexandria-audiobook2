@@ -3196,6 +3196,12 @@
                          <p id="sound-cues-status" class="small mt-2" role="status" aria-live="polite"></p>
                          <div id="sound-cues-content"></div>
                      </details>
+                     <details class="mb-3" ontoggle="if (this.open) { SoundMixes.refresh(); }">
+                         <summary>Mixed audio review</summary>
+                         <button id="sound-mixes-refresh" type="button" class="btn btn-sm btn-outline-secondary" onclick="SoundMixes.refresh()" title="Reload saved mixes and available delivery formats; clears unsaved review choices.">Refresh saved mixes</button>
+                         <p id="sound-mixes-status" class="small mt-2" role="status" aria-live="polite"></p>
+                         <div id="sound-mixes-content"></div>
+                     </details>
                      <!-- Full Progress Bar -->
                      <div class="progress mb-3" style="height: 25px;">
                          <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" style="width: 0%">0%</div>
@@ -3763,6 +3769,9 @@
     <script src="/static/js/app-workspace.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-sound-assets.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-sound-cues.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-publication-validation.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-sound-mix-cover.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-sound-mixes.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-mastering.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-export-quality.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-publication.js?v=__APP_BUILD__"></script>

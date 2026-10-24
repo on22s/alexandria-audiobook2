@@ -29,6 +29,18 @@ on:
       - 'app/tests/test_sound_design_mix.py'
       - '.github/workflows/sound-assets.yml'
       - 'app/audio_pcm_decode.py'
+      - 'app/audio_pcm_mux.py'
+      - 'app/audio_m4b_pcm.py'
+      - 'app/pcm_*.py'
+      - 'app/m4b_mux_*.py'
+      - 'app/m4b_worker_request.py'
+      - 'app/bounded_media_io.py'
+      - 'app/audio_encoder_identity.py'
+      - 'app/audio_mastering*.py'
+      - 'app/tests/test_pcm_mux_worker.py'
+      - 'app/tests/test_audio_pcm_mux.py'
+      - 'app/tests/test_audio_m4b_pcm.py'
+      - 'app/tests/test_m4b_worker_request.py'
       - 'app/media_process.py'
       - 'app/take_publication.py'
       - 'app/train_lora.py'
@@ -55,7 +67,7 @@ jobs:
         with:
           python-version: '3.10'
       - name: Install native CPU audio dependencies
-        run: python -m pip install 'numpy==2.2.6' 'soundfile==0.14.0' 'pydub==0.25.1' 'pydantic==2.12.5' 'Pillow==12.3.0'
+        run: python -m pip install 'numpy==2.2.6' 'soundfile==0.14.0' 'pydub==0.25.1' 'pydantic==2.12.5' 'Pillow==12.3.0' 'av==17.0.0'
       - name: Cache FFmpeg packages on Linux
         if: runner.os == 'Linux'
         uses: actions/cache@v5
@@ -100,7 +112,7 @@ jobs:
           ffprobe -version
           python -c "import soundfile; print(soundfile.__version__, soundfile.__libsndfile_version__)"
       - name: Verify exact decoding, owned child cleanup and durable recovery
-        run: python -m unittest tests.test_audio_pcm_decode tests.test_media_process tests.test_export_quality tests.test_sound_design_assets tests.test_sound_design_decode tests.test_media_output_sink tests.test_sound_design_mix tests.test_sound_design_cues -v
+        run: python -m unittest tests.test_audio_pcm_decode tests.test_media_process tests.test_export_quality tests.test_sound_design_assets tests.test_sound_design_decode tests.test_media_output_sink tests.test_sound_design_mix tests.test_sound_design_cues tests.test_pcm_mux_worker tests.test_audio_pcm_mux tests.test_audio_m4b_pcm tests.test_m4b_worker_request -v
       - name: Verify selected cover pixels in actual finished M4B output
         run: python ../tools/verify_m4b_cover_output.py
       - name: Verify cover pixel budgets during overlapping validation

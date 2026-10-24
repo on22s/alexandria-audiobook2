@@ -11,6 +11,12 @@ from text_diff import word_diff, get_comparison_words
 from three_pass_generate import prepare_source_text
 
 
+def is_source_integrity_admitted(report, confirmation):
+    """Require current explicit confirmation for differences or unavailable prose."""
+    return ((confirmation is None and report['status'] == 'verified')
+            or (isinstance(confirmation, str) and confirmation == report['snapshot']))
+
+
 def _get_json(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True,
                       separators=(',', ':'), allow_nan=False)

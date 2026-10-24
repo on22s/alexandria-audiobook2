@@ -157,3 +157,175 @@ async def revise_sound_design_cue(request:Request):
 @router.post('/api/sound_design/cues/select')
 async def select_sound_design_cue(request:Request):
     return await _dispatch_cues('select',request)
+
+
+# Full mixed candidates share the native audio task owner, but use CPU-only
+# admission. All file hashing, decoding and mixing happen in its worker thread.
+from typing import Literal
+import json
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
+from core import run_claimed_task_worker
+from json_metadata import get_unique_json_object
+from export_quality import ExportQualityOptions
+from audio_mastering import MasteringOptions
+from sound_design_render import save_sound_design_candidate
+from sound_design_candidate_audition import read_sound_candidate_audition
+from sound_design_approval import save_sound_candidate_approval, MAX_APPROVAL_BYTES
+from m4b_metadata import M4BDeliveryOptions
+from sound_design_delivery import SoundDeliveryIntegrityRequired, save_approved_sound_delivery
+
+# Five native 20k-character metadata fields may use twelve JSON bytes per
+# Unicode scalar when a client emits escaped surrogate pairs. Receipt storage
+# remains separately bounded in compact UTF-8 by MAX_APPROVAL_BYTES.
+MAX_APPROVAL_REQUEST_BYTES = 2 * 1024**2
+
+
+class SoundRenderRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    context_revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
+class SoundDeliveryRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    format: Literal['wav','mp3','m4b']
+    export_quality: ExportQualityOptions | None = None
+    mastering: MasteringOptions | None = None
+    m4b: M4BDeliveryOptions | None = None
+
+
+class SoundApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    candidate_revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+    expected_approval: str | None = Field(default=None,pattern=r'^[0-9a-f]{64}$')
+    expected_encoding: str | None = Field(default=None,pattern=r'^[0-9a-f]{64}$')
+    full_mix_reviewed: StrictBool
+    delivery: SoundDeliveryRequest
+
+
+async def _read_sound_candidate_request(request, model, *, max_bytes=MAX_CUE_REQUEST_BYTES):
+    parts = []; size = 0
+    async for part in request.stream():
+        size += len(part)
+        if size > max_bytes:
+            raise HTTPException(413,'Sound request exceeds its byte limit.')
+        parts.append(part)
+    try:
+        value = json.loads(b''.join(parts),object_pairs_hook=get_unique_json_object,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Nonfinite sound request')))
+        return model.model_validate(value)
+    except (ValueError,UnicodeError,RecursionError,ValidationError):
+        raise HTTPException(400,'Invalid sound candidate request.') from None
+
+
+async def _dispatch_sound_candidate(request, operation):
+    cancelled = threading.Event()
+    async def watch_disconnect():
+        while not cancelled.is_set():
+            if await request.is_disconnected():
+                cancelled.set(); return
+            await asyncio.sleep(.1)
+    watcher = asyncio.create_task(watch_disconnect())
+    try:
+        result, cancellation = await await_upload_operation(
+            run_claimed_task_worker('audio',operation,cancelled.is_set,cpu_only=True),
+            on_cancel=cancelled.set)
+        if cancellation is not None:
+            raise cancellation
+        return result
+    except (AudioGenerationCancelled,ExportCancelled):
+        raise HTTPException(409,'Sound operation cancelled. Refresh saved candidates before retrying.') from None
+    except SoundDeliveryIntegrityRequired as error:
+        raise HTTPException(409,detail=error.report) from None
+    except (ValueError,OSError,TimeoutError,subprocess.SubprocessError,GeneratedAudioError):
+        raise HTTPException(409,'Sound candidate is stale, busy or unavailable. Refresh before retrying.') from None
+    finally:
+        cancelled.set(); watcher.cancel()
+        await asyncio.gather(watcher,return_exceptions=True)
+
+
+@router.post('/api/sound_design/candidates/render')
+async def render_sound_candidate(request:Request):
+    body = await _read_sound_candidate_request(request,SoundRenderRequest)
+    def render(cancel_check):
+        result = save_sound_design_candidate(DATA_DIR,body.context_revision,cancel_check=cancel_check)
+        return {'stage':FilePath(result['directory']).name,
+                'candidate_revision':result['candidate_revision'],'mix':result['mix']}
+    return await _dispatch_sound_candidate(request,render)
+
+
+CandidateStage = Annotated[str,Path(pattern=r'^render-[A-Za-z0-9_-]{1,128}$')]
+
+
+@router.get('/api/sound_design/candidates/{stage}/audition')
+async def audition_sound_candidate(request:Request,stage:CandidateStage,
+    candidate_revision:Annotated[str,Query(pattern=r'^[0-9a-f]{64}$')],
+    start_frame:Annotated[int,Query(ge=0,le=MAX_RATE*MAX_SECONDS)],
+    end_frame:Annotated[int,Query(ge=1,le=MAX_RATE*MAX_SECONDS)]):
+    def audition(cancel_check):
+        result = read_sound_candidate_audition(DATA_DIR,stage,candidate_revision,
+                                               start_frame,end_frame,cancel_check=cancel_check)
+        return Response(result['wav'],media_type='audio/wav',headers={'Cache-Control':'no-store'})
+    return await _dispatch_sound_candidate(request,audition)
+
+
+@router.post('/api/sound_design/candidates/{stage}/approve')
+async def approve_sound_candidate(request:Request,stage:CandidateStage):
+    body = await _read_sound_candidate_request(request,SoundApprovalRequest,max_bytes=MAX_APPROVAL_REQUEST_BYTES)
+    if not body.full_mix_reviewed:
+        raise HTTPException(400,'Confirm review of the full mixed candidate before approval.')
+    def approve(cancel_check):
+        return save_sound_candidate_approval(DATA_DIR,stage,body.candidate_revision,
+            body.delivery.model_dump(),full_mix_reviewed=body.full_mix_reviewed,
+            expected_approval=body.expected_approval,expected_encoding=body.expected_encoding,cancel_check=cancel_check)
+    return await _dispatch_sound_candidate(request,approve)
+
+
+from sound_design_candidates import list_sound_candidates, discard_sound_candidate
+
+
+@router.get('/api/sound_design/candidates')
+async def get_sound_candidates(request:Request):
+    return await _dispatch_sound_candidate(request,
+        lambda cancel: list_sound_candidates(DATA_DIR,cancel_check=cancel))
+
+
+@router.post('/api/sound_design/candidates/{stage}/discard')
+async def discard_sound_candidate_endpoint(request:Request,stage:CandidateStage,
+    recovery_revision:Annotated[str,Query(pattern=r'^[0-9a-f]{64}$')]):
+    return await _dispatch_sound_candidate(request,
+        lambda cancel: discard_sound_candidate(DATA_DIR,stage,recovery_revision,cancel_check=cancel))
+
+
+class SoundPublishRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    candidate_revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+    approval_revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+    integrity_confirmation: str | None = Field(default=None,pattern=r'^[0-9a-f]{64}$')
+
+
+@router.post('/api/sound_design/candidates/{stage}/deliver')
+async def deliver_sound_candidate(request:Request,stage:CandidateStage):
+    body = await _read_sound_candidate_request(request,SoundPublishRequest)
+    def deliver(cancel_check):
+        from project import ProjectManager
+        return save_approved_sound_delivery(ProjectManager(str(DATA_DIR)),stage,
+            body.candidate_revision,body.approval_revision,
+            integrity_confirmation=body.integrity_confirmation,cancel_check=cancel_check)
+    return await _dispatch_sound_candidate(request,deliver)
+
+
+@router.get('/api/sound_design/delivery/{format_name}/download')
+def download_sound_delivery(format_name:Literal['mp3','wav','m4b'],
+        sha256:Annotated[str,Query(pattern=r'^[0-9a-f]{64}$')]):
+    # FastAPI runs synchronous file hashing/opening outside the event loop.
+    from audio_stream_response import AudioStreamResponse
+    from sound_design_download import open_sound_delivery
+    try:
+        stream,size,suffix = open_sound_delivery(DATA_DIR,format_name,sha256)
+    except (ValueError,OSError):
+        raise HTTPException(409,'Mixed delivery is missing or changed; export it again.') from None
+    try:
+        return AudioStreamResponse(stream,size,suffix,filename='mixed_audiobook'+suffix)
+    except BaseException:
+        stream.close()
+        raise

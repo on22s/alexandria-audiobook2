@@ -118,6 +118,27 @@ class M4bSourcePublicationTests(unittest.TestCase):
             self.assertEqual(before,(root/'audiobook.m4b').read_bytes())
             self.assert_clean(root)
 
+    def test_read_only_capture_returns_native_source_bytes_without_materializing_cover(self):
+        from m4b_publication import capture_m4b_publication_cover
+        for fmt in ('PNG','JPEG'):
+            with self.subTest(fmt=fmt), self.fixture(fmt) as (root,manager,row):
+                choice = self.selection(root)
+                before = {str(path.relative_to(root)) for path in root.rglob('*')}
+                captured = capture_m4b_publication_cover(root,None,choice,choice['expected_book_token'])
+                self.assertEqual(base64.b64decode(row['cover']['data_base64']),captured['cover_bytes'])
+                self.assertIsNone(captured['cover_path'])
+                self.assertIn(str(root/'state.json'),captured['expected_sources'])
+                self.assertIn(str(root/'uploads/source.txt'),captured['expected_sources'])
+                self.assertEqual(before,{str(path.relative_to(root)) for path in root.rglob('*')})
+                self.assertFalse(list(root.glob('.m4b-source-cover-*')))
+                # An approved mix owns this same native book lock already.
+                # Read-only capture must reuse it rather than self-deadlock.
+                with ensure_book_state(root,recover=False):
+                    nested = capture_m4b_publication_cover(root,None,choice,choice['expected_book_token'])
+                self.assertEqual(captured,nested)
+                omitted = {key:value for key,value in choice.items() if key != 'reviewed'}
+                self.assertEqual(captured,capture_m4b_publication_cover(root,None,omitted,choice['expected_book_token']))
+
     @contextmanager
     def fixture(self, fmt='PNG'):
         with source_fixture.SavedPublicationSourceTests().fixture() as (root, _):

@@ -9817,6 +9817,56 @@
         "summary": "Upload M4B Cover"
       }
     },
+    "/api/m4b_cover/preview": {
+      "get": {
+        "operationId": "preview_uploaded_m4b_cover_api_m4b_cover_preview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sha256",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Uploaded M4B Cover"
+      }
+    },
     "/api/m4b_publication": {
       "get": {
         "operationId": "preview_m4b_publication_api_m4b_publication_get",
@@ -11900,6 +11950,232 @@
         "summary": "Purge Incomplete Sound Asset"
       }
     },
+    "/api/sound_design/candidates": {
+      "get": {
+        "operationId": "get_sound_candidates_api_sound_design_candidates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Sound Candidates"
+      }
+    },
+    "/api/sound_design/candidates/render": {
+      "post": {
+        "operationId": "render_sound_candidate_api_sound_design_candidates_render_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Render Sound Candidate"
+      }
+    },
+    "/api/sound_design/candidates/{stage}/approve": {
+      "post": {
+        "operationId": "approve_sound_candidate_api_sound_design_candidates__stage__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stage",
+            "required": true,
+            "schema": {
+              "pattern": "^render-[A-Za-z0-9_-]{1,128}$",
+              "title": "Stage",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Sound Candidate"
+      }
+    },
+    "/api/sound_design/candidates/{stage}/audition": {
+      "get": {
+        "operationId": "audition_sound_candidate_api_sound_design_candidates__stage__audition_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stage",
+            "required": true,
+            "schema": {
+              "pattern": "^render-[A-Za-z0-9_-]{1,128}$",
+              "title": "Stage",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "candidate_revision",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Candidate Revision",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_frame",
+            "required": true,
+            "schema": {
+              "maximum": 16588800000,
+              "minimum": 0,
+              "title": "Start Frame",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_frame",
+            "required": true,
+            "schema": {
+              "maximum": 16588800000,
+              "minimum": 1,
+              "title": "End Frame",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Audition Sound Candidate"
+      }
+    },
+    "/api/sound_design/candidates/{stage}/deliver": {
+      "post": {
+        "operationId": "deliver_sound_candidate_api_sound_design_candidates__stage__deliver_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stage",
+            "required": true,
+            "schema": {
+              "pattern": "^render-[A-Za-z0-9_-]{1,128}$",
+              "title": "Stage",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deliver Sound Candidate"
+      }
+    },
+    "/api/sound_design/candidates/{stage}/discard": {
+      "post": {
+        "operationId": "discard_sound_candidate_endpoint_api_sound_design_candidates__stage__discard_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stage",
+            "required": true,
+            "schema": {
+              "pattern": "^render-[A-Za-z0-9_-]{1,128}$",
+              "title": "Stage",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recovery_revision",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Recovery Revision",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discard Sound Candidate Endpoint"
+      }
+    },
     "/api/sound_design/cues": {
       "get": {
         "operationId": "get_sound_design_cues_api_sound_design_cues_get",
@@ -12031,6 +12307,58 @@
           }
         },
         "summary": "Select Sound Design Cue"
+      }
+    },
+    "/api/sound_design/delivery/{format_name}/download": {
+      "get": {
+        "operationId": "download_sound_delivery_api_sound_design_delivery__format_name__download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "format_name",
+            "required": true,
+            "schema": {
+              "enum": [
+                "mp3",
+                "wav",
+                "m4b"
+              ],
+              "title": "Format Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sha256",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Sound Delivery"
       }
     },
     "/api/speaker_review/options": {

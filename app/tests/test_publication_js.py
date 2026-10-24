@@ -2,6 +2,8 @@ from pathlib import Path
 import subprocess
 import unittest
 from tests.test_ui_help_js import DOM_FIXTURE
+VALIDATION_SOURCE = Path(__file__).resolve().parents[1]/'static/js/app-publication-validation.js'
+VALIDATION_LOADER = "vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);\n"
 
 SOURCE = Path(__file__).resolve().parents[1] / 'static/js/app-publication.js'
 SETUP = r'''
@@ -26,7 +28,7 @@ class PublicationJSTests(unittest.TestCase):
     def run_js(self, script):
         wrapped = "let finished=false;process.on('beforeExit',()=>assert(finished,'Unfinished async test'));\n"
         wrapped += script.replace('})().catch', '})().then(()=>{finished=true;}).catch')
-        result = subprocess.run(['node', '-e', DOM_FIXTURE + SETUP + wrapped, str(SOURCE)],
+        result = subprocess.run(['node', '-e', DOM_FIXTURE + VALIDATION_LOADER + SETUP + wrapped, str(SOURCE),str(VALIDATION_SOURCE)],
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 

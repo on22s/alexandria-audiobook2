@@ -8,20 +8,12 @@ import subprocess
 import tempfile
 import time
 
-from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
+from audio_mastering_filter import MasteringOptions, get_mastering_options, get_mastering_filter
 from tts import ensure_audio_export_active
 
 
-class MasteringOptions(BaseModel):
-    model_config = ConfigDict(extra='forbid', validate_default=True)
-    loudness: FiniteFloat = Field(default=-18, ge=-24, le=-14)
-    true_peak: FiniteFloat = Field(default=-2, ge=-9, le=-1)
 
 
-def get_mastering_options(options):
-    if options is None:
-        return None
-    return MasteringOptions.model_validate(options).model_dump()
 
 
 def get_audio_sha256(path, cancel_check=None):
@@ -45,45 +37,26 @@ def get_loudnorm_record(stderr):
     return record
 
 
-def run_mastering_ffmpeg(arguments, cancel_check=None, timeout=600):
+def run_mastering_ffmpeg(arguments, cancel_check=None, timeout=600, *, executable=None):
     from audio_ffmpeg import run_audio_ffmpeg
     if timeout is None:
         raise ValueError('Mastering requires a finite timeout.')
-    return run_audio_ffmpeg(arguments, cancel_check, timeout=timeout)
+    return run_audio_ffmpeg(arguments, cancel_check, timeout=timeout,
+                            **({'executable':executable} if executable is not None else {}))
 
 
-def get_mastering_filter(options, measured=None, *, output_channels=None):
-    options = get_mastering_options(options)
-    if output_channels is not None and (type(output_channels) is not int or output_channels not in (1, 2)):
-        raise ValueError('Unsupported mastering channel conversion.')
-    value = f"loudnorm=I={options['loudness']}:TP={options['true_peak']}:LRA=11"
-    if measured is not None:
-        measurements = [(option, float(measured[key]), low, high) for option, key, low, high in [
-            ('measured_I', 'input_i', -99, 0), ('measured_TP', 'input_tp', -99, 99),
-            ('measured_LRA', 'input_lra', 0, 99), ('measured_thresh', 'input_thresh', -99, 0),
-            ('offset', 'target_offset', -99, 99)]]
-        if not all(math.isfinite(number) for _, number, _, _ in measurements):
-            raise ValueError('Audio has no finite loudness measurement (silence or invalid audio).')
-        # Valid observations can exceed FFmpeg's measured-option domains. Keep
-        # them in the report; use an unmeasured pass instead of clamping them or
-        # feeding only part of the measured bundle into the render filter.
-        if all(low <= number <= high for _, number, low, high in measurements):
-            for option, number, _, _ in measurements:
-                value += f':{option}={number}'
-            value += ':linear=true'
-    prefix = ('aformat=channel_layouts=' + ('mono' if output_channels == 1 else 'stereo') + ','
-              if output_channels is not None else '')
-    return prefix + value + ':print_format=json'
 
 
-def get_loudness_measurements(input_args, options, cancel_check=None, *, output_channels=None):
+def get_loudness_measurements(input_args, options, cancel_check=None, *, output_channels=None, executable=None, timeout=600):
     return get_loudnorm_record(run_mastering_ffmpeg(
         [*input_args, '-map', '0:a:0', '-vn', '-af', get_mastering_filter(options, output_channels=output_channels),
-         '-f', 'null', '-'], cancel_check))
+         '-f', 'null', '-'], cancel_check, timeout=timeout,
+        **({'executable':executable} if executable is not None else {})))
 
 
-def get_mastering_report(path, options, before, encoded_stderr, cancel_check=None):
-    after = get_loudness_measurements(['-i', str(path)], options, cancel_check)
+def get_mastering_report(path, options, before, encoded_stderr, cancel_check=None, *, executable=None, timeout=600):
+    after = get_loudness_measurements(['-i', str(path)], options, cancel_check, timeout=timeout,
+        **({'executable':executable} if executable is not None else {}))
     encoded = get_loudnorm_record(encoded_stderr)
     mode = encoded.get('normalization_type')
     if mode not in ('linear', 'dynamic'):
