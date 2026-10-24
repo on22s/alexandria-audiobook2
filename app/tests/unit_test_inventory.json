@@ -5339,6 +5339,16 @@
     "tests.test_line_format.WhitespaceNormalisation.test_label_whitespace_is_normalised",
     "tests.test_line_format.WhitespaceNormalisation.test_text_is_byte_exact_including_edge_whitespace"
   ],
+  "test_line_render_pilot": [
+    "tests.test_line_render_pilot.LineRenderPilotTests.test_changed_submitted_text_never_publishes_a_manifest",
+    "tests.test_line_render_pilot.LineRenderPilotTests.test_each_seed_renders_the_exact_line_once_inside_the_run",
+    "tests.test_line_render_pilot.LineRenderPilotTests.test_each_window_passage_splits_once_at_its_labelled_seam",
+    "tests.test_line_render_pilot.LineRenderPilotTests.test_line_sets_are_fixed_and_unknown_sets_refuse",
+    "tests.test_line_render_pilot.LineRenderPilotTests.test_prepare_text_submits_what_the_app_would_and_keeps_the_written_line",
+    "tests.test_line_render_pilot.LineRenderPilotTests.test_window_mode_records_the_plan_and_requires_composed_proof",
+    "tests.test_line_render_pilot.LineRenderPilotTests.test_window_mode_rejects_single_request_proof_and_mismatched_settings",
+    "tests.test_line_render_pilot.LineRenderPilotTests.test_windows_budget_enables_windows_only_in_the_run_config_copy"
+  ],
   "test_line_traits_hook": [
     "tests.test_line_traits_hook.LineTraitsHookTests.test_accepted_answer_keeps_experiment_traits_and_product_alias_fields",
     "tests.test_line_traits_hook.LineTraitsHookTests.test_kept_answer_preserves_frozen_text_traits_and_unchecked_reason"
@@ -10106,6 +10116,13 @@
     "tests.test_speech_verification_editor.SpeechVerificationEditorTests.test_rejected_attempt_is_separate_from_prior_selected_take_in_quality_review",
     "tests.test_speech_verification_editor.SpeechVerificationEditorTests.test_replaced_or_missing_selected_audio_invalidates_poll_evidence_without_writing_receipt",
     "tests.test_speech_verification_editor.SpeechVerificationEditorTests.test_status_listing_and_review_agree_without_audio_hash_or_provider_work"
+  ],
+  "test_speech_verification_faults": [
+    "tests.test_speech_verification_faults.GetCasesTests.test_fault_plan_per_group",
+    "tests.test_speech_verification_faults.GetCasesTests.test_refuses_a_row_whose_proof_names_other_audio",
+    "tests.test_speech_verification_faults.MakeFaultTests.test_cuts_remove_the_named_part",
+    "tests.test_speech_verification_faults.MakeFaultTests.test_input_is_not_changed_and_unknown_kind_refused",
+    "tests.test_speech_verification_faults.MakeFaultTests.test_repeats_say_the_span_twice_and_keep_everything_else"
   ],
   "test_speech_verification_publication": [
     "tests.test_speech_verification_publication.SpeechVerificationPublicationTests.test_book_replacement_with_matching_uid_and_inputs_is_not_an_authorized_target",
