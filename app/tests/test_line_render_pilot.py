@@ -69,6 +69,80 @@ class LineRenderPilotTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'known line set'):
             pilot.get_question_inputs(SimpleNamespace(**{**vars(args), 'set': 'other'}))
 
+    def test_each_window_passage_splits_once_at_its_labelled_seam(self):
+        """The real planner, not a fake: every passage gives one seam of the kind its id names."""
+        from synthesis_windows import plan_synthesis_windows
+        self.assertEqual(len(pilot.WINDOWS), 12)
+        for line_id, text in pilot.WINDOWS:
+            windows = plan_synthesis_windows(text, max_chars=150).windows
+            self.assertEqual([w.boundary for w in windows], [pilot.WINDOW_SEAMS[line_id[0]], 'end'], line_id)
+            self.assertEqual(''.join(w.text for w in windows), text)
+
+    def test_windows_budget_enables_windows_only_in_the_run_config_copy(self):
+        config = self.root / 'config.json'; config.write_text(json.dumps({'tts': {'mode': 'local'}}))
+        source = config.read_bytes()
+        voices = self.root / 'voices.json'; voices.write_text(json.dumps(
+            {'NARRATOR': {'type': 'lora', 'adapter_path': str(self.root / 'adapter')}}))
+        args = SimpleNamespace(config=str(config), voice_config=str(voices), speakers='NARRATOR',
+                               seeds='1', limit=0, set='windows', windows_budget=150)
+        run_config = json.loads(pilot.get_question_inputs(args)[0])
+        self.assertEqual(run_config['tts']['synthesis_windows'], pilot.get_window_settings(150))
+        self.assertEqual(run_config['tts']['synthesis_windows']['budgets'], {'local.lora': {'max_chars': 150, 'max_words': None}})
+        self.assertEqual(config.read_bytes(), source)
+        # A config that enables windows itself is still refused, flag or not.
+        config.write_text(json.dumps({'tts': {'mode': 'local', 'synthesis_windows': pilot.get_window_settings(150)}}))
+        for budget in (None, 150):
+            with self.assertRaisesRegex(ValueError, 'Disable synthesis windows'):
+                pilot.get_question_inputs(SimpleNamespace(**{**vars(args), 'windows_budget': budget}))
+
+    def run_windowed(self, engine, core, budget):
+        with patch.object(core.project_manager, 'get_engine', return_value=engine), patch.object(
+                pilot, 'freeze_question_voices', side_effect=copy.deepcopy):
+            return run_owned_audio_experiment(core, lambda admitted: pilot.render_pilot_lines(
+                admitted, self.entries, [7], pilot.WINDOWS[:1], self.out, {'provenance': {'fixture': True}},
+                'windows', budget), self.out / 'run')
+
+    def test_window_mode_records_the_plan_and_requires_composed_proof(self):
+        events = []
+        with isolated_core_ownership(events) as (core, _state):
+            engine = WindowFakeEngine(events, 'composed_windows_api_inputs')
+            result = self.run_windowed(engine, core, 150)
+        row = result['rows'][0]
+        self.assertEqual([w['boundary'] for w in row['window_plan']], ['sentence', 'end'])
+        self.assertEqual(row['submitted_text'], pilot.WINDOWS[0][1])
+        self.assertGreaterEqual(row['render_seconds'], 0)
+
+    def test_window_mode_rejects_single_request_proof_and_mismatched_settings(self):
+        events = []
+        with isolated_core_ownership(events) as (core, _state):
+            with self.assertRaisesRegex(ValueError, 'submitted-input'):
+                self.run_windowed(WindowFakeEngine(events, 'local_lora_api'), core, 150)
+        self.assertFalse((self.out / 'manifest.jsonl').exists())
+        for engine_budget, requested in ((150, None), (None, 150), (150, 200)):
+            with isolated_core_ownership([]) as (core, _state):
+                engine = WindowFakeEngine([], 'composed_windows_api_inputs', budget=engine_budget)
+                with self.assertRaisesRegex(ValueError, 'exactly the requested synthesis windows'):
+                    self.run_windowed(engine, core, requested)
+
+
+class WindowFakeEngine(FakeEngine):
+    """FakeEngine whose settings carry windows and whose proof has a chosen provenance."""
+    def __init__(self, events, provenance_kind, budget=150):
+        super().__init__(events)
+        self.provenance_kind = provenance_kind
+        if budget is not None:
+            self.settings['synthesis_windows'] = pilot.get_window_settings(budget)
+
+    def _get_synthesis_window_plan(self, text, category):
+        from synthesis_windows import plan_synthesis_windows
+        return plan_synthesis_windows(text, max_chars=150)
+
+    def _generate_lora_voice_prepared(self, text, instruct, voice, path):
+        from synthesis_input import capture_speech_input
+        result = super()._generate_lora_voice_prepared(text, instruct, voice, path)
+        capture_speech_input(path, text, 'English', self.provenance_kind)
+        return result
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,12 +1,17 @@
-"""Owned fixed-line render pilots for #1545 (best of N takes) and #1546 (number reading).
+"""Owned fixed-line render pilots: #1545 (best of N), #1546 (numbers), #1435 (window seams).
 
 Same owned, prepared-text render path as question_punctuation_ab.py (#1519):
 fresh process, explicit local settings, absolute LoRA adapter paths, explicit
-seeds, synthesis windows disabled, a NEW output folder, actual submitted text
-and artifact hashes checked per clip. Runs are not resumed.
+seeds, a NEW output folder, actual submitted text and artifact hashes checked
+per clip. Runs are not resumed. Synthesis windows are disabled unless
+`--windows-budget` is given; it enables them for local LoRA only, in the run's
+own config copy, with the default seam policy.
 
 `numbers` lines are synthetic. `alice` lines are narration from Alice's
-Adventures in Wonderland (public domain). This captures clips only; selection,
+Adventures in Wonderland (public domain). `windows` passages are from Alice and
+The Picture of Dorian Gray (public domain); each splits exactly once at a
+150-character budget, at the seam kind its id names (s=sentence, c=clause,
+p=paragraph). This captures clips only; selection,
 ASR scoring and listening happen afterwards and are not validated here.
 """
 import argparse
@@ -16,6 +21,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 from fastapi import HTTPException
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -83,7 +89,30 @@ ALICE = [
     ("a19", "The Cat seemed to think that there was enough of it now in sight, and no more of it appeared."),
     ("a20", "Now, if you only kept on good terms with him, he would do almost anything you liked with the clock."),
 ]
-LINE_SETS = {"numbers": NUMBERS, "alice": ALICE}
+WINDOWS = [
+    ("s1", "They all sat down at once, in a large ring, with the Mouse in the middle. Alice kept her eyes anxiously fixed on it, for she felt sure she would catch a bad cold if she did not get dry very soon."),
+    ("s2", "The Mouse gave a sudden leap out of the water, and seemed to quiver all over with fright. \u201cOh, I beg your pardon!\u201d cried Alice hastily, afraid that she had hurt the poor animal\u2019s feelings."),
+    ("s3", "A grasshopper began to chirrup by the wall, and like a blue thread a long thin dragon-fly floated past on its brown gauze wings. Lord Henry felt as if he could hear Basil Hallward\u2019s heart beating, and wondered what was coming."),
+    ("s4", "I choose my friends for their good looks, my acquaintances for their good characters, and my enemies for their good intellects. A man cannot be too careful in the choice of his enemies."),
+    ("c1", "The rabbit-hole went straight on like a tunnel for some way, and then dipped suddenly down, so suddenly that Alice had not a moment to think about stopping herself before she found herself falling down a very deep well."),
+    ("c2", "There were doors all round the hall, but they were all locked; and when Alice had been all the way down one side and up the other, trying every door, she walked sadly down the middle, wondering how she was ever to get out again."),
+    ("c3", "Alice thought the whole thing very absurd, but they all looked so grave that she did not dare to laugh; and, as she could not think of anything to say, she simply bowed, and took the thimble, looking as solemn as she could."),
+    ("c4", "Alice laughed so much at this, that she had to run back into the wood for fear of their hearing her; and when she next peeped out the Fish-Footman was gone, and the other was sitting on the ground near the door, staring stupidly up into the sky."),
+    ("p1", "And Alice was so much frightened that she ran off at once in the direction it pointed to, without trying to explain the mistake it had made.\n\n\u201cHe took me for his housemaid,\u201d she said to herself as she ran."),
+    ("p2", "\u201cYou\u2019ll get used to it in time,\u201d said the Caterpillar; and it put the hookah into its mouth and began smoking again.\n\nThis time Alice waited patiently until it chose to speak again."),
+    ("p3", "He spoke very slowly, and the words seemed wrung out of him almost against his will.\n\n\u201cWhat nonsense you talk!\u201d said Lord Henry, smiling, and taking Hallward by the arm, he almost led him into the house."),
+    ("p4", "\u201cIt is quite finished,\u201d he cried at last, and stooping down he wrote his name in long vermilion letters on the left-hand corner of the canvas.\n\nLord Henry came over and examined the picture."),
+]
+WINDOW_SEAMS = {"s": "sentence", "c": "clause", "p": "paragraph"}
+LINE_SETS = {"numbers": NUMBERS, "alice": ALICE, "windows": WINDOWS}
+
+
+def get_window_settings(budget):
+    """Requested synthesis-window settings for local LoRA, default seam policy."""
+    from synthesis_settings import get_synthesis_window_settings
+    if type(budget) is not int or budget < 1:
+        raise ValueError("Choose a positive integer window budget")
+    return get_synthesis_window_settings({'enabled': True, 'budgets': {'local.lora': {'max_chars': budget}}})
 
 
 def get_voice_entries(raw, speakers):
@@ -121,7 +150,12 @@ def get_question_inputs(args):
     if not isinstance(config, dict) or not isinstance(config.get("tts"), dict) or config['tts'].get('mode') != 'local':
         raise ValueError("This experiment requires explicit local TTS settings")
     if get_enabled_synthesis_window_settings(config['tts'].get('synthesis_windows')) is not None:
-        raise ValueError("Disable synthesis windows for the single-request punctuation comparison")
+        raise ValueError("Disable synthesis windows in the config; use --windows-budget instead")
+    budget = getattr(args, 'windows_budget', None)
+    if budget is not None:
+        config = copy.deepcopy(config)
+        config['tts']['synthesis_windows'] = get_window_settings(budget)
+        config_raw = json.dumps(config, indent=2).encode('utf-8')
     entries = get_voice_entries(voices, speakers)
     return config_raw, voices_raw, entries, seeds, lines[:args.limit] if args.limit else lines
 
@@ -144,7 +178,7 @@ def freeze_question_voices(entries):
     return frozen
 
 
-def render_exact(engine, text, voice, path):
+def render_exact(engine, text, voice, path, provenance_kind='local_lora_api'):
     """Owned prepared-text submission; fresh artifacts only, with observed proof."""
     from audio_generation_owner import ensure_audio_generation_active, get_audio_generation_claim_id
     from audio_validation import validate_generated_audio
@@ -162,19 +196,33 @@ def render_exact(engine, text, voice, path):
         validate_generated_audio(str(path), "render pilot")
         observed = get_captured_speech_input(str(path))
         if (not isinstance(observed, dict) or observed.get('text') != text
-                or observed.get('provenance') != 'local_lora_api'
+                or observed.get('provenance') != provenance_kind
                 or observed.get('audio', {}).get('sha256') != file_sha256(path)):
             raise ValueError("Pilot clip lacks matching actual submitted-input evidence")
         ensure_audio_generation_active()
         return observed
 
 
-def render_pilot_lines(engine, entries, seeds, lines, out, identity, line_set):
+def get_peak_memory_reset():
+    """Return a reader of peak device memory since this call, or None without a GPU."""
+    try:
+        import torch
+    except ImportError:
+        return None
+    if not torch.cuda.is_available():
+        return None
+    torch.cuda.reset_peak_memory_stats()
+    return torch.cuda.max_memory_allocated
+
+
+def render_pilot_lines(engine, entries, seeds, lines, out, identity, line_set, windows_budget=None):
     from audio_generation_owner import ensure_audio_generation_active, ensure_audio_generation_publication
 
     settings = copy.deepcopy(engine.get_model_settings())
-    if settings.get('mode') != 'local' or get_enabled_synthesis_window_settings(settings.get('synthesis_windows')) is not None:
-        raise ValueError("The admitted engine must be local with synthesis windows disabled")
+    expected = None if windows_budget is None else get_window_settings(windows_budget)
+    if settings.get('mode') != 'local' or get_enabled_synthesis_window_settings(settings.get('synthesis_windows')) != expected:
+        raise ValueError("The admitted engine must be local with exactly the requested synthesis windows")
+    provenance_kind = 'local_lora_api' if expected is None else 'composed_windows_api_inputs'
     entries = freeze_question_voices(entries)
     rows = []
     for line_id, text in lines:
@@ -189,7 +237,15 @@ def render_pilot_lines(engine, entries, seeds, lines, out, identity, line_set):
                 wav = out / 'wav' / (clip_id + '.wav')
                 if wav.resolve().parent != (out / 'wav').resolve():
                     raise ValueError("Pilot output escaped its run directory")
-                observed = render_exact(engine, text, dict(entry, seed=str(seed)), wav)
+                plan = None
+                if expected is not None:
+                    plan = [{'start': w.start, 'end': w.end, 'boundary': w.boundary}
+                            for w in engine._get_synthesis_window_plan(text, 'lora').windows]
+                peak = get_peak_memory_reset()
+                started = time.monotonic()
+                observed = render_exact(engine, text, dict(entry, seed=str(seed)), wav,
+                                        'local_lora_api' if plan is None or len(plan) == 1 else provenance_kind)
+                seconds = round(time.monotonic() - started, 3)
                 if engine.get_model_settings() != settings:
                     raise ValueError("Engine settings changed during rendering")
                 rows.append({'clip_id': clip_id, 'line_set': line_set, 'line_id': line_id,
@@ -197,7 +253,9 @@ def render_pilot_lines(engine, entries, seeds, lines, out, identity, line_set):
                     'adapter_generation_sha256': entry['adapter_generation_sha256'],
                     'seed': seed, 'requested_text': text,
                     'submitted_text': observed['text'], 'speech_input': observed,
-                    'wav': str(wav), 'wav_sha256': observed['audio']['sha256']})
+                    'wav': str(wav), 'wav_sha256': observed['audio']['sha256'],
+                    'window_plan': plan, 'render_seconds': seconds,
+                    'peak_device_bytes': None if peak is None else int(peak())})
                 atomic_json_write({'status': 'incomplete', 'identity': identity, 'provenance': identity['provenance'],
                     'model_settings': settings, 'rows': rows}, str(out / 'rows.json'))
     document = {'status': 'captured', 'identity': identity, 'provenance': identity['provenance'], 'model_settings': settings, 'rows': rows,
@@ -221,6 +279,8 @@ def main(argv=None):
     parser.add_argument('--seeds', default='1234')
     parser.add_argument('--limit', type=int, default=0, help='0 = all lines in the set')
     parser.add_argument('--out-dir', required=True)
+    parser.add_argument('--windows-budget', type=int, default=None,
+                        help='enable synthesis windows for local LoRA at this character budget (#1435)')
     args = parser.parse_args(argv)
     try:
         if 'core' in sys.modules or os.environ.get('ALEXANDRIA_DATA_DIR'):
@@ -237,7 +297,7 @@ def main(argv=None):
         os.environ['ALEXANDRIA_DATA_DIR'] = str(data)
         import core
         document = run_owned_audio_experiment(core, lambda engine: render_pilot_lines(
-            engine, entries, seeds, lines, out, identity, args.set), out / 'run')
+            engine, entries, seeds, lines, out, identity, args.set, args.windows_budget), out / 'run')
         if get_experiment_source_identity(root) != {key: identity[key] for key in ('head', 'tree')}:
             raise ValueError('Experiment source changed during rendering')
     except (OSError, ValueError, RuntimeError, HTTPException) as error:
