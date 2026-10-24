@@ -35,6 +35,7 @@ from experiments.provenance import file_sha256, provenance
 from experiments.run_dialogue_continuity import (_get_input,
     get_continuity_output_path, get_experiment_source_identity, run_owned_audio_experiment)
 from synthesis_settings import get_enabled_synthesis_window_settings
+from speech_text import get_speech_normalization
 
 NUMBERS = [
     ("n01", "The letter was dated the 4th of July, 1865."),
@@ -258,7 +259,8 @@ def get_peak_memory_reset():
     return torch.cuda.max_memory_allocated
 
 
-def render_pilot_lines(engine, entries, seeds, lines, out, identity, line_set, windows_budget=None):
+def render_pilot_lines(engine, entries, seeds, lines, out, identity, line_set, windows_budget=None,
+                       prepare_text=False):
     from audio_generation_owner import ensure_audio_generation_active, ensure_audio_generation_publication
 
     settings = copy.deepcopy(engine.get_model_settings())
@@ -268,7 +270,10 @@ def render_pilot_lines(engine, entries, seeds, lines, out, identity, line_set, w
     provenance_kind = 'local_lora_api' if expected is None else 'composed_windows_api_inputs'
     entries = freeze_question_voices(entries)
     rows = []
-    for line_id, text in lines:
+    for line_id, requested in lines:
+        # --prepare-text submits what the app's own path would: the line after
+        # get_speech_normalization (#1546). Without it the line is sent as written.
+        text = get_speech_normalization(requested)['text'] if prepare_text else requested
         for speaker, entry in entries.items():
             # Speaker labels remain metadata, never filesystem path components.
             speaker_id = hashlib.sha256(speaker.encode('utf-8')).hexdigest()[:12]
@@ -294,7 +299,7 @@ def render_pilot_lines(engine, entries, seeds, lines, out, identity, line_set, w
                 rows.append({'clip_id': clip_id, 'line_set': line_set, 'line_id': line_id,
                     'speaker': speaker, 'adapter_id': entry.get('adapter_id'),
                     'adapter_generation_sha256': entry['adapter_generation_sha256'],
-                    'seed': seed, 'requested_text': text,
+                    'seed': seed, 'requested_text': requested, 'prepared_text': prepare_text,
                     'submitted_text': observed['text'], 'speech_input': observed,
                     'wav': str(wav), 'wav_sha256': observed['audio']['sha256'],
                     'window_plan': plan, 'render_seconds': seconds,
@@ -324,6 +329,8 @@ def main(argv=None):
     parser.add_argument('--out-dir', required=True)
     parser.add_argument('--windows-budget', type=int, default=None,
                         help='enable synthesis windows for local LoRA at this character budget (#1435)')
+    parser.add_argument('--prepare-text', action='store_true',
+                        help="submit each line after the app's speech preparation, as production does")
     parser.add_argument('--date-order', choices=('mdy', 'dmy'), default=None,
                         help="this run's book order for ambiguous slash dates (#1546)")
     args = parser.parse_args(argv)
@@ -345,7 +352,8 @@ def main(argv=None):
         os.environ['ALEXANDRIA_DATA_DIR'] = str(data)
         import core
         document = run_owned_audio_experiment(core, lambda engine: render_pilot_lines(
-            engine, entries, seeds, lines, out, identity, args.set, args.windows_budget), out / 'run')
+            engine, entries, seeds, lines, out, identity, args.set, args.windows_budget,
+            args.prepare_text), out / 'run')
         if get_experiment_source_identity(root) != {key: identity[key] for key in ('head', 'tree')}:
             raise ValueError('Experiment source changed during rendering')
     except (OSError, ValueError, RuntimeError, HTTPException) as error:

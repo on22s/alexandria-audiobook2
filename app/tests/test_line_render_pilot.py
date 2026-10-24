@@ -49,6 +49,23 @@ class LineRenderPilotTests(unittest.TestCase):
         manifest = (self.out / 'manifest.jsonl').read_text().splitlines()
         self.assertEqual(len(manifest), 6)
 
+    def test_prepare_text_submits_what_the_app_would_and_keeps_the_written_line(self):
+        # Without --prepare-text the line is sent as written, which is not what
+        # production sends: "15%" reaches the model as "15 percent" there.
+        events = []
+        with isolated_core_ownership(events) as (core, _state):
+            engine = FakeEngine(events)
+            with patch.object(core.project_manager, 'get_engine', return_value=engine), patch.object(
+                    pilot, 'freeze_question_voices', side_effect=copy.deepcopy):
+                result = run_owned_audio_experiment(core, lambda admitted: pilot.render_pilot_lines(
+                    admitted, self.entries, [1], [('n15', 'Prices rose by 15% in the 1920s.')], self.out,
+                    {'provenance': {'fixture': True}}, 'numbers', prepare_text=True), self.out / 'run')
+        row, = result['rows']
+        self.assertEqual('Prices rose by 15% in the 1920s.', row['requested_text'])
+        self.assertEqual('Prices rose by 15 percent in the 1920s.', row['submitted_text'])
+        self.assertEqual(['Prices rose by 15 percent in the 1920s.'], [text for text, _voice, _path in engine.calls])
+        self.assertTrue(row['prepared_text'])
+
     def test_changed_submitted_text_never_publishes_a_manifest(self):
         events = []
         with isolated_core_ownership(events) as (core, _state):
