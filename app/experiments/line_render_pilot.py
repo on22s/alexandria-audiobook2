@@ -12,7 +12,7 @@ own config copy, with the default seam policy.
 Adventures in Wonderland (public domain). `windows` passages are from Alice and
 The Picture of Dorian Gray (public domain); each splits exactly once at a
 150-character budget, at the seam kind its id names (s=sentence, c=clause,
-p=paragraph). `verify` lines are short Alice-style or synthetic lines. This captures clips only; selection,
+p=paragraph). `verify` lines are short Alice-style or synthetic lines; `numbers2` lines are synthetic. This captures clips only; selection,
 ASR scoring and listening happen afterwards and are not validated here.
 """
 import argparse
@@ -125,7 +125,29 @@ VERIFY = [
     ("r07", "Wake up, wake up, wake up!"),
     ("r08", "Oh dear! Oh dear! I shall be too late!"),
 ]
-LINE_SETS = {"numbers": NUMBERS, "alice": ALICE, "windows": WINDOWS, "verify": VERIFY}
+# #1546 round 2: the three conventions misread in round 1 (cents, dash ranges,
+# slash dates), several lines each, all synthetic.
+NUMBERS2 = [
+    ("m1", "It cost $3.25 at the market."),
+    ("m2", "He still owed her $12.80."),
+    ("m3", "The fare was only $0.75."),
+    ("m4", "She found $2.05 in her coat pocket."),
+    ("m5", "A loaf of bread cost $1.10 that year."),
+    ("m6", "The ticket was \u00a33.50 each way."),
+    ("g1", "Read chapters 3-5 tonight."),
+    ("g2", "The meeting runs 9-11 tomorrow morning."),
+    ("g3", "He lived there from 1890-1902."),
+    ("g4", "See pages 45-48 for the map."),
+    ("g5", "Children aged 6-12 may enter."),
+    ("g6", "Questions 1-10 are the easy ones."),
+    ("d1", "On 3/14/1879 he was born."),
+    ("d2", "The note was dated 7/4/1776."),
+    ("d3", "By 11/11/1918 the war was over."),
+    ("d4", "She wrote to him on 1/2/1900."),
+    ("d5", "The ship sailed on 6/30/1912."),
+]
+LINE_SETS = {"numbers": NUMBERS, "alice": ALICE, "windows": WINDOWS, "verify": VERIFY,
+             "numbers2": NUMBERS2}
 
 
 def get_window_settings(budget):
