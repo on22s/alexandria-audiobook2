@@ -193,10 +193,20 @@ def get_rows(run_dir):
             relative = Path(row['wav']).absolute().relative_to(root)
         except ValueError as error:
             raise ValueError('Control WAV must stay inside its pilot run') from error
-        actual, _ = capture_scope_file(root, str(relative), limit=MAX_AUDIO_BYTES)
+        actual, _ = capture_scope_file(root, relative.as_posix(), limit=MAX_AUDIO_BYTES)
         if not actual['exists'] or actual['sha256'] != proof:
             raise ValueError(f"{row['clip_id']}: WAV on disk is not the audio its render proof names")
         yield dict(row, input_sha256=actual['sha256'], input_size=actual['size'])
+
+
+def _get_derived_root(root):
+    # User-selected ancestors may have OS aliases (/var on macOS), but the
+    # generated directory entry itself must remain plain.
+    requested = Path(root).absolute()
+    plain = requested.parent.resolve() / requested.name
+    if plain.is_symlink():
+        raise ValueError('Derived evidence directory must not be an alias')
+    return plain
 
 
 def _confined_path(root, run, clip_id, kind):
@@ -209,7 +219,7 @@ def _confined_path(root, run, clip_id, kind):
     name = f'{run}__{clip_id}__{kind}.wav'
     if len(name) > 200 or not SAFE_COMPONENT.fullmatch(name):
         raise ValueError(f'derived filename is not a safe component: {name!r}')
-    base = Path(root).absolute()
+    base = _get_derived_root(root)
     path = Path(os.path.abspath(base / name))
     if path.parent != base:
         raise ValueError(f'derived path escaped its directory: {path}')
@@ -257,7 +267,10 @@ def get_cases(pilot_root, derived_dir, fault_seeds, runs=RUNS):
             pcm, rate = _read_control(row['wav'], row['input_sha256'], row['input_size'])
             for kind in kinds:
                 fault_pcm = make_fault(pcm, kind)
-                sha, size = _planned_fault_identity(fault_pcm, rate)
+                try:
+                    sha, size = _planned_fault_identity(fault_pcm, rate)
+                except ValueError as error:
+                    raise ValueError(f"{run}/{row['clip_id']}/{kind}: {error}") from error
                 path = _confined_path(derived_dir, run, row['clip_id'], kind)
                 cases.append(dict(case_id=f"{row['clip_id']}__{kind}", run=run, group=group,
                                   fault=kind, expect='defect', text=text, wav=str(path),
@@ -272,9 +285,7 @@ def publish_cases(cases, derived_dir, done=()):
     from speech_verification_runtime import get_verifier_file_identity
     from project_scope_files import capture_scope_file
     from word_timing import MAX_AUDIO_BYTES
-    root = Path(derived_dir).absolute()
-    if root.resolve() != root:
-        raise ValueError('Derived evidence directory must not be an alias')
+    root = _get_derived_root(derived_dir)
     root.mkdir(parents=True, exist_ok=True)
     # Validate every completed artifact before replacing any pending artifact.
     for case in cases:

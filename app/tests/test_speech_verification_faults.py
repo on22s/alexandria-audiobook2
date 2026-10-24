@@ -104,6 +104,18 @@ class GetCasesTests(unittest.TestCase):
             self.assertTrue(np.array_equal(pcm, make_fault(np.full(2400, 7, dtype=np.int16), 'tail_cut')))
             self.assertEqual(again['source_sha256'], get_sha256(Path(root) / 'alice' / 'wav' / 'a1.wav'))
             self.assertNotEqual(again['input_sha256'], tail['input_sha256'])
+            # OS/user aliases in ancestors are canonicalized; the evidence entry
+            # itself must still be plain (macOS /var has this shape).
+            ancestor = Path(root) / 'ancestor'
+            ancestor.symlink_to(Path(root), target_is_directory=True)
+            alias_derived = ancestor / 'alias-derived'
+            aliased = get_cases(ancestor, alias_derived, {1}, ('alice',))
+            publish_cases(aliased, alias_derived)
+            self.assertTrue(all(Path(c['wav']).is_file() for c in aliased))
+            linked_derived = Path(root) / 'linked-derived'
+            linked_derived.symlink_to(derived, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                publish_cases(cases, linked_derived)
             # Reject an oversized designed WAV before creating its staged file.
             with patch('word_timing.MAX_AUDIO_BYTES', 200), \
                  patch.object(harness.tempfile, 'TemporaryDirectory',
