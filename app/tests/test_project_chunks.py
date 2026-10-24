@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import ANY, patch
 
 from project import (EXPLICIT_SILENCE_MS, ProjectManager,
-                     get_speakable_entries, group_into_chunks)
+                     get_playback_pause_plan, get_speakable_entries, group_into_chunks)
 from tts import DEFAULT_PAUSE_MS
 
 
@@ -275,6 +275,55 @@ class ScenBreakPauseSurvivesGroupingTest(unittest.TestCase):
             gap = AudioSegment.silent(duration=350).set_frame_rate(16000)
             self.assertEqual(200 + gap.duration_seconds * 1000, timeline[2][2])
         self.assertEqual(original, entries)
+
+    def test_playback_pause_plan_uses_export_rule_and_skips_unplayable_rows(self):
+        chunks = [
+            {'id': 0, 'speaker': 'A', 'audio_path': 'a.wav', 'pause_after': 1700},
+            {'id': 1, 'speaker': 'B', 'audio_path': None, 'pause_after': 5},
+            {'id': 2, 'speaker': 'A', 'audio_path': 'b.wav'},
+            {'id': 3, 'speaker': 'A', 'audio_path': 'c.wav', 'pause_after': 0},
+            {'id': 4, 'speaker': 'B', 'audio_path': 'd.wav'},
+            {'id': 5, 'speaker': 'C', 'audio_path': 'e.wav'},
+        ]
+        plan = get_playback_pause_plan(chunks, 500, 250)
+        self.assertEqual({0: 1700, 2: 250, 3: 0, 4: 500}, plan)
+        self.assertNotIn(1, plan)
+        self.assertNotIn(5, plan)
+        self.assertEqual(0, plan[3])
+        self.assertEqual(500, plan[4])
+        # A row naming a missing file is skipped as export skips it, so the gap
+        # after A is measured to the next row that really has audio.
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        import core
+        from routers import editor
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = ProjectManager(tmp)
+            Path(tmp, 'voicelines').mkdir(exist_ok=True)
+            for name in ('a.wav', 'c.wav'):
+                Path(tmp, 'voicelines', name).write_bytes(b'fixture')
+            rows = [{'id': 0, 'speaker': 'A', 'audio_path': 'voicelines/a.wav'},
+                    {'id': 1, 'speaker': 'B', 'audio_path': 'voicelines/missing.wav'},
+                    {'id': 2, 'speaker': 'A', 'audio_path': 'voicelines/c.wav'}]
+            self.assertEqual({0: 500, 1: 500}, get_playback_pause_plan(rows, 500, 250))
+            self.assertEqual({0: 250}, get_playback_pause_plan(
+                rows, 500, 250, has_audio=manager.has_chunk_audio_file))
+            self.assertIsNone(manager.get_existing_chunk_audio_path(rows[1]))
+            # The route serves that plan, and refuses a pause export refuses with
+            # export's own reason instead of an unexplained server error.
+            manager.save_chunks([dict(row, uid=f'u{row["id"]}', text='Line.', instruct='', status='done')
+                                 for row in rows])
+            app = FastAPI(); app.include_router(editor.router)
+            with patch.object(editor, 'project_manager', manager), \
+                 patch.object(editor, 'SCRIPT_PATH', os.path.join(tmp, 'annotated_script.json')), \
+                 patch.object(core, 'DATA_DIR', tmp), TestClient(app) as client:
+                served = client.get('/api/chunks/playback_plan')
+                self.assertEqual(200, served.status_code, served.text)
+                self.assertEqual({'pauses': [{'chunk_id': 0, 'pause_ms': 250}]}, served.json())
+                chunks = manager.load_chunks(); chunks[0]['pause_after'] = 10 ** 9; manager.save_chunks(chunks)
+                refused = client.get('/api/chunks/playback_plan')
+                self.assertEqual(422, refused.status_code, refused.text)
+                self.assertIn('Shorten the pause before exporting', refused.json()['detail'])
 
     def test_entries_without_a_pause_still_merge(self):
         # The fix must not stop ordinary same-speaker merging.

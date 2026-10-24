@@ -2186,11 +2186,17 @@ class TTSEngine:
         if windowed is not None:
             return windowed
         members = voice_data.get("members") or []
-        temp_dir = tempfile.mkdtemp(prefix="unison_")
-        try:
+        from synthesis_workspace import ensure_synthesis_workspace, get_synthesis_workspace_parent
+        from synthesis_recovery_context import get_synthesis_recovery_parent
+        workspace_parent = get_synthesis_workspace_parent(
+            self, "ensemble", get_synthesis_recovery_parent())
+        workspace = (ensure_synthesis_workspace(workspace_parent, max(2, len(resolved_members)))
+                     if workspace_parent is not None
+                     else tempfile.TemporaryDirectory(prefix="unison_"))
+        with workspace as directory:
             member_paths = []
             for i, member in enumerate(resolved_members):
-                member_path = os.path.join(temp_dir, f"member_{i}.wav")
+                member_path = os.path.join(str(directory), f"window-{i}.wav")
                 if not self._dispatch_prepared_voice(text, instruct_text, member,
                                                     voice_config, member_path):
                     raise RuntimeError(
@@ -2202,14 +2208,12 @@ class TTSEngine:
             if success and mix_to_unison is _RAW_MIX_TO_UNISON:
                 capture_composite_speech_input(member_paths, output_path, text, 'ensemble')
             return success
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
 
     # ── Voice design generation ──────────────────────────────────
 
     @ensure_local_tts_serialized
     @capture_tts_operation("generate_voice_design")
-    def generate_voice_design(self, description, sample_text, language=None, seed=-1):
+    def generate_voice_design(self, description, sample_text, language=None, seed=-1, preview_path=None):
         """Generate a voice from a text description using the VoiceDesign model.
 
         Args:
@@ -2255,13 +2259,15 @@ class TTSEngine:
         duration = len(audio) / sr
         print(f"VoiceDesign: done in {gen_time:.1f}s -> {duration:.1f}s audio")
 
-        # Save to previews directory (under the runtime data dir, matching where
-        # app.py's /api/voice_design/save reads it back from).
-        previews_dir = _resolve_asset_path(os.path.join("designed_voices", "previews"))
-        os.makedirs(previews_dir, exist_ok=True)
-
-        filename = f"preview_{uuid.uuid4().hex}.wav"
-        wav_path = os.path.join(previews_dir, filename)
+        # Save to the requested registered path, or to the Designer previews
+        # directory (matching where app.py's /api/voice_design/save reads it).
+        if preview_path is None:
+            previews_dir = _resolve_asset_path(os.path.join("designed_voices", "previews"))
+            os.makedirs(previews_dir, exist_ok=True)
+            wav_path = os.path.join(previews_dir, f"preview_{uuid.uuid4().hex}.wav")
+        else:
+            wav_path = str(preview_path)
+            os.makedirs(os.path.dirname(wav_path) or '.', exist_ok=True)
         self._save_wav(audio, sr, wav_path)
         capture_speech_input(wav_path, sample_text, lang, 'local_design_api')
 
@@ -2303,30 +2309,44 @@ class TTSEngine:
             description = "A clear, natural speaking voice"
 
         seed = int(voice_data.get("seed", -1))
-        wav_path, sr = self.generate_voice_design(description=description, sample_text=text, seed=seed)
-        speech_input = get_captured_speech_input(wav_path)
-        staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
-        try:
-            shutil.copy2(wav_path, staging_path)
-            success = publish_audio_output(staging_path, output_path)
-            if success:
-                promote_speech_input(speech_input, output_path)
-            return success
-        finally:
+
+        def render(preview_path=None):
+            preview_options = {'preview_path': preview_path} if preview_path is not None else {}
+            wav_path, sr = self.generate_voice_design(
+                description=description, sample_text=text, seed=seed,
+                **preview_options)
+            speech_input = get_captured_speech_input(wav_path)
+            staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
             try:
-                os.remove(staging_path)
-            except FileNotFoundError:
-                pass
-            except OSError as error:
-                logging.getLogger(__name__).warning("Design staging cleanup failed at %s: %s", staging_path, error)
-            # A generated preview is throwaway even when output copying fails.
-            if os.path.abspath(wav_path) != os.path.abspath(output_path):
+                shutil.copy2(wav_path, staging_path)
+                success = publish_audio_output(staging_path, output_path)
+                if success:
+                    promote_speech_input(speech_input, output_path)
+                return success
+            finally:
                 try:
-                    os.remove(wav_path)
+                    os.remove(staging_path)
                 except FileNotFoundError:
                     pass
                 except OSError as error:
-                    logging.getLogger(__name__).warning("Design preview cleanup failed at %s: %s", wav_path, error)
+                    logging.getLogger(__name__).warning("Design staging cleanup failed at %s: %s", staging_path, error)
+                # A generated preview is throwaway even when output copying fails.
+                if os.path.abspath(wav_path) != os.path.abspath(output_path):
+                    try:
+                        os.remove(wav_path)
+                    except FileNotFoundError:
+                        pass
+                    except OSError as error:
+                        logging.getLogger(__name__).warning("Design preview cleanup failed at %s: %s", wav_path, error)
+
+        from synthesis_workspace import ensure_synthesis_workspace, get_synthesis_workspace_parent
+        from synthesis_recovery_context import get_synthesis_recovery_parent
+        workspace_parent = get_synthesis_workspace_parent(
+            self, "design", get_synthesis_recovery_parent())
+        if workspace_parent is None:
+            return render()
+        with ensure_synthesis_workspace(workspace_parent, 2) as directory:
+            return render(os.path.join(str(directory), "window-0.wav"))
 
     # ── LoRA voice generation ────────────────────────────────────
 
@@ -2688,7 +2708,7 @@ class TTSEngine:
                 if is_audio_generation_cancelled():
                     return results
                 idx = chunk["index"]
-                output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
+                output_path = get_synthesis_batch_output_path(output_dir, idx)
                 speaker = chunk.get("speaker")
                 voice_data = get_batch_voice_config(voice_config, speaker, idx, batch_seed).get(speaker, {})
                 try:
@@ -2696,10 +2716,12 @@ class TTSEngine:
                     if (isinstance(render, MethodType) and render.__self__ is self
                             and render.__func__ is _RAW_DESIGN_VOICE):
                         render = self._generate_design_voice_prepared
-                    success = render(
-                        text=chunk["text"], instruct_text=chunk.get("instruct", ""),
-                        voice_data=voice_data, output_path=output_path,
-                    )
+                    from synthesis_recovery_context import ensure_synthesis_recovery_batch_parent
+                    with ensure_synthesis_recovery_batch_parent(chunk.get("uid")):
+                        success = render(
+                            text=chunk["text"], instruct_text=chunk.get("instruct", ""),
+                            voice_data=voice_data, output_path=output_path,
+                        )
                     if success:
                         results["completed"].append(idx)
                     else:
@@ -3487,15 +3509,17 @@ class TTSEngine:
 
         for chunk in chunks:
             idx = chunk["index"]
-            output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
+            output_path = get_synthesis_batch_output_path(output_dir, idx)
             try:
-                success = self._dispatch_prepared_voice(
-                    chunk.get("text", ""),
-                    chunk.get("instruct", ""),
-                    chunk.get("speaker"),
-                    get_batch_voice_config(voice_config, chunk.get("speaker"), idx, batch_seed),
-                    output_path,
-                )
+                from synthesis_recovery_context import ensure_synthesis_recovery_batch_parent
+                with ensure_synthesis_recovery_batch_parent(chunk.get("uid")):
+                    success = self._dispatch_prepared_voice(
+                        chunk.get("text", ""),
+                        chunk.get("instruct", ""),
+                        chunk.get("speaker"),
+                        get_batch_voice_config(voice_config, chunk.get("speaker"), idx, batch_seed),
+                        output_path,
+                    )
                 if success:
                     results["completed"].append(idx)
                 else:
@@ -3670,6 +3694,47 @@ _RAW_GENERATE_VOICE = TTSEngine.generate_voice
 _RAW_SAVE_BATCH_WAVEFORMS = TTSEngine.save_batch_waveforms
 _RAW_BATCH_WORKSPACE_METHODS = {name: getattr(TTSEngine, name) for name in (
     '_local_batch_custom', 'save_batch_waveforms', 'save_submitted_batch_waveforms')}
+
+# Per-category writer identities. Registration is refused when any participating
+# method was replaced, so an overridden provider keeps its old lifetime.
+_RAW_COMMON_SINGLE_METHODS = {name: getattr(TTSEngine, name) for name in (
+    'generate_voice_result', 'generate_voice', '_dispatch_prepared_voice',
+    '_generate_voice_prepared', '_render_synthesis_windows',
+    '_get_synthesis_window_plan', '_save_wav', 'get_voice_backend')}
+
+_RAW_CLONE_METHODS = {**_RAW_COMMON_SINGLE_METHODS, **{
+    name: getattr(TTSEngine, name) for name in (
+        'generate_clone_voice', '_generate_clone_voice_prepared',
+        '_local_generate_clone', '_init_local_clone', '_get_clone_prompt')}}
+
+_RAW_DESIGN_METHODS = {**_RAW_COMMON_SINGLE_METHODS, **{
+    name: getattr(TTSEngine, name) for name in (
+        'generate_design_voice', '_generate_design_voice_prepared',
+        'generate_voice_design', '_init_local_design')}}
+
+_RAW_LORA_METHODS = {**_RAW_COMMON_SINGLE_METHODS, **{
+    name: getattr(TTSEngine, name) for name in (
+        'generate_lora_voice', '_generate_lora_voice_prepared',
+        '_ensure_local_lora_generation', '_init_local_lora', '_ensure_lora_prompt')}}
+
+_RAW_ENSEMBLE_METHODS = {**_RAW_COMMON_SINGLE_METHODS, **{
+    name: getattr(TTSEngine, name) for name in (
+        'generate_ensemble_voice', '_generate_ensemble_voice_prepared',
+        '_get_ensemble_members')}}
+
+_RAW_CLONE_BATCH_METHODS = {name: getattr(TTSEngine, name) for name in (
+    '_local_batch_clone', 'save_batch_waveforms', 'save_submitted_batch_waveforms',
+    'generate_batch', '_generate_prepared_batch_parent')}
+_RAW_LORA_BATCH_METHODS = {name: getattr(TTSEngine, name) for name in (
+    '_local_batch_lora', 'save_batch_waveforms', 'save_submitted_batch_waveforms',
+    'generate_batch', '_generate_prepared_batch_parent')}
+_RAW_DESIGN_BATCH_METHODS = {name: getattr(TTSEngine, name) for name in (
+    'generate_batch', 'generate_design_voice', '_generate_design_voice_prepared',
+    '_generate_prepared_batch_parent')}
+_RAW_ENSEMBLE_BATCH_METHODS = {name: getattr(TTSEngine, name) for name in (
+    'generate_batch', '_sequential_ensemble', '_dispatch_prepared_voice',
+    'generate_ensemble_voice', '_generate_ensemble_voice_prepared',
+    '_generate_prepared_batch_parent')}
 _RAW_MIX_TO_UNISON = mix_to_unison
 
 

@@ -24,7 +24,11 @@ PENDING = 'registry.pending'
 MAX_ROWS = 256
 MAX_WINDOWS = 1024
 MAX_INDEX_BYTES = 1024 * 1024
+LOCAL_CATEGORIES = ('custom', 'clone', 'design', 'lora', 'ensemble')
 _HEX32 = re.compile(r'[0-9a-f]{32}\Z')
+# A writer that publishes through `<output>.pending.<uuid4 hex>` (local design)
+# leaves this beside a declared window or the WAV parent on process death.
+_OUTPUT_STAGING = re.compile(r'(window-[0-9]+\.wav|assembled-parent\.wav)\.pending\.[0-9a-f]{32}\Z')
 _HEX64 = re.compile(r'[0-9a-f]{64}\Z')
 _LOG = logging.getLogger(__name__)
 
@@ -275,12 +279,17 @@ class SynthesisWorkspaceRegistry:
         try:
             if _identity(os.fstat(workspace_fd)) != row['identity']:
                 raise SynthesisWorkspaceUnavailable('Workspace directory changed')
-            allowed = ({f'window-{index}.wav' for index in range(row['windows'])}
+            windows = {f'window-{index}.wav' for index in range(row['windows'])}
+            allowed = (windows
                        | {f'assembled-parent{suffix}' for suffix in ('.wav', '.mp3', '.flac', '.ogg')}
                        | {'join'})
-            entries = self._get_names(workspace_fd, len(allowed))
-            if not set(entries) <= allowed:
-                raise SynthesisWorkspaceUnavailable('Unknown workspace contents preserved')
+            # Each declared window and the WAV parent may hold one staging file.
+            staging_outputs = windows | {'assembled-parent.wav'}
+            entries = self._get_names(workspace_fd, len(allowed) + len(staging_outputs))
+            for child in entries:
+                staging = _OUTPUT_STAGING.fullmatch(child)
+                if child not in allowed and not (staging and staging.group(1) in staging_outputs):
+                    raise SynthesisWorkspaceUnavailable('Unknown workspace contents preserved')
             if 'join' in entries:
                 info = os.stat('join', dir_fd=workspace_fd, follow_symlinks=False)
                 self._check_directory(info)
@@ -336,22 +345,45 @@ class SynthesisWorkspaceRegistry:
 
 
 def get_synthesis_workspace_parent(engine, category, parent, *, batch=False):
-    """Return captured authority only for the known synchronous native writer."""
-    from tts import TTSEngine, _RAW_RECOVERY_METHODS, _RAW_BATCH_WORKSPACE_METHODS
+    """Return captured authority only for a known unmodified local writer."""
+    from tts import (TTSEngine, _RAW_RECOVERY_METHODS, _RAW_BATCH_WORKSPACE_METHODS,
+                     _RAW_CLONE_METHODS, _RAW_DESIGN_METHODS, _RAW_LORA_METHODS,
+                     _RAW_ENSEMBLE_METHODS, _RAW_CLONE_BATCH_METHODS,
+                     _RAW_LORA_BATCH_METHODS, _RAW_DESIGN_BATCH_METHODS,
+                     _RAW_ENSEMBLE_BATCH_METHODS, _RAW_MIX_TO_UNISON, mix_to_unison,
+                     UnsupportedVoiceBackendError)
     from synthesis_recovery_context import RecoveryParent, get_recovery_claim_digest
-    if (type(engine) is not TTSEngine or category != 'custom'
+    single = {'custom': _RAW_RECOVERY_METHODS, 'clone': _RAW_CLONE_METHODS,
+              'design': _RAW_DESIGN_METHODS, 'lora': _RAW_LORA_METHODS,
+              'ensemble': _RAW_ENSEMBLE_METHODS}
+    batch_methods = {'custom': _RAW_BATCH_WORKSPACE_METHODS,
+                     'clone': _RAW_CLONE_BATCH_METHODS, 'lora': _RAW_LORA_BATCH_METHODS,
+                     'design': _RAW_DESIGN_BATCH_METHODS,
+                     'ensemble': _RAW_ENSEMBLE_BATCH_METHODS}
+    if (type(engine) is not TTSEngine or category not in LOCAL_CATEGORIES
             or not is_synthesis_workspace_supported()
             or type(parent) is not RecoveryParent
             or get_recovery_claim_digest() != parent.claim_sha256):
         return None
-    if (all(getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
-            for name, method in _RAW_RECOVERY_METHODS.items())
-            and (not batch or all(
-                getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
-                for name, method in _RAW_BATCH_WORKSPACE_METHODS.items()))
-            and engine.get_voice_backend(category) == 'local'):
-        return parent
-    return None
+    if category == 'ensemble' and mix_to_unison is not _RAW_MIX_TO_UNISON:
+        return None
+    # An ensemble may dispatch any ordinary member category. Conservatively
+    # qualify all member writers before handing any of them a registered path.
+    required = dict(single[category])
+    if category == 'ensemble':
+        for member_category in ('custom', 'clone', 'design', 'lora'):
+            required.update(single[member_category])
+    if batch:
+        required.update(batch_methods[category])
+    if not all(getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
+               for name, method in required.items()):
+        return None
+    # Never invoke an overridden backend while deciding whether it is raw.
+    try:
+        backend = engine.get_voice_backend(category)
+    except (UnsupportedVoiceBackendError, AttributeError, ValueError):
+        return None
+    return parent if backend == 'local' else None
 
 
 @contextmanager

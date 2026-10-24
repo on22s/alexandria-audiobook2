@@ -60,7 +60,7 @@ from speech_verification_receipt import get_speech_verification_chunk_view
 from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection,
-                     get_chunk_generation_requests, get_speaker)
+                     get_chunk_generation_requests, get_playback_pause_plan, get_speaker)
 from runtime_estimate import get_book_runtime_estimate
 from routers.voices import get_script_speaker
 from tts import (voice_config_for_chunk, resolve_narrator_voice_config, voice_category,
@@ -413,6 +413,26 @@ async def get_audiobook():
     return FileResponse(AUDIOBOOK_PATH, filename="audiobook.mp3", media_type="audio/mpeg")
 
 # --- Chunk Management Endpoints ---
+
+@router.get("/api/chunks/playback_plan")
+async def get_playback_plan():
+    return await asyncio.to_thread(_ensure_playback_plan)
+
+
+def _ensure_playback_plan():
+    root = os.path.dirname(SCRIPT_PATH)
+    with ensure_book_state(root):
+        chunks = _ensure_editor_chunks()
+        pause_ms, same_speaker_pause_ms = project_manager._load_pause_defaults()
+        try:
+            plan = get_playback_pause_plan(chunks, pause_ms, same_speaker_pause_ms,
+                                           has_audio=project_manager.has_chunk_audio_file)
+        except (TypeError, ValueError) as error:
+            # A stored pause export would also refuse; say which, as export does.
+            raise HTTPException(status_code=422, detail=f"Playback pauses unavailable: {error}") from error
+    return {'pauses': [{'chunk_id': chunk_id, 'pause_ms': pause}
+                       for chunk_id, pause in sorted(plan.items())]}
+
 
 @router.get("/api/chunks")
 async def get_chunks():
