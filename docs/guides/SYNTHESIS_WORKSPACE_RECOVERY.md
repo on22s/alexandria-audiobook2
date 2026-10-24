@@ -57,7 +57,8 @@ that understands parent rows to resume automatic maintenance.
   batch attempt must be admitted before provider work. OOM retries use fresh
   scopes and registrations; prior attempt paths are not reused.
 - Only the registered window files, private assembled parent and fixed join
-  scratch are disposable. Unknown files, symlinks, hardlinks, changed directory
+  scratch, plus their declared WAV design publication staging files, are
+  disposable. Unknown files, symlinks, hardlinks, changed directory
   identities and invalid or missing registry authority are preserved.
 - A crash between directory creation and committing its identity can leave an
   empty ambiguous directory and a reserved slot. No provider may write audio
@@ -72,6 +73,11 @@ that understands parent rows to resume automatic maintenance.
   providers and direct unleased Python callers retain their normal
   temporary-file behavior. They have no claimed hard-crash reclamation
   qualification yet.
+- Ensemble registration conservatively requires the ordinary custom, clone,
+  design and LoRA member writers to be unmodified, even when an overridden
+  category is not in that ensemble. Otherwise it retains ordinary temporary
+  paths. A participating ensemble cannot exceed the 1,024-window limit; it
+  refuses rather than bypassing bounded storage with an unregistered fallback.
 - Ensemble member scratch and Project design previews use registered window
   workspaces. The Designer tab's previews under `designed_voices/previews` remain
   a separate staging path and are not covered by this registry.

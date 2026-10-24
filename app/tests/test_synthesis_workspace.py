@@ -429,6 +429,19 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                     if child.is_symlink() or not child.is_dir():child.unlink()
                 self.assertEqual(1,self.cleanup_idle());self.assertFalse(space.exists())
 
+        # Design also stages a Project parent, which declares zero windows.
+        name,_row=self.create(windows=0);space=self.root/workspace.DIRECTORY/name
+        parent_staging=space/('assembled-parent.wav.pending.'+'f'*32)
+        parent_staging.write_bytes(b'parent staging')
+        for alias in ('assembled-parent.mp3.pending.'+'f'*32,
+                      'assembled-parent.wav.pending.'+'g'*32,
+                      'window-0.wav.pending.'+'f'*32):
+            unknown=space/alias;unknown.write_bytes(b'preserved')
+            with self.subTest(unknown_staging=alias):
+                self.assertEqual(0,self.cleanup_idle());self.assertTrue(parent_staging.exists())
+            unknown.unlink()
+        self.assertEqual(1,self.cleanup_idle());self.assertFalse(space.exists())
+
     def test_project_parent_publication_cancel_replacement_and_capacity(self):
         import numpy as np
         from contextlib import ExitStack
@@ -697,6 +710,16 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                                     ('ensemble','_sequential_ensemble')):
                 with patch.object(engine,method,return_value=None):
                     self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,category,self.parent,batch=True))
+            for method in ('generate_custom_voice','generate_clone_voice','generate_voice_design',
+                           'generate_lora_voice','_local_generate_clone'):
+                with self.subTest(ensemble_member_writer=method),patch.object(engine,method,return_value=None):
+                    for batch in (False,True):
+                        self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'ensemble',self.parent,batch=batch))
+            with patch.object(engine,'get_voice_backend',side_effect=RuntimeError('must not invoke override')) as backend:
+                for category in ('custom','clone','design','lora','ensemble'):
+                    for batch in (False,True):
+                        self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,category,self.parent,batch=batch))
+                backend.assert_not_called()
             with patch.object(engine,'_save_wav',lambda *args:None):
                 self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'clone',self.parent))
             with patch.object(workspace,'is_synthesis_workspace_supported',return_value=False):
@@ -704,6 +727,18 @@ class SynthesisWorkspaceTests(unittest.TestCase):
             engine.__class__=UnknownEngine
             try:self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'clone',self.parent))
             finally:engine.__class__=tts.TTSEngine
+        import numpy as np,soundfile as sf
+        from types import MethodType
+        calls=[]
+        def legacy_design(_engine,description,sample_text,language=None,seed=-1):
+            calls.append(sample_text);preview=self.root/'legacy-design.wav'
+            sf.write(preview,np.arange(2400,dtype=np.int16),24000,subtype='PCM_16')
+            return str(preview),24000
+        engine.generate_voice_design=MethodType(legacy_design,engine)
+        output=self.root/'legacy-design-published.wav'
+        self.assertTrue(engine._generate_design_voice_prepared('Hello.','',{'description':'Clear voice'},str(output)))
+        self.assertEqual(['Hello.'],calls);self.assertTrue(output.is_file())
+        del engine.generate_voice_design
         # Restore the window policy for the pre-existing unowned dispatch check.
         engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':5}}})
         with patch('tts.render_synthesis_windows') as dispatched:

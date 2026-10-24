@@ -27,8 +27,8 @@ MAX_INDEX_BYTES = 1024 * 1024
 LOCAL_CATEGORIES = ('custom', 'clone', 'design', 'lora', 'ensemble')
 _HEX32 = re.compile(r'[0-9a-f]{32}\Z')
 # A writer that publishes through `<output>.pending.<uuid4 hex>` (local design)
-# leaves this beside a declared window if the process dies mid-publish.
-_WINDOW_STAGING = re.compile(r'(window-[0-9]+\.wav)\.pending\.[0-9a-f]{32}\Z')
+# leaves this beside a declared window or the WAV parent on process death.
+_OUTPUT_STAGING = re.compile(r'(window-[0-9]+\.wav|assembled-parent\.wav)\.pending\.[0-9a-f]{32}\Z')
 _HEX64 = re.compile(r'[0-9a-f]{64}\Z')
 _LOG = logging.getLogger(__name__)
 
@@ -283,11 +283,12 @@ class SynthesisWorkspaceRegistry:
             allowed = (windows
                        | {f'assembled-parent{suffix}' for suffix in ('.wav', '.mp3', '.flac', '.ogg')}
                        | {'join'})
-            # Each declared window may also hold its writer's interrupted staging file.
-            entries = self._get_names(workspace_fd, len(allowed) + len(windows))
+            # Each declared window and the WAV parent may hold one staging file.
+            staging_outputs = windows | {'assembled-parent.wav'}
+            entries = self._get_names(workspace_fd, len(allowed) + len(staging_outputs))
             for child in entries:
-                staging = _WINDOW_STAGING.match(child)
-                if child not in allowed and not (staging and staging.group(1) in windows):
+                staging = _OUTPUT_STAGING.fullmatch(child)
+                if child not in allowed and not (staging and staging.group(1) in staging_outputs):
                     raise SynthesisWorkspaceUnavailable('Unknown workspace contents preserved')
             if 'join' in entries:
                 info = os.stat('join', dir_fd=workspace_fd, follow_symlinks=False)
@@ -366,18 +367,23 @@ def get_synthesis_workspace_parent(engine, category, parent, *, batch=False):
         return None
     if category == 'ensemble' and mix_to_unison is not _RAW_MIX_TO_UNISON:
         return None
+    # An ensemble may dispatch any ordinary member category. Conservatively
+    # qualify all member writers before handing any of them a registered path.
+    required = dict(single[category])
+    if category == 'ensemble':
+        for member_category in ('custom', 'clone', 'design', 'lora'):
+            required.update(single[member_category])
+    if batch:
+        required.update(batch_methods[category])
+    if not all(getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
+               for name, method in required.items()):
+        return None
+    # Never invoke an overridden backend while deciding whether it is raw.
     try:
         backend = engine.get_voice_backend(category)
     except (UnsupportedVoiceBackendError, AttributeError, ValueError):
         return None
-    if (all(getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
-            for name, method in single[category].items())
-            and (not batch or all(
-                getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
-                for name, method in batch_methods[category].items()))
-            and backend == 'local'):
-        return parent
-    return None
+    return parent if backend == 'local' else None
 
 
 @contextmanager

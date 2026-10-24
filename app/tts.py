@@ -2267,7 +2267,7 @@ class TTSEngine:
             wav_path = os.path.join(previews_dir, f"preview_{uuid.uuid4().hex}.wav")
         else:
             wav_path = str(preview_path)
-            os.makedirs(os.path.dirname(wav_path), exist_ok=True)
+            os.makedirs(os.path.dirname(wav_path) or '.', exist_ok=True)
         self._save_wav(audio, sr, wav_path)
         capture_speech_input(wav_path, sample_text, lang, 'local_design_api')
 
@@ -2311,9 +2311,10 @@ class TTSEngine:
         seed = int(voice_data.get("seed", -1))
 
         def render(preview_path=None):
+            preview_options = {'preview_path': preview_path} if preview_path is not None else {}
             wav_path, sr = self.generate_voice_design(
                 description=description, sample_text=text, seed=seed,
-                preview_path=preview_path)
+                **preview_options)
             speech_input = get_captured_speech_input(wav_path)
             staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
             try:
