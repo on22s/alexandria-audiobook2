@@ -325,8 +325,16 @@ def _get_bounded_model_json(path):
             raise ValueError('Nonfinite model metadata')
         return value
 
+    def bounded_int(text):
+        # Also bound work on older Python 3.10 builds or when its global
+        # integer-conversion limit is disabled. HF's large tokenizer sentinel
+        # (about 10**30) remains well below this metadata-only limit.
+        if len(text) - text.startswith('-') > 128:
+            raise ValueError('Model metadata integer limit')
+        return int(text)
+
     return json.loads(data, object_pairs_hook=unique, parse_constant=reject_constant,
-                      parse_float=finite_float)
+                      parse_float=finite_float, parse_int=bounded_int)
 
 
 def _validate_model_inventory(root, files):

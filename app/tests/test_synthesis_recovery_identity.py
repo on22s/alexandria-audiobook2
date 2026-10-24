@@ -200,6 +200,7 @@ class RecoveryModelIdentityTests(unittest.TestCase):
         for raw in ('{', '{"weight_map":{},"weight_map":{}}', '{"weight_map":{"weight":NaN}}',
                     '{"weight_map":{"weight":"'+shard.name+'"},"size":1e999}',
                     '{"weight_map":{"weight":"'+shard.name+'"},"size":-1e999}',
+                    '{"weight_map":{"weight":"'+shard.name+'"},"size":'+'9'*129+'}',
                     '{"nested":'+'['*2000+'0'+']'*2000+'}'):
             index.write_text(raw)
             for inspect in (identity.get_model_asset_observation, identity.capture_recovery_model_snapshot):
@@ -215,12 +216,19 @@ class RecoveryModelIdentityTests(unittest.TestCase):
         try:
             for raw in ('{', '{"field":1,"field":2}', '{"field":NaN}',
                         '{"field":1e999}', '{"field":-1e999}',
+                        '{"field":'+'9'*129+'}',
                         '{"nested":'+'['*2000+'0'+']'*2000+'}'):
                 path.write_text(raw)
                 for inspect in (identity.get_model_asset_observation, identity.capture_recovery_model_snapshot):
                     with self.subTest(malformed_config=raw, inspect=inspect.__name__), self.assertRaisesRegex(
                             identity.RecoveryIdentityUnavailable, 'invalid_model_config'):
                         inspect(self.root)
+        finally:
+            path.write_bytes(original)
+        # Large normal HF tokenizer sentinels still fit the local numeric bound.
+        path.write_text('{"field":'+'9'*128+'}')
+        try:
+            self.assertIsNotNone(identity.capture_recovery_model_snapshot(self.root))
         finally:
             path.write_bytes(original)
         # Transformers accepts these even when from_pretrained's root is local.
