@@ -3,6 +3,10 @@
 - [CPU speaker-window experiments, 2026-10-22](cpu-speaker-windows-20261022/README.md):
   384 controlled ECAPA measurements, frozen calibration/test protocols, and
   both failed pilot decisions, with an offline evidence checker.
+- [#1434 finished-take verifier, 2026-10-24](speech-verification-1434-20261024/README.md):
+  334 cases (190 real controls, 144 designed PCM faults) through the unchanged
+  verifier: no clean take rejected, cuts always noticed, mid-line repeats missed
+  18 of 32 times.
 
 Full `reports/benchmarks/<preflight_id>.json` files, archived here before
 they could be cleaned up from the scratch `reports/` directory. Each one
