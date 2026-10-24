@@ -12,10 +12,17 @@ A control is a false positive when the verdict is not `no_content_candidate`; a
 fault is missed when it is. Designed faults are not human-listened truth, and real
 model failures (mumbled or skipped words in a render) can look different from a
 cut. Each worker gets its own ASR scratch parent so workers do not contend for the
-one per-user lease; nothing else in the verifier path is changed. Resumable: rows
-already in results.jsonl are skipped.
+one per-user lease; nothing else in the verifier path is changed.
+
+Every case is bound to the bytes it is verified on: a control's WAV must hash to
+what its render proof names, and a fault is rebuilt from that control on every run
+and recorded with its own hash. Resumable: a row already in results.jsonl is
+reused only when its (run, case_id) and its text, fault, input hash and verifier
+runtime all still match; any other existing row stops the run rather than being
+silently reused or skipped.
 """
 import argparse
+import hashlib
 import json
 import multiprocessing
 import os
@@ -32,6 +39,8 @@ CLEAR = 'no_content_candidate'
 RUNS = ('alice', 'numbers', 'w1435_U', 'w1435_W', 'verify')
 LONG_FAULTS = ('tail_cut', 'head_cut', 'tail_repeat', 'mid_repeat')
 SHORT_FAULTS = ('short_double', 'short_half')
+# What a stored result must still agree on to be reused instead of rerun.
+BINDING = ('text', 'fault', 'expect', 'input_sha256', 'runtime')
 
 
 def make_fault(pcm, kind):
@@ -53,13 +62,25 @@ def make_fault(pcm, kind):
     raise ValueError(f'unknown fault {kind}')
 
 
+def get_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as fh:
+        for block in iter(lambda: fh.read(1024 ** 2), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def get_rows(run_dir):
+    """Rows whose WAV on disk is the audio their render proof names."""
     data = json.loads((Path(run_dir) / 'rows.json').read_text())
     for row in data['rows']:
-        proof = row['speech_input']
-        if proof['audio']['sha256'] != row['wav_sha256']:
+        proof = row['speech_input']['audio']['sha256']
+        if proof != row['wav_sha256']:
             raise ValueError(f"{row['clip_id']}: render proof does not match its WAV")
-        yield row
+        actual = get_sha256(row['wav'])
+        if actual != proof:
+            raise ValueError(f"{row['clip_id']}: WAV on disk is not the audio its render proof names")
+        yield dict(row, input_sha256=actual)
 
 
 def get_cases(pilot_root, derived_dir, fault_seeds, runs=RUNS):
@@ -71,7 +92,8 @@ def get_cases(pilot_root, derived_dir, fault_seeds, runs=RUNS):
             text = row['speech_input']['text']
             group = row['line_id'][0] if run == 'verify' else run
             cases.append(dict(case_id=f"{row['clip_id']}__control", run=run, group=group,
-                              fault='control', expect='clean', text=text, wav=row['wav']))
+                              fault='control', expect='clean', text=text, wav=row['wav'],
+                              input_sha256=row['input_sha256']))
             if row['seed'] not in fault_seeds or run in ('numbers', 'w1435_W'):
                 continue
             kinds = SHORT_FAULTS if group == 'v' else () if group == 'r' else LONG_FAULTS
@@ -79,12 +101,47 @@ def get_cases(pilot_root, derived_dir, fault_seeds, runs=RUNS):
             if pcm.ndim != 1:
                 raise ValueError(f"{row['clip_id']}: expected mono render")
             for kind in kinds:
-                path = derived_dir / f"{row['clip_id']}__{kind}.wav"
-                if not path.exists():
-                    sf.write(str(path), make_fault(pcm, kind), rate, subtype='PCM_16')
+                # Rebuilt from the verified control every time, never trusted by name:
+                # a file left from an older source would otherwise be evaluated as this fault.
+                path = derived_dir / f"{run}__{row['clip_id']}__{kind}.wav"
+                staged = path.with_suffix('.tmp.wav')
+                sf.write(str(staged), make_fault(pcm, kind), rate, subtype='PCM_16')
+                os.replace(staged, path)
                 cases.append(dict(case_id=f"{row['clip_id']}__{kind}", run=run, group=group,
-                                  fault=kind, expect='defect', text=text, wav=str(path)))
+                                  fault=kind, expect='defect', text=text, wav=str(path),
+                                  input_sha256=get_sha256(path), source_sha256=row['input_sha256']))
     return cases
+
+
+def get_runtime_identity(root):
+    """The verifier binaries and models a result came from, by path, size and mtime."""
+    from speech_verification_runtime import get_verification_runtime
+    identity = {}
+    for name, runtime in (('primary', get_verification_runtime(root)),
+                          ('confirmation', get_verification_runtime(root, confirmation=True))):
+        for part in ('binary', 'model'):
+            info = os.stat(runtime[part])
+            identity[f'{name}_{part}'] = [os.path.realpath(runtime[part]), info.st_size, info.st_mtime_ns]
+    return identity
+
+
+def get_reusable_results(results, cases):
+    """-> {(run, case_id)} already done for exactly these inputs; raises on anything else."""
+    by_key = {(c['run'], c['case_id']): c for c in cases}
+    done = set()
+    for number, line in enumerate(results.read_text().splitlines() if results.exists() else (), 1):
+        if not line:
+            continue
+        row = json.loads(line)
+        key = (row.get('run'), row.get('case_id'))
+        if key in done:
+            raise ValueError(f'{results}:{number}: {key} appears twice')
+        case = by_key.get(key)
+        if case is None or any(row.get(field) != case.get(field) for field in BINDING):
+            raise ValueError(f'{results}:{number}: {key} was run on other inputs or another '
+                             'verifier; use a new --out-dir instead of resuming into this one')
+        done.add(key)
+    return done
 
 
 def _verify(job):
@@ -116,11 +173,11 @@ def main(argv=None):
     out = Path(args.out_dir)
     cases = get_cases(args.pilot_root, out / 'derived', {int(s) for s in args.fault_seeds.split(',')},
                       args.runs.split(','))
+    runtime = get_runtime_identity(args.asr_root)
+    cases = [dict(c, runtime=runtime) for c in cases]
     results = out / 'results.jsonl'
-    done = set()
-    if results.exists():
-        done = {json.loads(line)['case_id'] for line in results.read_text().splitlines() if line}
-    todo = [c for c in cases if c['case_id'] not in done]
+    done = get_reusable_results(results, cases)
+    todo = [c for c in cases if (c['run'], c['case_id']) not in done]
     if args.limit:
         todo = todo[:args.limit]
     print(f'{len(cases)} cases, {len(done)} done, {len(todo)} to run', flush=True)

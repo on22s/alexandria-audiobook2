@@ -4,7 +4,7 @@ The production `verify_finished_speech` was run unchanged: Small.en primary, wit
 
 ## Cases
 
-- **190 controls.** Real local-LoRA NARRATOR renders from `app/experiments/line_render_pilot.py`, each checked against the exact text its render proof says was sent:
+- **190 controls.** Real local-LoRA NARRATOR renders from `app/experiments/line_render_pilot.py`, each checked against the exact text its render proof says was sent. The proof establishes what was *requested*; nobody listened to confirm that each render actually spoke it, so a control is a render, not a known-clean take:
   - 80 Alice lines (#1545, 4 seeds);
   - 30 synthetic number/date lines (#1546);
   - 48 Alice/*Dorian Gray* passages (#1435, rendered as one request and as windows);
@@ -26,7 +26,7 @@ Verdicts: `no_content_candidate` (clear), `review` (flagged for a listen), `corr
 
 ## Results
 
-**Controls: no clean take was rejected.**
+**Controls: no control render was rejected.**
 
 | control set | clear | review | rejected |
 |---|---|---|---|
@@ -38,11 +38,11 @@ Verdicts: `no_content_candidate` (clear), `review` (flagged for a listen), `corr
 | authored repetition | 15 | 1 | 0 |
 | **all** | **161** | **29 (15%)** | **0** |
 
-- **What the 14 non-number reviews are:** all spelling or normalization variants rather than speech faults. Gryphon → griffin/griffon (4), "Never mind" → "Nevermind" (2), "Oh dear" → "O dear", dragon-fly/chirrup ("cheer up") and Hallward variants in two passages.
+- **What the 14 non-number reviews look like:** in the transcripts, all are spelling or normalization variants: Gryphon → griffin/griffon (4), "Never mind" → "Nevermind" (2), "Oh dear" → "O dear", dragon-fly/chirrup ("cheer up") and Hallward variants in two passages. That is what ASR wrote, not a listening verdict. Whether each render said the line correctly is **unresolved**, so these are not counted as confirmed false positives.
 - **Number lines:** half are flagged, because ASR writes digits for spoken numbers. A book heavy with numbers will see a high review rate.
 - **Authored repetition:** "No, no, no, no!" and "Off with her head! Off with her head!" were not flagged as faults (15 of 16 clear).
 
-**Faults: cuts are always noticed; repeats in the middle usually are not.**
+**Faults: long head/tail cuts are always noticed; repeats in the middle usually are not.**
 
 | fault | missed (clear) | review | rejected |
 |---|---|---|---|
@@ -69,3 +69,4 @@ Peak memory was not measured here. The earlier #1434 qualification measured it.
 - One voice, English, Linux CPU, one machine.
 - Designed faults are edits, not listened truth, and not a sample of real model failures.
 - Rates come from this fixture set and are not a general accuracy figure.
+- `results.jsonl` was produced before the harness bound each row to its input hash and verifier runtime. The verdict counts above are unaffected, but the current harness refuses to resume into these rows; a rerun needs a new `--out-dir`.

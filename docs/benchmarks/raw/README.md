@@ -5,7 +5,7 @@
   both failed pilot decisions, with an offline evidence checker.
 - [#1434 finished-take verifier, 2026-10-24](speech-verification-1434-20261024/README.md):
   334 cases (190 real controls, 144 designed PCM faults) through the unchanged
-  verifier: no clean take rejected, cuts always noticed, mid-line repeats missed
+  verifier: no control render rejected, long head/tail cuts always noticed, mid-line repeats missed
   18 of 32 times.
 
 Full `reports/benchmarks/<preflight_id>.json` files, archived here before

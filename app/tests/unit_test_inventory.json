@@ -10120,6 +10120,7 @@
   "test_speech_verification_faults": [
     "tests.test_speech_verification_faults.GetCasesTests.test_fault_plan_per_group",
     "tests.test_speech_verification_faults.GetCasesTests.test_refuses_a_row_whose_proof_names_other_audio",
+    "tests.test_speech_verification_faults.GetCasesTests.test_resume_keys_on_run_and_reuses_only_identical_inputs",
     "tests.test_speech_verification_faults.MakeFaultTests.test_cuts_remove_the_named_part",
     "tests.test_speech_verification_faults.MakeFaultTests.test_input_is_not_changed_and_unknown_kind_refused",
     "tests.test_speech_verification_faults.MakeFaultTests.test_repeats_say_the_span_twice_and_keep_everything_else"
