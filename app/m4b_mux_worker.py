@@ -17,7 +17,7 @@ import threading
 from audio_encoder_identity import require_ffmpeg_binary_identity
 from audio_take_history import _open_regular, _version
 from audio_mastering_filter import get_mastering_filter
-from bounded_media_io import BoundedMediaOutput
+from bounded_media_io import BoundedMediaOutput, ForwardOnlyMediaInput
 from m4b_cover import MAX_COVER_BYTES, get_validated_cover_bytes
 from m4b_mux_profile import require_m4b_mux_runtime
 from media_process import get_media_process_environment
@@ -109,7 +109,7 @@ def run_m4b_mux_worker(directory):
             process = subprocess.Popen(command, stdin=source, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 close_fds=True, start_new_session=False, creationflags=0, env=environment)
             reader = threading.Thread(target=drain, daemon=True); reader.start()
-            with av.open(process.stdout,format='mp4') as input_container, av.open(output,'w',format='mp4',
+            with av.open(ForwardOnlyMediaInput(process.stdout),format='mp4') as input_container, av.open(output,'w',format='mp4',
                     options={'movflags':'+faststart','movie_timescale':str(math.lcm(request.output_rate,1000))},
                     io_open=output.reopen) as mux:
                 if (len(input_container.streams)!=1 or len(input_container.streams.audio)!=1

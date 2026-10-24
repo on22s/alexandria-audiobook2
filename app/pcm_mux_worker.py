@@ -15,7 +15,7 @@ import threading
 from audio_encoder_identity import require_ffmpeg_binary_identity
 from audio_take_history import _open_regular, _version
 from audio_mastering_filter import get_mastering_filter
-from bounded_media_io import BoundedMediaOutput
+from bounded_media_io import BoundedMediaOutput, ForwardOnlyMediaInput
 from media_process import get_media_process_environment
 from pcm_mux_profile import require_pcm_mux_runtime
 from pcm_mux_worker_request import get_pcm_mux_worker_request, MAX_REQUEST_BYTES
@@ -84,7 +84,7 @@ def run_pcm_mux_worker(directory):
             reader = threading.Thread(target=drain,daemon=True); reader.start()
             options = {'id3v2_version':'4'} if request.format == 'mp3' else {'rf64':'auto'}
             expected_codec = 'mp3' if request.format == 'mp3' else codec
-            with av.open(process.stdout,format='nut',options={'probesize':'32768','analyzeduration':'1'}) as native, \
+            with av.open(ForwardOnlyMediaInput(process.stdout),format='nut',options={'probesize':'32768','analyzeduration':'1'}) as native, \
                     av.open(output,'w',format=request.format,options=options) as mux:
                 if (len(native.streams) != 1 or len(native.streams.audio) != 1
                         or native.streams.audio[0].codec_context.codec.id != av.Codec(expected_codec,'r').id

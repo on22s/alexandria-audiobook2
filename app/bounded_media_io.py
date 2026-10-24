@@ -14,6 +14,25 @@ from threading import RLock
 from audio_take_history import _ensure_plain_path, _open_regular
 
 
+class ForwardOnlyMediaInput:
+    """Expose a native producer pipe to PyAV without seek or close callbacks.
+
+    Some pipe handles advertise seekability but reject the seeks demuxers use.
+    The worker owns the underlying pipe and closes it after its child is reaped.
+    """
+    def __init__(self, stream):
+        self._stream = stream
+
+    def readable(self):
+        return True
+
+    def seekable(self):
+        return False
+
+    def read(self, size):
+        return self._stream.read(size)
+
+
 class BoundedMediaOutput:
     name = 'aa2-bounded://output'
 

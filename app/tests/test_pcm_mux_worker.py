@@ -69,7 +69,34 @@ class PCMMuxWorkerTests(unittest.TestCase):
 
     def test_native_packets_full_pcm_and_gapless_metadata_match_for_raw_and_mastered(self):
         import av
+        import io
+        from bounded_media_io import ForwardOnlyMediaInput
         from audio_mastering import get_loudnorm_record
+
+        # Model the observed Windows pipe: advertising seekability does not
+        # make a demuxer's later seek valid. Both native transports must work
+        # with only forward reads, while lifetime stays with the worker.
+        class MisleadingPipe(io.BytesIO):
+            def seekable(self):return True
+            def seek(self,*args):raise OSError(22,'Invalid argument')
+            def tell(self):return 0
+        for transport in ('nut','mp4'):
+            args=['ffmpeg','-v','error','-f','lavfi','-i','anullsrc=r=24000:cl=mono',
+                '-t','0.2','-c:a','libmp3lame' if transport=='nut' else 'aac']
+            args += (['-syncpoints','none','-strict','experimental'] if transport=='nut' else
+                     ['-movflags','frag_keyframe+delay_moov+default_base_moof'])
+            raw=run([*args,'-f',transport,'pipe:1']).stdout
+            with self.subTest(transport=transport):
+                with self.assertRaises(OSError):
+                    with av.open(MisleadingPipe(raw),format=transport) as container:
+                        list(container.demux(audio=0))
+                pipe=MisleadingPipe(raw);forward=ForwardOnlyMediaInput(pipe)
+                for name in ('seek','tell','close','fileno','write'):
+                    self.assertFalse(hasattr(forward,name))
+                with av.open(forward,format=transport) as container:
+                    self.assertGreater(sum(packet.size for packet in container.demux(audio=0)),0)
+                self.assertFalse(pipe.closed)
+                pipe.close()
         for rate,frames,width,channels in ((24000,72001,4,2),(44100,132301,2,1),(48000,144000,1,2),
                                           (44100,1,2,1)):
             for fmt in ('mp3','wav'):
