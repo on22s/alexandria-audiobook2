@@ -7735,6 +7735,7 @@
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_atomic_failure_preserves_file_and_preview_uses_production_matching",
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_audition_produces_playable_audio_without_rewriting_script_or_lexicon",
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_audition_uses_real_dispatch_with_draft_at_production_substitution_stage",
+    "tests.test_pronunciation_panel.PronunciationPanelTests.test_date_order_choice_is_saved_in_book_state_and_refused_when_stale_or_busy",
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_empty_missing_flat_and_invalid_documents",
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_failed_engine_stale_row_and_busy_task_never_publish_audio",
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_flat_reserved_name_and_multiline_entries_round_trip_without_data_loss",
@@ -8961,6 +8962,7 @@
     "tests.test_saved_book_load_checkpoint.SavedBookLoadCheckpointTests.test_load_clears_active_generation_and_recovery_sidecars"
   ],
   "test_saved_book_publication": [
+    "tests.test_saved_book_publication.SavedBookPublicationTests.test_date_order_travels_with_the_saved_book",
     "tests.test_saved_book_publication.SavedBookPublicationTests.test_delete_move_failure_rolls_back_complete_family",
     "tests.test_saved_book_publication.SavedBookPublicationTests.test_delete_removes_every_known_companion_and_busy_jobs_refuse_without_changes",
     "tests.test_saved_book_publication.SavedBookPublicationTests.test_preflight_and_all_preview_analysis_leave_asgi_event_loop_responsive",
@@ -10018,6 +10020,19 @@
     "tests.test_speech_fact_preferred.WeakSupervisionTest.test_a_mapped_narration_line_labels_narration",
     "tests.test_speech_fact_preferred.WeakSupervisionTest.test_a_mapped_spoken_line_labels_speech_without_quotes",
     "tests.test_speech_fact_preferred.WeakSupervisionTest.test_an_unmapped_line_still_uses_the_punctuation"
+  ],
+  "test_speech_numbers": [
+    "tests.test_speech_numbers.BookOrderTests.test_choice_overrides_auto_and_auto_uses_the_script",
+    "tests.test_speech_numbers.BookOrderTests.test_missing_or_malformed_state_falls_back_to_auto_never_a_guess",
+    "tests.test_speech_numbers.BookOrderTests.test_speech_preparation_reads_the_book_order_and_lexicon_still_runs_last",
+    "tests.test_speech_numbers.ConvertedTests.test_an_ambiguous_date_follows_the_book_order",
+    "tests.test_speech_numbers.ConvertedTests.test_every_change_is_recorded",
+    "tests.test_speech_numbers.ConvertedTests.test_every_listened_failure_is_reshaped",
+    "tests.test_speech_numbers.EvidenceTests.test_conflicting_dates_are_undetermined_even_with_spelling",
+    "tests.test_speech_numbers.EvidenceTests.test_spelling_decides_only_with_enough_hits_and_a_clear_margin",
+    "tests.test_speech_numbers.EvidenceTests.test_the_books_own_dates_decide_before_spelling",
+    "tests.test_speech_numbers.LeftAloneTests.test_an_ambiguous_date_with_no_order_is_left_and_recorded",
+    "tests.test_speech_numbers.LeftAloneTests.test_codes_scores_fractions_and_plain_amounts_are_untouched"
   ],
   "test_speech_symbol_dispatch": [
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_classifier_uses_the_shared_rendering_object",
