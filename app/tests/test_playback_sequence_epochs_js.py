@@ -14,7 +14,8 @@ const audios=rows.map((row,id)=>({src:'fixture.wav',currentTime:7,onended:null,o
  getAttribute(name){assert.strictEqual(name,'src');return this.src;},closest(){return row;},pause(){pauses.push(id);},
  play(){plays.push(id);let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});attempts.push({id,resolve,reject});return promise;}}));
 const button={innerHTML:'Play Sequence',onclick:null,classList:classes()};button.classList.add('btn-primary');
-const ctx={console:{error(){}},showToast:(text,tone)=>toasts.push({text,tone}),API:{get:async()=>({pauses:[]})},setTimeout,clearTimeout,document:{
+const ctx={console:{error(){}},showToast:(text,tone)=>toasts.push({text,tone}),
+ showActionError:(text,error,recovery,tone)=>toasts.push({text,reason:error&&error.message,tone}),API:{get:async()=>({pauses:[]})},setTimeout,clearTimeout,document:{
  getElementById(id){assert.strictEqual(id,'btn-play-seq');return button;},
  querySelectorAll(selector){if(selector==='audio'||selector==='.chunk-audio'){return audios;}assert.strictEqual(selector,'tr');return rows;}}};ctx.window=ctx;
 vm.createContext(ctx);
@@ -96,6 +97,12 @@ ctx.API.get=async()=>({pauses:[{chunk_id:0,pause_ms:30},{chunk_id:1,pause_ms:0}]
 await ctx.playSequence();const end=audios[0].onended;end();end();
 assert.deepStrictEqual(plays,[0]);await new Promise(r=>setTimeout(r,45));
 assert.deepStrictEqual(plays,[0,1]);audios[1].onended();assert.deepStrictEqual(plays,[0,1,2]);
+// A refused plan (a stored pause export would also refuse) plays nothing and says why.
+ctx.stopSequence();const before=plays.length;
+ctx.API.get=async()=>{throw new Error('Playback pauses unavailable: Shorten the pause before exporting.');};
+await ctx.playSequence();await settle();
+assert.strictEqual(plays.length,before);assert.strictEqual(playing(),false);
+assert.deepStrictEqual(toasts.at(-1),{text:'Could not load playback pauses',reason:'Playback pauses unavailable: Shorten the pause before exporting.',tone:'warning'});
 ''')
 
     def test_stop_and_restart_cancel_pending_plan_pause(self):

@@ -7412,7 +7412,7 @@
                     row => [Number(row.chunk_id), Number(row.pause_ms)]));
             } catch (error) {
                 console.error('Playback pause plan failed:', error);
-                showToast('Could not load playback pauses', 'warning');
+                showActionError('Could not load playback pauses', error, 'Fix the pause shown above in the Editor, then play the sequence again.', 'warning');
                 stopSequence();
                 return;
             }

@@ -424,7 +424,12 @@ def _ensure_playback_plan():
     with ensure_book_state(root):
         chunks = _ensure_editor_chunks()
         pause_ms, same_speaker_pause_ms = project_manager._load_pause_defaults()
-        plan = get_playback_pause_plan(chunks, pause_ms, same_speaker_pause_ms)
+        try:
+            plan = get_playback_pause_plan(chunks, pause_ms, same_speaker_pause_ms,
+                                           has_audio=project_manager.has_chunk_audio_file)
+        except (TypeError, ValueError) as error:
+            # A stored pause export would also refuse; say which, as export does.
+            raise HTTPException(status_code=422, detail=f"Playback pauses unavailable: {error}") from error
     return {'pauses': [{'chunk_id': chunk_id, 'pause_ms': pause}
                        for chunk_id, pause in sorted(plan.items())]}
 
