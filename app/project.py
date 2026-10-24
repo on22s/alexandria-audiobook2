@@ -1524,6 +1524,14 @@ class ProjectManager:
     def _capture_take_publication_admission(self, engine, parent, index, chunk, voice_config, speaker):
         if parent is None or not get_take_history_policy(self.root_dir)['enabled']:
             return None
+        # Disposable ownership alone must not acquire optional proof admission.
+        windows = getattr(engine, '_synthesis_windows', None)
+        if type(windows) is not dict or windows.get('enabled') is not True:
+            return None
+        policy_reader = getattr(engine, 'get_synthesis_recovery_policy', None)
+        recovery = policy_reader() if callable(policy_reader) else None
+        if type(recovery) is not dict or recovery.get('enabled') is not True:
+            return None
         from take_publication import capture_take_publication_admission
         with ensure_audio_generation_book_work(self.root_dir):
             token = get_book_operation_token(self.root_dir)
@@ -1619,11 +1627,10 @@ class ProjectManager:
 
     def _capture_synthesis_recovery_parent(self, engine, index, chunk):
         """Capture owned parent admission for disposable spill and optional recovery."""
-        policy_reader = getattr(engine, "get_synthesis_recovery_policy", None)
-        policy = policy_reader() if callable(policy_reader) else None
+        # Disposable ownership is independent of optional window/cache policy.
+        # Their consumers retain their own eligibility and disabled-path gates.
         claim_digest = get_recovery_claim_digest()
-        windowed = getattr(engine, "_synthesis_windows", None)
-        if (not (policy and policy.get("enabled")) and not windowed) or claim_digest is None or not chunk.get("uid"):
+        if claim_digest is None or not chunk.get("uid"):
             return None
         owner = get_audio_generation_owner()
         captured = copy.deepcopy(chunk)
@@ -1822,7 +1829,8 @@ class ProjectManager:
 
                 audio_path = self._publish_generated_chunk_audio(
                     chunk, temp_path, speaker_to_use,
-                    **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}),
+                    **({'recovery_parent': recovery_parent}
+                       if recovery_parent is not None and chunk.get('_synthesis_receipt') is not None else {}),
                     **({'publication_admission': publication_admission} if publication_admission is not None else {}))
 
                 return True, audio_path
@@ -3180,7 +3188,8 @@ class ProjectManager:
             validate_generated_audio(temp_path, f"batch chunk {idx}")
             audio_path = self._publish_generated_chunk_audio(
                 chunk, temp_path, chunk.get("speaker", "unknown"),
-                **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}),
+                **({'recovery_parent': recovery_parent}
+                       if recovery_parent is not None and chunk.get('_synthesis_receipt') is not None else {}),
                 **({'publication_admission': publication_admission} if publication_admission is not None else {}))
             print(f"Chunk {idx} completed: {audio_path}")
             return "completed", idx, audio_path
@@ -3444,7 +3453,8 @@ class ProjectManager:
                     recovery_parent = recovery_parents.get(captured[idx].get('uid')) if idx in captured else None
                     publication_admission = publication_admissions.get(idx)
                     outcome, out_idx, payload = self._finalize_completed_chunk(idx, captured,
-                        **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}),
+                        **({'recovery_parent': recovery_parent}
+                           if recovery_parent is not None and receipt is not None else {}),
                         **({'publication_admission': publication_admission} if publication_admission is not None else {}))
                     if outcome == "completed":
                         results["completed"].append(out_idx)

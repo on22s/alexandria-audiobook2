@@ -6,12 +6,15 @@ startup or audio-task admission reclaims verified disposable files. This also
 applies when reusable segment recovery is disabled. A retry can therefore remove
 abandoned working copies without deleting saved takes or reusable cache evidence.
 
-For that same participating Project route, the raw parent WAV also has its own
-registration, created before allocating the file and retained through encoding
-and final selected-take publication. Inner windows use a separate workspace;
-finishing those windows does not retire the raw parent. This applies when the
-existing recovery/window settings provide captured Project authority, including
-when reusable recovery is disabled but synthesis windows are enabled.
+For the participating built-in local CustomVoice Project route, the raw parent
+WAV also has its own registration, created before allocating the file and retained
+through encoding and final selected-take publication. Inner windows use a separate workspace;
+finishing those windows does not retire the raw parent. Raw-parent ownership is
+independent of optional synthesis windows and reusable recovery. Default renders
+with both features off still capture the live task, book, UID and input authority
+needed for disposable cleanup. Their reusable cache, speech-input capture and
+publication-proof policies remain unchanged; ownership alone enables none of
+those optional features.
 
 The same captured authority also covers built-in local CustomVoice Project
 batch outputs. Each participating row has a separate parent workspace allocated
@@ -67,10 +70,10 @@ that understands parent rows to resume automatic maintenance.
   renders. Other voice categories, Windows/macOS, overridden providers and direct
   unleased Python callers retain their normal temporary-file behavior. They have
   no claimed hard-crash reclamation qualification yet.
-- Default nonwindow renders without captured recovery authority, batch rows
-  outside the participating local CustomVoice path, and staging in `voicelines` or
-  `.chapter-export-*` remain outside this raw-parent registration. Existing
-  unregistered parent files are preserved; this change does not authorize
+- Batch rows outside the participating local CustomVoice path, direct unleased
+  calls, and staging in `voicelines` or `.chapter-export-*` remain outside this
+  raw-parent registration. Existing unregistered parent files are preserved;
+  this change does not authorize
   filename-based cleanup of historical files.
 
 Warnings identify preserved registrations or unavailable registry authority.
