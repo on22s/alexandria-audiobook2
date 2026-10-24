@@ -72,7 +72,6 @@ class CiEnvParityTests(unittest.TestCase):
         self.assertIn(f"pattern: {identity}-attempt-*-shard-*", workflow)
         for flag, context in (("run-id", "run_id"), ("run-attempt", "run_attempt"), ("commit-sha", "sha")):
             self.assertIn(f'--{flag} "${{{{ github.{context} }}}}"', workflow)
-        self.assertIn("Diagnose whether failure exists on the base commit", workflow)
         self.assertIn("fetch-depth: 0", workflow)
 
     def test_changed_file_hints_name_the_missing_generator(self):

@@ -25,6 +25,19 @@ fd=os.open(path,os.O_RDWR|os.O_CREAT,0o600)
 if fd!=9:os.dup2(fd,9);os.close(fd)
 if mode!='unlocked':fcntl.flock(9,fcntl.LOCK_SH if mode=='shared' else fcntl.LOCK_EX)
 env=dict(os.environ,GPU_LOCK=str(lock),ALEXANDRIA_GPU_LOCK_HELD='1',ALEXANDRIA_GPU_LOCK_PID=str(os.getpid()))
+# A line read from live procfs can seek back into regenerated status text.
+# Reject that unstable input deterministically while retaining the real kernel
+# ancestry/flock proof; reads from an already captured snapshot remain native.
+read_policy=pathlib.Path(temporary)/'read-policy.sh'
+if mode=='exclusive':
+ read_policy.write_text('''read() {
+ local source
+ source=$(readlink /proc/self/fd/0) || return 1
+ case "$source" in /proc/[0-9]*/status) echo 'unstable live procfs line read' >&2; return 1;; esac
+ builtin read "$@"
+}
+''')
+ env['BASH_ENV']=str(read_policy)
 cli=['bash',root+'/gpu_job.sh','--check-lock-owner',str(os.getpid())]
 if nested=='yes':
  import shlex
@@ -36,6 +49,7 @@ if mode=='exclusive':
  code="import os;from experiments.gpu_guard import is_queue_lock_held_by_us,require_free_gpu,acquire_gpu_lock;"+"\ntry:os.fstat(9);raise AssertionError('fd9 inherited')\nexcept OSError:pass\nassert is_queue_lock_held_by_us();require_free_gpu('CPU fixture');assert acquire_gpu_lock() is None;print('GUARD_ACCEPTED_FD9_CLOSED')"
  result=subprocess.run([sys.executable,'-c',code],env=env,capture_output=True,text=True,close_fds=True,timeout=5)
  print(json.dumps({'guard_rc':result.returncode,'stdout':result.stdout,'stderr':result.stderr}))
+ read_policy.unlink()
 """
 
 

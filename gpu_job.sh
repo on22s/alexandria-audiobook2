@@ -173,12 +173,16 @@ if [ "${1:-}" = "--check-lock-owner" ]; then
         seen="$seen$cursor "
         parent=""
         [ -r "/proc/$cursor/status" ] || refuse_lock_owner "process ancestry is unreadable"
+        # Bash read can seek back after each line. A live procfs status may
+        # regenerate with different field offsets when the task changes state.
+        # Parse one captured snapshot so PPid cannot be split by those seeks.
+        process_status=$(< "/proc/$cursor/status") || refuse_lock_owner "process ancestry is unreadable"
         while IFS=$' \t' read -r field value; do
             if [ "$field" = "PPid:" ]; then
                 parent="$value"
                 break
             fi
-        done < "/proc/$cursor/status"
+        done <<< "$process_status"
         case "$parent" in
             ''|*[!0-9]*) refuse_lock_owner "invalid kernel parent PID for $cursor: '${parent}'" ;;
         esac

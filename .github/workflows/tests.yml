@@ -100,28 +100,6 @@ jobs:
         id: verify
         run: python verify_release.py --shard "${{ matrix.shard }}" --json-report release-report.json
 
-      - name: Diagnose whether failure exists on the base commit
-        if: always() && github.event_name == 'pull_request' && steps.verify.outcome == 'failure'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          BASE_WORKTREE="${RUNNER_TEMP}/alexandria-base"
-          git worktree add --detach "$BASE_WORKTREE" "$BASE_SHA"
-          set +e
-          (cd "$BASE_WORKTREE/app" && python verify_release.py --shard "${{ matrix.shard }}" --json-report "${RUNNER_TEMP}/base-release-report.json")
-          BASE_STATUS=$?
-          set -e
-          git worktree remove --force "$BASE_WORKTREE"
-          if [ ! -f "${RUNNER_TEMP}/base-release-report.json" ]; then
-            echo "::warning::Base verification was indeterminate because it produced no JSON report."
-          elif [ "$BASE_STATUS" -eq 0 ]; then
-            cp "${RUNNER_TEMP}/base-release-report.json" base-release-report.json
-            echo "::error::The base commit passes; this pull request introduced the verifier failure."
-          else
-            cp "${RUNNER_TEMP}/base-release-report.json" base-release-report.json
-            echo "::warning::The verifier also fails on the base commit; inspect both JSON reports."
-          fi
-
       - name: Upload verification report
         if: always()
         uses: actions/upload-artifact@v6
@@ -129,9 +107,7 @@ jobs:
           # A shard name contains "/", which artifact names forbid.
           # Keep historical reports, but never download two attempts into one directory.
           name: release-verification-report-run-${{ github.run_id }}-sha-${{ github.sha }}-attempt-${{ github.run_attempt }}-shard-${{ strategy.job-index }}
-          path: |
-            app/release-report.json
-            app/base-release-report.json
+          path: app/release-report.json
           if-no-files-found: warn
 
   # Stable job name: this is the one check that means "the whole suite passed".

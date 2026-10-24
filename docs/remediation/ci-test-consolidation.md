@@ -114,3 +114,44 @@ qualify the final complete inventory, alongside the native three-OS jobs.
 Exact-head CI results and before/after job timings are recorded in the follow-up
 PR after execution. No GPU synthesis, pitch, or listening-quality claim follows
 from these CPU tests.
+
+The first follow-up CI attempt exposed an existing intermittent failure in
+`test_managed_server_chain`'s healthy-listener fixture. Sixty unchanged repetitions
+reproduced two failures. A separate changing-state CPU process reproduced
+corrupted `/proc/PID/status` field boundaries with line-by-line shell reads:
+all three old-reader probes lost `PPid:`, while three snapshot-reader probes
+each passed 2,000 reads. The ownership guard now captures the status text
+before parsing. It retains every ancestry, descriptor, inode and exclusive
+lock check, and still refuses missing or malformed parent data. These probes
+are diagnostic evidence, not a claim that the original CI attempt passed.
+The existing `test_gpu_lock_owner` direct/nested real-owner fixture now rejects
+line reads from live procfs while permitting reads from captured text. Running
+that fixture against the old script fails both subcases; the new script passes.
+This deterministic policy check complements the separately recorded live-process
+probe, rather than simulating the kernel race with a new timed CI stress test.
+
+The default failure path uploads the primary verification report immediately;
+it no longer reruns the complete failed shard on the base before publishing
+that report. The failed verifier still fails the job. Base comparison provides
+diagnostic evidence, rather than an acceptance gate, and remains available
+manually with the same interpreter and installed CI dependencies:
+
+```bash
+# Set BASE_SHA to the PR's recorded base commit and SHARD to its failed shard.
+# Select the absolute interpreter with the CI dependencies installed.
+CI_PYTHON=$(command -v python)
+# Use a disposable directory outside the live application checkout.
+comparison=$(mktemp -d)
+git worktree add --detach "$comparison/base" "$BASE_SHA"
+status=0
+(cd "$comparison/base/app" && "$CI_PYTHON" verify_release.py --shard "$SHARD" \
+  --json-report "$comparison/base-release-report.json") || status=$?
+git worktree remove --force "$comparison/base"
+printf 'Base comparison exit status: %s; evidence: %s\n' "$status" "$comparison"
+```
+
+Keep the original failed report alongside this evidence. A green base run
+does not by itself prove causation when a test or runner is intermittent.
+The same shard number may contain different tests after a partition change;
+compare report identities. Using the PR's dependency environment also differs
+from rebuilding the base's environment, which matters for dependency failures.
