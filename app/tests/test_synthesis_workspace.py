@@ -109,6 +109,32 @@ with case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner()
 '''
 
 
+_PROJECT_BATCH_CHILD = r'''
+
+from pathlib import Path
+import json,os,sys,hashlib
+import numpy as np
+from tests.test_take_publication import TakePublicationTests
+from synthesis_settings import get_synthesis_window_settings
+from task_ownership import acquire_task_lease
+note=Path(sys.argv[1]);case=TakePublicationTests()
+class Model:
+ def generate_custom_voice(self,**kwargs):
+  text=kwargs['text']
+  if type(text)is not list or len(text)!=2:raise RuntimeError('Expected one true native list call for two chunks')
+  proof=json.loads(note.read_text());proof['submitted_texts']=text;proof['model_calls']=proof.get('model_calls',0)+1;note.write_text(json.dumps(proof))
+  return [np.sin(np.arange(2400)*.1)*.2 for _ in text],24000
+with case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner():
+ lease=acquire_task_lease(root,'audio',set())
+ chunks=manager.load_chunks();chunks.append({**chunks[0],'id':1,'uid':'line-two','text':'Second synthetic words.'});manager.save_chunks(chunks)
+ note.write_text(json.dumps({'root':str(root),'prior':str(previous),'prior_sha256':hashlib.sha256(previous.read_bytes()).hexdigest()}))
+ engine=case.engine();engine._synthesis_recovery=None;engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':10000}}});engine._local_custom_model=Model();engine._custom_warmup_needed=False;engine._sub_batch_max_items=0;engine._sub_batch_enabled=False
+ manager.engine=engine;Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
+ manager._publish_generated_chunk_audio=lambda *a,**k:os._exit(76)
+ result=manager.generate_chunks_batch([0,1],batch_seed=42,batch_size=2)
+ raise RuntimeError('Expected prepublication hard exit; result='+repr(result))
+'''
+
 @unittest.skipUnless(workspace.is_synthesis_workspace_supported(), 'Registered spill currently qualifies Linux dirfd durability')
 class SynthesisWorkspaceTests(unittest.TestCase):
     def setUp(self):
@@ -217,6 +243,148 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                 finally:
                     if child.poll() is None:child.kill();child.wait(timeout=10)
                     child.stdin.close();child.stderr.close()
+
+
+    def test_project_list_batch_hard_exit_reclaims_both_registered_parents(self):
+        with tempfile.TemporaryDirectory() as bound:
+            note=Path(bound)/'batch-note.json';env=dict(os.environ,TMPDIR=bound,PYTHONDONTWRITEBYTECODE='1')
+            result=subprocess.run([sys.executable,'-B','-c',_PROJECT_BATCH_CHILD,str(note)],
+                cwd=Path(__file__).resolve().parents[1],env=env,capture_output=True,text=True,timeout=40)
+            self.assertEqual(76,result.returncode,result.stderr)
+            proof=json.loads(note.read_text());root=Path(proof['root'])
+            self.assertTrue(root.resolve().is_relative_to(Path(bound).resolve()))
+            self.assertEqual(1,proof['model_calls']);self.assertEqual(2,len(proof['submitted_texts']))
+            self.assertFalse(list(root.glob('temp_batch_*.wav')))
+            with workspace.SynthesisWorkspaceRegistry(root) as store:rows=copy.deepcopy(store.body['rows'])
+            self.assertEqual(2,len(rows));self.assertTrue(all(row['windows']==0 for row in rows.values()))
+            for name in rows:self.assertGreater((root/workspace.DIRECTORY/name/'assembled-parent.wav').stat().st_size,44)
+            with ensure_startup_recovery(root,timeout=0) as idle:
+                self.assertTrue(idle)
+                with ensure_book_state(root):self.assertEqual(2,workspace.apply_abandoned_synthesis_workspace_cleanup(root))
+            with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual({},store.body['rows'])
+            self.assertEqual(proof['prior_sha256'],hashlib.sha256(Path(proof['prior']).read_bytes()).hexdigest())
+
+    def test_batch_routes_capture_scope_and_native_writer_guards(self):
+        from contextlib import ExitStack
+        from contextvars import copy_context, Context
+        from synthesis_recovery_context import (RecoveryAdmissionError, ensure_synthesis_batch_outputs,
+            get_synthesis_batch_output_path)
+        from tests.test_take_publication import TakePublicationTests
+        import numpy as np
+        import soundfile as sf
+        class Model:
+            def generate_custom_voice(self,**kwargs):
+                if type(kwargs['text']) is not list:raise RuntimeError('Expected native list batching')
+                return [np.full(2400,.1 if text=='Short words.' else .3) for text in kwargs['text']],24000
+        engine=TakePublicationTests().engine();engine._synthesis_recovery=None
+        from synthesis_settings import get_synthesis_window_settings
+        engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':10000}}})
+        engine._local_custom_model=Model();engine._custom_warmup_needed=False
+        engine._sub_batch_max_items=0;engine._sub_batch_enabled=False
+        with ensure_audio_generation_owner(self.owner),ExitStack() as stack:
+            self.assertIs(self.parent,workspace.get_synthesis_workspace_parent(engine,'custom',self.parent,batch=True))
+            for method in ('_local_batch_custom','save_batch_waveforms','save_submitted_batch_waveforms','generate_batch'):
+                with self.subTest(method=method),patch.object(engine,method,return_value=None):
+                    self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'custom',self.parent,batch=True))
+            output=stack.enter_context(workspace.ensure_synthesis_parent_output(self.parent))
+            second=stack.enter_context(workspace.ensure_synthesis_parent_output(self.parent))
+            routes={0:output,1:second};stack.enter_context(ensure_synthesis_batch_outputs(self.root,routes));routes.clear()
+            self.assertEqual(output,get_synthesis_batch_output_path(self.root,0))
+            legacy=str(self.root/'temp_batch_0.wav')
+            self.assertEqual(legacy,Context().run(get_synthesis_batch_output_path,self.root,0))
+            self.assertEqual(output,copy_context().run(get_synthesis_batch_output_path,self.root,0))
+            expired=copy_context()
+            self.assertEqual(str(self.root/'elsewhere/temp_batch_0.wav'),get_synthesis_batch_output_path(self.root/'elsewhere',0))
+            with ensure_synthesis_batch_outputs(self.root,{}):self.assertEqual(legacy,get_synthesis_batch_output_path(self.root,0))
+            self.assertEqual(output,get_synthesis_batch_output_path(self.root,0))
+            with self.assertRaises(ValueError):get_synthesis_batch_output_path(self.root,True)
+            result=engine.generate_batch([
+                {'index':0,'uid':'line','text':'Actual longer batch words.','speaker':'NARRATOR','instruct':''},
+                {'index':1,'uid':'line-two','text':'Short words.','speaker':'NARRATOR','instruct':''}],
+                {'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}},str(self.root),42,capture_input=True)
+            self.assertEqual([1,0],result['completed'],result);self.assertEqual([],result['failed'])
+            self.assertEqual('Actual longer batch words.',result['speech_inputs'][0]['text'])
+            self.assertEqual('Short words.',result['speech_inputs'][1]['text'])
+            for path,amplitude in ((output,.3),(second,.1)):
+                self.assertAlmostEqual(amplitude,float(sf.read(path)[0][0]),places=4)
+            self.assertGreater(Path(output).stat().st_size,44)
+        self.assertEqual(str(self.root/'temp_batch_0.wav'),get_synthesis_batch_output_path(self.root,0))
+        with self.assertRaises(RecoveryAdmissionError):
+            expired.run(get_synthesis_batch_output_path,self.root,0)
+        self.assertEqual({},self.rows())
+
+    def test_project_batch_publication_cancel_replacement_capacity_defer_and_oom(self):
+        import numpy as np
+        import soundfile as sf
+        from contextlib import ExitStack
+        from audio_generation_owner import AudioGenerationCancelled
+        from synthesis_settings import get_synthesis_window_settings
+        from tests.test_take_publication import TakePublicationTests
+        case=TakePublicationTests()
+        for outcome in ('success','relative','mixed','cancel','replace','edit','capacity','defer','oom'):
+            with self.subTest(outcome=outcome),case.fixture(False,enabled=False) as (root,manager,previous,_),ExitStack() as stack:
+                if outcome=='relative':manager=type(manager)(os.path.relpath(root))
+                state={'cancelled':False,'replaced':False};calls=[];observed=[];attempt_rows=[]
+                @contextmanager
+                def current_owner(allow_cancelled=False):
+                    if state['replaced'] or state['cancelled'] and not allow_cancelled:raise AudioGenerationCancelled()
+                    yield
+                stack.enter_context(ensure_audio_generation_owner(AudioGenerationOwner('e'*32,current_owner)))
+                class Model:
+                    def generate_custom_voice(self,**kwargs):
+                        if type(kwargs['text']) is not list:raise RuntimeError('Expected native list batching')
+                        calls.append(list(kwargs['text']))
+                        with workspace.SynthesisWorkspaceRegistry(root) as store:attempt_rows.append(set(store.body['rows']))
+                        if outcome=='oom' and len(calls)==1:raise RuntimeError('CUDA out of memory')
+                        return [np.full(2400,.1 if text.startswith('Second') else .3) for text in kwargs['text']],24000
+                engine=case.engine();engine._synthesis_recovery=None;engine._local_custom_model=Model()
+                engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':10000}}})
+                engine._custom_warmup_needed=False;engine._sub_batch_max_items=0;engine._sub_batch_enabled=False;manager.engine=engine
+                chunks=manager.load_chunks();chunks.append({**chunks[0],'id':1,'uid':'line-two','text':'Second synthetic words.'});manager.save_chunks(chunks)
+                voices={'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}
+                if outcome=='mixed':
+                    chunks[1]['speaker']='DESIGN';manager.save_chunks(chunks)
+                    voices['DESIGN']={'type':'design','description':'Synthetic voice.'}
+                    def legacy_design(**kwargs):
+                        sf.write(kwargs['output_path'],np.full(2400,.1),24000);return True
+                    stack.enter_context(patch.object(engine,'generate_design_voice',side_effect=legacy_design))
+                Path(manager.voice_config_path).write_text(json.dumps(voices))
+                prior_hash=hashlib.sha256(previous.read_bytes()).hexdigest();original=manager._publish_generated_chunk_audio
+                def publish(chunk,path,*args,**kwargs):
+                    observed.append(Path(path));self.assertTrue(Path(path).is_file())
+                    self.assertAlmostEqual(.1 if chunk['uid']=='line-two' else .3,float(sf.read(path)[0][0]),places=4)
+                    if outcome=='mixed':
+                        self.assertEqual(chunk['uid']=='line',Path(path).is_relative_to(root/workspace.DIRECTORY))
+                    if outcome in ('cancel','replace'):
+                        state['cancelled']=True;state['replaced']=outcome=='replace';raise AudioGenerationCancelled()
+                    if outcome=='edit':manager._update_chunk_fields_by_uid(chunk['uid'],text='Changed '+chunk['uid'])
+                    return original(chunk,path,*args,**kwargs)
+                stack.enter_context(patch.object(manager,'_publish_generated_chunk_audio',side_effect=publish))
+                removed=stack.enter_context(patch.object(manager,'_remove_temp_file',wraps=manager._remove_temp_file))
+                if outcome=='capacity':stack.enter_context(patch.object(workspace,'MAX_ROWS',1))
+                if outcome=='defer':stack.enter_context(patch.object(workspace.SynthesisWorkspaceRegistry,'retire',side_effect=OSError('defer batch cleanup')))
+                if outcome=='capacity':
+                    with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):manager.generate_chunks_batch([0,1],42,2)
+                    self.assertEqual([],calls)
+                else:
+                    result=manager.generate_chunks_batch([0,1],42,2)
+                    if outcome in ('success','relative','mixed','defer','oom'):self.assertEqual([0,1],sorted(result['completed']))
+                    if outcome in ('cancel','replace','edit'):self.assertEqual([],result['completed'])
+                    self.assertEqual([2,1,1] if outcome=='oom' else [1] if outcome=='mixed' else [2],[len(row) for row in calls])
+                self.assertFalse(list(root.glob('temp_batch_*.wav')))
+                for path in observed:
+                    if path.is_relative_to(root/workspace.DIRECTORY):
+                        self.assertNotIn(str(path),[call.args[0] for call in removed.call_args_list])
+                    else:self.assertIn(str(path),[call.args[0] for call in removed.call_args_list])
+                if outcome in ('cancel','replace','edit','capacity'):self.assertEqual(prior_hash,hashlib.sha256(previous.read_bytes()).hexdigest())
+                with workspace.SynthesisWorkspaceRegistry(root) as store:
+                    self.assertEqual(2 if outcome in ('replace','defer') else 0,len(store.body['rows']))
+                if outcome=='oom':self.assertTrue(attempt_rows[0].isdisjoint(set().union(*attempt_rows[1:])))
+                stack.close()
+                with ensure_startup_recovery(root,timeout=0) as idle:
+                    self.assertTrue(idle)
+                    with ensure_book_state(root):workspace.apply_abandoned_synthesis_workspace_cleanup(root)
+                with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual({},store.body['rows'])
 
     def test_parent_only_schema_exclusive_output_and_unknown_window_preservation(self):
         with ensure_audio_generation_owner(self.owner):

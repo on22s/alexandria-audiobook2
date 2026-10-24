@@ -13,6 +13,14 @@ finishing those windows does not retire the raw parent. This applies when the
 existing recovery/window settings provide captured Project authority, including
 when reusable recovery is disabled but synthesis windows are enabled.
 
+The same captured authority also covers built-in local CustomVoice Project
+batch outputs. Each participating row has a separate parent workspace allocated
+before dispatch and retained through all batch finalizers. Native list batching,
+length sorting, sub-batching and OOM size reduction remain unchanged. Internal
+routes bind the project directory, index and live claim to the registered path;
+speech-input capture uses that same path. Unmapped rows keep their normal output
+paths. Overridden batch writers do not receive registered output routes.
+
 The registry is `.synthesis-workspaces-v1/registry.json` under the project data
 root. It records opaque workspace IDs, hashed claim/book provenance, directory
 identities and the declared window count. It contains no source text. Cleanup
@@ -40,6 +48,10 @@ that understands parent rows to resume automatic maintenance.
 - Parent and inner-window registrations share that 256-workspace budget. An
   active participating windowed Project render can occupy two slots. Capacity
   refusal never falls back to an unregistered parent file.
+- Participating batch rows each occupy one parent slot, plus an inner-window
+  slot while a split parent is being rendered. All parent slots for the current
+  batch attempt must be admitted before provider work. OOM retries use fresh
+  scopes and registrations; prior attempt paths are not reused.
 - Only the registered window files, private assembled parent and fixed join
   scratch are disposable. Unknown files, symlinks, hardlinks, changed directory
   identities and invalid or missing registry authority are preserved.
@@ -55,8 +67,8 @@ that understands parent rows to resume automatic maintenance.
   renders. Other voice categories, Windows/macOS, overridden providers and direct
   unleased Python callers retain their normal temporary-file behavior. They have
   no claimed hard-crash reclamation qualification yet.
-- Default nonwindow renders without captured recovery authority, native-batch
-  `temp_batch_*.wav`, and encoding/publication staging in `voicelines` or
+- Default nonwindow renders without captured recovery authority, batch rows
+  outside the participating local CustomVoice path, and staging in `voicelines` or
   `.chapter-export-*` remain outside this raw-parent registration. Existing
   unregistered parent files are preserved; this change does not authorize
   filename-based cleanup of historical files.

@@ -335,9 +335,9 @@ class SynthesisWorkspaceRegistry:
             raise SynthesisWorkspaceUnavailable('Unsafe workspace file preserved')
 
 
-def get_synthesis_workspace_parent(engine, category, parent):
+def get_synthesis_workspace_parent(engine, category, parent, *, batch=False):
     """Return captured authority only for the known synchronous native writer."""
-    from tts import TTSEngine, _RAW_RECOVERY_METHODS
+    from tts import TTSEngine, _RAW_RECOVERY_METHODS, _RAW_BATCH_WORKSPACE_METHODS
     from synthesis_recovery_context import RecoveryParent, get_recovery_claim_digest
     if (type(engine) is not TTSEngine or category != 'custom'
             or not is_synthesis_workspace_supported()
@@ -346,6 +346,9 @@ def get_synthesis_workspace_parent(engine, category, parent):
         return None
     if (all(getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
             for name, method in _RAW_RECOVERY_METHODS.items())
+            and (not batch or all(
+                getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
+                for name, method in _RAW_BATCH_WORKSPACE_METHODS.items()))
             and engine.get_voice_backend(category) == 'local'):
         return parent
     return None

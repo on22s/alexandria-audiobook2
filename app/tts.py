@@ -36,7 +36,8 @@ from audio_generation_owner import (is_audio_generation_cancelled, ensure_audio_
                                     AudioGenerationCancelled)
 from synthesis_render import (ensure_synthesis_receipts, get_synthesis_window_plan,
                               render_synthesis_windows)
-from synthesis_recovery_context import ensure_synthesis_recovery_batch_parent
+from synthesis_recovery_context import (ensure_synthesis_recovery_batch_parent,
+                                        get_synthesis_batch_output_path)
 from synthesis_settings import get_enabled_synthesis_recovery_settings
 from speech_verification_settings import get_enabled_speech_verification_settings
 from synthesis_input import (ensure_speech_input_capture, is_speech_input_capture_active,
@@ -128,7 +129,7 @@ def capture_batch_speech_inputs(render):
                 return result
             inputs = {}
             for index in result['completed']:
-                record = get_captured_speech_input(os.path.join(output_dir, f'temp_batch_{index}.wav'))
+                record = get_captured_speech_input(get_synthesis_batch_output_path(output_dir, index))
                 if record is not None:
                     inputs[index] = record
             return {**result, 'speech_inputs': inputs}
@@ -2496,7 +2497,7 @@ class TTSEngine:
 
     def _generate_prepared_batch_parent(self, chunk, voice_config, output_dir, batch_seed):
         idx = chunk["index"]
-        output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
+        output_path = get_synthesis_batch_output_path(output_dir, idx)
         resolved = get_batch_voice_config(voice_config, chunk.get("speaker"), idx, batch_seed)
         with (ensure_synthesis_recovery_batch_parent(chunk.get("uid")),
               ensure_synthesis_receipts() as receipts):
@@ -2859,7 +2860,7 @@ class TTSEngine:
         duration = 0.0
         for waveform, index in zip(waveforms, indices):
             try:
-                path = os.path.join(output_dir, f"temp_batch_{index}.wav")
+                path = get_synthesis_batch_output_path(output_dir, index)
                 audio = self._concat_audio(waveform)
                 self._save_wav(audio, sample_rate, path)
                 result["completed"].append(index)
@@ -2882,7 +2883,7 @@ class TTSEngine:
             submitted = dict(zip(indices, texts))
             for index in result['completed']:
                 if index in submitted:
-                    capture_speech_input(os.path.join(output_dir, f'temp_batch_{index}.wav'),
+                    capture_speech_input(get_synthesis_batch_output_path(output_dir, index),
                         submitted[index], self._language, 'local_' + category + '_batch_api')
         return result, duration
 
@@ -3667,6 +3668,8 @@ _RAW_DESIGN_VOICE = TTSEngine.generate_design_voice
 _RAW_ENSEMBLE_VOICE = TTSEngine.generate_ensemble_voice
 _RAW_GENERATE_VOICE = TTSEngine.generate_voice
 _RAW_SAVE_BATCH_WAVEFORMS = TTSEngine.save_batch_waveforms
+_RAW_BATCH_WORKSPACE_METHODS = {name: getattr(TTSEngine, name) for name in (
+    '_local_batch_custom', 'save_batch_waveforms', 'save_submitted_batch_waveforms')}
 _RAW_MIX_TO_UNISON = mix_to_unison
 
 

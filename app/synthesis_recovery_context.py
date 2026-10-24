@@ -3,12 +3,23 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 import hashlib
+import os
 import re
+from types import MappingProxyType
 
 from audio_generation_owner import get_audio_generation_claim_id
 
 _parent = ContextVar('synthesis_recovery_parent', default=None)
 _batch_parents = ContextVar('synthesis_recovery_batch_parents', default=None)
+_batch_outputs = ContextVar('synthesis_recovery_batch_outputs', default=None)
+
+
+@dataclass
+class _BatchOutputs:
+    root: str
+    claim: object
+    paths: object
+    active: bool = True
 
 
 class RecoveryAdmissionError(RuntimeError):
@@ -80,6 +91,49 @@ def ensure_synthesis_recovery_batch_parent(uid):
     # Missing UID must clear an outer parent, never accidentally reuse its cache.
     with ensure_synthesis_recovery_parent(parent):
         yield
+
+
+@contextmanager
+def ensure_synthesis_batch_outputs(project_root, outputs):
+    """Bind Project's already registered outputs to one synchronous batch scope."""
+    from synthesis_workspace import DIRECTORY, MAX_ROWS
+    root = os.path.abspath(project_root)
+    claim = get_recovery_claim_digest()
+    if type(outputs) is not dict or len(outputs) > MAX_ROWS:
+        raise ValueError('Invalid registered batch outputs')
+    for index, path in outputs.items():
+        if (type(index) is not int or index < 0 or not isinstance(path, str)
+                or os.path.abspath(path) != path or claim is None):
+            raise ValueError('Invalid registered batch output')
+        relative = os.path.relpath(path, root).split(os.sep)
+        if (len(relative) != 3 or relative[0] != DIRECTORY
+                or re.fullmatch('[0-9a-f]{32}', relative[1]) is None
+                or relative[2] != 'assembled-parent.wav'):
+            raise ValueError('Registered batch output escaped its Project')
+    binding = _BatchOutputs(root, claim, MappingProxyType(dict(outputs)))
+    token = _batch_outputs.set(binding)
+    try:
+        yield
+    finally:
+        binding.active = False
+        _batch_outputs.reset(token)
+
+
+def get_registered_synthesis_batch_output(output_dir, index):
+    binding = _batch_outputs.get()
+    if binding is None or os.path.abspath(output_dir) != binding.root:
+        return None
+    if type(index) is not int or index < 0:
+        raise ValueError('Invalid registered batch index')
+    path = binding.paths.get(index)
+    if path is not None and (not binding.active or get_recovery_claim_digest() != binding.claim):
+        raise RecoveryAdmissionError('Registered batch output owner changed')
+    return path
+
+
+def get_synthesis_batch_output_path(output_dir, index):
+    path = get_registered_synthesis_batch_output(output_dir, index)
+    return path if path is not None else os.path.join(output_dir, f'temp_batch_{index}.wav')
 
 
 from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code

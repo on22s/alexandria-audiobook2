@@ -43,7 +43,8 @@ from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationC
                                     get_audio_generation_owner, is_audio_generation_cancelled,
                                     run_with_audio_generation_owner)
 from synthesis_recovery_context import (RecoveryParent, RecoveryAdmissionError, get_recovery_claim_digest,
-    ensure_synthesis_recovery_parent, ensure_synthesis_recovery_batch)
+    ensure_synthesis_recovery_parent, ensure_synthesis_recovery_batch,
+    ensure_synthesis_batch_outputs, get_registered_synthesis_batch_output, get_synthesis_batch_output_path)
 from synthesis_recovery_identity import get_recovery_digest
 from speech_verification_settings import get_enabled_speech_verification_settings
 from book_state_transaction import get_book_operation_token
@@ -3156,6 +3157,12 @@ class ProjectManager:
                 else:
                     print(f"Warning: Could not delete temp file {temp_path}")
 
+    def _remove_batch_temp_file(self, idx):
+        # Registered paths, including deferred/substituted ones, belong only to
+        # identity-based registry retirement. Never pass them to legacy unlink.
+        if get_registered_synthesis_batch_output(self.root_dir, idx) is None:
+            self._remove_temp_file(os.path.join(self.root_dir, f"temp_batch_{idx}.wav"))
+
     def _finalize_completed_chunk(self, idx, chunks, recovery_parent=None, publication_admission=None):
         """Finalize from a captured row, conditionally publishing to the live UID.
 
@@ -3165,7 +3172,7 @@ class ProjectManager:
         chunk = get_captured_chunk(chunks, idx)
         if chunk is None:
             return "failed", idx, "Index out of range in captured generation"
-        temp_path = os.path.join(self.root_dir, f"temp_batch_{idx}.wav")
+        temp_path = get_synthesis_batch_output_path(self.root_dir, idx)
         try:
             ensure_audio_generation_active()
             if not os.path.exists(temp_path):
@@ -3191,7 +3198,7 @@ class ProjectManager:
                 return "cancelled", idx, AUDIO_GENERATION_CANCELLED
             return "failed", idx, str(e) if updated is not None else GENERATION_INPUTS_CHANGED
         finally:
-            self._remove_temp_file(temp_path)
+            self._remove_batch_temp_file(idx)
 
     def _record_batch_failures(self, batch_failed, chunks, current_batch_size):
         """Separate retryable OOM failures and conditionally mark live owners."""
@@ -3334,124 +3341,134 @@ class ProjectManager:
             batch_num += 1
             print(f"Batch {batch_num} ({len(batch_indices)} chunks, size={current_batch_size}, {len(pending)} queued)")
 
-            # Build batch request data
-            batch_chunks = []
-            cleanup_failures = []
-            for idx in batch_indices:
-                chunk = captured.get(idx)
-                if chunk:
-                    try:
-                        updated = self._update_generation_fields(chunk, status="generating")
-                    except AudioGenerationCancelled:
-                        break
-                    except (ValueError, OSError) as error:
-                        self._restore_cancelled_generation(chunk)
-                        cleanup_failures.append((idx, str(error)))
-                        continue
-                    if updated is None:
-                        cleanup_failures.append((idx, GENERATION_INPUTS_CHANGED))
-                        continue
-                    temp_path = os.path.join(
-                        self.root_dir, f"temp_batch_{idx}.wav")
-                    try:
-                        remove_stale_audio(temp_path)
-                    except OSError as exc:
-                        message = f"Could not remove stale temp audio: {exc}"
-                        cleanup_failures.append((idx, message))
-                        continue
-                    # Resolve aliases so batch uses canonical speaker config
-                    speaker = chunk.get("speaker", "")
-                    canonical = self._resolve_alias(speaker, voice_config)
-                    if chunk.get("pronunciation_rules"):
-                        settings = engine.get_model_settings() if callable(getattr(engine, "get_model_settings", None)) else {}
-                        chunk = {**chunk, "_pronunciation_context": get_pronunciation_render_context(
-                            voice_config, chunk, idx, settings)}
-                        captured[idx] = chunk
-                    batch_chunk = {
-                        "index": idx,
-                        "uid": chunk.get("uid"),
-                        "text": chunk.get("text", ""),
-                        "instruct": chunk.get("instruct", ""),
-                        "speaker": canonical
-                    }
-                    if chunk.get("pronunciation_rules"):
-                        batch_chunk.update(pronunciation_rules=copy.deepcopy(chunk["pronunciation_rules"]),
-                                           _source_speaker=speaker)
-                    # Preserve narrator-selection metadata through the
-                    # project boundary; the TTS engine uses these fields to
-                    # resolve focus/chapter/gender strategies per chunk.
-                    batch_chunk.update(get_narrator_generation_context(chunk))
-                    batch_chunks.append(batch_chunk)
+            with ExitStack() as batch_stack:
+                batch_stack.enter_context(ensure_synthesis_batch_outputs(self.root_dir, {}))
+                # Build batch request data
+                batch_chunks = []
+                cleanup_failures = []
+                for idx in batch_indices:
+                    chunk = captured.get(idx)
+                    if chunk:
+                        try:
+                            updated = self._update_generation_fields(chunk, status="generating")
+                        except AudioGenerationCancelled:
+                            break
+                        except (ValueError, OSError) as error:
+                            self._restore_cancelled_generation(chunk)
+                            cleanup_failures.append((idx, str(error)))
+                            continue
+                        if updated is None:
+                            cleanup_failures.append((idx, GENERATION_INPUTS_CHANGED))
+                            continue
+                        temp_path = os.path.join(
+                            self.root_dir, f"temp_batch_{idx}.wav")
+                        try:
+                            remove_stale_audio(temp_path)
+                        except OSError as exc:
+                            message = f"Could not remove stale temp audio: {exc}"
+                            cleanup_failures.append((idx, message))
+                            continue
+                        # Resolve aliases so batch uses canonical speaker config
+                        speaker = chunk.get("speaker", "")
+                        canonical = self._resolve_alias(speaker, voice_config)
+                        if chunk.get("pronunciation_rules"):
+                            settings = engine.get_model_settings() if callable(getattr(engine, "get_model_settings", None)) else {}
+                            chunk = {**chunk, "_pronunciation_context": get_pronunciation_render_context(
+                                voice_config, chunk, idx, settings)}
+                            captured[idx] = chunk
+                        batch_chunk = {
+                            "index": idx,
+                            "uid": chunk.get("uid"),
+                            "text": chunk.get("text", ""),
+                            "instruct": chunk.get("instruct", ""),
+                            "speaker": canonical
+                        }
+                        if chunk.get("pronunciation_rules"):
+                            batch_chunk.update(pronunciation_rules=copy.deepcopy(chunk["pronunciation_rules"]),
+                                               _source_speaker=speaker)
+                        # Preserve narrator-selection metadata through the
+                        # project boundary; the TTS engine uses these fields to
+                        # resolve focus/chapter/gender strategies per chunk.
+                        batch_chunk.update(get_narrator_generation_context(chunk))
+                        batch_chunks.append(batch_chunk)
 
-            # Call batch TTS with single seed. If stale-output cleanup rejected
-            # every row, there is nothing safe to dispatch.
-            try:
-                recovery_parents = {}
-                publication_admissions = {}
-                for row in batch_chunks:
-                    parent = self._capture_synthesis_recovery_parent(engine, row["index"], captured[row["index"]])
-                    if parent is not None:
-                        recovery_parents[row["uid"]] = parent
-                        materialized = self.get_chunk_render_voice_config(
-                            voice_config, row['speaker'], row, row['index'], batch_seed=batch_seed)
-                        admission = self._capture_take_publication_admission(engine, parent, row['index'],
-                            captured[row['index']], materialized, row['speaker'])
-                        if admission is not None:
-                            publication_admissions[row['index']] = admission
-                with ensure_synthesis_recovery_batch(recovery_parents):
-                    batch_results = (engine.generate_batch(
-                        batch_chunks, voice_config, self.root_dir, batch_seed,
-                        **({'capture_input':True} if publication_admissions else {}))
-                        if batch_chunks and not is_audio_generation_cancelled() else {"completed": [], "failed": []})
-            except Exception:
+                # Call batch TTS with single seed. If stale-output cleanup rejected
+                # every row, there is nothing safe to dispatch.
+                try:
+                    recovery_parents = {}
+                    publication_admissions = {}
+                    batch_outputs = {}
+                    for row in batch_chunks:
+                        parent = self._capture_synthesis_recovery_parent(engine, row["index"], captured[row["index"]])
+                        if parent is not None:
+                            recovery_parents[row["uid"]] = parent
+                            materialized = self.get_chunk_render_voice_config(
+                                voice_config, row['speaker'], row, row['index'], batch_seed=batch_seed)
+                            admission = self._capture_take_publication_admission(engine, parent, row['index'],
+                                captured[row['index']], materialized, row['speaker'])
+                            if admission is not None:
+                                publication_admissions[row['index']] = admission
+                            from synthesis_workspace import get_synthesis_workspace_parent, ensure_synthesis_parent_output
+                            category = voice_category(materialized.get(row['speaker'], {}))
+                            registered = get_synthesis_workspace_parent(engine, category, parent, batch=True)
+                            if registered is not None:
+                                batch_outputs[row['index']] = os.path.abspath(batch_stack.enter_context(
+                                    ensure_synthesis_parent_output(registered)))
+                    batch_stack.enter_context(ensure_synthesis_batch_outputs(self.root_dir, batch_outputs))
+                    with ensure_synthesis_recovery_batch(recovery_parents):
+                        batch_results = (engine.generate_batch(
+                            batch_chunks, voice_config, self.root_dir, batch_seed,
+                            **({'capture_input':True} if publication_admissions else {}))
+                            if batch_chunks and not is_audio_generation_cancelled() else {"completed": [], "failed": []})
+                except Exception:
+                    if is_audio_generation_cancelled():
+                        for idx in batch_indices:
+                            self._remove_batch_temp_file(idx)
+                        break
+                    self._reset_captured_generations(captured, indices, set())
+                    raise
                 if is_audio_generation_cancelled():
                     for idx in batch_indices:
-                        self._remove_temp_file(os.path.join(self.root_dir, f"temp_batch_{idx}.wav"))
+                        self._remove_batch_temp_file(idx)
                     break
-                self._reset_captured_generations(captured, indices, set())
-                raise
-            if is_audio_generation_cancelled():
-                for idx in batch_indices:
-                    self._remove_temp_file(os.path.join(self.root_dir, f"temp_batch_{idx}.wav"))
-                break
-            batch_results["failed"].extend(cleanup_failures)
+                batch_results["failed"].extend(cleanup_failures)
 
-            # Process completed chunks - convert to MP3 and update status
-            for idx in batch_results["completed"]:
-                receipt = batch_results.get("synthesis_receipts", {}).get(idx)
-                if receipt is not None and idx in captured:
-                    captured[idx] = {**captured[idx], "_synthesis_receipt": copy.deepcopy(receipt)}
-                speech_input = batch_results.get("speech_inputs", {}).get(idx)
-                if speech_input is not None and idx in captured:
-                    captured[idx] = {**captured[idx], "_speech_input": copy.deepcopy(speech_input)}
-                recovery_parent = recovery_parents.get(captured[idx].get('uid')) if idx in captured else None
-                publication_admission = publication_admissions.get(idx)
-                outcome, out_idx, payload = self._finalize_completed_chunk(idx, captured,
-                    **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}),
-                    **({'publication_admission': publication_admission} if publication_admission is not None else {}))
-                if outcome == "completed":
-                    results["completed"].append(out_idx)
-                elif outcome != "cancelled":
-                    results["failed"].append((out_idx, payload))
+                # Process completed chunks - convert to MP3 and update status
+                for idx in batch_results["completed"]:
+                    receipt = batch_results.get("synthesis_receipts", {}).get(idx)
+                    if receipt is not None and idx in captured:
+                        captured[idx] = {**captured[idx], "_synthesis_receipt": copy.deepcopy(receipt)}
+                    speech_input = batch_results.get("speech_inputs", {}).get(idx)
+                    if speech_input is not None and idx in captured:
+                        captured[idx] = {**captured[idx], "_speech_input": copy.deepcopy(speech_input)}
+                    recovery_parent = recovery_parents.get(captured[idx].get('uid')) if idx in captured else None
+                    publication_admission = publication_admissions.get(idx)
+                    outcome, out_idx, payload = self._finalize_completed_chunk(idx, captured,
+                        **({'recovery_parent': recovery_parent} if recovery_parent is not None else {}),
+                        **({'publication_admission': publication_admission} if publication_admission is not None else {}))
+                    if outcome == "completed":
+                        results["completed"].append(out_idx)
+                    elif outcome != "cancelled":
+                        results["failed"].append((out_idx, payload))
 
-            oom_failed, hard_failures = self._record_batch_failures(
-                batch_results["failed"], captured, current_batch_size)
-            # Preserve failures durably recorded before cancellation admission.
-            results["failed"].extend(hard_failures)
-            if is_audio_generation_cancelled():
-                for idx in batch_indices:
-                    self._remove_temp_file(os.path.join(self.root_dir, f"temp_batch_{idx}.wav"))
-                break
+                oom_failed, hard_failures = self._record_batch_failures(
+                    batch_results["failed"], captured, current_batch_size)
+                # Preserve failures durably recorded before cancellation admission.
+                results["failed"].extend(hard_failures)
+                if is_audio_generation_cancelled():
+                    for idx in batch_indices:
+                        self._remove_batch_temp_file(idx)
+                    break
 
-            if oom_failed:
-                gc.collect()
-                current_batch_size = max(1, current_batch_size - 1)
-                pending = oom_failed + pending  # retry the OOM chunks first
-                print(f"[VRAM] Out-of-memory on {len(oom_failed)} chunk(s) — stepping TTS "
-                      f"batch size down to {current_batch_size} and retrying.")
+                if oom_failed:
+                    gc.collect()
+                    current_batch_size = max(1, current_batch_size - 1)
+                    pending = oom_failed + pending  # retry the OOM chunks first
+                    print(f"[VRAM] Out-of-memory on {len(oom_failed)} chunk(s) — stepping TTS "
+                          f"batch size down to {current_batch_size} and retrying.")
 
-            if progress_callback:
-                progress_callback(len(results["completed"]), len(results["failed"]), total)
+                if progress_callback:
+                    progress_callback(len(results["completed"]), len(results["failed"]), total)
 
         # Reset remaining "generating" chunks to "pending" on cancel or completion
         done_indices = set(results["completed"]) | {idx for idx, _ in results["failed"]}
