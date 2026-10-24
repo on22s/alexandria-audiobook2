@@ -23,6 +23,7 @@ from default_prompts import load_default_prompts, load_instruct_prompts, load_se
 from llm_provider import is_api_key_reference
 from device_utils import get_available_gpu_device, normalize_device
 from review_prompts import load_review_prompts
+from diagnostics import redact_text
 from persona_prompts import load_persona_prompts
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                get_failover_llm_config,
@@ -624,7 +625,7 @@ async def llm_models(request: LlmModelsRequest):
     try:
         return {"models": await asyncio.to_thread(fetch)}
     except Exception as exc:                                    # noqa: BLE001
-        return {"models": [], "error": str(exc)[:200]}
+        return {"models": [], "error": redact_text(str(exc))[:200]}
 
 @router.post("/api/llm/test")
 async def llm_test(profile: Optional[LLMConfig] = None):

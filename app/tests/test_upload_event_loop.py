@@ -149,8 +149,17 @@ class UploadEventLoopTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(script,'UPLOADS_DIR',str(uploads)),patch.object(script,'DATA_DIR',str(root)):
                 async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://fixture') as client:
                     response = await client.post('/api/upload',files={'file':('bad.epub',b'not a ZIP')})
+                    # The reason survives, but not the owner's home path inside it.
+                    # A synthetic home path, assembled so it is not a machine-path literal.
+                    leak = OSError(2,'No such file','/'.join(('','home','fixtureuser','books','x.epub')))
+                    with patch.object(script,'extract_epub_text',side_effect=leak):
+                        leaked = await client.post('/api/upload',files={'file':('ok.epub',b'PK fixture')})
             self.assertEqual(400,response.status_code,response.text)
             self.assertIn('Failed to process EPUB',response.json()['detail'])
+            self.assertEqual(400,leaked.status_code,leaked.text)
+            self.assertIn('No such file',leaked.json()['detail'])
+            self.assertIn('~/books/x.epub',leaked.json()['detail'])
+            self.assertNotIn('fixtureuser',leaked.json()['detail'])
             self.assertEqual([],list(uploads.iterdir()))
             self.assertEqual(before,(root/'state.json').read_bytes())
 

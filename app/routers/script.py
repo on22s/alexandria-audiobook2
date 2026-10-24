@@ -34,6 +34,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StrictBool
 
 from speaker_identity import get_validated_alias_graph
+from diagnostics import redact_text
 from llm_provider import manual_llm_dir, is_manual_request_owner_alive
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
@@ -852,7 +853,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                 if cancelled is not None:
                     raise cancelled
             except Exception as error:
-                raise HTTPException(status_code=400, detail=f"Failed to process EPUB: {error}") from error
+                raise HTTPException(status_code=400, detail=f"Failed to process EPUB: {redact_text(str(error))}") from error
             if not text.strip():
                 raise HTTPException(status_code=400, detail="No readable text content found in EPUB.")
             text_bytes = text.encode('utf-8')
@@ -1065,8 +1066,8 @@ def start_book_preflight(background_tasks, request):
                     result["summary"] = summary
                     result["status"] = "complete" if code == 0 and summary["status"] == "complete" else "failed"
             except Exception as exc:
-                result.update(status="failed", error=str(exc))
-                state["logs"].append(f"Preflight failed: {exc}")
+                result.update(status="failed", error=redact_text(str(exc)))
+                state["logs"].append(f"Preflight failed: {result['error']}")
             finally:
                 state["status"] = result["status"]
                 try:
@@ -1224,7 +1225,7 @@ def get_current_generation_checkpoint(*, locked=False):
         return None
     except (OSError, ValueError, UnicodeError) as exc:
         raise HTTPException(status_code=409,
-                            detail=f"Cannot read generation checkpoint: {exc}") from exc
+                            detail=f"Cannot read generation checkpoint: {redact_text(str(exc))}") from exc
 
 
 @router.post("/api/generate_script/snapshot")
@@ -3046,7 +3047,7 @@ async def retry_delivery_review(request: DeliveryRetryRequest, background_tasks:
     try:
         return await asyncio.to_thread(start_delivery_retry, background_tasks, request)
     except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
 
 
 @router.post("/api/annotated_script/delivery_review/cancel")

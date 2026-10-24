@@ -32,3 +32,13 @@ class ModelListEndpointPolicyTests(unittest.TestCase):
                     self.assertEqual(200,result.status_code,result.text)
                     self.assertEqual({'models':['fixture']},result.json())
                     self.assertEqual(system._normalize_openai_base_url(url),make.call_args.args[0]['base_url'])
+        # A failure is still reported, with credentials and home paths scrubbed from it.
+        failing=SimpleNamespace(models=SimpleNamespace(list=lambda:(_ for _ in ()).throw(
+            OSError('cannot reach http://user:hunter2secret@localhost:1234 via /home/fixtureuser/.proxy'))))
+        with patch('llm_provider.make_llm_client',return_value=failing), TestClient(app) as client:
+            result=client.post('/api/llm/models',json={'base_url':'http://localhost:1234','api_key':'fixture'})
+        self.assertEqual(200,result.status_code,result.text)
+        self.assertEqual([],result.json()['models'])
+        self.assertIn('cannot reach',result.json()['error'])
+        for secret in ('hunter2secret','fixtureuser'):
+            self.assertNotIn(secret,result.json()['error'])
