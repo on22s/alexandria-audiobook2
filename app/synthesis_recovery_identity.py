@@ -10,22 +10,27 @@ of an external blob target. Ancestors above those paths are deliberately not
 versioned: creating an unrelated sibling changes their mtime/ctime but no model
 binding. Direct file, link and directory replace/restore is still caught, and an
 ancestor replacement is caught because the model root under the canonical path
-has a different identity. A transient rename/restore of an ancestor that leaves
-the model root inode unchanged is not detectable from these attributes; that
-residual is explicit rather than inferred from unrelated directory activity.
+has a different identity. Native load certification additionally requires a live
+namespace guard from before hashing through load completion. Its self-move events
+catch ancestor rename/restore without binding unrelated sibling timestamps.
+Standalone snapshots describe inventory observations; they do not prove that
+paths stayed unchanged throughout a load without that guard.
 """
 from dataclasses import dataclass
+import ctypes
 import hashlib
 import json
 import os
 from pathlib import Path
 import stat
+import sys
 
 MAX_MODEL_FILES = 512
 MAX_MODEL_DIRECTORIES = 64
 MAX_MODEL_BYTES = 16 * 1024 ** 3
 MAX_MODEL_FILE_BYTES = 8 * 1024 ** 3
 HASH_BLOCK_BYTES = 1024 * 1024
+MAX_MODEL_NAMESPACE_WATCHES = 128
 _REQUIRED_ASSETS = frozenset({
     'config.json', 'generation_config.json', 'preprocessor_config.json',
     'tokenizer_config.json', 'vocab.json', 'merges.txt',
@@ -62,6 +67,157 @@ class RecoveryModelSnapshot:
     files: tuple
     sha256: str
     directories: tuple
+
+
+class _LinuxStatFs(ctypes.Structure):
+    # Linux 64-bit libc statfs ABI. Other word sizes remain unqualified.
+    _fields_ = [('kind', ctypes.c_long), ('block_size', ctypes.c_long),
+                ('blocks', ctypes.c_ulong), ('free', ctypes.c_ulong),
+                ('available', ctypes.c_ulong), ('files', ctypes.c_ulong),
+                ('free_files', ctypes.c_ulong), ('fsid', ctypes.c_int * 2),
+                ('name_length', ctypes.c_long), ('fragment_size', ctypes.c_long),
+                ('flags', ctypes.c_long), ('spare', ctypes.c_long * 4)]
+
+
+def _ensure_private_model_asset(info):
+    if (info.st_uid not in (0, os.geteuid()) or info.st_mode & 0o022
+            or info.st_ctime_ns % 1_000_000_000 == 0):
+        raise RecoveryIdentityUnavailable('unqualified_model_asset_permissions_or_clock')
+
+
+def _ensure_local_model_filesystem(descriptor, inspect_filesystem):
+    info = _LinuxStatFs()
+    if inspect_filesystem(descriptor, ctypes.byref(info)) != 0:
+        raise OSError(ctypes.get_errno(), 'Model filesystem inspection unavailable')
+    # btrfs, XFS, tmpfs and ext-family local filesystems. Network/FUSE and
+    # opaque stacked filesystems cannot prove local self-move notifications.
+    if info.kind not in (0x9123683e, 0x58465342, 0x1021994, 0xef53):
+        raise RecoveryIdentityUnavailable('unsupported_model_namespace_filesystem')
+
+
+class RecoveryModelNamespaceGuard:
+    """Observe directory moves across a native load, without watching siblings.
+
+    Existing file/link ctime and inventory checks still bind individual assets.
+    This Linux-only lease covers transient moves of their ancestors. Watches
+    attach through directory descriptors, walking actual parents rather than
+    reopening an ancestor pathname that may have moved. Any event, including
+    watch removal or queue overflow, permanently refuses the load certificate.
+    Closing the descriptor also releases all kernel watches after process death.
+    """
+    def __init__(self, local_path, *, check_active=None):
+        self.root = Path(local_path).resolve(strict=True)
+        self.check_active = check_active
+        self.fd = None
+        self.dirty = False
+        self.snapshot = None
+
+    def __enter__(self):
+        if (self.fd is not None or self.dirty or sys.platform != 'linux'
+                or ctypes.sizeof(ctypes.c_long) != 8):
+            raise RecoveryIdentityUnavailable('unsupported_model_namespace_guard')
+        self.files, self.directories = _get_model_inventory(self.root)
+        library = ctypes.CDLL(None, use_errno=True)
+        try:
+            initialize = library.inotify_init1
+            watch = library.inotify_add_watch
+            inspect_filesystem = library.fstatfs
+        except AttributeError as error:
+            raise RecoveryIdentityUnavailable('unsupported_model_namespace_guard') from error
+        initialize.argtypes = [ctypes.c_int]
+        initialize.restype = ctypes.c_int
+        watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+        watch.restype = ctypes.c_int
+        inspect_filesystem.argtypes = [ctypes.c_int, ctypes.POINTER(_LinuxStatFs)]
+        inspect_filesystem.restype = ctypes.c_int
+        descriptor = initialize(os.O_NONBLOCK | os.O_CLOEXEC)
+        if descriptor < 0:
+            raise OSError(ctypes.get_errno(), 'Model namespace observer unavailable')
+        self.fd = descriptor
+        try:
+            seen = set()
+            # IN_MOVE_SELF | IN_DELETE_SELF | IN_UNMOUNT | IN_ONLYDIR.
+            # IN_IGNORED and IN_Q_OVERFLOW are delivered automatically.
+            mask = 0x800 | 0x400 | 0x2000 | 0x1000000
+            for item in self.files:
+                if self.check_active is not None:
+                    self.check_active()
+                asset = os.open(item.target, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC)
+                try:
+                    info = os.fstat(asset)
+                    if _get_stat_identity(info) != item.identity:
+                        raise RecoveryIdentityUnavailable('model_namespace_changed')
+                    _ensure_private_model_asset(info)
+                    _ensure_local_model_filesystem(asset, inspect_filesystem)
+                finally:
+                    os.close(asset)
+            for path, expected in self.directories:
+                directory = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+                try:
+                    if _get_stat_identity(os.fstat(directory)) != expected:
+                        raise RecoveryIdentityUnavailable('model_namespace_changed')
+                    _ensure_private_model_asset(os.fstat(directory))
+                    while True:
+                        if self.check_active is not None:
+                            self.check_active()
+                        info = os.fstat(directory)
+                        key = (info.st_dev, info.st_ino)
+                        if key in seen:
+                            break
+                        if (info.st_uid not in (0, os.geteuid())
+                                or (info.st_mode & 0o022
+                                    and not (info.st_uid == 0 and info.st_mode & stat.S_ISVTX))):
+                            raise RecoveryIdentityUnavailable('unqualified_model_namespace_permissions')
+                        if len(seen) >= MAX_MODEL_NAMESPACE_WATCHES:
+                            raise RecoveryIdentityUnavailable('model_namespace_limit')
+                        _ensure_local_model_filesystem(directory, inspect_filesystem)
+                        if watch(self.fd, os.fsencode(f'/proc/self/fd/{directory}'), mask) < 0:
+                            raise OSError(ctypes.get_errno(), 'Model namespace watch unavailable')
+                        seen.add(key)
+                        parent = os.open('..', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                         dir_fd=directory)
+                        previous, directory = directory, parent
+                        os.close(previous)
+                finally:
+                    os.close(directory)
+            self.check()
+            return self
+        except BaseException:
+            self.__exit__(*sys.exc_info())
+            raise
+
+    def bind(self, snapshot):
+        if type(snapshot) is not RecoveryModelSnapshot:
+            raise RecoveryIdentityUnavailable('missing_load_snapshot')
+        files = tuple(_ModelFile(item.name, item.target, item.identity, item.name_identity)
+                      for item in snapshot.files)
+        if (snapshot.root != str(self.root) or files != self.files
+                or snapshot.directories != self.directories):
+            # A changed HF link could introduce an unwatched external target.
+            raise RecoveryIdentityUnavailable('model_namespace_inventory_changed')
+        self.check()
+        self.snapshot = snapshot
+
+    def check(self):
+        if self.fd is None or self.dirty:
+            raise RecoveryIdentityUnavailable('model_namespace_changed_or_closed')
+        if self.check_active is not None:
+            self.check_active()
+        try:
+            os.read(self.fd, 4096)
+        except BlockingIOError:
+            return
+        except BaseException:
+            self.dirty = True
+            raise
+        self.dirty = True
+        raise RecoveryIdentityUnavailable('model_namespace_changed_or_closed')
+
+    def __exit__(self, *error):
+        self.dirty = True
+        if self.fd is not None:
+            descriptor, self.fd = self.fd, None
+            os.close(descriptor)
 
 
 def _get_model_inventory(root):
@@ -151,7 +307,18 @@ def _get_bounded_model_json(path):
                 raise RecoveryIdentityUnavailable('model_metadata_changed')
     finally:
         os.close(fd)
-    return json.loads(data)
+    def unique(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise ValueError('Duplicate model metadata field')
+            value[key] = item
+        return value
+
+    def reject_constant(value):
+        raise ValueError('Nonfinite model metadata')
+
+    return json.loads(data, object_pairs_hook=unique, parse_constant=reject_constant)
 
 
 def _validate_model_inventory(root, files):
@@ -168,7 +335,10 @@ def _validate_model_inventory(root, files):
                 and item.name.count('/') <= 1):
             if item.identity[2] > 1024 * 1024:
                 raise RecoveryIdentityUnavailable('model_config_limit')
-            document = _get_bounded_model_json(root / item.name)
+            try:
+                document = _get_bounded_model_json(root / item.name)
+            except ValueError as error:
+                raise RecoveryIdentityUnavailable('invalid_model_config') from error
             if not isinstance(document, dict):
                 raise RecoveryIdentityUnavailable('invalid_model_config')
             _ensure_conventional_asset_references(document)
@@ -183,7 +353,10 @@ def _validate_model_inventory(root, files):
         path = root / index_name
         if path.stat().st_size > 1024 * 1024:
             raise RecoveryIdentityUnavailable('weight_index_limit')
-        document = _get_bounded_model_json(path)
+        try:
+            document = _get_bounded_model_json(path)
+        except ValueError as error:
+            raise RecoveryIdentityUnavailable('invalid_weight_index') from error
         weight_map = document.get('weight_map') if isinstance(document, dict) else None
         if not isinstance(weight_map, dict) or not weight_map or len(weight_map) > 100000:
             raise RecoveryIdentityUnavailable('invalid_weight_index')
@@ -265,7 +438,7 @@ def capture_recovery_model_snapshot(local_path, *, check_active=None):
 
 
 def ensure_recovery_model_snapshot_current(snapshot):
-    """Prove the known loader's admitted files stayed stable through loading."""
+    """Check the captured inventory now; native loads also require a live fence."""
     if type(snapshot) is not RecoveryModelSnapshot:
         raise RecoveryIdentityUnavailable('missing_load_snapshot')
     current, directories = _get_model_inventory(Path(snapshot.root))
