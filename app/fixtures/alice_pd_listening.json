@@ -1,0 +1,350 @@
+{
+  "license": "public-domain",
+  "source": "Alice's Adventures in Wonderland, Lewis Carroll (1865), Project Gutenberg text. Audio rendered locally from that text.",
+  "lines": [
+    {
+      "id": "line_01",
+      "speaker": "NARRATOR",
+      "text": "(Which was very likely true.) Down, down, down. Would the fall _never_ come to an end?",
+      "instruct": "Neutral, even narration with a calm and steady tone."
+    },
+    {
+      "id": "line_02",
+      "speaker": "NARRATOR",
+      "text": "when suddenly, thump! thump! down she came upon a heap of sticks and dry leaves, and the fall was over.",
+      "instruct": "Narrator delivers the description with a calm, matter-of-fact tone, voice steady."
+    },
+    {
+      "id": "line_03",
+      "speaker": "NARRATOR",
+      "text": "but the wise little Alice was not going to do _that_ in a hurry.",
+      "instruct": "Narrator speaks with a calm, reflective tone, voice steady and thoughtful."
+    },
+    {
+      "id": "line_04",
+      "speaker": "NARRATOR",
+      "text": "her best to climb up one of the legs of the table, but it was too slippery; and when she had tired herself out with trying, the poor little thing sat down and cried.",
+      "instruct": "Narrate with a descriptive and slightly dramatic tone, detailing Alice's frustration and attempts to reach the key."
+    },
+    {
+      "id": "line_05",
+      "speaker": "ALICE",
+      "text": "I wonder how many miles I’ve fallen by this time?",
+      "instruct": "Curious and questioning, with a youthful and inquisitive tone."
+    },
+    {
+      "id": "line_06",
+      "speaker": "ALICE",
+      "text": "Dinah’ll miss me very much to-night, I should think!",
+      "instruct": "Alice speaks with a mix of concern and affection, voice soft but slightly anxious."
+    },
+    {
+      "id": "line_07",
+      "speaker": "ALICE",
+      "text": "Do cats eat bats? Do cats eat bats?",
+      "instruct": "Alice repeats the question with a growing sense of confusion and repetition."
+    },
+    {
+      "id": "line_08",
+      "speaker": "ALICE",
+      "text": "Now, Dinah, tell me the truth: did you ever eat a bat?",
+      "instruct": "Alice speaks with a determined, earnest tone, voice full of sincerity and urgency."
+    },
+    {
+      "id": "line_09",
+      "speaker": "ALICE",
+      "text": "it would be of very little use without my shoulders. Oh, how I wish I could shut up like a telescope! I think I could, if I only knew how to begin.",
+      "instruct": "Alice speaks with a tone of frustration and determination, voice full of curiosity and wonder."
+    },
+    {
+      "id": "line_10",
+      "speaker": "ALICE",
+      "text": "—but I shall have to ask them what the name of the country is, you know. Please, Ma’am, is this New Zealand or Australia?",
+      "instruct": "Curious and questioning, with a youthful and inquisitive tone."
+    },
+    {
+      "id": "line_11",
+      "speaker": "HATTER",
+      "text": "Why is a raven like a writing-desk? Come, we shall have some fun now!",
+      "instruct": "HATTER speaks with a curious, slightly whimsical tone."
+    },
+    {
+      "id": "line_12",
+      "speaker": "HATTER",
+      "text": "I told you butter wouldn’t suit the works!",
+      "instruct": "Speak with an angry, accusatory tone, as if blaming someone."
+    },
+    {
+      "id": "line_13",
+      "speaker": "HATTER",
+      "text": "‘Twinkle, twinkle, little bat! How I wonder what you’re at!’",
+      "instruct": "Hatter sings the line with a playful, sing-song tone, as if performing a song."
+    },
+    {
+      "id": "line_14",
+      "speaker": "QUEEN",
+      "text": "either you or your head must be off, and that in about half no time! Take your choice!",
+      "instruct": "Queen's voice is booming, furious, and authoritative, with a sharp, commanding delivery."
+    },
+    {
+      "id": "line_15",
+      "speaker": "QUEEN",
+      "text": "Behead that Dormouse! Turn that Dormouse out of court! Suppress him! Pinch him! Off with his whiskers!",
+      "instruct": "Shrieking, high-pitched voice with urgency."
+    },
+    {
+      "id": "line_16",
+      "speaker": "CHESHIRE CAT",
+      "text": "lives a March Hare. Visit either you like: they’re both mad.",
+      "instruct": "Sarcastic, mocking tone."
+    },
+    {
+      "id": "line_17",
+      "speaker": "CHESHIRE CAT",
+      "text": "we’re all mad here. I’m mad. You’re mad.",
+      "instruct": "Sarcastic, mocking tone."
+    },
+    {
+      "id": "line_18",
+      "speaker": "CHESHIRE CAT",
+      "text": "you see, a dog growls when it’s angry, and wags its tail when it’s pleased. Now _I_ growl when I’m pleased, and wag my tail when I’m angry. Therefore I’m mad.",
+      "instruct": "Mysterious, slow, and deliberate with a mischievous tone."
+    },
+    {
+      "id": "line_19",
+      "speaker": "MOCK TURTLE",
+      "text": "you needn’t be so proud as all that.",
+      "instruct": "Mock Turtle’s voice, dismissive and slightly mocking"
+    },
+    {
+      "id": "line_20",
+      "speaker": "MOCK TURTLE",
+      "text": "Now at _ours_ they had at the end of the bill, ‘French, music, _and washing_—extra.’",
+      "instruct": "Proud, slightly boastful tone with emphasis on 'washing'."
+    },
+    {
+      "id": "line_21",
+      "speaker": "MOCK TURTLE",
+      "text": "he taught Laughing and Grief, they used to say.",
+      "instruct": "Mock Turtle speaks with a melancholic, wistful tone, as if recalling distant memories."
+    },
+    {
+      "id": "line_22",
+      "speaker": "DUCHESS",
+      "text": "I speak severely to my boy, I beat him when he sneezes; For he can thoroughly enjoy The pepper when he pleases!",
+      "instruct": "Duchess recites the verse with a harsh, commanding tone."
+    },
+    {
+      "id": "line_23",
+      "speaker": "DUCHESS",
+      "text": "You can’t think how glad I am to see you again, you dear old thing!",
+      "instruct": "Affectionate and warm, with a friendly and welcoming tone."
+    },
+    {
+      "id": "line_24",
+      "speaker": "DUCHESS",
+      "text": "Everything’s got a moral, if only you can find it.",
+      "instruct": "Sarcastic, mocking tone with a sharp, clipped delivery."
+    },
+    {
+      "id": "line_25",
+      "speaker": "WHITE RABBIT",
+      "text": "Oh my ears and whiskers, how late it’s getting!",
+      "instruct": "White Rabbit speaks with a frantic, high-pitched tone, voice full of panic and urgency."
+    },
+    {
+      "id": "line_26",
+      "speaker": "WHITE RABBIT",
+      "text": "As if _I_ would talk on such a subject! Our family always _hated_ cats: nasty, low, vulgar things! Don’t let me hear the name again!",
+      "instruct": "WHITE RABBIT speaks in a passionate, vehement tone, expressing strong dislike for cats."
+    },
+    {
+      "id": "line_27",
+      "speaker": "GRYPHON",
+      "text": "It’s all her fancy, that: they never executes nobody, you know. Come on!",
+      "instruct": "Gruff, sarcastic tone with a hint of mockery."
+    },
+    {
+      "id": "line_28",
+      "speaker": "GRYPHON",
+      "text": "You know what to beautify is, I suppose?",
+      "instruct": "Confused, high-pitched voice with a lisp."
+    },
+    {
+      "id": "line_29",
+      "speaker": "CATERPILLAR",
+      "text": "So you think you’re changed, do you?",
+      "instruct": "Caterpillar's voice is slow and probing, with a challenging inflection."
+    },
+    {
+      "id": "line_30",
+      "speaker": "CATERPILLAR",
+      "text": "don’t give yourself airs! Do you think I can listen all day to such stuff? Be off, or I’ll kick you down stairs!",
+      "instruct": "CATERPILLAR speaks in a sharp, aggressive tone, with a hint of impatience."
+    }
+  ],
+  "scenes": [
+    {
+      "id": "scene_01",
+      "title": "Chapter II",
+      "lines": [
+        {
+          "speaker": "WHITE RABBIT",
+          "text": "Would _you_ like cats if you were me?"
+        },
+        {
+          "speaker": "ALICE",
+          "text": "Well, perhaps not,"
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "said Alice in a soothing tone:"
+        },
+        {
+          "speaker": "ALICE",
+          "text": "don’t be angry about it. And yet I wish I could show you our cat Dinah: I think you’d take a fancy to cats if you could only see her. She is such a dear quiet thing,"
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "Alice went on, half to herself, as she swam lazily about in the pool,"
+        },
+        {
+          "speaker": "ALICE",
+          "text": "and she sits purring so nicely by the fire, licking her paws and washing her face—and she is such a nice soft thing to nurse—and she’s such a capital one for catching mice—oh, I beg your pardon!"
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "cried Alice again, for this time the Mouse was bristling all over, and she felt certain it must be really offended."
+        }
+      ]
+    },
+    {
+      "id": "scene_02",
+      "title": "Chapter V",
+      "lines": [
+        {
+          "speaker": "NARRATOR",
+          "text": "said the Caterpillar. This was not an encouraging opening for a conversation. Alice replied, rather shyly,"
+        },
+        {
+          "speaker": "ALICE",
+          "text": "I—I hardly know, sir, just at present—at least I know who I _was_ when I got up this morning, but I think I must have been changed several times since then."
+        },
+        {
+          "speaker": "CATERPILLAR",
+          "text": "What do you mean by that?"
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "said the Caterpillar sternly."
+        },
+        {
+          "speaker": "CATERPILLAR",
+          "text": "Explain yourself!"
+        },
+        {
+          "speaker": "ALICE",
+          "text": "I can’t explain _myself_, I’m afraid, sir,"
+        }
+      ]
+    },
+    {
+      "id": "scene_03",
+      "title": "Chapter VII",
+      "lines": [
+        {
+          "speaker": "NARRATOR",
+          "text": "the Hatter grumbled:"
+        },
+        {
+          "speaker": "HATTER",
+          "text": "you shouldn’t have put it in with the bread-knife."
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "The March Hare took the watch and looked at it gloomily: then he dipped it into his cup of tea, and looked at it again: but he could think of nothing better to say than his first remark,"
+        },
+        {
+          "speaker": "MARCH HARE",
+          "text": "It was the _best_ butter, you know."
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "Alice had been looking over his shoulder with some curiosity."
+        },
+        {
+          "speaker": "ALICE",
+          "text": "What a funny watch!"
+        }
+      ]
+    },
+    {
+      "id": "scene_04",
+      "title": "Chapter X",
+      "lines": [
+        {
+          "speaker": "NARRATOR",
+          "text": "shouted the Gryphon, with a bound into the air."
+        },
+        {
+          "speaker": "MOCK TURTLE",
+          "text": "—as far out to sea as you can—"
+        },
+        {
+          "speaker": "GRYPHON",
+          "text": "Swim after them!"
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "screamed the Gryphon."
+        },
+        {
+          "speaker": "MOCK TURTLE",
+          "text": "Turn a somersault in the sea!"
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "cried the Mock Turtle, capering wildly about."
+        },
+        {
+          "speaker": "MOCK TURTLE",
+          "text": "Change lobsters again!"
+        }
+      ]
+    },
+    {
+      "id": "scene_05",
+      "title": "Chapter XI",
+      "lines": [
+        {
+          "speaker": "KING",
+          "text": "Herald, read the accusation!"
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "said the King. On this the White Rabbit blew three blasts on the trumpet, and then unrolled the parchment scroll, and read as follows:—"
+        },
+        {
+          "speaker": "WHITE RABBIT",
+          "text": "The Queen of Hearts, she made some tarts, All on a summer day: The Knave of Hearts, he stole those tarts, And took them quite away!"
+        },
+        {
+          "speaker": "KING",
+          "text": "Consider your verdict,"
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "the King said to the jury."
+        },
+        {
+          "speaker": "WHITE RABBIT",
+          "text": "Not yet, not yet!"
+        },
+        {
+          "speaker": "NARRATOR",
+          "text": "the Rabbit hastily interrupted."
+        }
+      ]
+    }
+  ]
+}
