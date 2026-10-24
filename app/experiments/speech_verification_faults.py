@@ -8,26 +8,38 @@ Large-v3 confirmation, CPU) over:
 - faults: copies of some controls with a known defect cut or spliced into the PCM
   (`make_fault`), so the right answer is known by construction.
 
-A control is a false positive when the verdict is not `no_content_candidate`; a
-fault is missed when it is. Designed faults are not human-listened truth, and real
-model failures (mumbled or skipped words in a render) can look different from a
-cut. Each worker gets its own ASR scratch parent so workers do not contend for the
-one per-user lease; nothing else in the verifier path is changed.
+A control flag is any verdict other than `no_content_candidate`; without listening
+it is unresolved and is not counted as a confirmed false positive. A fault is
+missed when the verdict is `no_content_candidate`. Designed faults are not
+human-listened truth, and real model failures (mumbled or skipped words in a
+render) can look different from a cut.
 
 Every case is bound to the bytes it is verified on: a control's WAV must hash to
-what its render proof names, and a fault is rebuilt from that control on every run
-and recorded with its own hash. Resumable: a row already in results.jsonl is
-reused only when its (run, case_id) and its text, fault, input hash and verifier
-runtime all still match; any other existing row stops the run rather than being
-silently reused or skipped.
+what its render proof names, and a fault is planned from that control, hashed in a
+private staging directory, and only published after resume validation. A result is
+published only when the verifier's returned audio identity matches the planned
+proof and its actual runtime identity matches the planned content identity.
+
+Resumable: a row already in results.jsonl is reused only when its (run, case_id)
+and its text, fault, input hash/size and verifier runtime all still match; a
+completed row must also carry a valid status, finite seconds and a verifier
+result. Anything else stops the run without changing prior derived files.
+
+The archived 334-row results.jsonl predates this input/runtime binding. It remains
+historical evidence, not a resumable checkpoint; resuming into it is refused
+rather than accepting rows with missing bindings.
 """
 import argparse
 import hashlib
 import json
+import math
 import multiprocessing
 import os
 from pathlib import Path
+import re
 import sys
+import tempfile
+import uuid
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
@@ -39,8 +51,16 @@ CLEAR = 'no_content_candidate'
 RUNS = ('alice', 'numbers', 'w1435_U', 'w1435_W', 'verify')
 LONG_FAULTS = ('tail_cut', 'head_cut', 'tail_repeat', 'mid_repeat')
 SHORT_FAULTS = ('short_double', 'short_half')
-# What a stored result must still agree on to be reused instead of rerun.
-BINDING = ('text', 'fault', 'expect', 'input_sha256', 'runtime')
+FAULT_KINDS = ('control',) + LONG_FAULTS + SHORT_FAULTS
+ALLOWED_STATUSES = (CLEAR, 'review', 'corroborated_content_difference',
+                    'review_confirmation_unavailable', 'unavailable',
+                    'review_short_acoustic_unavailable')
+BINDING = ('text', 'fault', 'expect', 'input_sha256', 'input_size', 'runtime')
+SAFE_COMPONENT = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z')
+SHA256 = re.compile(r'[0-9a-f]{64}\Z')
+MAX_ROWS_BYTES = 32 * 1024 ** 2
+MAX_RESULTS_BYTES = 64 * 1024 ** 2
+MAX_TEXT_CHARS = 100000
 
 
 def make_fault(pcm, kind):
@@ -62,7 +82,12 @@ def make_fault(pcm, kind):
     raise ValueError(f'unknown fault {kind}')
 
 
+def _is_sha(value):
+    return isinstance(value, str) and SHA256.fullmatch(value) is not None
+
+
 def get_sha256(path):
+    """Plain whole-file hash for tests and row proofs; admission uses the bounded helper."""
     digest = hashlib.sha256()
     with open(path, 'rb') as fh:
         for block in iter(lambda: fh.read(1024 ** 2), b''):
@@ -70,69 +95,242 @@ def get_sha256(path):
     return digest.hexdigest()
 
 
+def _validate_row(row):
+    """Validate one render-row shape and bounded metadata before reading its WAV."""
+    if not isinstance(row, dict):
+        raise ValueError('rows.json entries must be objects')
+    for field in ('clip_id', 'line_id'):
+        value = row.get(field)
+        if not isinstance(value, str) or not SAFE_COMPONENT.fullmatch(value):
+            raise ValueError(f'{field} is not a safe component: {value!r}')
+    if type(row.get('seed')) is not int:
+        raise ValueError(f"{row.get('clip_id')}: seed must be an integer")
+    wav = row.get('wav')
+    if not isinstance(wav, str) or len(wav) > 4096:
+        raise ValueError(f"{row.get('clip_id')}: wav path is missing or too long")
+    if not _is_sha(row.get('wav_sha256')):
+        raise ValueError(f"{row.get('clip_id')}: wav_sha256 is not a sha256")
+    speech = row.get('speech_input')
+    if not isinstance(speech, dict) or not isinstance(speech.get('text'), str):
+        raise ValueError(f"{row.get('clip_id')}: speech_input.text is missing")
+    if not speech['text'] or len(speech['text']) > MAX_TEXT_CHARS:
+        raise ValueError(f"{row.get('clip_id')}: speech_input.text is empty or too long")
+    audio = speech.get('audio')
+    if not isinstance(audio, dict) or not _is_sha(audio.get('sha256')):
+        raise ValueError(f"{row.get('clip_id')}: speech_input audio proof is missing")
+
+
+def _read_bounded_json(path, limit):
+    """Admit a bounded regular file, then read exactly the admitted bytes."""
+    from speech_verification_runtime import get_verifier_file_identity
+    info = get_verifier_file_identity(path, limit, lambda: False)
+    raw = Path(path).read_bytes()
+    if len(raw) != info['size'] or hashlib.sha256(raw).hexdigest() != info['sha256']:
+        raise ValueError(f'{path} changed while reading')
+    try:
+        return json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f'{path} is not valid JSON') from error
+
+
 def get_rows(run_dir):
     """Rows whose WAV on disk is the audio their render proof names."""
-    data = json.loads((Path(run_dir) / 'rows.json').read_text())
+    from speech_verification_runtime import get_verifier_file_identity
+    from word_timing import MAX_AUDIO_BYTES
+    data = _read_bounded_json(Path(run_dir) / 'rows.json', MAX_ROWS_BYTES)
+    if not isinstance(data, dict) or not isinstance(data.get('rows'), list):
+        raise ValueError(f'{run_dir}/rows.json has no rows list')
     for row in data['rows']:
+        _validate_row(row)
         proof = row['speech_input']['audio']['sha256']
         if proof != row['wav_sha256']:
             raise ValueError(f"{row['clip_id']}: render proof does not match its WAV")
-        actual = get_sha256(row['wav'])
-        if actual != proof:
+        actual = get_verifier_file_identity(row['wav'], MAX_AUDIO_BYTES, lambda: False)
+        if actual['sha256'] != proof:
             raise ValueError(f"{row['clip_id']}: WAV on disk is not the audio its render proof names")
-        yield dict(row, input_sha256=actual)
+        yield dict(row, input_sha256=actual['sha256'], input_size=actual['size'])
+
+
+def _confined_path(root, run, clip_id, kind):
+    """Build one derived filename from safe components only."""
+    for value in (run, clip_id):
+        if not isinstance(value, str) or not SAFE_COMPONENT.fullmatch(value):
+            raise ValueError(f'unsafe run/clip component: {value!r}')
+    if kind not in LONG_FAULTS + SHORT_FAULTS:
+        raise ValueError(f'unknown fault kind: {kind!r}')
+    name = f'{run}__{clip_id}__{kind}.wav'
+    if len(name) > 200 or not SAFE_COMPONENT.fullmatch(name):
+        raise ValueError(f'derived filename is not a safe component: {name!r}')
+    base = Path(root).absolute()
+    path = Path(os.path.abspath(base / name))
+    if path.parent != base:
+        raise ValueError(f'derived path escaped its directory: {path}')
+    return path
+
+
+def _planned_fault_identity(pcm, rate):
+    """Hash the exact WAV bytes a pending fault would publish, using private staging."""
+    from speech_verification_runtime import get_verifier_file_identity
+    from word_timing import MAX_AUDIO_BYTES
+    with tempfile.TemporaryDirectory(prefix='.fault-plan-') as directory:
+        path = Path(directory) / 'fault.wav'
+        sf.write(str(path), pcm, rate, subtype='PCM_16')
+        info = get_verifier_file_identity(path, MAX_AUDIO_BYTES, lambda: False)
+    return info['sha256'], info['size']
 
 
 def get_cases(pilot_root, derived_dir, fault_seeds, runs=RUNS):
-    """Every clip is a control; clips with a seed in `fault_seeds` also seed faults."""
+    """Every clip is a control; clips with a seed in `fault_seeds` also seed faults.
+
+    No derived file is written here. Fault PCM and identities are planned in
+    private staging so a rejected resume cannot overwrite prior evidence.
+    """
+    from speech_verification_runtime import get_verifier_file_identity
+    from word_timing import MAX_AUDIO_BYTES
     cases = []
-    derived_dir.mkdir(parents=True, exist_ok=True)
     for run in runs:
+        if run not in RUNS:
+            raise ValueError(f'unknown run: {run!r}')
         for row in get_rows(Path(pilot_root) / run):
             text = row['speech_input']['text']
             group = row['line_id'][0] if run == 'verify' else run
             cases.append(dict(case_id=f"{row['clip_id']}__control", run=run, group=group,
                               fault='control', expect='clean', text=text, wav=row['wav'],
-                              input_sha256=row['input_sha256']))
+                              input_sha256=row['input_sha256'], input_size=row['input_size']))
             if row['seed'] not in fault_seeds or run in ('numbers', 'w1435_W'):
                 continue
             kinds = SHORT_FAULTS if group == 'v' else () if group == 'r' else LONG_FAULTS
+            check = get_verifier_file_identity(row['wav'], MAX_AUDIO_BYTES, lambda: False)
+            if check['sha256'] != row['input_sha256'] or check['size'] != row['input_size']:
+                raise ValueError(f"{row['clip_id']}: control changed while planning")
             pcm, rate = sf.read(row['wav'], dtype='int16')
             if pcm.ndim != 1:
                 raise ValueError(f"{row['clip_id']}: expected mono render")
+            after = get_verifier_file_identity(row['wav'], MAX_AUDIO_BYTES, lambda: False)
+            if after['sha256'] != check['sha256'] or after['size'] != check['size']:
+                raise ValueError(f"{row['clip_id']}: control changed while reading")
             for kind in kinds:
-                # Rebuilt from the verified control every time, never trusted by name:
-                # a file left from an older source would otherwise be evaluated as this fault.
-                path = derived_dir / f"{run}__{row['clip_id']}__{kind}.wav"
-                staged = path.with_suffix('.tmp.wav')
-                sf.write(str(staged), make_fault(pcm, kind), rate, subtype='PCM_16')
-                os.replace(staged, path)
+                fault_pcm = make_fault(pcm, kind)
+                sha, size = _planned_fault_identity(fault_pcm, rate)
+                path = _confined_path(derived_dir, run, row['clip_id'], kind)
                 cases.append(dict(case_id=f"{row['clip_id']}__{kind}", run=run, group=group,
                                   fault=kind, expect='defect', text=text, wav=str(path),
-                                  input_sha256=get_sha256(path), source_sha256=row['input_sha256']))
+                                  input_sha256=sha, input_size=size,
+                                  source_sha256=row['input_sha256'],
+                                  _fault_pcm=fault_pcm, _fault_rate=rate))
     return cases
 
 
+def publish_cases(cases, derived_dir, done=()):
+    """Publish pending fault WAVs after resume validation; verify done evidence in place."""
+    from speech_verification_runtime import get_verifier_file_identity
+    from word_timing import MAX_AUDIO_BYTES
+    root = Path(derived_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    for case in cases:
+        if case['fault'] == 'control':
+            continue
+        path = Path(case['wav'])
+        if path.parent != root.absolute() and path.parent.resolve() != root.resolve():
+            raise ValueError(f"{case['case_id']}: derived path is outside {root}")
+        if (case['run'], case['case_id']) in done:
+            info = get_verifier_file_identity(path, MAX_AUDIO_BYTES, lambda: False)
+            if info['sha256'] != case['input_sha256'] or info['size'] != case['input_size']:
+                raise ValueError(f"{case['case_id']}: prior derived evidence changed; refusing to overwrite")
+            continue
+        staged = root / f'.{path.name}.{uuid.uuid4().hex}.tmp'
+        sf.write(str(staged), case['_fault_pcm'], case['_fault_rate'], format='WAV', subtype='PCM_16')
+        try:
+            info = get_verifier_file_identity(staged, MAX_AUDIO_BYTES, lambda: False)
+            if info['sha256'] != case['input_sha256'] or info['size'] != case['input_size']:
+                raise ValueError(f"{case['case_id']}: staged fault differs from its plan")
+            os.replace(staged, path)
+        finally:
+            if staged.exists():
+                staged.unlink()
+
+
 def get_runtime_identity(root):
-    """The verifier binaries and models a result came from, by path, size and mtime."""
-    from speech_verification_runtime import get_verification_runtime
-    identity = {}
-    for name, runtime in (('primary', get_verification_runtime(root)),
-                          ('confirmation', get_verification_runtime(root, confirmation=True))):
-        for part in ('binary', 'model'):
-            info = os.stat(runtime[part])
-            identity[f'{name}_{part}'] = [os.path.realpath(runtime[part]), info.st_size, info.st_mtime_ns]
-    return identity
+    """The verifier's content identity, including decoder, libraries, adapter code and options."""
+    from speech_verification_runtime import get_verification_runtime, get_verifier_identity
+    def one(confirmation):
+        role = 'confirmation' if confirmation else 'primary'
+        return get_verifier_identity(get_verification_runtime(root, confirmation=confirmation),
+                                     role, lambda: False)
+    return {'primary': one(False), 'confirmation': one(True)}
+
+
+def _validate_result_row(row, location):
+    """Validate the completed-result schema and finite bounds without touching the file."""
+    if not isinstance(row, dict):
+        raise ValueError(f'{location}: result row is not an object')
+    if row.get('run') not in RUNS:
+        raise ValueError(f'{location}: unknown run {row.get("run")!r}')
+    case_id = row.get('case_id')
+    if not isinstance(case_id, str) or not SAFE_COMPONENT.fullmatch(case_id):
+        raise ValueError(f'{location}: unsafe or missing case_id')
+    if row.get('fault') not in FAULT_KINDS:
+        raise ValueError(f'{location}: unknown fault {row.get("fault")!r}')
+    if row.get('expect') not in ('clean', 'defect'):
+        raise ValueError(f'{location}: unknown expectation {row.get("expect")!r}')
+    text = row.get('text')
+    if not isinstance(text, str) or not text or len(text) > MAX_TEXT_CHARS:
+        raise ValueError(f'{location}: text is missing or too long')
+    if row.get('status') not in ALLOWED_STATUSES:
+        raise ValueError(f'{location}: invalid or missing status')
+    seconds = row.get('seconds')
+    if (type(seconds) not in (int, float) or isinstance(seconds, bool)
+            or not math.isfinite(seconds) or not 0 <= seconds <= 86400):
+        raise ValueError(f'{location}: seconds is missing or out of bounds')
+    if 'duration' in row:
+        duration = row['duration']
+        if (type(duration) not in (int, float) or isinstance(duration, bool)
+                or not math.isfinite(duration) or not 0 <= duration <= 86400):
+            raise ValueError(f'{location}: duration is out of bounds')
+    if 'corroborated' in row:
+        corroborated = row['corroborated']
+        if type(corroborated) is not int or corroborated < 0:
+            raise ValueError(f'{location}: corroborated count is invalid')
+    for field in ('primary', 'confirmation', 'reason'):
+        if field in row and row[field] is not None and not isinstance(row[field], str):
+            raise ValueError(f'{location}: {field} is not text')
+    if not isinstance(row.get('primary'), str) and not isinstance(row.get('reason'), str):
+        raise ValueError(f'{location}: no verifier result')
+    if not isinstance(row.get('wav'), str) or not row['wav'] or len(row['wav']) > 4096:
+        raise ValueError(f'{location}: wav path is missing or too long')
+    if 'input_sha256' in row and not _is_sha(row['input_sha256']):
+        raise ValueError(f'{location}: input_sha256 is not a sha256')
+    if 'input_size' in row and (type(row['input_size']) is not int or row['input_size'] <= 0):
+        raise ValueError(f'{location}: input_size is invalid')
+    if 'runtime' in row and not isinstance(row['runtime'], dict):
+        raise ValueError(f'{location}: runtime is not an object')
+
+
+def _read_results_lines(results):
+    if not results.exists():
+        return ()
+    if results.is_file() and results.stat().st_size == 0:
+        return ()
+    from speech_verification_runtime import get_verifier_file_identity
+    info = get_verifier_file_identity(results, MAX_RESULTS_BYTES, lambda: False)
+    raw = Path(results).read_bytes()
+    if len(raw) != info['size'] or hashlib.sha256(raw).hexdigest() != info['sha256']:
+        raise ValueError(f'{results} changed while reading')
+    return raw.decode('utf-8').splitlines()
 
 
 def get_reusable_results(results, cases):
     """-> {(run, case_id)} already done for exactly these inputs; raises on anything else."""
     by_key = {(c['run'], c['case_id']): c for c in cases}
     done = set()
-    for number, line in enumerate(results.read_text().splitlines() if results.exists() else (), 1):
+    for number, line in enumerate(_read_results_lines(Path(results)), 1):
         if not line:
             continue
-        row = json.loads(line)
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise ValueError(f'{results}:{number}: invalid JSON') from error
+        _validate_result_row(row, f'{results}:{number}')
         key = (row.get('run'), row.get('case_id'))
         if key in done:
             raise ValueError(f'{results}:{number}: {key} appears twice')
@@ -152,10 +350,24 @@ def _verify(job):
     from speech_verification_runtime import get_verification_runtime
     report = verify_finished_speech(case['wav'], case['text'], 'en',
         get_verification_runtime(root), get_verification_runtime(root, confirmation=True))
-    out = dict(case, status=report['status'], seconds=round(report['seconds'], 2),
+    audio = report.get('audio') or {}
+    if (audio.get('sha256') != case['input_sha256'] or audio.get('size') != case['input_size']):
+        raise ValueError(f"{case['case_id']}: verifier consumed different audio than its planned proof")
+    planned = case['runtime']
+    primary = (report.get('primary') or {}).get('identity')
+    if primary is None:
+        if report.get('status') != 'unavailable':
+            raise ValueError(f"{case['case_id']}: verifier did not report its actual primary identity")
+    elif primary != planned.get('primary'):
+        raise ValueError(f"{case['case_id']}: primary verifier identity changed before publishing")
+    confirmation = report.get('confirmation')
+    if confirmation and confirmation.get('identity') != planned.get('confirmation'):
+        raise ValueError(f"{case['case_id']}: confirmation verifier identity changed before publishing")
+    out = {key: value for key, value in case.items() if not key.startswith('_')}
+    out.update(status=report['status'], seconds=round(report['seconds'], 2),
                duration=report.get('duration'), reason=report.get('reason'),
-               primary=report.get('primary', {}).get('transcript'),
-               confirmation=report.get('confirmation', {}).get('transcript'),
+               primary=(report.get('primary') or {}).get('transcript'),
+               confirmation=(report.get('confirmation') or {}).get('transcript'),
                corroborated=len(report.get('corroborated_regions') or ()))
     return out
 
@@ -171,12 +383,14 @@ def main(argv=None):
     parser.add_argument('--limit', type=int, default=0, help='run only the first N pending cases')
     args = parser.parse_args(argv)
     out = Path(args.out_dir)
-    cases = get_cases(args.pilot_root, out / 'derived', {int(s) for s in args.fault_seeds.split(',')},
+    derived = out / 'derived'
+    cases = get_cases(args.pilot_root, derived, {int(s) for s in args.fault_seeds.split(',')},
                       args.runs.split(','))
     runtime = get_runtime_identity(args.asr_root)
     cases = [dict(c, runtime=runtime) for c in cases]
     results = out / 'results.jsonl'
     done = get_reusable_results(results, cases)
+    publish_cases(cases, derived, done)
     todo = [c for c in cases if (c['run'], c['case_id']) not in done]
     if args.limit:
         todo = todo[:args.limit]
