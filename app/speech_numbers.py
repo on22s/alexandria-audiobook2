@@ -101,16 +101,31 @@ _RANGE_WORDS_AFTER = {
     "weeks", "months", "years", "miles", "feet", "inches", "yards", "metres",
     "meters", "kilometres", "kilometers", "pounds", "kilos", "percent", "%",
     "people", "men", "women", "times", "players", "points"}
-_WORD_BEFORE_RE = re.compile(r"([A-Za-z.']+)\s*$")
-_WORD_AFTER_RE = re.compile(r"^\s*(%|[A-Za-z.']+)")
+_WORD_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.'")
+_WORD_AFTER_RE = re.compile(r"\s*(%|[A-Za-z.']+)")
+
+
+def _get_word_before(text, end):
+    """The word ending at `end`, past any whitespace, read backward from `end` only.
+
+    Never slices or searches the whole prefix: each range looks at its own
+    neighbour, so a chunk with many ranges costs time in proportion to its length.
+    """
+    start = end
+    while start and text[start - 1].isspace():
+        start -= 1
+    stop = start
+    while start and text[start - 1] in _WORD_CHARS:
+        start -= 1
+    return text[start:stop] if start < stop else None
 
 
 def _has_range_context(match):
     if "–" in match.group(0):
         return True
-    before = _WORD_BEFORE_RE.search(match.string[:match.start()])
-    after = _WORD_AFTER_RE.search(match.string[match.end():])
-    return bool(before and before.group(1).lower().strip(".") in _RANGE_WORDS_BEFORE
+    before = _get_word_before(match.string, match.start())
+    after = _WORD_AFTER_RE.match(match.string, match.end())
+    return bool(before and before.lower().strip(".") in _RANGE_WORDS_BEFORE
                 or after and (after.group(1).lower() in _RANGE_WORDS_AFTER
                               or after.group(1).lower().rstrip(".,;:") in _RANGE_WORDS_AFTER))
 

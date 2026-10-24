@@ -44,6 +44,23 @@ class ConvertedTests(unittest.TestCase):
         for source, expected in cases.items():
             with self.subTest(source=source):
                 self.assertEqual(expected, spoken(source))
+        # A chunk holding many ranges reads each one exactly as it reads alone.
+        unit = "See pages 3-5.\tThe 737-800 flew 9–11 pm; subtract 1-2. "
+        self.assertEqual(spoken(unit) * 800, spoken(unit * 800))
+        # Range context is read from each range's own neighbours, never by copying
+        # or searching the whole text around it: reads stay proportional to length.
+        class CountedText(str):
+            read = 0
+            def __getitem__(self, key):
+                part = str.__getitem__(self, key)
+                CountedText.read += len(part)
+                return part
+        for repeats in (100, 800):
+            text = CountedText("pages 3-5. " * repeats)
+            CountedText.read = 0
+            for match in speech_numbers._RANGE_RE.finditer(text):
+                self.assertTrue(speech_numbers._has_range_context(match))
+            self.assertLessEqual(CountedText.read, 2 * len(text), repeats)
 
     def test_an_ambiguous_date_follows_the_book_order(self):
         self.assertEqual("dated the 4th of July, 1776.", spoken("dated 7/4/1776.", "mdy"))
