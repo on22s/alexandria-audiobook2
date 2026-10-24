@@ -2796,6 +2796,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                                         diagnostic_segment_resume=diagnostic_segment_resume,
                                         checkpoint_writer=checkpoint_writer)
     passes = {}
+    narration_resets = None            # set once the dialogue map has run (#1534)
 
     def emit_manifest(status, failed_pass=None, failed_chunk=None):
         failure_counts = Counter(
@@ -2819,6 +2820,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                             "truncations": sum(
                                 f.get("finish_reason") == "length"
                                 for f in diagnostic_failures),
+                            "narration_speaker_resets": narration_resets,
                         },
                         failed_pass=failed_pass, failed_chunk=failed_chunk,
                         legacy_resume=legacy_resume, progress={
@@ -3315,6 +3317,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     try:
         dialogue = apply_dialogue_map(annotated, source_text)
         annotated = dialogue["entries"]
+        narration_resets = len(dialogue["narration_changes"])
         if dialogue["convention"]:
             print(f"Dialogue map: {dialogue['convention']}, "
                   f"{dialogue['spoken']} spoken lines, "
@@ -3322,6 +3325,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             if dialogue["speaker_changes"]:
                 print(f"Source speaker labels applied to "
                       f"{len(dialogue['speaker_changes'])} entries")
+            if dialogue["narration_changes"]:
+                print(f"Source narration: {len(dialogue['narration_changes'])} entries "
+                      "had a character speaker and were set to NARRATOR")
         else:
             print("Dialogue map: convention could not be determined; entries "
                   "carry no `spoken` key rather than a guessed one")

@@ -2575,6 +2575,9 @@ def main():
             if dialogue["speaker_changes"]:
                 print(f"Printed speaker labels: corrected "
                       f"{len(dialogue['speaker_changes'])} entries from the source")
+            if dialogue["narration_changes"]:
+                print(f"Source narration: {len(dialogue['narration_changes'])} entries "
+                      "had a character speaker and were set to NARRATOR")
         else:
             print("Dialogue map: no convention detected; entries left unmarked")
     except Exception as exc:                              # noqa: BLE001

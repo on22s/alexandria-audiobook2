@@ -279,9 +279,11 @@ def apply_dialogue_map(entries, source_text, speaker_names=None):
     convention = detect_convention(source_text)
     if not convention:
         return {"entries": list(entries), "convention": None,
-                "located": 0, "spoken": 0, "ambiguous": 0, "speaker_changes": []}
+                "located": 0, "spoken": 0, "ambiguous": 0, "speaker_changes": [],
+                "narration_changes": []}
     mapped = mark_entries(entries, source_text, convention, speaker_names=speaker_names)
     mapped, speaker_changes = apply_source_speakers(mapped)
+    mapped, narration_changes = apply_source_narration(mapped)
     ambiguous = sum(1 for entry in mapped if entry.get("dialogue_ambiguity"))
     if ambiguous:
         logging.getLogger(__name__).warning(
@@ -294,7 +296,36 @@ def apply_dialogue_map(entries, source_text, speaker_names=None):
         "spoken": sum(1 for entry in mapped if entry.get("spoken")),
         "ambiguous": ambiguous,
         "speaker_changes": speaker_changes,
+        "narration_changes": narration_changes,
     }
+
+
+def get_source_narration(entry):
+    """True/False when the source says narration/speech, None when unestablished."""
+    spoken = entry.get("spoken")
+    return not spoken if type(spoken) is bool else None
+
+
+def apply_source_narration(entries):
+    """-> (entries, changes) with source-confirmed narration voiced by NARRATOR.
+
+    #1534: a model-split chunk can type narration as speech and the naming pass
+    then gives it a character. Where the source's quote marks place the line
+    outside every quotation, that is the fact and the character is the guess,
+    so the speaker becomes NARRATOR and the change is recorded. A printed
+    speaker label is the source too, so a line carrying one is left alone.
+    """
+    updated, changes = [], []
+    for entry in entries:
+        row = dict(entry)
+        current = str(row.get("speaker") or "")
+        if (get_source_narration(row) is True and current != "NARRATOR"
+                and not row.get("source_speaker")):
+            row["speaker"] = "NARRATOR"
+            changes.append({"type": "source_narration", "before": current,
+                            "after": "NARRATOR"})
+        updated.append(row)
+    return updated, changes
 
 # A NAME IMMEDIATELY BEFORE THE QUOTE. Web-novel transcripts often print the
 # speaker and then the line:

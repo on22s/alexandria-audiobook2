@@ -9,7 +9,8 @@ while its generated entries kept 16.
 """
 import unittest
 
-from dialogue_spans import (apply_source_speakers, detect_convention, mark_entries,
+from dialogue_spans import (apply_dialogue_map, apply_source_narration, apply_source_speakers,
+                            detect_convention, mark_entries,
                             speaker_labels, spoken_spans, uses_speaker_labels)
 
 
@@ -308,3 +309,39 @@ class ConventionValidationTests(unittest.TestCase):
             with self.subTest(convention=convention):
                 self.assertEqual([expected], [text[a:b] for a,b in spoken_spans(text, convention)])
         self.assertEqual([], spoken_spans('Plain narration.', None))
+
+
+class SourceNarrationTest(unittest.TestCase):
+    """#1534: narration the model typed as speech must not keep a character voice."""
+
+    def test_narration_given_a_character_is_returned_to_the_narrator(self):
+        source = ("He wondered how charming the boy had been at dinner. "
+                  "“You are late,” said Basil. “Sit down.”") + " " + "“Line.” " * 5
+        entries = [{"speaker": "LORD HENRY", "text": "He wondered how charming the boy had been at dinner."},
+                   {"speaker": "BASIL", "text": "You are late,"},
+                   {"speaker": "NARRATOR", "text": "said Basil."},
+                   {"speaker": "BASIL", "text": "Sit down."}]
+        result = apply_dialogue_map(entries, source)
+        self.assertEqual(["NARRATOR", "BASIL", "NARRATOR", "BASIL"],
+                         [row["speaker"] for row in result["entries"]])
+        self.assertEqual([{"type": "source_narration", "before": "LORD HENRY", "after": "NARRATOR"}],
+                         result["narration_changes"])
+        self.assertEqual("LORD HENRY", entries[0]["speaker"])
+
+    def test_unestablished_and_printed_lines_are_left_alone(self):
+        # No `spoken` key means the source did not answer; a printed label is
+        # the source's own answer. Neither is overridden.
+        rows = [{"speaker": "ALICE", "text": "unlocated"},
+                {"speaker": "ALICE", "text": "x", "dialogue_ambiguity": "interior_dash_turn"},
+                {"speaker": "ALICE", "text": "y", "spoken": False, "source_speaker": "Alice"},
+                {"speaker": "ALICE", "text": "z", "spoken": True}]
+        updated, changes = apply_source_narration(rows)
+        self.assertEqual([], changes)
+        self.assertEqual(rows, updated)
+
+    def test_review_guard_reads_the_same_fact(self):
+        from review_script import get_review_source_narration
+        for spoken, expected in ((False, True), (True, False), (None, None), ("yes", None)):
+            row = {} if spoken is None else {"spoken": spoken}
+            self.assertIs(expected, get_review_source_narration(row))
+
