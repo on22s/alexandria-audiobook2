@@ -19,7 +19,7 @@ from bounded_media_io import BoundedMediaOutput
 from media_process import get_media_process_environment
 from pcm_mux_profile import require_pcm_mux_runtime
 from pcm_mux_worker_request import get_pcm_mux_worker_request, MAX_REQUEST_BYTES
-from pcm_worker_contract import MAX_PCM_BYTES
+from pcm_worker_contract import MAX_PCM_BYTES, get_pcm_worker_error_context
 from project_scope_files import capture_scope_file
 
 
@@ -134,5 +134,5 @@ if __name__ == '__main__':
             raise ValueError('Expected one private worker directory')
         run_pcm_mux_worker(sys.argv[1])
     except Exception as error:
-        print('Bounded PCM worker failed: '+str(error)[:500],file=sys.stderr)
+        print('Bounded PCM worker failed: '+str(error)[:500]+' ['+get_pcm_worker_error_context(error)+']',file=sys.stderr)
         raise SystemExit(1)

@@ -24,6 +24,7 @@ from media_process import get_media_process_environment
 from m4b_worker_request import (get_m4b_worker_request, MAX_REQUEST_BYTES,
                                MAX_METADATA_BYTES, MAX_PCM_BYTES)
 from project_scope_files import capture_scope_file
+from pcm_worker_contract import get_pcm_worker_error_context
 
 
 def _capture(root, name, identity, limit, *, include_bytes=False):
@@ -165,5 +166,5 @@ if __name__ == '__main__':
             raise ValueError('Expected one private worker directory')
         run_m4b_mux_worker(sys.argv[1])
     except Exception as error:
-        print('Bounded M4B worker failed: '+str(error)[:500], file=sys.stderr)
+        print('Bounded M4B worker failed: '+str(error)[:500]+' ['+get_pcm_worker_error_context(error)+']', file=sys.stderr)
         raise SystemExit(1)

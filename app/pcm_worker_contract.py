@@ -1,5 +1,6 @@
 """Shared strict PCM geometry and captured file identity for media workers."""
 import math
+from pathlib import Path
 from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator, model_validator
 
@@ -85,3 +86,15 @@ class PCMWorkerMastering(BaseModel):
                 'input_i','input_tp','input_lra','input_thresh','target_offset'}:
             raise ValueError('Invalid worker mastering observations')
         return self
+
+
+def get_pcm_worker_error_context(error):
+    """Return bounded code locations, without filesystem roots or local values."""
+    locations = []
+    cursor = error.__traceback__
+    while cursor is not None:
+        code = cursor.tb_frame.f_code
+        locations.append(f'{Path(code.co_filename).name[:80]}:{cursor.tb_lineno} in {code.co_name[:80]}')
+        locations = locations[-4:]
+        cursor = cursor.tb_next
+    return ' -> '.join(locations)
