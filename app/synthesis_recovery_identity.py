@@ -4,6 +4,15 @@ HF snapshot file symlinks belong to the trusted model-loader domain. They are
 not recovery-artifact aliases: project cache IO rejects those separately.
 This module records bytes before a load and verifies the admitted file set and
 versions after it. An already loaded, unrecorded object cannot be relabeled.
+
+Directory binding covers the model root, its subdirectories and the direct parent
+of an external blob target. Ancestors above those paths are deliberately not
+versioned: creating an unrelated sibling changes their mtime/ctime but no model
+binding. Direct file, link and directory replace/restore is still caught, and an
+ancestor replacement is caught because the model root under the canonical path
+has a different identity. A transient rename/restore of an ancestor that leaves
+the model root inode unchanged is not detectable from these attributes; that
+residual is explicit rather than inferred from unrelated directory activity.
 """
 from dataclasses import dataclass
 import hashlib
@@ -62,22 +71,36 @@ def _get_model_inventory(root):
     visited = 0
     directory_versions = {}
 
-    def capture_directory_names(path):
-        # HF blobs live outside snapshots. Bind their canonical name chain too,
-        # so replacing/restoring a blobs parent cannot hide a different load.
-        for parent in (path, *path.parents):
-            key = str(parent)
-            if key not in directory_versions:
-                info = parent.stat()
-                if not stat.S_ISDIR(info.st_mode):
-                    raise RecoveryIdentityUnavailable('unsupported_model_directory')
-                directory_versions[key] = _get_stat_identity(info)
-                if len(directory_versions) > MAX_MODEL_DIRECTORIES:
-                    raise RecoveryIdentityUnavailable('model_directory_limit')
+    def record_directory(path):
+        # Bind the directories that name admitted assets, not every ancestor.
+        # An ancestor's mtime/ctime changes when an unrelated sibling is made;
+        # the model root/subdirectories and a private external target parent
+        # still bind replacement and rename/restore at the paths that matter.
+        key = str(path)
+        if key in directory_versions:
+            return
+        info = path.stat()
+        if not stat.S_ISDIR(info.st_mode):
+            raise RecoveryIdentityUnavailable('unsupported_model_directory')
+        directory_versions[key] = _get_stat_identity(info)
+        if len(directory_versions) > MAX_MODEL_DIRECTORIES:
+            raise RecoveryIdentityUnavailable('model_directory_limit')
+
+    def record_external_parent(path):
+        # A blob's direct parent names the blob. Shared ancestors (including the
+        # model root itself) are not recorded for outside targets: they would
+        # bind unrelated sibling contents. The target file identity and hash
+        # still bind the bytes, and a private parent still catches rename/restore.
+        try:
+            path.relative_to(root)
+        except ValueError:
+            if root.is_relative_to(path):
+                return
+            record_directory(path)
 
     while directories:
         directory = directories.pop()
-        capture_directory_names(directory)
+        record_directory(directory)
         visited += 1
         if visited > MAX_MODEL_DIRECTORIES:
             raise RecoveryIdentityUnavailable('model_directory_limit')
@@ -103,7 +126,7 @@ def _get_model_inventory(root):
                 else:
                     target = path
                 info = target.stat()
-                capture_directory_names(target.parent)
+                record_external_parent(target.parent)
                 if (not stat.S_ISREG(info.st_mode) or info.st_size <= 0
                         or info.st_size > MAX_MODEL_FILE_BYTES):
                     raise RecoveryIdentityUnavailable('unsupported_model_asset')

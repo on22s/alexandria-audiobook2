@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -196,6 +197,46 @@ class RecoveryModelIdentityTests(unittest.TestCase):
                     identity.capture_recovery_model_snapshot(self.root)
                 path.write_bytes(original)
         identity.capture_recovery_model_snapshot(self.root)
+
+    def test_unrelated_ancestor_sibling_activity_does_not_invalidate_snapshot(self):
+        # The model root is a child of the system temporary parent. An unrelated
+        # sibling there changes that ancestor's mtime/ctime but no model binding.
+        siblings = []
+        def create_unrelated_sibling():
+            if not siblings:
+                siblings.append(tempfile.TemporaryDirectory(prefix='unrelated-sibling-'))
+        try:
+            snapshot = identity.capture_recovery_model_snapshot(
+                self.root, check_active=create_unrelated_sibling)
+            identity.ensure_recovery_model_snapshot_current(snapshot)
+        finally:
+            for sibling in siblings:
+                sibling.cleanup()
+        # The same holds one level further out, where the root has its own parent.
+        with tempfile.TemporaryDirectory() as holder:
+            outer = Path(holder) / 'outer'
+            root = outer / 'model'
+            shutil.copytree(self.root, root)
+            snapshot = identity.capture_recovery_model_snapshot(root)
+            (outer / 'unrelated').mkdir()
+            (Path(holder) / 'another').mkdir()
+            identity.ensure_recovery_model_snapshot_current(snapshot)
+            self.assertTrue((outer / 'unrelated').is_dir())
+
+    def test_ancestor_replacement_invalidates_snapshot(self):
+        # Replacing an ancestor with a different directory tree is still caught:
+        # the model root under the canonical path is a different inode/identity.
+        with tempfile.TemporaryDirectory() as holder:
+            outer = Path(holder) / 'outer'
+            root = outer / 'model'
+            shutil.copytree(self.root, root)
+            snapshot = identity.capture_recovery_model_snapshot(root)
+            moved = Path(holder) / 'moved'
+            outer.rename(moved)
+            shutil.copytree(moved / 'model', outer / 'model')
+            with self.assertRaisesRegex(identity.RecoveryIdentityUnavailable,
+                                        'model_snapshot_changed'):
+                identity.ensure_recovery_model_snapshot_current(snapshot)
 
     @unittest.skipUnless(os.name == 'posix', 'requires POSIX HF file links')
     def test_restored_hf_link_and_directory_names_invalidate_load_admission(self):
