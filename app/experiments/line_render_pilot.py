@@ -324,6 +324,8 @@ def main(argv=None):
     parser.add_argument('--out-dir', required=True)
     parser.add_argument('--windows-budget', type=int, default=None,
                         help='enable synthesis windows for local LoRA at this character budget (#1435)')
+    parser.add_argument('--date-order', choices=('mdy', 'dmy'), default=None,
+                        help="this run's book order for ambiguous slash dates (#1546)")
     args = parser.parse_args(argv)
     try:
         if 'core' in sys.modules or os.environ.get('ALEXANDRIA_DATA_DIR'):
@@ -336,6 +338,9 @@ def main(argv=None):
         out.mkdir(mode=0o700, exist_ok=False)
         (out / 'wav').mkdir(); data = out / 'data'; data.mkdir()
         (data / 'config.json').write_bytes(config_raw)
+        if args.date_order:
+            # The run's own book state; the live book is never touched.
+            (data / 'state.json').write_text(json.dumps({'speech_date_order': args.date_order}))
         atomic_json_write({'status': 'incomplete', 'identity': identity, 'provenance': identity['provenance'], 'rows': []}, str(out / 'rows.json'))
         os.environ['ALEXANDRIA_DATA_DIR'] = str(data)
         import core
