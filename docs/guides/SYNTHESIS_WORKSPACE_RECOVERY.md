@@ -1,13 +1,14 @@
 # Disposable synthesis workspace recovery
 
-Owned built-in local CustomVoice synthesis windows on Linux now register their
-working WAVs before writing audio. When a process dies, the next idle application
+Owned local synthesis windows on Linux now register their working WAVs before
+writing audio. Participating categories are custom, clone, design, LoRA and
+ensemble. When a process dies, the next idle application
 startup or audio-task admission reclaims verified disposable files. This also
 applies when reusable segment recovery is disabled. A retry can therefore remove
 abandoned working copies without deleting saved takes or reusable cache evidence.
 
-For the participating built-in local CustomVoice Project route, the raw parent
-WAV also has its own registration, created before allocating the file and retained
+For participating local Project routes, the raw parent WAV also has its own
+registration, created before allocating the file and retained
 through encoding and final selected-take publication. Inner windows use a separate workspace;
 finishing those windows does not retire the raw parent. Raw-parent ownership is
 independent of optional synthesis windows and reusable recovery. Default renders
@@ -16,8 +17,8 @@ needed for disposable cleanup. Their reusable cache, speech-input capture and
 publication-proof policies remain unchanged; ownership alone enables none of
 those optional features.
 
-The same captured authority also covers built-in local CustomVoice Project
-batch outputs. Each participating row has a separate parent workspace allocated
+The same captured authority also covers participating local Project batch
+outputs for custom, clone, design, LoRA and ensemble. Each participating row has a separate parent workspace allocated
 before dispatch and retained through all batch finalizers. Native list batching,
 length sorting, sub-batching and OOM size reduction remain unchanged. Internal
 routes bind the project directory, index and live claim to the registered path;
@@ -66,14 +67,18 @@ that understands parent rows to resume automatic maintenance.
   remain untouched. Inspect known paths with the application stopped before any
   manual removal; never remove saved takes or recovery artifacts based on a
   shared filename prefix.
-- Automatic reclamation currently covers known built-in owned Linux CustomVoice
-  renders. Other voice categories, Windows/macOS, overridden providers and direct
-  unleased Python callers retain their normal temporary-file behavior. They have
-  no claimed hard-crash reclamation qualification yet.
-- Batch rows outside the participating local CustomVoice path, direct unleased
+- Automatic reclamation currently covers known unmodified local categories on
+  Linux (custom, clone, design, LoRA and ensemble). Windows/macOS, overridden
+  providers and direct unleased Python callers retain their normal
+  temporary-file behavior. They have no claimed hard-crash reclamation
+  qualification yet.
+- Ensemble member scratch and Project design previews use registered window
+  workspaces. The Designer tab's previews under `designed_voices/previews` remain
+  a separate staging path and are not covered by this registry.
+- Batch rows outside the participating local category paths, direct unleased
   calls, and staging in `voicelines` or `.chapter-export-*` remain outside this
-  raw-parent registration. Existing unregistered parent files are preserved;
-  this change does not authorize
+  raw-parent registration. Existing
+  unregistered parent files are preserved; this change does not authorize
   filename-based cleanup of historical files.
 
 Warnings identify preserved registrations or unavailable registry authority.

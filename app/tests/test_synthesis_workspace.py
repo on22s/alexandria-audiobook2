@@ -636,19 +636,21 @@ class SynthesisWorkspaceTests(unittest.TestCase):
         self.assertEqual(1,self.cleanup_idle());self.assertTrue(old.exists());self.assertFalse(new.exists())
         self.assertEqual([first],list(self.rows()))
 
-    def test_actual_dispatch_only_known_owned_supported_custom_with_recovery_disabled(self):
+    def test_actual_dispatch_known_owned_categories_and_writer_guards(self):
         import tts
         from synthesis_recovery_context import ensure_synthesis_recovery_parent
         from synthesis_settings import get_synthesis_window_settings
         engine=tts.TTSEngine.__new__(tts.TTSEngine);engine._mode='local';engine._synthesis_recovery=None
         engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,'budgets':{
-            'local.custom':{'max_chars':5},'local.clone':{'max_chars':5},'external.custom':{'max_chars':5}}})
+            'local.custom':{'max_chars':5},'local.clone':{'max_chars':5},
+            'local.design':{'max_chars':5},'local.lora':{'max_chars':5},
+            'local.ensemble':{'max_chars':5},'external.custom':{'max_chars':5}}})
         def render(kind='custom'):
             self.assertTrue(engine._render_synthesis_windows('One. Two.',kind,None,self.root/'parent.wav'))
         with ensure_audio_generation_owner(self.owner),ensure_synthesis_recovery_parent(self.parent):
             with patch('tts.render_synthesis_windows') as dispatched:
-                render();self.assertIs(self.parent,dispatched.call_args.kwargs['workspace_parent'])
-                render('clone');self.assertNotIn('workspace_parent',dispatched.call_args.kwargs)
+                for kind in ('custom','clone','design','lora'):
+                    render(kind);self.assertIs(self.parent,dispatched.call_args.kwargs['workspace_parent'])
                 engine._mode='external';render();engine._mode='local'
                 self.assertNotIn('workspace_parent',dispatched.call_args.kwargs)
                 with patch.object(engine,'_save_wav',lambda *args:None):
@@ -661,18 +663,29 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                     render();self.assertNotIn('workspace_parent',dispatched.call_args.kwargs)
                 finally:engine.__class__=tts.TTSEngine
             engine._synthesis_windows=None
-            self.assertIs(self.parent,workspace.get_synthesis_workspace_parent(engine,'custom',self.parent))
-            for category in ('clone','design','ensemble'):
-                self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,category,self.parent))
+            for category in ('custom','clone','design','lora','ensemble'):
+                self.assertIs(self.parent,workspace.get_synthesis_workspace_parent(engine,category,self.parent))
+                self.assertIs(self.parent,workspace.get_synthesis_workspace_parent(engine,category,self.parent,batch=True))
             engine._mode='external'
-            self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'custom',self.parent))
+            for category in ('custom','clone','design','lora','ensemble'):
+                self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,category,self.parent))
             engine._mode='local'
+            for category,method in (('custom','generate_custom_voice'),('clone','generate_clone_voice'),
+                                    ('design','generate_design_voice'),('lora','generate_lora_voice'),
+                                    ('ensemble','generate_ensemble_voice')):
+                with patch.object(engine,method,return_value=None):
+                    self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,category,self.parent))
+            for category,method in (('custom','_local_batch_custom'),('clone','_local_batch_clone'),
+                                    ('lora','_local_batch_lora'),('design','generate_design_voice'),
+                                    ('ensemble','_sequential_ensemble')):
+                with patch.object(engine,method,return_value=None):
+                    self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,category,self.parent,batch=True))
             with patch.object(engine,'_save_wav',lambda *args:None):
-                self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'custom',self.parent))
+                self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'clone',self.parent))
             with patch.object(workspace,'is_synthesis_workspace_supported',return_value=False):
-                self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'custom',self.parent))
+                self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'clone',self.parent))
             engine.__class__=UnknownEngine
-            try:self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'custom',self.parent))
+            try:self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'clone',self.parent))
             finally:engine.__class__=tts.TTSEngine
         # Restore the window policy for the pre-existing unowned dispatch check.
         engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':5}}})

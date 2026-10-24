@@ -24,6 +24,7 @@ PENDING = 'registry.pending'
 MAX_ROWS = 256
 MAX_WINDOWS = 1024
 MAX_INDEX_BYTES = 1024 * 1024
+LOCAL_CATEGORIES = ('custom', 'clone', 'design', 'lora', 'ensemble')
 _HEX32 = re.compile(r'[0-9a-f]{32}\Z')
 _HEX64 = re.compile(r'[0-9a-f]{64}\Z')
 _LOG = logging.getLogger(__name__)
@@ -336,20 +337,38 @@ class SynthesisWorkspaceRegistry:
 
 
 def get_synthesis_workspace_parent(engine, category, parent, *, batch=False):
-    """Return captured authority only for the known synchronous native writer."""
-    from tts import TTSEngine, _RAW_RECOVERY_METHODS, _RAW_BATCH_WORKSPACE_METHODS
+    """Return captured authority only for a known unmodified local writer."""
+    from tts import (TTSEngine, _RAW_RECOVERY_METHODS, _RAW_BATCH_WORKSPACE_METHODS,
+                     _RAW_CLONE_METHODS, _RAW_DESIGN_METHODS, _RAW_LORA_METHODS,
+                     _RAW_ENSEMBLE_METHODS, _RAW_CLONE_BATCH_METHODS,
+                     _RAW_LORA_BATCH_METHODS, _RAW_DESIGN_BATCH_METHODS,
+                     _RAW_ENSEMBLE_BATCH_METHODS, _RAW_MIX_TO_UNISON, mix_to_unison,
+                     UnsupportedVoiceBackendError)
     from synthesis_recovery_context import RecoveryParent, get_recovery_claim_digest
-    if (type(engine) is not TTSEngine or category != 'custom'
+    single = {'custom': _RAW_RECOVERY_METHODS, 'clone': _RAW_CLONE_METHODS,
+              'design': _RAW_DESIGN_METHODS, 'lora': _RAW_LORA_METHODS,
+              'ensemble': _RAW_ENSEMBLE_METHODS}
+    batch_methods = {'custom': _RAW_BATCH_WORKSPACE_METHODS,
+                     'clone': _RAW_CLONE_BATCH_METHODS, 'lora': _RAW_LORA_BATCH_METHODS,
+                     'design': _RAW_DESIGN_BATCH_METHODS,
+                     'ensemble': _RAW_ENSEMBLE_BATCH_METHODS}
+    if (type(engine) is not TTSEngine or category not in LOCAL_CATEGORIES
             or not is_synthesis_workspace_supported()
             or type(parent) is not RecoveryParent
             or get_recovery_claim_digest() != parent.claim_sha256):
         return None
+    if category == 'ensemble' and mix_to_unison is not _RAW_MIX_TO_UNISON:
+        return None
+    try:
+        backend = engine.get_voice_backend(category)
+    except (UnsupportedVoiceBackendError, AttributeError, ValueError):
+        return None
     if (all(getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
-            for name, method in _RAW_RECOVERY_METHODS.items())
+            for name, method in single[category].items())
             and (not batch or all(
                 getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
-                for name, method in _RAW_BATCH_WORKSPACE_METHODS.items()))
-            and engine.get_voice_backend(category) == 'local'):
+                for name, method in batch_methods[category].items()))
+            and backend == 'local'):
         return parent
     return None
 
