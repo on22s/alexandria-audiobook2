@@ -2091,6 +2091,12 @@
     "tests.test_ci_import_policy.CIImportPolicyTests.test_preexisting_duplicate_finders_are_consolidated",
     "tests.test_ci_import_policy.CIImportPolicyTests.test_repeated_policy_has_one_finder_and_cannot_be_masked_by_loaded_module"
   ],
+  "test_ci_triage_skill": [
+    "tests.test_ci_triage_skill.JobFailureParsingTests.test_a_job_with_no_test_failure_reports_its_error_annotations",
+    "tests.test_ci_triage_skill.JobFailureParsingTests.test_failing_tests_subtests_and_first_error_line_are_found",
+    "tests.test_ci_triage_skill.JobFailureParsingTests.test_text_after_a_block_never_becomes_a_failure_s_cause",
+    "tests.test_ci_triage_skill.JobFailureParsingTests.test_timestamp_and_job_prefix_are_removed_before_matching"
+  ],
   "test_cjk_chunk_limit": [
     "tests.test_cjk_chunk_limit.GetChunkCharLimitTests.test_chinese_text_reduces_limit",
     "tests.test_cjk_chunk_limit.GetChunkCharLimitTests.test_hangul_keeps_base",
