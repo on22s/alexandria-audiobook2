@@ -10,6 +10,7 @@ from sound_design_capture import ensure_sound_design_audio_capture
 from sound_design_candidate import MAX_CANDIDATE_METADATA, get_sound_candidate_document
 from sound_design_mix import write_sound_design_pcm
 from sound_design_registry import get_selected_sound_design_versions
+from sound_design_rendition_media import ensure_sound_rendition_assets
 from sound_design_staging import ensure_sound_render_stage
 from tts import ensure_audio_export_active
 
@@ -34,20 +35,23 @@ def save_sound_design_candidate(root, expected_context, *, cancel_check=None,
                 cancel_check=cancel_check, max_staged_bytes=allowance, timeout=timeout) as captured:
             context = captured['context']
             versions = get_selected_sound_design_versions(context['registry'])
-            with (stage / 'mixed.pcm').open('x+b') as output:
-                report = write_sound_design_pcm(captured['dry'], output, versions,
-                    context['book'], captured['dialogue'], captured['pcm_plan'],
-                    SoundDesignAssetStore(root), stage, check_active=captured['check_active'],
-                    max_staged_bytes=allowance, timeout=timeout)
-                output.flush(); os.fsync(output.fileno())
-            binding = dict(context_revision=context['context_revision'], book=context['book'],
-                           registry_revision=context['registry_revision'],
-                           cue_versions=[row['version'] for row in versions],
-                           dialogue=captured['dialogue'], pcm_plan=captured['pcm_plan'], mix=report)
-            document = dict(schema=1, candidate_revision=get_snapshot_digest(binding),
-                            binding=binding, pcm_file='mixed.pcm')
-            raw = get_metadata_json_bytes(document, MAX_CANDIDATE_METADATA, 'Sound candidate')
-            get_sound_candidate_document(raw, document['candidate_revision'])
+            rendition_ids = [row['recipe']['rendition_id'] for row in versions if row['schema'] == 2]
+            with ensure_sound_rendition_assets(root, context, rendition_ids,
+                    check_active=captured['check_active']):
+                with (stage / 'mixed.pcm').open('x+b') as output:
+                    report = write_sound_design_pcm(captured['dry'], output, versions,
+                        context['book'], captured['dialogue'], captured['pcm_plan'],
+                        SoundDesignAssetStore(root), stage, check_active=captured['check_active'],
+                        max_staged_bytes=allowance, timeout=timeout)
+                    output.flush(); os.fsync(output.fileno())
+                binding = dict(context_revision=context['context_revision'], book=context['book'],
+                               registry_revision=context['registry_revision'],
+                               cue_versions=[row['version'] for row in versions],
+                               dialogue=captured['dialogue'], pcm_plan=captured['pcm_plan'], mix=report)
+                document = dict(schema=1, candidate_revision=get_snapshot_digest(binding),
+                                binding=binding, pcm_file='mixed.pcm')
+                raw = get_metadata_json_bytes(document, MAX_CANDIDATE_METADATA, 'Sound candidate')
+                get_sound_candidate_document(raw, document['candidate_revision'])
         # Successful capture exit fences source/take/context again. Only now
         # create the durable candidate descriptor for later review.
         ensure_audio_export_active(cancel_check)

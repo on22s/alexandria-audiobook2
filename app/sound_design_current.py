@@ -9,6 +9,7 @@ from sound_design_context import (capture_sound_design_context, capture_sound_de
 from sound_design_registry import get_selected_sound_design_versions
 from sound_design_cues import get_sound_design_cue_plan
 from sound_design_assets import SoundDesignAssetStore
+from sound_design_rendition_media import ensure_sound_rendition_assets
 from tts import ensure_audio_export_active
 
 
@@ -45,7 +46,9 @@ def ensure_current_sound_candidate(root, stage_name, expected_revision, *, cance
                 or projection['projection_revision'] != binding['mix']['projection_revision']):
             raise ValueError('Sound candidate projection changed; render again')
         store = SoundDesignAssetStore(root)
-        known = {}
+        rendition_ids = [row['recipe']['rendition_id'] for row in versions if row['schema'] == 2]
+        known = assets.enter_context(ensure_sound_rendition_assets(root, context, rendition_ids,
+                                                                  check_active=check))
         for version in versions:
             check()
             expected = version['recipe']['asset']; identity = expected['asset_id']

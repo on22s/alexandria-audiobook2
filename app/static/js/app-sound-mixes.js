@@ -211,5 +211,10 @@ const SoundMixes = (() => {
         }));
         box().append(card);
     }
-    return {refresh};
+    function invalidate() {
+        sequence += 1; context = null; profiles = null;
+        stopAudio(); box().replaceChildren();
+        message('Book or cue history changed. Refresh saved mixes and verify the full mix before delivery.');
+    }
+    return {refresh, invalidate};
 })();

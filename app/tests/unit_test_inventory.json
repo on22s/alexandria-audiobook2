@@ -9467,6 +9467,7 @@
   "test_sound_design_context": [
     "tests.test_sound_design_context.SoundDesignContextTests.test_aliases_inside_project_work_and_outside_source_is_refused",
     "tests.test_sound_design_context.SoundDesignContextTests.test_changed_audio_payload_changes_anchor_even_with_unchanged_chunk_metadata",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_consuming_history_requires_matching_retained_renditions_without_media_decode",
     "tests.test_sound_design_context.SoundDesignContextTests.test_context_and_anchor_are_read_only_and_bound_to_actual_encoded_bytes",
     "tests.test_sound_design_context.SoundDesignContextTests.test_duplicate_dialogue_identities_refuse_before_source_scan",
     "tests.test_sound_design_context.SoundDesignContextTests.test_existing_book_and_audio_revision_limits_are_preserved",
@@ -9477,6 +9478,7 @@
     "tests.test_sound_design_context.SoundDesignContextTests.test_missing_uid_pending_take_missing_empty_and_nonregular_audio_refuse",
     "tests.test_sound_design_context.SoundDesignContextTests.test_native_journal_replay_uses_latest_selected_take_without_compacting",
     "tests.test_sound_design_context.SoundDesignContextTests.test_no_admission_and_joint_limits_fail_before_original_source_scan",
+    "tests.test_sound_design_context.SoundDesignContextTests.test_optional_rendition_absence_preserves_legacy_hash_but_is_fenced",
     "tests.test_sound_design_context.SoundDesignContextTests.test_source_script_state_voice_settings_and_rows_change_context_identity"
   ],
   "test_sound_design_cue_api": [
@@ -9495,7 +9497,13 @@
     "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_recorded_take_metadata_does_not_claim_current_audio_availability",
     "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_source_changed_during_final_anchor_read_cannot_publish_old_context",
     "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_stale_context_and_changed_audio_refuse_before_registry_publication",
-    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_stale_historical_selection_refuses_but_explicit_deselection_still_works"
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_stale_historical_selection_refuses_but_explicit_deselection_still_works",
+    "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_bad_shape_stale_context_and_missing_stem_refuse_without_partial_history",
+    "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_cleanup_fences_candidate_topology_without_pcm_reads_or_encoder_probes",
+    "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_cleanup_protects_kept_parent_and_current_cue_and_retains_empty_ledger",
+    "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_disconnect_retains_audio_owner_until_real_worker_exits_without_publishing",
+    "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_final_fence_and_serialization_cancellation_prevent_record_and_consume_publication",
+    "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_owned_capture_consume_historical_source_and_keep_preserve_exact_provenance"
   ],
   "test_sound_design_cues": [
     "tests.test_sound_design_cues.SoundDesignCueTests.test_actual_selected_asset_conversion_matches_projected_frames_and_pcm",
@@ -9605,6 +9613,7 @@
     "tests.test_sound_design_pcm.SoundDesignPCMTests.test_capture_matches_export_bytes_and_exact_plan_for_native_layouts_and_pauses"
   ],
   "test_sound_design_publication": [
+    "tests.test_sound_design_publication.SoundPublicationTests.test_native_snapshot_fences_optional_ledger_even_without_consuming_cues",
     "tests.test_sound_design_publication.SoundPublicationTests.test_native_snapshot_refuses_candidate_pcm_edit_during_encoding",
     "tests.test_sound_design_publication.SoundPublicationTests.test_native_snapshot_refuses_late_approval_edit_after_content_hash",
     "tests.test_sound_design_publication.SoundPublicationTests.test_snapshot_must_include_expected_missing_cover_source",
@@ -9627,7 +9636,10 @@
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_snapshot_overwrite_without_cues_removes_only_its_own_companion",
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_source_reset_process_death_rolls_back_or_finishes_committed_clear",
     "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_source_selection_clears_valid_cues_and_preserves_invalid_metadata",
-    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_two_named_snapshots_restore_their_exact_own_cue_bytes"
+    "tests.test_sound_design_registry.SoundDesignSavedBookTests.test_two_named_snapshots_restore_their_exact_own_cue_bytes",
+    "tests.test_sound_design_registry.SoundRenditionHistoryTests.test_earlier_parent_and_retained_source_are_required_without_reanchoring_history",
+    "tests.test_sound_design_registry.SoundRenditionHistoryTests.test_same_media_different_provenance_keeps_distinct_immutable_history",
+    "tests.test_sound_design_registry.SoundRenditionHistoryTests.test_strict_metadata_and_joint_byte_limit_refuse_before_record_fingerprinting"
   ],
   "test_sound_design_registry_edits": [
     "tests.test_sound_design_registry_edits.SoundDesignRegistryEditTests.test_append_edit_select_and_deselect_retain_detached_history",
@@ -9680,6 +9692,7 @@
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_deliver_saved_approval_and_verified_download_are_identity_bound",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_discard_needs_confirmation_and_binds_inventory_revision",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_invalid_inventory_and_missing_book_do_not_enable_render",
+    "tests.test_sound_mixes_js.SoundMixesJsTests.test_invalidation_drops_pending_inventory_and_approval_without_restoring_controls",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_m4b_metadata_edits_clear_confirmation_and_bind_actual_entered_values",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_old_image_events_cannot_approve_or_clear_a_new_choice",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_playback_and_approval_require_exact_candidate_and_explicit_confirmation",
@@ -9689,6 +9702,14 @@
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_source_review_requires_new_explicit_confirmation_and_exact_snapshot",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_unavailable_profile_preserves_recovery_and_blocks_approval",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_uploaded_preview_requires_image_load_and_explicit_review_and_handles_errors"
+  ],
+  "test_sound_renditions_js": [
+    "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_cleanup_commits_only_exact_preview_and_does_not_delete_assets",
+    "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_cleanup_protection_stays_locked_after_busy_state_and_selection_change",
+    "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_history_survives_unavailable_assets_and_rejects_approval_claims",
+    "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_late_source_bridge_cannot_replace_newer_form_and_stale_book_refuses_form",
+    "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_record_binds_exact_source_and_media_and_requires_renderer_declaration",
+    "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_use_master_binds_current_selected_parent_and_server_anchor"
   ],
   "test_source_context": [
     "tests.test_source_context.LocateTest.test_a_line_that_is_not_in_the_book_is_not_found",

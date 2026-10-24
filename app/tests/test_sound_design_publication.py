@@ -77,3 +77,26 @@ class SoundPublicationTests(unittest.TestCase):
                     capture_sound_delivery_snapshot(ProjectManager(str(self.root)), stage.name,
                         revision, approval['approval_revision'], options)
         self.run_owned(check)
+
+    def test_native_snapshot_fences_optional_ledger_even_without_consuming_cues(self):
+        from sound_design_renditions import ACTIVE_RENDITIONS, get_sound_rendition_ledger_bytes
+        from project_scope_admission import ensure_audio_scope_admission
+        import sound_design_context
+        def check(stage, revision):
+            approval = self.approve(stage, revision, full_mix_reviewed=True)
+            options = {'format':'mp3','export_quality':None,'mastering':None}
+            ledger = self.root / ACTIVE_RENDITIONS
+            snapshot = capture_sound_delivery_snapshot(ProjectManager(str(self.root)), stage.name,
+                revision, approval['approval_revision'], options)
+            self.assertIn(str(ledger), snapshot.identities)
+            self.assertIsNone(snapshot.identities[str(ledger)])
+            with ensure_audio_scope_admission(self.root):
+                context = sound_design_context.capture_sound_design_context(self.root)
+            raw = get_sound_rendition_ledger_bytes(dict(schema=1,
+                book_id=context['book']['book_id'], records=[], keep=[]))
+            ledger.write_bytes(raw)
+            with self.assertRaisesRegex(ValueError, 'source changed'):
+                snapshot.verify_sources()
+            ledger.unlink()
+            snapshot.verify_sources()
+        self.run_owned(check)

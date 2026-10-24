@@ -17,7 +17,7 @@ vm.runInContext(fs.readFileSync(process.argv[1].replace('app-sound-cues.js','app
 const sample=()=>({asset_id:'a'.repeat(32),state:'ready',display_name:'Rain <img onerror=bad()>.wav',canonical:{sha256:'b'.repeat(64),frames:48000,frame_rate:24000,channels:1,sample_width:4}});
 const selection=()=>({chunk_uid:'line-1',generation_sha256:'c'.repeat(64),audio_sha256:'d'.repeat(64),audio_revision:null});
 const book=()=>({book_id:'synthetic book',source_sha256:'e'.repeat(64),script_sha256:'f'.repeat(64)});
-const version=(id='rain')=>({schema:1,cue_id:id,parent_version:null,version:'1'.repeat(64),recipe:{book:book(),selection:selection(),asset:{asset_id:sample().asset_id,sha256:sample().canonical.sha256},frame_rate:24000,boundary:'start',offset_frames:0,kind:'effect',duration:{mode:'native',frames:null,loop_crossfade_frames:null},mix:{gain_db:0,duck_db:0,fade_in_frames:0,fade_out_frames:0}}});
+const version=(id='rain')=>({schema:1,cue_id:id,parent_version:null,version:'1'.repeat(64),recipe:{book:book(),selection:selection(),asset:{asset_id:sample().asset_id,...sample().canonical},frame_rate:24000,boundary:'start',offset_frames:0,kind:'effect',duration:{mode:'native',frames:null,loop_crossfade_frames:null},mix:{gain_db:0,duck_db:0,fade_in_frames:0,fade_out_frames:0}}});
 const data=()=>({context_revision:'2'.repeat(64),registry_revision:null,book_token:'3'.repeat(64),book:book(),registry:{versions:[],selected:{}},chunks:[{chunk_uid:'line-1',speaker:'NARRATOR',text:'Synthetic <img onerror=bad()> dialogue.',has_recorded_take:true}],total_chunks:1,next_offset:null});
 const anchor=()=>({context_revision:'2'.repeat(64),anchor_revision:'4'.repeat(64),selection:selection()});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));load();
@@ -91,6 +91,10 @@ assert.equal(requests.length,3);assert.equal(box.children.length,0);
         self.run_js(r'''
 for(const change of [d=>{d.registry.versions=[version(),version()];},d=>{d.registry.selected={missing:'0'.repeat(64)};},d=>{d.chunks[0].has_recorded_take='yes';},d=>{d.registry.versions=[version()];d.registry.versions[0].recipe.mix.gain_db=Infinity;}]){
 const value=data();change(value);await ready(value);assert.equal(box.querySelectorAll('button').length,0);assert(message.textContent.includes('Invalid')||message.textContent.includes('Check'));
+}
+for(const [key,value] of [['frames',Infinity],['frames',0],['frames',192000*86400+1],['frame_rate',0],['frame_rate',true],['channels',3],['sample_width',3]]){
+const current=data();current.registry.versions=[version()];current.registry.versions[0].recipe.asset[key]=value;
+await ready(current);assert.equal(box.querySelectorAll('button').length,0);assert(message.textContent.includes('Invalid'));
 }
 ''')
 

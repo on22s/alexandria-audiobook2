@@ -1244,8 +1244,9 @@ async def snapshot_script(request: SnapshotRequest):
 
 def _snapshot_script_sync(request):
     from routers.scripts_library import (_require_saved_book_name, _get_saved_book_companions,
-                                         validate_book_json_bytes, _capture_cue_companion)
+                                         validate_book_json_bytes, _capture_sound_companions)
     from sound_design_registry import ACTIVE_CUES, get_saved_sound_design_path
+    from sound_design_renditions import ACTIVE_RENDITIONS, get_saved_sound_renditions_path
     safe_name = _require_saved_book_name(request.name)
     dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     os.makedirs(SCRIPTS_DIR, exist_ok=True)
@@ -1267,11 +1268,13 @@ def _snapshot_script_sync(request):
             raise HTTPException(status_code=409,
                                 detail="A saved script already uses that snapshot name.")
         book_id = get_active_book_id() or safe_name
-        cue_bytes = _capture_cue_companion(DATA_DIR, ACTIVE_CUES, book_id)
+        cue_bytes, rendition_bytes = _capture_sound_companions(DATA_DIR, ACTIVE_CUES, ACTIVE_RENDITIONS, book_id)
         script_bytes = json.dumps(entries, ensure_ascii=False, indent=2).encode('utf-8')
         replacements = {os.path.basename(dest): script_bytes}
         if cue_bytes is not None:
             replacements[os.path.basename(get_saved_sound_design_path(dest))] = cue_bytes
+        if rendition_bytes is not None:
+            replacements[os.path.basename(get_saved_sound_renditions_path(dest))] = rendition_bytes
         if os.path.exists(VOICE_CONFIG_PATH):
             voice_bytes = Path(VOICE_CONFIG_PATH).read_bytes()
             validate_book_json_bytes(voice_bytes, dict, 409, 'Active snapshot voices')

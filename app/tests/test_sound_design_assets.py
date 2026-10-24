@@ -1,4 +1,5 @@
 import tempfile
+import hashlib
 import unittest
 import os
 import subprocess
@@ -82,6 +83,19 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
             with other.open_canonical(descriptor['asset_id']) as (stream, selected):
                 self.assertEqual(descriptor, selected)
                 self.assertEqual((b'\0\0\0\xc0' + b'\0' * 4 + b'\0\0\0@') * 1000, stream.read())
+            with other.open_verified_asset(descriptor['asset_id']) as (stream, selected, evidence):
+                pcm = stream.read()
+                self.assertEqual(descriptor, selected)
+                self.assertEqual({'sha256': hashlib.sha256(original).hexdigest(), 'bytes': len(original)},
+                                 evidence['source'])
+                self.assertEqual(other.list_assets()['assets'][0]['canonical'], evidence['canonical'])
+                self.assertEqual(hashlib.sha256(pcm).hexdigest(), evidence['canonical']['sha256'])
+                self.assertEqual(len(pcm), evidence['canonical']['bytes'])
+                evidence['source']['sha256'] = '0' * 64
+                evidence['canonical']['bytes'] = 0
+            self.assertEqual(hashlib.sha256(original).hexdigest(),
+                             other.list_assets()['assets'][0]['source']['sha256'])
+            self.assertEqual(12000, other.list_assets()['assets'][0]['canonical']['bytes'])
             with self.assertRaisesRegex(ValueError, 'retained'):
                 other.purge_incomplete(descriptor['asset_id'])
 
@@ -94,8 +108,9 @@ class SoundDesignAssetStoreTests(unittest.TestCase):
             path = store.directory / (descriptor['asset_id'] + '.pcm')
             damaged = b'x' + path.read_bytes()[1:]
             path.write_bytes(damaged)
-            with self.assertRaisesRegex(ValueError, 'bytes changed'), store.open_canonical(descriptor['asset_id']):
-                self.fail('Damaged audio admitted')
+            for reader in (store.open_canonical, store.open_verified_asset):
+                with self.subTest(reader=reader.__name__), self.assertRaisesRegex(ValueError, 'bytes changed'), reader(descriptor['asset_id']):
+                    self.fail('Damaged audio admitted')
             with self.assertRaisesRegex(ValueError, 'bytes changed'):
                 store.import_asset('input.wav')
             self.assertEqual(damaged, path.read_bytes())

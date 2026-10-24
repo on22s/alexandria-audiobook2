@@ -6,7 +6,7 @@ import re
 from book_state_transaction import apply_book_state_locked
 from audio_pcm_producer import get_promoted_pcm_shape
 from json_metadata import get_unique_json_object
-from project_scope_admission import ensure_scope_admission
+from project_scope_admission import ensure_scope_admission, ensure_audio_scope_admission
 from sound_design_assets import SoundDesignAssetStore
 from sound_design_context import (capture_sound_design_context, capture_sound_design_anchor,
                                   require_sound_design_context_files_current)
@@ -15,6 +15,8 @@ from sound_design_cues import (MAX_DIALOGUE, _require_digest, _require_int,
 from sound_design_registry import (ACTIVE_CUES, get_sound_design_registry_bytes,
     get_sound_design_registry_edit, get_sound_design_registry_selection)
 from source_evidence import _require_keys, _require_text
+from sound_design_rendition_media import ensure_sound_rendition_assets
+from sound_design_renditions import validate_sound_rendition_consumers
 
 MAX_CUE_REQUEST_BYTES = 16384
 
@@ -99,7 +101,7 @@ def get_sound_design_cue_view(snapshot, offset=0, limit=100):
 
 def run_sound_design_cue_operation(root, operation, *, raw=None, chunk_uid=None,
                                    expected_context=None, offset=0, limit=100,
-                                   check_active=lambda: None):
+                                   check_active=lambda: None, audio_owned=False):
     """Enter/retain thread-local task/book ownership in the worker itself."""
     payload = parse_sound_design_cue_request(operation,raw) if operation in ('edit','select') else None
     if operation == 'anchor':
@@ -111,7 +113,8 @@ def run_sound_design_cue_operation(root, operation, *, raw=None, chunk_uid=None,
     elif payload is None:
         raise ValueError('Unknown cue operation')
     check_active()
-    with ensure_scope_admission(root):
+    admission = ensure_audio_scope_admission if audio_owned else ensure_scope_admission
+    with admission(root):
         snapshot = capture_sound_design_context(root,check_active=check_active)
         if operation == 'metadata':
             return get_sound_design_cue_view(snapshot,offset,limit)
@@ -125,6 +128,7 @@ def run_sound_design_cue_operation(root, operation, *, raw=None, chunk_uid=None,
                         selection=anchor['selection'])
         _require_context(snapshot,payload)
         asset = None
+        rendition_ids = []
         if operation == 'edit':
             anchor = capture_sound_design_anchor(root,snapshot,payload['chunk_uid'],check_active=check_active)
             if anchor['anchor_revision'] != payload['anchor_revision']:
@@ -135,14 +139,22 @@ def run_sound_design_cue_operation(root, operation, *, raw=None, chunk_uid=None,
             recipe = dict(book=snapshot['book'],selection=anchor['selection'],asset=facts,**payload['parameters'])
             _require_asset_duration(recipe)
             registry = {**snapshot['registry'],'book':snapshot['book']}
-            updated = get_sound_design_registry_edit(registry,payload['cue_id'],recipe,payload['parent_version'])
+            parent = next((row for row in registry['versions'] if row['version'] == payload['parent_version']), None)
+            schema = 1
+            if parent is not None and parent['schema'] == 2 and parent['recipe']['asset'] == facts:
+                recipe['rendition_id'] = parent['recipe']['rendition_id']
+                rendition_ids.append(recipe['rendition_id']); schema = 2
+            updated = get_sound_design_registry_edit(registry,payload['cue_id'],recipe,payload['parent_version'],schema=schema)
             selection = anchor['selection']
             asset = facts
         else:
             updated = get_sound_design_registry_selection(snapshot['registry'],payload['cue_id'],payload['version'])
             selection = None
             if payload['version'] is not None:
-                selected = next(row for row in updated['versions'] if row['version']==payload['version'])['recipe']
+                selected_version = next(row for row in updated['versions'] if row['version']==payload['version'])
+                selected = selected_version['recipe']
+                if selected_version['schema'] == 2:
+                    rendition_ids.append(selected['rendition_id'])
                 if selected['book'] != snapshot['book']:
                     raise ValueError('Saved cue source is stale; create an explicit revision')
                 _require_asset_duration(selected)
@@ -154,22 +166,24 @@ def run_sound_design_cue_operation(root, operation, *, raw=None, chunk_uid=None,
                         raise ValueError('Saved sound asset is stale; inspect the library')
                 selection = selected['selection']
                 asset = facts
-        # Asset verification and row hashing may take time. Re-capture the exact
-        # physical registry/context and selected bytes before atomic mutation.
-        fresh = capture_sound_design_context(root,check_active=check_active)
-        _require_context(fresh,payload)
-        latest = None
-        if selection is not None:
-            latest = capture_sound_design_anchor(root,fresh,selection['chunk_uid'],check_active=check_active)
-            if latest['selection'] != selection:
-                raise ValueError('Selected audio changed before cue publication')
-        encoded = get_sound_design_registry_bytes(updated)
-        # Context/audio recapture may be lengthy. Recheck the admitted asset
-        # after it, and let the canonical file exit fences finish before commit.
-        if asset is not None:
-            with SoundDesignAssetStore(root).open_canonical(asset['asset_id'],cancel_check=check_active) as (_,current):
-                if current != asset:
-                    raise ValueError('Selected sound asset changed before cue publication')
+        validate_sound_rendition_consumers(snapshot['renditions'], updated)
+        with ensure_sound_rendition_assets(root, snapshot, rendition_ids, check_active=check_active):
+            # Asset verification and row hashing may take time. Re-capture the exact
+            # physical registry/context and selected bytes before atomic mutation.
+            fresh = capture_sound_design_context(root,check_active=check_active)
+            _require_context(fresh,payload)
+            latest = None
+            if selection is not None:
+                latest = capture_sound_design_anchor(root,fresh,selection['chunk_uid'],check_active=check_active)
+                if latest['selection'] != selection:
+                    raise ValueError('Selected audio changed before cue publication')
+            encoded = get_sound_design_registry_bytes(updated)
+            # Context/audio recapture may be lengthy. Recheck the admitted asset
+            # after it, and let the canonical file exit fences finish before commit.
+            if asset is not None:
+                with SoundDesignAssetStore(root).open_canonical(asset['asset_id'],cancel_check=check_active) as (_,current):
+                    if current != asset:
+                        raise ValueError('Selected sound asset changed before cue publication')
         check_active()
         require_sound_design_context_files_current(root,fresh,latest)
         check_active()

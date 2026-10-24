@@ -48,6 +48,12 @@ class SoundDesignCueTests(unittest.TestCase):
     def test_revision_detaches_inputs_and_explicit_parent_changes_version(self):
         value = recipe(); original = copy.deepcopy(value)
         first = get_sound_design_cue_version('cue-a', value)
+        # Frozen legacy source fixture: schema2 support must not rewrite v1 hashes.
+        self.assertEqual('65c938a6035b71792d840918ed94c769900cd36045596ed4969553706061aa10', first['version'])
+        self.assertEqual(first, get_sound_design_cue_version('cue-a', value, schema=1))
+        for schema in (True, False, 0, 3, '1', 2):
+            with self.subTest(schema=schema), self.assertRaises(ValueError):
+                get_sound_design_cue_version('cue-a', value, schema=schema)
         value['mix']['gain_db'] = -20
         self.assertEqual(original, first['recipe'])
         second = get_sound_design_cue_version('cue-a', value, first['version'])

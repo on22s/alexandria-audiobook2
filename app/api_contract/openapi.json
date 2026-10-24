@@ -12361,6 +12361,156 @@
         "summary": "Download Sound Delivery"
       }
     },
+    "/api/sound_design/renditions": {
+      "get": {
+        "operationId": "list_sound_renditions_api_sound_design_renditions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 1024,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cue_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cue Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Sound Renditions"
+      }
+    },
+    "/api/sound_design/renditions/cleanup": {
+      "post": {
+        "operationId": "cleanup_sound_renditions_api_sound_design_renditions_cleanup_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cleanup Sound Renditions"
+      }
+    },
+    "/api/sound_design/renditions/cleanup_preview": {
+      "post": {
+        "operationId": "preview_sound_rendition_cleanup_api_sound_design_renditions_cleanup_preview_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Preview Sound Rendition Cleanup"
+      }
+    },
+    "/api/sound_design/renditions/consume": {
+      "post": {
+        "operationId": "consume_sound_rendition_api_sound_design_renditions_consume_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Consume Sound Rendition"
+      }
+    },
+    "/api/sound_design/renditions/keep": {
+      "post": {
+        "operationId": "keep_sound_rendition_api_sound_design_renditions_keep_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Keep Sound Rendition"
+      }
+    },
+    "/api/sound_design/renditions/record": {
+      "post": {
+        "operationId": "record_sound_rendition_api_sound_design_renditions_record_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Record Sound Rendition"
+      }
+    },
     "/api/speaker_review/options": {
       "get": {
         "operationId": "options_api_speaker_review_options_get",

@@ -8,6 +8,7 @@ from project_scope_files import capture_scope_file
 from sound_design_context import capture_sound_design_context
 from sound_design_registry import ACTIVE_CUES, get_selected_sound_design_versions
 from sound_design_staging import DIRECTORY
+from sound_design_renditions import ACTIVE_RENDITIONS, get_required_sound_rendition_artifacts
 from sound_design_cover import capture_sound_delivery_cover
 from tts import ensure_audio_export_active
 
@@ -28,7 +29,7 @@ def capture_sound_delivery_snapshot(manager, stage_name, candidate_revision, app
         context = capture_sound_design_context(root,check_active=check)
         versions = get_selected_sound_design_versions(context['registry'])
         directory = root/DIRECTORY/stage_name
-        paths = {root/ACTIVE_CUES,root/'voice_config.json',root/'chunks.json.status.jsonl',
+        paths = {root/ACTIVE_CUES,root/ACTIVE_RENDITIONS,root/'voice_config.json',root/'chunks.json.status.jsonl',
                  directory/'candidate.json',directory/'mixed.pcm',directory/'approval.json'}
         cover_sources = capture_sound_delivery_cover(root,delivery,cancel_check=check)['expected_sources']
         paths.update(Path(path) for path in cover_sources)
@@ -39,6 +40,10 @@ def capture_sound_delivery_snapshot(manager, stage_name, candidate_revision, app
             identity = version['recipe']['asset']['asset_id']
             paths.add(store._path(identity,'.source'))
             paths.add(store._path(identity,'.pcm'))
+        rendition_ids = [row['recipe']['rendition_id'] for row in versions if row['schema'] == 2]
+        for artifact in get_required_sound_rendition_artifacts(context['renditions'], context['registry'], rendition_ids):
+            paths.add(store._path(artifact['asset_id'], '.source'))
+            paths.add(store._path(artifact['asset_id'], '.pcm'))
         approved_sources = {}
         for path in sorted(paths):
             check()

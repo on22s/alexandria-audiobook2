@@ -209,7 +209,17 @@ class SoundDesignAssetStore:
 
     @contextmanager
     def open_canonical(self, asset_id, *, cancel_check=None):
-        """Verify exact original/canonical bytes and retain descriptors during use."""
+        """Retain the established two-value canonical reader interface."""
+        with self.open_verified_asset(asset_id, cancel_check=cancel_check) as (stream, descriptor, _evidence):
+            yield stream, descriptor
+
+    @contextmanager
+    def open_verified_asset(self, asset_id, *, cancel_check=None):
+        """Verify and retain original/canonical files with detached admitted facts.
+
+        Evidence comes from the same validated manifest row and held descriptors,
+        never caller declarations. It grants neither book ownership nor approval.
+        """
         row = self._find(self._load(), asset_id)
         if row['state'] != 'ready':
             raise ValueError('Sound asset import is incomplete')
@@ -228,7 +238,8 @@ class SoundDesignAssetStore:
             descriptor = {'asset_id': asset_id, **{key: row['canonical'][key] for key in
                 ('sha256', 'frames', 'frame_rate', 'channels', 'sample_width')}}
             _check_cancelled(cancel_check)
-            yield opened[-1][1], descriptor
+            evidence = {'source': dict(row['source']), 'canonical': dict(row['canonical'])}
+            yield opened[-1][1], descriptor, evidence
             _check_cancelled(cancel_check)
             for path, stream, before in opened:
                 _ensure_plain_path(path, self.root)

@@ -261,7 +261,8 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
     outcome; uploaded source/provenance must remain available for recovery.
     """
     from utils import safe_load_json
-    from sound_design_registry import ACTIVE_CUES, capture_sound_design_registry
+    from sound_design_registry import ACTIVE_CUES
+    from sound_design_renditions import ACTIVE_RENDITIONS, capture_sound_design_companions
     with ensure_book_state(data_dir, timeout=timeout):
         state_path = Path(data_dir) / "state.json"
         with file_lock(str(state_path)):
@@ -270,6 +271,7 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                 raise ValueError("Book state must be an object")
             if input_path is None:
                 input_path = state.get("input_file_path")
+            previous_book_id = state.get('active_book_id')
             state.update(input_file_path=input_path, active_book_id=book_id,
                          book_generation=uuid.uuid4().hex)
             state.pop('_source_scope', None)
@@ -277,15 +279,17 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             # An explicit input selection starts a new book context. Validate
             # optional old metadata before clearing it in the same transaction;
             # malformed/recoverable files must not disappear on a failed switch.
-            has_cues = os.path.lexists(Path(data_dir) / ACTIVE_CUES)
-            if has_cues:
-                capture_sound_design_registry(data_dir, ACTIVE_CUES)
+            companions = [name for name in (ACTIVE_CUES, ACTIVE_RENDITIONS)
+                          if os.path.lexists(Path(data_dir) / name)]
+            if companions:
+                capture_sound_design_companions(data_dir, ACTIVE_CUES, ACTIVE_RENDITIONS,
+                                                expected_book_id=previous_book_id)
             if before_publication is not None:
                 before_publication()
-            if has_cues:
+            if companions:
                 apply_book_state_locked(data_dir, {
                     'state.json': json.dumps(state, ensure_ascii=False, indent=2).encode('utf-8')},
-                    [ACTIVE_CUES])
+                    companions)
             else:
                 save_adapter_publication_bytes(str(state_path), json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8"))
 

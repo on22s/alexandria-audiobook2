@@ -72,6 +72,97 @@ class SoundDesignRegistryTests(unittest.TestCase):
                 get_sound_design_registry_bytes(value)
 
 
+class SoundRenditionHistoryTests(unittest.TestCase):
+    def record(self, cues=None, **changes):
+        from sound_design_renditions import get_sound_rendition_record
+        cues = registry() if cues is None else cues
+        source = dict(cue_id='cue-a', version=cues['versions'][0]['version'],
+                      book=copy.deepcopy(cues['versions'][0]['recipe']['book']))
+        artifact = dict(asset_id='a' * 32, source=dict(sha256='b' * 64, bytes=100),
+            canonical=dict(sha256='c' * 64, bytes=9600, frames=2400, frame_rate=24000,
+                           channels=1, sample_width=4, conversion='fixture', codec='pcm_s16le',
+                           format='wav'), offset_frames=0)
+        facts = dict(source=source, composition=dict(scaffold_sha256=None,
+                     arrangement_sha256=None, family_id=None),
+                     origin=dict(kind='imported_audio', renderer=None),
+                     derivation=dict(kind='import', parent=None), master=artifact, stems=[])
+        facts.update(changes)
+        return get_sound_rendition_record(**facts)
+
+    def ledger(self, records):
+        return dict(schema=1, book_id='new-book', records=records, keep=[])
+
+    def test_same_media_different_provenance_keeps_distinct_immutable_history(self):
+        from sound_design_renditions import get_sound_rendition_ledger, get_sound_rendition_ledger_bytes
+        first = self.record()
+        second = self.record(composition=dict(scaffold_sha256=None,
+                             arrangement_sha256='d' * 64, family_id='scene-theme'))
+        self.assertEqual(first['master'], second['master'])
+        self.assertNotEqual(first['rendition_id'], second['rendition_id'])
+        value = self.ledger([first, second]); value['keep'] = [first['rendition_id']]
+        raw = get_sound_rendition_ledger_bytes(value)
+        from sound_design_registry import get_sound_design_registry_edit
+        from sound_design_renditions import validate_sound_rendition_consumers
+        cues = registry(); authored = copy.deepcopy(cues['versions'][0]['recipe'])
+        authored['asset'] = {'asset_id': first['master']['asset_id'], **{key: first['master']['canonical'][key]
+                             for key in ('sha256', 'frames', 'frame_rate', 'channels', 'sample_width')}}
+        authored['rendition_id'] = first['rendition_id']
+        consumed = get_sound_design_registry_edit(cues, 'cue-a', authored, cues['selected']['cue-a'], schema=2)
+        validate_sound_rendition_consumers(value, consumed)
+        authored['rendition_id'] = second['rendition_id']
+        other = get_sound_design_registry_edit(cues, 'cue-a', authored, cues['selected']['cue-a'], schema=2)
+        validate_sound_rendition_consumers(value, other)
+        self.assertNotEqual(consumed['selected']['cue-a'], other['selected']['cue-a'])
+        with self.assertRaisesRegex(ValueError, 'retained rendition'):
+            validate_sound_rendition_consumers(self.ledger([first]), other)
+        authored['asset']['sha256'] = 'e' * 64
+        forged_consumer = get_sound_design_registry_edit(cues, 'cue-a', authored, cues['selected']['cue-a'], schema=2)
+        with self.assertRaisesRegex(ValueError, 'rendition master'):
+            validate_sound_rendition_consumers(value, forged_consumer)
+        detached = get_sound_rendition_ledger(raw); detached['records'][0]['master']['offset_frames'] = 1
+        self.assertEqual(0, first['master']['offset_frames'])
+        value['records'][0]['composition']['family_id'] = 'forged-with-old-identity'
+        with self.assertRaisesRegex(ValueError, 'fingerprint'):
+            get_sound_rendition_ledger_bytes(value)
+
+    def test_earlier_parent_and_retained_source_are_required_without_reanchoring_history(self):
+        from sound_design_renditions import get_sound_rendition_ledger_bytes, validate_sound_rendition_sources
+        cues = registry(); first = self.record(cues)
+        child = self.record(cues, derivation=dict(kind='processing', parent=first['rendition_id']))
+        value = self.ledger([first, child]); get_sound_rendition_ledger_bytes(value)
+        # Explicit source changes preserve older cue facts; history is not rewritten.
+        cues['book']['source_sha256'] = 'e' * 64
+        validate_sound_rendition_sources(value, cues)
+        with self.assertRaisesRegex(ValueError, 'earlier parent'):
+            get_sound_rendition_ledger_bytes(self.ledger([child, first]))
+        foreign = copy.deepcopy(first['source']); foreign['book']['script_sha256'] = 'f' * 64
+        forged = self.record(cues, source=foreign)
+        with self.assertRaisesRegex(ValueError, 'retained cue'):
+            validate_sound_rendition_sources(self.ledger([forged]), cues)
+        unrelated = self.record(cues, source=foreign,
+                               derivation=dict(kind='mixdown', parent=first['rendition_id']))
+        with self.assertRaisesRegex(ValueError, 'exact same source'):
+            get_sound_rendition_ledger_bytes(self.ledger([first, unrelated]))
+
+    def test_strict_metadata_and_joint_byte_limit_refuse_before_record_fingerprinting(self):
+        import sound_design_renditions as renditions
+        value = self.ledger([self.record()]); good = renditions.get_sound_rendition_ledger_bytes(value)
+        for raw in (good.replace(b'"schema":1', b'"schema":true', 1),
+                    good.replace(b'"schema":1', b'"schema":1,"schema":1', 1),
+                    good.replace(b'"offset_frames":0', b'"offset_frames":NaN', 1),
+                    b'[' * 1100 + b']' * 1100, b' ' * (renditions.MAX_RENDITION_BYTES + 1)):
+            with self.subTest(size=len(raw)), self.assertRaises(ValueError):
+                renditions.get_sound_rendition_ledger(raw)
+        with patch.object(renditions, 'MAX_RENDITION_BYTES', 32), \
+                patch.object(renditions, '_get_record_digest', side_effect=AssertionError('hashed too soon')):
+            with self.assertRaisesRegex(ValueError, 'byte limit'):
+                renditions.get_sound_rendition_ledger_bytes(value)
+        for bad in (True, 1.5, '0'):
+            master = copy.deepcopy(value['records'][0]['master']); master['offset_frames'] = bad
+            with self.subTest(offset=bad), self.assertRaises(ValueError):
+                self.record(master=master)
+
+
 class SoundDesignSavedBookTests(unittest.TestCase):
     @contextmanager
     def fixture(self):
@@ -86,17 +177,41 @@ class SoundDesignSavedBookTests(unittest.TestCase):
         (root / ACTIVE_CUES).write_bytes(raw)
         return raw
 
+    def write_renditions(self, root, *, consume=False):
+        from sound_design_renditions import ACTIVE_RENDITIONS, get_sound_rendition_ledger_bytes
+        cues = get_sound_design_registry((root/ACTIVE_CUES).read_bytes())
+        record = SoundRenditionHistoryTests().record(cues)
+        if consume:
+            from sound_design_registry import get_sound_design_registry_edit
+            source = cues['versions'][0]
+            authored = copy.deepcopy(source['recipe'])
+            authored['rendition_id'] = record['rendition_id']
+            authored['asset'] = dict(asset_id=record['master']['asset_id'],
+                **{key: record['master']['canonical'][key] for key in
+                   ('sha256', 'frames', 'frame_rate', 'channels', 'sample_width')})
+            cues = get_sound_design_registry_edit(cues, source['cue_id'], authored,
+                source['version'], schema=2)
+            (root/ACTIVE_CUES).write_bytes(get_sound_design_registry_bytes(cues))
+        raw = b'\n' + get_sound_rendition_ledger_bytes(dict(schema=1,
+            book_id=cues['book']['book_id'], records=[record], keep=[record['rendition_id']])) + b'\n'
+        (root/ACTIVE_RENDITIONS).write_bytes(raw)
+        return raw
+
     def test_two_named_snapshots_restore_their_exact_own_cue_bytes(self):
         with self.fixture() as (root, api), TestClient(api) as client:
-            first = self.write_active(root)
+            from sound_design_renditions import ACTIVE_RENDITIONS, get_saved_sound_renditions_path
+            self.write_active(root); first_renditions = self.write_renditions(root, consume=True)
+            first = (root/ACTIVE_CUES).read_bytes()
             self.assertEqual(200, client.post('/api/scripts/save', json={'name': 'one'}).status_code)
-            second = self.write_active(root, -24)
+            second = self.write_active(root, -24); second_renditions = self.write_renditions(root)
             self.assertEqual(200, client.post('/api/scripts/save', json={'name': 'two'}).status_code)
-            for name, expected in (('one', first), ('two', second), ('one', first)):
+            for name, expected, expected_renditions in (('one', first, first_renditions), ('two', second, second_renditions), ('one', first, first_renditions)):
                 response = client.post('/api/scripts/load', json={'name': name})
                 self.assertEqual(200, response.status_code, response.text)
                 self.assertEqual(expected, (root / ACTIVE_CUES).read_bytes())
                 self.assertEqual(expected, Path(get_saved_sound_design_path(root / 'scripts' / (name + '.json'))).read_bytes())
+                self.assertEqual(expected_renditions, (root/ACTIVE_RENDITIONS).read_bytes())
+                self.assertEqual(expected_renditions, Path(get_saved_sound_renditions_path(root/'scripts'/(name+'.json'))).read_bytes())
 
     def test_admitted_assets_and_historical_references_survive_book_save_reset_load(self):
         import numpy as np
@@ -140,8 +255,10 @@ class SoundDesignSavedBookTests(unittest.TestCase):
 
     def test_checkpoint_snapshot_keeps_exact_cue_history_on_reload(self):
         with self.fixture() as (root, api):
+            from sound_design_renditions import ACTIVE_RENDITIONS, get_saved_sound_renditions_path
             api.include_router(script.router)
             raw = self.write_active(root)
+            rendition_raw = self.write_renditions(root)
             entries = [{'speaker': 'Alice', 'text': 'Completed prefix.', 'instruct': 'Read'}]
             checkpoint = dict(stage='instruct', chunks_done=1, segmented=entries,
                               named=entries, annotated=entries)
@@ -154,12 +271,16 @@ class SoundDesignSavedBookTests(unittest.TestCase):
                 response = client.post('/api/generate_script/snapshot', json={'name': 'prefix'})
                 self.assertEqual(200, response.status_code, response.text)
                 companion = Path(get_saved_sound_design_path(root / 'scripts/prefix.json'))
+                rendition_companion = Path(get_saved_sound_renditions_path(root / 'scripts/prefix.json'))
                 self.assertEqual(raw, companion.read_bytes())
+                self.assertEqual(rendition_raw, rendition_companion.read_bytes())
                 self.assertEqual(entries, json.loads((root / 'scripts/prefix.json').read_bytes()))
                 self.write_active(root, -24)
+                self.write_renditions(root)
                 response = client.post('/api/scripts/load', json={'name': 'prefix'})
                 self.assertEqual(200, response.status_code, response.text)
                 self.assertEqual(raw, (root / ACTIVE_CUES).read_bytes())
+                self.assertEqual(rendition_raw, (root / ACTIVE_RENDITIONS).read_bytes())
                 self.assertEqual(raw, companion.read_bytes())
                 # Invalid metadata must refuse a new snapshot before any family is published.
                 (root / ACTIVE_CUES).write_bytes(b'{invalid')
@@ -170,16 +291,19 @@ class SoundDesignSavedBookTests(unittest.TestCase):
 
     def test_load_cue_install_failure_restores_exact_active_book(self):
         with self.fixture() as (root, api), TestClient(api, raise_server_exceptions=False) as client:
+            from sound_design_renditions import ACTIVE_RENDITIONS
             self.write_active(root)
+            self.write_renditions(root)
             self.assertEqual(200, client.post('/api/scripts/save', json={'name': 'one'}).status_code)
             self.write_active(root, -24)
+            before_renditions = self.write_renditions(root)
             before_cues = (root / ACTIVE_CUES).read_bytes()
             before_state = (root / 'state.json').read_bytes()
             move = books._move; failed = False
             def fail_after_install(source, destination):
                 nonlocal failed
                 move(source, destination)
-                if Path(destination) == root / ACTIVE_CUES and not failed:
+                if Path(destination) == root / ACTIVE_RENDITIONS and not failed:
                     failed = True
                     raise OSError('fixture after cue install')
             with patch.object(books, '_move', side_effect=fail_after_install):
@@ -187,6 +311,7 @@ class SoundDesignSavedBookTests(unittest.TestCase):
             self.assertTrue(failed)
             self.assertEqual(500, response.status_code)
             self.assertEqual(before_cues, (root / ACTIVE_CUES).read_bytes())
+            self.assertEqual(before_renditions, (root / ACTIVE_RENDITIONS).read_bytes())
             self.assertEqual(before_state, (root / 'state.json').read_bytes())
             self.assertFalse((root / books.JOURNAL).exists())
 
@@ -245,9 +370,12 @@ books.apply_book_input_selection(root, 'new.txt', 'new')
         with self.fixture() as (root, api), TestClient(api) as client:
             self.assertEqual(200, client.post('/api/scripts/save', json={'name': 'legacy'}).status_code)
             self.write_active(root)
+            self.write_renditions(root)
             response = client.post('/api/scripts/load', json={'name': 'legacy'})
             self.assertEqual(200, response.status_code, response.text)
             self.assertFalse((root / ACTIVE_CUES).exists())
+            from sound_design_renditions import ACTIVE_RENDITIONS
+            self.assertFalse((root/ACTIVE_RENDITIONS).exists())
 
     def test_invalid_active_save_refuses_without_overwriting_saved_family(self):
         with self.fixture() as (root, api), TestClient(api) as client:
@@ -274,8 +402,11 @@ books.apply_book_input_selection(root, 'new.txt', 'new')
     def test_source_selection_clears_valid_cues_and_preserves_invalid_metadata(self):
         with self.fixture() as (root, _api):
             self.write_active(root)
+            self.write_renditions(root)
+            from sound_design_renditions import ACTIVE_RENDITIONS
             apply_book_input_selection(root, 'new.txt', 'new')
             self.assertFalse((root / ACTIVE_CUES).exists())
+            self.assertFalse((root/ACTIVE_RENDITIONS).exists())
             state = (root / 'state.json').read_bytes()
             (root / ACTIVE_CUES).write_bytes(b'{invalid')
             with self.assertRaises(ValueError):
@@ -320,14 +451,24 @@ books.apply_book_input_selection(root, 'new.txt', 'new')
 
     def test_snapshot_overwrite_without_cues_removes_only_its_own_companion(self):
         with self.fixture() as (root, api), TestClient(api) as client:
+            from sound_design_renditions import ACTIVE_RENDITIONS, get_saved_sound_renditions_path
             self.write_active(root)
+            self.write_renditions(root)
             for name in ('one', 'two'):
                 self.assertEqual(200, client.post('/api/scripts/save', json={'name': name}).status_code)
             second = Path(get_saved_sound_design_path(root / 'scripts/two.json')).read_bytes()
+            second_renditions = Path(get_saved_sound_renditions_path(root / 'scripts/two.json')).read_bytes()
             (root / ACTIVE_CUES).unlink()
+            (root / ACTIVE_RENDITIONS).unlink()
             self.assertEqual(200, client.post('/api/scripts/save', json={'name': 'one'}).status_code)
             self.assertFalse(Path(get_saved_sound_design_path(root / 'scripts/one.json')).exists())
+            self.assertFalse(Path(get_saved_sound_renditions_path(root / 'scripts/one.json')).exists())
             self.assertEqual(second, Path(get_saved_sound_design_path(root / 'scripts/two.json')).read_bytes())
+            self.assertEqual(second_renditions, Path(get_saved_sound_renditions_path(root / 'scripts/two.json')).read_bytes())
+            response = client.delete('/api/scripts/two')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertFalse(Path(get_saved_sound_design_path(root / 'scripts/two.json')).exists())
+            self.assertFalse(Path(get_saved_sound_renditions_path(root / 'scripts/two.json')).exists())
 
 
 if __name__ == '__main__':

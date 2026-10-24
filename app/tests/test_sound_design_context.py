@@ -36,7 +36,8 @@ class SoundDesignContextTests(unittest.TestCase):
         # The fixture grants task admission, retaining the actual native book
         # guard. Route tests must separately exercise configured task exclusion.
         with books.ensure_book_state(self.root,recover=False), \
-                patch.object(context,'is_scope_admitted',side_effect=books.is_book_state_admitted):
+                patch.object(context,'is_scope_admitted',side_effect=books.is_book_state_admitted), \
+                patch('sound_design_rendition_media.is_scope_admitted',side_effect=books.is_book_state_admitted):
             yield
 
     def files(self):
@@ -54,6 +55,68 @@ class SoundDesignContextTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(self.audio.read_bytes()).hexdigest(),anchor['selection']['audio_sha256'])
             self.assertIsNone(anchor['selection']['audio_revision'])  # legacy selected take remains usable
             self.assertEqual(before,self.files()); self.assertEqual([],first['registry']['versions'])
+
+    def test_optional_rendition_absence_preserves_legacy_hash_but_is_fenced(self):
+        from sound_design_renditions import ACTIVE_RENDITIONS
+        with self.admitted():
+            legacy = context.capture_sound_design_context(self.root)
+            self.assertEqual(set(context._FILES), set(legacy['binding']['files']))
+            self.assertNotIn(ACTIVE_RENDITIONS, legacy['binding']['files'])
+            self.assertIsNone(legacy['ledger_revision'])
+            original_binding = dict(files={name: legacy['binding']['files'][name] for name in context._FILES},
+                source=legacy['binding']['source'], book_identity=legacy['binding']['book_identity'],
+                rows_sha256=legacy['binding']['rows_sha256'])
+            self.assertEqual(books.get_snapshot_digest(original_binding), legacy['context_revision'])
+            self.write(ACTIVE_RENDITIONS, dict(schema=1, book_id=self.state['active_book_id'], records=[], keep=[]))
+            with self.assertRaisesRegex(ValueError, 'changed before publication'):
+                context.require_sound_design_context_files_current(self.root, legacy)
+            present = context.capture_sound_design_context(self.root)
+            self.assertIn(ACTIVE_RENDITIONS, present['binding']['files'])
+            self.assertNotEqual(legacy['context_revision'], present['context_revision'])
+            self.assertEqual(hashlib.sha256((self.root/ACTIVE_RENDITIONS).read_bytes()).hexdigest(), present['ledger_revision'])
+            (self.root/ACTIVE_RENDITIONS).unlink()
+            with self.assertRaisesRegex(ValueError, 'disappeared'):
+                context.require_sound_design_context_files_current(self.root, present)
+        capture_source = context.get_scope_source_snapshot
+        def appear_during_capture(*args, **kwargs):
+            result = capture_source(*args, **kwargs)
+            self.write(ACTIVE_RENDITIONS, dict(schema=1, book_id=self.state['active_book_id'], records=[], keep=[]))
+            return result
+        with self.admitted(), patch.object(context, 'get_scope_source_snapshot', side_effect=appear_during_capture):
+            with self.assertRaisesRegex(ValueError, 'changed while capturing'):
+                context.capture_sound_design_context(self.root)
+
+    def test_consuming_history_requires_matching_retained_renditions_without_media_decode(self):
+        from sound_design_renditions import ACTIVE_RENDITIONS
+        from sound_design_registry import get_sound_design_registry_edit
+        from tests.test_sound_design_registry import SoundRenditionHistoryTests
+        from tests.test_sound_design_cues import recipe
+        with self.admitted():
+            snapshot = context.capture_sound_design_context(self.root)
+            authored = recipe(); authored['book'] = snapshot['book']
+            cues = get_sound_design_registry_edit(snapshot['registry'], 'cue-a', authored)
+            record = SoundRenditionHistoryTests().record(cues)
+            authored['asset'] = {'asset_id': record['master']['asset_id'], **{key: record['master']['canonical'][key]
+                                for key in ('sha256', 'frames', 'frame_rate', 'channels', 'sample_width')}}
+            authored['rendition_id'] = record['rendition_id']
+            consumed = get_sound_design_registry_edit(cues, 'cue-a', authored, cues['selected']['cue-a'], schema=2)
+            self.write(context.ACTIVE_CUES, consumed)
+            with self.assertRaisesRegex(ValueError, 'requires its retained rendition ledger'):
+                context.capture_sound_design_context(self.root)
+            ledger = dict(schema=1, book_id=self.state['active_book_id'], records=[record], keep=[])
+            self.write(ACTIVE_RENDITIONS, ledger)
+            with patch('sound_design_assets.SoundDesignAssetStore.open_verified_asset', side_effect=AssertionError('metadata capture decoded media')):
+                current = context.capture_sound_design_context(self.root)
+            self.assertEqual(record['rendition_id'], current['renditions']['records'][0]['rendition_id'])
+            self.write(ACTIVE_RENDITIONS, {**ledger, 'records': []})
+            with self.assertRaisesRegex(ValueError, 'retained rendition'):
+                context.capture_sound_design_context(self.root)
+            for raw in (b'{"schema":1,"schema":1}', b'{"schema":1,"records":[NaN]}'):
+                (self.root/ACTIVE_RENDITIONS).write_bytes(raw)
+                with patch.object(context, 'get_scope_source_snapshot') as source:
+                    with self.assertRaises(ValueError):context.capture_sound_design_context(self.root)
+                    source.assert_not_called()
+                self.assertEqual(raw, (self.root/ACTIVE_RENDITIONS).read_bytes())
 
     def test_source_script_state_voice_settings_and_rows_change_context_identity(self):
         with self.admitted():

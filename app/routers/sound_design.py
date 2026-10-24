@@ -19,7 +19,7 @@ from audio_validation import GeneratedAudioError
 from tts import ExportCancelled
 from json_metadata import get_metadata_json_bytes
 from sound_design_edit import (MAX_CUE_REQUEST_BYTES, CueRequestError,
-                                run_sound_design_cue_operation)
+                                run_sound_design_cue_operation, parse_sound_design_cue_request)
 
 router = APIRouter()
 AssetId = Annotated[str, Path(pattern=r'^[0-9a-f]{32}$')]
@@ -89,10 +89,10 @@ def audition_sound_asset(asset_id: AssetId,
     return Response(audio, media_type='audio/wav', headers={'Cache-Control': 'no-store'})
 
 
-def _cue_response(operation, raw, selection, check_active):
+def _cue_response(operation, raw, selection, check_active, *, audio_owned=False):
     try:
         result = run_sound_design_cue_operation(DATA_DIR,operation,raw=raw,
-                                               check_active=check_active,**selection)
+                                               check_active=check_active,audio_owned=audio_owned,**selection)
         encoded = get_metadata_json_bytes(result,4*1024**2,'Cue response')
         return Response(encoded,media_type='application/json',headers={'Cache-Control':'no-store'})
     except CueRequestError:
@@ -114,10 +114,24 @@ async def _dispatch_cues(operation, request, **selection):
                 raise HTTPException(413,'Cue request exceeds its 16 KiB limit.')
             parts.append(part)
         raw = b''.join(parts)
+        try:
+            parse_sound_design_cue_request(operation, raw)
+        except CueRequestError:
+            raise HTTPException(400, 'Invalid cue request. Refresh the cue editor and check its fields.') from None
+        from tts import ensure_audio_export_active
+        def owned(cancel_check):
+            return _cue_response(operation, raw, selection,
+                lambda: ensure_audio_export_active(cancel_check), audio_owned=True)
+        return await _dispatch_sound_candidate(request, owned, busy_conflicts=True)
+    return await _dispatch_sound_metadata(request, lambda check: _cue_response(
+        operation, raw, selection, check))
+
+
+async def _dispatch_sound_metadata(request, operation):
     cancelled = threading.Event()
     def check_active():
         if cancelled.is_set():
-            raise AudioGenerationCancelled('Cue operation cancelled')
+            raise AudioGenerationCancelled('Sound metadata operation cancelled')
     async def watch_disconnect():
         while not cancelled.is_set():
             if await request.is_disconnected():
@@ -126,7 +140,7 @@ async def _dispatch_cues(operation, request, **selection):
     watcher = asyncio.create_task(watch_disconnect())
     try:
         response, cancellation = await await_upload_operation(asyncio.to_thread(
-            _cue_response,operation,raw,selection,check_active),on_cancel=cancelled.set)
+            operation,check_active),on_cancel=cancelled.set)
         if cancellation is not None:
             raise cancellation
         return response
@@ -217,8 +231,12 @@ async def _read_sound_candidate_request(request, model, *, max_bytes=MAX_CUE_REQ
         raise HTTPException(400,'Invalid sound candidate request.') from None
 
 
-async def _dispatch_sound_candidate(request, operation):
+async def _dispatch_sound_candidate(request, operation, *, busy_conflicts=False):
     cancelled = threading.Event()
+    started = threading.Event()
+    def observed(cancel_check):
+        started.set()
+        return operation(cancel_check)
     async def watch_disconnect():
         while not cancelled.is_set():
             if await request.is_disconnected():
@@ -227,13 +245,19 @@ async def _dispatch_sound_candidate(request, operation):
     watcher = asyncio.create_task(watch_disconnect())
     try:
         result, cancellation = await await_upload_operation(
-            run_claimed_task_worker('audio',operation,cancelled.is_set,cpu_only=True),
+            run_claimed_task_worker('audio',observed,cancelled.is_set,cpu_only=True),
             on_cancel=cancelled.set)
         if cancellation is not None:
             raise cancellation
         return result
     except (AudioGenerationCancelled,ExportCancelled):
         raise HTTPException(409,'Sound operation cancelled. Refresh saved candidates before retrying.') from None
+    except HTTPException as error:
+        # New metadata/media operations promise conflict status for admission
+        # failures; request validation has already completed before this point.
+        if busy_conflicts and not started.is_set() and error.status_code == 400:
+            raise HTTPException(409, 'Sound operation is busy; refresh before retrying.') from None
+        raise
     except SoundDeliveryIntegrityRequired as error:
         raise HTTPException(409,detail=error.report) from None
     except (ValueError,OSError,TimeoutError,subprocess.SubprocessError,GeneratedAudioError):
@@ -329,3 +353,79 @@ def download_sound_delivery(format_name:Literal['mp3','wav','m4b'],
     except BaseException:
         stream.close()
         raise
+
+
+# Score lineage metadata and owned media-use actions share the established
+# response bounds, cancellation watchers and CPU-only audio worker dispatcher.
+from sound_design_rendition_ops import (MAX_RENDITION_REQUEST_BYTES, RenditionRequestError,
+    parse_sound_rendition_request, run_sound_rendition_operation)
+
+
+def _rendition_response(operation, payload, selection, check_active):
+    try:
+        result = run_sound_rendition_operation(DATA_DIR, operation, payload=payload,
+                                               check_active=check_active, **selection)
+        encoded = get_metadata_json_bytes(result, 4*1024**2, 'Rendition response')
+        return Response(encoded, media_type='application/json', headers={'Cache-Control': 'no-store'})
+    except RenditionRequestError:
+        raise HTTPException(400, 'Invalid rendition request. Refresh history and check the fields.') from None
+    except (AudioGenerationCancelled, ExportCancelled):
+        raise HTTPException(409, 'Rendition operation cancelled. Refresh history to inspect saved state.') from None
+    except (ValueError, OSError, TimeoutError, RecursionError, UnicodeError):
+        raise HTTPException(409, 'Rendition context is busy, changed or unavailable. Refresh history before retrying.') from None
+
+
+async def _dispatch_renditions(request, operation, **selection):
+    payload = None
+    if operation != 'metadata':
+        parts = []; size = 0
+        async for part in request.stream():
+            size += len(part)
+            if size > MAX_RENDITION_REQUEST_BYTES:
+                raise HTTPException(413, 'Rendition request exceeds its 16 KiB limit.')
+            parts.append(part)
+        try:
+            payload = parse_sound_rendition_request(operation, b''.join(parts))
+        except RenditionRequestError:
+            raise HTTPException(400, 'Invalid rendition request. Refresh history and check the fields.') from None
+    if operation in ('record', 'consume'):
+        from tts import ensure_audio_export_active
+        def owned(cancel_check):
+            return _rendition_response(operation, payload, selection,
+                                      lambda: ensure_audio_export_active(cancel_check))
+        return await _dispatch_sound_candidate(request, owned, busy_conflicts=True)
+    return await _dispatch_sound_metadata(request,
+        lambda check: _rendition_response(operation, payload, selection, check))
+
+
+@router.get('/api/sound_design/renditions')
+async def list_sound_renditions(request: Request,
+    offset: Annotated[int, Query(ge=0, le=1024)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    cue_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None):
+    return await _dispatch_renditions(request, 'metadata', offset=offset, limit=limit, cue_id=cue_id)
+
+
+@router.post('/api/sound_design/renditions/record')
+async def record_sound_rendition(request: Request):
+    return await _dispatch_renditions(request, 'record')
+
+
+@router.post('/api/sound_design/renditions/keep')
+async def keep_sound_rendition(request: Request):
+    return await _dispatch_renditions(request, 'keep')
+
+
+@router.post('/api/sound_design/renditions/consume')
+async def consume_sound_rendition(request: Request):
+    return await _dispatch_renditions(request, 'consume')
+
+
+@router.post('/api/sound_design/renditions/cleanup_preview')
+async def preview_sound_rendition_cleanup(request: Request):
+    return await _dispatch_renditions(request, 'cleanup_preview')
+
+
+@router.post('/api/sound_design/renditions/cleanup')
+async def cleanup_sound_renditions(request: Request):
+    return await _dispatch_renditions(request, 'cleanup')

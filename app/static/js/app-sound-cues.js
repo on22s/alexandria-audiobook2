@@ -1,6 +1,6 @@
 // Versioned cue authoring. Saving metadata never approves or replaces audio.
 const SoundCues = (() => {
-    let sequence = 0, busy = false, view = null, assets = [], offset = 0;
+    let sequence = 0, busy = false, view = null, assets = [], offset = 0, useSequence = 0;
     const el = id => document.getElementById(id);
     const message = text => { el('sound-cues-status').textContent = text; };
     const digest = value => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
@@ -18,12 +18,12 @@ const SoundCues = (() => {
         el('sound-cues-refresh').disabled = value;
     }
     function same(a, b) { return Object.keys(a).every(key => a[key] === b[key]) && Object.keys(a).length === Object.keys(b).length; }
-    function validate(data) {
+    function validate(data, page = offset) {
         const book = value => value && text(value.book_id, 1024) && digest(value.source_sha256) && digest(value.script_sha256);
         if (!data || !digest(data.context_revision) || !(data.registry_revision === null || digest(data.registry_revision))
             || !digest(data.book_token) || !book(data.book) || !Array.isArray(data.chunks) || data.chunks.length > 200
             || !Number.isInteger(data.total_chunks) || data.total_chunks < 1 || data.total_chunks > 100000
-            || !(data.next_offset === null || Number.isInteger(data.next_offset) && data.next_offset > offset && data.next_offset < data.total_chunks)
+            || !(data.next_offset === null || Number.isInteger(data.next_offset) && data.next_offset > page && data.next_offset < data.total_chunks)
             || !data.registry || !Array.isArray(data.registry.versions) || data.registry.versions.length > 1024
             || !data.registry.selected || typeof data.registry.selected !== 'object' || Array.isArray(data.registry.selected)) {
             throw new Error('Invalid cue editor response.');
@@ -38,11 +38,14 @@ const SoundCues = (() => {
         }
         for (const row of data.registry.versions) {
             const r = row?.recipe, s = r?.selection;
-            if (!row || !text(row.cue_id, 128) || !digest(row.version) || versions.has(row.version)
+            if (!row || ![1, 2].includes(row.schema) || row.schema === 2 && !digest(r?.rendition_id) || !text(row.cue_id, 128) || !digest(row.version) || versions.has(row.version)
                 || !(row.parent_version === null || digest(row.parent_version)) || !book(r?.book)
                 || !s || !text(s.chunk_uid, 128) || !digest(s.generation_sha256) || !digest(s.audio_sha256)
                 || !(s.audio_revision === null || text(s.audio_revision, 128))
-                || !r.asset || typeof r.asset.asset_id !== 'string' || !/^[0-9a-f]{32}$/.test(r.asset.asset_id) || !digest(r.asset.sha256)) {
+                || !r.asset || typeof r.asset.asset_id !== 'string' || !/^[0-9a-f]{32}$/.test(r.asset.asset_id) || !digest(r.asset.sha256)
+                || !Number.isSafeInteger(r.asset.frame_rate) || r.asset.frame_rate < 1 || r.asset.frame_rate > 192000
+                || !Number.isSafeInteger(r.asset.frames) || r.asset.frames < 1 || r.asset.frames > r.asset.frame_rate * 86400
+                || ![1, 2].includes(r.asset.channels) || ![1, 2, 4].includes(r.asset.sample_width)) {
                 throw new Error('Invalid cue history.');
             }
             validateParameters(r); versions.set(row.version, row);
@@ -111,6 +114,7 @@ const SoundCues = (() => {
         if (expected !== sequence) { return; }
         if (!result || result.status !== 'saved' || result.cue_id !== payload.cue_id || result.book_token !== captured.book_token
             || !digest(result.registry_revision) || !(result.version === null || digest(result.version))) { throw new Error('Cue save could not be confirmed.'); }
+        if (typeof SoundMixes !== 'undefined') { SoundMixes.invalidate(); }
         setBusy(false); await refresh(offset);
         if (sequence === expected + 1 && view?.book_token === captured.book_token) { message('Cue selection saved. Audio audition and delivery approval are still required.'); }
     }
@@ -140,6 +144,13 @@ const SoundCues = (() => {
                         ? 'This revision matches the current source and selected dialogue take. Mix audition is still required.'
                         : 'This cue is stale: its source or selected dialogue take changed. Create an explicit revision.');
                 }), 'Check this saved revision against current source and selected dialogue audio.'));
+                if (r.rendition_id) { line.append(make('p', `Uses recorded rendition ${r.rendition_id.slice(0, 12)} · full mix review required`)); }
+                if (typeof SoundRenditions !== 'undefined') {
+                    line.append(button('Record a rendition', () => SoundRenditions.recordFromCue(row, view),
+                        'Document an imported or externally produced file against this exact source revision.'));
+                    line.append(button('Rendition history', () => SoundRenditions.showHistory(id),
+                        'Inspect recorded master/stem provenance for this cue.'));
+                }
                 line.append(button('Revise', () => edit(row), 'Create a new revision bound to the explicitly chosen current dialogue take. History is preserved.'));
                 line.append(button('Select revision', () => action((captured, expected) => publish(captured, expected, 'select', {cue_id: id, version: row.version})), 'Select this revision only if its source, take and sound asset still match.'));
                 card.append(line);
@@ -148,11 +159,11 @@ const SoundCues = (() => {
             box.append(card);
         }
     }
-    function edit(parent) {
+    function edit(parent, rendition = null) {
         if (busy || !view) { return; }
         const form = el('sound-cues-form'); form.replaceChildren();
         const fields = {}, r = parent?.recipe, rate = r?.frame_rate || 48000;
-        form.append(make('h5', parent ? `Revise ${parent.cue_id}` : 'New cue'));
+        form.append(make('h5', rendition ? `Use recorded master for ${parent.cue_id}` : parent ? `Revise ${parent.cue_id}` : 'New cue'));
         form.append(make('p', 'Saving selects a new revision tied to the chosen current take. Review the dialogue and sound first.'));
         function field(key, label, value, choices = null) {
             const wrapper = make('label', label); wrapper.className = 'form-label d-block mt-2';
@@ -162,10 +173,18 @@ const SoundCues = (() => {
             input.value = String(value); input.setAttribute('data-cue-field', key); fields[key] = input; wrapper.append(input); form.append(wrapper); return input;
         }
         field('name', 'Cue name', parent?.cue_id || '');
+        if (rendition) { fields.name.readOnly = true; }
         const choices = view.chunks.filter(row => row.has_recorded_take).map(row => [row.chunk_uid, `${row.speaker}: ${row.text}`]);
         if (r && !choices.some(([id]) => id === r.selection.chunk_uid)) { choices.unshift([r.selection.chunk_uid, 'Saved dialogue anchor — review its current take before saving']); }
         field('dialogue', 'Dialogue marked complete (verify its current take)', r?.selection.chunk_uid || choices[0]?.[0] || '', choices);
-        field('asset', 'Imported sound', r?.asset.asset_id || assets[0]?.asset_id || '', assets.map(row => [row.asset_id, row.display_name || 'Sound asset']));
+        if (rendition) {
+            const identity = rendition.record.master.asset_id;
+            const sound = assets.find(row => row.asset_id === identity);
+            field('asset', 'Recorded master', identity, [[identity, sound?.display_name || 'Recorded master — verify availability before use']]);
+            form.append(make('p', 'Choose the current dialogue and placement explicitly. The recorded master and its provenance stay fixed.'));
+        } else {
+            field('asset', 'Imported sound', r?.asset.asset_id || assets[0]?.asset_id || '', assets.map(row => [row.asset_id, row.display_name || 'Sound asset']));
+        }
         field('kind', 'Sound type', r?.kind || 'effect', [['effect', 'Effect'], ['ambience', 'Ambience']]);
         field('boundary', 'Place at dialogue', r?.boundary || 'start', [['start', 'Start'], ['end', 'End']]);
         field('offset', 'Offset in seconds (negative means before)', (r?.offset_frames || 0) / rate);
@@ -202,11 +221,50 @@ const SoundCues = (() => {
             } catch (error) { message(error.message); return; }
             return action(async (captured, expected) => {
                 const current = await anchor(captured, fields.dialogue.value);
+                if (rendition) {
+                    const history = rendition.history;
+                    if (captured.context_revision !== history.context_revision || captured.registry_revision !== history.registry_revision
+                        || captured.book_token !== history.book_token) { throw new Error('History changed. Refresh recorded renditions and review the cue again.'); }
+                    const result = await json('/api/sound_design/renditions/consume', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({context_revision: captured.context_revision, registry_revision: captured.registry_revision,
+                            ledger_revision: history.ledger_revision, cue_id: parent.cue_id, parent_version: parent.version,
+                            chunk_uid: fields.dialogue.value, anchor_revision: current.anchor_revision,
+                            rendition_id: rendition.record.rendition_id, parameters})});
+                    if (expected !== sequence) { return; }
+                    if (result?.status !== 'saved' || result.cue_id !== parent.cue_id || result.rendition_id !== rendition.record.rendition_id
+                        || result.book_token !== captured.book_token || !digest(result.version) || !digest(result.context_revision)
+                        || !digest(result.registry_revision) || result.ledger_revision !== history.ledger_revision || result.refresh_required !== true) {
+                        throw new Error('Recorded master selection could not be confirmed.');
+                    }
+                    if (typeof SoundMixes !== 'undefined') { SoundMixes.invalidate(); }
+                    setBusy(false); await refresh(offset);
+                    if (typeof SoundRenditions !== 'undefined') { await SoundRenditions.refresh(); }
+                    message('Recorded master selected in a new cue revision. Review the full mix before approval.');
+                    return;
+                }
                 await publish(captured, expected, 'revise', {cue_id: name, parent_version: parent?.version || null,
                     chunk_uid: fields.dialogue.value, anchor_revision: current.anchor_revision,
                     asset_id: selected.asset_id, asset_sha256: selected.canonical.sha256, parameters});
             });
         }, 'Save a new immutable revision using current source, take and sound identities, then select it for mixing.'));
     }
-    return {refresh};
+    async function useRendition(record, history) {
+        if (busy) { return; }
+        const invocation = ++useSequence;
+        const panel = el('sound-cues-content').closest?.('details');
+        if (panel && !panel.open) {
+            await new Promise(resolve => { panel.addEventListener('toggle', resolve, {once: true}); panel.open = true; });
+            if (!panel.open) { return; }
+        }
+        if (invocation !== useSequence) { return; }
+        const expected = sequence + 1; await refresh(offset);
+        if (invocation !== useSequence || sequence !== expected) { return; }
+        if (!view || view.context_revision !== history.context_revision || view.registry_revision !== history.registry_revision
+            || view.book_token !== history.book_token) { message('History changed. Refresh recorded renditions before choosing a master.'); return; }
+        const selected = view.registry.selected[record.source.cue_id];
+        const parent = view.registry.versions.find(row => row.version === selected && row.cue_id === record.source.cue_id);
+        if (!parent) { message('Select and review an existing cue revision before using this master.'); return; }
+        edit(parent, {record, history});
+    }
+    return {refresh, validate, useRendition};
 })();

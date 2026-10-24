@@ -30,6 +30,65 @@ Historical cue metadata is retained without automatic reanchoring or approval.
 The cue interface shows missing/stale dialogue bindings and requires
 proof or explicit reanchoring before use.
 
+## Recorded master and stem lineage
+
+In **Sound cues**, choose an exact retained revision and **Record a rendition**.
+Choose an already imported master, optionally add up to sixteen imported stems,
+and describe the file's origin. Stem offsets are signed integers on the master's
+frame clock: positive starts later, negative starts earlier. The selected master
+is the audio used by a consuming cue; stems document its provenance and are
+retained and verified with it. Recording stems does not mix them into the master.
+
+An audio import and a declared external render have distinct origins. External
+renders require tool/version and request/result SHA-256 declarations. These
+declarations do not prove that a tool ran. Optional score-sketch and arrangement
+fingerprints and a family label preserve composition identity independently of
+rendered audio. **Record derived file** documents a separately imported revoice,
+mixdown or processing result and its earlier parent from the exact same source
+revision. These controls record files; they do not run a generation or processing
+provider.
+
+Each immutable rendition binds its historical source cue/book facts, composition,
+origin, derivation and verified original/canonical master/stem facts. Its full
+SHA-256 identity changes when any of those facts changes. Historical source facts
+remain attached to the retained source revision even after the active text changes.
+**Use master in cue** reviews current dialogue and timing, then creates an explicit
+schema-2 cue revision using the current selected cue as parent and the rendition's
+master as its asset. Existing schema-1 cue identities remain unchanged. Revising
+a consuming cue with the same master preserves its rendition identity; explicitly
+choosing a different asset creates a regular schema-1 revision and retains history.
+
+The **Recorded renditions** panel shows metadata history and keep flags. Keeping
+or selecting a rendition does not approve a mix. Playback, full-mix review,
+approval and delivery retain their separate source/take/media checks. Required
+master/stem media and rendition ancestors must still verify before recording,
+consuming, rendering or using an approved candidate. Metadata history remains
+inspectable when media is missing; media use refuses the missing or changed file.
+
+The active ledger is `.sound_design_renditions.json`; named books use companions
+such as `.example.sound_design_renditions.json`. Both cue and rendition companions
+travel together in existing save, checkpoint, load, repair and delete transactions.
+Input reset clears valid companions together; malformed or foreign companions
+refuse replacement and preserve recoverable files. The ledger accepts at most
+2 MiB and 1,024 records. A present ledger joins the existing context byte budget
+and fingerprint. An absent ledger is separately fenced without changing legacy
+context hashes; final export snapshots track its path even when unreferenced.
+
+**Preview selected cleanup** reviews one to 128 exact record identities. Retained
+cue history, draft selection, keep flags, children and candidate/approval proofs
+protect their references. Unknown, incomplete, foreign or contradictory retained
+stage proofs refuse automatic cleanup. Preview and execution bind the same
+context, ledger and stage impact; changed proof requires a new preview. Deleting
+reviewed record metadata retains ready audio assets and leaves a valid empty ledger
+when the final removable record is deleted. Listing and cleanup inspect bounded
+metadata rather than decoding audio or probing encoders.
+
+The `/api/sound_design/renditions` API provides paged metadata; its `/record`,
+`/keep`, `/consume`, `/cleanup_preview` and `/cleanup` POST routes accept strict
+JSON up to 16 KiB and require expected context, registry and ledger revisions.
+Record and consume use the normal CPU audio owner. Cancellation retains that
+owner until worker exit; refresh after an uncertain outcome before retrying.
+
 Upload selection runs on a worker with the existing kernel task barrier and
 book admission. The local task mutex is released during slow metadata work.
 Cancellation waits for that worker to finish. Completed uploads become

@@ -29,6 +29,22 @@ class SoundMixesJsTests(unittest.TestCase):
         result=subprocess.run(['node','-e',script,str(SOURCE),str(VALIDATION_SOURCE),str(SOURCE.parent/'app-sound-mix-cover.js')],capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stderr)
 
+    def test_invalidation_drops_pending_inventory_and_approval_without_restoring_controls(self):
+        self.run_js(r'''
+const loading=api.refresh();requests[0].resolve({context_revision:'c'.repeat(64)});await tick();
+api.invalidate();requests[1].resolve({delivery_profiles:profiles(),candidates:[row()]});await loading;
+assert.equal(box.children.length,0);assert(document.getElementById('sound-mixes-status').textContent.includes('Refresh'));
+await ready();let stopped=0;const audio=box.querySelectorAll('audio')[0];audio.pause=()=>stopped++;
+box.querySelectorAll('input').find(n=>n.type==='checkbox').checked=true;
+const approval=click('Record full-mix approval'),count=requests.length;
+api.invalidate();assert(stopped>0);assert.equal(box.children.length,0);
+await api.refresh();assert.equal(requests.length,count); // pending action retains ownership
+requests.at(-1).resolve({});await approval;
+assert.equal(box.children.length,0);assert.equal(requests.length,count);
+assert.strictEqual(document.getElementById('sound-mixes-refresh').disabled,false);
+await ready();assert(box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));
+''')
+
     def test_profile_is_visible_and_format_change_requires_new_confirmation(self):
         self.run_js(r'''
 await ready();assert(box.querySelectorAll('p').some(n=>n.textContent==='mp3 approved profile'));

@@ -46,8 +46,10 @@ from content_repair import apply_content_selections, build_content_review
 from utils import (atomic_json_write, backup_file_with_timestamp, file_lock,
                    get_timestamped_backup_path, is_generic_speaker, safe_load_json)
 from sound_design_registry import (ACTIVE_CUES, get_saved_sound_design_path,
-                                   capture_sound_design_registry, MAX_REGISTRY_BYTES)
+                                   MAX_REGISTRY_BYTES)
 from project_scope_files import capture_scope_file
+from sound_design_renditions import (ACTIVE_RENDITIONS, get_saved_sound_renditions_path,
+                                     capture_sound_design_companions, MAX_RENDITION_BYTES)
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -59,7 +61,7 @@ def _get_saved_book_companions(path):
     stem = os.path.splitext(path)[0]
     return list(dict.fromkeys([
         stem + ".voice_config.json", stem + ".meta.json",
-        get_saved_sound_design_path(path),
+        get_saved_sound_design_path(path), get_saved_sound_renditions_path(path),
         get_publication_source_path(path),
         get_review_receipt_path(path),
         *get_generation_checkpoint_artifacts(_checkpoint_path(path)),
@@ -90,19 +92,20 @@ def _require_saved_book_name(name):
     return safe
 
 
-def _capture_cue_companion(root, relative, book_id):
+def _capture_sound_companions(root, cue_relative, rendition_relative, book_id):
     try:
-        return capture_sound_design_registry(root, relative, expected_book_id=book_id)
+        return capture_sound_design_companions(root, cue_relative, rendition_relative,
+                                               expected_book_id=book_id)
     except (OSError, ValueError):
         raise HTTPException(status_code=409, detail=(
             'Sound-design metadata requires inspection; existing book files were preserved.')) from None
 
 
-def _validate_cue_destination(root, relative):
+def _validate_sound_destination(root, relative, *, limit):
     # Save may intentionally overwrite stale/corrupt content, but its existing
     # destination must still be a bounded, owned regular metadata file.
     try:
-        capture_scope_file(root, relative, limit=MAX_REGISTRY_BYTES)
+        capture_scope_file(root, relative, limit=limit)
     except (OSError, ValueError):
         raise HTTPException(status_code=409, detail=(
             'Sound-design destination requires inspection; existing book files were preserved.')) from None
@@ -212,12 +215,15 @@ def _save_script_sync(request):
                 raise HTTPException(status_code=409, detail="Active book changed; reopen Save Current before saving")
         validate_book_json_bytes(script_bytes, list, 422, "Active script")
         book_id = get_active_book_id() or safe_name
-        cue_bytes = _capture_cue_companion(DATA_DIR, ACTIVE_CUES, book_id)
-        _validate_cue_destination(SCRIPTS_DIR, os.path.basename(get_saved_sound_design_path(dest)))
+        cue_bytes, rendition_bytes = _capture_sound_companions(DATA_DIR, ACTIVE_CUES, ACTIVE_RENDITIONS, book_id)
+        _validate_sound_destination(SCRIPTS_DIR, os.path.basename(get_saved_sound_design_path(dest)), limit=MAX_REGISTRY_BYTES)
+        _validate_sound_destination(SCRIPTS_DIR, os.path.basename(get_saved_sound_renditions_path(dest)), limit=MAX_RENDITION_BYTES)
         replacements = {os.path.basename(dest): script_bytes,
             f"{safe_name}.meta.json": json.dumps({"book_id": book_id}).encode("utf-8")}
         if cue_bytes is not None:
             replacements[os.path.basename(get_saved_sound_design_path(dest))] = cue_bytes
+        if rendition_bytes is not None:
+            replacements[os.path.basename(get_saved_sound_renditions_path(dest))] = rendition_bytes
         source_state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), default={})
         try:
             publication = get_saved_publication_source_bytes(source_state.get('input_file_path'), script_bytes)
@@ -282,11 +288,12 @@ def _load_script_sync(request: ScriptLoadRequest):
         state_path = os.path.join(DATA_DIR, "state.json")
         state = safe_load_json(state_path, default={})
         book_id = _get_saved_book_id(safe_name)
-        cue_bytes = _capture_cue_companion(SCRIPTS_DIR,
-            os.path.basename(get_saved_sound_design_path(src)), book_id)
+        cue_bytes, rendition_bytes = _capture_sound_companions(SCRIPTS_DIR,
+            os.path.basename(get_saved_sound_design_path(src)),
+            os.path.basename(get_saved_sound_renditions_path(src)), book_id)
         # Refuse corrupt active metadata before replacing it, retaining recovery
         # files. Valid old-book metadata may be replaced by the selected snapshot.
-        _capture_cue_companion(DATA_DIR, ACTIVE_CUES, None)
+        _capture_sound_companions(DATA_DIR, ACTIVE_CUES, ACTIVE_RENDITIONS, state.get('active_book_id'))
         state.update(active_book_id=book_id, input_file_path=src,
                      book_generation=uuid.uuid4().hex)
         state.pop('_source_scope', None)
@@ -295,6 +302,8 @@ def _load_script_sync(request: ScriptLoadRequest):
                         "state.json": json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8")}
         if cue_bytes is not None:
             replacements[ACTIVE_CUES] = cue_bytes
+        if rendition_bytes is not None:
+            replacements[ACTIVE_RENDITIONS] = rendition_bytes
         removals = [AUDIOBOOK_PATH, M4B_PATH, os.path.join(DATA_DIR, "audacity_export.zip"),
                     os.path.join(DATA_DIR, CHAPTER_EXPORT_DIR), CHUNKS_PATH,
                     get_chunk_status_journal_path(CHUNKS_PATH),
@@ -305,6 +314,8 @@ def _load_script_sync(request: ScriptLoadRequest):
                     get_generation_quality_path(SCRIPT_PATH)]
         if cue_bytes is None:
             removals.append(os.path.join(DATA_DIR, ACTIVE_CUES))
+        if rendition_bytes is None:
+            removals.append(os.path.join(DATA_DIR, ACTIVE_RENDITIONS))
         companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
         if os.path.exists(companion):
             voice_bytes = Path(companion).read_bytes()
@@ -542,7 +553,8 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
                 removals = [os.path.basename(companion) for companion in _get_saved_book_companions(path)
                             if companion not in (os.path.splitext(path)[0] + ".meta.json",
                                                  get_publication_source_path(path),
-                                                 get_saved_sound_design_path(path))]
+                                                 get_saved_sound_design_path(path),
+                                                 get_saved_sound_renditions_path(path))]
                 apply_book_state_locked(SCRIPTS_DIR, replacements, removals)
         except TimeoutError as exc:
             raise HTTPException(status_code=409, detail="Script is busy; preview it again.") from exc

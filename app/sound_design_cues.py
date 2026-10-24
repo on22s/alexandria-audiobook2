@@ -54,9 +54,18 @@ def _validate_selection(row):
         _require_text(revision, 128, 'Audio revision')
 
 
-def _validate_recipe(recipe):
-    _require_keys(recipe, ('book', 'selection', 'boundary', 'offset_frames', 'frame_rate',
-                          'kind', 'asset', 'duration', 'mix'), 'Cue recipe')
+def _validate_cue_schema(schema):
+    if type(schema) is not int or schema not in (1, 2):
+        raise ValueError('Unsupported cue schema')
+
+
+def _validate_recipe(recipe, schema=1):
+    _validate_cue_schema(schema)
+    fields = ('book', 'selection', 'boundary', 'offset_frames', 'frame_rate',
+              'kind', 'asset', 'duration', 'mix')
+    _require_keys(recipe, fields + (('rendition_id',) if schema == 2 else ()), 'Cue recipe')
+    if schema == 2:
+        _require_digest(recipe['rendition_id'], 'Consumed rendition identity')
     _validate_book(recipe['book'])
     _validate_selection(recipe['selection'])
     _validate_cue_placement(recipe)
@@ -151,29 +160,29 @@ def _get_projection_revision(versions, book, dialogue, pcm_plan, scope, check_ac
     return digest.hexdigest()
 
 
-def get_sound_design_cue_version(cue_id, recipe, parent_version=None):
+def get_sound_design_cue_version(cue_id, recipe, parent_version=None, *, schema=1):
     """Return a detached immutable revision; this does not approve any media."""
     _require_text(cue_id, 128, 'Cue identity')
     _require_digest(parent_version, 'Parent version', nullable=True)
-    _validate_recipe(recipe)
-    seed = dict(schema=1, cue_id=cue_id, parent_version=parent_version, recipe=recipe)
+    _validate_recipe(recipe, schema)
+    seed = dict(schema=schema, cue_id=cue_id, parent_version=parent_version, recipe=recipe)
     return dict(copy.deepcopy(seed), version=hashlib.sha256(_get_version_bytes(seed)).hexdigest())
 
 
 def validate_sound_design_cue_version_structure(document):
     """Bound all leaves before joint registry accounting, copying or hashing."""
     _require_keys(document, ('schema', 'cue_id', 'parent_version', 'recipe', 'version'), 'Cue version')
-    if type(document['schema']) is not int or document['schema'] != 1:
-        raise ValueError('Unsupported cue schema')
+    _validate_cue_schema(document['schema'])
     _require_text(document['cue_id'], 128, 'Cue identity')
     _require_digest(document['parent_version'], 'Parent version', nullable=True)
-    _validate_recipe(document['recipe'])
+    _validate_recipe(document['recipe'], document['schema'])
     _require_digest(document['version'], 'Cue version')
 
 
 def validate_sound_design_cue_version(document):
     validate_sound_design_cue_version_structure(document)
-    expected = get_sound_design_cue_version(document['cue_id'], document['recipe'], document['parent_version'])
+    expected = get_sound_design_cue_version(document['cue_id'], document['recipe'],
+                                          document['parent_version'], schema=document['schema'])
     if document['version'] != expected['version']:
         raise ValueError('Cue version fingerprint differs')
 

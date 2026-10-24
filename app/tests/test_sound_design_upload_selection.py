@@ -42,7 +42,7 @@ class SoundDesignUploadSelectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_slow_metadata_runs_off_loop_and_releases_only_local_task_mutex(self):
         async with self.fixture() as (root, uploads, client):
             entered, release = threading.Event(), threading.Event()
-            capture = __import__('sound_design_registry').capture_sound_design_registry
+            capture = __import__('sound_design_renditions').capture_sound_design_companions
             threads = []; loop_thread = threading.get_ident()
             def paused(*args, **kwargs):
                 threads.append(threading.get_ident()); entered.set()
@@ -50,7 +50,7 @@ class SoundDesignUploadSelectionTests(unittest.IsolatedAsyncioTestCase):
                     raise AssertionError('metadata worker was not released')
                 return capture(*args, **kwargs)
             task = None
-            with patch('sound_design_registry.capture_sound_design_registry', side_effect=paused):
+            with patch('sound_design_renditions.capture_sound_design_companions', side_effect=paused):
                 task = asyncio.create_task(client.post('/api/upload', files={'file': ('new.txt', b'Synthetic source.')}))
                 try:
                     self.assertTrue(await asyncio.to_thread(entered.wait, 2))

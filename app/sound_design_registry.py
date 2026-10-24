@@ -101,7 +101,7 @@ def get_selected_sound_design_versions(document):
     return [known[value['selected'][cue_id]] for cue_id in sorted(value['selected'])]
 
 
-def get_sound_design_registry_edit(document, cue_id, recipe, parent_version=None):
+def get_sound_design_registry_edit(document, cue_id, recipe, parent_version=None, *, schema=1):
     """Append and select one immutable revision; leave the supplied history alone.
 
     The caller constructs current book/source/selected-audio facts and owns
@@ -111,7 +111,7 @@ def get_sound_design_registry_edit(document, cue_id, recipe, parent_version=None
     from sound_design_cues import (MAX_CUES, get_sound_design_cue_version,
                                    validate_sound_design_cue_version_structure)
     get_sound_design_registry_bytes(document)
-    draft = dict(schema=1, cue_id=cue_id, parent_version=parent_version,
+    draft = dict(schema=schema, cue_id=cue_id, parent_version=parent_version,
                  recipe=recipe, version='0' * 64)
     validate_sound_design_cue_version_structure(draft)
     if recipe['book']['book_id'] != document['book']['book_id']:
@@ -130,7 +130,7 @@ def get_sound_design_registry_edit(document, cue_id, recipe, parent_version=None
     # Bound the complete proposed registry before copying or hashing the new
     # recipe. Its real fingerprint has the same encoded length as this draft.
     get_metadata_json_bytes(candidate, MAX_REGISTRY_BYTES, 'Cue registry')
-    version = get_sound_design_cue_version(cue_id, recipe, parent_version)
+    version = get_sound_design_cue_version(cue_id, recipe, parent_version, schema=schema)
     candidate['versions'][-1] = version
     candidate['selected'][cue_id] = version['version']
     return json.loads(get_sound_design_registry_bytes(candidate))

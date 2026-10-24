@@ -18,6 +18,8 @@ from project_scope_source import get_scope_source_snapshot
 from sound_design_cues import MAX_DIALOGUE, _validate_book, _validate_selection
 from sound_design_registry import ACTIVE_CUES, MAX_REGISTRY_BYTES, get_sound_design_registry
 from source_evidence import MAX_SOURCE_CHARS, _require_text
+from sound_design_renditions import (ACTIVE_RENDITIONS, MAX_RENDITION_BYTES,
+    get_sound_rendition_ledger, validate_sound_rendition_consumers)
 
 
 MAX_CONTEXT_BYTES = 64 * 1024**2
@@ -37,7 +39,8 @@ def capture_sound_design_context(root, *, check_active=lambda: None):
         raise ValueError('Task and book admission are required for cue context')
     root = Path(os.path.abspath(root))
     proofs, data, retained = {}, {}, 0
-    for name, limit in _FILES.items():
+    files = {**_FILES, ACTIVE_RENDITIONS: MAX_RENDITION_BYTES}
+    for name, limit in files.items():
         check_active()
         proofs[name], data[name] = capture_scope_file(root, name, limit=min(limit, MAX_CONTEXT_BYTES-retained or 1),
                                                      include_bytes=True, cancel_check=check_active)
@@ -46,6 +49,8 @@ def capture_sound_design_context(root, *, check_active=lambda: None):
             raise ValueError('Cue context metadata exceeds its joint byte limit')
     if any(data[name] is None for name in ('state.json','annotated_script.json','chunks.json')):
         raise ValueError('Saved book, script and stable Editor rows are required for cues')
+    renditions = (get_sound_rendition_ledger(data[ACTIVE_RENDITIONS])
+                  if data[ACTIVE_RENDITIONS] is not None else None)
     script = json.loads(data['annotated_script.json'],object_pairs_hook=get_unique_json_object,
                         parse_constant=_refuse_nonfinite)
     if (not isinstance(script,list) or not 1 <= len(script) <= MAX_DIALOGUE
@@ -81,12 +86,21 @@ def capture_sound_design_context(root, *, check_active=lambda: None):
                 else dict(schema=1, book=dict(book), versions=[], selected={}))
     if registry['book']['book_id'] != book['book_id']:
         raise ValueError('Cue registry belongs to another book; existing files were preserved')
-    binding = dict(files=proofs, source=source, book_identity=identity,
+    if renditions is None:
+        if any(row['schema'] == 2 for row in registry['versions']):
+            raise ValueError('Consuming cue history requires its retained rendition ledger')
+        renditions = dict(schema=1, book_id=book['book_id'], records=[], keep=[])
+    else:
+        validate_sound_rendition_consumers(renditions, registry)
+    # Absence is still fenced, but its proof must not alter legacy candidate hashes.
+    binding_files = {name: proof for name, proof in proofs.items()
+                     if name != ACTIVE_RENDITIONS or proof['exists']}
+    binding = dict(files=binding_files, source=source, book_identity=identity,
                    rows_sha256=get_snapshot_digest(chunks))
     # Task/book guards exclude application writers. Fence externally changed
     # files too, so a context never combines generations observed mid-capture.
     for name, proof in proofs.items():
-        current, _ = capture_scope_file(root, name, limit=_FILES[name], cancel_check=check_active)
+        current, _ = capture_scope_file(root, name, limit=files[name], cancel_check=check_active)
         if current != proof:
             raise ValueError('Cue context metadata changed while capturing; refresh the review')
     path = Path(source['absolute_path'])
@@ -97,7 +111,9 @@ def capture_sound_design_context(root, *, check_active=lambda: None):
     check_active()
     return dict(book=book, book_token=get_snapshot_digest([str(root), *identity.values()]),
                 context_revision=get_snapshot_digest(binding), registry_revision=proofs[ACTIVE_CUES]['sha256'],
-                binding=binding, registry=registry, chunks=chunks)
+                binding=binding, registry=registry, chunks=chunks, renditions=renditions,
+                ledger_revision=proofs[ACTIVE_RENDITIONS]['sha256'],
+                rendition_proof=proofs[ACTIVE_RENDITIONS])
 
 
 def capture_sound_design_anchor(root, context, chunk_uid, *, check_active=lambda: None):
@@ -152,6 +168,7 @@ def require_sound_design_context_files_current(root, context, anchor=None):
             raise ValueError('Cue source changed before publication')
     for proof in context['binding']['files'].values():
         require_file(root,proof)
+    require_file(root, context['rendition_proof'])
     source = context['binding']['source']
     require_file(Path(source['absolute_path']).parent,source)
     if anchor is not None:
