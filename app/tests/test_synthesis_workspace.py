@@ -75,7 +75,7 @@ from pathlib import Path
 import numpy as np
 from tests.test_take_publication import TakePublicationTests
 from task_ownership import acquire_task_lease
-note=Path(sys.argv[1]);phase=sys.argv[2]
+note=Path(sys.argv[1]);phase=sys.argv[2];policies_off=phase.startswith('default-');phase=phase.removeprefix('default-')
 def pause():
  note.with_suffix('.ready').touch()
  sys.stdin.readline()
@@ -91,10 +91,12 @@ with case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner()
  note.write_text(json.dumps({'root':str(root),'previous':str(previous),
   'previous_sha256':hashlib.sha256(previous.read_bytes()).hexdigest()}))
  engine=case.engine();engine._synthesis_recovery=None;engine._local_custom_model=Model()
+ if policies_off:engine._synthesis_windows=None
  manager.engine=engine
  Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
  original=manager._publish_generated_chunk_audio
  def publish(*args,**kwargs):
+  if policies_off and (args[0].get('_synthesis_receipt') is not None or args[0].get('_speech_input') is not None or kwargs.get('publication_admission') is not None):raise RuntimeError('Disabled optional proof/capture unexpectedly enabled')
   if phase=='parent':pause()
   result=original(*args,**kwargs)
   if phase=='published':
@@ -117,7 +119,7 @@ import numpy as np
 from tests.test_take_publication import TakePublicationTests
 from synthesis_settings import get_synthesis_window_settings
 from task_ownership import acquire_task_lease
-note=Path(sys.argv[1]);case=TakePublicationTests()
+note=Path(sys.argv[1]);case=TakePublicationTests();policies_off=sys.argv[2]=='default'
 class Model:
  def generate_custom_voice(self,**kwargs):
   text=kwargs['text']
@@ -128,7 +130,7 @@ with case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner()
  lease=acquire_task_lease(root,'audio',set())
  chunks=manager.load_chunks();chunks.append({**chunks[0],'id':1,'uid':'line-two','text':'Second synthetic words.'});manager.save_chunks(chunks)
  note.write_text(json.dumps({'root':str(root),'prior':str(previous),'prior_sha256':hashlib.sha256(previous.read_bytes()).hexdigest()}))
- engine=case.engine();engine._synthesis_recovery=None;engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':10000}}});engine._local_custom_model=Model();engine._custom_warmup_needed=False;engine._sub_batch_max_items=0;engine._sub_batch_enabled=False
+ engine=case.engine();engine._synthesis_recovery=None;engine._synthesis_windows=None if policies_off else get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':10000}}});engine._local_custom_model=Model();engine._custom_warmup_needed=False;engine._sub_batch_max_items=0;engine._sub_batch_enabled=False
  manager.engine=engine;Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
  manager._publish_generated_chunk_audio=lambda *a,**k:os._exit(76)
  result=manager.generate_chunks_batch([0,1],batch_seed=42,batch_size=2)
@@ -204,12 +206,13 @@ class SynthesisWorkspaceTests(unittest.TestCase):
             self.assertFalse(path.exists());self.assertEqual({},self.rows())
 
     def test_project_parent_sigkill_reclaims_zero_window_and_published_lifetimes(self):
-        for phase in ('zero','window','parent','published'):
-            with self.subTest(phase=phase),tempfile.TemporaryDirectory() as tmp:
+        for variant in ('zero','window','parent','published','default-zero','default-parent','default-published'):
+            phase=variant.removeprefix('default-');policies_off=variant.startswith('default-')
+            with self.subTest(phase=variant),tempfile.TemporaryDirectory() as tmp:
                 bound=Path(tmp);note=bound/'note.json'
                 env={**os.environ,'TMPDIR':tmp,'CUDA_VISIBLE_DEVICES':'',
                      'HIP_VISIBLE_DEVICES':'','ROCR_VISIBLE_DEVICES':''}
-                child=subprocess.Popen([sys.executable,'-c',_PROJECT_CHILD,str(note),phase],
+                child=subprocess.Popen([sys.executable,'-c',_PROJECT_CHILD,str(note),variant],
                     cwd=Path(__file__).resolve().parents[1],env=env,stdin=subprocess.PIPE,
                     stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True)
                 try:
@@ -222,7 +225,7 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                     self.assertTrue(root.resolve().is_relative_to(bound.resolve()))
                     legacy=root/'chunk_legacy.wav';legacy.write_bytes(b'unregistered preserved')
                     with workspace.SynthesisWorkspaceRegistry(root) as store:rows=copy.deepcopy(store.body['rows'])
-                    self.assertEqual(2 if phase in ('zero','window') else 1,len(rows))
+                    self.assertEqual(2 if phase in ('zero','window') and not policies_off else 1,len(rows))
                     outer=[root/workspace.DIRECTORY/name for name,row in rows.items() if row['windows']==0]
                     self.assertEqual(1,len(outer));parent=outer[0]/'assembled-parent.wav'
                     self.assertEqual({'assembled-parent.wav','join'},{p.name for p in outer[0].iterdir()})
@@ -246,23 +249,25 @@ class SynthesisWorkspaceTests(unittest.TestCase):
 
 
     def test_project_list_batch_hard_exit_reclaims_both_registered_parents(self):
-        with tempfile.TemporaryDirectory() as bound:
-            note=Path(bound)/'batch-note.json';env=dict(os.environ,TMPDIR=bound,PYTHONDONTWRITEBYTECODE='1')
-            result=subprocess.run([sys.executable,'-B','-c',_PROJECT_BATCH_CHILD,str(note)],
-                cwd=Path(__file__).resolve().parents[1],env=env,capture_output=True,text=True,timeout=40)
-            self.assertEqual(76,result.returncode,result.stderr)
-            proof=json.loads(note.read_text());root=Path(proof['root'])
-            self.assertTrue(root.resolve().is_relative_to(Path(bound).resolve()))
-            self.assertEqual(1,proof['model_calls']);self.assertEqual(2,len(proof['submitted_texts']))
-            self.assertFalse(list(root.glob('temp_batch_*.wav')))
-            with workspace.SynthesisWorkspaceRegistry(root) as store:rows=copy.deepcopy(store.body['rows'])
-            self.assertEqual(2,len(rows));self.assertTrue(all(row['windows']==0 for row in rows.values()))
-            for name in rows:self.assertGreater((root/workspace.DIRECTORY/name/'assembled-parent.wav').stat().st_size,44)
-            with ensure_startup_recovery(root,timeout=0) as idle:
-                self.assertTrue(idle)
-                with ensure_book_state(root):self.assertEqual(2,workspace.apply_abandoned_synthesis_workspace_cleanup(root))
-            with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual({},store.body['rows'])
-            self.assertEqual(proof['prior_sha256'],hashlib.sha256(Path(proof['prior']).read_bytes()).hexdigest())
+        for mode in ('windowed','default'):
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as bound:
+                note=Path(bound)/'batch-note.json';env=dict(os.environ,TMPDIR=bound,PYTHONDONTWRITEBYTECODE='1')
+                result=subprocess.run([sys.executable,'-B','-c',_PROJECT_BATCH_CHILD,str(note),mode],
+                    cwd=Path(__file__).resolve().parents[1],env=env,capture_output=True,text=True,timeout=40)
+                self.assertEqual(76,result.returncode,result.stderr)
+                proof=json.loads(note.read_text());root=Path(proof['root'])
+                self.assertTrue(root.resolve().is_relative_to(Path(bound).resolve()))
+                self.assertEqual(1,proof['model_calls']);self.assertEqual(2,len(proof['submitted_texts']))
+                self.assertFalse(list(root.glob('temp_batch_*.wav')))
+                self.assertFalse((root/'.synthesis-recovery-v1').exists())
+                with workspace.SynthesisWorkspaceRegistry(root) as store:rows=copy.deepcopy(store.body['rows'])
+                self.assertEqual(2,len(rows));self.assertTrue(all(row['windows']==0 for row in rows.values()))
+                for name in rows:self.assertGreater((root/workspace.DIRECTORY/name/'assembled-parent.wav').stat().st_size,44)
+                with ensure_startup_recovery(root,timeout=0) as idle:
+                    self.assertTrue(idle)
+                    with ensure_book_state(root):self.assertEqual(2,workspace.apply_abandoned_synthesis_workspace_cleanup(root))
+                with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual({},store.body['rows'])
+                self.assertEqual(proof['prior_sha256'],hashlib.sha256(Path(proof['prior']).read_bytes()).hexdigest())
 
     def test_batch_routes_capture_scope_and_native_writer_guards(self):
         from contextlib import ExitStack
@@ -321,8 +326,9 @@ class SynthesisWorkspaceTests(unittest.TestCase):
         from synthesis_settings import get_synthesis_window_settings
         from tests.test_take_publication import TakePublicationTests
         case=TakePublicationTests()
-        for outcome in ('success','relative','mixed','cancel','replace','edit','capacity','defer','oom'):
-            with self.subTest(outcome=outcome),case.fixture(False,enabled=False) as (root,manager,previous,_),ExitStack() as stack:
+        cases=[(outcome,off) for off in (False,True) for outcome in ('success','relative','mixed','cancel','replace','edit','capacity','defer','oom')]
+        for outcome,policies_off in cases:
+            with self.subTest(outcome=outcome,policies_off=policies_off),case.fixture(False,enabled=False) as (root,manager,previous,_),ExitStack() as stack:
                 if outcome=='relative':manager=type(manager)(os.path.relpath(root))
                 state={'cancelled':False,'replaced':False};calls=[];observed=[];attempt_rows=[]
                 @contextmanager
@@ -338,7 +344,7 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                         if outcome=='oom' and len(calls)==1:raise RuntimeError('CUDA out of memory')
                         return [np.full(2400,.1 if text.startswith('Second') else .3) for text in kwargs['text']],24000
                 engine=case.engine();engine._synthesis_recovery=None;engine._local_custom_model=Model()
-                engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':10000}}})
+                engine._synthesis_windows=None if policies_off else get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':10000}}})
                 engine._custom_warmup_needed=False;engine._sub_batch_max_items=0;engine._sub_batch_enabled=False;manager.engine=engine
                 chunks=manager.load_chunks();chunks.append({**chunks[0],'id':1,'uid':'line-two','text':'Second synthetic words.'});manager.save_chunks(chunks)
                 voices={'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}
@@ -352,6 +358,8 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                 prior_hash=hashlib.sha256(previous.read_bytes()).hexdigest();original=manager._publish_generated_chunk_audio
                 def publish(chunk,path,*args,**kwargs):
                     observed.append(Path(path));self.assertTrue(Path(path).is_file())
+                    if policies_off:
+                        self.assertIsNone(chunk.get('_synthesis_receipt'));self.assertIsNone(chunk.get('_speech_input'));self.assertIsNone(kwargs.get('publication_admission'));self.assertNotIn('recovery_parent',kwargs)
                     self.assertAlmostEqual(.1 if chunk['uid']=='line-two' else .3,float(sf.read(path)[0][0]),places=4)
                     if outcome=='mixed':
                         self.assertEqual(chunk['uid']=='line',Path(path).is_relative_to(root/workspace.DIRECTORY))
@@ -372,6 +380,7 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                     if outcome in ('cancel','replace','edit'):self.assertEqual([],result['completed'])
                     self.assertEqual([2,1,1] if outcome=='oom' else [1] if outcome=='mixed' else [2],[len(row) for row in calls])
                 self.assertFalse(list(root.glob('temp_batch_*.wav')))
+                if policies_off:self.assertFalse((root/'.synthesis-recovery-v1').exists())
                 for path in observed:
                     if path.is_relative_to(root/workspace.DIRECTORY):
                         self.assertNotIn(str(path),[call.args[0] for call in removed.call_args_list])
@@ -411,8 +420,9 @@ class SynthesisWorkspaceTests(unittest.TestCase):
         class Model:
             def generate_custom_voice(self,**kwargs):return [np.sin(np.arange(2400)*.1)*.2],24000
         case=TakePublicationTests()
-        for outcome in ('success','cancel','replace','edit','capacity','defer'):
-            with self.subTest(outcome=outcome),case.fixture(False,enabled=False) as (root,manager,previous,_),ExitStack() as stack:
+        cases=[(outcome,off) for off in (False,True) for outcome in ('success','cancel','replace','edit','capacity','defer')]+[('history',True)]
+        for outcome,policies_off in cases:
+            with self.subTest(outcome=outcome,policies_off=policies_off),case.fixture(False,enabled=outcome=='history') as (root,manager,previous,_),ExitStack() as stack:
                 state={'cancelled':False,'replaced':False};observed=[]
                 @contextmanager
                 def current_owner(allow_cancelled=False):
@@ -421,12 +431,21 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                     yield
                 stack.enter_context(ensure_audio_generation_owner(AudioGenerationOwner('e'*32,current_owner)))
                 engine=case.engine();engine._synthesis_recovery=None;engine._local_custom_model=Model();manager.engine=engine
+                if policies_off:engine._synthesis_windows=None
                 Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
+                if outcome=='history':
+                    captured=manager.load_chunks()[0]
+                    parent=manager._capture_synthesis_recovery_parent(engine,0,captured)
+                    with patch('project.ensure_audio_generation_book_work',side_effect=AssertionError('disabled proof book admission')):
+                        self.assertIsNone(manager._capture_take_publication_admission(
+                            engine,parent,0,captured,{'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}},'NARRATOR'))
                 original=manager._publish_generated_chunk_audio
                 def publish(chunk,path,*args,**kwargs):
                     observed.append(Path(path));self.assertTrue(Path(path).is_file())
+                    if policies_off:
+                        self.assertIsNone(chunk.get('_synthesis_receipt'));self.assertIsNone(chunk.get('_speech_input'));self.assertIsNone(kwargs.get('publication_admission'));self.assertNotIn('recovery_parent',kwargs)
                     with workspace.SynthesisWorkspaceRegistry(root) as store:
-                        self.assertEqual(2 if outcome=='defer' else 1,len(store.body['rows']))
+                        self.assertEqual(2 if outcome=='defer' and not policies_off else 1,len(store.body['rows']))
                     if outcome in ('cancel','replace'):
                         state['cancelled']=True;state['replaced']=outcome=='replace'
                         raise AudioGenerationCancelled()
@@ -436,14 +455,19 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                     self.assertTrue(Path(path).is_file());return result
                 stack.enter_context(patch.object(manager,'_publish_generated_chunk_audio',side_effect=publish))
                 removed=stack.enter_context(patch.object(manager,'_remove_temp_file',wraps=manager._remove_temp_file))
-                if outcome=='capacity':stack.enter_context(patch.object(workspace,'MAX_ROWS',1))
+                if outcome=='capacity':stack.enter_context(patch.object(workspace,'MAX_ROWS',0 if policies_off else 1))
                 if outcome=='defer':stack.enter_context(patch.object(workspace.SynthesisWorkspaceRegistry,'retire',side_effect=OSError('defer owned cleanup')))
                 success,payload=manager.generate_chunk_audio(0)
-                self.assertEqual(outcome in ('success','defer'),success,payload)
+                self.assertEqual(outcome in ('success','history','defer'),success,payload)
                 self.assertFalse(list(root.glob('chunk_*.wav')))
+                if policies_off:
+                    self.assertFalse((root/'.synthesis-recovery-v1').exists())
+                    for selected in manager.load_chunks():
+                        self.assertIsNone(selected.get('synthesis_receipt'));self.assertIsNone(selected.get('take_publication'))
                 for path in observed:self.assertNotIn(str(path),[call.args[0] for call in removed.call_args_list])
                 with workspace.SynthesisWorkspaceRegistry(root) as store:
-                    self.assertEqual(2 if outcome=='defer' else 1 if outcome=='replace' else 0,len(store.body['rows']))
+                    expected=(1 if policies_off else 2) if outcome=='defer' else 1 if outcome=='replace' else 0
+                    self.assertEqual(expected,len(store.body['rows']))
                 if outcome in ('replace','defer'):self.assertTrue(observed[0].exists())
                 elif observed:self.assertFalse(observed[0].exists())
                 if success:self.assertTrue((root/payload).is_file())
@@ -636,21 +660,37 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                 try:
                     render();self.assertNotIn('workspace_parent',dispatched.call_args.kwargs)
                 finally:engine.__class__=tts.TTSEngine
+            engine._synthesis_windows=None
+            self.assertIs(self.parent,workspace.get_synthesis_workspace_parent(engine,'custom',self.parent))
+            for category in ('clone','design','ensemble'):
+                self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,category,self.parent))
+            engine._mode='external'
+            self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'custom',self.parent))
+            engine._mode='local'
+            with patch.object(engine,'_save_wav',lambda *args:None):
+                self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'custom',self.parent))
+            with patch.object(workspace,'is_synthesis_workspace_supported',return_value=False):
+                self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'custom',self.parent))
+            engine.__class__=UnknownEngine
+            try:self.assertIsNone(workspace.get_synthesis_workspace_parent(engine,'custom',self.parent))
+            finally:engine.__class__=tts.TTSEngine
+        # Restore the window policy for the pre-existing unowned dispatch check.
+        engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':5}}})
         with patch('tts.render_synthesis_windows') as dispatched:
             render();self.assertNotIn('workspace_parent',dispatched.call_args.kwargs)
 
     def test_project_capture_when_recovery_disabled_still_renews_book_and_inputs(self):
         from types import SimpleNamespace
         from tests.test_audio_generation_cancellation import AudioGenerationCancellationTests
-        with AudioGenerationCancellationTests().fixture(1) as (root,manager,before,state):
-            with ensure_audio_generation_owner(self.owner):
-                engine=SimpleNamespace(_synthesis_windows={'enabled':True})
-                parent=manager._capture_synthesis_recovery_parent(engine,0,before[0])
-                self.assertIsNotNone(parent)
-                with parent.admit():pass
-                manager._update_chunk_fields_by_uid(before[0]['uid'],text='Changed source.')
-                with self.assertRaisesRegex(ValueError,'changed'):
+        for engine in (SimpleNamespace(_synthesis_windows={'enabled':True}),object()):
+            with self.subTest(engine=type(engine).__name__),AudioGenerationCancellationTests().fixture(1) as (root,manager,before,state):
+                with ensure_audio_generation_owner(self.owner):
+                    parent=manager._capture_synthesis_recovery_parent(engine,0,before[0])
+                    self.assertIsNotNone(parent)
                     with parent.admit():pass
+                    manager._update_chunk_fields_by_uid(before[0]['uid'],text='Changed source.')
+                    with self.assertRaisesRegex(ValueError,'changed'):
+                        with parent.admit():pass
 
     def test_core_preclaim_busy_book_defers_and_live_foreign_lease_preserved(self):
         import core
