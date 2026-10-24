@@ -68,7 +68,8 @@ def _validate(body):
         if (not isinstance(name, str) or not _HEX32.fullmatch(name)
                 or type(row) is not dict or set(row) != {'claim', 'book', 'windows', 'identity', 'join_identity'}
                 or any(not isinstance(row[key], str) or not _HEX64.fullmatch(row[key]) for key in ('claim', 'book'))
-                or type(row['windows']) is not int or not 2 <= row['windows'] <= MAX_WINDOWS):
+                or type(row['windows']) is not int
+                or not (row['windows'] == 0 or 2 <= row['windows'] <= MAX_WINDOWS)):
             raise SynthesisWorkspaceUnavailable('Invalid workspace row')
         for key in ('identity', 'join_identity'):
             value = row[key]
@@ -332,6 +333,33 @@ class SynthesisWorkspaceRegistry:
         info = os.stat(name, dir_fd=fd, follow_symlinks=False)
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.geteuid():
             raise SynthesisWorkspaceUnavailable('Unsafe workspace file preserved')
+
+
+def get_synthesis_workspace_parent(engine, category, parent):
+    """Return captured authority only for the known synchronous native writer."""
+    from tts import TTSEngine, _RAW_RECOVERY_METHODS
+    from synthesis_recovery_context import RecoveryParent, get_recovery_claim_digest
+    if (type(engine) is not TTSEngine or category != 'custom'
+            or not is_synthesis_workspace_supported()
+            or type(parent) is not RecoveryParent
+            or get_recovery_claim_digest() != parent.claim_sha256):
+        return None
+    if (all(getattr(getattr(engine, name), '__func__', getattr(engine, name)) is method
+            for name, method in _RAW_RECOVERY_METHODS.items())
+            and engine.get_voice_backend(category) == 'local'):
+        return parent
+    return None
+
+
+@contextmanager
+def ensure_synthesis_parent_output(parent):
+    """Keep a raw Project parent registered until its caller finishes publication."""
+    with ensure_synthesis_workspace(parent, 0) as directory:
+        with parent.admit():
+            with SynthesisWorkspaceRegistry(parent.project_root) as registry:
+                descriptor = registry.create_encoded_parent(directory.name, '.wav')
+                os.close(descriptor)
+        yield str(directory / 'assembled-parent.wav')
 
 
 @contextmanager

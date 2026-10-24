@@ -1929,16 +1929,12 @@ class TTSEngine:
             from synthesis_recovery import ensure_synthesis_recovery
             with ensure_synthesis_recovery(self, category, plan, self._synthesis_windows,
                                            recovery_request) as recovery:
-                from synthesis_workspace import is_synthesis_workspace_supported
+                from synthesis_workspace import get_synthesis_workspace_parent
                 from synthesis_recovery_context import get_synthesis_recovery_parent
                 # Only this synchronous built-in output writer is initially
                 # qualified. Unknown/external providers can outlive their caller.
-                methods_known = all(getattr(getattr(self, name), '__func__', getattr(self, name)) is method
-                                    for name, method in _RAW_RECOVERY_METHODS.items())
-                workspace_parent = (get_synthesis_recovery_parent()
-                                    if category == 'custom' and methods_known
-                                    and self.get_voice_backend(category) == 'local'
-                                    and is_synthesis_workspace_supported() else None)
+                workspace_parent = get_synthesis_workspace_parent(
+                    self, category, get_synthesis_recovery_parent())
                 options = {} if workspace_parent is None else {'workspace_parent': workspace_parent}
                 render_synthesis_windows(plan, render, output_path, self._synthesis_windows,
                                          cancel_check=is_audio_generation_cancelled, recovery=recovery, **options)

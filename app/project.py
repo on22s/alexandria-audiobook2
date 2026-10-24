@@ -1741,6 +1741,8 @@ class ProjectManager:
             return False, "Invalid chunk index"
         ensure_literal_chunk(chunk)
         temp_path = None
+        registered_temp = False
+        scratch = ExitStack()
         try:
             updated = self._update_generation_fields(chunk, status="generating", error=None)
             if updated is None:
@@ -1773,17 +1775,11 @@ class ProjectManager:
 
             print(f"Generating chunk {index}: speaker={speaker}, instruct='{instruct}', text='{text[:50]}...'")
 
-            # Generate to temp file (unique per chunk for parallel processing)
-            import tempfile
-            fd, temp_path = tempfile.mkstemp(prefix=f"chunk_{index}_", suffix=".wav", dir=self.root_dir)
-            os.close(fd)  # Close the file descriptor, we'll write via TTS engine
-
             # Pass canonical speaker to the TTS engine so it uses the aliased config;
             # the identity anchor in force at this line (a character can change
             # from a point in the book - tts.active_character_style)
             chunk_voice_config = self.get_chunk_render_voice_config(
                 voice_config, speaker_to_use, chunk, index)
-            generation_args = (text, instruct, speaker_to_use, chunk_voice_config, temp_path)
             chunk={**chunk,'_speech_input':None,
                    '_speech_verification_admission':self._capture_speech_verification_admission(engine)}
             failure = None
@@ -1791,6 +1787,16 @@ class ProjectManager:
             recovery_parent = self._capture_synthesis_recovery_parent(engine, index, chunk)
             publication_admission = self._capture_take_publication_admission(
                 engine, recovery_parent, index, chunk, chunk_voice_config, speaker_to_use)
+            from synthesis_workspace import get_synthesis_workspace_parent, ensure_synthesis_parent_output
+            workspace_parent = get_synthesis_workspace_parent(
+                engine, voice_category(chunk_voice_config.get(speaker_to_use, {})), recovery_parent)
+            if workspace_parent is not None:
+                temp_path = scratch.enter_context(ensure_synthesis_parent_output(workspace_parent))
+                registered_temp = True
+            else:
+                fd, temp_path = tempfile.mkstemp(prefix=f"chunk_{index}_", suffix=".wav", dir=self.root_dir)
+                os.close(fd)
+            generation_args = (text, instruct, speaker_to_use, chunk_voice_config, temp_path)
             with (ensure_synthesis_recovery_parent(recovery_parent),
                   ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context"))):
                 if callable(getattr(engine, "generate_voice_result", None)):
@@ -1842,9 +1848,10 @@ class ProjectManager:
                 print(f"Warning: Failed to update chunk {index} status to error: {update_err}")
             return False, str(e)
         finally:
-            # Cleanup runs on every exit path - success, early validation returns,
-            # and exceptions - so the temp wav never leaks.
-            if temp_path:
+            # Registered scratch retires only through its owner/identity proof;
+            # a revoked owner or substituted directory must defer, never unlink.
+            scratch.close()
+            if temp_path and not registered_temp:
                 self._remove_temp_file(temp_path)
 
     def _load_pause_defaults(self):

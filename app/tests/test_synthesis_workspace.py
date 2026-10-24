@@ -2,11 +2,13 @@
 from contextlib import contextmanager
 import copy
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -64,6 +66,46 @@ with ensure_audio_generation_owner(owner):
    (path/'join'/'complete.wav').write_bytes(b'partial joined parent')
    if phase=='published':(root/'parent.wav').write_bytes(b'published new parent')
    os._exit(76)
+'''
+
+
+_PROJECT_CHILD = r'''
+import hashlib,json,os,sys
+from pathlib import Path
+import numpy as np
+from tests.test_take_publication import TakePublicationTests
+from task_ownership import acquire_task_lease
+note=Path(sys.argv[1]);phase=sys.argv[2]
+def pause():
+ note.with_suffix('.ready').touch()
+ sys.stdin.readline()
+case=TakePublicationTests()
+class Model:
+ def __init__(self):self.calls=0
+ def generate_custom_voice(self,**kwargs):
+  self.calls+=1
+  if (phase=='zero' and self.calls==1) or (phase=='window' and self.calls==2):pause()
+  return [np.sin(np.arange(2400)*.1)*.2],24000
+with case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner():
+ lease=acquire_task_lease(root,'audio',set())
+ note.write_text(json.dumps({'root':str(root),'previous':str(previous),
+  'previous_sha256':hashlib.sha256(previous.read_bytes()).hexdigest()}))
+ engine=case.engine();engine._synthesis_recovery=None;engine._local_custom_model=Model()
+ manager.engine=engine
+ Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
+ original=manager._publish_generated_chunk_audio
+ def publish(*args,**kwargs):
+  if phase=='parent':pause()
+  result=original(*args,**kwargs)
+  if phase=='published':
+   proof=json.loads(note.read_text());selected=root/result
+   proof.update(published_path=str(selected),published_sha256=hashlib.sha256(selected.read_bytes()).hexdigest())
+   note.write_text(json.dumps(proof));pause()
+  return result
+ manager._publish_generated_chunk_audio=publish
+ success,payload=manager.generate_chunk_audio(0)
+ if not success:raise RuntimeError(payload)
+ raise RuntimeError('Expected parent barrier was not reached')
 '''
 
 
@@ -135,16 +177,131 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                     raise ValueError('cancelled')
             self.assertFalse(path.exists());self.assertEqual({},self.rows())
 
+    def test_project_parent_sigkill_reclaims_zero_window_and_published_lifetimes(self):
+        for phase in ('zero','window','parent','published'):
+            with self.subTest(phase=phase),tempfile.TemporaryDirectory() as tmp:
+                bound=Path(tmp);note=bound/'note.json'
+                env={**os.environ,'TMPDIR':tmp,'CUDA_VISIBLE_DEVICES':'',
+                     'HIP_VISIBLE_DEVICES':'','ROCR_VISIBLE_DEVICES':''}
+                child=subprocess.Popen([sys.executable,'-c',_PROJECT_CHILD,str(note),phase],
+                    cwd=Path(__file__).resolve().parents[1],env=env,stdin=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True)
+                try:
+                    deadline=time.monotonic()+20
+                    while not note.with_suffix('.ready').exists() and child.poll() is None and time.monotonic()<deadline:
+                        time.sleep(.01)
+                    if child.poll() is not None:self.fail(child.stderr.read()[-4000:])
+                    self.assertTrue(note.with_suffix('.ready').exists(),'Project parent barrier not reached')
+                    proof=json.loads(note.read_text());root=Path(proof['root'])
+                    self.assertTrue(root.resolve().is_relative_to(bound.resolve()))
+                    legacy=root/'chunk_legacy.wav';legacy.write_bytes(b'unregistered preserved')
+                    with workspace.SynthesisWorkspaceRegistry(root) as store:rows=copy.deepcopy(store.body['rows'])
+                    self.assertEqual(2 if phase in ('zero','window') else 1,len(rows))
+                    outer=[root/workspace.DIRECTORY/name for name,row in rows.items() if row['windows']==0]
+                    self.assertEqual(1,len(outer));parent=outer[0]/'assembled-parent.wav'
+                    self.assertEqual({'assembled-parent.wav','join'},{p.name for p in outer[0].iterdir()})
+                    if phase in ('zero','window'):self.assertEqual(0,parent.stat().st_size)
+                    else:self.assertGreater(parent.stat().st_size,44)
+                    self.assertEqual([legacy],list(root.glob('chunk_*.wav')))
+                    with ensure_startup_recovery(root,timeout=0) as idle:self.assertFalse(idle)
+                    child.kill();self.assertEqual(-9,child.wait(timeout=10))
+                    with ensure_startup_recovery(root,timeout=0) as idle:
+                        self.assertTrue(idle)
+                        with ensure_book_state(root):
+                            self.assertEqual(len(rows),workspace.apply_abandoned_synthesis_workspace_cleanup(root))
+                    with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual({},store.body['rows'])
+                    self.assertFalse(parent.exists());self.assertEqual(b'unregistered preserved',legacy.read_bytes())
+                    self.assertEqual(proof['previous_sha256'],hashlib.sha256(Path(proof['previous']).read_bytes()).hexdigest())
+                    if phase=='published':
+                        self.assertEqual(proof['published_sha256'],hashlib.sha256(Path(proof['published_path']).read_bytes()).hexdigest())
+                finally:
+                    if child.poll() is None:child.kill();child.wait(timeout=10)
+                    child.stdin.close();child.stderr.close()
+
+    def test_parent_only_schema_exclusive_output_and_unknown_window_preservation(self):
+        with ensure_audio_generation_owner(self.owner):
+            with workspace.ensure_synthesis_parent_output(self.parent) as output:
+                path=Path(output);self.assertEqual(0,path.stat().st_size)
+                rows=self.rows();row=next(iter(rows.values()));self.assertEqual(0,row['windows'])
+                for invalid in (True,False,-1,1,workspace.MAX_WINDOWS+1):
+                    body={'version':1,'rows':copy.deepcopy(rows)}
+                    next(iter(body['rows'].values()))['windows']=invalid
+                    with self.subTest(invalid=invalid),self.assertRaises(workspace.SynthesisWorkspaceUnavailable):
+                        workspace._validate(body)
+                with workspace.SynthesisWorkspaceRegistry(self.root) as store:
+                    with self.assertRaises(FileExistsError):store.create_encoded_parent(path.parent.name,'.wav')
+                (path.parent/'window-0.wav').write_bytes(b'not declared for parent')
+        self.assertTrue(path.exists());self.assertEqual(0,self.cleanup_idle())
+        (path.parent/'window-0.wav').unlink()
+        self.assertEqual(1,self.cleanup_idle());self.assertFalse(path.exists())
+
+    def test_project_parent_publication_cancel_replacement_and_capacity(self):
+        import numpy as np
+        from contextlib import ExitStack
+        from audio_generation_owner import AudioGenerationCancelled
+        from tests.test_take_publication import TakePublicationTests
+        class Model:
+            def generate_custom_voice(self,**kwargs):return [np.sin(np.arange(2400)*.1)*.2],24000
+        case=TakePublicationTests()
+        for outcome in ('success','cancel','replace','edit','capacity','defer'):
+            with self.subTest(outcome=outcome),case.fixture(False,enabled=False) as (root,manager,previous,_),ExitStack() as stack:
+                state={'cancelled':False,'replaced':False};observed=[]
+                @contextmanager
+                def current_owner(allow_cancelled=False):
+                    if state['replaced'] or (state['cancelled'] and not allow_cancelled):
+                        raise AudioGenerationCancelled()
+                    yield
+                stack.enter_context(ensure_audio_generation_owner(AudioGenerationOwner('e'*32,current_owner)))
+                engine=case.engine();engine._synthesis_recovery=None;engine._local_custom_model=Model();manager.engine=engine
+                Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
+                original=manager._publish_generated_chunk_audio
+                def publish(chunk,path,*args,**kwargs):
+                    observed.append(Path(path));self.assertTrue(Path(path).is_file())
+                    with workspace.SynthesisWorkspaceRegistry(root) as store:
+                        self.assertEqual(2 if outcome=='defer' else 1,len(store.body['rows']))
+                    if outcome in ('cancel','replace'):
+                        state['cancelled']=True;state['replaced']=outcome=='replace'
+                        raise AudioGenerationCancelled()
+                    if outcome=='edit':
+                        manager._update_chunk_fields_by_uid(chunk['uid'],text='Changed synthetic input.')
+                    result=original(chunk,path,*args,**kwargs)
+                    self.assertTrue(Path(path).is_file());return result
+                stack.enter_context(patch.object(manager,'_publish_generated_chunk_audio',side_effect=publish))
+                removed=stack.enter_context(patch.object(manager,'_remove_temp_file',wraps=manager._remove_temp_file))
+                if outcome=='capacity':stack.enter_context(patch.object(workspace,'MAX_ROWS',1))
+                if outcome=='defer':stack.enter_context(patch.object(workspace.SynthesisWorkspaceRegistry,'retire',side_effect=OSError('defer owned cleanup')))
+                success,payload=manager.generate_chunk_audio(0)
+                self.assertEqual(outcome in ('success','defer'),success,payload)
+                self.assertFalse(list(root.glob('chunk_*.wav')))
+                for path in observed:self.assertNotIn(str(path),[call.args[0] for call in removed.call_args_list])
+                with workspace.SynthesisWorkspaceRegistry(root) as store:
+                    self.assertEqual(2 if outcome=='defer' else 1 if outcome=='replace' else 0,len(store.body['rows']))
+                if outcome in ('replace','defer'):self.assertTrue(observed[0].exists())
+                elif observed:self.assertFalse(observed[0].exists())
+                if success:self.assertTrue((root/payload).is_file())
+                if outcome=='edit':
+                    self.assertEqual('Changed synthetic input.',manager.load_chunks()[0]['text'])
+                # End the synthetic owner/fault injections before idle recovery.
+                stack.close()
+                with ensure_startup_recovery(root,timeout=0) as idle:
+                    self.assertTrue(idle)
+                    with ensure_book_state(root):workspace.apply_abandoned_synthesis_workspace_cleanup(root)
+                with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual({},store.body['rows'])
+                self.assertTrue(previous.is_file())
+
     def test_unknown_aliases_links_and_substituted_directory_preserve_all_files(self):
-        for kind in ('unknown','symlink','hardlink','join_alias','root_alias','changed_directory'):
-            with self.subTest(kind=kind),tempfile.TemporaryDirectory() as tmp:
+        kinds=('unknown','symlink','hardlink','join_alias','root_alias','changed_directory')
+        for windows,kind in ((n,k) for n in (0,2) for k in kinds):
+            with self.subTest(windows=windows,kind=kind),tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp);owner,parent=get_parent(root)
-                with workspace.SynthesisWorkspaceRegistry(root,create=True) as store:name,row=store.reserve(parent,2)
-                path=root/workspace.DIRECTORY/name;(path/'window-0.wav').write_bytes(b'owned')
+                with workspace.SynthesisWorkspaceRegistry(root,create=True) as store:name,row=store.reserve(parent,windows)
+                owned='window-0.wav' if windows else 'assembled-parent.wav'
+                alias='window-1.wav' if windows else 'assembled-parent.mp3'
+                path=root/workspace.DIRECTORY/name;(path/owned).write_bytes(b'owned')
                 outside=root/'outside.wav';outside.write_bytes(b'outside')
                 if kind=='unknown':(path/'unknown.txt').write_bytes(b'preserve')
-                elif kind=='symlink':(path/'window-1.wav').symlink_to(outside)
-                elif kind=='hardlink':os.link(outside,path/'window-1.wav')
+                elif kind=='symlink':(path/alias).symlink_to(outside)
+                elif kind=='hardlink':os.link(outside,path/alias)
                 elif kind=='join_alias':(path/'join').rmdir();(path/'join').symlink_to(root,target_is_directory=True)
                 elif kind=='root_alias':path.rename(path.with_name(name+'old'));path.symlink_to(root,target_is_directory=True)
                 elif kind=='changed_directory':path.rename(path.with_name(name+'old'));path.mkdir(mode=0o700)
@@ -152,7 +309,7 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                 with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual(row,store.body['rows'][name])
                 self.assertEqual(b'outside',outside.read_bytes())
                 original=path.with_name(name+'old') if kind in ('root_alias','changed_directory') else path
-                self.assertEqual(b'owned',(original/'window-0.wav').read_bytes())
+                self.assertEqual(b'owned',(original/owned).read_bytes())
 
     def test_reserved_creation_gap_does_not_authorize_deleting_present_directory(self):
         with workspace.SynthesisWorkspaceRegistry(self.root,create=True) as store:
@@ -306,6 +463,11 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                     render();self.assertNotIn('workspace_parent',dispatched.call_args.kwargs)
                 with patch.object(workspace,'is_synthesis_workspace_supported',return_value=False):
                     render();self.assertNotIn('workspace_parent',dispatched.call_args.kwargs)
+                class UnknownEngine(tts.TTSEngine):pass
+                engine.__class__=UnknownEngine
+                try:
+                    render();self.assertNotIn('workspace_parent',dispatched.call_args.kwargs)
+                finally:engine.__class__=tts.TTSEngine
         with patch('tts.render_synthesis_windows') as dispatched:
             render();self.assertNotIn('workspace_parent',dispatched.call_args.kwargs)
 

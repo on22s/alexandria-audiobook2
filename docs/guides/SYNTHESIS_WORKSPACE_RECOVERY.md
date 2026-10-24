@@ -6,6 +6,13 @@ startup or audio-task admission reclaims verified disposable files. This also
 applies when reusable segment recovery is disabled. A retry can therefore remove
 abandoned working copies without deleting saved takes or reusable cache evidence.
 
+For that same participating Project route, the raw parent WAV also has its own
+registration, created before allocating the file and retained through encoding
+and final selected-take publication. Inner windows use a separate workspace;
+finishing those windows does not retire the raw parent. This applies when the
+existing recovery/window settings provide captured Project authority, including
+when reusable recovery is disabled but synthesis windows are enabled.
+
 The registry is `.synthesis-workspaces-v1/registry.json` under the project data
 root. It records opaque workspace IDs, hashed claim/book provenance, directory
 identities and the declared window count. It contains no source text. Cleanup
@@ -19,12 +26,20 @@ publication and saved-take attachment retain their existing ownership checks.
 Workspace cleanup failure is logged and cannot turn a published parent into a
 failed render.
 
+A zero-window row declares a parent-only workspace; ordinary window rows still
+declare two through 1,024 windows. Older application versions that reject a
+zero-window row preserve the registry rather than cleaning it. Use a version
+that understands parent rows to resume automatic maintenance.
+
 ## Limits and preserved evidence
 
 - At most 256 workspaces are registered, with at most 1,024 windows each. This is
   a disposable-storage admission limit; requested parallel worker settings remain
   unchanged. Exhaustion refuses a participating render before allocating more
   working audio.
+- Parent and inner-window registrations share that 256-workspace budget. An
+  active participating windowed Project render can occupy two slots. Capacity
+  refusal never falls back to an unregistered parent file.
 - Only the registered window files, private assembled parent and fixed join
   scratch are disposable. Unknown files, symlinks, hardlinks, changed directory
   identities and invalid or missing registry authority are preserved.
@@ -40,6 +55,11 @@ failed render.
   renders. Other voice categories, Windows/macOS, overridden providers and direct
   unleased Python callers retain their normal temporary-file behavior. They have
   no claimed hard-crash reclamation qualification yet.
+- Default nonwindow renders without captured recovery authority, native-batch
+  `temp_batch_*.wav`, and encoding/publication staging in `voicelines` or
+  `.chapter-export-*` remain outside this raw-parent registration. Existing
+  unregistered parent files are preserved; this change does not authorize
+  filename-based cleanup of historical files.
 
 Warnings identify preserved registrations or unavailable registry authority.
 Retain those paths and metadata for diagnosis. The application does not reset a
