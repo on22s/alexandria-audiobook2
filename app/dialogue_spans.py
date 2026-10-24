@@ -43,6 +43,10 @@ INTERIOR_DASH_TURN = re.compile(
 LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
 
 
+# The longest distinct-mark pair allowed to cross a blank line.
+MAX_CROSSING_CHARS = 2000
+
+
 def _paired_spans(text):
     spans = []
     for opener, closer in PAIRED:
@@ -59,7 +63,7 @@ def _paired_spans(text):
                     continue
                 positions.append(position)
             for start, end in zip(positions[0::2], positions[1::2]):
-                if not 1 < end - start < 2000:
+                if end - start <= 1:
                     continue
                 # A SPAN MAY NOT CROSS A PARAGRAPH BREAK. Straight quotes are
                 # identical opening and closing, so they can only be paired by
@@ -75,10 +79,25 @@ def _paired_spans(text):
                     continue
                 spans.append((start + 1, end))
         else:
-            for match in re.finditer(
-                    re.escape(opener) + r"([^" + re.escape(closer) + r"]{1,2000})"
-                    + re.escape(closer), text):
-                spans.append((match.start(1), match.end(1)))
+            # Pair each opener with the next closer. A pair longer than
+            # MAX_CROSSING_CHARS is kept only inside one paragraph: a long
+            # speech is fine (#1533, 9 of Dorian Gray's speeches run past
+            # 2,000 characters), a long span across a blank line is a
+            # mis-pair swallowing narration. Shorter pairs keep the old rule,
+            # so a multi-paragraph speech closed within the limit still counts.
+            # A rejected pair advances to the next opener, as the old bounded
+            # regex did.
+            position = text.find(opener)
+            while position != -1:
+                end = text.find(closer, position + 1)
+                if end == -1:
+                    break
+                inner = text[position + 1:end]
+                if inner and (len(inner) <= MAX_CROSSING_CHARS or "\n\n" not in inner):
+                    spans.append((position + 1, end))
+                    position = text.find(opener, end + 1)
+                else:
+                    position = text.find(opener, position + 1)
     return spans
 
 
