@@ -6722,6 +6722,7 @@
         // --- Editor Tab ---
         let isPlayingSequence = false;
         let playbackSequenceEpoch = 0;
+        let sequencePauseTimer = null;
         let isRenderingAll = false;
         let chunkSnapshotBookToken = null;
         let cachedChunks = []; // Cache to track changes
@@ -7393,6 +7394,8 @@
         window.playSequence = async () => {
             const sequenceEpoch = ++playbackSequenceEpoch;
             isPlayingSequence = true;
+            clearTimeout(sequencePauseTimer);
+            sequencePauseTimer = null;
             const isCurrentSequence = () => isPlayingSequence && sequenceEpoch === playbackSequenceEpoch;
             const btn = document.getElementById('btn-play-seq');
             btn.innerHTML = '<i class="fas fa-stop me-1"></i>Stop';
@@ -7401,6 +7404,26 @@
 
             let currentIndex = 0;
             let skippedCount = 0;
+            let pausePlan = new Map();
+            try {
+                const plan = await API.get('/api/chunks/playback_plan');
+                if (!isCurrentSequence()) { return; }
+                pausePlan = new Map(((plan && plan.pauses) || []).map(
+                    row => [Number(row.chunk_id), Number(row.pause_ms)]));
+            } catch (error) {
+                if (!isCurrentSequence()) { return; }
+                console.error('Playback pause plan failed:', error);
+                showActionError('Could not load playback pauses', error, 'Check the reported error and your connection, then try playing the sequence again.', 'warning');
+                stopSequence();
+                return;
+            }
+
+            const getPauseMs = (audio) => {
+                const row = audio.closest('tr');
+                const chunkId = row && row.dataset ? Number(row.dataset.id) : NaN;
+                const pauseMs = pausePlan.get(chunkId);
+                return Number.isFinite(pauseMs) && pauseMs > 0 ? pauseMs : 0;
+            };
 
             const playNext = () => {
                 if (!isCurrentSequence()) { return; }
@@ -7444,7 +7467,15 @@
                     audio.onerror = null;
                     if (isSkip) { skippedCount++; }
                     currentIndex++;
-                    playNext();
+                    const pauseMs = isSkip ? 0 : getPauseMs(audio);
+                    if (pauseMs > 0) {
+                        sequencePauseTimer = setTimeout(() => {
+                            sequencePauseTimer = null;
+                            if (isCurrentSequence()) { playNext(); }
+                        }, pauseMs);
+                    } else {
+                        playNext();
+                    }
                 };
 
                 const playPromise = audio.play();
@@ -7470,6 +7501,8 @@
         };
 
         window.stopSequence = () => {
+            clearTimeout(sequencePauseTimer);
+            sequencePauseTimer = null;
             playbackSequenceEpoch++;
             isPlayingSequence = false;
             document.querySelectorAll('audio').forEach(a => {

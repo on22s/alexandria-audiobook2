@@ -726,6 +726,34 @@ CHAPTER_TEMPLATE_FIELDS = ("chapter_number", "chapter_name", "book_name",
                            "series_name", "volume_number")
 
 
+def get_playback_pause_plan(chunks, pause_ms=DEFAULT_PAUSE_MS,
+                           same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS, has_audio=None):
+    """Resolve each playable row's gap to the next playable row for preview.
+
+    Uses the export pause helper, so overrides (including zero) and the
+    same/different-speaker defaults cannot drift from the rendered timeline.
+    Rows without audio are skipped as export skips them: `has_audio` is the
+    Project's own check (missing path, escaping path or missing file), so the
+    gap after a row is measured to the same next row export joins it to. A file
+    that exists but cannot be decoded is only discovered during playback or
+    export. A runtime playback failure may therefore leave the preceding gap
+    based on the planned neighbor, while export recomputes after decode skips.
+    The last planned row has no following gap. This plans pauses only:
+    the browser plays stored clip edges, while export additionally trims edge
+    silence, so this is pause-policy parity rather than acoustic timeline parity.
+    """
+    has_audio = has_audio or (lambda chunk: bool(chunk.get('audio_path')))
+    playable = [index for index, chunk in enumerate(chunks)
+                if type(chunk.get('id')) is int and has_audio(chunk)]
+    plan = {}
+    for position, index in enumerate(playable[:-1]):
+        current = chunks[index]
+        following = chunks[playable[position + 1]]
+        plan[current['id']] = get_pause_duration_ms(
+            current, following, pause_ms, same_speaker_pause_ms)
+    return plan
+
+
 def get_chapter_export_rows(manifest):
     """Return a usable whole chapter row set, or an empty set for old/corrupt data."""
     if not isinstance(manifest, dict):
@@ -1880,14 +1908,30 @@ class ProjectManager:
             raise ValueError("Chunk audio path escapes the project directory")
         return full_path
 
-    def get_chunk_audio_segment(self, chunk):
-        """Decode one admitted audio file, or report an unreadable chunk as absent."""
+    def get_existing_chunk_audio_path(self, chunk):
+        """Full path of the chunk's existing admitted audio file, or None when absent.
+
+        The one answer export and sequence preview use for "has audio". An
+        invalid or escaping path raises ValueError, as get_chunk_audio_path does.
+        """
         path = chunk.get("audio_path")
         if not path:
             return None
+        full_path = self.get_chunk_audio_path(path)
+        return full_path if os.path.isfile(full_path) else None
+
+    def has_chunk_audio_file(self, chunk):
         try:
-            full_path = self.get_chunk_audio_path(path)
-            if not os.path.isfile(full_path):
+            return self.get_existing_chunk_audio_path(chunk) is not None
+        except (TypeError, ValueError, OSError):
+            return False
+
+    def get_chunk_audio_segment(self, chunk):
+        """Decode one admitted audio file, or report an unreadable chunk as absent."""
+        path = chunk.get("audio_path")
+        try:
+            full_path = self.get_existing_chunk_audio_path(chunk)
+            if full_path is None:
                 return None
             extension = os.path.splitext(full_path)[1].lstrip(".").lower()
             load_kwargs = {}
