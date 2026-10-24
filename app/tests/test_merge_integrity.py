@@ -209,6 +209,54 @@ class SourceIntegritySnapshotTests(unittest.TestCase):
                     self.assertNotEqual(previous,current['snapshot']);previous=current['snapshot']
                 self.assertEqual(5,compare.call_count)
                 self.assertEqual(1,merge_integrity._get_cached_diff.cache_info().currsize)
+                with patch.object(merge_integrity.copy, 'deepcopy', side_effect=AssertionError('full report copy')):
+                    page=merge_integrity.get_source_integrity(state,b'new annotation',rows,review_offset=0)
+                self.assertEqual(current['snapshot'],page['snapshot'])
+                self.assertEqual(current['status'],page['status'])
+                self.assertNotIn('hunks',page)
+                self.assertEqual(5,compare.call_count)
+
+    def test_paged_comparison_preserves_full_text_and_bounds_real_json_wire(self):
+        from merge_integrity import get_source_integrity_page, SOURCE_REVIEW_PAGE_CHARS
+        from starlette.responses import JSONResponse
+        hunk=dict(source_before='Before',source_words='old',source_after='After',script_words='new')
+        cases=[dict(status='differences',snapshot='a'*64,hunks=[hunk]),
+               dict(status='differences',snapshot='a'*64,hunks=[{**hunk,'source_words':'old '*250000,'script_words':'new '*250000}]),
+               dict(status='differences',snapshot='a'*64,hunks=[hunk]*100),
+               dict(status='unavailable',snapshot='a'*64,reason='Unavailable synthetic reason. '*50000),
+               dict(status='unavailable',snapshot='a'*64,reason=None),
+               dict(status='unavailable',snapshot='a'*64,reason='\x00'*8192+'雪😀'*8192)]
+        for report in cases:
+            with self.subTest(status=report['status'],hunks=len(report.get('hunks',[]))):
+                expected=(report.get('reason') or 'Original source comparison is unavailable.') if report['status']=='unavailable' else '\n\n'.join(
+                    f"Source: {h['source_before']} [{h['source_words']}] {h['source_after']}\nMixed dialogue: {h['script_words']}" for h in report['hunks'])
+                pieces=[];offset=0
+                while True:
+                    page=get_source_integrity_page(report,offset)
+                    self.assertEqual(expected[offset:offset+SOURCE_REVIEW_PAGE_CHARS],page['page'])
+                    self.assertEqual(len(expected),page['total'])
+                    bound={**page,'candidate_revision':'b'*64,'approval_revision':'c'*64}
+                    self.assertLessEqual(len(JSONResponse({'detail':bound},status_code=409).body),65536)
+                    pieces.append(page['page'])
+                    if page['next_offset'] is None:break
+                    self.assertEqual(offset+len(page['page']),page['next_offset'])
+                    offset=page['next_offset']
+                self.assertEqual(expected,''.join(pieces))
+                self.assertEqual('',get_source_integrity_page(report,len(expected))['page'])
+                with self.assertRaises(ValueError):get_source_integrity_page(report,len(expected)+1)
+        # Many regions exercise bounded presentation at both ends and a middle
+        # range without an all-pages quadratic scan in the routine unit suite.
+        report=dict(status='differences',snapshot='a'*64,hunks=[hunk]*100000)
+        unit='Source: Before [old] After\nMixed dialogue: new'
+        expected='\n\n'.join([unit]*100000)
+        for offset in (0,len(expected)//2,len(expected)-23):
+            page=get_source_integrity_page(report,offset)
+            self.assertEqual(expected[offset:offset+SOURCE_REVIEW_PAGE_CHARS],page['page'])
+            self.assertEqual(len(expected),page['total'])
+        for offset in (True,-1,1.5,'0',2**53):
+            with self.assertRaises(ValueError):get_source_integrity_page(report,offset)
+        clean=get_source_integrity_page(dict(status='verified',snapshot='a'*64),0)
+        self.assertEqual(('',0,None),(clean['page'],clean['total'],clean['next_offset']))
 
 
 if __name__ == '__main__':

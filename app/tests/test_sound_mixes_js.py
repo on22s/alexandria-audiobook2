@@ -8,6 +8,7 @@ VALIDATION_LOADER = "vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),con
 SOURCE = Path(__file__).resolve().parent.parent/'static/js/app-sound-mixes.js'
 SETUP = r'''
 context.window=context;context.confirm=()=>true;
+context.Uint8Array=Uint8Array;context.TextDecoder=TextDecoder;
 Object.defineProperty(Element.prototype,'type',{get(){return this.attrs.type||'text';},set(value){this.attrs.type=value;}});
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(value){if(value){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
 Element.prototype.replaceChildren=function(...nodes){for(const child of [...this.children])child.remove();this.textContent='';for(const node of nodes)this.appendChild(node);};
@@ -15,9 +16,20 @@ Element.prototype.append=function(...nodes){for(const node of nodes)this.appendC
 Element.prototype.pause=function(){};Element.prototype.load=function(){};Element.prototype.play=function(){return Promise.resolve();};
 for(const id of ['sound-mixes-content','sound-mixes-status','sound-mixes-refresh'])body.appendChild(new Element('div',{id}));
 const profiles=()=>Object.fromEntries(['mp3','wav','m4b'].map(name=>[name,{available:true,revision:'d'.repeat(64),summary:name+' approved profile'}]));
-const requests=[];context.fetch=(url,options={})=>new Promise((resolve,reject)=>requests.push({url,options,resolve:(value,status=200)=>resolve({status,json:async()=>value}),reject}));
+const requests=[];context.fetch=(url,options={})=>new Promise((resolve,reject)=>{
+ const request={url,options,reject,cancelled:false};
+ request.resolve=(value,status=200,wire={})=>{
+  const bytes=wire.bytes||new TextEncoder().encode(JSON.stringify(value));
+  const chunks=wire.chunks||[bytes];let index=0;
+  resolve({status,json:async()=>value,headers:{get:()=>wire.length===undefined?String(bytes.length):wire.length},
+   body:{cancel:async()=>{request.cancelled=true;},getReader:()=>({
+    read:async()=>index<chunks.length?{done:false,value:chunks[index++]}:{done:true},
+    cancel:async()=>{request.cancelled=true;},releaseLock:()=>{}})}});
+ };requests.push(request);
+});
 context.API={_handleError:async()=>{}};
 const row=()=>({stage:'render-fixture',bytes:96000,recovery_revision:'a'.repeat(64),status:'metadata_ready',approval_status:'absent',media_verified:false,candidate_revision:'b'.repeat(64),context_revision:'c'.repeat(64),book_id:'<img onerror=bad()>',frames:4800,frame_rate:24000});
+const sourcePage=(text,offset=0,total=Array.from(text).length)=>({schema:1,status:'differences',snapshot:'f'.repeat(64),candidate_revision:'b'.repeat(64),approval_revision:'e'.repeat(64),page:text,offset,total,page_size:8192,next_offset:offset+Array.from(text).length<total?offset+Array.from(text).length:null});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));load();
 const api=vm.runInContext('SoundMixes',context),box=document.getElementById('sound-mixes-content');
 const click=label=>{const node=box.querySelectorAll('button').find(n=>n.textContent===label);assert(node,label);return node.onclick();};
@@ -175,7 +187,7 @@ assert.strictEqual(link.download,'mixed_audiobook.wav');
         self.run_js(r"""
 const approved={...row(),approval_status:'recorded',approval_revision:'e'.repeat(64),delivery:{format:'mp3'}};
 await ready([approved]);const p=click('Deliver saved MP3 approval');
-requests.at(-1).resolve({detail:{status:'differences',snapshot:'f'.repeat(64),hunks:[{source_before:'Before',source_words:'<script>bad</script>',source_after:'After',script_words:'Own dialogue'}]}},409);
+requests.at(-1).resolve({detail:sourcePage('Source: Before [<script>bad</script>] After\nMixed dialogue: Own dialogue')},409);
 await tick();requests.at(-1).resolve({context_revision:'c'.repeat(64)});await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[approved]});await p;
 assert(box.querySelectorAll('pre').some(n=>n.textContent.includes('<script>bad</script>')));assert(!box.querySelectorAll('script').length);
 const count=requests.length;click('Confirm source text and deliver');assert.strictEqual(count,requests.length);
@@ -184,4 +196,51 @@ const confirmed=click('Confirm source text and deliver');assert.strictEqual(JSON
 requests.at(-1).resolve({status:'published',file:'mixed_audiobook.mp3',candidate_revision:'b'.repeat(64),approval_revision:'e'.repeat(64),warnings:['Identity unavailable'],quality:null});
 await tick();requests.at(-1).resolve({context_revision:'c'.repeat(64)});await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[approved]});await confirmed;
 assert(!box.querySelectorAll('a').length);assert(document.getElementById('sound-mixes-status').textContent.includes('Published mixed_audiobook.mp3'));
+""")
+
+    def test_source_pages_replace_text_clear_consent_and_ignore_late_results(self):
+        self.run_js(r"""
+const approved={...row(),approval_status:'recorded',approval_revision:'e'.repeat(64),delivery:{format:'mp3'}};
+async function show(){
+ await ready([approved]);const p=click('Deliver saved MP3 approval');requests.at(-1).resolve({detail:sourcePage('a'.repeat(8192),0,8234)},409);
+ await tick();requests.at(-1).resolve({context_revision:'c'.repeat(64)});await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[approved]});await p;
+}
+await show();assert.equal(box.querySelectorAll('pre').length,1);assert.equal(box.querySelectorAll('pre')[0].textContent.length,8192);
+let consent=box.querySelectorAll('input').at(-1);consent.checked=true;
+const next=click('Next source page');assert.strictEqual(consent.checked,false);
+assert.deepStrictEqual(JSON.parse(requests.at(-1).options.body),{candidate_revision:'b'.repeat(64),approval_revision:'e'.repeat(64),expected_snapshot:'f'.repeat(64),offset:8192});
+requests.at(-1).resolve(sourcePage('b'.repeat(42),8192,8234));await next;
+assert.equal(box.querySelectorAll('pre').length,1);assert.equal(box.querySelectorAll('pre')[0].textContent,'b'.repeat(42));
+assert(box.querySelectorAll('p').some(n=>n.textContent.includes('Page 2 of 2')));assert.strictEqual(consent.checked,false);
+assert(box.querySelectorAll('button').find(n=>n.textContent==='Next source page').disabled);
+consent.checked=true;const previous=click('Previous source page');
+requests.at(-1).resolve(sourcePage('a'.repeat(8192),0,8235));await previous;
+assert.equal(box.querySelectorAll('pre').length,0);assert(document.getElementById('sound-mixes-status').textContent.includes('Refresh'));
+await show();const late=click('Next source page'),count=requests.length;api.invalidate();
+await api.refresh();assert.equal(requests.length,count);assert(document.getElementById('sound-mixes-refresh').disabled);
+requests.at(-1).resolve(sourcePage('b'.repeat(42),8192,8234));await late;
+assert.equal(box.children.length,0);assert.strictEqual(document.getElementById('sound-mixes-refresh').disabled,false);
+""")
+
+    def test_source_response_limits_precede_json_parsing_and_unavailable_is_explicit(self):
+        self.run_js(r"""
+const approved={...row(),approval_status:'recorded',approval_revision:'e'.repeat(64),delivery:{format:'mp3'}};
+const nativeJSON=vm.runInContext('JSON',context);let parses=0;
+context.JSON={stringify:nativeJSON.stringify,parse:(...args)=>{parses++;return nativeJSON.parse(...args);}};
+for(const wire of [{length:'65537',bytes:new Uint8Array(1)},{length:null,bytes:new Uint8Array(65537)},{length:null,bytes:new Uint8Array([255])}]){
+ await ready([approved]);const p=click('Deliver saved MP3 approval'),request=requests.at(-1);
+ request.resolve({},409,wire);await tick();requests.at(-1).resolve({context_revision:'c'.repeat(64)});await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[approved]});await p;
+ assert.equal(parses,0);assert.equal(box.querySelectorAll('pre').length,0);
+ if(wire.bytes.length!==1||wire.bytes[0]!==255){assert(request.cancelled);}
+}
+context.JSON=nativeJSON;
+await ready([approved]);const p=click('Deliver saved MP3 approval');
+const detail={...sourcePage('😀'.repeat(8192)),status:'unavailable'};
+const bytes=new TextEncoder().encode(JSON.stringify({detail})),split=bytes.indexOf(240)+1;
+// A multibyte scalar split across network reads must decode after concatenation.
+requests.at(-1).resolve({detail},409,{length:null,chunks:[bytes.slice(0,split),bytes.slice(split)]});
+await tick();requests.at(-1).resolve({context_revision:'c'.repeat(64)});await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[approved]});await p;
+assert.equal(box.querySelectorAll('pre')[0].textContent.length,16384);
+assert(box.querySelectorAll('label').some(n=>n.textContent.includes('without an original-source comparison')));
+assert.strictEqual(box.querySelectorAll('input').at(-1).checked,false);
 """)

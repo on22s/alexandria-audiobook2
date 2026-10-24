@@ -22,6 +22,44 @@ const SoundMixes = (() => {
         const response = await fetch(url, body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
         await API._handleError(response); return response.json();
     }
+    async function sourceJson(response) {
+        const limit = 65536, declared = response.headers.get('Content-Length');
+        if (declared !== null && (!/^\d+$/.test(declared) || !integer(Number(declared), 0, limit))) {
+            await response.body?.cancel();
+            throw new Error('Source comparison response exceeds its limit.');
+        }
+        if (!response.body) { throw new Error('Source comparison response is unavailable.'); }
+        const reader = response.body.getReader(), parts = []; let bytes = 0, reads = 0;
+        try {
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) { break; }
+                reads += 1;
+                if (reads > limit || !(value instanceof Uint8Array) || value.byteLength > limit - bytes) {
+                    await reader.cancel();
+                    throw new Error('Source comparison response exceeds its limit.');
+                }
+                bytes += value.byteLength;
+                if (value.byteLength) { parts.push(value.slice()); }
+            }
+        } finally { reader.releaseLock(); }
+        const joined = new Uint8Array(bytes); let offset = 0;
+        for (const part of parts) { joined.set(part, offset); offset += part.byteLength; }
+        return JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(joined));
+    }
+    function sourcePage(report, row, offset, expected = null) {
+        if (!report || Object.keys(report).sort().join(',') !== 'approval_revision,candidate_revision,next_offset,offset,page,page_size,schema,snapshot,status,total'
+            || report.schema !== 1 || !['differences', 'unavailable'].includes(report.status) || !digest(report.snapshot)
+            || report.candidate_revision !== row.candidate_revision || report.approval_revision !== row.approval_revision
+            || report.offset !== offset || report.page_size !== 8192 || !integer(report.total, 1, Number.MAX_SAFE_INTEGER)
+            || !integer(offset, 0, report.total - 1) || typeof report.page !== 'string' || report.page.length > 16384
+            || Array.from(report.page).length !== Math.min(8192, report.total - offset)
+            || report.next_offset !== (offset + 8192 < report.total ? offset + 8192 : null)
+            || (expected && (report.snapshot !== expected.snapshot || report.total !== expected.total || report.status !== expected.status))) {
+            throw new Error('Source comparison changed or could not be verified.');
+        }
+        return report;
+    }
     function validate(data) {
         if (!data || !Array.isArray(data.candidates) || data.candidates.length > 16) { throw new Error('Invalid candidate inventory.'); }
         if (!data.delivery_profiles || Object.keys(data.delivery_profiles).sort().join(',') !== 'm4b,mp3,wav') { throw new Error('Invalid delivery profiles.'); }
@@ -89,16 +127,7 @@ const SoundMixes = (() => {
                 candidate_revision: row.candidate_revision, approval_revision: row.approval_revision,
                 integrity_confirmation: confirmation})});
         if (response.status === 409) {
-            const report = (await response.json())?.detail;
-            if (report && ['differences', 'unavailable'].includes(report.status) && digest(report.snapshot)
-                && Array.isArray(report.hunks) && report.hunks.length <= 100000
-                && (report.reason === undefined || typeof report.reason === 'string')) {
-                for (const hunk of report.hunks) {
-                    if (!hunk || !['source_before', 'source_words', 'source_after', 'script_words'].every(key => typeof hunk[key] === 'string')) { throw new Error('Invalid source comparison.'); }
-                }
-                return {sourceReport: report};
-            }
-            throw new Error('Delivery is stale, busy or unavailable.');
+            return {sourceReport: sourcePage((await sourceJson(response))?.detail, row, 0)};
         }
         await API._handleError(response);
         const result = await response.json(), quality = result?.quality;
@@ -109,20 +138,67 @@ const SoundMixes = (() => {
                 || !integer(quality.output_bytes, 1, 4 * 1024 ** 3)))) { throw new Error('Delivery response could not be verified. Check the saved output before retrying.'); }
         return result;
     }
+    function showSourceReview(row, first) {
+        const token = sequence, expected = {snapshot: first.snapshot, total: first.total, status: first.status};
+        const pages = Math.ceil(first.total / first.page_size), panel = make('div'); panel.className = 'border rounded p-2 my-2';
+        panel.append(make('strong', first.status === 'unavailable' ? 'Original source comparison is unavailable' : 'Review source text before delivery'));
+        const range = make('p'), text = make('pre');
+        text.style.whiteSpace = 'pre-wrap'; text.style.maxHeight = '40vh'; text.style.overflow = 'auto';
+        const consent = make('input'); consent.type = 'checkbox'; consent.checked = false;
+        const label = make('label', first.status === 'unavailable'
+            ? ` I reviewed all ${pages} page${pages === 1 ? '' : 's'} of this explanation and want to deliver without an original-source comparison. `
+            : ` I reviewed all ${pages} page${pages === 1 ? '' : 's'} of this source comparison and want to deliver this exact text. `);
+        label.append(consent);
+        let current = 0, next = null;
+        const previous = button('Previous source page', () => loadPage(current - 8192));
+        const following = button('Next source page', () => { if (next !== null) { return loadPage(next); } });
+        const jump = make('input'); jump.type = 'number'; jump.min = '1'; jump.max = String(pages); jump.step = '1';
+        jump.oninput = () => { consent.checked = false; };
+        const jumpLabel = make('label', 'Source page '); jumpLabel.append(jump);
+        const go = button('Go to source page', () => {
+            const number = Number(jump.value);
+            if (!jump.value.trim() || !integer(number, 1, pages)) { message(`Choose a source page from 1 to ${pages}.`); return; }
+            return loadPage((number - 1) * 8192);
+        });
+        function present(page) {
+            current = page.offset; next = page.next_offset;
+            text.textContent = page.page; consent.checked = false;
+            jump.value = String(Math.floor(current / 8192) + 1);
+            range.textContent = `Page ${jump.value} of ${pages}. ${pages === 1 ? 'Entire report shown.' : 'This is part of the report; use the page controls to inspect the complete report.'} Delivery rechecks the current text and audio.`;
+            previous.disabled = current === 0; following.disabled = next === null;
+        }
+        async function loadPage(offset) {
+            if (busy || token !== sequence || !panel.isConnected || !integer(offset, 0, expected.total - 1)) { return; }
+            consent.checked = false; setBusy(true); let page, failure;
+            try {
+                const response = await fetch(`/api/sound_design/candidates/${row.stage}/source_review`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
+                        candidate_revision: row.candidate_revision, approval_revision: row.approval_revision,
+                        expected_snapshot: expected.snapshot, offset})});
+                const value = await sourceJson(response);
+                if (response.status !== 200) { throw new Error('Source comparison is stale or unavailable.'); }
+                page = sourcePage(value, row, offset, expected);
+            } catch (error) { failure = error.message; }
+            finally { setBusy(false); }
+            // Invalidation drops the panel but retains busy until the current
+            // request exits. Do not abort it early and lose worker ownership.
+            if (token !== sequence || !panel.isConnected) { return; }
+            if (failure) { panel.remove(); message(`${failure} Refresh saved mixes before retrying.`); return; }
+            present(page);
+        }
+        panel.append(range, previous, following, jumpLabel, go, text, label);
+        panel.append(button('Confirm source text and deliver', () => {
+            if (busy || token !== sequence || !panel.isConnected) { return; }
+            if (!consent.checked) { message('Review the complete source comparison and check its confirmation.'); return; }
+            consent.checked = false;
+            return action(() => deliver(row, expected.snapshot), result => showDelivery(row, result));
+        }));
+        box().append(panel); present(first);
+        message('Source review is required; no delivery was published.');
+    }
     function showDelivery(row, result) {
         if (result.sourceReport) {
-            const report = result.sourceReport, panel = make('div'); panel.className = 'border rounded p-2 my-2';
-            panel.append(make('strong', 'Review source text before delivery'));
-            const differences = report.status === 'unavailable' ? (report.reason || 'Original source comparison is unavailable.')
-                : report.hunks.map(h => `Source: ${h.source_before} [${h.source_words}] ${h.source_after}\nMixed dialogue: ${h.script_words}`).join('\n\n');
-            const text = make('pre', differences); text.style.whiteSpace = 'pre-wrap'; text.style.maxHeight = '40vh'; text.style.overflow = 'auto'; panel.append(text);
-            const label = make('label', ' I reviewed this source comparison and want to deliver this exact text. '), consent = make('input');
-            consent.type = 'checkbox'; consent.checked = false; label.append(consent); panel.append(label);
-            panel.append(button('Confirm source text and deliver', () => {
-                if (!consent.checked) { message('Review the source comparison and check its confirmation.'); return; }
-                return action(() => deliver(row, report.snapshot), result => showDelivery(row, result));
-            }));
-            box().append(panel); message('Source review is required; no delivery was published.'); return;
+            showSourceReview(row, result.sourceReport); return;
         }
         message(`Published ${result.file}.${result.warnings.length ? ' ' + result.warnings.join(' ') : ''}`);
         if (result.quality !== null) {

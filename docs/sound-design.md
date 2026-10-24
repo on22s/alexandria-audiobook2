@@ -30,6 +30,42 @@ Historical cue metadata is retained without automatic reanchoring or approval.
 The cue interface shows missing/stale dialogue bindings and requires
 proof or explicit reanchoring before use.
 
+## Source comparison before delivery
+
+Full-mix approval does not replace review of differences between the current
+source prose and dialogue. Delivery presents that word comparison in pages,
+including a differing region too large for one page. Use **Previous source
+page**, **Next source page** or **Go to source page** to inspect the complete
+report. Each view says which page is shown; reaching a page is not proof of
+reading the report. The unchecked confirmation explicitly covers all pages and
+is cleared when navigating, refreshing, or replacing a report. An unavailable
+comparison instead pages its explanation and requires explicit confirmation of
+delivery without an original-source comparison.
+
+Pages retain the same source-integrity snapshot as ordinary Editor confirmation.
+A changed book, source, script, saved dialogue metadata, candidate or approval
+requires a fresh review. Page requests read metadata through the existing CPU
+task ownership and book guards; they do not read mixed PCM, invoke an encoder,
+publish output or certify audio. Actual delivery retains its full source,
+selected-take, media, encoder and publication checks. A pending page request keeps
+the interface busy until it exits; invalidation ignores its late response.
+
+The initial delivery HTTP 409 carries a schema-1 page in `detail`, with `status`,
+`snapshot`, `candidate_revision`, `approval_revision`, `page`, `offset`, `total`,
+`page_size` and `next_offset`. Additional pages use POST
+`/api/sound_design/candidates/{stage}/source_review` with those candidate and
+approval revisions, `expected_snapshot` and an integer `offset`. Requests accept
+at most 16 KiB; page size is fixed at 8,192 Unicode codepoints. Offsets refer to
+server codepoints rather than JavaScript UTF-16 indices. The interface bounds
+source-review response bodies to 64 KiB before parsing JSON and replaces the
+previous page's displayed text. It does not silently cut off long reports or
+accept an arbitrary client page size.
+
+This bounds transport, parsing and displayed text. The server still computes and
+retains the existing full word diff; pagination does not establish a general
+server-memory or comparison-runtime bound. The ordinary Editor report remains
+unchanged.
+
 ## Recorded master and stem lineage
 
 In **Sound cues**, choose an exact retained revision and **Record a rendition**.

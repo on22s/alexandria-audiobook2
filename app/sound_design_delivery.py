@@ -1,6 +1,7 @@
 """Private, quota-reserved input for delivery of an explicitly approved mix."""
 from contextlib import contextmanager
 import hashlib
+import json
 import os
 from pathlib import Path
 
@@ -9,7 +10,7 @@ from merge_integrity import get_source_integrity, is_source_integrity_admitted
 from sound_design_approval import (ensure_approved_sound_candidate, get_sound_delivery_options,
                                    get_sound_delivery_encoding)
 from sound_design_assets import MAX_TOTAL_BYTES
-from sound_design_cues import _require_int
+from sound_design_cues import _require_int, _require_digest
 from sound_design_publication import capture_sound_delivery_snapshot
 from sound_design_cover import get_sound_delivery_cover
 from sound_design_staging import (ensure_sound_render_stage, ensure_sound_render_quota,
@@ -19,10 +20,74 @@ from utils import safe_load_json
 
 
 class SoundDeliveryIntegrityRequired(ValueError):
-    """Carry the same reviewable report as ordinary Editor merge admission."""
+    """Carry a bounded page under the ordinary Editor confirmation policy."""
     def __init__(self, report):
         super().__init__('Review current source integrity before sound delivery')
         self.report = report
+
+
+def get_sound_source_review(manager, stage_name, candidate_revision, approval_revision,
+                            expected_snapshot, offset=0, *, cancel_check=None):
+    """Read source-comparison metadata, without approving or reading audio.
+
+    Reuse the bounded native row/journal snapshot. Actual delivery separately
+    captures and verifies media, encoder profiles and publication sources.
+    """
+    from project_scope_admission import ensure_audio_scope_admission
+    from project_scope_files import capture_scope_file
+    from sound_design_candidate import (validate_sound_candidate_stage,
+        get_sound_candidate_document, MAX_CANDIDATE_METADATA)
+    from sound_design_approval import get_sound_approval, MAX_APPROVAL_BYTES
+    from sound_design_context import (capture_sound_design_context,
+        require_sound_design_context_files_current)
+    from sound_design_registry import get_selected_sound_design_versions
+    from sound_design_staging import DIRECTORY
+    validate_sound_candidate_stage(stage_name)
+    for value in (candidate_revision, approval_revision, expected_snapshot):
+        _require_digest(value, 'Expected source review identity')
+    _require_int(offset, 0, 2**53 - 1, 'Source review offset')
+    root = Path(manager.root_dir).absolute()
+    check = lambda: ensure_audio_export_active(cancel_check)
+    with ensure_audio_scope_admission(root):
+        saved = []
+        def capture(name, limit):
+            proof, raw = capture_scope_file(root, name, limit=limit,
+                include_bytes=True, cancel_check=check)
+            saved.append((name, limit, proof))
+            return raw, proof
+        raw, _ = capture(f'{DIRECTORY}/{stage_name}/candidate.json', MAX_CANDIDATE_METADATA)
+        document = get_sound_candidate_document(raw, candidate_revision)
+        raw, _ = capture(f'{DIRECTORY}/{stage_name}/approval.json', MAX_APPROVAL_BYTES)
+        approval = get_sound_approval(raw)
+        if (approval['approval_revision'] != approval_revision
+                or approval['candidate_revision'] != candidate_revision):
+            raise ValueError('Sound approval changed; refresh the source comparison')
+        context = capture_sound_design_context(root, check_active=check)
+        binding = document['binding']
+        if (context['context_revision'] != binding['context_revision']
+                or context['book'] != binding['book']
+                or context['registry_revision'] != binding['registry_revision']
+                or [row['version'] for row in get_selected_sound_design_versions(context['registry'])] != binding['cue_versions']
+                or [row['uid'] for row in context['chunks']] != [row['chunk_uid'] for row in binding['dialogue']]):
+            raise ValueError('Sound source context changed; refresh the comparison')
+        state_raw, state_proof = capture('state.json', 2 * 1024**2)
+        script_raw, script_proof = capture('annotated_script.json', 32 * 1024**2)
+        if (state_proof != context['binding']['files']['state.json']
+                or script_proof != context['binding']['files']['annotated_script.json']):
+            raise ValueError('Sound source metadata changed during review')
+        # These exact bytes were already parsed and validated by context capture.
+        report = get_source_integrity(json.loads(state_raw), script_raw,
+            context['chunks'], review_offset=offset)
+        if report['snapshot'] != expected_snapshot or report['status'] not in ('differences', 'unavailable'):
+            raise ValueError('Source comparison changed; refresh before review')
+        require_sound_design_context_files_current(root, context)
+        for name, limit, proof in saved:
+            current, _ = capture_scope_file(root, name, limit=limit, cancel_check=check)
+            if current != proof:
+                raise ValueError('Source review metadata changed during capture')
+        check()
+        return {**report, 'candidate_revision': candidate_revision,
+                'approval_revision': approval_revision}
 
 
 @contextmanager
@@ -58,7 +123,8 @@ def ensure_sound_delivery_stage(manager, stage_name, candidate_revision, approva
                 script_bytes = Path(manager.script_path).read_bytes()
             except FileNotFoundError:
                 script_bytes = b''
-            integrity = get_source_integrity(state, script_bytes, snapshot.chunks)
+            integrity = get_source_integrity(state, script_bytes, snapshot.chunks, review_offset=0)
+            integrity.update(candidate_revision=candidate_revision, approval_revision=approval_revision)
         snapshot.verify_sources()
         if not is_source_integrity_admitted(integrity, integrity_confirmation):
             raise SoundDeliveryIntegrityRequired(integrity)

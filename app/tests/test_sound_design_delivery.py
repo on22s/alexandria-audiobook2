@@ -1,8 +1,10 @@
 """Approved delivery staging charges the copy and preserves prior candidates."""
 import unittest
+from unittest.mock import patch
 from project import ProjectManager
 from tests import test_sound_design_approval as fixtures
-from sound_design_delivery import ensure_sound_delivery_stage, SoundDeliveryIntegrityRequired
+from sound_design_delivery import (ensure_sound_delivery_stage, SoundDeliveryIntegrityRequired,
+                                  get_sound_source_review)
 
 
 class SoundDeliveryStageTests(unittest.TestCase):
@@ -84,7 +86,55 @@ class SoundDeliveryStageTests(unittest.TestCase):
                 report = caught.exception.report
                 self.assertEqual('differences', report['status'])
                 self.assertEqual([candidate], list(candidate.parent.glob('render-*')))
+            with patch('sound_design_delivery.capture_sound_delivery_snapshot', side_effect=AssertionError('page read audio')):
+                page = get_sound_source_review(ProjectManager(str(self.root)),candidate.name,
+                    revision,approval['approval_revision'],report['snapshot'])
+            self.assertEqual(report,page)
+            self.assertNotIn('hunks',page)
             with self.stage(candidate, revision, approval,
                             integrity_confirmation=report['snapshot']) as staged:
                 self.assertEqual(report, staged['integrity'])
+        self.run_owned(check)
+
+    def test_journal_review_uses_exact_native_rows_and_refuses_stale_metadata(self):
+        import json
+        from chunk_status_journal import ChunkStatusJournal
+        from merge_integrity import get_source_integrity
+        from project_scope_admission import ensure_audio_scope_admission
+        from sound_design_context import capture_sound_design_context
+        from sound_design_publication import capture_sound_delivery_snapshot
+        self.fixture.source.write_text('Different synthetic source prose.')
+        # Reachable unavailable report: readable source, stale scope authority.
+        self.fixture.write('state.json', {**self.fixture.state, '_source_scope': {}})
+        journal = ChunkStatusJournal(self.root/'chunks.json',
+            {key:self.fixture.state[key] for key in ('active_book_id','book_generation')})
+        journal.apply_update(self.fixture.row['uid'], {'error':'Synthetic retained journal metadata'})
+        def check(candidate, revision):
+            approval=self.approve(candidate,revision,full_mix_reviewed=True)
+            manager=ProjectManager(str(self.root))
+            snapshot=capture_sound_delivery_snapshot(manager,candidate.name,revision,
+                approval['approval_revision'],approval['delivery'])
+            with ensure_audio_scope_admission(self.root):
+                context=capture_sound_design_context(self.root)
+            self.assertEqual(snapshot.chunks,context['chunks'])
+            report=get_source_integrity(json.loads((self.root/'state.json').read_bytes()),
+                (self.root/'annotated_script.json').read_bytes(),snapshot.chunks)
+            self.assertEqual('unavailable',report['status'])
+            self.assertIn('missing or stale',report['reason'])
+            before=self.fixture.files()
+            with (patch('sound_design_delivery.capture_sound_delivery_snapshot',side_effect=AssertionError('publication capture')),
+                 patch('sound_design_candidate.read_bounded_audio_hash',side_effect=AssertionError('PCM hash')),
+                 patch.object(ProjectManager,'load_chunks',side_effect=AssertionError('row migration')),
+                 patch.object(ProjectManager,'get_engine',side_effect=AssertionError('model initialization'))):
+                page=get_sound_source_review(manager,candidate.name,revision,
+                    approval['approval_revision'],report['snapshot'])
+            self.assertEqual(report['snapshot'],page['snapshot'])
+            self.assertEqual(before,self.fixture.files())
+            with self.assertRaises(ValueError):
+                get_sound_source_review(manager,candidate.name,revision,
+                    approval['approval_revision'],'0'*64)
+            journal.apply_update(self.fixture.row['uid'], {'error':'Changed non-text journal field'})
+            with self.assertRaisesRegex(ValueError,'context changed'):
+                get_sound_source_review(manager,candidate.name,revision,
+                    approval['approval_revision'],report['snapshot'])
         self.run_owned(check)

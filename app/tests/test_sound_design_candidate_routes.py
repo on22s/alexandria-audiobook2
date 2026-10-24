@@ -200,7 +200,28 @@ class SoundCandidateRouteTests(unittest.TestCase):
         response=self.client.post(base+'/deliver',json=payload)
         self.assertEqual(409,response.status_code,response.text)
         report=response.json()['detail'];self.assertEqual('differences',report['status'])
-        self.assertTrue(report['hunks']);self.assertEqual(b'previous complete delivery',destination.read_bytes())
+        self.assertTrue(report['page']);self.assertNotIn('hunks',report)
+        self.assertLessEqual(len(response.content),65536)
+        self.assertEqual(b'previous complete delivery',destination.read_bytes())
+        review={**payload,'expected_snapshot':report['snapshot'],'offset':0}
+        real=routes.get_sound_source_review;observed=[]
+        def observe(*args,**kwargs):
+            observed.append(threading.get_ident())
+            self.assertTrue(core.is_task_cpu_only('audio'))
+            self.assertEqual('started',core._task_claims['audio']['phase'])
+            return real(*args,**kwargs)
+        with patch.object(routes,'get_sound_source_review',side_effect=observe):
+            page=self.client.post(base+'/source_review',json=review)
+        self.assertEqual(200,page.status_code,page.text)
+        self.assertEqual(report,page.json());self.assertNotEqual(threading.get_ident(),observed[0])
+        with patch.object(core,'reserve_background_task',side_effect=AssertionError('invalid page claimed audio')):
+            for fields in ({'offset':True},{'offset':-1},{'offset':1.5},{'delivery':{'format':'mp3'}}):
+                invalid=self.client.post(base+'/source_review',json={**review,**fields})
+                self.assertEqual(400,invalid.status_code,invalid.text)
+            oversized=self.client.post(base+'/source_review',content=b'x'*16385)
+            self.assertEqual(413,oversized.status_code)
+        stale=self.client.post(base+'/source_review',json={**review,'expected_snapshot':'0'*64})
+        self.assertEqual(409,stale.status_code)
         wrong=self.client.post(base+'/deliver',json={**payload,'integrity_confirmation':'0'*64})
         self.assertEqual(409,wrong.status_code)
         confirmed=self.client.post(base+'/deliver',json={**payload,'integrity_confirmation':report['snapshot']})

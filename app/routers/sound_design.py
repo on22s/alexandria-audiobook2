@@ -186,7 +186,8 @@ from sound_design_render import save_sound_design_candidate
 from sound_design_candidate_audition import read_sound_candidate_audition
 from sound_design_approval import save_sound_candidate_approval, MAX_APPROVAL_BYTES
 from m4b_metadata import M4BDeliveryOptions
-from sound_design_delivery import SoundDeliveryIntegrityRequired, save_approved_sound_delivery
+from sound_design_delivery import (SoundDeliveryIntegrityRequired, save_approved_sound_delivery,
+                                   get_sound_source_review)
 
 # Five native 20k-character metadata fields may use twelve JSON bytes per
 # Unicode scalar when a client emits escaped surrogate pairs. Receipt storage
@@ -325,6 +326,25 @@ class SoundPublishRequest(BaseModel):
     candidate_revision: str = Field(pattern=r'^[0-9a-f]{64}$')
     approval_revision: str = Field(pattern=r'^[0-9a-f]{64}$')
     integrity_confirmation: str | None = Field(default=None,pattern=r'^[0-9a-f]{64}$')
+
+
+class SoundSourceReviewRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    candidate_revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+    approval_revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+    expected_snapshot: str = Field(pattern=r'^[0-9a-f]{64}$')
+    offset: int = Field(default=0, ge=0, le=2**53-1, strict=True)
+
+
+@router.post('/api/sound_design/candidates/{stage}/source_review')
+async def get_sound_source_review_endpoint(request:Request,stage:CandidateStage):
+    body = await _read_sound_candidate_request(request,SoundSourceReviewRequest)
+    def review(cancel_check):
+        from project import ProjectManager
+        return get_sound_source_review(ProjectManager(str(DATA_DIR)),stage,
+            body.candidate_revision,body.approval_revision,body.expected_snapshot,
+            body.offset,cancel_check=cancel_check)
+    return await _dispatch_sound_candidate(request,review)
 
 
 @router.post('/api/sound_design/candidates/{stage}/deliver')

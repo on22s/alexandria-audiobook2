@@ -12176,6 +12176,44 @@
         "summary": "Discard Sound Candidate Endpoint"
       }
     },
+    "/api/sound_design/candidates/{stage}/source_review": {
+      "post": {
+        "operationId": "get_sound_source_review_endpoint_api_sound_design_candidates__stage__source_review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stage",
+            "required": true,
+            "schema": {
+              "pattern": "^render-[A-Za-z0-9_-]{1,128}$",
+              "title": "Stage",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Sound Source Review Endpoint"
+      }
+    },
     "/api/sound_design/cues": {
       "get": {
         "operationId": "get_sound_design_cues_api_sound_design_cues_get",

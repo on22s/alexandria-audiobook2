@@ -11,6 +11,63 @@ from text_diff import word_diff, get_comparison_words
 from three_pass_generate import prepare_source_text
 
 
+SOURCE_REVIEW_PAGE_CHARS = 8192
+
+
+def _require_review_offset(offset):
+    if type(offset) is not int or not 0 <= offset <= 2**53 - 1:
+        raise ValueError('Invalid source comparison offset')
+
+
+def _get_review_fragments(report):
+    if report['status'] == 'unavailable':
+        reason = report.get('reason')
+        if reason is not None and not isinstance(reason, str):
+            raise ValueError('Invalid source comparison reason')
+        yield reason or 'Original source comparison is unavailable.'
+    elif report['status'] == 'differences':
+        for index, hunk in enumerate(report['hunks']):
+            if index:
+                yield '\n\n'
+            if any(not isinstance(hunk.get(key), str) for key in
+                   ('source_before', 'source_words', 'source_after', 'script_words')):
+                raise ValueError('Invalid source comparison text')
+            yield 'Source: '
+            yield hunk['source_before']
+            yield ' ['
+            yield hunk['source_words']
+            yield '] '
+            yield hunk['source_after']
+            yield '\nMixed dialogue: '
+            yield hunk['script_words']
+    elif report['status'] != 'verified':
+        raise ValueError('Invalid source comparison status')
+
+
+def get_source_integrity_page(report, offset=0):
+    """Present the complete comparison by codepoint ranges, without flattening it.
+
+    The existing diff still lives in the server cache. Only this page's text is
+    copied or returned; neither pagination nor presentation changes consent's
+    existing snapshot identity. An unavailable reason is paged in the same way.
+    """
+    _require_review_offset(offset)
+    total, parts = 0, []
+    for fragment in _get_review_fragments(report):
+        start = total
+        total += len(fragment)
+        first, last = max(0, offset - start), min(len(fragment), offset + SOURCE_REVIEW_PAGE_CHARS - start)
+        if first < last:
+            parts.append(fragment[first:last])
+    if offset > total:
+        raise ValueError('Source comparison offset exceeds its text')
+    page = ''.join(parts)
+    end = offset + len(page)
+    return dict(schema=1, status=report['status'], snapshot=report['snapshot'],
+                page=page, offset=offset, total=total, page_size=SOURCE_REVIEW_PAGE_CHARS,
+                next_offset=end if end < total else None)
+
+
 def is_source_integrity_admitted(report, confirmation):
     """Require current explicit confirmation for differences or unavailable prose."""
     return ((confirmation is None and report['status'] == 'verified')
@@ -80,12 +137,14 @@ def _get_cached_diff(snapshot, source, entries_json):
     return word_diff(source, json.loads(entries_json))
 
 
-def get_source_integrity(state, script_bytes, entries, *, comparison='editor chunks'):
+def get_source_integrity(state, script_bytes, entries, *, comparison='editor chunks', review_offset=None):
     """Compare copied rows; callers serialize native book/chunk reads themselves.
 
     A successful comparison is against the *current* selected source, not a
     proof of the original generation input or the words in existing WAVs.
     """
+    if review_offset is not None:
+        _require_review_offset(review_offset)
     if not isinstance(state, dict):
         raise ValueError('Invalid book state')
     if (not isinstance(entries, list) or any(not isinstance(row, dict)
@@ -119,7 +178,13 @@ def get_source_integrity(state, script_bytes, entries, *, comparison='editor chu
     result = {'snapshot': snapshot, 'comparison': comparison, 'source_scope': scope,
               'source_name': Path(input_path).name if isinstance(input_path, str) else None}
     if source is None:
-        return {**result, 'status': 'unavailable', 'reason': reason,
-                'hunks': [], 'totals': {}, 'chunks_total': 0}
-    diff = copy.deepcopy(_get_cached_diff(snapshot, source, _get_json(entries)))
-    return {**result, **diff, 'status': 'differences' if diff['hunks'] else 'verified'}
+        report = {**result, 'status': 'unavailable', 'reason': reason,
+                  'hunks': [], 'totals': {}, 'chunks_total': 0}
+    else:
+        diff = _get_cached_diff(snapshot, source, _get_json(entries))
+        # The paged view reads the cached diff without copying its containers.
+        # Legacy callers retain detached mutable reports as before.
+        if review_offset is None:
+            diff = copy.deepcopy(diff)
+        report = {**result, **diff, 'status': 'differences' if diff['hunks'] else 'verified'}
+    return report if review_offset is None else get_source_integrity_page(report, review_offset)

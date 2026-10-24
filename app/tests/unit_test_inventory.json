@@ -6220,6 +6220,7 @@
     "tests.test_merge_integrity.SourceIntegritySnapshotTests.test_cache_is_bounded_copy_safe_and_invalidates_source_book_annotation_and_rows",
     "tests.test_merge_integrity.SourceIntegritySnapshotTests.test_dialogue_boundaries_verify_but_real_word_changes_still_fail",
     "tests.test_merge_integrity.SourceIntegritySnapshotTests.test_native_preparation_accepts_publisher_cleanup_and_rejects_wrong_settings",
+    "tests.test_merge_integrity.SourceIntegritySnapshotTests.test_paged_comparison_preserves_full_text_and_bounds_real_json_wire",
     "tests.test_merge_integrity.SourceIntegritySnapshotTests.test_real_owned_http_admission_does_not_deadlock_and_releases_failed_registration"
   ],
   "test_merge_integrity_js": [
@@ -9549,6 +9550,7 @@
   "test_sound_design_delivery": [
     "tests.test_sound_design_delivery.SoundDeliveryStageTests.test_copy_is_exact_and_allowance_charges_retained_candidate_and_raw",
     "tests.test_sound_design_delivery.SoundDeliveryStageTests.test_insufficient_peak_quota_and_failed_encoder_preserve_candidate",
+    "tests.test_sound_design_delivery.SoundDeliveryStageTests.test_journal_review_uses_exact_native_rows_and_refuses_stale_metadata",
     "tests.test_sound_design_delivery.SoundDeliveryStageTests.test_mix_approval_does_not_replace_source_integrity_confirmation",
     "tests.test_sound_design_delivery.SoundDeliveryStageTests.test_native_encoder_consumes_reserved_copy_and_late_source_edit_refuses_publication"
   ],
@@ -9699,6 +9701,8 @@
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_profile_is_visible_and_format_change_requires_new_confirmation",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_programmatic_choice_change_cannot_reuse_loaded_image_review",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_source_cover_choice_binds_preview_and_requires_separate_review",
+    "tests.test_sound_mixes_js.SoundMixesJsTests.test_source_pages_replace_text_clear_consent_and_ignore_late_results",
+    "tests.test_sound_mixes_js.SoundMixesJsTests.test_source_response_limits_precede_json_parsing_and_unavailable_is_explicit",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_source_review_requires_new_explicit_confirmation_and_exact_snapshot",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_unavailable_profile_preserves_recovery_and_blocks_approval",
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_uploaded_preview_requires_image_load_and_explicit_review_and_handles_errors"
