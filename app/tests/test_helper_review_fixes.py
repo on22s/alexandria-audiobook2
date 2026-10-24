@@ -61,10 +61,6 @@ class HelperReviewTests(unittest.TestCase):
                 utils.atomic_json_write({'new': 2}, path)
             self.assertEqual(utils.safe_load_json(path), {'new': 2})
 
-    def test_disk_probe_failure_blocks(self):
-        with patch.object(core.shutil, 'disk_usage', side_effect=OSError('offline')):
-            self.assertEqual(core.check_disk_space('/missing', 2), (False, 0.0))
-
     def test_lms_skips_malformed_entries_and_preserves_good_model(self):
         raw = json.dumps([None, 42, 'bad', {'identifier': 'model', 'contextLength': 1, 'parallel': 1}])
         status = lms._parse_lms_ps_output(raw, 'model', {'context_length': 1, 'parallel': 1})

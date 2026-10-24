@@ -52,12 +52,6 @@ class LimitConventionTest(unittest.TestCase):
         src = (EXPERIMENTS / "prosody_fidelity.py").read_text(encoding="utf-8")
         self.assertIn("0 means all", src)
 
-    def test_slicing_semantics_directly(self):
-        rows = [1, 2, 3]
-        for limit, expected in ((0, rows), (2, [1, 2]), (99, rows)):
-            with self.subTest(limit=limit):
-                self.assertEqual(expected,
-                                 rows[:limit] if limit else rows)
 
 
 if __name__ == "__main__":

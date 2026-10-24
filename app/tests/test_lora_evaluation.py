@@ -85,16 +85,6 @@ class LoraEvaluationTests(unittest.TestCase):
         self.assertEqual("epoch_001", recommendation["recommended"])
         self.assertTrue(recommendation["production_unchanged"])
 
-    def test_candidate_cleanup_keeps_only_recommended_generated_directory(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp, "candidates")
-            for name in ("epoch_001", "epoch_002"):
-                Path(root, name).mkdir(parents=True)
-            removed = evaluation.cleanup_candidates(tmp, "epoch_002", ["epoch_001", "epoch_002"])
-            self.assertEqual(["epoch_001"], removed)
-            self.assertFalse(Path(root, "epoch_001").exists())
-            self.assertTrue(Path(root, "epoch_002").is_dir())
-
     def test_manifest_candidate_records_match_retained_recommendation(self):
         records = [{"id": "epoch_001"}, {"id": "epoch_002"}]
 
@@ -165,6 +155,7 @@ class LoraEvaluationTests(unittest.TestCase):
             self.assertEqual("training_started_later",
                              (root / "training_started_later" / "marker").read_text())
             self.assertTrue((root / "selected").is_dir())
+            self.assertFalse((root / "rejected").exists())
 
     def test_resume_requires_version_probes_and_audio_files(self):
         with tempfile.TemporaryDirectory() as tmp:

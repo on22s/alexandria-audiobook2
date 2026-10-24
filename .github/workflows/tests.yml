@@ -96,14 +96,6 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: python diagnose_pr_changes.py --base "$BASE_SHA"
 
-      - name: Verify experiment evidence indexes
-        if: matrix.shard == '1/3'
-        working-directory: .
-        run: |
-          python tools/audit/audit_experiment_artifacts.py --check
-          python tools/audit/audit_legacy_attribution.py --check
-          python tools/audit/collect_results.py --check
-
       - name: Shared release verifier
         id: verify
         run: python verify_release.py --shard "${{ matrix.shard }}" --json-report release-report.json

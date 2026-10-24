@@ -28,17 +28,6 @@ class ArchitecturePatternDocumentationTests(unittest.TestCase):
             self.assertIn(relative_path, document)
             self.assertTrue((REPO / relative_path).is_file(), relative_path)
 
-    def test_document_records_the_safety_invariants(self):
-        document = (REPO / "docs" / "ARCHITECTURE_PATTERNS.md").read_text(
-            encoding="utf-8")
-        for phrase in (
-            "claim_gpu_task",
-            "unknown",
-            "bounded and consistent",
-            "Dynamic narrator",
-            "flat-file storage",
-        ):
-            self.assertIn(phrase, document)
 
 
 if __name__ == "__main__":

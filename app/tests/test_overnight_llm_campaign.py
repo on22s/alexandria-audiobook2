@@ -132,10 +132,8 @@ print('CPU completed fixture')
         self.assertEqual(self.original,self.backup.read_bytes())
         self.assertFalse(is_live(int((self.root/'server.pid').read_text())))
         self.assertEqual(5,len((self.root/'calls').read_text().splitlines()))
-        (self.root/'server.pid').unlink()
-        code, stdout, stderr = self.run_campaign()
-        self.assertEqual(0,code,stdout+stderr)
-        self.assert_restored()
+        # Failed-restore -> successful-retry sequencing is covered in
+        # test_config_backup_resume with this exact overnight entrypoint.
 
     def test_original_worker_caps_and_canonical_dispatch_are_preserved(self):
         source=(self.root/'run_chains'/CHAIN).read_text()

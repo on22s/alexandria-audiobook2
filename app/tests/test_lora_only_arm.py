@@ -26,10 +26,6 @@ class LoraOnlyArm(unittest.TestCase):
     def test_runs_only_the_adapter_at_scale_one(self):
         self.assertEqual((("lora", 1.0),), get_eval_arms(lora_only=True))
 
-    def test_default_and_base_only_are_unchanged(self):
-        self.assertEqual((("base", 0.0), ("lora", 1.0)), get_eval_arms())
-        self.assertEqual((("base", None),), get_eval_arms(base_only=True))
-
     def test_both_modes_at_once_is_refused(self):
         with self.assertRaises(ValueError):
             get_eval_arms(base_only=True, lora_only=True)

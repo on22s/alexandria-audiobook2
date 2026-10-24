@@ -79,16 +79,6 @@ class EmptyArmHasNoAccuracy(unittest.TestCase):
             with self.assertRaises(Exception):
                 r.write(os.path.join(tmp, "out.json"))
 
-    def test_the_old_formula_would_have_passed_these(self):
-        """Guards the guard: `correct / max(n, 1)` reports 0.0 for an empty arm,
-        which is exactly the value a reader cannot distinguish from a real
-        result. If this ever stops being true the fixtures are not
-        discriminating any more."""
-        n, correct = 0, 0
-        old = correct / max(n, 1)
-        self.assertEqual(old, 0.0)
-        new = correct / n if n else None
-        self.assertIsNone(new)
 
 
 
@@ -122,17 +112,9 @@ class AnsweredNothingIsNotZero(unittest.TestCase):
         self.assertIsNone(bucket["accuracy"],
                           "a run that generated nothing must not report 0.0")
         self.assertIsNone(bucket["conditional"])
+        # Keep the real unanswered-arm fixture's old-formula negative control.
+        self.assertEqual(0.0, bucket["correct"] / max(bucket["n"], 1))
 
-    def test_the_old_rule_would_have_called_it_zero(self):
-        """Pins the discrimination, so the fixture cannot quietly stop working."""
-        rec = _record()
-        for i in range(8):
-            rec.add("tuned", f"g{i}", "line", "ALICE", None, 0,
-                    candidates=["ALICE", "BOB"])
-        b = rec.summary()["tuned"]
-        old = b["correct"] / max(b["n"], 1)          # what it used to compute
-        self.assertEqual(old, 0.0)
-        self.assertIsNone(b["accuracy"], "the new rule must disagree with 0.0")
 
     def test_such_an_arm_fails_validation(self):
         rec = _record()

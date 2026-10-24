@@ -33,17 +33,6 @@ class SpeakerIdentityTests(unittest.TestCase):
         self.assertEqual({"RUDEUS", "ALICE", "UNUSED ROSTER"}, set(result["speakers"]))
         self.assertNotIn("R UDEUS", result["speakers"])
 
-    def test_canonically_equivalent_unicode_names_share_existing_identity(self):
-        composed = "JOSÉ"
-        decomposed = "JOSE\u0301"
-        self.assertEqual(composed, resolve_speaker_label(decomposed, [composed]))
-        entries = [_entry(decomposed)]
-        original = copy.deepcopy(entries)
-        result = stabilize_speaker_identities(entries, [composed])
-        self.assertEqual(composed, result["entries"][0]["speaker"])
-        self.assertEqual(original, entries)
-        self.assertIsNone(resolve_speaker_label("JOSÈ", [composed]))
-        self.assertIsNone(resolve_speaker_label("ＪＯＳＥ", ["JOSE"]))
 
     def test_canonically_equivalent_unicode_names_share_existing_identity(self):
         composed = "JOSÉ"

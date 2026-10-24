@@ -53,37 +53,5 @@ class Parsing(unittest.TestCase):
         self.assertEqual(["Book One.json"],
                          [os.path.basename(f) for f in found])
 
-    def test_the_three_states_are_read_apart(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            p = os.path.join(tmp, "c.json")
-            with open(p, "w", encoding="utf-8") as handle:
-                json.dump({"entries": {"Alpha": {}, "beta": {}},
-                           "could_not_fix": [{"term": "Gamma"}, {"term": "delta"}],
-                           "plain_already_works": ["Epsilon"]}, handle)
-            entries, unfixable, plain_ok = self.m.load_states(p)
-        self.assertEqual({"alpha", "beta"}, entries)
-        self.assertEqual({"gamma", "delta"}, unfixable)
-        self.assertEqual({"epsilon"}, plain_ok)
-        self.assertEqual(set(), entries & unfixable)
-        self.assertEqual(set(), plain_ok & (entries | unfixable))
-
-    def test_a_term_in_neither_state_is_what_the_goal_counts(self):
-        """The whole point: a shipped term that was never measured is the only
-        thing keeping 5.5 open, so it must not fall into either bucket."""
-        with tempfile.TemporaryDirectory() as tmp:
-            p = os.path.join(tmp, "c.json")
-            with open(p, "w", encoding="utf-8") as handle:
-                json.dump({"entries": {"tsundere": {}},
-                           "could_not_fix": [{"term": "aahaha"}],
-                           "plain_already_works": ["manga"]}, handle)
-            entries, unfixable, plain_ok = self.m.load_states(p)
-        present = {"tsundere", "aahaha", "manga", "gaurururu"}
-        handled = entries | unfixable | plain_ok
-        neither = [t for t in present if t not in handled]
-        self.assertEqual(["gaurururu"], neither,
-                         "manga is handled - the plain reading says it - and "
-                         "counting it as a gap is the bug this state fixes")
-
-
 if __name__ == "__main__":
     unittest.main()

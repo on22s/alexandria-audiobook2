@@ -177,8 +177,11 @@ class ArtifactValidationTest(unittest.TestCase):
         record.add("a", "id1", "L", "ROXY", "ROXY", True)
         record.add("a", "id1", "L", "ROXY", "ROXY", True)
         with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "bad.json")
             with self.assertRaises(EnvironmentCaptureError):
-                record.write(os.path.join(tmp, "bad.json"))
+                record.write(target)
+            self.assertFalse(os.path.exists(target),
+                             "a rejected artifact must not be left on disk")
 
     def test_a_missing_environment_is_a_problem(self):
         record = _record()

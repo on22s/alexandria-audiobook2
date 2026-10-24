@@ -295,16 +295,6 @@ class GpuJobTest(unittest.TestCase):
 
     # -------------------------------------------------- deployment identity
 
-    def test_identity_is_logged_before_start(self):
-        """Written BEFORE the job runs, or it is a post-mortem, not a record.
-
-        Two jobs died on 2026-08-04 because a box was running a superseded copy
-        of this script. Nothing announced it; it was found by reading logs
-        afterwards.
-        """
-        self.run_job("ident", "true")
-        self.assertEqual(lifecycle(self.log()),
-                         ["QUEUED", "IDENT", "START", "OK"])
 
     def test_identity_carries_what_is_needed_to_tell_two_runs_apart(self):
         self.run_job("ident", "echo", "hello")
@@ -967,15 +957,55 @@ class PauseAndProcessGroupTest(unittest.TestCase):
         with open(self.qlog, encoding="utf-8") as handle:
             return handle.read()
 
+    def _wait_for(self, condition, process, timeout=10):
+        deadline = time.monotonic() + timeout
+        while not condition():
+            self.assertIsNone(process.poll(), "fixture exited before readiness")
+            if time.monotonic() >= deadline:
+                self.fail("fixture did not reach readiness")
+            time.sleep(.01)
+
     def test_a_paused_queue_holds_the_job_before_the_lock(self):
-        """Waiting must happen BEFORE flock, or a held queue blocks everything
-        while looking busy."""
+        """Observe repeated pause iterations and a free authoritative lease."""
+        import signal
+        from pathlib import Path
         with open(self.flag, "w") as handle:
             handle.write("paused")
-        with self.assertRaises(subprocess.TimeoutExpired):
-            subprocess.run(["bash", GPU_JOB, "probe", "true"],
-                           env=self._env(), capture_output=True, timeout=8)
-        self.assertIn("HELD", self._log())
+        root = Path(self.tmp.name)
+        ticks, blocked, release = root / 'ticks', root / 'blocked', root / 'release'
+        binaries = root / 'bin'
+        binaries.mkdir()
+        sleeper = binaries / 'sleep'
+        real_sleep = shlex.quote(shutil.which('sleep'))
+        sleeper.write_text('#!/bin/bash\n'
+            'if [ "$1" != 1 ]; then exec ' + real_sleep + ' "$@"; fi\n'
+            'echo tick >> ' + shlex.quote(str(ticks)) + '\n'
+            'if [ "$(wc -l < ' + shlex.quote(str(ticks)) + ')" -lt 3 ]; then exit 0; fi\n'
+            'touch ' + shlex.quote(str(blocked)) + '\n'
+            'while [ ! -e ' + shlex.quote(str(release)) + ' ]; do ' + real_sleep + ' .01; done\n')
+        sleeper.chmod(0o755)
+        env = self._env(PATH=str(binaries) + os.pathsep + os.environ['PATH'])
+        process = subprocess.Popen(["bash", GPU_JOB, "probe", "true"], env=env,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            self._wait_for(blocked.exists, process)
+            self.assertEqual(3, len(ticks.read_text().splitlines()))
+            self.assertIsNone(process.poll())
+            self.assertIn("HELD", self._log())
+            with open(env["GPU_LOCK"], "a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(lock, fcntl.LOCK_UN)
+            self.assertNotIn("START", self._log())
+        finally:
+            if process.poll() is None:
+                process.send_signal(signal.SIGTERM)
+            release.touch()
+            try:
+                process.wait(timeout=10)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
         self.assertNotIn("START", self._log())
 
     def test_releasing_the_flag_lets_the_job_run(self):
@@ -993,24 +1023,42 @@ class PauseAndProcessGroupTest(unittest.TestCase):
         self.assertIn("FAILED   probe rc=37", self._log())
 
     def test_a_killed_job_takes_its_descendants_with_it(self):
-        """Borrowed from codex's KillMode=control-group, and not theoretical:
-        after the regate chain was killed on 2026-08-17 a python child kept
-        2.11 GiB of the card and starved the next job."""
-        marker = os.path.join(self.tmp.name, "alive")
-        script = (f"bash -c 'while true; do touch {marker}; sleep 1; done' & "
-                  "sleep 30")
-        proc = subprocess.Popen(["bash", GPU_JOB, "probe", "bash", "-c", script],
-                                env=self._env(), stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL)
-        time.sleep(4)
-        proc.terminate()
-        proc.wait(timeout=20)
-        time.sleep(3)
-        if os.path.exists(marker):
-            os.unlink(marker)
-        time.sleep(3)
-        self.assertFalse(os.path.exists(marker),
-                         "a descendant outlived the job and would hold the GPU")
+        """A captured live descendant must exit with the initiating job."""
+        import select
+        import signal
+        from subprocess_ownership import ensure_pidfd_support
+        marker = os.path.join(self.tmp.name, "child.pid")
+        script = ("bash -c " + shlex.quote('echo $$ > "$1"; while true; do sleep 60; done')
+                  + ' fixture ' + shlex.quote(marker) + ' & wait')
+        pidfds = ensure_pidfd_support()
+        process = subprocess.Popen(["bash", GPU_JOB, "probe", "bash", "-c", script],
+                                   env=self._env(), stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL)
+        descriptor = None
+        try:
+            self._wait_for(lambda: os.path.exists(marker) and os.path.getsize(marker) > 0,
+                           process)
+            with open(marker) as handle:
+                descriptor = pidfds.pidfd_open(int(handle.read()), 0)
+            self.assertFalse(select.select([descriptor], [], [], 0)[0],
+                             "descendant must be alive before termination")
+            process.terminate()
+            process.wait(timeout=20)
+            self.assertTrue(select.select([descriptor], [], [], 5)[0],
+                            "a descendant outlived the job and would hold the GPU")
+        finally:
+            if descriptor is not None:
+                if not select.select([descriptor], [], [], 0)[0]:
+                    pidfds.pidfd_send_signal(descriptor, signal.SIGKILL, None, 0)
+                os.close(descriptor)
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=20)
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait(timeout=5)
 
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")

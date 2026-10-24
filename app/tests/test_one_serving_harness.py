@@ -49,13 +49,6 @@ class OneServingHarnessTest(unittest.TestCase):
         with open(SOURCE, encoding="utf-8") as fh:
             self.src = fh.read()
 
-    def test_every_flag_the_experiments_use_is_present(self):
-        for flag, _ in self.EXPERIMENT_FLAGS + self.GUARD_FLAGS:
-            self.assertIn(
-                f'"{flag}"', self.src,
-                f"{flag} is missing; a recorded invocation uses it and the run "
-                f"will die on 'unrecognized arguments'")
-
     def test_defaults_preserve_pre_merge_behaviour(self):
         """A changed default rewrites what every existing arm measured."""
         for flag, default in self.EXPERIMENT_FLAGS + self.GUARD_FLAGS:

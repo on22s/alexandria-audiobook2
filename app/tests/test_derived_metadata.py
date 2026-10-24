@@ -54,12 +54,18 @@ class DerivedMetadataTests(unittest.TestCase):
             (root/'RESULTS_INDEX.md').write_text('resolved\n')
             subprocess.run(['git','-C',tmp,'add','-A'],check=True)
             subprocess.run(['git','-C',tmp,'commit','-qm','base'],check=True)
-            result=self.run_script(root,'ready.sh')
+            result=self.run_script(root,'ready.sh','--shard','2/3')
             self.assertEqual(0,result.returncode,result.stdout+result.stderr)
             calls=[json.loads(line) for line in (root/'calls').read_text().splitlines()]
-            self.assertEqual(10,len(calls))
-            self.assertEqual(5,sum('--check' not in args and not args[0].endswith('verify_release.py') for args in calls))
-            self.assertTrue(calls[-1][0].endswith('verify_release.py'))
+            self.assertEqual([
+                'audit_experiment_artifacts.py', 'audit_legacy_attribution.py',
+                'collect_results.py', 'goal_evidence_audit.py',
+                'update_test_inventory.py', 'verify_release.py'],
+                [Path(args[0]).name for args in calls])
+            self.assertFalse(any('--check' in args for args in calls),
+                             'ready must delegate checks instead of repeating them')
+            self.assertEqual(['verify_release.py','--check-evidence','--shard','2/3'],
+                             calls[-1])
 
     def test_pointer_only_resolver_queries_metadata_once_and_regenerates_once(self):
         with tempfile.TemporaryDirectory() as tmp:

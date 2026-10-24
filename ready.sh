@@ -34,29 +34,8 @@ echo "== regenerating what CI checks =="
 "$REPO/tools/regen_derived.sh" || exit 1
 python="$("$REPO/tools/regen_derived.sh" --python)"
 
-echo
-echo "== is what CI checks actually current? =="
-# THE AUTHORITY IS --check, NOT A GIT DIFF. RESULTS_INDEX.md embeds its
-# generation time to the minute, so it shows a diff on every regeneration even
-# when nothing about the data moved - an earlier version of this script refused
-# to proceed on exactly that churn. The --check commands compare the DATA and
-# are what CI runs, so they decide.
-stale=0
-for script in audit_experiment_artifacts audit_legacy_attribution collect_results; do
-    if ( cd "$REPO" && "$python" "$REPO/tools/audit/$script.py" --check >/dev/null 2>&1 ); then
-        echo "   $script  current"
-    else
-        echo "   $script  STALE - regeneration did not settle it" >&2
-        stale=1
-    fi
-done
-if ( cd "$REPO" && "$python" "$REPO/app/experiments/goal_evidence_audit.py" --check >/dev/null 2>&1 ); then
-    echo "   goal_evidence_audit  current"
-else
-    echo "   goal_evidence_audit  STALE - regeneration did not settle it" >&2
-    stale=1
-fi
-[ "$stale" = 0 ] || exit 2
+# The verifier owns the settle checks and runs them before units. Its
+# --check-evidence flag preserves these checks even for ready.sh --shard 2/3.
 
 # A BRAND-NEW ARTIFACT WILL GO STALE THE MOMENT YOU COMMIT IT, ONCE.
 # collect_results records the commit each artifact was generated at, and that
@@ -113,4 +92,4 @@ echo "   nothing unstaged"
 
 echo
 echo "== release verifier =="
-( cd "$REPO/app" && "$python" verify_release.py "$@" )
+( cd "$REPO/app" && "$python" verify_release.py --check-evidence "$@" )

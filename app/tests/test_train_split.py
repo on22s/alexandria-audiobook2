@@ -50,62 +50,30 @@ def build_dataset(root, n_train, n_val):
     return train
 
 
-def which_metadata(data_dir):
-    """Re-run the selection logic exactly as load_dataset does."""
-    split_path = os.path.join(data_dir, "train", "metadata.jsonl")
-    root_path = os.path.join(data_dir, "metadata.jsonl")
-    return split_path if os.path.exists(split_path) else root_path
-
-
 class TrainSplitTest(unittest.TestCase):
-
-    def test_the_val_split_is_not_trained_on(self):
-        """THE BUG. Loading the root file pulled in all 200 rows, val included."""
-        with tempfile.TemporaryDirectory() as tmp:
-            build_dataset(tmp, 180, 20)
-            chosen = which_metadata(tmp)
-            with open(chosen, encoding="utf-8") as fh:
-                rows = [json.loads(l) for l in fh if l.strip()]
-            self.assertEqual(len(rows), 180)
-            self.assertTrue(all(r["audio_filepath"].startswith("train/")
-                                for r in rows),
-                            "a val/ clip reached the training set")
-
-    def test_a_dataset_without_a_split_still_trains(self):
-        """Older datasets have no train/ subdirectory. They must keep working
-        exactly as before, not start failing because a split is missing."""
-        with tempfile.TemporaryDirectory() as tmp:
-            os.makedirs(tmp, exist_ok=True)
-            rows = [{"audio_filepath": f"sample_{i}.wav", "text": f"t{i}",
-                     "duration": 1.0} for i in range(40)]
-            with open(os.path.join(tmp, "metadata.jsonl"), "w") as fh:
-                fh.writelines(json.dumps(r) + "\n" for r in rows)
-            chosen = which_metadata(tmp)
-            self.assertEqual(chosen, os.path.join(tmp, "metadata.jsonl"))
-            with open(chosen, encoding="utf-8") as fh:
-                self.assertEqual(sum(1 for l in fh if l.strip()), 40)
-
-    def test_paths_stay_relative_to_the_dataset_root(self):
-        """The fix is only safe because train/metadata.jsonl stores
-        'train/sample_N.wav', not 'sample_N.wav'. If the builder ever changes
-        that, resolving against data_dir silently breaks."""
-        with tempfile.TemporaryDirectory() as tmp:
-            build_dataset(tmp, 5, 2)
-            with open(os.path.join(tmp, "train", "metadata.jsonl")) as fh:
-                rows = [json.loads(l) for l in fh if l.strip()]
-            for r in rows:
-                self.assertTrue(r["audio_filepath"].startswith("train/"))
-                self.assertFalse(os.path.isabs(r["audio_filepath"]))
 
     def test_train_lora_reads_the_split_not_the_root(self):
         """Exercise the metadata reader actually used by the trainer."""
         from train_lora import get_training_metadata
-        with tempfile.TemporaryDirectory() as tmp:
-            expected = build_dataset(tmp, 3, 2)
-            entries, used_split = get_training_metadata(tmp)
-            self.assertTrue(used_split)
-            self.assertEqual(expected, entries)
-            self.assertTrue(all(row["text"].startswith("train ") for row in entries))
+        for split in (True, False):
+            with self.subTest(split=split), tempfile.TemporaryDirectory() as tmp:
+                if split:
+                    expected = build_dataset(tmp, 180, 20)
+                else:
+                    # Preserve the original root-only, bare-relative legacy input.
+                    expected = [{"audio_filepath": f"sample_{i}.wav", "text": f"t{i}",
+                                 "duration": 1.0} for i in range(40)]
+                    with open(os.path.join(tmp, "metadata.jsonl"), "w") as fh:
+                        fh.writelines(json.dumps(row) + "\n" for row in expected)
+                entries, used_split = get_training_metadata(tmp)
+                self.assertEqual(split, used_split)
+                self.assertEqual(expected, entries)
+                self.assertEqual(180 if split else 40, len(entries))
+                for row in entries:
+                    self.assertFalse(os.path.isabs(row["audio_filepath"]))
+                    if split:
+                        self.assertTrue(row["audio_filepath"].startswith("train/"),
+                                        "a val/ clip reached the training set")
 
     def test_missing_train_metadata_never_falls_back_to_partitioned_root(self):
         import wave
@@ -218,16 +186,6 @@ class LibraryContaminationTest(unittest.TestCase):
             with open(bad, "w") as fh:
                 fh.write("{not json")
             self.assertEqual(self._count_contaminated([good, bad]), (1, 1))
-
-    def test_the_real_library_when_one_is_present(self):
-        """A bonus assertion, never the only one, so an absent library is fine
-        rather than a skip."""
-        import glob
-        metas = glob.glob(os.path.join(os.path.dirname(APP), "lora_models",
-                                       "*", "training_meta.json"))
-        contaminated, total = self._count_contaminated(metas)
-        self.assertLessEqual(contaminated, total)
-
 
 if __name__ == "__main__":
     unittest.main()

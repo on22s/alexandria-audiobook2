@@ -80,7 +80,10 @@ class AssignmentTests(unittest.TestCase):
         even = units(sharding.get_test_shards(MODULES, self.durations, 3, head_start={}))
         favoured = sharding.get_test_shards(MODULES, self.durations, 3)
         biased = units(favoured)
-        self.assertLess(biased[0], min(biased[1:]) - 100)           # shard 1 is clearly lighter
+        # The allowance is measured and can change; pin its effect, not the
+        # obsolete 100-second gap from the former 165-second allowance.
+        self.assertLess(biased[0], min(biased[1:]) -
+                        sharding.SHARD_HEAD_START_SECONDS[1] / 2)
         self.assertLess(max(even) - min(even), 20)                  # and without a head start they are even
         self.assertEqual(MODULES, sorted(n for modules in favoured.values() for n in modules))  # still complete
 
@@ -252,8 +255,8 @@ class VerifierShardTests(unittest.TestCase):
         return code, names, commands, report
 
     def test_unsharded_and_first_shard_run_every_gate_later_shards_only_the_unit_gate(self):
-        everything = ["compile_python", "test_inventory", "unit_tests", "evidence_index", "legacy_audit",
-                      "results_index", "api_contract", "api_tests"]
+        everything = ["compile_python", "test_inventory", "evidence_index", "legacy_audit",
+                      "results_index", "goal_evidence", "unit_tests", "api_contract", "api_tests"]
         for args in ((), ("--shard", "1/3")):
             with self.subTest(args=args):
                 code, names, _, _ = self.run_main(*args)
@@ -266,6 +269,13 @@ class VerifierShardTests(unittest.TestCase):
                 self.assertEqual(shard, report["shard"])
                 self.assertEqual(1234, report["gates"][0]["result"]["tests_ran"])
                 self.assertEqual([f"test.{i}" for i in range(1234)], report["gates"][0]["result"]["test_ids"])
+
+        # ready.sh keeps all evidence checks even when selecting a later shard.
+        for shard in ("2/3", "3/3"):
+            with self.subTest(ready_shard=shard):
+                code, names, _, _ = self.run_main("--check-evidence", "--shard", shard)
+                self.assertEqual((0, ["evidence_index", "legacy_audit", "results_index",
+                                      "goal_evidence", "unit_tests"]), (code, names))
 
     def test_bad_shard_is_refused_before_any_gate_runs(self):
         with patch.object(verify_release, "run_report_gate") as gate, patch.object(sys, "stderr", io.StringIO()):

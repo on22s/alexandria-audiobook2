@@ -37,14 +37,19 @@ class ThirdState(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
 
     def test_plain_already_works_is_loaded_as_its_own_state(self):
-        p = _candidates(os.path.join(self.tmp, "c.json"),
-                        entries=["kuchibashi"], unfixable=["deka"],
-                        plain_ok=["Manga", "PACHINKO"])
+        p = os.path.join(self.tmp, "c.json")
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump({"entries": {"Alpha": {}, "beta": {},
+                                   "kuchibashi": {"respelling": "kuchibashi"}},
+                       "could_not_fix": [{"term": "Gamma"}, {"term": "delta"}],
+                       "plain_already_works": ["Manga", "PACHINKO"]}, fh)
         entries, unfixable, plain_ok = load_states(p)
-        self.assertEqual(entries, {"kuchibashi"})
-        self.assertEqual(unfixable, {"deka"})
+        self.assertEqual(entries, {"alpha", "beta", "kuchibashi"})
+        self.assertEqual(unfixable, {"gamma", "delta"})
         self.assertEqual(plain_ok, {"manga", "pachinko"},
-                         "the third state must case-fold like the other two")
+                         "all three states must case-fold")
+        self.assertEqual(set(), entries & unfixable)
+        self.assertEqual(set(), plain_ok & (entries | unfixable))
 
     def test_a_plain_ok_term_is_not_in_neither_state(self):
         """The whole bug: manga is handled, and used to count as a gap."""

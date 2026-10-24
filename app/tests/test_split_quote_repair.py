@@ -57,8 +57,6 @@ class PromptVariantTest(unittest.TestCase):
     ENTRY = {"id": "Q1", "line": "Bah! Humbug!", "prev_context": "before",
              "next_context": "after", "inner_narration": " said Scrooge, "}
 
-    def test_the_variant_is_offered(self):
-        self.assertIn("inner_narration", PROMPT_VARIANTS)
 
     def test_this_arm_is_offered(self):
         """The exact tuple is pinned once, in test_prompt_variant.

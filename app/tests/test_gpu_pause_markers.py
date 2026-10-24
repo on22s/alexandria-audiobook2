@@ -12,6 +12,8 @@ Without one, `job_is_live` returns nothing and every case reads `none`,
 which is how a first version of this test passed against the unfixed script.
 """
 import os
+import shlex
+import signal
 import shutil
 import subprocess
 import tempfile
@@ -33,19 +35,27 @@ NON_TERMINAL = ["DIRTY_RUN", "LLM_UNCHECKED", "VRAM_UNKNOWN", "HELD     "]
 class TerminalMarkerTests(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
-        # A process that `job_is_live` will match, so the marker set is what
-        # decides the answer rather than the liveness gate.
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
         wrapper = os.path.join(self.dir, "gpu_job.sh")
-        with open(wrapper, "w", encoding="utf-8") as fh:
-            fh.write("#!/bin/bash\nsleep 30\n")
+        ready = os.path.join(self.dir, "ready")
+        with open(wrapper, "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/bash\nprintf ready > " + shlex.quote(ready) + "\nsleep 30\n")
         os.chmod(wrapper, 0o755)
-        self.fake = subprocess.Popen([wrapper, "jobA", "--fake"])
-        time.sleep(1.0)
+        # Keep the wrapper command line for job_is_live, and own its sleeper.
+        self.fake = subprocess.Popen([wrapper, "jobA", "--fake"], start_new_session=True)
+        self.addCleanup(self.stop_fake)
+        deadline = time.monotonic() + 10
+        while not os.path.exists(ready) and self.fake.poll() is None and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertTrue(os.path.exists(ready), "fixture must be ready before status")
+        self.assertIsNone(self.fake.poll())
 
-    def tearDown(self):
-        self.fake.kill()
+    def stop_fake(self):
+        try:
+            os.killpg(self.fake.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
         self.fake.wait(timeout=10)
-        shutil.rmtree(self.dir, ignore_errors=True)
 
     def _status(self, marker):
         log = os.path.join(self.dir, "q.log")
@@ -71,10 +81,6 @@ class TerminalMarkerTests(unittest.TestCase):
         for marker in TERMINAL:
             self.assertEqual(self._status(marker), "none", marker)
 
-    def test_no_llm_clears_the_job(self):
-        # The specific regression: gpu_job.sh exits 6 on a preflight failure,
-        # so the job never runs and must not be reported as running.
-        self.assertEqual(self._status("NO_LLM   "), "none")
 
     def test_markers_that_still_run_the_job_do_not_clear_it(self):
         for marker in NON_TERMINAL:

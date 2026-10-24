@@ -49,14 +49,6 @@ class PathResolutionTests(unittest.TestCase):
         self.assertLess(resolved_at, used_at,
                         "paths must be resolved before anything uses them")
 
-    def test_abspath_uses_the_invocation_directory_not_the_repo(self):
-        # The point is not merely "absolute" but "absolute against the CWD the
-        # user typed it in". A REPO-relative join would be wrong when the
-        # harness is run from anywhere else.
-        self.assertEqual(os.path.join(os.getcwd(), "ab_test_runtime", "x"),
-                         os.path.abspath(os.path.join("ab_test_runtime", "x")))
-
-
 class ArmInvocationTests(unittest.TestCase):
     """The arms really do run from app/, which is why the above matters."""
 

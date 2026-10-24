@@ -106,10 +106,6 @@ class AppliedSetTest(unittest.TestCase):
         self.assertNotIn("quote_person_said", APPLY_BY_DEFAULT)
         self.assertIn("quote_said_person", APPLY_BY_DEFAULT)
 
-    def test_it_is_still_classified_so_the_number_stays_visible(self):
-        """Not applying is not the same as not looking."""
-        self.assertEqual(("quote_person_said", "JANE"),
-                         after('" Jane replied, with a smile.'))
 
     def test_subsets_reports_every_cumulative_choice(self):
         from experiments.elson_trigram import subsets

@@ -312,6 +312,11 @@ def main(argv=None):
         help="run only shard I of N of the unit tests (see unit_test_sharding.py); "
              "the other gates run on shard 1 only, so N parallel runs cover everything once",
     )
+    parser.add_argument(
+        "--check-evidence", action="store_true",
+        help="check all derived evidence indexes before units, including on later shards; "
+             "used by ready.sh (evidence failures exit 2)",
+    )
     args = parser.parse_args(argv)
     try:
         shard = parse_shard_spec(args.shard) if args.shard is not None else None
@@ -339,6 +344,19 @@ def main(argv=None):
                     [sys.executable, "update_test_inventory.py", "--check"], app_dir,
                 ),
             )
+        # One owner for the checks formerly repeated by ready.sh and CI.
+        # ready.sh also requires them when invoking a non-primary shard.
+        if runs_other_gates or args.check_evidence:
+            for gate, script in (("evidence_index", "tools/audit/audit_experiment_artifacts.py"),
+                                 ("legacy_audit", "tools/audit/audit_legacy_attribution.py"),
+                                 ("results_index", "tools/audit/collect_results.py"),
+                                 ("goal_evidence", "app/experiments/goal_evidence_audit.py")):
+                run_report_gate(
+                    report, gate, lambda script=script: run_report_command(
+                        "Evidence index (%s)" % script,
+                        [sys.executable, script, "--check"], repo_dir,
+                    ),
+                )
         unit_command = [sys.executable, "-m", "ci_env", "discover", "-s", ".", "-p", "test_*.py", "-v"]
         if args.shard is not None:
             unit_command += ["--shard", args.shard]
@@ -351,22 +369,7 @@ def main(argv=None):
                 unit_command, app_dir,
             ),
         )
-        # THE THREE CHECKS CI RUNS AND THIS DID NOT. "verifier green" was
-        # followed by a red CI three times on 2026-08-19/20, every time because
-        # a regenerated index was not committed - and each fix surfaced only
-        # the next one, because the CI step runs them in sequence and stops at
-        # the first. They belong here, where they cost two seconds, rather than
-        # in a four-minute round trip. Run from the repo root, not app/.
         if runs_other_gates:
-            for gate, script in (("evidence_index", "tools/audit/audit_experiment_artifacts.py"),
-                                 ("legacy_audit", "tools/audit/audit_legacy_attribution.py"),
-                                 ("results_index", "tools/audit/collect_results.py")):
-                run_report_gate(
-                    report, gate, lambda script=script: run_report_command(
-                        "Evidence index (%s)" % script,
-                        [sys.executable, script, "--check"], repo_dir,
-                    ),
-                )
             run_report_gate(
                 report, "api_contract", lambda: run_report_command(
                     "API contract snapshots",
@@ -395,7 +398,12 @@ def main(argv=None):
                 print(f"\nRELEASE VERIFICATION FAILED: could not write JSON report: {exc}",
                       file=sys.stderr)
     if failure is not None:
-        return 130 if isinstance(failure, KeyboardInterrupt) else 1
+        if isinstance(failure, KeyboardInterrupt):
+            return 130
+        if args.check_evidence and report.get("failure", {}).get("gate") in {
+                "evidence_index", "legacy_audit", "results_index", "goal_evidence"}:
+            return 2  # Preserve ready.sh's unsettled-index exit status.
+        return 1
     print(f"\nRELEASE VERIFICATION PASSED ({report['mode']}).")
     return 0
 

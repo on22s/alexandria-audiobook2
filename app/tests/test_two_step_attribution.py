@@ -50,19 +50,18 @@ class RegexSerialisation(unittest.TestCase):
 
 class ValidationIsNotBypassed(unittest.TestCase):
     def test_stage1_only_returns_nothing_when_the_validator_refuses(self):
-        provider = build_provider(mode="stage1_only")
-        called = {}
+        from unittest.mock import Mock, patch
+        from response_codecs import FREEFORM_KEY
 
-        def refusing_validator(entries):
-            called["yes"] = True
-            return {"passed": False}
-
-        import experiments.two_step_attribution as mod
-        real = mod.build_provider
-        # stage 1 is stubbed by monkeypatching call_llm_for_entries via codec:
-        # simplest is to assert the validator is consulted at all.
-        self.assertTrue(callable(provider))
-        self.assertTrue(callable(refusing_validator))
+        validator = Mock(return_value={"passed": False})
+        with patch("generate_script.call_llm_for_entries",
+                   return_value=[{FREEFORM_KEY: NOTES}]) as stage1:
+            provider = build_provider(mode="stage1_only")
+            out = provider(None, "fixture-model", "system", "user", {},
+                           frozen_batch=FROZEN, validate_entries=validator)
+        self.assertEqual([], out)
+        stage1.assert_called_once()
+        validator.assert_called_once_with(entries_from_decisions(FROZEN, NOTES))
 
 
 if __name__ == "__main__":

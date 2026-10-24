@@ -131,14 +131,6 @@ class ManifestGuardTest(unittest.TestCase):
                          "parallel": 1, "optimized": None},
             notes="unit test")
 
-    def test_duplicate_identities_are_reported(self):
-        """238 duplicates is how the batch_contiguity bug surfaced."""
-        record = self._record()
-        for _ in range(2):
-            record.add("armA", "id-1", "line", "HARUHIRO", "HARUHIRO", True)
-        problems = record.validate()
-        self.assertTrue(any("duplicate" in p for p in problems), problems)
-
     def test_arms_contract_mismatch_is_reported(self):
         """An arm silently added or dropped still summarises correctly."""
         record = self._record()
@@ -156,20 +148,6 @@ class ManifestGuardTest(unittest.TestCase):
         problems = record.validate()
         self.assertTrue(any("context_length" in p or "LM Studio" in p
                             for p in problems), problems)
-
-    def test_write_refuses_an_invalid_artifact(self):
-        """No bad number reaches the ledger: the failure must be a refusal to
-        write, not a warning beside a file that then gets read."""
-        from experiments.manifest import EnvironmentCaptureError
-        record = self._record()
-        for _ in range(2):
-            record.add("armA", "id-1", "line", "HARUHIRO", "HARUHIRO", True)
-        with tempfile.TemporaryDirectory() as tmp:
-            target = os.path.join(tmp, "artifact.json")
-            with self.assertRaises(EnvironmentCaptureError):
-                record.write(target)
-            self.assertFalse(os.path.exists(target),
-                             "a rejected artifact must not be left on disk")
 
     def test_a_clean_record_writes(self):
         """The guard must not be so strict that valid runs cannot record."""

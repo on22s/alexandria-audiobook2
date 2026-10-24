@@ -92,17 +92,21 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                 self.assertIsNone(audit._commit_is_in_history('1' * 40))
             self.assertFalse(marker.exists(), 'history check attempted an implicit fetch')
 
-    def test_current_inventory_is_exhaustive_and_semantically_bounded(self):
+    def test_current_inventory_is_exhaustive_bounded_and_rendered_once(self):
         result = audit.build_audit()
         rows = result["artifacts"]
-        structural = json.loads(Path(audit.STRUCTURAL).read_text(encoding="utf-8"))
-        expected = {row["artifact"] for row in structural["artifacts"]
-                    if row["classification"] == "provisional"}
-        self.assertEqual(expected, {row["artifact"] for row in rows})
-        self.assertEqual(len(expected), sum(result["summary"].values()))
-        self.assertTrue(all(row["semantic_limit"] for row in rows))
-        self.assertTrue(any(row["classification"] == "historical_only"
-                            for row in rows))
+        with self.subTest(check="inventory semantics"):
+            structural = json.loads(Path(audit.STRUCTURAL).read_text(encoding="utf-8"))
+            expected = {row["artifact"] for row in structural["artifacts"]
+                        if row["classification"] == "provisional"}
+            self.assertEqual(expected, {row["artifact"] for row in rows})
+            self.assertEqual(len(expected), sum(result["summary"].values()))
+            self.assertTrue(all(row["semantic_limit"] for row in rows))
+            self.assertTrue(any(row["classification"] == "historical_only" for row in rows))
+        rendered = audit.render_markdown(result)
+        for row in rows:
+            with self.subTest(artifact=row["artifact"], check="markdown membership"):
+                self.assertEqual(1, rendered.count(f"`{row['artifact']}`"))
 
     def test_current_gold_rescore_exposes_changed_and_unmapped_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -148,11 +152,6 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                 "correctness_changed_rows": None,
             }, result)
 
-    def test_markdown_lists_every_artifact_once(self):
-        result = audit.build_audit()
-        rendered = audit.render_markdown(result)
-        for row in result["artifacts"]:
-            self.assertEqual(1, rendered.count(f"`{row['artifact']}`"))
 
 
 if __name__ == "__main__":

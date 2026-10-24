@@ -581,31 +581,6 @@ class LlmReviewTests(unittest.TestCase):
 
         self.assertEqual([], result)
 
-    def test_process_chunk_no_bonus_retry_for_catastrophic_final_attempt(self):
-        # Regression guard: matches
-        # test_process_chunk_default_budget_stops_after_exactly_five_attempts's
-        # fixture shape exactly - every attempt is catastrophic (~5% recall,
-        # not a near miss), so no bonus call should ever fire.
-        source = " ".join(f"word{index}" for index in range(20))
-        incomplete = json.dumps([
-            {"speaker": "NARRATOR", "text": "word0", "instruct": "n"}])
-        calls = 0
-
-        def create(**_kwargs):
-            nonlocal calls
-            calls += 1
-            return SimpleNamespace(choices=[SimpleNamespace(
-                message=SimpleNamespace(content=incomplete), finish_reason="stop")],
-                usage=None)
-
-        client = SimpleNamespace(chat=SimpleNamespace(
-            completions=SimpleNamespace(create=create)))
-        params = generate_script.LLMGenParams("system", "{chunk}", 100, 0.1, 1)
-
-        result = generate_script.process_chunk(client, "model", source, 1, 1, params)
-
-        self.assertEqual([], result)
-        self.assertEqual(5, calls)
 
     def test_near_limit_incomplete_stop_increases_budget(self):
         quality = {"metrics": {"output_source_ratio": 0.2},

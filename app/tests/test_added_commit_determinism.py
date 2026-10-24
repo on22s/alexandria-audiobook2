@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -87,75 +88,41 @@ def build_squash_topology(root):
 
 class AddedCommitDeterminismTests(unittest.TestCase):
 
-    def _resolve(self, repo, head, path, full_history):
+    def _resolve_old(self, repo, head, path):
+        """Retain the known-bad algorithm only as a fixture negative control."""
         git(repo, "checkout", "-q", head)
-        fmt = "%as %H" if full_history else "%H %as"
-        args = ["log"]
-        if full_history:
-            args.append("--full-history")
-        args += ["--diff-filter=A", "--format=" + fmt]
-        if not full_history:
-            args.append("-1")
-        args += ["--", path]
-        out = git(repo, *args)
-        if not out:
-            return None
-        if full_history:
-            date, _, sha = sorted(out.splitlines())[0].partition(" ")
-            return sha
-        return out.partition(" ")[0]
+        out = git(repo, "log", "--diff-filter=A", "--format=%H %as", "-1", "--", path)
+        return out.partition(" ")[0] if out else None
 
-    def test_the_shipped_resolution_agrees_from_both_vantage_points(self):
+    def test_shipped_resolution_is_deterministic_on_discriminating_merge_topology(self):
         with tempfile.TemporaryDirectory() as root:
             repo, path, branch, merge = build_squash_topology(root)
-            a = self._resolve(repo, branch, path, full_history=True)
-            b = self._resolve(repo, merge, path, full_history=True)
-            self.assertIsNotNone(a)
-            self.assertEqual(
-                a, b,
-                "added_commit must not depend on which side the merge was "
-                "made from; CI checks the merge ref and contributors check "
-                "the branch")
-
-    def test_the_old_resolution_disagreed(self):
-        """Pins the bug. If this stops failing, the fixture stopped testing."""
-        with tempfile.TemporaryDirectory() as root:
-            repo, path, branch, merge = build_squash_topology(root)
-            a = self._resolve(repo, branch, path, full_history=False)
-            b = self._resolve(repo, merge, path, full_history=False)
-            self.assertNotEqual(
-                a, b,
-                "the simplified walk is supposed to disagree across these two "
-                "vantage points - if it now agrees, this topology no longer "
-                "reproduces the bug and the guard above proves nothing")
-
-    def test_full_history_sees_both_adds_and_the_simplified_walk_does_not(self):
-        with tempfile.TemporaryDirectory() as root:
-            repo, path, branch, _ = build_squash_topology(root)
-            git(repo, "checkout", "-q", branch)
-            full = git(repo, "log", "--full-history", "--diff-filter=A",
-                       "--format=%H", "--", path).splitlines()
-            simple = git(repo, "log", "--diff-filter=A", "--format=%H",
-                         "--", path).splitlines()
-            self.assertEqual(len(full), 2, "the topology should have two adds")
-            self.assertLess(len(simple), len(full),
-                            "simplification is what hides the second add")
-
-    def test_a_file_never_added_resolves_to_nothing(self):
-        with tempfile.TemporaryDirectory() as root:
-            repo, _, branch, _ = build_squash_topology(root)
-            git(repo, "checkout", "-q", branch)
-            self.assertIsNone(
-                self._resolve(repo, branch, "ab_test_runtime/experiments/none.json",
-                              full_history=True))
-
-    def test_the_module_asks_git_for_full_history(self):
-        """The shipped call must carry the flag, not just this test's copy."""
-        src = Path(replay_artifact.__file__).read_text(encoding="utf-8")
-        body = src.split("def added_commit(", 1)[1].split("\ndef ", 1)[0]
-        self.assertIn("--full-history", body)
-        self.assertNotIn('"-1"', body,
-                         "-1 reintroduces the vantage-point dependency")
+            with self.subTest(check="shipped resolver"):
+                with patch.object(replay_artifact, "REPO", repo):
+                    git(repo, "checkout", "-q", branch)
+                    a = replay_artifact.added_commit(path)
+                    git(repo, "checkout", "-q", merge)
+                    b = replay_artifact.added_commit(path)
+                self.assertIsNotNone(a[0])
+                self.assertIsNotNone(a[1])
+                self.assertEqual(a, b,
+                                 "CI merge and contributor branch must record identical provenance")
+            with self.subTest(check="old resolver fails this fixture"):
+                a = self._resolve_old(repo, branch, path)
+                b = self._resolve_old(repo, merge, path)
+                self.assertNotEqual(a, b, "fixture must reproduce the original bug")
+            with self.subTest(check="full history sees both additions"):
+                git(repo, "checkout", "-q", branch)
+                full = git(repo, "log", "--full-history", "--diff-filter=A",
+                           "--format=%H", "--", path).splitlines()
+                simple = git(repo, "log", "--diff-filter=A", "--format=%H",
+                             "--", path).splitlines()
+                self.assertEqual(2, len(full))
+                self.assertLess(len(simple), len(full))
+            with self.subTest(check="untracked artifact has no provenance"):
+                with patch.object(replay_artifact, "REPO", repo):
+                    self.assertEqual((None, None), replay_artifact.added_commit(
+                        "ab_test_runtime/experiments/none.json"))
 
 
 if __name__ == "__main__":

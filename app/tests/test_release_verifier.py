@@ -381,13 +381,10 @@ class ReleaseVerifierTests(unittest.TestCase):
 
         self.assertEqual("passed", report["status"])
         self.assertEqual("quick", report["mode"])
-        # The three evidence-index gates sit between unit_tests and
-        # api_contract, matching the order CI runs them in. They were added
-        # after "verifier green" was followed by a red CI three times in two
-        # days, every time on an index that had not been regenerated.
+        # Derived evidence checks fail before the expensive unit suite.
         self.assertEqual(
-            ["compile_python", "test_inventory", "unit_tests",
-             "evidence_index", "legacy_audit", "results_index",
+            ["compile_python", "test_inventory",
+             "evidence_index", "legacy_audit", "results_index", "goal_evidence", "unit_tests",
              "api_contract", "api_tests"],
             [gate["name"] for gate in report["gates"]],
         )
@@ -402,24 +399,33 @@ class ReleaseVerifierTests(unittest.TestCase):
         self.assertTrue(all(gate["status"] == "passed" for gate in report["gates"]))
 
     def test_json_report_is_written_on_failure_with_secrets_redacted(self):
-        with tempfile.TemporaryDirectory() as tmp, \
-             patch.object(
-                 verify_release, "compile_python_files",
-                 side_effect=ValueError("token=do-not-store compilation failed"),
-             ):
-            report_path = Path(tmp) / "report.json"
-            # Suppress the simulated "RELEASE VERIFICATION FAILED" that main()
-            # prints; otherwise it leaks into the suite output and reads like a
-            # real failure on every run.
-            with contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(1, verify_release.main(["--json-report", str(report_path)]))
-
-            report = json.loads(report_path.read_text(encoding="utf-8"))
-
-        self.assertEqual("failed", report["status"])
-        self.assertEqual("compile_python", report["failure"]["gate"])
-        self.assertEqual("token=[REDACTED] compilation failed", report["failure"]["message"])
-        self.assertNotIn("do-not-store", json.dumps(report))
+        for gate, options, expected_code in (
+                ("compile_python", [], 1),
+                ("evidence_index", [], 1),
+                ("goal_evidence", ["--check-evidence", "--shard", "2/3"], 2)):
+            with self.subTest(gate=gate), tempfile.TemporaryDirectory() as tmp:
+                report_path = Path(tmp) / "report.json"
+                error = ValueError("token=do-not-store gate failed")
+                def command(_label, command, _cwd, **kwargs):
+                    if command[1].endswith("audit_experiment_artifacts.py") and gate == "evidence_index":
+                        raise error
+                    if command[1].endswith("goal_evidence_audit.py") and gate == "goal_evidence":
+                        raise error
+                with patch.object(verify_release, "compile_python_files",
+                                  side_effect=error if gate == "compile_python" else None,
+                                  return_value=None), \
+                     patch.object(verify_release, "run_command", side_effect=command), \
+                     patch.object(verify_release, "run_unit_test_report") as units, \
+                     contextlib.redirect_stdout(io.StringIO()), \
+                     contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(expected_code, verify_release.main(
+                        [*options, "--json-report", str(report_path)]))
+                units.assert_not_called()
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+                self.assertEqual("failed", report["status"])
+                self.assertEqual(gate, report["failure"]["gate"])
+                self.assertEqual("token=[REDACTED] gate failed", report["failure"]["message"])
+                self.assertNotIn("do-not-store", json.dumps(report))
 
     def test_json_report_marks_interrupted_gate_and_returns_130(self):
         with tempfile.TemporaryDirectory() as tmp, \

@@ -352,29 +352,19 @@ class ExportChaptersTests(unittest.TestCase):
                 # Re-render chunk 4 (chapter 2's audio changes): only chapter 2 is rewritten.
                 _tone(os.path.join(tmp, "voicelines", "c4.wav"), 1.5, hz=330)
                 os.utime(os.path.join(tmp, "voicelines", "c4.wav"), (0, 10 ** 9))
-                ok, msg = pm.export_chapters(fmt="wav", book_name="Test Book",
-                                             template="{book_name} {chapter_number} {chapter_name}", changed_only=True)
-                self.assertIn("1 chapter file(s) written, 1 unchanged and kept", msg)
-
-    def test_changed_only_decodes_only_the_changed_chapter(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            pm, chunks = _project(tmp)
-            with patch.object(pm, "load_chunks", return_value=chunks):
-                self.assertTrue(pm.export_chapters(fmt="wav")[0])
-                _tone(os.path.join(tmp, "voicelines", "c4.wav"), 1.5, hz=330)
-                os.utime(os.path.join(tmp, "voicelines", "c4.wav"), (0, 10 ** 9))
                 original = pm._load_chunks_with_audio
                 loaded_groups = []
-
                 def record_load(*args, **kwargs):
                     loaded_groups.append(kwargs.get("chunks"))
                     return original(*args, **kwargs)
-
                 with patch.object(pm, "_load_chunks_with_audio", side_effect=record_load):
-                    ok, msg = pm.export_chapters(fmt="wav", changed_only=True)
-            self.assertTrue(ok, msg)
-            self.assertEqual([2], [len(group) for group in loaded_groups])
-            self.assertIn("1 chapter file(s) written, 1 unchanged and kept", msg)
+                    ok, msg = pm.export_chapters(fmt="wav", book_name="Test Book",
+                                                 template="{book_name} {chapter_number} {chapter_name}",
+                                                 changed_only=True)
+                self.assertTrue(ok, msg)
+                self.assertEqual([2], [len(group) for group in loaded_groups])
+                self.assertEqual([chunks[3:5]], loaded_groups)
+                self.assertIn("1 chapter file(s) written, 1 unchanged and kept", msg)
 
     def test_subset_and_cancel(self):
         with tempfile.TemporaryDirectory() as tmp:

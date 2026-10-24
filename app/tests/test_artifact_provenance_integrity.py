@@ -41,61 +41,35 @@ def tracked_artifacts():
 
 @unittest.skipUnless(os.path.isdir(ARTIFACTS), "no experiments directory")
 class ArtifactIntegrityTests(unittest.TestCase):
-    def setUp(self):
-        self.paths = tracked_artifacts()
-
-    def test_there_are_artifacts_to_check(self):
-        # Without this the assertions below pass vacuously if ls-files breaks.
-        self.assertGreater(len(self.paths), 20,
-                           "found only %d tracked artifacts" % len(self.paths))
-
-    def test_every_artifact_parses(self):
-        for path in self.paths:
-            with open(path, encoding="utf-8") as fh:
+    def test_tracked_artifacts_are_parseable_reproducible_and_consistent(self):
+        paths = tracked_artifacts()
+        self.assertGreater(len(paths), 20,
+                           "found only %d tracked artifacts" % len(paths))
+        for path in paths:
+            data = None
+            parsed = False
+            name = os.path.basename(path)
+            with self.subTest(artifact=name, check="JSON"):
                 try:
-                    json.load(fh)
+                    with open(path, encoding="utf-8") as handle:
+                        data = json.load(handle)
+                    parsed = True
                 except Exception as exc:
-                    self.fail("%s is not valid JSON: %s"
-                              % (os.path.basename(path), exc))
-
-    def test_a_named_generating_script_still_exists(self):
-        """An artifact naming a deleted script cannot be reproduced."""
-        missing = []
-        for path in self.paths:
-            with open(path, encoding="utf-8") as fh:
-                try:
-                    data = json.load(fh)
-                except Exception:
-                    continue
-            if not isinstance(data, dict):
+                    self.fail("%s is not valid JSON: %s" % (name, exc))
+            if not parsed or not isinstance(data, dict):
                 continue
-            prov = data.get("provenance")
-            if not isinstance(prov, dict):
-                continue
-            script = prov.get("script") or prov.get("script_file")
-            if not script:
-                continue
-            stem = os.path.basename(str(script))
-            if stem.endswith(".py") and not os.path.exists(
-                    os.path.join(EXPERIMENTS, stem)):
-                missing.append("%s names %s, which does not exist"
-                               % (os.path.basename(path), stem))
-        self.assertEqual(missing, [], "\n  ".join(missing))
-
-    def test_no_artifact_claims_complete_while_holding_a_partial_marker(self):
-        """`status: complete` beside an unfinished counter is the shape that
-        lets a half-run be read as a finished measurement."""
-        bad = []
-        for path in self.paths:
-            with open(path, encoding="utf-8") as fh:
-                try:
-                    data = json.load(fh)
-                except Exception:
-                    continue
-            if not isinstance(data, dict) or data.get("status") != "complete":
-                continue
-            done, want = data.get("completed"), data.get("requested")
-            if isinstance(done, int) and isinstance(want, int) and done < want:
-                bad.append("%s says complete but %d/%d"
-                           % (os.path.basename(path), done, want))
-        self.assertEqual(bad, [], "\n  ".join(bad))
+            with self.subTest(artifact=name, check="generating script"):
+                provenance = data.get("provenance")
+                if isinstance(provenance, dict):
+                    script = provenance.get("script") or provenance.get("script_file")
+                    if script:
+                        stem = os.path.basename(str(script))
+                        if stem.endswith(".py"):
+                            self.assertTrue(os.path.exists(os.path.join(EXPERIMENTS, stem)),
+                                            "%s names %s, which does not exist" % (name, stem))
+            with self.subTest(artifact=name, check="completion"):
+                if data.get("status") == "complete":
+                    done, want = data.get("completed"), data.get("requested")
+                    if isinstance(done, int) and isinstance(want, int):
+                        self.assertGreaterEqual(done, want,
+                                                "%s says complete but %d/%d" % (name, done, want))

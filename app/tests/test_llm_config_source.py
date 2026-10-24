@@ -27,9 +27,11 @@ REMOTE = {"base_url": "http://10.0.0.5:1234/v1", "model_name": "llama-3.3-70b"}
 class ActiveProfileTests(unittest.TestCase):
 
     def test_the_toggle_decides_which_profile_is_active(self):
-        config = {"llm_mode": "remote", "llm_local": LOCAL, "llm_remote": REMOTE,
-                  "llm": LOCAL}
-        self.assertEqual(REMOTE, get_active_llm_config(config))
+        for mode, expected in (("local", LOCAL), ("remote", REMOTE)):
+            with self.subTest(mode=mode):
+                config = {"llm_mode": mode, "llm_local": LOCAL,
+                          "llm_remote": REMOTE, "llm": LOCAL}
+                self.assertEqual(expected, get_active_llm_config(config))
 
     def test_a_stale_mirror_does_not_win_over_the_toggle(self):
         """The 2026-08-06 failure, as a test.
@@ -51,51 +53,24 @@ class ActiveProfileTests(unittest.TestCase):
             LOCAL, get_active_llm_config({"llm_mode": "local", "llm": LOCAL}))
 
     def test_remote_mode_with_no_remote_profile_falls_back_not_empty(self):
-        config = {"llm_mode": "remote", "llm": REMOTE}
-        self.assertEqual(REMOTE, get_active_llm_config(config))
+        for config, expected in (
+                ({"llm_mode": "remote", "llm": REMOTE}, REMOTE),
+                ({"llm_mode": "remote", "llm_local": LOCAL,
+                  "llm_remote": None, "llm": LOCAL}, LOCAL)):
+            with self.subTest(config=config):
+                self.assertEqual(expected, get_active_llm_config(config))
 
     def test_an_empty_profile_is_not_treated_as_configured(self):
-        config = {"llm_mode": "remote", "llm_remote": {}, "llm": LOCAL}
-        self.assertEqual(LOCAL, get_active_llm_config(config))
+        for mode in ("local", "remote"):
+            with self.subTest(mode=mode):
+                config = {"llm_mode": mode, f"llm_{mode}": {}, "llm": LOCAL}
+                self.assertEqual(LOCAL, get_active_llm_config(config))
 
     def test_garbage_never_raises(self):
         for bad in (None, [], "config", 7, {"llm_mode": "local", "llm_local": "x"}):
             self.assertEqual({}, get_active_llm_config(bad)
                              if not isinstance(bad, dict) else
                              get_active_llm_config(bad) or {})
-
-
-class CopiesAgreeTests(unittest.TestCase):
-    """Goal 6.2's target: each parallel definition gets a test asserting the
-    copies agree. These are the two spellings that existed before, kept here
-    as the reference behaviour the single implementation must reproduce."""
-
-    @staticmethod
-    def _attribution_adapter_spelling(config):
-        mode = config.get("llm_mode", "local")
-        return config.get(f"llm_{mode}") or config.get("llm") or {}
-
-    @staticmethod
-    def _repair_source_spelling(config):
-        mode = config.get("llm_mode", "local")
-        return (config.get("llm_remote" if mode == "remote" else "llm_local")
-                or config.get("llm") or {})
-
-    def test_both_former_spellings_agree_with_the_single_implementation(self):
-        configs = [
-            {"llm_mode": "local", "llm_local": LOCAL, "llm_remote": REMOTE, "llm": LOCAL},
-            {"llm_mode": "remote", "llm_local": LOCAL, "llm_remote": REMOTE, "llm": REMOTE},
-            {"llm_mode": "remote", "llm_local": LOCAL, "llm_remote": None, "llm": LOCAL},
-            {"llm_mode": "local", "llm": LOCAL},
-            {"llm_mode": "remote", "llm": REMOTE},
-            {"llm": LOCAL},
-            {"llm_mode": "local", "llm_local": {}, "llm": LOCAL},
-        ]
-        for config in configs:
-            with self.subTest(config=config):
-                resolved = get_active_llm_config(config)
-                self.assertEqual(self._attribution_adapter_spelling(config), resolved)
-                self.assertEqual(self._repair_source_spelling(config), resolved)
 
 
 class SingleImplementationTests(unittest.TestCase):

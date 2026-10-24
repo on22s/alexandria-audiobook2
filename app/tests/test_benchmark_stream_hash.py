@@ -110,6 +110,7 @@ class BenchmarkStreamingHashTests(unittest.TestCase):
                     with get_bounded_reads(paths) as reads:
                         validator(case, str(root))
                     self.assertTrue(reads)
+                    self.assertTrue(any(count == 1024 * 1024 for _, count in reads))
                     for relative, expected in case.get('adapter_artifact_sha256', {}).items():
                         self.assertEqual(before[str(root / 'adapter' / relative)], expected)
                     for relative, expected in (case['audio_sha256'] if isinstance(case.get('audio_sha256'),dict) else {}).items():
@@ -129,24 +130,16 @@ class BenchmarkStreamingHashTests(unittest.TestCase):
                             with self.assertRaisesRegex(ValueError,'hash changed'):
                                 validator(case,str(root))
                     finally:target.write_bytes(original)
-            self.assertEqual(before,{str(path):hashlib.sha256(path.read_bytes()).hexdigest() for path in paths})
-
-    def test_each_validator_bounds_its_reads_independently_of_producer(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);self.get_assets(root)
-            paths=[path for path in root.rglob('*') if path.is_file()]
-            for builder,source,validator in self.get_cases(root):
-                case=builder([source],tmp)['fixtures'][0]
-                with self.subTest(validator=validator.__name__,voice_type=case.get('voice_type')):
-                    with get_bounded_reads(paths) as reads:
-                        validator(case,tmp)
-                    self.assertTrue(reads)
-                    self.assertTrue(any(count==1024*1024 for _,count in reads))
                     if 'model_path' in case:
-                        (root/'model.gguf').unlink()
-                        with self.assertRaisesRegex(ValueError,'missing'):
-                            validator(case,tmp)
-                        (root/'model.gguf').write_bytes(b'GGUF'+b'model-fixture'*350000)
+                        model = root / case['model_path']
+                        model_bytes = model.read_bytes()
+                        model.unlink()
+                        try:
+                            with self.assertRaisesRegex(ValueError, 'missing'):
+                                validator(case, str(root))
+                        finally:
+                            model.write_bytes(model_bytes)
+            self.assertEqual(before,{str(path):hashlib.sha256(path.read_bytes()).hexdigest() for path in paths})
 
     def test_actual_clone_and_lora_worker_checks_happen_before_model_and_write_real_pcm(self):
         class Engine:

@@ -20,11 +20,11 @@ from pathlib import Path
 DURATIONS_PATH = Path(__file__).parent / "tests" / "module_durations.json"
 # A module with no recorded time (a new test file) counts as this many seconds.
 DEFAULT_WEIGHT_SECONDS = 1.0
-# Shard 1 also runs every non-unit gate (compile, inventory, evidence indexes, API contract,
-# API suite). Measured on CI that was about 116 s more than the others for the same unit
-# weight; the weights are dev-machine seconds, which run about 1.43x CI seconds, so shard 1
-# starts with this much weight already counted and receives that much less unit work.
-SHARD_HEAD_START_SECONDS = {1: 165.0}
+# Shard 1 also runs every non-unit gate. In the green PR #1558 run these
+# took 72.447 CI seconds; the same suite's measured local/CI unit ratio
+# was 0.627. After removing the separate repeated evidence step, reserve
+# 45 local-weight seconds for those gates. Weights affect balance only.
+SHARD_HEAD_START_SECONDS = {1: 45.0}
 _SPEC = re.compile(r"(\d+)/(\d+)")
 
 
