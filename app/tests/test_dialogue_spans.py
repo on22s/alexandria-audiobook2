@@ -95,6 +95,36 @@ class SpanTest(unittest.TestCase):
         text = f"“Never closed.\n\n{narration}\n\n“Real line.” she said."
         self.assertEqual(["Real line."], [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
 
+        class MeasuredSource(str):
+            def __new__(cls, value):
+                result = super().__new__(cls, value)
+                result.search_extent = result.copied_characters = 0
+                return result
+
+            def find(self, needle, start=0, end=None):
+                stop = len(self) if end is None else end
+                result = super().find(needle, start, stop)
+                # Logical prefix searched, not wall-clock time or instructions.
+                self.search_extent += max(0, (result + len(needle) if result != -1 else stop) - start)
+                return result
+
+            def __getitem__(self, index):
+                if isinstance(index, slice):
+                    self.copied_characters += len(range(*index.indices(len(self))))
+                return super().__getitem__(index)
+
+        for opener, closer in (('“', '”'), ('「', '」'), ('『', '』')):
+            for shape, value in [('many_breaks', (opener + '\n\n') * 4096 + 'x' + closer),
+                                 ('distant_break', opener * 4096 + 'x' * 4000 + '\n\n' + closer)]:
+                with self.subTest(mark=opener, shape=shape):
+                    measured = MeasuredSource(value)
+                    spans = spoken_spans(measured, 'paired_quotes')
+                    expected = ([(value.find(opener, len(value) - 2002) + 1, len(value) - 1)]
+                                if shape == 'many_breaks' else [])
+                    self.assertEqual(expected, spans)
+                    self.assertEqual(0, measured.copied_characters)
+                    self.assertLessEqual(measured.search_extent, 8 * len(value))
+
     def test_a_short_multi_paragraph_speech_keeps_its_old_span(self):
         # Within the limit a blank line was allowed before and still is, so a
         # speech whose paragraphs reopen without closing is not newly lost.

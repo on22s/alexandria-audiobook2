@@ -88,12 +88,22 @@ def _paired_spans(text):
             # A rejected pair advances to the next opener, as the old bounded
             # regex did.
             position = text.find(opener)
+            end, paragraph_break = 0, None
             while position != -1:
-                end = text.find(closer, position + 1)
+                # Rejected openers can share one distant closer/paragraph break.
+                # Cache both forward searches and inspect offsets without copying
+                # every remaining interior substring.
+                if end <= position:
+                    end = text.find(closer, position + 1)
                 if end == -1:
                     break
-                inner = text[position + 1:end]
-                if inner and (len(inner) <= MAX_CROSSING_CHARS or "\n\n" not in inner):
+                length = end - position - 1
+                crosses_paragraph = False
+                if length > MAX_CROSSING_CHARS:
+                    if paragraph_break is None or 0 <= paragraph_break < position + 1:
+                        paragraph_break = text.find("\n\n", position + 1)
+                    crosses_paragraph = 0 <= paragraph_break < end - 1
+                if length and not crosses_paragraph:
                     spans.append((position + 1, end))
                     position = text.find(opener, end + 1)
                 else:
