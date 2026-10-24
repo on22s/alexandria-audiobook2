@@ -56,7 +56,7 @@ Verdicts: `no_content_candidate` (clear), `review` (flagged for a listen), `corr
 - **`mid_repeat` is the main gap.** In every missed case the primary transcript simply omits the second copy ("This time Alice waited patiently until it chose to speak again." for audio that says part of it twice). When the repeat is transcribed, it is flagged for review but never rejected.
   - This matches the earlier native observation on #1434 that Large-v3 collapses an exact duplicate.
   - These splices cut at arbitrary sample points, sometimes mid-word. A model's own repetition is usually whole words and may transcribe differently. That is not measured here.
-- **Short lines:** doubling or halving a short line is always caught for review (15 of 16), never rejected automatically. This agrees with the earlier short-line hard-verdict note.
+- **Short lines:** 15 of 16 doubling/halving faults were flagged for review; one `short_half` was missed as clear. None were rejected automatically. This agrees with the earlier short-line hard-verdict note.
 
 **Time (CPU, 3 workers alongside other work):**
 - primary only: median 7.1 s (6.0–10.6) per take, 244 cases;
@@ -68,5 +68,6 @@ Peak memory was not measured here. The earlier #1434 qualification measured it.
 
 - One voice, English, Linux CPU, one machine.
 - Designed faults are edits, not listened truth, and not a sample of real model failures.
+- The archived rows predate the input/runtime binding added in #1584. They remain historical evidence, not a resumable checkpoint.
 - Rates come from this fixture set and are not a general accuracy figure.
 - `results.jsonl` was produced before the harness bound each row to its input hash and verifier runtime. The verdict counts above are unaffected, but the current harness refuses to resume into these rows; a rerun needs a new `--out-dir`.
