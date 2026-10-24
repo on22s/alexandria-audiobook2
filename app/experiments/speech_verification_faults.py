@@ -22,8 +22,9 @@ proof and its actual runtime identity matches the planned content identity.
 
 Resumable: a row already in results.jsonl is reused only when its (run, case_id)
 and its text, fault, input hash/size and verifier runtime all still match; a
-completed row must also carry a valid status, finite seconds and a verifier
-result. Anything else stops the run without changing prior derived files.
+recorded attempt must also carry a valid status, finite seconds and a verifier
+result. An unavailable attempt is retained as such when resuming; it is not
+counted as successful ASR or a clean control. Anything else stops the run without changing prior derived files.
 
 The archived 334-row results.jsonl predates this input/runtime binding. It remains
 historical evidence, not a resumable checkpoint; resuming into it is refused
@@ -31,6 +32,7 @@ rather than accepting rows with missing bindings.
 """
 import argparse
 import hashlib
+import io
 import json
 import math
 import multiprocessing
@@ -120,17 +122,49 @@ def _validate_row(row):
         raise ValueError(f"{row.get('clip_id')}: speech_input audio proof is missing")
 
 
+def _read_bounded_bytes(path, limit, *, missing=False):
+    # This helper holds one nonblocking regular descriptor through the bounded
+    # read and checks its identity afterwards; never reopen an admitted path.
+    from project_scope_files import capture_scope_file
+    path = Path(path).absolute()
+    info, raw = capture_scope_file(path.parent.resolve(), path.name,
+                                   limit=limit, include_bytes=True)
+    if not info['exists']:
+        if missing:
+            return b''
+        raise FileNotFoundError(path)
+    return raw
+
+
 def _read_bounded_json(path, limit):
-    """Admit a bounded regular file, then read exactly the admitted bytes."""
-    from speech_verification_runtime import get_verifier_file_identity
-    info = get_verifier_file_identity(path, limit, lambda: False)
-    raw = Path(path).read_bytes()
-    if len(raw) != info['size'] or hashlib.sha256(raw).hexdigest() != info['sha256']:
-        raise ValueError(f'{path} changed while reading')
+    from json_metadata import get_unique_json_object
+    raw = _read_bounded_bytes(path, limit)
     try:
-        return json.loads(raw)
+        return json.loads(raw, object_pairs_hook=get_unique_json_object,
+                          parse_constant=_reject_constant)
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError(f'{path} is not valid JSON') from error
+
+
+def _reject_constant(value):
+    raise ValueError('Nonfinite JSON values are not supported')
+
+
+def _read_control(path, expected_sha, expected_size):
+    from word_timing import MAX_AUDIO_BYTES
+    raw = _read_bounded_bytes(path, MAX_AUDIO_BYTES)
+    if len(raw) != expected_size or hashlib.sha256(raw).hexdigest() != expected_sha:
+        raise ValueError('Control changed while planning or publishing')
+    # Native decoding receives only this bounded immutable snapshot. Compressed
+    # files cannot use a small container to request an unbounded decoded array.
+    with sf.SoundFile(io.BytesIO(raw)) as audio:
+        if (audio.channels != 1 or not 0 < audio.samplerate <= 192000
+                or not 0 < audio.frames <= MAX_AUDIO_BYTES // 2):
+            raise ValueError('Expected bounded nonempty mono render')
+        pcm = audio.read(audio.frames, dtype='int16')
+        if len(pcm) != audio.frames:
+            raise ValueError('Control decode ended before its declared frame count')
+        return pcm, audio.samplerate
 
 
 def get_rows(run_dir):
@@ -185,8 +219,6 @@ def get_cases(pilot_root, derived_dir, fault_seeds, runs=RUNS):
     No derived file is written here. Fault PCM and identities are planned in
     private staging so a rejected resume cannot overwrite prior evidence.
     """
-    from speech_verification_runtime import get_verifier_file_identity
-    from word_timing import MAX_AUDIO_BYTES
     cases = []
     for run in runs:
         if run not in RUNS:
@@ -200,15 +232,9 @@ def get_cases(pilot_root, derived_dir, fault_seeds, runs=RUNS):
             if row['seed'] not in fault_seeds or run in ('numbers', 'w1435_W'):
                 continue
             kinds = SHORT_FAULTS if group == 'v' else () if group == 'r' else LONG_FAULTS
-            check = get_verifier_file_identity(row['wav'], MAX_AUDIO_BYTES, lambda: False)
-            if check['sha256'] != row['input_sha256'] or check['size'] != row['input_size']:
-                raise ValueError(f"{row['clip_id']}: control changed while planning")
-            pcm, rate = sf.read(row['wav'], dtype='int16')
-            if pcm.ndim != 1:
-                raise ValueError(f"{row['clip_id']}: expected mono render")
-            after = get_verifier_file_identity(row['wav'], MAX_AUDIO_BYTES, lambda: False)
-            if after['sha256'] != check['sha256'] or after['size'] != check['size']:
-                raise ValueError(f"{row['clip_id']}: control changed while reading")
+            if not kinds:
+                continue
+            pcm, rate = _read_control(row['wav'], row['input_sha256'], row['input_size'])
             for kind in kinds:
                 fault_pcm = make_fault(pcm, kind)
                 sha, size = _planned_fault_identity(fault_pcm, rate)
@@ -217,7 +243,7 @@ def get_cases(pilot_root, derived_dir, fault_seeds, runs=RUNS):
                                   fault=kind, expect='defect', text=text, wav=str(path),
                                   input_sha256=sha, input_size=size,
                                   source_sha256=row['input_sha256'],
-                                  _fault_pcm=fault_pcm, _fault_rate=rate))
+                                  _source_wav=row['wav'], _source_size=row['input_size']))
     return cases
 
 
@@ -227,6 +253,7 @@ def publish_cases(cases, derived_dir, done=()):
     from word_timing import MAX_AUDIO_BYTES
     root = Path(derived_dir)
     root.mkdir(parents=True, exist_ok=True)
+    # Validate every completed artifact before replacing any pending artifact.
     for case in cases:
         if case['fault'] == 'control':
             continue
@@ -237,10 +264,15 @@ def publish_cases(cases, derived_dir, done=()):
             info = get_verifier_file_identity(path, MAX_AUDIO_BYTES, lambda: False)
             if info['sha256'] != case['input_sha256'] or info['size'] != case['input_size']:
                 raise ValueError(f"{case['case_id']}: prior derived evidence changed; refusing to overwrite")
+    for case in cases:
+        if case['fault'] == 'control' or (case['run'], case['case_id']) in done:
             continue
+        path = Path(case['wav'])
+        pcm, rate = _read_control(case['_source_wav'], case['source_sha256'], case['_source_size'])
+        fault_pcm = make_fault(pcm, case['fault'])
         staged = root / f'.{path.name}.{uuid.uuid4().hex}.tmp'
-        sf.write(str(staged), case['_fault_pcm'], case['_fault_rate'], format='WAV', subtype='PCM_16')
         try:
+            sf.write(str(staged), fault_pcm, rate, format='WAV', subtype='PCM_16')
             info = get_verifier_file_identity(staged, MAX_AUDIO_BYTES, lambda: False)
             if info['sha256'] != case['input_sha256'] or info['size'] != case['input_size']:
                 raise ValueError(f"{case['case_id']}: staged fault differs from its plan")
@@ -282,7 +314,7 @@ def _validate_result_row(row, location):
     if (type(seconds) not in (int, float) or isinstance(seconds, bool)
             or not math.isfinite(seconds) or not 0 <= seconds <= 86400):
         raise ValueError(f'{location}: seconds is missing or out of bounds')
-    if 'duration' in row:
+    if 'duration' in row and not (row['duration'] is None and row['status'] == 'unavailable'):
         duration = row['duration']
         if (type(duration) not in (int, float) or isinstance(duration, bool)
                 or not math.isfinite(duration) or not 0 <= duration <= 86400):
@@ -307,15 +339,7 @@ def _validate_result_row(row, location):
 
 
 def _read_results_lines(results):
-    if not results.exists():
-        return ()
-    if results.is_file() and results.stat().st_size == 0:
-        return ()
-    from speech_verification_runtime import get_verifier_file_identity
-    info = get_verifier_file_identity(results, MAX_RESULTS_BYTES, lambda: False)
-    raw = Path(results).read_bytes()
-    if len(raw) != info['size'] or hashlib.sha256(raw).hexdigest() != info['sha256']:
-        raise ValueError(f'{results} changed while reading')
+    raw = _read_bounded_bytes(results, MAX_RESULTS_BYTES, missing=True)
     return raw.decode('utf-8').splitlines()
 
 
@@ -327,7 +351,9 @@ def get_reusable_results(results, cases):
         if not line:
             continue
         try:
-            row = json.loads(line)
+            from json_metadata import get_unique_json_object
+            row = json.loads(line, object_pairs_hook=get_unique_json_object,
+                             parse_constant=_reject_constant)
         except json.JSONDecodeError as error:
             raise ValueError(f'{results}:{number}: invalid JSON') from error
         _validate_result_row(row, f'{results}:{number}')
@@ -369,6 +395,7 @@ def _verify(job):
                primary=(report.get('primary') or {}).get('transcript'),
                confirmation=(report.get('confirmation') or {}).get('transcript'),
                corroborated=len(report.get('corroborated_regions') or ()))
+    _validate_result_row(out, case['case_id'])
     return out
 
 
@@ -398,10 +425,16 @@ def main(argv=None):
     scratch = [out / f'scratch{i}' for i in range(args.workers)]
     for path in scratch:
         path.mkdir(parents=True, exist_ok=True)
-    jobs = [(c, args.asr_root, str(scratch[i % args.workers])) for i, c in enumerate(todo)]
+    jobs = [({key: value for key, value in c.items() if not key.startswith('_')},
+             args.asr_root, str(scratch[i % args.workers])) for i, c in enumerate(todo)]
+    by_key = {(c['run'], c['case_id']): c for c in todo}
     with multiprocessing.Pool(args.workers) as pool, results.open('a') as fh:
         for i, row in enumerate(pool.imap_unordered(_verify_owned, jobs), 1):
-            fh.write(json.dumps(row, ensure_ascii=False) + '\n')
+            _validate_result_row(row, 'worker result')
+            case = by_key.get((row['run'], row['case_id']))
+            if case is None or any(row.get(field) != case.get(field) for field in BINDING):
+                raise ValueError('Worker result does not match its planned case')
+            fh.write(json.dumps(row, ensure_ascii=False, allow_nan=False) + '\n')
             fh.flush()
             print(i, len(todo), row['case_id'], row['status'], row['seconds'], flush=True)
 

@@ -77,6 +77,12 @@ class GetCasesTests(unittest.TestCase):
             self._run(root, 'verify', [('v', 'v01', 1, 'Yes.', 3), ('r', 'r01', 1, 'No, no!', 4)])
             derived = Path(root) / 'd'
             cases = get_cases(root, derived, {1}, ('alice', 'verify'))
+            self.assertTrue(all(not isinstance(value, np.ndarray)
+                                for case in cases for value in case.values()))
+            # Authored repetitions produce controls without decoding unused faults.
+            with patch.object(harness, '_read_control', wraps=harness._read_control) as decode:
+                get_cases(root, derived, {1}, ('verify',))
+            self.assertEqual(decode.call_count, 1)  # v, never r
             publish_cases(cases, derived)
             got = {(c['case_id'].split('__')[0], c['fault'], c['expect']) for c in cases}
             self.assertEqual(got, {
@@ -126,6 +132,10 @@ class GetCasesTests(unittest.TestCase):
             self._run(root, 'alice', [('a1', 'a01', 1, 'text', 1)])
             path = Path(root) / 'alice' / 'rows.json'
             original = path.read_text()
+            # JSON admission reads from its original bounded descriptor.
+            with patch.object(Path, 'read_bytes', side_effect=AssertionError('pathname reopened')):
+                self.assertEqual(harness._read_bounded_json(path, harness.MAX_ROWS_BYTES),
+                                 json.loads(original))
             data = json.loads(original)
             data['rows'][0]['speech_input']['audio']['sha256'] = 'other'
             path.write_text(json.dumps(data))
@@ -191,6 +201,13 @@ class GetCasesTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     get_reusable_results(artifact_results, changed)
                 self.assertEqual(before, Path(fault['wav']).read_bytes())
+                # A late completed-artifact failure cannot replace earlier pending files.
+                pending, completed = [c for c in planned if c['fault'] != 'control'][:2]
+                Path(pending['wav']).write_bytes(b'pending evidence')
+                Path(completed['wav']).write_bytes(b'changed completed evidence')
+                with self.assertRaisesRegex(ValueError, 'prior derived evidence changed'):
+                    publish_cases(planned, derived, {(completed['run'], completed['case_id'])})
+                self.assertEqual(Path(pending['wav']).read_bytes(), b'pending evidence')
             # The archived 334 rows keep their schema; they predate input/runtime binding.
             archive = Path(__file__).resolve().parent.parent.parent / 'docs' / 'benchmarks' / 'raw' / \
                 'speech-verification-1434-20261024' / 'results.jsonl'
@@ -235,3 +252,19 @@ class GetCasesTests(unittest.TestCase):
                     row = _verify((case, 'root', 'scratch'))
                 self.assertEqual(CLEAR, row['status'])
                 self.assertEqual(case['input_sha256'], row['input_sha256'])
+                for changes in ({'status': 'unknown'}, {'seconds': float('nan')},
+                                {'duration': float('inf')}, {'primary': None, 'reason': None}):
+                    bad = dict(accepted, **changes)
+                    # primary is a report object; a missing provider result needs unavailable.
+                    with patch('speech_verification.verify_finished_speech', return_value=bad):
+                        with self.assertRaises(ValueError):
+                            _verify((case, 'root', 'scratch'))
+                unavailable = dict(matched_audio, status='unavailable', primary=None,
+                                   reason='Identity was unavailable')
+                unavailable.pop('duration')
+                with patch('speech_verification.verify_finished_speech', return_value=unavailable):
+                    row = _verify((case, 'root', 'scratch'))
+                self.assertIsNone(row['duration'])
+                checkpoint = Path(root) / 'results.jsonl'
+                checkpoint.write_text(json.dumps(row, allow_nan=False) + '\n')
+                self.assertEqual({('alice', 'a1__control')}, get_reusable_results(checkpoint, [case]))
