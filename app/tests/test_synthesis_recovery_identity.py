@@ -197,7 +197,10 @@ class RecoveryModelIdentityTests(unittest.TestCase):
                 index.write_text(json.dumps({'weight_map': {'weight': reference}}))
                 with self.assertRaises(identity.RecoveryIdentityUnavailable):
                     identity.capture_recovery_model_snapshot(self.root)
-        for raw in ('{', '{"weight_map":{},"weight_map":{}}', '{"weight_map":{"weight":NaN}}'):
+        for raw in ('{', '{"weight_map":{},"weight_map":{}}', '{"weight_map":{"weight":NaN}}',
+                    '{"weight_map":{"weight":"'+shard.name+'"},"size":1e999}',
+                    '{"weight_map":{"weight":"'+shard.name+'"},"size":-1e999}',
+                    '{"nested":'+'['*2000+'0'+']'*2000+'}'):
             index.write_text(raw)
             for inspect in (identity.get_model_asset_observation, identity.capture_recovery_model_snapshot):
                 with self.subTest(malformed_index=raw, inspect=inspect.__name__), self.assertRaisesRegex(
@@ -210,7 +213,9 @@ class RecoveryModelIdentityTests(unittest.TestCase):
         path = self.root / 'config.json'
         original = path.read_bytes()
         try:
-            for raw in ('{', '{"field":1,"field":2}', '{"field":NaN}'):
+            for raw in ('{', '{"field":1,"field":2}', '{"field":NaN}',
+                        '{"field":1e999}', '{"field":-1e999}',
+                        '{"nested":'+'['*2000+'0'+']'*2000+'}'):
                 path.write_text(raw)
                 for inspect in (identity.get_model_asset_observation, identity.capture_recovery_model_snapshot):
                     with self.subTest(malformed_config=raw, inspect=inspect.__name__), self.assertRaisesRegex(

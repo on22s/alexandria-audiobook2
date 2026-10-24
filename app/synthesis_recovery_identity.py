@@ -20,6 +20,7 @@ from dataclasses import dataclass
 import ctypes
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import stat
@@ -318,7 +319,14 @@ def _get_bounded_model_json(path):
     def reject_constant(value):
         raise ValueError('Nonfinite model metadata')
 
-    return json.loads(data, object_pairs_hook=unique, parse_constant=reject_constant)
+    def finite_float(text):
+        value = float(text)
+        if not math.isfinite(value):
+            raise ValueError('Nonfinite model metadata')
+        return value
+
+    return json.loads(data, object_pairs_hook=unique, parse_constant=reject_constant,
+                      parse_float=finite_float)
 
 
 def _validate_model_inventory(root, files):
@@ -337,7 +345,7 @@ def _validate_model_inventory(root, files):
                 raise RecoveryIdentityUnavailable('model_config_limit')
             try:
                 document = _get_bounded_model_json(root / item.name)
-            except ValueError as error:
+            except (ValueError, RecursionError) as error:
                 raise RecoveryIdentityUnavailable('invalid_model_config') from error
             if not isinstance(document, dict):
                 raise RecoveryIdentityUnavailable('invalid_model_config')
@@ -355,7 +363,7 @@ def _validate_model_inventory(root, files):
             raise RecoveryIdentityUnavailable('weight_index_limit')
         try:
             document = _get_bounded_model_json(path)
-        except ValueError as error:
+        except (ValueError, RecursionError) as error:
             raise RecoveryIdentityUnavailable('invalid_weight_index') from error
         weight_map = document.get('weight_map') if isinstance(document, dict) else None
         if not isinstance(weight_map, dict) or not weight_map or len(weight_map) > 100000:
