@@ -26,6 +26,9 @@ MAX_WINDOWS = 1024
 MAX_INDEX_BYTES = 1024 * 1024
 LOCAL_CATEGORIES = ('custom', 'clone', 'design', 'lora', 'ensemble')
 _HEX32 = re.compile(r'[0-9a-f]{32}\Z')
+# A writer that publishes through `<output>.pending.<uuid4 hex>` (local design)
+# leaves this beside a declared window if the process dies mid-publish.
+_WINDOW_STAGING = re.compile(r'(window-[0-9]+\.wav)\.pending\.[0-9a-f]{32}\Z')
 _HEX64 = re.compile(r'[0-9a-f]{64}\Z')
 _LOG = logging.getLogger(__name__)
 
@@ -276,12 +279,16 @@ class SynthesisWorkspaceRegistry:
         try:
             if _identity(os.fstat(workspace_fd)) != row['identity']:
                 raise SynthesisWorkspaceUnavailable('Workspace directory changed')
-            allowed = ({f'window-{index}.wav' for index in range(row['windows'])}
+            windows = {f'window-{index}.wav' for index in range(row['windows'])}
+            allowed = (windows
                        | {f'assembled-parent{suffix}' for suffix in ('.wav', '.mp3', '.flac', '.ogg')}
                        | {'join'})
-            entries = self._get_names(workspace_fd, len(allowed))
-            if not set(entries) <= allowed:
-                raise SynthesisWorkspaceUnavailable('Unknown workspace contents preserved')
+            # Each declared window may also hold its writer's interrupted staging file.
+            entries = self._get_names(workspace_fd, len(allowed) + len(windows))
+            for child in entries:
+                staging = _WINDOW_STAGING.match(child)
+                if child not in allowed and not (staging and staging.group(1) in windows):
+                    raise SynthesisWorkspaceUnavailable('Unknown workspace contents preserved')
             if 'join' in entries:
                 info = os.stat('join', dir_fd=workspace_fd, follow_symlinks=False)
                 self._check_directory(info)

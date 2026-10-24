@@ -411,6 +411,23 @@ class SynthesisWorkspaceTests(unittest.TestCase):
         self.assertTrue(path.exists());self.assertEqual(0,self.cleanup_idle())
         (path.parent/'window-0.wav').unlink()
         self.assertEqual(1,self.cleanup_idle());self.assertFalse(path.exists())
+        # A hard exit mid-publish leaves a declared window's staging file
+        # (local design writes `<window>.pending.<uuid4 hex>`): still reclaimed.
+        name,_row=self.create(windows=2);space=self.root/workspace.DIRECTORY/name
+        (space/'window-0.wav').write_bytes(b'member');(space/('window-1.wav.pending.'+'e'*32)).write_bytes(b'staged')
+        self.assertEqual(1,self.cleanup_idle());self.assertFalse(space.exists())
+        # Lookalikes are not staging of a declared window: everything is kept.
+        for odd in ('window-2.wav.pending.'+'e'*32,'window-0.wav.pending.'+'E'*32,'window-0.wav.pending.'+'e'*31,
+                    'window-0.wav.pending.'+'e'*32+'.wav','window-0.wav.tmp.'+'e'*32,'link'):
+            with self.subTest(odd=odd):
+                name,_row=self.create(windows=2);space=self.root/workspace.DIRECTORY/name
+                (space/'window-0.wav').write_bytes(b'member')
+                if odd=='link':(space/('window-1.wav.pending.'+'e'*32)).symlink_to(space/'window-0.wav')
+                else:(space/odd).write_bytes(b'unknown')
+                self.cleanup_idle();self.assertTrue((space/'window-0.wav').exists())
+                for child in space.iterdir():
+                    if child.is_symlink() or not child.is_dir():child.unlink()
+                self.assertEqual(1,self.cleanup_idle());self.assertFalse(space.exists())
 
     def test_project_parent_publication_cancel_replacement_and_capacity(self):
         import numpy as np
