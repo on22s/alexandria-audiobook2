@@ -735,9 +735,10 @@ def get_playback_pause_plan(chunks, pause_ms=DEFAULT_PAUSE_MS,
     Rows without audio are skipped as export skips them: `has_audio` is the
     Project's own check (missing path, escaping path or missing file), so the
     gap after a row is measured to the same next row export joins it to. A file
-    that exists but cannot be decoded is only discovered by decoding; the
-    preview's error skip and export's load skip both pass over it. The last
-    playable row has no following gap. This plans pauses only:
+    that exists but cannot be decoded is only discovered during playback or
+    export. A runtime playback failure may therefore leave the preceding gap
+    based on the planned neighbor, while export recomputes after decode skips.
+    The last planned row has no following gap. This plans pauses only:
     the browser plays stored clip edges, while export additionally trims edge
     silence, so this is pause-policy parity rather than acoustic timeline parity.
     """

@@ -7411,8 +7411,9 @@
                 pausePlan = new Map(((plan && plan.pauses) || []).map(
                     row => [Number(row.chunk_id), Number(row.pause_ms)]));
             } catch (error) {
+                if (!isCurrentSequence()) { return; }
                 console.error('Playback pause plan failed:', error);
-                showActionError('Could not load playback pauses', error, 'Fix the pause shown above in the Editor, then play the sequence again.', 'warning');
+                showActionError('Could not load playback pauses', error, 'Check the reported error and your connection, then try playing the sequence again.', 'warning');
                 stopSequence();
                 return;
             }

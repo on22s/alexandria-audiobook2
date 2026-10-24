@@ -46,6 +46,19 @@ assert.strictEqual(snapshot(),before);assert.strictEqual(playing(),true);
 attempts[1].resolve();await settle();assert.strictEqual(snapshot(),before);
 ''')
 
+        for retire in ("ctx.stopSequence();", "ctx.applyCurrentBookFilename('book-B');", "ctx.applyCurrentBookFilename('book-A');"):
+            for restart in (False, True):
+                with self.subTest(pending_plan_retirement=retire, restart=restart):
+                    self.run_js(r"""
+vm.runInContext('currentBookFilename="book-A"',ctx);
+let rejectOld;ctx.API.get=()=>new Promise((resolve,reject)=>{rejectOld=reject;});
+const old=ctx.playSequence();RETIRE
+ctx.API.get=async()=>({pauses:[]});
+RESTART
+const before=snapshot();rejectOld(new Error('retired plan'));await old;await settle();
+assert.strictEqual(snapshot(),before);assert.strictEqual(playing(),EXPECTED);
+""".replace('RETIRE',retire).replace('RESTART','await ctx.playSequence();' if restart else '').replace('EXPECTED','true' if restart else 'false'))
+
     def test_saved_old_ended_and_error_handlers_cannot_mutate_restart(self):
         for event in ('onended', 'onerror'):
             with self.subTest(event=event):
