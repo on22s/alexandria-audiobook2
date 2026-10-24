@@ -104,6 +104,12 @@ class GetCasesTests(unittest.TestCase):
             self.assertTrue(np.array_equal(pcm, make_fault(np.full(2400, 7, dtype=np.int16), 'tail_cut')))
             self.assertEqual(again['source_sha256'], get_sha256(Path(root) / 'alice' / 'wav' / 'a1.wav'))
             self.assertNotEqual(again['input_sha256'], tail['input_sha256'])
+            # Reject an oversized designed WAV before creating its staged file.
+            with patch('word_timing.MAX_AUDIO_BYTES', 200), \
+                 patch.object(harness.tempfile, 'TemporaryDirectory',
+                              side_effect=AssertionError('oversized fault staged')):
+                with self.assertRaisesRegex(ValueError, 'Designed fault exceeds'):
+                    harness._planned_fault_identity(np.zeros(100, dtype=np.int16), 24000)
             # A clip id with path components is refused before any write.
             rows_path = Path(root) / 'alice' / 'rows.json'
             data = json.loads(rows_path.read_text())
@@ -132,10 +138,32 @@ class GetCasesTests(unittest.TestCase):
             self._run(root, 'alice', [('a1', 'a01', 1, 'text', 1)])
             path = Path(root) / 'alice' / 'rows.json'
             original = path.read_text()
+            # Even a matching proof cannot authorize audio outside this run.
+            outside = Path(root) / 'outside.wav'
+            outside.write_bytes((Path(root) / 'alice' / 'wav' / 'a1.wav').read_bytes())
+            external = json.loads(original)
+            external['rows'][0]['wav'] = str(outside)
+            path.write_text(json.dumps(external))
+            with self.assertRaisesRegex(ValueError, 'inside its pilot run'):
+                get_cases(root, Path(root) / 'd', {1}, ('alice',))
+            path.write_text(original)
             # JSON admission reads from its original bounded descriptor.
             with patch.object(Path, 'read_bytes', side_effect=AssertionError('pathname reopened')):
                 self.assertEqual(harness._read_bounded_json(path, harness.MAX_ROWS_BYTES),
                                  json.loads(original))
+            # Replacement after the descriptor opens is refused without reopening.
+            import project_scope_files as scope_files
+            real_open = scope_files._open_regular
+            admitted = Path(root) / 'admitted.json'
+            admitted.write_text('{}')
+            def replace_after_open(*args, **kwargs):
+                stream, info = real_open(*args, **kwargs)
+                admitted.unlink()
+                os.mkfifo(admitted)
+                return stream, info
+            with patch.object(scope_files, '_open_regular', side_effect=replace_after_open):
+                with self.assertRaises(ValueError):
+                    harness._read_bounded_json(admitted, 1024)
             data = json.loads(original)
             data['rows'][0]['speech_input']['audio']['sha256'] = 'other'
             path.write_text(json.dumps(data))
@@ -162,6 +190,29 @@ class GetCasesTests(unittest.TestCase):
             cases = [dict(c, runtime=RUNTIME) for c in get_cases(root, Path(root) / 'd', set(),
                                                                   ('w1435_U', 'w1435_W'))]
             self.assertEqual(['w1__control', 'w1__control'], [c['case_id'] for c in cases])
+            self.assertEqual(set(), get_reusable_results(Path(root) / 'fresh' / 'nested' / 'results.jsonl', cases))
+            # The actual CLI path must accept a fresh nested output directory.
+            from unittest.mock import MagicMock
+            pool = MagicMock()
+            pool.__enter__.return_value = pool
+            pool.imap_unordered.side_effect = lambda function, jobs: (valid_row(j[0]) for j in jobs)
+            argv = ['--pilot-root', root, '--asr-root', 'unused', '--out-dir',
+                    str(Path(root) / 'fresh' / 'nested'), '--runs', 'w1435_U',
+                    '--fault-seeds', '999', '--workers', '1']
+            with patch.object(harness, 'get_runtime_identity', return_value=RUNTIME), \
+                 patch.object(harness.multiprocessing, 'Pool', return_value=pool):
+                harness.main(argv)
+            self.assertEqual({('w1435_U', 'w1__control')}, get_reusable_results(
+                Path(root) / 'fresh' / 'nested' / 'results.jsonl', cases))
+            bad_out = Path(root) / 'bad-result'
+            argv[argv.index('--out-dir') + 1] = str(bad_out)
+            pool.imap_unordered.side_effect = lambda function, jobs: (
+                valid_row(j[0], seconds=float('nan')) for j in jobs)
+            with patch.object(harness, 'get_runtime_identity', return_value=RUNTIME), \
+                 patch.object(harness.multiprocessing, 'Pool', return_value=pool):
+                with self.assertRaises(ValueError):
+                    harness.main(argv)
+            self.assertEqual((bad_out / 'results.jsonl').read_bytes(), b'')
             results = Path(root) / 'results.jsonl'
             results.write_text(json.dumps(valid_row(cases[0])) + '\n')
             results.write_text('')
@@ -184,6 +235,14 @@ class GetCasesTests(unittest.TestCase):
             results.write_text(json.dumps(incomplete) + '\n')
             with self.assertRaisesRegex(ValueError, 'status'):
                 get_reusable_results(results, cases)
+            # Failure reason text cannot stand in for completed ASR evidence.
+            for malformed in (valid_row(cases[0], primary=None, reason='failed'),
+                              {k: v for k, v in valid_row(cases[0]).items() if k != 'duration'},
+                              valid_row(cases[0], status='corroborated_content_difference',
+                                        confirmation=None, corroborated=0)):
+                results.write_text(json.dumps(malformed) + '\n')
+                with self.assertRaises(ValueError):
+                    get_reusable_results(results, cases)
             # A rejected resume must not overwrite prior derived evidence.
             with tempfile.TemporaryDirectory() as artifact_root:
                 self._run(artifact_root, 'w1435_U', [('w1', 'w01', 1, 'same line', 1)])
@@ -208,6 +267,20 @@ class GetCasesTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'prior derived evidence changed'):
                     publish_cases(planned, derived, {(completed['run'], completed['case_id'])})
                 self.assertEqual(Path(pending['wav']).read_bytes(), b'pending evidence')
+                self._rewrite(artifact_root, 'w1435_U', 'w1', np.full(2400, 1, dtype=np.int16))
+                publish_cases([completed], derived)
+                outside = Path(artifact_root) / 'external.wav'
+                outside.write_bytes(Path(completed['wav']).read_bytes())
+                Path(completed['wav']).unlink()
+                for alias in ('symbolic', 'hard'):
+                    if alias == 'symbolic':
+                        Path(completed['wav']).symlink_to(outside)
+                    else:
+                        os.link(outside, completed['wav'])
+                    with self.assertRaises(ValueError):
+                        publish_cases(planned, derived, {(completed['run'], completed['case_id'])})
+                    self.assertEqual(Path(pending['wav']).read_bytes(), b'pending evidence')
+                    Path(completed['wav']).unlink()
             # The archived 334 rows keep their schema; they predate input/runtime binding.
             archive = Path(__file__).resolve().parent.parent.parent / 'docs' / 'benchmarks' / 'raw' / \
                 'speech-verification-1434-20261024' / 'results.jsonl'

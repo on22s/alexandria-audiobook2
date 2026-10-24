@@ -127,6 +127,8 @@ def _read_bounded_bytes(path, limit, *, missing=False):
     # read and checks its identity afterwards; never reopen an admitted path.
     from project_scope_files import capture_scope_file
     path = Path(path).absolute()
+    if missing and not path.parent.exists():
+        return b''
     info, raw = capture_scope_file(path.parent.resolve(), path.name,
                                    limit=limit, include_bytes=True)
     if not info['exists']:
@@ -169,18 +171,30 @@ def _read_control(path, expected_sha, expected_size):
 
 def get_rows(run_dir):
     """Rows whose WAV on disk is the audio their render proof names."""
-    from speech_verification_runtime import get_verifier_file_identity
+    from project_scope_files import capture_scope_file
+    from speech_verification_compare import get_comparison_tokens
     from word_timing import MAX_AUDIO_BYTES
-    data = _read_bounded_json(Path(run_dir) / 'rows.json', MAX_ROWS_BYTES)
+    root = Path(run_dir).resolve()
+    data = _read_bounded_json(root / 'rows.json', MAX_ROWS_BYTES)
     if not isinstance(data, dict) or not isinstance(data.get('rows'), list):
         raise ValueError(f'{run_dir}/rows.json has no rows list')
+    seen = set()
     for row in data['rows']:
         _validate_row(row)
+        if row['clip_id'] in seen:
+            raise ValueError('Duplicate clip identity in render rows')
+        seen.add(row['clip_id'])
+        if not get_comparison_tokens(row['speech_input']['text']):
+            raise ValueError('Control text has no verifier tokens')
         proof = row['speech_input']['audio']['sha256']
         if proof != row['wav_sha256']:
             raise ValueError(f"{row['clip_id']}: render proof does not match its WAV")
-        actual = get_verifier_file_identity(row['wav'], MAX_AUDIO_BYTES, lambda: False)
-        if actual['sha256'] != proof:
+        try:
+            relative = Path(row['wav']).absolute().relative_to(root)
+        except ValueError as error:
+            raise ValueError('Control WAV must stay inside its pilot run') from error
+        actual, _ = capture_scope_file(root, str(relative), limit=MAX_AUDIO_BYTES)
+        if not actual['exists'] or actual['sha256'] != proof:
             raise ValueError(f"{row['clip_id']}: WAV on disk is not the audio its render proof names")
         yield dict(row, input_sha256=actual['sha256'], input_size=actual['size'])
 
@@ -206,6 +220,10 @@ def _planned_fault_identity(pcm, rate):
     """Hash the exact WAV bytes a pending fault would publish, using private staging."""
     from speech_verification_runtime import get_verifier_file_identity
     from word_timing import MAX_AUDIO_BYTES
+    header = io.BytesIO()
+    sf.write(header, np.empty(0, dtype=np.int16), rate, format='WAV', subtype='PCM_16')
+    if pcm.nbytes + header.getbuffer().nbytes > MAX_AUDIO_BYTES:
+        raise ValueError('Designed fault exceeds the verifier WAV byte limit')
     with tempfile.TemporaryDirectory(prefix='.fault-plan-') as directory:
         path = Path(directory) / 'fault.wav'
         sf.write(str(path), pcm, rate, subtype='PCM_16')
@@ -220,6 +238,8 @@ def get_cases(pilot_root, derived_dir, fault_seeds, runs=RUNS):
     private staging so a rejected resume cannot overwrite prior evidence.
     """
     cases = []
+    if len(set(runs)) != len(runs):
+        raise ValueError('Duplicate pilot runs are not supported')
     for run in runs:
         if run not in RUNS:
             raise ValueError(f'unknown run: {run!r}')
@@ -250,8 +270,11 @@ def get_cases(pilot_root, derived_dir, fault_seeds, runs=RUNS):
 def publish_cases(cases, derived_dir, done=()):
     """Publish pending fault WAVs after resume validation; verify done evidence in place."""
     from speech_verification_runtime import get_verifier_file_identity
+    from project_scope_files import capture_scope_file
     from word_timing import MAX_AUDIO_BYTES
-    root = Path(derived_dir)
+    root = Path(derived_dir).absolute()
+    if root.resolve() != root:
+        raise ValueError('Derived evidence directory must not be an alias')
     root.mkdir(parents=True, exist_ok=True)
     # Validate every completed artifact before replacing any pending artifact.
     for case in cases:
@@ -261,8 +284,8 @@ def publish_cases(cases, derived_dir, done=()):
         if path.parent != root.absolute() and path.parent.resolve() != root.resolve():
             raise ValueError(f"{case['case_id']}: derived path is outside {root}")
         if (case['run'], case['case_id']) in done:
-            info = get_verifier_file_identity(path, MAX_AUDIO_BYTES, lambda: False)
-            if info['sha256'] != case['input_sha256'] or info['size'] != case['input_size']:
+            info, _ = capture_scope_file(root, path.name, limit=MAX_AUDIO_BYTES)
+            if not info['exists'] or info['sha256'] != case['input_sha256'] or info['size'] != case['input_size']:
                 raise ValueError(f"{case['case_id']}: prior derived evidence changed; refusing to overwrite")
     for case in cases:
         if case['fault'] == 'control' or (case['run'], case['case_id']) in done:
@@ -314,8 +337,16 @@ def _validate_result_row(row, location):
     if (type(seconds) not in (int, float) or isinstance(seconds, bool)
             or not math.isfinite(seconds) or not 0 <= seconds <= 86400):
         raise ValueError(f'{location}: seconds is missing or out of bounds')
-    if 'duration' in row and not (row['duration'] is None and row['status'] == 'unavailable'):
-        duration = row['duration']
+    if row['status'] != 'unavailable' and not isinstance(row.get('primary'), str):
+        raise ValueError(f'{location}: completed ASR requires a primary transcript')
+    if row['status'] in ('unavailable', 'review_confirmation_unavailable') and not isinstance(row.get('reason'), str):
+        raise ValueError(f'{location}: unavailable verification requires a reason')
+    if row['status'] == 'corroborated_content_difference' and (
+            not isinstance(row.get('confirmation'), str)
+            or type(row.get('corroborated')) is not int or row['corroborated'] <= 0):
+        raise ValueError(f'{location}: corroborated verdict lacks confirmation evidence')
+    if row['status'] != 'unavailable' or row.get('duration') is not None:
+        duration = row.get('duration')
         if (type(duration) not in (int, float) or isinstance(duration, bool)
                 or not math.isfinite(duration) or not 0 <= duration <= 86400):
             raise ValueError(f'{location}: duration is out of bounds')
@@ -428,13 +459,16 @@ def main(argv=None):
     jobs = [({key: value for key, value in c.items() if not key.startswith('_')},
              args.asr_root, str(scratch[i % args.workers])) for i, c in enumerate(todo)]
     by_key = {(c['run'], c['case_id']): c for c in todo}
-    with multiprocessing.Pool(args.workers) as pool, results.open('a') as fh:
+    with multiprocessing.Pool(args.workers) as pool, results.open('ab') as fh:
         for i, row in enumerate(pool.imap_unordered(_verify_owned, jobs), 1):
             _validate_result_row(row, 'worker result')
             case = by_key.get((row['run'], row['case_id']))
             if case is None or any(row.get(field) != case.get(field) for field in BINDING):
                 raise ValueError('Worker result does not match its planned case')
-            fh.write(json.dumps(row, ensure_ascii=False, allow_nan=False) + '\n')
+            encoded = (json.dumps(row, ensure_ascii=False, allow_nan=False) + '\n').encode('utf-8')
+            if fh.tell() + len(encoded) > MAX_RESULTS_BYTES:
+                raise ValueError('Results checkpoint exceeds its byte limit; prior rows were kept')
+            fh.write(encoded)
             fh.flush()
             print(i, len(todo), row['case_id'], row['status'], row['seconds'], flush=True)
 
