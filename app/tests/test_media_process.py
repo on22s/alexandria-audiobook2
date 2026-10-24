@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+from types import SimpleNamespace
 from unittest.mock import patch
 import sys
 import threading
@@ -36,20 +37,33 @@ class MediaProcessTests(unittest.TestCase):
         self.assertIs(cancelled, result.exception)
 
     def test_timeout_retains_callback_ownership_until_its_write_unwinds(self):
-        entered, release = threading.Event(), threading.Event()
+        entered, release, expired = threading.Event(), threading.Event(), threading.Event()
         def consume(_block):
             entered.set()
             if not release.wait(15):
                 raise RuntimeError('Test did not release its owned sink')
-        with ThreadPoolExecutor(max_workers=1) as worker:
+        # Reach the owned sink before expiring this operation's clock. Other
+        # modules keep real time, and callback startup still has a bounded wait.
+        clock_started = False
+        def monotonic():
+            nonlocal clock_started
+            # The worker may first run after the entry wait has already failed.
+            if not clock_started:
+                clock_started = True
+                return 0.0
+            return float(expired.is_set())
+        clock = SimpleNamespace(monotonic=monotonic)
+        with patch('media_process.time', clock), ThreadPoolExecutor(max_workers=1) as worker:
             future = worker.submit(run_owned_media_check, [sys.executable, '-c',
                 'import sys,time;sys.stdout.buffer.write(b"x"*65536);sys.stdout.flush();time.sleep(30)'],
                 lambda: None, .2, output_limit=65536, consume_output=consume)
             try:
                 self.assertTrue(entered.wait(5))
+                expired.set()
                 with self.assertRaises(FutureTimeoutError):
                     future.result(timeout=5)
             finally:
+                expired.set()
                 release.set()
             with self.assertRaises(subprocess.TimeoutExpired):
                 future.result(timeout=5)
