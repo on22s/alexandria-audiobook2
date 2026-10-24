@@ -135,7 +135,7 @@ def get_main_baseline(repo):
                          "--status", "completed", "--limit", "1",
                          "--json", "databaseId,headSha,conclusion,createdAt"))
     if not runs:
-        return None, set()
+        return None, None  # no main run to compare with: claim nothing
     run = runs[0]
     keys = set()
     if run["conclusion"] != "success":
@@ -169,13 +169,15 @@ def main(argv=None):
         if not args.attempt and meta.get("attempt", 1) > 1:
             for attempt, names in get_earlier_failed_attempts(repo, run_id, meta["attempt"]):
                 retried.append((run_id, attempt, meta["attempt"], names))
-    baseline_run, baseline = (None, set()) if args.no_baseline else get_main_baseline(repo)
+    # None, not an empty set, when skipped: nothing was compared, so claim nothing.
+    baseline_run, baseline = (None, None) if args.no_baseline else get_main_baseline(repo)
 
     if args.json:
         print(json.dumps({"repo": repo, "target": header, "baseline_run": baseline_run,
                           "earlier_failed_attempts": retried, "jobs": [
             {**{k: v for k, v in job.items() if k != "failures"}, "failures": [
-                {"test": t, "class": c, **entry, "on_main": (t, c) in baseline}
+                {"test": t, "class": c, **entry,
+                 "on_main": None if baseline is None else (t, c) in baseline}
                 for (t, c), entry in job["failures"].items()]} for job in results]}, indent=1))
         return 1 if results else 0
 
@@ -202,7 +204,8 @@ def main(argv=None):
                 print(f"   ##[error] {error}")
             print(f"   {job['url']}")
         for (test, cls), entry in sorted(job["failures"].items(), key=lambda item: item[0][1]):
-            label = "also on main" if (test, cls) in baseline else "NEW vs main"
+            label = ("not compared" if baseline is None
+                     else "also on main" if (test, cls) in baseline else "NEW vs main")
             subtests = f" [{len(entry['subtests'])} subtests]" if entry["subtests"] else ""
             print(f"   {entry['kind']:5} {label:12} {cls}.{test}{subtests}")
             if entry["detail"]:
