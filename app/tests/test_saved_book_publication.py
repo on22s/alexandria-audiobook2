@@ -58,6 +58,24 @@ class SavedBookPublicationTests(unittest.TestCase):
                 self.assertEqual(active,(root/'annotated_script.json').read_bytes())
                 self.assertEqual(['book'],[r['name'] for r in client.get('/api/scripts').json()])
 
+    def test_date_order_travels_with_the_saved_book(self):
+        # #1546: a saved book reopens with its own slash-date order; a book saved
+        # without one reopens on auto rather than inheriting the previous book's.
+        with self.fixture() as (root,api),contextlib.ExitStack() as stack,TestClient(api) as client:
+            for key in ('AUDIOBOOK_PATH','M4B_PATH','CHUNKS_PATH'):
+                stack.enter_context(patch.object(routes,key,str(root/os.path.basename(getattr(routes,key)))))
+            (root/'state.json').write_text('{"active_book_id":"new-book","speech_date_order":"dmy"}')
+            self.assertEqual(200,client.post('/api/scripts/save',json={'name':'book'}).status_code)
+            self.assertEqual({'book_id':'new-book','speech_date_order':'dmy'},
+                             json.loads((root/'scripts'/'book.meta.json').read_text()))
+            (root/'state.json').write_text('{"active_book_id":"other","speech_date_order":"mdy"}')
+            loaded=client.post('/api/scripts/load',json={'name':'book'})
+            self.assertEqual(200,loaded.status_code,loaded.text)
+            self.assertEqual('dmy',json.loads((root/'state.json').read_text())['speech_date_order'])
+            (root/'scripts'/'book.meta.json').write_text('{"book_id":"new-book"}')
+            self.assertEqual(200,client.post('/api/scripts/load',json={'name':'book'}).status_code)
+            self.assertNotIn('speech_date_order',json.loads((root/'state.json').read_text()))
+
     def test_real_metadata_publication_failure_restores_every_original_saved_artifact(self):
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
             before=self.artifacts(root);replace=os.replace;failed=False

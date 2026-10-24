@@ -395,3 +395,49 @@ async function saveOccurrencePronunciation() {
 }
 
 window.addEventListener('pagehide', resetPronunciationAudio);
+
+/* Slash-date order for the active book (#1546). Shown only when the book has a
+   date like 1/2/1900 that reads differently in US and UK order, or a saved choice. */
+let dateOrderBook = null;
+let dateOrderBusy = false;
+
+function renderDateOrder(result) {
+    const row = document.getElementById('date-order-row');
+    const ambiguous = result.evidence.detail.ambiguous_dates || 0;
+    dateOrderBook = result.book_token;
+    row.hidden = !ambiguous && result.choice === 'auto';
+    document.getElementById('date-order-choice').value = result.choice;
+    const names = {mdy: 'US order (month/day)', dmy: 'UK order (day/month)'};
+    const sources = {book_dates: "the book's own dates", spelling: "the book's spelling"};
+    let text;
+    if (result.choice !== 'auto') {
+        text = `Read in ${names[result.choice]}, as you chose.`;
+    } else if (result.order) {
+        text = `Auto: read in ${names[result.order]}, judged from ${sources[result.evidence.source]}. Choose US or UK to override.`;
+    } else {
+        text = `This book has ${ambiguous} date${ambiguous === 1 ? '' : 's'} like 1/2/1900 and doesn't show which order it uses. Choose US or UK; until then they are read as written.`;
+    }
+    document.getElementById('date-order-status').textContent = text;
+}
+
+async function loadDateOrder() {
+    if (dateOrderBusy) { return; }
+    dateOrderBusy = true;
+    try { renderDateOrder(await API.get('/api/pronunciation/date_order')); }
+    catch (error) { document.getElementById('date-order-status').textContent = 'Could not read the date order for this book.'; }
+    finally { dateOrderBusy = false; }
+}
+
+async function saveDateOrder() {
+    if (dateOrderBusy || !dateOrderBook) { return; }
+    dateOrderBusy = true;
+    const choice = document.getElementById('date-order-choice').value;
+    let failed = false;
+    try { renderDateOrder(await API.post('/api/pronunciation/date_order', {choice, expected_book_token: dateOrderBook})); }
+    catch (error) {
+        failed = true;
+        showActionError('Could not save the date order', error, 'Reload the book or wait for audio generation to finish, then try again.', 'error');
+    }
+    finally { dateOrderBusy = false; }
+    if (failed) { await loadDateOrder(); }
+}

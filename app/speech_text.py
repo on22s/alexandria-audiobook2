@@ -4,6 +4,7 @@ import re
 import logging
 
 
+from speech_numbers import get_book_date_order, verbalize_numbers
 from speech_policy import (SPEECH_BREAKS, SPEECH_WORDS, VERBALIZED_SYMBOLS,
                            SPOKEN_SYMBOLS, get_spoken_symbol, get_spoken_word_text,
                            get_spoken_text_spacing, get_scene_break_text,
@@ -142,6 +143,9 @@ def get_prelexicon_speech_normalization(text):
             transformations.append({"type": "spoken_symbol" if word else "dropped_reference_mark",
                                     "symbol": symbol, "replacement": word})
     normalized = re.sub(r"\s*" + re.escape(SCENE_BREAK_MARKER) + r"\s*", ". ", normalized)
+    # Money with cents, rising ranges and slash dates (#1546), before symbols.
+    normalized, number_transformations = verbalize_numbers(normalized, get_book_date_order())
+    transformations.extend(number_transformations)
     normalized, symbol_transformations = verbalize_symbols(normalized)
     transformations.extend(symbol_transformations)
     normalized, count = _ORPHAN_PUNCT_RE.subn(". ", normalized)

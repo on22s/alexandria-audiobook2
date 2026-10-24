@@ -39,6 +39,27 @@ class PronunciationPanelTests(unittest.TestCase):
         self.client = TestClient(app)
         self.request = {'expected_book_token': self.token, 'index': 0, 'expected_uid': 'a', 'text': 'Rom'}
 
+    def test_date_order_choice_is_saved_in_book_state_and_refused_when_stale_or_busy(self):
+        # #1546: the reader's choice is what ambiguous slash dates follow.
+        (self.root/'annotated_script.json').write_text(json.dumps([{'text': 'She wrote on 1/2/1900.'}]))
+        (self.root/'state.json').write_text(json.dumps({'active_book_id': 'book'}))
+        view = self.client.get('/api/pronunciation/date_order').json()
+        self.assertEqual(('auto', None, 1), (view['choice'], view['order'], view['evidence']['detail']['ambiguous_dates']))
+        saved = self.client.post('/api/pronunciation/date_order', json={'choice': 'dmy', 'expected_book_token': view['book_token']})
+        self.assertEqual(200, saved.status_code, saved.text)
+        self.assertEqual(('dmy', 'dmy'), (saved.json()['choice'], saved.json()['order']))
+        self.assertEqual({'active_book_id': 'book', 'speech_date_order': 'dmy'}, json.loads((self.root/'state.json').read_text()))
+        self.assertEqual(409, self.client.post('/api/pronunciation/date_order',
+                                               json={'choice': 'mdy', 'expected_book_token': '0' * 64}).status_code)
+        with patch.object(panel, 'is_task_running', return_value=True):
+            self.assertEqual(409, self.client.post('/api/pronunciation/date_order',
+                                                   json={'choice': 'mdy', 'expected_book_token': view['book_token']}).status_code)
+        back = self.client.post('/api/pronunciation/date_order', json={'choice': 'auto', 'expected_book_token': view['book_token']})
+        self.assertEqual({'active_book_id': 'book'}, json.loads((self.root/'state.json').read_text()))
+        self.assertEqual('auto', back.json()['choice'])
+        self.assertEqual(422, self.client.post('/api/pronunciation/date_order',
+                                               json={'choice': 'ymd', 'expected_book_token': view['book_token']}).status_code)
+
     def test_save_preserves_metadata_and_refuses_stale_or_malformed_file(self):
         loaded = self.client.get('/api/pronunciation').json()
         result = self.client.post('/api/pronunciation/save', json={'names': {'Rom': 'New'}, 'revision': loaded['revision']})

@@ -1257,6 +1257,30 @@
         "title": "DatasetSaveRequest",
         "type": "object"
       },
+      "DateOrderChoice": {
+        "properties": {
+          "choice": {
+            "enum": [
+              "auto",
+              "mdy",
+              "dmy"
+            ],
+            "title": "Choice",
+            "type": "string"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "choice",
+          "expected_book_token"
+        ],
+        "title": "DateOrderChoice",
+        "type": "object"
+      },
       "DeliveryRetryCancelRequest": {
         "properties": {
           "claim_id": {
@@ -10670,6 +10694,56 @@
           }
         },
         "summary": "Generate Pronunciation Audition Endpoint"
+      }
+    },
+    "/api/pronunciation/date_order": {
+      "get": {
+        "operationId": "get_date_order_endpoint_api_pronunciation_date_order_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Date Order Endpoint"
+      },
+      "post": {
+        "operationId": "save_date_order_endpoint_api_pronunciation_date_order_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DateOrderChoice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Date Order Endpoint"
       }
     },
     "/api/pronunciation/occurrences": {

@@ -48,6 +48,7 @@ from utils import (atomic_json_write, backup_file_with_timestamp, file_lock,
 from sound_design_registry import (ACTIVE_CUES, get_saved_sound_design_path,
                                    MAX_REGISTRY_BYTES)
 from project_scope_files import capture_scope_file
+from speech_numbers import STATE_KEY as DATE_ORDER_KEY, DATE_ORDER_CHOICES
 from sound_design_renditions import (ACTIVE_RENDITIONS, get_saved_sound_renditions_path,
                                      capture_sound_design_companions, MAX_RENDITION_BYTES)
 
@@ -218,8 +219,12 @@ def _save_script_sync(request):
         cue_bytes, rendition_bytes = _capture_sound_companions(DATA_DIR, ACTIVE_CUES, ACTIVE_RENDITIONS, book_id)
         _validate_sound_destination(SCRIPTS_DIR, os.path.basename(get_saved_sound_design_path(dest)), limit=MAX_REGISTRY_BYTES)
         _validate_sound_destination(SCRIPTS_DIR, os.path.basename(get_saved_sound_renditions_path(dest)), limit=MAX_RENDITION_BYTES)
+        meta = {"book_id": book_id}
+        active_state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), default={})
+        if isinstance(active_state, dict) and active_state.get(DATE_ORDER_KEY) in DATE_ORDER_CHOICES:
+            meta[DATE_ORDER_KEY] = active_state[DATE_ORDER_KEY]
         replacements = {os.path.basename(dest): script_bytes,
-            f"{safe_name}.meta.json": json.dumps({"book_id": book_id}).encode("utf-8")}
+            f"{safe_name}.meta.json": json.dumps(meta).encode("utf-8")}
         if cue_bytes is not None:
             replacements[os.path.basename(get_saved_sound_design_path(dest))] = cue_bytes
         if rendition_bytes is not None:
@@ -298,6 +303,13 @@ def _load_script_sync(request: ScriptLoadRequest):
                      book_generation=uuid.uuid4().hex)
         state.pop('_source_scope', None)
         state.pop('_source_scope_exports', None)
+        # The book's date order travels with it (#1546); absent means auto.
+        saved_order = safe_load_json(_saved_book_meta_path(safe_name), default={})
+        saved_order = saved_order.get(DATE_ORDER_KEY) if isinstance(saved_order, dict) else None
+        if saved_order in DATE_ORDER_CHOICES:
+            state[DATE_ORDER_KEY] = saved_order
+        else:
+            state.pop(DATE_ORDER_KEY, None)
         replacements = {os.path.relpath(SCRIPT_PATH, DATA_DIR): script_bytes,
                         "state.json": json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8")}
         if cue_bytes is not None:

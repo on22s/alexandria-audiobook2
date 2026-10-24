@@ -276,6 +276,8 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                          book_generation=uuid.uuid4().hex)
             state.pop('_source_scope', None)
             state.pop('_source_scope_exports', None)
+            from speech_numbers import STATE_KEY as date_order_key
+            state.pop(date_order_key, None)        # a new book starts on auto (#1546)
             # An explicit input selection starts a new book context. Validate
             # optional old metadata before clearing it in the same transaction;
             # malformed/recoverable files must not disappear on a failed switch.
