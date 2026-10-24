@@ -37,7 +37,7 @@ class BoundedPCMExportTests(unittest.TestCase):
         for fmt in ('mp3','wav'):
             for allowance in ((1024**2,70000,10000) if fmt=='mp3' else (1024**2,10000)):
                 with self.subTest(format=fmt,allowance=allowance),tempfile.TemporaryDirectory() as tmp:
-                    root=Path(tmp);raw=root/'input.pcm';raw.write_bytes(audio.raw_data)
+                    root=Path(tmp).resolve();raw=root/'input.pcm';raw.write_bytes(audio.raw_data)
                     output=root/('output.'+fmt);output.write_bytes(b'prior complete delivery')
                     plan=get_pcm_export_encoding_plan(geometry,format_name=fmt)
                     reports=[]
@@ -64,7 +64,7 @@ class BoundedPCMExportTests(unittest.TestCase):
         changed=FFmpegRuntimeIdentity.model_validate(changed)
         for fault in ('source','runtime'):
             with self.subTest(fault=fault),tempfile.TemporaryDirectory() as tmp:
-                root=Path(tmp);raw=root/'input.pcm';raw.write_bytes(audio.raw_data)
+                root=Path(tmp).resolve();raw=root/'input.pcm';raw.write_bytes(audio.raw_data)
                 output=root/'output.mp3';output.write_bytes(b'prior complete delivery')
                 worker=audio_pcm_mux.run_owned_media_check
                 def late_edit(*args,**kwargs):
@@ -89,7 +89,7 @@ class BoundedPCMExportTests(unittest.TestCase):
         plan=get_pcm_export_encoding_plan(geometry,format_name='mp3')
         self.assertEqual(32000,plan['sample_rate'])
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);raw=root/'input.pcm';raw.write_bytes(audio.raw_data)
+            root=Path(tmp).resolve();raw=root/'input.pcm';raw.write_bytes(audio.raw_data)
             output=root/'output.mp3';reports=[]
             def encode():
                 return export_bounded_pcm(raw,output,geometry,None,quality_plan=plan,

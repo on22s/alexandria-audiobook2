@@ -9,17 +9,46 @@ import sys
 import tempfile
 import time
 
+from json_metadata import get_unique_json_object
+
 from windows_subprocess_job import (WindowsSubprocessJob, get_windows_job_api,
                                     get_windows_job_active_process_count)
 
 
 def save_windows_owner_message(path, message):
+    # Even escaped astral characters fit the bounded receipt. Keep a useful
+    # error prefix rather than publishing a startup error the reader refuses.
+    if isinstance(message.get('error'),str) and len(message['error']) > 256:
+        message = {**message,'error':message['error'][:253]+'...'}
     temporary = path.with_suffix('.tmp')
     with temporary.open('x', encoding='utf-8') as stream:
         json.dump(message, stream)
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)
+
+
+def read_windows_owner_message(path):
+    """Read one bounded, complete supervisor receipt; leave I/O retry to its owner."""
+    with path.open('rb') as stream:
+        raw = stream.read(4097)
+    try:
+        if len(raw) > 4096:
+            raise ValueError('oversized receipt')
+        message = json.loads(raw.decode('utf-8'),object_pairs_hook=get_unique_json_object,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError('nonfinite receipt')))
+        valid = isinstance(message,dict) and (
+            (set(message) == {'started'} and type(message['started']) is int
+             and 0 < message['started'] <= 0xffffffff)
+            or (set(message) == {'error','errno'} and isinstance(message['error'],str)
+                and 0 < len(message['error']) <= 2048
+                and (message['errno'] is None or type(message['errno']) is int
+                     and -(2**31) <= message['errno'] < 2**31)))
+        if not valid:
+            raise ValueError('invalid receipt')
+    except (ValueError,UnicodeError,RecursionError):
+        raise OSError('Windows subprocess owner returned an invalid admission receipt') from None
+    return message
 
 
 class WindowsOwnerControl:
@@ -57,7 +86,13 @@ class WindowsOwnerControl:
                     logging.exception('Could not stop Windows job; retaining ownership')
                     reported = True
                 time.sleep(.05)
-        self.directory.cleanup()
+        try:
+            self.directory.cleanup()
+        except OSError:
+            # Kernel membership is already stopped and the handle closed.
+            # A blocked temporary receipt must not mask admission failure or
+            # prevent the caller from waiting/closing its process and pipes.
+            logging.exception('Could not remove Windows owner temporary files after job shutdown')
 
 
 def start_windows_owned_subprocess(command, *, exit_notice_path=None, termination_grace=None, inherited_handles=(), **kwargs):
@@ -90,13 +125,21 @@ def start_windows_owned_subprocess(command, *, exit_notice_path=None, terminatio
         assigned = True
         gate.touch(exist_ok=False)
         deadline = time.monotonic() + 30
-        while not admission.exists():
-            if process.poll() is not None:
-                raise OSError('Windows subprocess owner exited before worker admission')
+        while True:
+            try:
+                message = read_windows_owner_message(admission)
+                break
+            except FileNotFoundError:
+                if process.poll() is not None:
+                    raise OSError('Windows subprocess owner exited before worker admission')
+            except PermissionError:
+                # A published Windows receipt can temporarily deny reads. Keep
+                # the same admitted job and worker until the original deadline;
+                # never respawn or release ownership while its receipt is blocked.
+                pass
             if time.monotonic() >= deadline:
                 raise OSError('Windows subprocess owner did not acknowledge worker admission')
             time.sleep(.01)
-        message = json.loads(admission.read_text(encoding='utf-8'))
         if 'error' in message:
             raise OSError(message.get('errno'), message['error'])
         process._alexandria_control = control

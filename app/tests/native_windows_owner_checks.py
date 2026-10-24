@@ -7,6 +7,9 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
+
+import windows_subprocess_owner as owner
 
 from windows_subprocess_owner import start_windows_owned_subprocess
 
@@ -68,8 +71,33 @@ while not pathlib.Path(sys.argv[2]).exists():
 
     def test_native_high_bit_worker_exit_status_is_preserved(self):
         command = 'import ctypes;ctypes.WinDLL("kernel32").ExitProcess(ctypes.c_uint32(0xc0000142))'
-        process = start_windows_owned_subprocess([sys.executable, '-c', command])
+        # CreateFileW share mode zero prevents subsequent read opens until
+        # CloseHandle, exercising an actual Windows receipt-sharing denial.
+        api = ctypes.WinDLL('kernel32',use_last_error=True)
+        api.CreateFileW.argtypes = [ctypes.c_wchar_p,ctypes.c_uint32,ctypes.c_uint32,
+            ctypes.c_void_p,ctypes.c_uint32,ctypes.c_uint32,ctypes.c_void_p]
+        api.CreateFileW.restype = ctypes.c_void_p
+        api.CloseHandle.argtypes = [ctypes.c_void_p]
+        api.CloseHandle.restype = ctypes.c_int
+        original = owner.read_windows_owner_message
+        denied = []
+        def read_with_sharing_denial(path):
+            if denied or not path.exists():
+                return original(path)
+            handle = api.CreateFileW(str(path),0x80000000,0,None,3,0x80,None)
+            if handle == ctypes.c_void_p(-1).value:
+                raise ctypes.WinError(ctypes.get_last_error())
+            try:
+                return original(path)
+            except PermissionError:
+                denied.append(True)
+                raise
+            finally:
+                self.assertTrue(api.CloseHandle(handle))
+        with patch.object(owner,'read_windows_owner_message',side_effect=read_with_sharing_denial):
+            process = start_windows_owned_subprocess([sys.executable, '-c', command])
         try:
+            self.assertEqual([True],denied)
             self.assertEqual(0xc0000142, process.wait(timeout=10))
             self.assertEqual(0, process._alexandria_windows_owner.job.get_active_process_count())
         finally:

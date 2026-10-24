@@ -20,8 +20,8 @@ class M4BPCMTests(unittest.TestCase):
         for mastering in (None,{}):
             for allowance in (1024**2,1000):
                 with self.subTest(mastering=mastering,allowance=allowance), tempfile.TemporaryDirectory() as tmp:
-                    raw=Path(tmp)/'input.pcm';raw.write_bytes(audio.raw_data)
-                    output=Path(tmp)/'output.m4b';output.write_bytes(b'prior complete delivery')
+                    raw=Path(tmp).resolve()/'input.pcm';raw.write_bytes(audio.raw_data)
+                    output=Path(tmp).resolve()/'output.m4b';output.write_bytes(b'prior complete delivery')
                     reports=[]
                     def encode():
                         export_pcm_m4b(raw,output,settings,None,quality_plan=quality,
@@ -35,7 +35,7 @@ class M4BPCMTests(unittest.TestCase):
                         self.assertEqual(2,reports[-1]['chapters_checked'])
                         self.assertEqual(6,reports[-1]['tags_checked'])
                     self.assertEqual(audio.raw_data,raw.read_bytes())
-                    self.assertEqual({'input.pcm','output.m4b'},{p.name for p in Path(tmp).iterdir()})
+                    self.assertEqual({'input.pcm','output.m4b'},{p.name for p in Path(tmp).resolve().iterdir()})
 
     def test_unsafe_inputs_refuse_before_loudness_or_worker(self):
         settings=dict(frames=8,frame_rate=24000,channels=1,sample_width=2,
@@ -45,7 +45,7 @@ class M4BPCMTests(unittest.TestCase):
             expected_tags=get_m4b_tags({'title':'Synthetic'}))
         for fault in ('symlink','channel_limit','rate_limit','unsafe_name','wrong_size'):
             with self.subTest(fault=fault),tempfile.TemporaryDirectory() as tmp:
-                root=Path(tmp);raw=root/'input.pcm';raw.write_bytes(b'\0'*16)
+                root=Path(tmp).resolve();raw=root/'input.pcm';raw.write_bytes(b'\0'*16)
                 geometry=dict(settings)
                 if fault=='symlink':
                     target=root/'external.pcm';raw.rename(target)
@@ -79,14 +79,14 @@ class M4BPCMTests(unittest.TestCase):
         quality=get_pcm_export_encoding_plan(settings,format_name='m4b',
             chapters=[('Synthetic',0,2)],chapter_time_base=1,expected_tags=get_m4b_tags({'title':'Synthetic'}))
         with tempfile.TemporaryDirectory() as tmp:
-            raw=Path(tmp)/'input.pcm';raw.write_bytes(audio.raw_data)
-            output=Path(tmp)/'output.m4b';output.write_bytes(b'previous complete delivery')
+            raw=Path(tmp).resolve()/'input.pcm';raw.write_bytes(audio.raw_data)
+            output=Path(tmp).resolve()/'output.m4b';output.write_bytes(b'previous complete delivery')
             with patch('audio_m4b_pcm.get_ffmpeg_runtime_identity',side_effect=[runtime,changed]):
                 with self.assertRaisesRegex(ValueError,'encoder profile changed during'):
                     export_pcm_m4b(raw,output,settings,None,quality_plan=quality,max_output_bytes=1024**2,
                         encoder_runtime=get_ffmpeg_runtime_digest(runtime))
             self.assertEqual(b'previous complete delivery',output.read_bytes())
-            self.assertEqual({'input.pcm','output.m4b'},{p.name for p in Path(tmp).iterdir()})
+            self.assertEqual({'input.pcm','output.m4b'},{p.name for p in Path(tmp).resolve().iterdir()})
 
     def test_large_moov_cover_faststart_reopen_preserves_exact_cover(self):
         import hashlib
@@ -103,7 +103,7 @@ class M4BPCMTests(unittest.TestCase):
         buffer=io.BytesIO();image.save(buffer,format='PNG');cover_bytes=buffer.getvalue()
         self.assertGreater(len(cover_bytes),1024**2)
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);raw=root/'input.pcm';raw.write_bytes(audio.raw_data)
+            root=Path(tmp).resolve();raw=root/'input.pcm';raw.write_bytes(audio.raw_data)
             cover=root/'cover.image';cover.write_bytes(cover_bytes);output=root/'output.m4b';reports=[]
             export_pcm_m4b(raw,output,geometry,None,quality_plan=plan,max_output_bytes=4*1024**2,
                 cover_path=cover,cover_sha256=hashlib.sha256(cover_bytes).hexdigest(),quality_callback=reports.append)

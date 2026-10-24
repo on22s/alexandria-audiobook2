@@ -40,8 +40,8 @@ class PCMMuxWorkerTests(unittest.TestCase):
     def test_request_refuses_untrusted_shape_and_settings_before_capture_or_spawn(self):
         import pcm_mux_worker
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);(root/'input.pcm').write_bytes(b'\0'*96002)
-            directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=root))
+            root=Path(tmp).resolve();(root/'input.pcm').write_bytes(b'\0'*96002)
+            directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=root)).resolve()
             row=request(root,directory)
             for change in (dict(frames=True),dict(frames='48001'),dict(frame_rate=0),
                     dict(frame_rate=1,frames=96000),dict(raw_name='../escape'),
@@ -76,12 +76,12 @@ class PCMMuxWorkerTests(unittest.TestCase):
                 for mastering in (None,{}) if frames>1 else (None,):
                     with self.subTest(rate=rate,frames=frames,width=width,channels=channels,
                             fmt=fmt,mastering=mastering),tempfile.TemporaryDirectory() as tmp:
-                        root=Path(tmp);raw=root/'input.pcm'
+                        root=Path(tmp).resolve();raw=root/'input.pcm'
                         amplitudes={1:12,2:3500,4:229376000}
                         raw.write_bytes(b''.join(struct.pack({1:'b',2:'<h',4:'<i'}[width],
                             round(amplitudes[width]*math.sin(2*math.pi*(440+c*220)*i/rate)))
                             for i in range(frames) for c in range(channels)))
-                        directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=root))
+                        directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=root)).resolve()
                         row=request(root,directory,frames=frames,rate=rate,width=width,channels=channels,fmt=fmt)
                         base=[row['encoder']['binary']['path'],'-nostdin','-hide_banner','-nostats','-xerror',
                             '-threads','1','-filter_threads','1']
@@ -133,8 +133,8 @@ class PCMMuxWorkerTests(unittest.TestCase):
     def test_output_guard_refuses_before_allowance_is_crossed(self):
         for fmt in ('mp3','wav'):
             with self.subTest(format=fmt),tempfile.TemporaryDirectory() as tmp:
-                root=Path(tmp);raw=root/'input.pcm';raw.write_bytes(b'\0'*96002)
-                directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=root))
+                root=Path(tmp).resolve();raw=root/'input.pcm';raw.write_bytes(b'\0'*96002)
+                directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=root)).resolve()
                 limit=1024 if fmt=='mp3' else 96002+44
                 row=request(root,directory,fmt=fmt,limit=limit)
                 (directory/'request.json').write_text(json.dumps(row))
@@ -148,8 +148,8 @@ class PCMMuxWorkerTests(unittest.TestCase):
         import pcm_mux_worker
         import time
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);(root/'input.pcm').write_bytes(b'\0'*96002)
-            directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=root))
+            root=Path(tmp).resolve();(root/'input.pcm').write_bytes(b'\0'*96002)
+            directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=root)).resolve()
             row=request(root,directory);(directory/'request.json').write_text(json.dumps(row))
             spawn=pcm_mux_worker.subprocess.Popen;children=[]
             class BrokenReader:

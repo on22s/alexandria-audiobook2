@@ -48,9 +48,22 @@ class AdmissionJob:
 
 
 class WindowsOwnerAdmissionTests(unittest.TestCase):
-    def check_admission(self, fail_assignment=False, fail_worker=False):
+    def check_admission(self, fail_assignment=False, fail_worker=False, *, locked_reads=0,
+                        expect_denied=False, invalid_receipt=None, owner_exited=False):
         job = AdmissionJob(fail_assignment)
         observed = []
+        remaining = [locked_reads]
+        clock = [0]
+        open_file = Path.open
+        def open_receipt(path, *args, **kwargs):
+            if path.name == 'worker.json' and path.exists() and remaining[0]:
+                self.assertEqual(1,job.active)
+                self.assertIsNotNone(job.handle)
+                self.assertNotIn('terminate',job.calls)
+                remaining[0] -= 1
+                clock[0] += 1
+                raise PermissionError(13,'synthetic receipt sharing denial')
+            return open_file(path,*args,**kwargs)
         class Process:
             _handle = 0x200000002
             pid = 9001
@@ -58,16 +71,23 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
             killed = False
             def kill(self):
                 self.killed = True
+            waited = False
             def wait(self):
+                self.waited = True
                 return 0
             def poll(self):
                 gate, receipt = observed[0]
                 self_case.assertTrue(gate.exists(), 'worker started before admission gate')
                 self_case.assertIn('assign', job.calls)
+                if owner_exited:
+                    return 0
                 if not receipt.exists():
-                    owner.save_windows_owner_message(receipt,
-                        {'error': 'worker executable missing', 'errno': 2} if fail_worker
-                        else {'started': 9002})
+                    if invalid_receipt is not None:
+                        receipt.write_bytes(invalid_receipt)
+                    else:
+                        owner.save_windows_owner_message(receipt,
+                            {'error': 'worker executable missing', 'errno': 2} if fail_worker
+                            else {'started': 9002})
                 return None
         self_case = self
         process = Process()
@@ -80,11 +100,19 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
             self.assertEqual('fixture-cwd', kwargs['cwd'])
             return process
         with patch.object(owner, 'WindowsSubprocessJob', return_value=job), \
-             patch.object(owner.subprocess, 'Popen', side_effect=spawn):
-            if fail_assignment or fail_worker:
-                with self.assertRaisesRegex(OSError, 'assignment denied|worker executable missing'):
+             patch.object(owner.subprocess, 'Popen', side_effect=spawn) as spawned, \
+             patch.object(Path,'open',new=open_receipt), \
+             patch.object(owner.time,'monotonic',side_effect=lambda:clock[0]), \
+             patch.object(owner.time,'sleep') as sleep:
+            if fail_assignment or fail_worker or expect_denied or invalid_receipt is not None or owner_exited:
+                with self.assertRaisesRegex(OSError,
+                        'assignment denied|worker executable missing|did not acknowledge worker admission|invalid admission receipt|exited before worker admission') as error:
                     owner.start_windows_owned_subprocess(['worker', 'argument'], cwd='fixture-cwd')
+                self.assertNotIn('private-sentinel',str(error.exception))
+                if owner_exited:
+                    sleep.assert_not_called()
                 self.assertIsNone(job.handle)
+                self.assertTrue(process.waited)
                 self.assertFalse(observed[0][0].parent.exists())
                 if fail_assignment:
                     self.assertTrue(process.killed)
@@ -99,15 +127,41 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
                 result._alexandria_control.close()
                 self.assertLess(job.calls.index('stopped'), job.calls.index('close'))
                 self.assertFalse(observed[0][0].parent.exists())
+                self.assertEqual(0,remaining[0])
+            spawned.assert_called_once()
 
     def test_worker_admission_occurs_after_kernel_assignment(self):
-        self.check_admission()
+        for locked_reads in (0,1,3):
+            with self.subTest(locked_reads=locked_reads):
+                self.check_admission(locked_reads=locked_reads)
 
     def test_failed_kernel_assignment_never_opens_worker_gate(self):
         self.check_admission(fail_assignment=True)
 
     def test_failed_worker_admission_stops_the_entire_job_before_return(self):
         self.check_admission(fail_worker=True)
+        self.check_admission(fail_worker=True,locked_reads=2)
+        self.check_admission(owner_exited=True)
+        for message in ({'started':9002},{'error':'missing executable','errno':2},
+                {'error':'Unicode startup path '+('\U0001f642'*10000),'errno':None}):
+            with self.subTest(roundtrip=list(message)),tempfile.TemporaryDirectory() as tmp:
+                path=Path(tmp)/'receipt.json';before=dict(message)
+                owner.save_windows_owner_message(path,message)
+                receipt=owner.read_windows_owner_message(path)
+                self.assertEqual(before,message)
+                self.assertLessEqual(path.stat().st_size,4096)
+                if 'error' in message:
+                    self.assertTrue(message['error'].startswith(receipt['error'].rstrip('.')))
+                    self.assertEqual(message['errno'],receipt['errno'])
+                else:self.assertEqual(message,receipt)
+        self.check_admission(locked_reads=40,expect_denied=True)
+        for raw in (b'x'*4097,b'\xff',b'[]',b'{}',b'{"started":true}',b'{"started":0}',
+                b'{"started":4294967296}',b'{"started":1,"started":2}',
+                b'{"started":"private-sentinel-secret"}',b'{"started":1e999}',
+                b'{"error":"","errno":null}',b'{"error":"e","errno":1e999}',
+                b'{"started":1,"extra":0}',b'{"error":"failed","errno":true}',
+                b'{"error":NaN,"errno":null}',b'{invalid'):
+            with self.subTest(receipt=raw[:80]):self.check_admission(invalid_receipt=raw)
 
     def test_failed_temporary_directory_does_not_leak_job_handle(self):
         job = AdmissionJob()
@@ -129,12 +183,15 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
                         raise value
                     return value
                 return job.active
-            directory = SimpleNamespace(cleanup=lambda: job.calls.append('directory-cleaned'))
+            def cleanup():
+                job.calls.append('directory-cleaned')
+                raise PermissionError('synthetic locked receipt after job shutdown')
+            directory = SimpleNamespace(cleanup=cleanup)
             control = owner.WindowsOwnerControl(job, SimpleNamespace(pid=9001), directory)
             with patch.object(job, 'get_active_process_count', side_effect=query), \
                  patch.object(owner.logging, 'exception') as log, patch.object(owner.time, 'sleep') as sleep:
                 control.close()
-            self.assertEqual(1, log.call_count)
+            self.assertEqual(2, log.call_count)
             self.assertEqual(1, sleep.call_count)
             self.assertEqual(['terminate', 'stopped', 'close', 'directory-cleaned'], job.calls)
 

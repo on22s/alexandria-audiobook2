@@ -47,7 +47,7 @@ class M4BWorkerRequestTests(unittest.TestCase):
             for frames in (row['frames']+1, max(row['frames']+1,96000)):
                 bad=copy.deepcopy(row);bad['frames']=frames;bad['raw']['version'][2]=frames
                 with self.subTest(rate=rate,frames=frames),tempfile.TemporaryDirectory() as tmp:
-                    directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=tmp))
+                    directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=tmp)).resolve()
                     (directory/'request.json').write_text(json.dumps(bad))
                     with self.assertRaises(ValueError):
                         M4BInputShape.model_validate({**shape,'frames':frames})
@@ -104,7 +104,7 @@ class M4BWorkerRequestTests(unittest.TestCase):
     def test_invalid_request_stops_before_source_capture_and_process_creation(self):
         import m4b_mux_worker
         with tempfile.TemporaryDirectory() as tmp:
-            directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=tmp))
+            directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=tmp)).resolve()
             (directory/'request.json').write_bytes(b'{"raw_name":"../escape"}')
             with patch.object(m4b_mux_worker,'_capture') as capture, \
                     patch.object(m4b_mux_worker.subprocess,'Popen') as spawn:
@@ -115,8 +115,8 @@ class M4BWorkerRequestTests(unittest.TestCase):
         import m4b_mux_worker
         from project_scope_files import capture_scope_file
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);(root/'input.pcm').write_bytes(b'\0'*96000)
-            directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=root))
+            root=Path(tmp).resolve();(root/'input.pcm').write_bytes(b'\0'*96000)
+            directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=root)).resolve()
             (directory/'chapters.txt').write_bytes(
                 b';FFMETADATA1\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=800\ntitle=One\n'
                 b'[CHAPTER]\nTIMEBASE=1/1000\nSTART=500\nEND=1000\ntitle=Two\n')
@@ -136,7 +136,7 @@ class M4BWorkerRequestTests(unittest.TestCase):
     def test_untrusted_encoder_path_refuses_before_media_capture_or_process_creation(self):
         import m4b_mux_worker
         with tempfile.TemporaryDirectory() as tmp:
-            directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=tmp))
+            directory=Path(tempfile.mkdtemp(prefix='.pcm-encode-',dir=tmp)).resolve()
             (directory/'request.json').write_text(json.dumps(request()))
             with patch.object(m4b_mux_worker,'_capture') as capture, \
                     patch.object(m4b_mux_worker.subprocess,'Popen') as spawn:
