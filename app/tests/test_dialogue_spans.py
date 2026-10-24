@@ -76,6 +76,31 @@ class SpanTest(unittest.TestCase):
         text = '"Only one mark here, and then a great deal of narration. ' + "x " * 500
         self.assertEqual([], spoken_spans(text, "paired_quotes"))
 
+    def test_a_long_one_paragraph_speech_is_spoken(self):
+        # #1533: a single speech past 2,000 characters matched no span, so
+        # every entry inside it was recorded as narration. Dorian Gray has nine.
+        for opener, closer in (("“", "”"), ('"', '"'), ("「", "」")):
+            for size in (1900, 2000, 2001, 3300):
+                with self.subTest(mark=opener, size=size):
+                    speech = ("word " * size)[:size]
+                    text = f"He said, {opener}{speech}{closer} and left."
+                    self.assertEqual([speech], [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
+    def test_a_long_pair_across_a_blank_line_is_still_refused(self):
+        # The old cap's job: an unclosed opener must not pair with a closer
+        # paragraphs later and swallow the narration between. The real pair
+        # after it is still found.
+        narration = "The narrator went on at great length. " * 60
+        text = f"“Never closed.\n\n{narration}\n\n“Real line.” she said."
+        self.assertEqual(["Real line."], [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
+    def test_a_short_multi_paragraph_speech_keeps_its_old_span(self):
+        # Within the limit a blank line was allowed before and still is, so a
+        # speech whose paragraphs reopen without closing is not newly lost.
+        text = "“First paragraph of the speech.\n\n“Second paragraph.” he said."
+        self.assertEqual(["First paragraph of the speech.\n\n“Second paragraph."],
+                         [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
 
 class MarkEntriesTest(unittest.TestCase):
     SOURCE = ('Petra looked over. “Is there some problem, Subaru?”\n\n'
