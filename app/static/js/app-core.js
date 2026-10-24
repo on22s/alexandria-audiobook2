@@ -1819,6 +1819,7 @@
 
         let currentBookFilename = '';
         function applyCurrentBookFilename(filename) {
+            window.retirePlaybackSequence?.();
             currentBookFilename = typeof filename === 'string' ? filename : '';
             window.resetEditorReview?.();
             window.resetPronunciationBook?.();
@@ -7485,6 +7486,10 @@
                 btn.onclick = playSequence;
                 btn.classList.replace('btn-danger', 'btn-primary');
             }
+        };
+
+        window.retirePlaybackSequence = () => {
+            if (isPlayingSequence) { stopSequence(); }
         };
 
         const pendingChunkEdits = new Map();

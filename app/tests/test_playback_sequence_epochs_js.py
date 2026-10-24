@@ -20,6 +20,7 @@ const ctx={console:{error(){}},showToast:(text,tone)=>toasts.push({text,tone}),d
 vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf('let isPlayingSequence ='),source.indexOf('let isRenderingAll =')),ctx);
 vm.runInContext(source.slice(source.indexOf('window.stopOthers ='),source.indexOf('const pendingChunkEdits =')),ctx);
+vm.runInContext(source.slice(source.indexOf("let currentBookFilename ="),source.indexOf('function enqueueBookSelection')),ctx);
 const settle=async()=>{await Promise.resolve();await Promise.resolve();};
 const playing=()=>vm.runInContext('isPlayingSequence',ctx);
 const snapshot=()=>JSON.stringify({plays,pauses,button:button.innerHTML,highlight:rows.map(row=>[...row.classList.values]),toasts});
@@ -53,8 +54,24 @@ const before=snapshot();old();await settle();
 assert.strictEqual(snapshot(),before);assert.strictEqual(playing(),true);
 '''.replace('EVENT', event))
 
+        for filename in ('book-B', 'book-A'):
+            for event in ('onended', 'onerror', 'reject'):
+                with self.subTest(book_apply=filename, late_event=event):
+                    self.run_js(r"""
+vm.runInContext('currentBookFilename="book-A"',ctx);
+await ctx.playSequence();const old=audios[0].EVENT,oldAttempt=attempts[0];
+ctx.applyCurrentBookFilename('FILENAME');assert.strictEqual(playing(),false);
+const retired=snapshot();
+if ('EVENT' === 'reject') { oldAttempt.reject(new Error('old book request')); } else { old(); }
+await settle();assert.strictEqual(snapshot(),retired);
+await ctx.playSequence();assert.deepStrictEqual(plays,[0,0]);const restarted=snapshot();
+if ('EVENT' !== 'reject') { old(); }
+await settle();assert.strictEqual(snapshot(),restarted);assert.strictEqual(playing(),true);
+""".replace('FILENAME',filename).replace('EVENT',event))
+
     def test_stop_retires_handlers_and_resets_audio_feedback_and_button(self):
         self.run_js(r'''
+ctx.applyCurrentBookFilename('book-A');assert.deepStrictEqual(pauses,[]);assert.ok(audios.every(audio=>audio.currentTime===7));
 await ctx.playSequence();assert.strictEqual(typeof audios[0].onended,'function');assert.strictEqual(typeof audios[0].onerror,'function');
 ctx.stopSequence();assert.strictEqual(playing(),false);
 assert.deepStrictEqual(pauses,[0,1,2]);assert.ok(audios.every(audio=>audio.currentTime===0&&audio.onended===null&&audio.onerror===null));
