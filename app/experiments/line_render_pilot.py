@@ -1,4 +1,5 @@
-"""Owned fixed-line render pilots: #1545 (best of N), #1546 (numbers), #1435 (window seams).
+"""Owned fixed-line render pilots: #1545 (best of N), #1546 (numbers), #1435 (window seams),
+#1434 (verifier short and authored-repetition lines).
 
 Same owned, prepared-text render path as question_punctuation_ab.py (#1519):
 fresh process, explicit local settings, absolute LoRA adapter paths, explicit
@@ -11,7 +12,7 @@ own config copy, with the default seam policy.
 Adventures in Wonderland (public domain). `windows` passages are from Alice and
 The Picture of Dorian Gray (public domain); each splits exactly once at a
 150-character budget, at the seam kind its id names (s=sentence, c=clause,
-p=paragraph). This captures clips only; selection,
+p=paragraph). `verify` lines are short Alice-style or synthetic lines. This captures clips only; selection,
 ASR scoring and listening happen afterwards and are not validated here.
 """
 import argparse
@@ -104,7 +105,27 @@ WINDOWS = [
     ("p4", "\u201cIt is quite finished,\u201d he cried at last, and stooping down he wrote his name in long vermilion letters on the left-hand corner of the canvas.\n\nLord Henry came over and examined the picture."),
 ]
 WINDOW_SEAMS = {"s": "sentence", "c": "clause", "p": "paragraph"}
-LINE_SETS = {"numbers": NUMBERS, "alice": ALICE, "windows": WINDOWS}
+# #1434 verifier cases the other sets lack: short utterances (v, under six words)
+# and repetition that is written in the text (r), which must not be flagged.
+VERIFY = [
+    ("v01", "Yes."),
+    ("v02", "No, sir."),
+    ("v03", "Oh!"),
+    ("v04", "Who are you?"),
+    ("v05", "Come back!"),
+    ("v06", "Never mind."),
+    ("v07", "Hold your tongue!"),
+    ("v08", "Not at all."),
+    ("r01", "No, no, no, no!"),
+    ("r02", "Off with her head! Off with her head!"),
+    ("r03", "Faster! Faster!"),
+    ("r04", "Twinkle, twinkle, little bat! How I wonder what you're at!"),
+    ("r05", "I am very, very, very sorry."),
+    ("r06", "Beautiful, beautiful Soup!"),
+    ("r07", "Wake up, wake up, wake up!"),
+    ("r08", "Oh dear! Oh dear! I shall be too late!"),
+]
+LINE_SETS = {"numbers": NUMBERS, "alice": ALICE, "windows": WINDOWS, "verify": VERIFY}
 
 
 def get_window_settings(budget):
