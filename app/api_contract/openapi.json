@@ -6426,6 +6426,22 @@
         "summary": "Drift Check Endpoint"
       }
     },
+    "/api/chunks/playback_plan": {
+      "get": {
+        "operationId": "get_playback_plan_api_chunks_playback_plan_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Playback Plan"
+      }
+    },
     "/api/chunks/quality": {
       "get": {
         "operationId": "get_editor_quality_api_chunks_quality_get",

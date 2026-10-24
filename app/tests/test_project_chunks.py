@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import ANY, patch
 
 from project import (EXPLICIT_SILENCE_MS, ProjectManager,
-                     get_speakable_entries, group_into_chunks)
+                     get_playback_pause_plan, get_speakable_entries, group_into_chunks)
 from tts import DEFAULT_PAUSE_MS
 
 
@@ -275,6 +275,22 @@ class ScenBreakPauseSurvivesGroupingTest(unittest.TestCase):
             gap = AudioSegment.silent(duration=350).set_frame_rate(16000)
             self.assertEqual(200 + gap.duration_seconds * 1000, timeline[2][2])
         self.assertEqual(original, entries)
+
+    def test_playback_pause_plan_uses_export_rule_and_skips_unplayable_rows(self):
+        chunks = [
+            {'id': 0, 'speaker': 'A', 'audio_path': 'a.wav', 'pause_after': 1700},
+            {'id': 1, 'speaker': 'B', 'audio_path': None, 'pause_after': 5},
+            {'id': 2, 'speaker': 'A', 'audio_path': 'b.wav'},
+            {'id': 3, 'speaker': 'A', 'audio_path': 'c.wav', 'pause_after': 0},
+            {'id': 4, 'speaker': 'B', 'audio_path': 'd.wav'},
+            {'id': 5, 'speaker': 'C', 'audio_path': 'e.wav'},
+        ]
+        plan = get_playback_pause_plan(chunks, 500, 250)
+        self.assertEqual({0: 1700, 2: 250, 3: 0, 4: 500}, plan)
+        self.assertNotIn(1, plan)
+        self.assertNotIn(5, plan)
+        self.assertEqual(0, plan[3])
+        self.assertEqual(500, plan[4])
 
     def test_entries_without_a_pause_still_merge(self):
         # The fix must not stop ordinary same-speaker merging.

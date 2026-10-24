@@ -7098,7 +7098,9 @@
   "test_playback_sequence_epochs_js": [
     "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_active_run_error_and_rejection_skip_once_and_complete_normally",
     "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_missing_source_and_undefined_play_promise_keep_normal_sequence_order",
+    "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_plan_pauses_apply_nonzero_and_zero_and_duplicate_end_is_once",
     "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_saved_old_ended_and_error_handlers_cannot_mutate_restart",
+    "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_stop_and_restart_cancel_pending_plan_pause",
     "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_stop_retires_handlers_and_resets_audio_feedback_and_button",
     "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_stopped_play_rejection_cannot_advance_or_stop_a_restarted_run"
   ],
@@ -7496,6 +7498,7 @@
     "tests.test_project_chunks.ScenBreakPauseSurvivesGroupingTest.test_an_inline_scene_break_still_separates_two_chunks",
     "tests.test_project_chunks.ScenBreakPauseSurvivesGroupingTest.test_entries_without_a_pause_still_merge",
     "tests.test_project_chunks.ScenBreakPauseSurvivesGroupingTest.test_explicit_zero_pause_survives_persisted_chunks_and_timeline",
+    "tests.test_project_chunks.ScenBreakPauseSurvivesGroupingTest.test_playback_pause_plan_uses_export_rule_and_skips_unplayable_rows",
     "tests.test_project_chunks.ScenBreakPauseSurvivesGroupingTest.test_several_scene_breaks_each_keep_their_silence",
     "tests.test_project_chunks.ScriptShapeRegenerationTests.test_corrupt_chunk_backup_survives_invalid_source_shape",
     "tests.test_project_chunks.ScriptShapeRegenerationTests.test_failed_corrupt_backup_preserves_original_and_refuses_regeneration",

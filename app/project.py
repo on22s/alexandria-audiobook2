@@ -726,6 +726,28 @@ CHAPTER_TEMPLATE_FIELDS = ("chapter_number", "chapter_name", "book_name",
                            "series_name", "volume_number")
 
 
+def get_playback_pause_plan(chunks, pause_ms=DEFAULT_PAUSE_MS,
+                           same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS):
+    """Resolve each playable row's gap to the next playable row for preview.
+
+    Uses the export pause helper, so overrides (including zero) and the
+    same/different-speaker defaults cannot drift from the rendered timeline.
+    Rows without audio are skipped exactly as the preview's source check skips
+    them; the last playable row has no following gap. This plans pauses only:
+    the browser plays stored clip edges, while export additionally trims edge
+    silence, so this is pause-policy parity rather than acoustic timeline parity.
+    """
+    playable = [index for index, chunk in enumerate(chunks)
+                if chunk.get('audio_path') and type(chunk.get('id')) is int]
+    plan = {}
+    for position, index in enumerate(playable[:-1]):
+        current = chunks[index]
+        following = chunks[playable[position + 1]]
+        plan[current['id']] = get_pause_duration_ms(
+            current, following, pause_ms, same_speaker_pause_ms)
+    return plan
+
+
 def get_chapter_export_rows(manifest):
     """Return a usable whole chapter row set, or an empty set for old/corrupt data."""
     if not isinstance(manifest, dict):
