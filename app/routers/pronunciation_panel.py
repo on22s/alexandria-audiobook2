@@ -407,11 +407,26 @@ class DateOrderChoice(BaseModel):
     expected_book_token: str = Field(pattern=r'^[0-9a-f]{64}$')
 
 
+INVALID_STATE_DETAIL = ('Book state (state.json) is unreadable or not an object; restore it from a saved book '
+                        'or fix it by hand before choosing a date order.')
+
+
+def _get_date_order_view_locked(data_dir):
+    """The status and the token from one book selection; caller holds ensure_book_state."""
+    try:
+        token = get_book_operation_token(data_dir)
+    except ValueError:
+        raise HTTPException(status_code=422, detail=INVALID_STATE_DETAIL)
+    return {**get_book_date_order_status(data_dir), 'book_token': token}
+
+
 def get_date_order_view():
     """The active book's slash-date order: the choice, what auto found, and why (#1546)."""
     data_dir = os.path.dirname(SCRIPT_PATH)
-    status = get_book_date_order_status(data_dir)
-    return {**status, 'book_token': get_book_operation_token(data_dir)}
+    # A book switch between reading the status and the token would pair one book's
+    # order with another's token, and a save against that token would then succeed.
+    with ensure_book_state(data_dir):
+        return _get_date_order_view_locked(data_dir)
 
 
 @router.get('/api/pronunciation/date_order')
@@ -425,20 +440,24 @@ async def save_date_order_endpoint(request: DateOrderChoice):
 
 
 def save_date_order(request):
-    """Record the reader's choice in the active book state; ambiguous dates follow it."""
+    """Record the reader's choice in the active book state; ambiguous dates follow it.
+
+    The choice applies to renders from now on; audio already rendered and its
+    history are left as they are.
+    """
     data_dir = os.path.dirname(SCRIPT_PATH)
     state_path = os.path.join(data_dir, 'state.json')
     with ensure_book_state(data_dir), file_lock(state_path):
-        if get_book_operation_token(data_dir) != request.expected_book_token:
+        if _get_date_order_view_locked(data_dir)['book_token'] != request.expected_book_token:
             raise HTTPException(status_code=409, detail='Active book changed; reload before choosing a date order.')
         # Preparation must not change under a render that already prepared its text.
         if is_task_running('audio', process_state):
             raise HTTPException(status_code=409, detail='Audio is generating; change the date order after it finishes.')
         state = safe_load_json(state_path, default={})
         if not isinstance(state, dict):
-            raise HTTPException(status_code=422, detail='Book state is invalid; repair it before choosing a date order.')
+            raise HTTPException(status_code=422, detail=INVALID_STATE_DETAIL)
         updated = {key: value for key, value in state.items() if key != DATE_ORDER_KEY}
         if request.choice != 'auto':
             updated[DATE_ORDER_KEY] = request.choice
         atomic_json_write(updated, state_path, allow_nonatomic_fallback=False)
-    return get_date_order_view()
+        return _get_date_order_view_locked(data_dir)

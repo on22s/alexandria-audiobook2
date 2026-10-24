@@ -63,7 +63,10 @@ class LeftAloneTests(unittest.TestCase):
                      "The 1914-18 war.", "pages 1.2-3.4", "about 70/30 odds",
                      "Only 1/3 of the flour.", "On 2/3/90 it rained.", "On 13/13/1900.",
                      "On 2/30/1900.", "The ticket was £3.50.", "It cost $5.", "It cost $1,000,000.",
-                     "version 2.5-3", "a 3-5-7 pattern", "ratio 1/2/3"):
+                     "version 2.5-3", "a 3-5-7 pattern", "ratio 1/2/3",
+                     # Rising, but nothing beside them says "range".
+                     "The 737-800 entered service.", "He fell behind on a 1-2 pitch.",
+                     "Subtract 3-5."):
             with self.subTest(text=text):
                 self.assertEqual((text, []), verbalize_numbers(text))
 

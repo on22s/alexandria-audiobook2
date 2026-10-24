@@ -406,7 +406,9 @@ function renderDateOrder(result) {
     const ambiguous = result.evidence.detail.ambiguous_dates || 0;
     dateOrderBook = result.book_token;
     row.hidden = !ambiguous && result.choice === 'auto';
-    document.getElementById('date-order-choice').value = result.choice;
+    const select = document.getElementById('date-order-choice');
+    select.disabled = false;
+    select.value = result.choice;
     const names = {mdy: 'US order (month/day)', dmy: 'UK order (day/month)'};
     const sources = {book_dates: "the book's own dates", spelling: "the book's spelling"};
     let text;
@@ -424,7 +426,15 @@ async function loadDateOrder() {
     if (dateOrderBusy) { return; }
     dateOrderBusy = true;
     try { renderDateOrder(await API.get('/api/pronunciation/date_order')); }
-    catch (error) { document.getElementById('date-order-status').textContent = 'Could not read the date order for this book.'; }
+    catch (error) {
+        // The row is hidden until a load succeeds, so show it for the message and
+        // keep the choice unusable: there is no current book token to save against.
+        dateOrderBook = null;
+        document.getElementById('date-order-choice').disabled = true;
+        document.getElementById('date-order-row').hidden = false;
+        const detail = error && error.message ? ` ${error.message}` : '';
+        document.getElementById('date-order-status').textContent = `Could not read the date order for this book.${detail}`;
+    }
     finally { dateOrderBusy = false; }
 }
 

@@ -59,6 +59,37 @@ class PronunciationPanelTests(unittest.TestCase):
         self.assertEqual('auto', back.json()['choice'])
         self.assertEqual(422, self.client.post('/api/pronunciation/date_order',
                                                json={'choice': 'ymd', 'expected_book_token': view['book_token']}).status_code)
+        # A corrupt state.json is reported as repairable and left exactly as found.
+        for corrupt in ('{broken', '[]'):
+            (self.root/'state.json').write_text(corrupt)
+            for response in (self.client.get('/api/pronunciation/date_order'),
+                             self.client.post('/api/pronunciation/date_order',
+                                              json={'choice': 'dmy', 'expected_book_token': view['book_token']})):
+                self.assertEqual(422, response.status_code, (corrupt, response.text))
+                self.assertIn('state.json', response.json()['detail'])
+            self.assertEqual(corrupt, (self.root/'state.json').read_text())
+        # A book switch attempted between reading the order and the token cannot
+        # pair book A's order with book B's token: it waits for the view's lock.
+        (self.root/'state.json').write_text(json.dumps({'active_book_id': 'a', 'speech_date_order': 'dmy'}))
+        token_a = panel.get_book_operation_token(self.tmp.name)
+        read_status, switched = panel.get_book_date_order_status, []
+
+        def switch_book():
+            try:
+                with panel.ensure_book_state(self.tmp.name, timeout=0.2):
+                    (self.root/'state.json').write_text(json.dumps({'active_book_id': 'b'}))
+                    switched.append(True)
+            except TimeoutError:
+                switched.append(False)
+
+        def status_then_switch(data_dir):
+            status = read_status(data_dir)
+            worker = threading.Thread(target=switch_book); worker.start(); worker.join()
+            return status
+        with patch.object(panel, 'get_book_date_order_status', side_effect=status_then_switch):
+            view = self.client.get('/api/pronunciation/date_order').json()
+        self.assertEqual([False], switched)
+        self.assertEqual(('dmy', token_a), (view['choice'], view['book_token']))
 
     def test_save_preserves_metadata_and_refuses_stale_or_malformed_file(self):
         loaded = self.client.get('/api/pronunciation').json()

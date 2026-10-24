@@ -87,6 +87,34 @@ def _spoken_money(dollars, cents):
     return dollar_words if cents == 0 else f"{dollar_words} and {cent_words}"
 
 
+# A hyphen between two rising numbers is a range only when a word beside it says
+# so: "pages 3-5", "from 1890-1902", "3-5 pm". Without one it is as likely a code
+# or an operation ("the 737-800", "a 1-2 pitch", "subtract 3-5"), so it is left as
+# written. An en dash is the typographic range mark and needs no such word.
+_RANGE_WORDS_BEFORE = {
+    "from", "between", "pages", "page", "pp", "chapters", "chapter", "verses", "verse",
+    "lines", "questions", "items", "steps", "sections", "parts", "volumes", "vols",
+    "episodes", "rounds", "levels", "rooms", "nos", "numbers", "ages", "aged",
+    "years", "grades", "weeks", "days", "runs", "ran", "about", "roughly", "some"}
+_RANGE_WORDS_AFTER = {
+    "am", "pm", "a.m.", "p.m.", "o'clock", "seconds", "minutes", "hours", "days",
+    "weeks", "months", "years", "miles", "feet", "inches", "yards", "metres",
+    "meters", "kilometres", "kilometers", "pounds", "kilos", "percent", "%",
+    "people", "men", "women", "times", "players", "points"}
+_WORD_BEFORE_RE = re.compile(r"([A-Za-z.']+)\s*$")
+_WORD_AFTER_RE = re.compile(r"^\s*(%|[A-Za-z.']+)")
+
+
+def _has_range_context(match):
+    if "–" in match.group(0):
+        return True
+    before = _WORD_BEFORE_RE.search(match.string[:match.start()])
+    after = _WORD_AFTER_RE.search(match.string[match.end():])
+    return bool(before and before.group(1).lower().strip(".") in _RANGE_WORDS_BEFORE
+                or after and (after.group(1).lower() in _RANGE_WORDS_AFTER
+                              or after.group(1).lower().rstrip(".,;:") in _RANGE_WORDS_AFTER))
+
+
 def _is_range(first, second):
     if (first.startswith("0") and first != "0") or second.startswith("0"):
         return False
@@ -119,7 +147,7 @@ def verbalize_numbers(text, date_order=None):
 
     def number_range(match):
         first, second = match.groups()
-        if not _is_range(first, second):
+        if not _is_range(first, second) or not _has_range_context(match):
             return match.group(0)
         spoken = f"{first} to {second}"
         changes.append({"kind": "range", "source": match.group(0), "spoken": spoken})

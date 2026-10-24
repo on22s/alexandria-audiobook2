@@ -10,7 +10,7 @@ Element.prototype.querySelector=function(s){return this.querySelectorAll(s)[0]||
 Element.prototype.replaceChildren=function(...children){for(const child of [...this.children]){child.remove();}for(const child of children){this.appendChild(child);}};
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(v){if(v){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
 Element.prototype.insertCell=function(){return this.appendChild(new Element('td'));};Element.prototype.add=function(child){this.appendChild(child);};
-for(const id of ['pronunciation-add','pronunciation-preview','pronunciation-save','pronunciation-player','pronunciation-status','pronunciation-rows','pronunciation-line','pronunciation-audition-original','pronunciation-audition-spoken']){body.appendChild(new Element('div',{id}));}
+for(const id of ['pronunciation-add','pronunciation-preview','pronunciation-save','pronunciation-player','pronunciation-status','pronunciation-rows','pronunciation-line','pronunciation-audition-original','pronunciation-audition-spoken','date-order-row','date-order-choice','date-order-status']){body.appendChild(new Element('div',{id}));}
 let pauses=0,loads=0;const player=document.getElementById('pronunciation-player');player.pause=()=>pauses++;player.load=()=>loads++;
 context.Option=function(text,value){const node=new Element('option');node.textContent=text;node.value=value;return node;};
 context.window.addEventListener=()=>{};context.chunkSnapshotBookToken='b'.repeat(64);context.chunkSnapshotBook='A';context.currentBookFilename='A';
@@ -55,6 +55,8 @@ context.fetch=async()=>({ok:true,blob:async()=>({})});await context.auditionPron
     def test_failed_audition_has_explicit_error_and_no_player(self):
         self.run_js(r'''
 await context.loadPronunciationPanel();await context.previewPronunciationPanel();document.getElementById('pronunciation-line').value='0';document.getElementById('pronunciation-audition-original').value='Rom';document.getElementById('pronunciation-audition-spoken').value='Rohm';context.fetch=async()=>({ok:false,status:409,json:async()=>({detail:'Book changed'})});await context.auditionPronunciation('spoken');assert.equal(run('pronunciationAudioUrl'),null);assert.equal(errors.length,1);assert(document.getElementById('pronunciation-status').textContent.includes('refused'));
+const dateRow=document.getElementById('date-order-row');dateRow.hidden=true;context.API.get=async()=>{throw new Error('Book state (state.json) is unreadable');};await context.loadDateOrder();assert.equal(dateRow.hidden,false);assert.equal(document.getElementById('date-order-choice').disabled,true);assert(document.getElementById('date-order-status').textContent.includes('state.json'));
+const datePosts=posts.length;await context.saveDateOrder();assert.equal(posts.length,datePosts);
 ''')
 
     def test_multiline_native_value_normalization_preserves_unedited_raw_rules(self):

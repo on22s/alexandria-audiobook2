@@ -188,6 +188,7 @@
             'pronunciation-line': {what: 'Choose a current script line whose assigned voice, narrator context and voice timeline will be used for disposable pronunciation auditions.'},
             'pronunciation-audition-original': {what: 'Short original spelling to audition literally, without applying saved pronunciation substitutions. Generates temporary audio only.'},
             'pronunciation-audition-spoken': {what: 'Short proposed spoken replacement, applied to the original spelling through normal speech preparation with the selected line voice. Listening decides whether the replacement helps.'},
+            'date-order-choice': {what: 'How this book reads slash dates that fit both orders, such as 1/2/1900: month first (US) or day first (UK). Auto follows the book\'s own unambiguous dates, then its spelling, and leaves the date as written when neither decides. Applies to lines rendered from now on; audio already rendered is kept.'},
             'm4b-title': {what: 'Book title written into the M4B metadata. An untouched blank uses Audiobook; clearing an entered title or choosing Leave empty omits it.'},
             'm4b-author': {what: 'Author written into the M4B metadata.'},
             'm4b-narrator': {what: 'Narrator credit written into the M4B metadata.'},
