@@ -1,9 +1,9 @@
 """Explicit source cover materialization, with immutable export dependencies."""
 import base64
+from export_staging import create_export_staging
 from contextlib import contextmanager, nullcontext
 import hashlib
 from pathlib import Path
-import tempfile
 
 from book_state_transaction import ensure_book_state, get_book_operation_token, is_book_state_admitted
 from m4b_cover import get_validated_cover_bytes
@@ -70,8 +70,9 @@ def ensure_m4b_publication(root_dir, cover_path, source_cover=None, expected_boo
     if captured['cover_bytes'] is None:
         yield {'cover_path':captured['cover_path'],'expected_sources':captured['expected_sources']}
         return
-    with tempfile.TemporaryDirectory(prefix='.m4b-source-cover-', dir=root_dir) as directory:
-        path = Path(directory) / ('cover.png' if captured['media_type'] == 'image/png' else 'cover.jpg')
+    with create_export_staging(root_dir, 'cover') as staging:
+        directory = staging.path
+        path = directory / ('cover.png' if captured['media_type'] == 'image/png' else 'cover.jpg')
         path.write_bytes(captured['cover_bytes'])
         ensure_audio_export_active(cancel_check)
         yield {'cover_path': str(path), 'expected_sources': captured['expected_sources'],
