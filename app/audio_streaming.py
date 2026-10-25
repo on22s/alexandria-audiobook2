@@ -130,9 +130,9 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
                        pcm_plan_callback=None):
     """Return rounded duration, or None without writing for a legacy fallback."""
     ensure_audio_export_active(cancel_check)
-    layout = get_streamable_layout(segments)
     if len(speakers) != len(segments):
-        return None
+        raise ValueError('Audio segments and speakers must have the same length.')
+    layout = get_streamable_layout(segments)
     ordinary_pcm = is_plain_pcm_sequence(segments)
     segments = save_trimmed_pcm_sources(segments, cancel_check, source_store)
     ordinary_pcm = ordinary_pcm and is_plain_pcm_sequence(segments)
@@ -419,7 +419,9 @@ def write_combined_pcm(segments, speakers, path, pause_ms, same_speaker_pause_ms
                        pcm_plan_callback=None):
     """Write a bounded raw PCM stage or return None for the native compatibility path."""
     ensure_audio_export_active(cancel_check)
-    if len(speakers) != len(segments) or not is_bounded_pcm_supported(segments):
+    if len(speakers) != len(segments):
+        raise ValueError('Audio segments and speakers must have the same length.')
+    if not is_bounded_pcm_supported(segments):
         return None
     segments = save_trimmed_pcm_sources(segments, cancel_check, source_store)
     if not is_bounded_pcm_supported(segments):

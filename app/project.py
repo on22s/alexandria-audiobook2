@@ -2039,6 +2039,7 @@ class ProjectManager:
                                 pcm_plan_callback=pcm_plans.append)
                                 if os.path.basename(AudioSegment.converter).lower() in ('ffmpeg', 'ffmpeg.exe') else None)
                     if settings is None:
+                        print("  MP3: compatibility fallback (whole-buffer assembly)")
                         legacy_segments = [sources.load_segment(segment) for segment in audio_segments]
                         final_audio, pcm_plan = _get_legacy_export_audio(legacy_segments, speakers, pause_ms,
                             same_speaker_pause_ms, pause_overrides, cancel_check)
@@ -2302,6 +2303,7 @@ class ProjectManager:
                     pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check,
                     source_store=sources, pcm_plan_callback=pcm_plans.append)
                 if duration_ms is None:
+                    print("  M4B: compatibility fallback (whole-buffer assembly)")
                     legacy_segments = [sources.load_segment(segment) for segment in audio_segments]
                     final_audio, pcm_plan = _get_legacy_export_audio(legacy_segments, speakers,
                         pause_ms, same_speaker_pause_ms, pause_overrides, cancel_check)
