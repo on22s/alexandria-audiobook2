@@ -2252,6 +2252,13 @@
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_audit_replacement_after_close_cannot_mix_status_and_seed_snapshots",
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_native_report_preserves_group_order_scored_rows_and_legacy_precedence"
   ],
+  "test_comma_pauses": [
+    "tests.test_comma_pauses.CommaPauseTests.test_a_measure_that_ignores_the_text_cannot_tell_these_apart",
+    "tests.test_comma_pauses.CommaPauseTests.test_pause_at_the_comma_is_measured_and_a_cut_one_is_not",
+    "tests.test_comma_pauses.CommaPauseTests.test_punctuation_inside_numbers_is_not_a_mark_but_a_dash_is",
+    "tests.test_comma_pauses.CommaPauseTests.test_refused_timing_is_recorded_and_never_counted_as_a_pause",
+    "tests.test_comma_pauses.CommaPauseTests.test_summary_counts_skipped_marks_with_a_covering_interval"
+  ],
   "test_command_boundaries": [
     "tests.test_command_boundaries.CommandBoundaryTests.test_decimal_ports_form_exact_safe_start_command",
     "tests.test_command_boundaries.CommandBoundaryTests.test_invalid_ports_reject_before_transport",
