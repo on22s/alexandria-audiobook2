@@ -739,38 +739,53 @@ class SynthesisWorkspaceTests(unittest.TestCase):
         self.assertTrue(engine._generate_design_voice_prepared('Hello.','',{'description':'Clear voice'},str(output)))
         self.assertEqual(['Hello.'],calls);self.assertTrue(output.is_file())
         del engine.generate_voice_design
-        # Unregistered/overridden ensemble writers retain best-effort cleanup:
-        # a scratch IO error must not replace success or the provider's error.
+        # The fallback removes normal scratch and attempts best-effort cleanup
+        # on IO failure without replacing success, provider errors or cancellation.
         import errno,shutil
+        from contextlib import ExitStack
         from audio_generation_owner import AudioGenerationCancelled
         member_source=output
+        scratch=[];cleanup_attempts=[];failure=[None]
         def cleanup_io_failure(path,ignore_errors=False,onerror=None,**kwargs):
+            cleanup_attempts.append(Path(path))
             try:raise OSError(errno.EIO,'synthetic scratch cleanup failure')
             except OSError:
                 if ignore_errors:return
                 if onerror is not None:onerror(os.rmdir,path,sys.exc_info());return
                 raise
         def member(text,instruct,speaker,voices,path):
+            scratch.append(Path(path).parent)
+            if failure[0] is not None:raise failure[0]
             shutil.copyfile(member_source,path);return True
         def mixed(paths,path):
             shutil.copyfile(paths[0],path);return True
         voices={'A':{'type':'custom','voice':'Ryan'},'B':{'type':'custom','voice':'Ryan'}}
         output=self.root/'ensemble-fallback.wav'
         with patch.object(tempfile,'tempdir',str(self.root)), \
-                patch.object(shutil,'rmtree',side_effect=cleanup_io_failure), \
                 patch.object(engine,'_dispatch_prepared_voice',side_effect=member), \
                 patch('tts.mix_to_unison',side_effect=mixed):
-            self.assertTrue(engine._generate_ensemble_voice_prepared(
-                'Synthetic line.','',{'members':['A','B']},voices,str(output)))
-            prior=output.read_bytes()
-            self.assertEqual(member_source.read_bytes(),prior)
-            for error in (ValueError('synthetic provider failure'),AudioGenerationCancelled('synthetic cancellation')):
-                with self.subTest(fallback_error=type(error).__name__), \
-                        patch.object(engine,'_dispatch_prepared_voice',side_effect=error):
-                    with self.assertRaisesRegex(type(error),str(error)):
-                        engine._generate_ensemble_voice_prepared(
-                            'Synthetic line.','',{'members':['A','B']},voices,str(output))
-                    self.assertEqual(prior,output.read_bytes())
+            for cleanup_failed in (False,True):
+                with ExitStack() as faults:
+                    if cleanup_failed:
+                        faults.enter_context(patch.object(shutil,'rmtree',side_effect=cleanup_io_failure))
+                    for error in (None,ValueError('synthetic provider failure'),AudioGenerationCancelled('synthetic cancellation')):
+                        with self.subTest(cleanup_failed=cleanup_failed,fallback_error=type(error).__name__):
+                            failure[0]=error;before=len(scratch);attempts=len(cleanup_attempts)
+                            if error is None:
+                                self.assertTrue(engine._generate_ensemble_voice_prepared(
+                                    'Synthetic line.','',{'members':['A','B']},voices,str(output)))
+                                prior=output.read_bytes()
+                                self.assertEqual(member_source.read_bytes(),prior)
+                            else:
+                                with self.assertRaisesRegex(type(error),str(error)):
+                                    engine._generate_ensemble_voice_prepared(
+                                        'Synthetic line.','',{'members':['A','B']},voices,str(output))
+                                self.assertEqual(prior,output.read_bytes())
+                            directories=set(scratch[before:]);self.assertEqual(1,len(directories))
+                            directory=directories.pop()
+                            if cleanup_failed:
+                                self.assertEqual([directory],cleanup_attempts[attempts:])
+                            else:self.assertFalse(directory.exists())
         # Restore the window policy for the pre-existing unowned dispatch check.
         engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':5}}})
         with patch('tts.render_synthesis_windows') as dispatched:
