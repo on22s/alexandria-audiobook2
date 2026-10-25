@@ -1,6 +1,9 @@
 """Goal 4.1: does the +50% LoRA generation cost come from the adapter being
 applied UNMERGED?
 
+RETIRED after its answer shipped (#546: the engine now merges at load). It
+refuses to run; what follows describes the engine as it was when it ran.
+
 tts._init_local_lora wraps the talker in PeftModel.from_pretrained and leaves
 it there, so every decoder step computes W.x + B.A.x for every targeted module.
 peft's merge_and_unload folds B.A into W once; the per-step cost then equals the
@@ -67,6 +70,11 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--work", default=None, help="where the wavs go (default: next to --out)")
     args = ap.parse_args()
+    # Answered and shipped: since #546 the engine merges every adapter at load,
+    # so there is no unmerged arm left to time and merge_and_unload fails on
+    # the plain talker. Refuse before loading a model rather than crash after.
+    sys.exit("lora_merge_speed_probe is retired: the engine has merged adapters at load since #546 "
+             "(GOALS.md 4.1), so its unmerged arm no longer exists. The file is kept as that result's record.")
 
     from tts import TTSEngine, _resolve_asset_path
     adapter = args.adapter if os.path.isabs(args.adapter) else _resolve_asset_path(args.adapter)
