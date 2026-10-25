@@ -72,7 +72,7 @@ time.sleep(60)
                     audio_export.export_audio_segment(AudioSegment.silent(duration=300),path,'mp3',cancel)
             self.assertEqual(b'previous complete chapter',path.read_bytes())
             self.assertIsNotNone(processes[0].poll())
-            self.assertEqual([],list(root.glob('.chapter-export-*')))
+            self.assertEqual([],list(root.glob('.pcm-encode-*')))
             for pid in json.loads(marker.read_text()):self.assertFalse(Path('/proc',str(pid)).exists())
 
     def test_encoder_failure_preserves_previous_output_and_cleans_staging(self):
@@ -81,7 +81,7 @@ time.sleep(60)
             with self.assertRaisesRegex(RuntimeError,'Audio encoding failed'):
                 audio_export.export_audio_segment(AudioSegment.silent(duration=30),path,'invalid-format',lambda:False)
             self.assertEqual(b'previous audio',path.read_bytes())
-            self.assertEqual([],list(root.glob('.chapter-export-*')))
+            self.assertEqual([],list(root.glob('.pcm-encode-*')))
             report=root/'encoder-error.json';report.touch()
             modes=[None]
             from synthesis_workspace import is_synthesis_workspace_supported

@@ -20,7 +20,11 @@ from export_staging import create_export_staging
 staging = create_export_staging(sys.argv[2], sys.argv[3])
 (staging.path / 'payload.bin').write_bytes(b'x' * 4096)
 print(staging.path, flush=True)
-if sys.argv[4] == 'hold':
+if sys.argv[4] == 'recovery':
+    (staging.path / 'old').mkdir()
+    (staging.path / 'old' / 'backup.wav').write_bytes(b'keep')
+    os._exit(76)
+elif sys.argv[4] == 'hold':
     time.sleep(60)
 else:
     os._exit(76)
@@ -94,6 +98,38 @@ class ExportStagingTests(unittest.TestCase):
             result = reclaim_export_staging((tmp,))
             self.assertEqual({str(first_path), str(second_path)},
                              set(result['removed']))
+
+    def test_longer_staging_prefixes_are_reclaimed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for kind in ('cover', 'progress'):
+                with self.subTest(kind=kind):
+                    process, path = self.run_child(tmp, kind=kind, mode='exit')
+                    process.wait(timeout=10)
+                    process.communicate()
+                    result = reclaim_export_staging((tmp,))
+                    self.assertIn(str(path), result['removed'])
+                    self.assertFalse(path.exists())
+
+    def test_corrupt_marker_is_preserved_without_aborting_reclaim(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            broken = root / (PREFIXES['mp3'] + 'broken')
+            broken.mkdir()
+            (broken / MARKER).write_text('[' * 2000 + ']' * 2000)
+            result = reclaim_export_staging((root,))
+            self.assertEqual([], result['removed'])
+            self.assertIn(str(broken), result['preserved'])
+            self.assertTrue(broken.is_dir())
+
+    def test_chapter_rollback_old_directory_is_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            process, path = self.run_child(tmp, kind='chapter', mode='recovery')
+            process.wait(timeout=10)
+            process.communicate()
+            result = reclaim_export_staging((tmp,))
+            self.assertEqual([], result['removed'])
+            self.assertIn(str(path), result['preserved'])
+            self.assertTrue((path / 'old' / 'backup.wav').is_file())
 
     def test_unknown_sibling_missing_marker_and_foreign_parent_are_preserved(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -4060,8 +4060,11 @@
     "tests.test_export_source_boundary.ExportSourceBoundaryTests.test_worker_rejects_outside_or_nonfile_audio_before_copy_and_export"
   ],
   "test_export_staging": [
+    "tests.test_export_staging.ExportStagingTests.test_chapter_rollback_old_directory_is_preserved",
+    "tests.test_export_staging.ExportStagingTests.test_corrupt_marker_is_preserved_without_aborting_reclaim",
     "tests.test_export_staging.ExportStagingTests.test_hard_exit_leaves_a_verifiably_abandoned_directory",
     "tests.test_export_staging.ExportStagingTests.test_live_owner_is_preserved_until_the_lock_is_released",
+    "tests.test_export_staging.ExportStagingTests.test_longer_staging_prefixes_are_reclaimed",
     "tests.test_export_staging.ExportStagingTests.test_normal_exit_removes_the_marked_directory",
     "tests.test_export_staging.ExportStagingTests.test_parallel_live_owners_are_both_preserved",
     "tests.test_export_staging.ExportStagingTests.test_preserved_recovery_directory_is_not_reaped",

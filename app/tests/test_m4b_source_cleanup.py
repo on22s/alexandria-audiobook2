@@ -1,6 +1,7 @@
 """An owned temporary cover cleanup failure must not change export status."""
 from contextlib import ExitStack
 import hashlib
+import os
 from pathlib import Path
 import shutil
 import unittest
@@ -14,7 +15,7 @@ from tts import ExportCancelled
 class M4bSourceCleanupTests(unittest.TestCase):
     def test_cleanup_oserror_preserves_success_original_error_and_cancellation(self):
         fixture = source_fixture.M4bSourcePublicationTests()
-        original_rmtree = shutil.rmtree
+        original_unlink = os.unlink
         for fault in ('success', 'exception', 'cancel', 'encoder_failure'):
             with self.subTest(fault=fault), fixture.fixture() as (root, manager, row):
                 previous = fixture.prior(root, manager)
@@ -24,16 +25,18 @@ class M4bSourceCleanupTests(unittest.TestCase):
                 original_error = ValueError('synthetic original encoder failure')
 
                 cleanup_error = PermissionError('synthetic cover cleanup failure')
-                def remove_tree(path, *args, **kwargs):
+                def remove_file(path):
                     owned = Path(path)
-                    if owned.parent == root and owned.name.startswith('.m4b-source-cover-'):
-                        remaining.append(owned)
+                    if (owned.parent.parent == root and owned.parent.name.startswith('.m4b-source-cover-')
+                            and owned.name not in ('.export-staging.json',
+                                                   '.export-staging.owner.lock')):
+                        remaining.append(owned.parent)
                         raise cleanup_error
-                    return original_rmtree(path, *args, **kwargs)
+                    return original_unlink(path)
 
                 try:
                     with ExitStack() as stack:
-                        stack.enter_context(patch.object(shutil, 'rmtree', side_effect=remove_tree))
+                        stack.enter_context(patch.object(os, 'unlink', side_effect=remove_file))
                         if fault != 'success':
                             side_effect = original_error if fault == 'exception' else (
                                 ExportCancelled() if fault == 'cancel' else None)
@@ -81,18 +84,20 @@ class M4bSourceCleanupTests(unittest.TestCase):
 
     def test_non_oserror_cleanup_failure_still_surfaces_after_owned_cleanup(self):
         fixture = source_fixture.M4bSourcePublicationTests()
-        original_rmtree = shutil.rmtree
+        original_unlink = os.unlink
         error = RuntimeError('synthetic cleanup programming failure')
         with fixture.fixture() as (root, manager, _):
             previous = fixture.prior(root, manager)
             choice = fixture.selection(root)
-            def remove_tree(path, *args, **kwargs):
-                result = original_rmtree(path, *args, **kwargs)
+            def remove_file(path):
+                result = original_unlink(path)
                 owned = Path(path)
-                if owned.parent == root and owned.name.startswith('.m4b-source-cover-'):
+                if (owned.parent.parent == root and owned.parent.name.startswith('.m4b-source-cover-')
+                        and owned.name not in ('.export-staging.json',
+                                               '.export-staging.owner.lock')):
                     raise error
                 return result
-            with patch.object(shutil, 'rmtree', side_effect=remove_tree):
+            with patch.object(os, 'unlink', side_effect=remove_file):
                 with self.assertRaises(RuntimeError) as raised:
                     manager.merge_m4b(source_cover=choice)
             self.assertIs(error, raised.exception)

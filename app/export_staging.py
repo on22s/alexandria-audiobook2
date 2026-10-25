@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import secrets
 import shutil
+import stat
 import tempfile
 import time
 
@@ -30,6 +31,7 @@ OWNER_LOCK = '.export-staging.owner'
 MAX_MARKER_BYTES = 4096
 MAX_SCAN_ENTRIES = 4096
 MAX_RECLAIM = 64
+RECOVERY = '.export-staging-recovery'
 PREFIXES = {
     'chapter': '.chapter-export-',
     'chapters': '.chapter-export-',
@@ -72,23 +74,69 @@ class ExportStaging:
         if self._closed:
             return
         self._closed = True
-        if not remove:
-            # A retained rollback/recovery directory is no longer scratch. Drop
-            # the marker before releasing the lock so a reaper cannot claim it.
+        if remove:
+            # Delete payloads while the marker is still present. If this
+            # fails, the marker survives for a later retry instead of
+            # leaving an unidentifiable partial tree.
+            try:
+                _remove_contents(self.path)
+            except OSError:
+                self._lock.__exit__(None, None, None)
+                raise
+            except BaseException:
+                # A programming error is not a retryable filesystem fault;
+                # finish the owned bookkeeping and surface the original.
+                self._lock.__exit__(None, None, None)
+                try:
+                    _finish_removal(self.path)
+                except OSError:
+                    pass
+                raise
+            else:
+                self._lock.__exit__(None, None, None)
+                _finish_removal(self.path)
+        else:
+            # A retained rollback/recovery directory is no longer scratch.
+            # Drop the marker before releasing the lock so a reaper cannot
+            # claim it; if that unlink fails, leave a recovery guard.
             try:
                 os.unlink(self.path / MARKER)
             except FileNotFoundError:
                 pass
-        try:
+            except OSError:
+                try:
+                    (self.path / RECOVERY).write_bytes(b'1')
+                except OSError:
+                    pass
             self._lock.__exit__(None, None, None)
-        finally:
-            if remove:
-                _remove_tree(self.path)
+
+def _remove_contents(path):
+    """Remove owned payloads while leaving the marker and lock for retry."""
+    for entry in os.scandir(path):
+        if entry.name in (MARKER, OWNER_LOCK + '.lock', RECOVERY):
+            continue
+        if entry.is_dir(follow_symlinks=False):
+            shutil.rmtree(entry.path)
+        else:
+            os.unlink(entry.path)
+
+
+def _finish_removal(path):
+    for name in (OWNER_LOCK + '.lock', MARKER):
+        try:
+            os.unlink(path / name)
+        except FileNotFoundError:
+            pass
+    try:
+        os.rmdir(path)
+    except FileNotFoundError:
+        pass
 
 
 def _remove_tree(path):
     try:
-        shutil.rmtree(path)
+        _remove_contents(path)
+        _finish_removal(path)
     except FileNotFoundError:
         pass
 
@@ -98,8 +146,12 @@ def _write_marker(path, marker):
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL
                          | getattr(os, 'O_NOFOLLOW', 0), 0o600)
     try:
-        os.write(descriptor, encoded)
-        os.fsync(descriptor)
+        view = memoryview(encoded)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OSError('Short staging marker write')
+            view = view[written:]
     finally:
         os.close(descriptor)
 
@@ -112,7 +164,7 @@ def _read_marker(path):
         if len(raw) > MAX_MARKER_BYTES:
             return None
         value = json.loads(raw)
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError, RecursionError, MemoryError):
         return None
     if not isinstance(value, dict) or value.get('schema') != 1:
         return None
@@ -160,10 +212,12 @@ def create_export_staging(parent, kind):
 
 def _candidate(path):
     name = path.name
-    for kind, prefix in PREFIXES.items():
-        if name.startswith(prefix):
-            return kind, prefix
-    return None, None
+    matches = [(len(prefix), kind, prefix) for kind, prefix in PREFIXES.items()
+               if name.startswith(prefix)]
+    if not matches:
+        return None, None
+    _, kind, prefix = max(matches)
+    return kind, prefix
 
 
 def _matches_parent(marker, parent):
@@ -188,19 +242,39 @@ def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
         parent = Path(parent)
         try:
             entries = os.scandir(parent)
-        except OSError:
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            result['errors'].append(f'{parent}: {error}')
             continue
         with entries:
             for entry in entries:
-                scanned += 1
-                if scanned > max_scan:
-                    result['errors'].append(f'{parent}: scan limit reached')
-                    break
-                if not entry.is_dir(follow_symlinks=False):
+                try:
+                    info = entry.stat(follow_symlinks=False)
+                except OSError as error:
+                    result['errors'].append(f'{entry.path}: {error}')
+                    continue
+                if not stat.S_ISDIR(info.st_mode):
+                    continue
+                if getattr(info, 'st_file_attributes', 0) & getattr(
+                        stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0):
+                    result['preserved'].append(entry.path)
                     continue
                 path = Path(entry.path)
                 kind, prefix = _candidate(path)
                 if kind is None:
+                    continue
+                scanned += 1
+                if scanned > max_scan:
+                    result['errors'].append(f'{parent}: scan limit reached')
+                    break
+                if ((path / RECOVERY).exists()
+                        or (path / 'old').is_dir()
+                        and any((path / 'old').iterdir())):
+                    result['preserved'].append(str(path))
+                    continue
+                if (path / OWNER_LOCK).is_symlink() or (path / MARKER).is_symlink():
+                    result['preserved'].append(str(path))
                     continue
                 marker = _read_marker(path / MARKER)
                 if (marker is None or marker.get('prefix') != prefix
@@ -221,9 +295,10 @@ def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
                     if current != marker:
                         result['preserved'].append(str(path))
                         continue
+                    _remove_contents(path)
                     lock.__exit__(None, None, None)
                     lock = None
-                    _remove_tree(path)
+                    _finish_removal(path)
                     result['removed'].append(str(path))
                     removed += 1
                 except OSError as error:

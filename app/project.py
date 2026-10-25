@@ -773,6 +773,15 @@ def _can_register_chunk_encoding(manager, *, exporter=None):
             and encoding_checks_are_current()
             and export_audio_segment is _RAW_EXPORT_AUDIO_SEGMENT)
 CHAPTER_EXPORT_DIR = "chapter_exports"
+
+
+def _reclaim_export_staging(root_dir):
+    """Reclaim abandoned export staging and surface removal failures."""
+    result = reclaim_export_staging((root_dir, os.path.join(root_dir, CHAPTER_EXPORT_DIR),
+                                     os.path.join(root_dir, 'voicelines')))
+    for error in result['errors']:
+        logging.getLogger('AlexandriaUI').warning('Export staging recovery: %s', error)
+    return result
 DEFAULT_CHAPTER_TEMPLATE = "{chapter_number} - {chapter_name}"
 CHAPTER_TEMPLATE_FIELDS = ("chapter_number", "chapter_name", "book_name",
                            "series_name", "volume_number")
@@ -2101,7 +2110,7 @@ class ProjectManager:
         from export_quality import (get_export_quality_options, get_pcm_export_encoding_plan,
             get_admitted_export_report, notify_completed_export, ensure_export_stage_current)
         quality_options = get_export_quality_options(export_quality)
-        reclaim_export_staging((self.root_dir, os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)))
+        _reclaim_export_staging(self.root_dir)
         output_filename = "cloned_audiobook.mp3"
         output_path = os.path.join(self.root_dir, output_filename)
         staging = create_export_staging(self.root_dir, 'mp3')
@@ -2168,7 +2177,11 @@ class ProjectManager:
             return False, "Merge cancelled"
         finally:
             self._remove_temp_file(pending_output)
-            staging.finish(remove=True)
+            try:
+                staging.finish(remove=True)
+            except OSError as error:
+                logging.getLogger('AlexandriaUI').warning(
+                    'MP3 export staging cleanup failed: %s', error)
         if skipped:
             return True, f"{output_filename} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, output_filename
@@ -2338,7 +2351,7 @@ class ProjectManager:
             get_admitted_export_report, ensure_export_stage_current, notify_completed_export)
         from export_publication import ExportSourceSnapshot
         quality_options = get_export_quality_options(export_quality)
-        reclaim_export_staging((self.root_dir, os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)))
+        _reclaim_export_staging(self.root_dir)
         metadata = copy.deepcopy(metadata or {})
         from m4b_metadata import get_m4b_tags, get_m4b_source_chapters, get_m4b_metadata_text
         tags = get_m4b_tags(metadata)
@@ -2492,7 +2505,11 @@ class ProjectManager:
                         pass
             try:
                 if staging is not None:
-                    staging.finish(remove=True)
+                    try:
+                        staging.finish(remove=True)
+                    except OSError as error:
+                        logging.getLogger('AlexandriaUI').warning(
+                            'M4B export staging cleanup failed: %s', error)
             finally:
                 try:
                     publication.close()
@@ -2610,7 +2627,7 @@ class ProjectManager:
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         os.makedirs(out_dir, exist_ok=True)
         with file_lock(os.path.join(self.root_dir, ".chapter-export")):
-            reclaim_export_staging((self.root_dir, out_dir))
+            _reclaim_export_staging(self.root_dir)
             if chapters is not None:
                 manifest_path = os.path.join(out_dir, "manifest.json")
                 if os.path.lexists(manifest_path):
@@ -2702,7 +2719,11 @@ class ProjectManager:
             except ExportCancelled:
                 return False, "Export cancelled"
             finally:
-                staging.finish(remove=not retain_backup)
+                try:
+                    staging.finish(remove=not retain_backup)
+                except OSError as error:
+                    logging.getLogger('AlexandriaUI').warning(
+                        'Chapter export staging cleanup failed: %s', error)
 
     def _stage_chapter_export_plans(self, plans, chunks, options, pause_defaults,
                                     previous, chapters, changed_only, get_pairs,
