@@ -18,6 +18,13 @@ def get_basic_field(row, field):
     return get_chunk_text_key(value) if field == "text" and isinstance(value, str) else value
 
 
+def is_stored_grouping(groups, chunks):
+    """Whether these groups are the stored chunks' text, speaker and pauses."""
+    return len(groups) == len(chunks) and all(
+        get_basic_field(group, field) == get_basic_field(chunk, field)
+        for group, chunk in zip(groups, chunks) for field in BASIC_FIELDS)
+
+
 def get_delivery_retry_chunks(before, after, chunks):
     """Preserve unchanged native groups; detach audio only for regrouped rows.
 
@@ -34,13 +41,16 @@ def get_delivery_retry_chunks(before, after, chunks):
         raise ValueError("Delivery retry changed frozen or unaffected entries.")
     if chunks is None:
         return None
-    old_groups = group_into_chunks(before, include_source_indices=True)
-    new_groups = group_into_chunks(after, include_source_indices=True)
-    if len(old_groups) != len(chunks) or any(
-            any(get_basic_field(group, field) != get_basic_field(chunk, field)
-                for field in BASIC_FIELDS)
-            for group, chunk in zip(old_groups, chunks)):
+    # A book chunked before the Chinese/Japanese limits (#1353) keeps its
+    # stored sizes: regroup it the way it was grouped, or every one of its
+    # long CJK chunks reads as an edit. New limits apply when it is rebuilt.
+    for cjk_limits in (True, False):
+        old_groups = group_into_chunks(before, include_source_indices=True, cjk_limits=cjk_limits)
+        if is_stored_grouping(old_groups, chunks):
+            break
+    else:
         raise ValueError("Editor text or delivery changed; review those edits before retrying delivery.")
+    new_groups = group_into_chunks(after, include_source_indices=True, cjk_limits=cjk_limits)
     policy = get_literal_policy(before)
     for chunk in chunks:
         ensure_literal_chunk(chunk, policy)
