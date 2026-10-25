@@ -4063,6 +4063,7 @@
     "tests.test_export_staging.ExportStagingTests.test_hard_exit_leaves_a_verifiably_abandoned_directory",
     "tests.test_export_staging.ExportStagingTests.test_live_owner_is_preserved_until_the_lock_is_released",
     "tests.test_export_staging.ExportStagingTests.test_normal_exit_removes_the_marked_directory",
+    "tests.test_export_staging.ExportStagingTests.test_parallel_live_owners_are_both_preserved",
     "tests.test_export_staging.ExportStagingTests.test_preserved_recovery_directory_is_not_reaped",
     "tests.test_export_staging.ExportStagingTests.test_unknown_sibling_missing_marker_and_foreign_parent_are_preserved"
   ],
