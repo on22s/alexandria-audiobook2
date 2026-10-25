@@ -89,8 +89,8 @@ def get_report_markdown(book, by_speaker, voices, overall, sampled, eligible, da
         "",
         "- A pause is the longest stretch at least 30 dB quieter than the clip's loud level within 0.3 s of "
         "the mark. Typical reading pauses about 0.15–0.3 s at a comma.",
-        "- Compare voices with each other within one book. Rates move with the text: the same stock voice "
-        "skipped 8% on short probe lines and 37% in a novel, so there is no fixed target.",
+        "- Compare voices with each other within one book. There is no fixed target: a stock voice left "
+        "37-42% of commas under 0.10 s on public-domain text, and the rate moves with the text.",
         "- Rates only. A single chunk can skip a comma for good reason, and the measure cannot tell one "
         "chunk's skip from noise, so no chunk is flagged.",
         "- English only. A chunk whose word timing was refused is counted as refused, never as a pause.",
