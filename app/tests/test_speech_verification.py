@@ -66,6 +66,24 @@ class FinishedSpeechVerificationTests(unittest.TestCase):
         result = self.run_case('The calm guide closed.', TEXT)
         self.assertEqual('review', result['status'])
         self.assertEqual([], result['corroborated_regions'])
+        # Recorded transcripts from rights-clean native fault controls. A stronger
+        # future corroborator may reject them, but disagreement must not clear them.
+        cases = [('truncated_half',
+          'Before sunrise, Anna packed the map and waited beside the quiet door.',
+          ' Before sunrise, Anna packed the map.',
+          ' Before sunrise, Anna packed the mat'),
+         ('unexpected_repetition',
+          'Before sunrise, Anna packed the map and waited beside the quiet door.',
+          ' Before sunrise, Anna packed the map and waited beside the quiet door. Before '
+          'sunrise, Anna packed the map and waited beside the quiet door.',
+          ' Before sunrise, Anna packed the map and waited beside the quiet door.')]
+        for name, text, primary, confirmation in cases:
+            with self.subTest(recorded_fault=name):
+                self.transcribe.reset_mock()
+                recorded = self.run_case(primary, confirmation, text=text)
+                self.assertIn(recorded['status'], ('review', 'corroborated_content_difference'))
+                self.assertTrue(recorded['primary']['comparison']['differences'])
+                self.assertIn('confirmation', recorded)
 
     def test_duplicate_phrase_corroborates_but_authored_repeat_does_not(self):
         if not is_close_owned_cpu_asr_supported(): return
