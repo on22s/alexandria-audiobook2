@@ -18,6 +18,8 @@ spec.loader.exec_module(batch)
 
 class BatchTrainingEtaTests(unittest.TestCase):
     def setUp(self):
+        from tests.test_support import assume_ample_free_disk
+        assume_ample_free_disk(self)
         from tests.test_lora_batch_preflight import apply_test_training_dependency_fixture
         apply_test_training_dependency_fixture(self)
 

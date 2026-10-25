@@ -42,6 +42,8 @@ def apply_test_training_dependency_fixture(testcase):
 
 class BatchPreflightTests(unittest.TestCase):
     def setUp(self):
+        from tests.test_support import assume_ample_free_disk
+        assume_ample_free_disk(self)
         apply_test_training_dependency_fixture(self)
 
     def assert_files_preserved_with_archive_leases(self, root, before, archives):

@@ -6,6 +6,21 @@ import tempfile
 from unittest.mock import patch
 
 
+def assume_ample_free_disk(testcase):
+    """Report 1 TiB free to every unpatched disk probe for this test.
+
+    Tests of other behaviour must not fail on a host whose temp disk is low
+    (a full /tmp RAM disk failed 15 of them). Tests of the disk floor itself
+    still patch shutil.disk_usage locally, which takes precedence.
+    """
+    import shutil
+    from types import SimpleNamespace
+    free = 1024 ** 4
+    probe = patch.object(shutil, 'disk_usage', return_value=SimpleNamespace(total=2 * free, used=free, free=free))
+    probe.start()
+    testcase.addCleanup(probe.stop)
+
+
 @contextmanager
 def use_private_cpu_fixture_lock():
     """Select a real private lease for model-free CPU fixtures.

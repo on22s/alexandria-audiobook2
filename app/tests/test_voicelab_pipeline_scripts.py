@@ -40,6 +40,8 @@ voice_profiler = load_script("voice_profiler")
 
 class VoiceLabPipelineScriptTests(unittest.TestCase):
     def setUp(self):
+        from tests.test_support import assume_ample_free_disk
+        assume_ample_free_disk(self)
         training_fixtures.apply_test_training_dependency_fixture(self)
 
     def test_batch_empty_normalization_has_stable_distinct_child_ids(self):
@@ -854,6 +856,8 @@ class BatchMetadataFailureTests(unittest.TestCase):
 
 class BatchTrainingEtaTests(unittest.TestCase):
     def setUp(self):
+        from tests.test_support import assume_ample_free_disk
+        assume_ample_free_disk(self)
         training_fixtures.apply_test_training_dependency_fixture(self)
 
     def test_eta_counts_attempted_training_instead_of_cached_zip_ordinals(self):

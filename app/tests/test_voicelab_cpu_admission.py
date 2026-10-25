@@ -17,6 +17,8 @@ from tests.test_adapter_checkpoint_transaction import _write
 
 class VoiceLabCpuAdmissionTests(unittest.TestCase):
     def setUp(self):
+        from tests.test_support import assume_ample_free_disk
+        assume_ample_free_disk(self)
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name);self.models=self.root/'models';self.models.mkdir()
         _write(self.models/'raw_a',1)

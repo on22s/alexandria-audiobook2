@@ -264,6 +264,10 @@ class VoiceLabZipTypeTests(unittest.TestCase):
 
 
 class VoiceLabNamingInputTests(unittest.TestCase):
+    def setUp(self):
+        from tests.test_support import assume_ample_free_disk
+        assume_ample_free_disk(self)
+
     def test_name_only_needs_no_dataset_but_data_stages_still_refuse(self):
         from pathlib import Path
         from unittest.mock import patch
@@ -282,6 +286,10 @@ class VoiceLabNamingInputTests(unittest.TestCase):
 
 
 class VoiceLabMpsProbeTests(unittest.TestCase):
+    def setUp(self):
+        from tests.test_support import assume_ample_free_disk
+        assume_ample_free_disk(self)
+
     def test_actual_selected_interpreter_probe_and_backend_specific_admission(self):
         from pathlib import Path
         import sys

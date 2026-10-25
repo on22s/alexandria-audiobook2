@@ -14,6 +14,8 @@ from routers import voicelab as v
 
 class VoiceLabStageValidationTests(unittest.TestCase):
     def setUp(self):
+        from tests.test_support import assume_ample_free_disk
+        assume_ample_free_disk(self)
         state = copy.deepcopy(core.process_state)
         for value in state.values():
             value['running'] = False

@@ -25,6 +25,8 @@ BAD_DOCUMENTS=(b'{}',b'null',b'"scalar"',b'3',b'true',b'[{"id":"keep"},null]',b'
 
 class VoiceManifestShapeTests(unittest.TestCase):
     def setUp(self):
+        from tests.test_support import assume_ample_free_disk
+        assume_ample_free_disk(self)
         training_fixtures.apply_test_training_dependency_fixture(self)
 
     def get_batch_args(self,root):

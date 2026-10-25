@@ -451,6 +451,9 @@
     "tests.test_asr_reading_rescore.ReadingScoreTest.test_kanji_and_kana_spellings_of_one_word_score_as_equal",
     "tests.test_asr_reading_rescore.ReadingScoreTest.test_the_real_botchan_pair_scores_far_better_on_readings"
   ],
+  "test_assume_ample_free_disk": [
+    "tests.test_assume_ample_free_disk.AssumeAmpleFreeDiskTests.test_low_host_disk_no_longer_reaches_the_preflight_floor"
+  ],
   "test_attestation_gate_fallback": [
     "tests.test_attestation_gate_fallback.AttestationGateFallback.test_an_explicit_block_still_decides",
     "tests.test_attestation_gate_fallback.AttestationGateFallback.test_every_committed_pdnc_fixture_turns_the_gate_off",
