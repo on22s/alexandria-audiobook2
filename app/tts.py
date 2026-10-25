@@ -2188,12 +2188,16 @@ class TTSEngine:
         members = voice_data.get("members") or []
         from synthesis_workspace import ensure_synthesis_workspace, get_synthesis_workspace_parent
         from synthesis_recovery_context import get_synthesis_recovery_parent
+        from contextlib import ExitStack
         workspace_parent = get_synthesis_workspace_parent(
             self, "ensemble", get_synthesis_recovery_parent())
-        workspace = (ensure_synthesis_workspace(workspace_parent, max(2, len(resolved_members)))
-                     if workspace_parent is not None
-                     else tempfile.TemporaryDirectory(prefix="unison_"))
-        with workspace as directory:
+        with ExitStack() as cleanup:
+            if workspace_parent is not None:
+                directory = cleanup.enter_context(
+                    ensure_synthesis_workspace(workspace_parent, max(2, len(resolved_members))))
+            else:
+                directory = tempfile.mkdtemp(prefix="unison_")
+                cleanup.callback(shutil.rmtree, directory, ignore_errors=True)
             member_paths = []
             for i, member in enumerate(resolved_members):
                 member_path = os.path.join(str(directory), f"window-{i}.wav")
