@@ -190,13 +190,15 @@ def get_narrator_generation_context(entry):
 SOURCE_FACT_FIELDS = ("spoken", "source_speaker", "source_span", "dialogue_ambiguity")
 
 
-def is_same_chunk_context(first, second):
+def is_same_chunk_context(first, second, *, coalesce_unlocated=True):
     """Whether two entries may share a chunk.
 
     Every reader of a chunk's `spoken` asks only "is this speech?", so an
     unlocated entry (no `spoken`) and located narration (`spoken: false`) do
     not split a run of narration; neither ever joins confirmed speech.
     """
+    if not coalesce_unlocated:
+        return first == second
     return ({**first, "spoken": first.get("spoken") is True}
             == {**second, "spoken": second.get("spoken") is True})
 
@@ -609,11 +611,14 @@ def get_chunk_char_limit(text, base=MAX_CHUNK_CHARS):
 
 
 def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
-                      review_sink=None, include_source_indices=False, cjk_limits=True):
+                      review_sink=None, include_source_indices=False, cjk_limits=True,
+                      coalesce_unlocated=True):
     """Group consecutive entries by same speaker into chunks up to max_chars
 
     cjk_limits=False reproduces grouping from before the Chinese/Japanese
     limits (#1353), so chunks made then can still be recognised.
+    coalesce_unlocated=False preserves the older missing/False spoken-context
+    boundaries for delivery retry. Rebuilds keep the current defaults.
     """
     if not isinstance(max_chars, int) or isinstance(max_chars, bool) or max_chars < 1:
         raise ValueError("max_chars must be a positive integer")
@@ -647,7 +652,8 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
         # paragraph then played its pause after both sentences instead of
         # between them, which is not audible as a break at all.
         if (speaker == current_speaker and instruct == current_instruct
-                and is_same_chunk_context(narrator_context, current_context)
+                and is_same_chunk_context(narrator_context, current_context,
+                                          coalesce_unlocated=coalesce_unlocated)
                 and current_pause_after is None
                 and not _is_structural_text(current_text)
                 and not _is_structural_text(text)):

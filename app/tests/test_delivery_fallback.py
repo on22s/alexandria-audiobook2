@@ -164,6 +164,40 @@ class DeliveryFallbackTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Editor"):
                 get_delivery_retry_chunks(rows, updated, edited)
         self.assertIsNone(get_delivery_retry_chunks(rows, updated, None))
+        # Recognise current and historical canonical layouts, even when a
+        # manual re-chunk happens to match one: keep the actual stored takes.
+        for texts in (("One.", "Two.", "Three."), ("汉" * 220 + "。",) * 3):
+            before = [dict(speaker="NARRATOR", text=text, instruct="Neutral.",
+                           instruct_unchecked=True, **({"spoken": False} if i != 1 else {}))
+                      for i, text in enumerate(texts)]
+            for cjk_limits in (True, False):
+                for coalesce_unlocated in (True, False):
+                    with self.subTest(cjk_limits=cjk_limits, coalesce_unlocated=coalesce_unlocated,
+                                      text=texts[0][:10]):
+                        stored = [dict(row, id=i, uid=f"native-{i}", status="done",
+                                       audio_path=f"voicelines/native-{i}.wav")
+                                  for i, row in enumerate(group_into_chunks(
+                                      before, cjk_limits=cjk_limits,
+                                      coalesce_unlocated=coalesce_unlocated))]
+                        original = copy.deepcopy(stored)
+                        self.assertEqual(stored, get_delivery_retry_chunks(before, before, stored))
+                        self.assertEqual(original, stored)
+                        edited = copy.deepcopy(stored)
+                        edited[0]["text"] = "Editor correction."
+                        with self.assertRaisesRegex(ValueError, "Editor text or delivery changed"):
+                            get_delivery_retry_chunks(before, before, edited)
+        # Distinct instructions can make the old layout match every profile.
+        # Current-first selection then gives deterministic regrouping on retry.
+        before = [dict(speaker="NARRATOR", text=text, instruct=str(i), instruct_unchecked=True,
+                       **({"spoken": False} if i != 1 else {}))
+                  for i, text in enumerate(("One.", "Two.", "Three."))]
+        stored = [dict(row, id=i, uid=f"ambiguous-{i}", status="done", audio_path=f"audio-{i}.wav")
+                  for i, row in enumerate(group_into_chunks(before, coalesce_unlocated=False))]
+        after = [dict(row, instruct="Neutral.") for row in before]
+        regrouped = get_delivery_retry_chunks(before, after, stored)
+        self.assertEqual(["One. Two. Three."], [row["text"] for row in regrouped])
+        self.assertEqual(("pending", None), (regrouped[0]["status"], regrouped[0]["audio_path"]))
+        self.assertNotIn(regrouped[0]["uid"], {row["uid"] for row in stored})
 
     def test_source_mapping_retains_native_speech_splits_and_default_output(self):
         from project import group_into_chunks

@@ -41,16 +41,19 @@ def get_delivery_retry_chunks(before, after, chunks):
         raise ValueError("Delivery retry changed frozen or unaffected entries.")
     if chunks is None:
         return None
-    # A book chunked before the Chinese/Japanese limits (#1353) keeps its
-    # stored sizes: regroup it the way it was grouped, or every one of its
-    # long CJK chunks reads as an edit. New limits apply when it is rebuilt.
-    for cjk_limits in (True, False):
-        old_groups = group_into_chunks(before, include_source_indices=True, cjk_limits=cjk_limits)
+    # Recognise stored canonical layouts before the CJK limits or narration
+    # coalescing changed. Preserve their boundaries; rebuilds use new defaults.
+    # Current rules win when several profiles reconstruct the stored layout.
+    for cjk_limits, coalesce_unlocated in (
+            (True, True), (True, False), (False, True), (False, False)):
+        old_groups = group_into_chunks(before, include_source_indices=True,
+                                       cjk_limits=cjk_limits, coalesce_unlocated=coalesce_unlocated)
         if is_stored_grouping(old_groups, chunks):
             break
     else:
         raise ValueError("Editor text or delivery changed; review those edits before retrying delivery.")
-    new_groups = group_into_chunks(after, include_source_indices=True, cjk_limits=cjk_limits)
+    new_groups = group_into_chunks(after, include_source_indices=True,
+                                   cjk_limits=cjk_limits, coalesce_unlocated=coalesce_unlocated)
     policy = get_literal_policy(before)
     for chunk in chunks:
         ensure_literal_chunk(chunk, policy)
