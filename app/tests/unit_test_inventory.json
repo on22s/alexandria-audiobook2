@@ -2257,7 +2257,10 @@
     "tests.test_comma_pauses.CommaPauseTests.test_pause_at_the_comma_is_measured_and_a_cut_one_is_not",
     "tests.test_comma_pauses.CommaPauseTests.test_punctuation_inside_numbers_is_not_a_mark_but_a_dash_is",
     "tests.test_comma_pauses.CommaPauseTests.test_refused_timing_is_recorded_and_never_counted_as_a_pause",
-    "tests.test_comma_pauses.CommaPauseTests.test_summary_counts_skipped_marks_with_a_covering_interval"
+    "tests.test_comma_pauses.CommaPauseTests.test_summary_counts_skipped_marks_with_a_covering_interval",
+    "tests.test_comma_pauses.CommaPauseToolTests.test_compare_pairs_the_same_marks_and_refuses_other_lines",
+    "tests.test_comma_pauses.CommaPauseToolTests.test_probe_lines_are_the_fixtures_comma_lines",
+    "tests.test_comma_pauses.CommaPauseToolTests.test_variants_parse_or_refuse"
   ],
   "test_command_boundaries": [
     "tests.test_command_boundaries.CommandBoundaryTests.test_decimal_ports_form_exact_safe_start_command",

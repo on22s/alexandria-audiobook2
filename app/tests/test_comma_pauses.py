@@ -114,5 +114,46 @@ class CommaPauseTests(unittest.TestCase):
         self.assertAlmostEqual(.275, summary["median_pause_s"], places=3)
 
 
+TOOL_PATH = Path(__file__).parent.parent.parent / "tools" / "voice_lab" / "evaluate_comma_pauses.py"
+spec = importlib.util.spec_from_file_location("evaluate_comma_pauses", TOOL_PATH)
+tool = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(tool)
+
+
+def run(lines):
+    return {"lines": [{"id": i, "prepared_text": t, "result": r} for i, t, r in lines]}
+
+
+class CommaPauseToolTests(unittest.TestCase):
+    def test_probe_lines_are_the_fixtures_comma_lines(self):
+        lines = tool.get_comma_lines()
+        self.assertTrue(lines)
+        self.assertTrue(all(comma_pauses.has_mid_line_mark(line["text"]) for line in lines))
+        self.assertEqual(len(lines), sum(comma_pauses.has_mid_line_mark(line["text"])
+                                         for line in json.loads(tool.LINES_PATH.read_text())["lines"]))
+        self.assertEqual(["Down,", "down."], tool.get_clauses("Down, down."))
+        self.assertEqual(["3,000 coins"], tool.get_clauses("3,000 coins"))
+
+    def test_variants_parse_or_refuse(self):
+        self.assertEqual(("none", ""), tool.parse_variant("none"))
+        self.assertEqual(("split", ""), tool.parse_variant("split"))
+        self.assertEqual(("instruct", "pause at commas"), tool.parse_variant("instruct: pause at commas"))
+        for bad in ("instruct:", "faster", "instruct:   "):
+            with self.subTest(bad=bad), self.assertRaises(argparse.ArgumentTypeError):
+                tool.parse_variant(bad)
+
+    def test_compare_pairs_the_same_marks_and_refuses_other_lines(self):
+        marks = lambda *values: {"pauses": [{"pause_s": v} for v in values]}
+        first = run([("a", "A, b.", marks(.05, .3)), ("b", "B, c.", marks(.02)), ("c", "C, d.", {"refused": "x"})])
+        second = run([("a", "A, b.", marks(.25, .3)), ("b", "B, c.", marks(.22)), ("c", "C, d.", marks(.2))])
+        pairs, unmatched = tool.get_pairs(first, second)
+        self.assertEqual([(.05, .25), (.3, .3), (.02, .22)], pairs)
+        self.assertEqual(1, unmatched)  # refused in one run: left out, never treated as 0
+        report = tool.compare(first, second)
+        self.assertEqual(([0.667, 0.0], 3), (report["share_skipped"], report["marks_paired"]))
+        with self.assertRaisesRegex(ValueError, "do not share line"):
+            tool.get_pairs(first, run([("a", "Other text.", marks(.1))]))
+
+
 if __name__ == "__main__":
     unittest.main()
