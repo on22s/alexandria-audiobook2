@@ -58,7 +58,9 @@ class M4bSourceCleanupTests(unittest.TestCase):
                     self.assertEqual(1, len(remaining))
                     self.assertEqual(remaining, list(root.glob('.m4b-source-cover-*')))
                     self.assertEqual(root, remaining[0].parent)
-                    covers = list(remaining[0].iterdir())
+                    covers = [path for path in remaining[0].iterdir()
+                              if not path.name.startswith(('.export-staging.json',
+                                                           '.export-staging.owner.lock'))]
                     self.assertEqual(1, len(covers))
                     self.assertEqual(row['cover']['sha256'],
                                      hashlib.sha256(covers[0].read_bytes()).hexdigest())
