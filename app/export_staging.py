@@ -134,26 +134,25 @@ def create_export_staging(parent, kind):
     lock = file_lock(directory / OWNER_LOCK, timeout=0)
     try:
         lock.__enter__()
-        marker = {
-            'schema': 1,
-            'kind': kind,
-            'prefix': PREFIXES[kind],
-            'parent': str(parent.resolve()),
-            'token': secrets.token_hex(16),
-            'pid': os.getpid(),
-            'created_ns': time.time_ns(),
-        }
-        try:
-            _write_marker(directory / MARKER, marker)
-        except BaseException:
-            lock.__exit__(None, None, None)
-            _remove_tree(directory)
-            raise
-        return ExportStaging(directory, kind, marker, lock)
     except BaseException:
-        if not getattr(lock, '_entered', False):
-            _remove_tree(directory)
+        _remove_tree(directory)
         raise
+    marker = {
+        'schema': 1,
+        'kind': kind,
+        'prefix': PREFIXES[kind],
+        'parent': str(parent.resolve()),
+        'token': secrets.token_hex(16),
+        'pid': os.getpid(),
+        'created_ns': time.time_ns(),
+    }
+    try:
+        _write_marker(directory / MARKER, marker)
+    except BaseException:
+        lock.__exit__(None, None, None)
+        _remove_tree(directory)
+        raise
+    return ExportStaging(directory, kind, marker, lock)
 
 
 def _candidate(path):
@@ -201,7 +200,8 @@ def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
                 if kind is None:
                     continue
                 marker = _read_marker(path / MARKER)
-                if marker is None or not _matches_parent(marker, parent):
+                if (marker is None or marker.get('prefix') != prefix
+                        or not _matches_parent(marker, parent)):
                     result['preserved'].append(str(path))
                     continue
                 lock = file_lock(path / OWNER_LOCK, timeout=0)
