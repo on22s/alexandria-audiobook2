@@ -22,7 +22,7 @@ The convention is detected per book rather than assumed, because assuming one
 is how a book with 6,925 quote marks in its source was recorded here as "a book
 that does not mark dialogue".
 """
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections import Counter, deque
 import logging
 import re
@@ -56,7 +56,7 @@ OTHER_PAIRED = [
     re.compile(r"«([^«»]+)»"),
     re.compile(r"‹([^‹›\n]+)›"),
 ]
-UNCLOSED_OPENERS = ("“", "「", "『")
+UNCLOSED_OPENERS = {"“": "”", "「": "」", "『": "』"}
 
 
 def _paired_spans(text):
@@ -183,11 +183,22 @@ def get_other_speech_spans(text, convention):
         spans += _paired_spans(text)
     else:
         # An opening mark with no partner: speech to the end of its paragraph.
-        main = _paired_spans(text)
-        for opener in UNCLOSED_OPENERS:
+        # Membership is one bisect into the merged pairs, not a scan of all of
+        # them per opener, which made well-formed books quadratic.
+        merged = []
+        for begin, stop in sorted(_paired_spans(text)):
+            if merged and begin <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], stop))
+            else:
+                merged.append((begin, stop))
+        starts = [begin for begin, _stop in merged]
+        for opener, closer in UNCLOSED_OPENERS.items():
             for match in re.finditer(re.escape(opener), text):
                 start = match.start() + 1
-                if any(begin <= start <= stop for begin, stop in main):
+                if text.startswith(closer, start):  # “” is closed, just empty
+                    continue
+                index = bisect_right(starts, start) - 1
+                if index >= 0 and merged[index][1] >= start:
                     continue
                 stop = text.find("\n\n", start)
                 spans.append((start, len(text) if stop == -1 else stop))

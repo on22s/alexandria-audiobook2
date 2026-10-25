@@ -8,6 +8,7 @@ times. The source still has the marks: arc4_volume10wn carries 6,925 of them
 while its generated entries kept 16.
 """
 import unittest
+from unittest.mock import patch
 
 from dialogue_spans import (apply_dialogue_map, apply_source_narration, apply_source_speakers,
                             detect_convention, mark_entries,
@@ -403,6 +404,28 @@ class SourceNarrationTest(unittest.TestCase):
                 if character["text"] != "Come here,":
                     self.assertEqual("other_convention", character["dialogue_ambiguity"])
                     self.assertIsNone(get_review_source_narration(character))
+        # A closed empty pair is not an unclosed opener: the narration after it
+        # is still narration.
+        result = apply_dialogue_map([{"speaker": "ANNA", "text": "The road was dark."}],
+                                    "“Line.”\n\n" * 5 + "An empty pair “” stood on the sign. The road was dark.")
+        self.assertEqual(("NARRATOR", False), (result["entries"][0]["speaker"], result["entries"][0]["spoken"]))
+        # Each paired span is visited once, not once per opener: well-formed
+        # quotes must not make the unclosed check quadratic.
+        import dialogue_spans
+        visits = []
+
+        class Counted(list):
+            def __iter__(self):
+                for item in list.__iter__(self):
+                    visits.append(item)
+                    yield item
+
+        original = dialogue_spans._paired_spans
+        with patch.object(dialogue_spans, "_paired_spans", lambda text: Counted(original(text))):
+            for repeats in (500, 2000):
+                visits.clear()
+                dialogue_spans.get_other_speech_spans("“A.”\n\n" * repeats, "paired_quotes")
+                self.assertLessEqual(len(visits), repeats, repeats)
 
     def test_unestablished_and_printed_lines_are_left_alone(self):
         # No `spoken` key means the source did not answer; a printed label is
