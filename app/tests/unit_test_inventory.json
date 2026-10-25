@@ -2253,6 +2253,9 @@
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_native_report_preserves_group_order_scored_rows_and_legacy_precedence"
   ],
   "test_comma_pauses": [
+    "tests.test_comma_pauses.BookCommaReportTests.test_only_chunks_with_a_mid_line_mark_are_eligible",
+    "tests.test_comma_pauses.BookCommaReportTests.test_report_gives_rates_per_voice_and_quotes_no_text",
+    "tests.test_comma_pauses.BookCommaReportTests.test_report_list_labels_comma_reports_apart_from_reviews",
     "tests.test_comma_pauses.CommaPauseTests.test_a_measure_that_ignores_the_text_cannot_tell_these_apart",
     "tests.test_comma_pauses.CommaPauseTests.test_pause_at_the_comma_is_measured_and_a_cut_one_is_not",
     "tests.test_comma_pauses.CommaPauseTests.test_punctuation_inside_numbers_is_not_a_mark_but_a_dash_is",

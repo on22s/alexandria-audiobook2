@@ -1665,7 +1665,8 @@ def _get_reports():
             filepath = _get_report_path(f)
             entry = {
                 "filename": f,
-                "type": "batch" if f.startswith("batch_review_") else "review",
+                "type": ("batch" if f.startswith("batch_review_")
+                         else "pauses" if f.startswith("comma_pauses_") else "review"),
                 "mtime": os.path.getmtime(filepath),
                 "size": os.path.getsize(filepath),
             }

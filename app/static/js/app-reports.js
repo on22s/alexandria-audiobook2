@@ -8,6 +8,13 @@
         const reportExplanationEligibility = new Map();
 
         // ── Reports ────────────────────────────────────────────────────
+        // Icon and label per report type from /api/reports; anything unknown shows as a review.
+        const REPORT_KINDS = {
+            batch: ['fa-layer-group', 'Batch review'],
+            pauses: ['fa-wave-square', 'Comma pauses'],
+            review: ['fa-file-lines', 'Review'],
+        };
+
         async function loadReports() {
             const listEl = document.getElementById('reports-list');
             if (!listEl) { return; }
@@ -26,8 +33,7 @@
                 reports.forEach(r => { reportExplanationEligibility.set(r.filename, r.can_explain === true); });
                 listEl.innerHTML = reports.map(r => {
                     const when = r.mtime ? new Date(r.mtime * 1000).toLocaleString() : '';
-                    const icon = r.type === 'batch' ? 'fa-layer-group' : 'fa-file-lines';
-                    const label = r.type === 'batch' ? 'Batch review' : 'Review';
+                    const [icon, label] = REPORT_KINDS[r.type] || REPORT_KINDS.review;
                     return `<a href="#" class="list-group-item list-group-item-action report-list-item" data-filename="${escapeHtml(r.filename)}" onclick="viewReport(this.dataset.filename); return false;">
                         <div><i class="fas ${icon} me-2"></i>${label}</div>
                         <div class="text-muted small">${escapeHtml(when)}</div>

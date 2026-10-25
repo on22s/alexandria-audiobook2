@@ -155,5 +155,41 @@ class CommaPauseToolTests(unittest.TestCase):
             tool.get_pairs(first, run([("a", "Other text.", marks(.1))]))
 
 
+REPORT_PATH = Path(__file__).parent.parent.parent / "tools" / "book_comma_report.py"
+report_spec = importlib.util.spec_from_file_location("book_comma_report", REPORT_PATH)
+book_report = importlib.util.module_from_spec(report_spec)
+report_spec.loader.exec_module(book_report)
+
+
+class BookCommaReportTests(unittest.TestCase):
+    def test_only_chunks_with_a_mid_line_mark_are_eligible(self):
+        for text, eligible in (("Down, down, down.", True), ("He paused - then went on.", False),
+                               ("He paused — then went on.", True), ("It cost 3,000 or 3.5.", False),
+                               ("One sentence. Another one.", True), ("No marks here.", False)):
+            with self.subTest(text=text):
+                self.assertIs(eligible, comma_pauses.has_mid_line_mark(text))
+
+    def test_report_gives_rates_per_voice_and_quotes_no_text(self):
+        line = {"pauses": [{"pause_s": .05}, {"pause_s": .3}]}
+        by_speaker = {"NARRATOR": [line, line], "ANNA": [{"refused": "x"}]}
+        overall = get_summary([line, line, {"refused": "x"}])
+        markdown = book_report.get_report_markdown(
+            "test_book", by_speaker, {"NARRATOR": "lora: husky", "ANNA": "custom: Vivian"}, overall, 3, 10, "/data")
+        self.assertIn("Measured 3 of 10 rendered chunks", markdown)
+        self.assertIn("| NARRATOR (lora: husky) | 2 | 0 | 4 | 0.17 s | 50%", markdown)
+        self.assertIn("| ANNA (custom: Vivian) | 1 | 1 | 0 | – | – |", markdown)
+        self.assertNotIn("said", markdown.lower().split("## how to read this")[0])
+
+    def test_report_list_labels_comma_reports_apart_from_reviews(self):
+        from routers import editor
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ("comma_pauses_book_20261025-1200.md", "batch_review_x.md", "review_y.md", "notes.txt"):
+                Path(directory, name).write_text("# report\n", encoding="utf-8")
+            with patch.object(editor, "REPORTS_DIR", directory):
+                kinds = {entry["filename"]: entry["type"] for entry in editor._get_reports()}
+        self.assertEqual({"comma_pauses_book_20261025-1200.md": "pauses", "batch_review_x.md": "batch",
+                          "review_y.md": "review"}, kinds)
+
+
 if __name__ == "__main__":
     unittest.main()
