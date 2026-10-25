@@ -23,15 +23,17 @@ It reads each failing job's own log, names the repo explicitly (this checkout's
 `upstream` remote makes a bare `gh` call resolve to Finrandojin's repo and 404),
 and prints per job: the failing `module.Class.test` with subtest count and its
 first error line, or, when no unit test failed, the failed step and its
-`##[error]` lines. It is read-only.
+`##[error]` lines. It is read-only. Exit 0 means no observed failures in completed checks, 1 means failed jobs, and 2 means checks are absent, pending, or incomplete. JSON includes `checks_pending`. A failed main run can establish a known failure but cannot establish that an unobserved test passed. PR mode inspects currently failed check runs; use `--run` to inspect the history of a now-green rerun.
 
 ## 2. Classify each failure, with evidence
 
 | Label / signal | Meaning | Not proof of |
 |---|---|---|
 | `also on main` | fails on main's latest CI run too | that the PR is fine elsewhere |
-| `NEW vs main` | main's latest run passed it | that the PR caused it |
-| `note: … attempt 1 … failed` | an earlier attempt failed, a re-run passed | anything about the code; it is a flake signal |
+| `NEW vs main` | main's latest completed push run passed | that the PR caused it |
+| `not compared` | main did not establish absence of this failure | that it is new |
+| `latest attempt passed (flake signal)` | an earlier attempt failed and the latest passed | that the cause is harmless |
+| `latest attempt did not pass` | both attempts failed | that it is a flake |
 | no unit test failed, step = Shared release verifier | the verifier rejected the tree (stale derived file, inventory, contract snapshot) | a test bug |
 
 A `NEW vs main` failure is caused by the PR only when it **fails at the PR head
@@ -48,9 +50,10 @@ bash -c 'mods=(tests.test_a tests.test_b)
   one word, unittest runs a single bogus name, and prints `Ran 1 test` and an
   error that looks like a result. A `Ran N` far below the expected count means
   the instrument failed, not the code.
-- A suspected flake: run the module alone 10 times. Passing 10 of 10 alone and
-  failing only under load (three suites at once, a busy runner) is a flake.
-  Name the shared resource if you can (timers, `/tmp` mtime, ports).
+- For a suspected flake, repeat the smallest reproduction only as needed and
+  compare serial and concurrent conditions. Passing alone does not clear an
+  ownership or concurrency bug. Identify the shared resource (timers, `/tmp`
+  metadata, ports) and preserve the failing evidence.
 
 ## 3. Rule out the local environment first
 
