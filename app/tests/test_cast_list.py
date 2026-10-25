@@ -4,6 +4,8 @@ The measured reason it exists is in the module docstring; these pin the parts
 the app relies on: a list is found by the source's bytes, a list generation
 would refuse is never written, and the model is sent the text generation sees.
 """
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -102,6 +104,22 @@ class CastListTest(unittest.TestCase):
             written = json.load(handle)
         self.assertEqual(CAST, written["cast"])
         self.assertEqual("m", written["provenance"]["model"])
+        with open(out, 'rb') as stream:
+            previous = stream.read()
+        for failure, message in ((TimeoutError('fixture'), 'cast list is busy'),
+                                 (PermissionError('fixture'), 'could not save the cast list')):
+            with self.subTest(save_error=type(failure).__name__):
+                output = io.StringIO()
+                with patch.object(cast_list, 'save_cast_list', side_effect=failure), \
+                        contextlib.redirect_stdout(output):
+                    code, _ = self.run_main(_Client())
+                self.assertEqual(1, code)
+                self.assertIn(message, output.getvalue())
+                self.assertNotIn('fixture', output.getvalue())
+                if isinstance(failure, PermissionError):
+                    self.assertIn('PermissionError', output.getvalue())
+                with open(out, 'rb') as stream:
+                    self.assertEqual(previous, stream.read())
 
     def test_source_over_the_limit_is_refused_before_any_request(self):
         client = _Client()

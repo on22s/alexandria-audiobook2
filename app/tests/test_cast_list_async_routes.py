@@ -121,13 +121,27 @@ class CastListAsyncRoutesTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(document['provenance']['edited'])
         self.assertEqual('written-by-build', document['provenance'].get('model'))
         # The build path itself now takes the same lock the routes use.
-        held = threading.Event()
-        with file_lock(str(self.cast_path)):
+        held, attempted = threading.Event(), threading.Event()
+
+        @contextmanager
+        def observed_build_lock(path, *args, **kwargs):
+            attempted.set()
+            with file_lock(path, *args, **kwargs):
+                yield
+
+        with patch('cast_list.file_lock', observed_build_lock):
             writer = threading.Thread(target=lambda: (save_cast_list(str(self.cast_path), CAST, {'model': 'b'}),
                                                       held.set()))
-            writer.start()
-            self.assertFalse(held.wait(.3), 'save_cast_list wrote while another holder had the lock')
-        writer.join(3)
+            try:
+                with file_lock(str(self.cast_path)):
+                    before_write = self.cast_path.read_bytes()
+                    writer.start()
+                    self.assertTrue(attempted.wait(3), 'save_cast_list did not attempt the shared lock')
+                    self.assertFalse(held.wait(.3), 'save_cast_list wrote while another holder had the lock')
+                    self.assertEqual(before_write, self.cast_path.read_bytes())
+            finally:
+                writer.join(3)
+        self.assertFalse(writer.is_alive())
         self.assertTrue(held.is_set())
 
     async def test_delete_waits_for_real_lock_without_blocking_ping(self):

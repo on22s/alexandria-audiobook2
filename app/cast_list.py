@@ -158,6 +158,13 @@ def main(argv=None):
     except ValueError as exc:
         print(f"Error: the model's list was refused: {exc}")
         return 1
+    except TimeoutError:
+        print("Error: the cast list is busy. Retry after other cast-list operations finish.")
+        return 1
+    except OSError as exc:
+        print(f"Error: could not save the cast list ({type(exc).__name__}). "
+              "Check the output location and retry.")
+        return 1
     print(f"Cast list: {len(cast)} characters -> {os.path.basename(args.out)}")
     return 0
 
