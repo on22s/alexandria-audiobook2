@@ -7408,6 +7408,7 @@
             let trimPlan = new Map();
             let playableIds = null;
             let lastPlayedId = null;
+            let lastPlayedEndedAt = null;
             let skippedSinceLastPlayed = false;
             try {
                 const plan = await API.get('/api/chunks/playback_plan');
@@ -7459,6 +7460,15 @@
                     callback();
                 }
             };
+            const scheduleGap = (delay, callback) => {
+                // The gap starts when the previous chunk ended, not when this
+                // one became ready or when a failed play attempt returned.
+                const elapsed = lastPlayedEndedAt === null
+                    ? 0 : Math.max(0, Date.now() - lastPlayedEndedAt);
+                const remaining = Number.isFinite(Number(delay))
+                    ? Math.max(0, Number(delay) - elapsed) : 0;
+                schedule(remaining, callback);
+            };
             const finish = () => {
                 stopSequence();
                 if (skippedCount > 0) {
@@ -7482,6 +7492,7 @@
                         skippedSinceLastPlayed = true;
                     } else {
                         lastPlayedId = chunkId;
+                        lastPlayedEndedAt = Date.now();
                         skippedSinceLastPlayed = false;
                     }
                     currentIndex++;
@@ -7533,11 +7544,11 @@
                     };
                     if (lastPlayedId === null) { apply(); return; }
                     if (!skippedSinceLastPlayed) {
-                        schedule(Number(pausePlan.get(lastPlayedId)) || 0, apply);
+                        scheduleGap(Number(pausePlan.get(lastPlayedId)) || 0, apply);
                         return;
                     }
                     fetchGap(lastPlayedId, chunkId).then(delay => {
-                        if (isCurrentSequence()) { schedule(delay, apply); }
+                        if (isCurrentSequence()) { scheduleGap(delay, apply); }
                     });
                 };
                 if (typeof audio.addEventListener === 'function'

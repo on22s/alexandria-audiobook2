@@ -163,6 +163,24 @@ await new Promise(r=>setTimeout(r,45));
 assert.deepStrictEqual(plays,[0,1,2]);
 ''')
 
+    def test_elapsed_pause_is_not_applied_again_after_a_play_error(self):
+        self.run_js(r'''
+ctx.API.get=async url => {
+  if (url.includes('playback_gap')) { return {pause_ms:200}; }
+  return {pauses:[{chunk_id:0,pause_ms:200}],trims:[
+   {chunk_id:0,start_ms:0,end_ms:1000},
+   {chunk_id:1,start_ms:0,end_ms:1000},
+   {chunk_id:2,start_ms:0,end_ms:1000}]};
+};
+await ctx.playSequence();
+audios[0].onended();
+await new Promise(r=>setTimeout(r,220));
+assert.deepStrictEqual(plays,[0,1]);
+attempts[1].reject(new Error('failed play'));await settle();
+await new Promise(r=>setTimeout(r,10));
+assert.deepStrictEqual(plays,[0,1,2]);
+''')
+
     def test_missing_source_and_undefined_play_promise_keep_normal_sequence_order(self):
         self.run_js(r'''
 audios[0].src='';audios[1].play=()=>{plays.push(1);return undefined;};
