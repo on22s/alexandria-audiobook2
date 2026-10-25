@@ -79,7 +79,7 @@ class CastListAsyncRoutesTests(unittest.IsolatedAsyncioTestCase):
             result = await self.require_responsive_request('GET', entered, release, threads)
         self.assertEqual({'cast': CAST, 'count': 1, 'written': None, 'edited': False}, result)
 
-    async def require_responsive_lock_wait(self, method):
+    async def require_responsive_lock_wait(self, method, while_held=None):
         acquired, entered, release = threading.Event(), threading.Event(), threading.Event()
         threads = []
 
@@ -87,6 +87,8 @@ class CastListAsyncRoutesTests(unittest.IsolatedAsyncioTestCase):
             with file_lock(str(self.cast_path)):
                 acquired.set()
                 release.wait(10)
+                if while_held:
+                    while_held()
 
         @contextmanager
         def observed_lock(path, *args, **kwargs):
@@ -107,11 +109,40 @@ class CastListAsyncRoutesTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(holder.is_alive())
 
     async def test_save_waits_for_real_lock_without_blocking_ping(self):
-        result = await self.require_responsive_lock_wait('POST')
+        # A build writes while holding the lock the save is waiting for. The
+        # save must carry that provenance forward, not one read before waiting.
+        def build_writes():  # the build's atomic write, landing while it holds the lock
+            atomic_json_write({'cast': CAST, 'provenance': {'model': 'written-by-build'}}, str(self.cast_path))
+
+        result = await self.require_responsive_lock_wait('POST', while_held=build_writes)
         self.assertEqual({'status': 'saved', 'count': 1}, result)
         document = json.loads(self.cast_path.read_text(encoding='utf-8'))
         self.assertEqual(CAST, document['cast'])
         self.assertTrue(document['provenance']['edited'])
+        self.assertEqual('written-by-build', document['provenance'].get('model'))
+        # The build path itself now takes the same lock the routes use.
+        held, attempted = threading.Event(), threading.Event()
+
+        @contextmanager
+        def observed_build_lock(path, *args, **kwargs):
+            attempted.set()
+            with file_lock(path, *args, **kwargs):
+                yield
+
+        with patch('cast_list.file_lock', observed_build_lock):
+            writer = threading.Thread(target=lambda: (save_cast_list(str(self.cast_path), CAST, {'model': 'b'}),
+                                                      held.set()))
+            try:
+                with file_lock(str(self.cast_path)):
+                    before_write = self.cast_path.read_bytes()
+                    writer.start()
+                    self.assertTrue(attempted.wait(3), 'save_cast_list did not attempt the shared lock')
+                    self.assertFalse(held.wait(.3), 'save_cast_list wrote while another holder had the lock')
+                    self.assertEqual(before_write, self.cast_path.read_bytes())
+            finally:
+                writer.join(3)
+        self.assertFalse(writer.is_alive())
+        self.assertTrue(held.is_set())
 
     async def test_delete_waits_for_real_lock_without_blocking_ping(self):
         self.assertEqual({'status': 'deleted'}, await self.require_responsive_lock_wait('DELETE'))
