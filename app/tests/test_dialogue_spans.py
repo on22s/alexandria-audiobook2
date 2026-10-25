@@ -382,6 +382,27 @@ class SourceNarrationTest(unittest.TestCase):
         self.assertEqual([{"type": "source_narration", "before": "LORD HENRY", "after": "NARRATOR"}],
                          result["narration_changes"])
         self.assertEqual("LORD HENRY", entries[0]["speaker"])
+        # Speech marked another way lies outside the main quotes without being
+        # narration: it is unestablished, so neither this reset nor the review
+        # guard may give it to the narrator.
+        from review_script import get_review_source_narration
+        pad = " " + "“Line.” " * 5
+        for source, rows in (
+                ("“Come here,” said Tom. ‘No, I don’t want to,’ Anna said." + pad,
+                 [("TOM", "Come here,"), ("NARRATOR", "said Tom."), ("ANNA", "No, I don’t want to,"),
+                  ("NARRATOR", "Anna said.")]),
+                ("Tom turned.\n—Where are you going? he asked." + pad,
+                 [("NARRATOR", "Tom turned."), ("TOM", "Where are you going?")]),
+                (pad + "\n\n“Wait for me, Tom said\n\nThe road went on.",
+                 [("TOM", "Wait for me, Tom said"), ("NARRATOR", "The road went on.")])):
+            with self.subTest(source=source[:30]):
+                result = apply_dialogue_map([{"speaker": s, "text": t} for s, t in rows], source)
+                self.assertEqual([s for s, _t in rows], [row["speaker"] for row in result["entries"]])
+                self.assertEqual([], result["narration_changes"])
+                character = next(row for row in result["entries"] if row["speaker"] not in ("NARRATOR",))
+                if character["text"] != "Come here,":
+                    self.assertEqual("other_convention", character["dialogue_ambiguity"])
+                    self.assertIsNone(get_review_source_narration(character))
 
     def test_unestablished_and_printed_lines_are_left_alone(self):
         # No `spoken` key means the source did not answer; a printed label is

@@ -23,7 +23,7 @@ is how a book with 6,925 quote marks in its source was recorded here as "a book
 that does not mark dialogue".
 """
 from bisect import bisect_left
-from collections import deque
+from collections import Counter, deque
 import logging
 import re
 
@@ -45,6 +45,18 @@ LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
 
 # The longest distinct-mark pair allowed to cross a blank line.
 MAX_CROSSING_CHARS = 2000
+
+# Speech marked in a way the book does not mainly use. A line found inside one
+# lies outside the detected quotes without being narration: ‘single’ quotes in
+# a “double”-quote book, a dash-opened line, «guillemets», or an opening mark
+# the author never closed. `’` is also the apostrophe, so a ‘…’ pair closes
+# only at a `’` that no letter follows ("‘I don’t know,’ she said").
+OTHER_PAIRED = [
+    re.compile(r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)"),
+    re.compile(r"«([^«»]+)»"),
+    re.compile(r"‹([^‹›\n]+)›"),
+]
+UNCLOSED_OPENERS = ("“", "「", "『")
 
 
 def _paired_spans(text):
@@ -154,6 +166,34 @@ def spoken_spans(text, convention=None):
     return merged
 
 
+def get_other_speech_spans(text, convention):
+    """-> (start, end) offsets of speech marked other than by `convention`.
+
+    Only used to stop calling such a line narration; it is never marked spoken
+    from this, because which convention carries a book's dialogue is counted
+    by detect_convention, not guessed here. Spans do not cross a blank line.
+    """
+    if convention is None:
+        return []
+    spans = [(m.start(1), m.end(1)) for pattern in OTHER_PAIRED for m in pattern.finditer(text)
+             if "\n\n" not in m.group(1)]
+    if convention != "dash_lines":
+        spans += [(m.start(1), m.end(1)) for m in DASH_LINE.finditer(text)]
+    if convention != "paired_quotes":
+        spans += _paired_spans(text)
+    else:
+        # An opening mark with no partner: speech to the end of its paragraph.
+        main = _paired_spans(text)
+        for opener in UNCLOSED_OPENERS:
+            for match in re.finditer(re.escape(opener), text):
+                start = match.start() + 1
+                if any(begin <= start <= stop for begin, stop in main):
+                    continue
+                stop = text.find("\n\n", start)
+                spans.append((start, len(text) if stop == -1 else stop))
+    return spans
+
+
 def get_interior_dash_ambiguities(text, convention):
     """Return candidate utterance offsets without classifying them as speech."""
     if convention != "dash_lines":
@@ -240,6 +280,7 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
     convention = detect_convention(source_text) if convention is None else convention
     spans = spoken_spans(source_text, convention)
     ambiguities = get_interior_dash_ambiguities(source_text, convention)
+    other_speech = get_other_speech_spans(source_text, convention)
     entries = list(entries)
     if speaker_names is None:
         speaker_names = {str(entry.get('speaker') or '') for entry in entries}
@@ -287,6 +328,11 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
                 if not overlap and any(start < end and where < stop
                                        for start, stop in ambiguities):
                     row["dialogue_ambiguity"] = "interior_dash_turn"
+                elif not overlap and any(start < end and where < stop
+                                         for start, stop in other_speech):
+                    # Outside the main quotes, inside speech marked another
+                    # way: not established narration, so never voiced as it.
+                    row["dialogue_ambiguity"] = "other_convention"
                 else:
                     row["spoken"] = bool(overlap)
                 row["source_span"] = [where, end]
@@ -315,9 +361,10 @@ def apply_dialogue_map(entries, source_text, speaker_names=None):
     mapped, narration_changes = apply_source_narration(mapped)
     ambiguous = sum(1 for entry in mapped if entry.get("dialogue_ambiguity"))
     if ambiguous:
+        kinds = Counter(entry["dialogue_ambiguity"] for entry in mapped if entry.get("dialogue_ambiguity"))
         logging.getLogger(__name__).warning(
-            "Dialogue map: %s interior dash entries need review; spoken status is unestablished.",
-            ambiguous)
+            "Dialogue map: %s entries need review (%s); spoken status is unestablished.",
+            ambiguous, ", ".join(f"{count} {kind}" for kind, count in sorted(kinds.items())))
     return {
         "entries": mapped,
         "convention": convention,
