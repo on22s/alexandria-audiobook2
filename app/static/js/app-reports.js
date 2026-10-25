@@ -9,6 +9,7 @@
 
         // ── Reports ────────────────────────────────────────────────────
         // Icon and label per report type from /api/reports; anything unknown shows as a review.
+        /** @type {Record<string, [string, string]>} */
         const REPORT_KINDS = {
             batch: ['fa-layer-group', 'Batch review'],
             pauses: ['fa-wave-square', 'Comma pauses'],
