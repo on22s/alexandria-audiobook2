@@ -52,6 +52,8 @@ from take_retention import (KEY as RETAINED_TAKE_KEY, POLICY as TAKE_HISTORY_POL
     get_take_history_policy, preserve_retained_takes, make_retained_take,
     validate_retained_take, get_retained_audio_paths, get_retained_book_bytes)
 from audio_take_history import AudioTakeHistory
+from export_staging import (create_export_staging, reclaim_export_staging,
+                            MARKER, OWNER_LOCK)
 from tts import (
     TTSEngine,
     get_chunk_seed,
@@ -2099,9 +2101,11 @@ class ProjectManager:
         from export_quality import (get_export_quality_options, get_pcm_export_encoding_plan,
             get_admitted_export_report, notify_completed_export, ensure_export_stage_current)
         quality_options = get_export_quality_options(export_quality)
+        reclaim_export_staging((self.root_dir, os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)))
         output_filename = "cloned_audiobook.mp3"
         output_path = os.path.join(self.root_dir, output_filename)
-        pending_output = output_path + f".pending.{uuid.uuid4().hex}"
+        staging = create_export_staging(self.root_dir, 'mp3')
+        pending_output = str(staging.path / output_filename)
         try:
             from export_publication import ExportSourceSnapshot
             source_snapshot = ExportSourceSnapshot(self, chunks, cancel_check)
@@ -2122,32 +2126,32 @@ class ProjectManager:
                 audio_segments = [seg for _, seg, _ in timeline]
                 speakers = [chunk["speaker"] for chunk, _, _ in timeline]
                 pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
-                with tempfile.TemporaryDirectory(prefix='.mp3-merge-', dir=self.root_dir) as directory:
-                    raw = os.path.join(directory, 'combined.pcm')
-                    pcm_plans, quality_reports = [], []
-                    settings = (write_combined_pcm(audio_segments, speakers, raw, pause_ms,
-                                same_speaker_pause_ms, pause_overrides, cancel_check, source_store=sources,
-                                pcm_plan_callback=pcm_plans.append)
-                                if os.path.basename(AudioSegment.converter).lower() in ('ffmpeg', 'ffmpeg.exe') else None)
-                    if settings is None:
-                        print("  MP3: compatibility fallback (whole-buffer assembly)")
-                        legacy_segments = [sources.load_segment(segment) for segment in audio_segments]
-                        final_audio, pcm_plan = _get_legacy_export_audio(legacy_segments, speakers, pause_ms,
-                            same_speaker_pause_ms, pause_overrides, cancel_check)
-                        quality_plan = get_pcm_export_encoding_plan(pcm_plan, format_name='mp3', options=quality_options)
-                        mastering_report = _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE,
-                            cancel_check=cancel_check, quality_plan=quality_plan, quality_callback=quality_reports.append,
-                            **({"mastering": mastering} if mastering is not None else {}))
-                    else:
-                        if len(pcm_plans) != 1:
-                            raise ValueError('PCM assembler did not provide an independent source-frame plan.')
-                        quality_plan = get_pcm_export_encoding_plan(pcm_plans[0], format_name='mp3', options=quality_options)
-                        from audio_export import export_pcm_mp3
-                        mastering_report = export_pcm_mp3(raw, pending_output, settings, cancel_check,
-                            mastering=mastering, bitrate=MP3_BITRATE, quality_plan=quality_plan,
-                            quality_callback=quality_reports.append)
-                    quality_report = get_admitted_export_report(pending_output, quality_plan,
-                        quality_reports[-1] if quality_reports else None, cancel_check)
+                directory = staging.path
+                raw = os.path.join(directory, 'combined.pcm')
+                pcm_plans, quality_reports = [], []
+                settings = (write_combined_pcm(audio_segments, speakers, raw, pause_ms,
+                            same_speaker_pause_ms, pause_overrides, cancel_check, source_store=sources,
+                            pcm_plan_callback=pcm_plans.append)
+                            if os.path.basename(AudioSegment.converter).lower() in ('ffmpeg', 'ffmpeg.exe') else None)
+                if settings is None:
+                    print("  MP3: compatibility fallback (whole-buffer assembly)")
+                    legacy_segments = [sources.load_segment(segment) for segment in audio_segments]
+                    final_audio, pcm_plan = _get_legacy_export_audio(legacy_segments, speakers, pause_ms,
+                        same_speaker_pause_ms, pause_overrides, cancel_check)
+                    quality_plan = get_pcm_export_encoding_plan(pcm_plan, format_name='mp3', options=quality_options)
+                    mastering_report = _export_audio_segment(final_audio, pending_output, "mp3", bitrate=MP3_BITRATE,
+                        cancel_check=cancel_check, quality_plan=quality_plan, quality_callback=quality_reports.append,
+                        **({"mastering": mastering} if mastering is not None else {}))
+                else:
+                    if len(pcm_plans) != 1:
+                        raise ValueError('PCM assembler did not provide an independent source-frame plan.')
+                    quality_plan = get_pcm_export_encoding_plan(pcm_plans[0], format_name='mp3', options=quality_options)
+                    from audio_export import export_pcm_mp3
+                    mastering_report = export_pcm_mp3(raw, pending_output, settings, cancel_check,
+                        mastering=mastering, bitrate=MP3_BITRATE, quality_plan=quality_plan,
+                        quality_callback=quality_reports.append)
+                quality_report = get_admitted_export_report(pending_output, quality_plan,
+                    quality_reports[-1] if quality_reports else None, cancel_check)
             ensure_audio_export_active(cancel_check)
             ensure_export_stage_current(pending_output, quality_report, cancel_check)
             source_snapshot.verify_sources()
@@ -2164,6 +2168,7 @@ class ProjectManager:
             return False, "Merge cancelled"
         finally:
             self._remove_temp_file(pending_output)
+            staging.finish(remove=True)
         if skipped:
             return True, f"{output_filename} ({skipped} chunk(s) skipped — missing/corrupt audio)"
         return True, output_filename
@@ -2333,12 +2338,15 @@ class ProjectManager:
             get_admitted_export_report, ensure_export_stage_current, notify_completed_export)
         from export_publication import ExportSourceSnapshot
         quality_options = get_export_quality_options(export_quality)
+        reclaim_export_staging((self.root_dir, os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)))
         metadata = copy.deepcopy(metadata or {})
         from m4b_metadata import get_m4b_tags, get_m4b_source_chapters, get_m4b_metadata_text
         tags = get_m4b_tags(metadata)
         cleanup = []
         publication = ExitStack()
+        staging = None
         try:
+            staging = create_export_staging(self.root_dir, 'm4b')
             cover_path = metadata.get('cover_path') or ''
             from m4b_publication import ensure_m4b_publication
             resolved = publication.enter_context(ensure_m4b_publication(self.root_dir, cover_path,
@@ -2381,13 +2389,12 @@ class ProjectManager:
                 speakers = [chunk["speaker"] for chunk, _, _ in timeline]
                 pause_overrides = [chunk.get("pause_after") for chunk, _, _ in timeline]
 
-                staging_id = uuid.uuid4().hex
-                temp_wav = os.path.join(self.root_dir, f".m4b-{staging_id}.wav")
-                meta_path = os.path.join(self.root_dir, f".m4b-{staging_id}.txt")
+                temp_wav = str(staging.path / 'output.wav')
+                meta_path = str(staging.path / 'meta.txt')
                 output_path = os.path.join(self.root_dir, "audiobook.m4b")
-                pending_output = output_path + f".pending.{uuid.uuid4().hex}"
+                pending_output = str(staging.path / 'audiobook.m4b')
 
-                cleanup = [temp_wav, meta_path, pending_output]
+                cleanup = [temp_wav, meta_path]
 
                 pcm_plans = []
                 duration_ms = write_combined_wav(audio_segments, speakers, temp_wav,
@@ -2484,10 +2491,14 @@ class ProjectManager:
                     except OSError:
                         pass
             try:
-                publication.close()
-            except OSError:
-                logging.getLogger('AlexandriaUI').warning(
-                    'M4B source-cover temporary files could not be removed.', exc_info=True)
+                if staging is not None:
+                    staging.finish(remove=True)
+            finally:
+                try:
+                    publication.close()
+                except OSError:
+                    logging.getLogger('AlexandriaUI').warning(
+                        'M4B source-cover temporary files could not be removed.', exc_info=True)
 
         if skipped:
             return True, f"audiobook.m4b ({skipped} chunk(s) skipped — missing/corrupt audio)"
@@ -2599,6 +2610,7 @@ class ProjectManager:
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         os.makedirs(out_dir, exist_ok=True)
         with file_lock(os.path.join(self.root_dir, ".chapter-export")):
+            reclaim_export_staging((self.root_dir, out_dir))
             if chapters is not None:
                 manifest_path = os.path.join(out_dir, "manifest.json")
                 if os.path.lexists(manifest_path):
@@ -2611,7 +2623,8 @@ class ProjectManager:
                                        "without a selection to rebuild it.")
                     if {row["index"]: row for row in rows} != previous:
                         return False, "Chapter exports changed while preparing this selection. Retry the export."
-            staging_dir = tempfile.mkdtemp(prefix=".chapter-export-", dir=out_dir)
+            staging = create_export_staging(out_dir, 'chapter')
+            staging_dir = str(staging.path)
             retain_backup = False
             try:
                 publication_outputs = []
@@ -2638,7 +2651,8 @@ class ProjectManager:
                 backup_dir = os.path.join(staging_dir, "old")
                 os.mkdir(backup_dir)
                 names = sorted(name for name in os.listdir(staging_dir)
-                               if name not in ("old", "manifest.json"))
+                               if name not in ("old", "manifest.json",
+                                               MARKER, OWNER_LOCK + ".lock"))
                 touched = []
 
                 def publish(name):
@@ -2688,8 +2702,7 @@ class ProjectManager:
             except ExportCancelled:
                 return False, "Export cancelled"
             finally:
-                if not retain_backup:
-                    shutil.rmtree(staging_dir)
+                staging.finish(remove=not retain_backup)
 
     def _stage_chapter_export_plans(self, plans, chunks, options, pause_defaults,
                                     previous, chapters, changed_only, get_pairs,

@@ -60,6 +60,9 @@ class ExportStaging:
     def __enter__(self):
         return self
 
+    def __fspath__(self):
+        return str(self.path)
+
     def __exit__(self, kind, value, traceback):
         self.finish(remove=True)
         return False

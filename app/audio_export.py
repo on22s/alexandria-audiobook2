@@ -13,6 +13,7 @@ import wave
 
 from subprocess_ownership import start_owned_subprocess
 from media_process import get_media_process_environment
+from export_staging import create_export_staging
 
 
 def is_easy_wav_export(format_name, options):
@@ -276,7 +277,7 @@ def export_audio_segment(segment, path, format_name, cancel_check, mastering=Non
         destination_identity = (info.st_dev, info.st_ino)
         scope = nullcontext(directory)
     else:
-        scope = tempfile.TemporaryDirectory(prefix='.chapter-export-', dir=destination.parent)
+        scope = create_export_staging(destination.parent, 'encode')
     with scope as directory:
         raw = Path(directory) / 'input.pcm'
         output = Path(directory) / ('output.' + format_name)
@@ -426,8 +427,9 @@ def export_pcm_mp3(raw_path, output_path, settings, cancel_check, mastering=None
             or Path(raw_path).stat().st_size != settings['frames'] * width * channels):
         raise ValueError('Invalid staged PCM layout or size.')
     destination = Path(output_path)
-    with tempfile.TemporaryDirectory(prefix='.pcm-encode-', dir=destination.parent) as directory:
-        output = Path(directory) / 'output.mp3'
+    with create_export_staging(destination.parent, 'encode') as staging:
+        directory = staging.path
+        output = directory / 'output.mp3'
         encoder_temp = Path(directory) / 'encoder-temp'; encoder_temp.mkdir()
         environment = get_media_process_environment()
         for key in ('TMPDIR', 'TEMP', 'TMP'):
