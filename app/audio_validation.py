@@ -90,14 +90,33 @@ def save_generated_wav(values, sample_rate, path, context="audio generation"):
         return validate_generated_audio(path, context)
 
 
-def publish_audio_output(staging_path, output_path, cancelled=None, *, cancel_check=None):
+def publish_audio_output(staging_path, output_path, cancelled=None, *, cancel_check=None,
+                         source_dir_fd=None, source_fd=None, source_version=None, destination_dir_fd=None):
     """Publish a validated private file without racing stale-output cleanup."""
     with ensure_audio_output(output_path):
         if ((cancelled is not None and cancelled.is_set())
                 or (cancel_check is not None and cancel_check())):
             return False
-        os.replace(staging_path, output_path)
+        if any(value is not None for value in (source_dir_fd, source_fd, source_version, destination_dir_fd)):
+            from synthesis_workspace import _RAW_ENCODING_CHECKS
+            if (any(type(fd) is not int or fd < 0 for fd in (source_dir_fd, source_fd, destination_dir_fd))
+                    or type(source_version) is not tuple or len(source_version) != 8
+                    or any(type(value) is not int for value in source_version)
+                    or not isinstance(staging_path, str) or staging_path in ('', '.', '..')
+                    or os.path.basename(staging_path) != staging_path):
+                raise ValueError('Invalid registered publication source')
+            _RAW_ENCODING_CHECKS[0](source_dir_fd, staging_path, source_fd, source_version)
+            name = os.path.basename(output_path)
+            if not name or name in ('.', '..'):
+                raise ValueError('Invalid registered publication destination')
+            os.replace(staging_path, name, src_dir_fd=source_dir_fd, dst_dir_fd=destination_dir_fd)
+            _RAW_ENCODING_CHECKS[1](name, source_fd, source_version, destination_dir_fd)
+        else:
+            os.replace(staging_path, output_path)
         return True
+
+
+_RAW_PUBLISH_AUDIO_OUTPUT = publish_audio_output
 
 
 def get_minimum_speech_duration(text):

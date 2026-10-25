@@ -4,10 +4,12 @@ import copy
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -105,6 +107,20 @@ with case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner()
    note.write_text(json.dumps(proof));pause()
   return result
  manager._publish_generated_chunk_audio=publish
+ if phase in ('encoded','rendered'):
+  import project
+  # Restore the actual codec hidden by the generic WAV-only fixture. Observe
+  # its return without replacing either writer's identity/ownership gate.
+  project._export_audio_segment=project._RAW_CHUNK_CODEC_HELPERS[1]
+  target=(project._export_audio_segment if phase=='encoded' else type(manager)._export_chunk_audio).__code__
+  def observed(frame,event,value):
+   if event!='return' or frame.f_code is not target:return
+   path=Path(frame.f_locals['path']) if phase=='encoded' else (root/value if isinstance(value,str) else None)
+   if path is None or not path.is_file() or path.stat().st_size<1024:return
+   sys.setprofile(None)
+   proof=json.loads(note.read_text());proof.update(encoded_path=str(path),encoded_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+   note.write_text(json.dumps(proof));pause()
+  sys.setprofile(observed)
  success,payload=manager.generate_chunk_audio(0)
  if not success:raise RuntimeError(payload)
  raise RuntimeError('Expected parent barrier was not reached')
@@ -119,7 +135,7 @@ import numpy as np
 from tests.test_take_publication import TakePublicationTests
 from synthesis_settings import get_synthesis_window_settings
 from task_ownership import acquire_task_lease
-note=Path(sys.argv[1]);case=TakePublicationTests();policies_off=sys.argv[2]=='default'
+note=Path(sys.argv[1]);case=TakePublicationTests();mode,_,phase=sys.argv[2].partition(':');policies_off=mode=='default'
 class Model:
  def generate_custom_voice(self,**kwargs):
   text=kwargs['text']
@@ -132,7 +148,19 @@ with case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner()
  note.write_text(json.dumps({'root':str(root),'prior':str(previous),'prior_sha256':hashlib.sha256(previous.read_bytes()).hexdigest()}))
  engine=case.engine();engine._synthesis_recovery=None;engine._synthesis_windows=None if policies_off else get_synthesis_window_settings({'enabled':True,'budgets':{'local.custom':{'max_chars':10000}}});engine._local_custom_model=Model();engine._custom_warmup_needed=False;engine._sub_batch_max_items=0;engine._sub_batch_enabled=False
  manager.engine=engine;Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
- manager._publish_generated_chunk_audio=lambda *a,**k:os._exit(76)
+ if phase in ('encoded','rendered'):
+  import project
+  project._export_audio_segment=project._RAW_CHUNK_CODEC_HELPERS[1]
+  target=(project._export_audio_segment if phase=='encoded' else type(manager)._export_chunk_audio).__code__
+  def observed(frame,event,value):
+   if event!='return' or frame.f_code is not target:return
+   path=Path(frame.f_locals['path']) if phase=='encoded' else (root/value if isinstance(value,str) else None)
+   if path is None or not path.is_file() or path.stat().st_size<1024:return
+   sys.setprofile(None)
+   proof=json.loads(note.read_text());proof.update(encoded_path=str(path),encoded_sha256=hashlib.sha256(path.read_bytes()).hexdigest());note.write_text(json.dumps(proof))
+   os._exit(76)
+  sys.setprofile(observed)
+ else:manager._publish_generated_chunk_audio=lambda *a,**k:os._exit(76)
  result=manager.generate_chunks_batch([0,1],batch_seed=42,batch_size=2)
  raise RuntimeError('Expected prepublication hard exit; result='+repr(result))
 '''
@@ -206,7 +234,10 @@ class SynthesisWorkspaceTests(unittest.TestCase):
             self.assertFalse(path.exists());self.assertEqual({},self.rows())
 
     def test_project_parent_sigkill_reclaims_zero_window_and_published_lifetimes(self):
-        for variant in ('zero','window','parent','published','default-zero','default-parent','default-published'):
+        variants=['zero','window','parent','published','default-zero','default-parent','default-published']
+        if shutil.which('ffmpeg'):
+            variants += ['encoded','rendered','default-encoded','default-rendered']
+        for variant in variants:
             phase=variant.removeprefix('default-');policies_off=variant.startswith('default-')
             with self.subTest(phase=variant),tempfile.TemporaryDirectory() as tmp:
                 bound=Path(tmp);note=bound/'note.json'
@@ -228,7 +259,15 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                     self.assertEqual(2 if phase in ('zero','window') and not policies_off else 1,len(rows))
                     outer=[root/workspace.DIRECTORY/name for name,row in rows.items() if row['windows']==0]
                     self.assertEqual(1,len(outer));parent=outer[0]/'assembled-parent.wav'
-                    self.assertEqual({'assembled-parent.wav','join'},{p.name for p in outer[0].iterdir()})
+                    if phase in ('encoded','rendered'):
+                        self.assertTrue(next(row for row in rows.values() if row['windows']==0)['encoding'])
+                        encoded=Path(proof['encoded_path'])
+                        self.assertEqual(outer[0]/'encoded-parent.mp3',encoded)
+                        self.assertEqual(proof['encoded_sha256'],hashlib.sha256(encoded.read_bytes()).hexdigest())
+                        self.assertFalse(list((root/'voicelines').glob('.chunk-*')))
+                        self.assertFalse(list((root/'voicelines').glob('.render-*')))
+                    else:
+                        self.assertEqual({'assembled-parent.wav','join'},{p.name for p in outer[0].iterdir()})
                     if phase in ('zero','window'):self.assertEqual(0,parent.stat().st_size)
                     else:self.assertGreater(parent.stat().st_size,44)
                     self.assertEqual([legacy],list(root.glob('chunk_*.wav')))
@@ -240,6 +279,7 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                             self.assertEqual(len(rows),workspace.apply_abandoned_synthesis_workspace_cleanup(root))
                     with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual({},store.body['rows'])
                     self.assertFalse(parent.exists());self.assertEqual(b'unregistered preserved',legacy.read_bytes())
+                    if phase in ('encoded','rendered'):self.assertFalse(encoded.exists())
                     self.assertEqual(proof['previous_sha256'],hashlib.sha256(Path(proof['previous']).read_bytes()).hexdigest())
                     if phase=='published':
                         self.assertEqual(proof['published_sha256'],hashlib.sha256(Path(proof['published_path']).read_bytes()).hexdigest())
@@ -249,7 +289,9 @@ class SynthesisWorkspaceTests(unittest.TestCase):
 
 
     def test_project_list_batch_hard_exit_reclaims_both_registered_parents(self):
-        for mode in ('windowed','default'):
+        modes=['windowed','default']
+        if shutil.which('ffmpeg'):modes += ['windowed:encoded','windowed:rendered','default:encoded','default:rendered']
+        for mode in modes:
             with self.subTest(mode=mode),tempfile.TemporaryDirectory() as bound:
                 note=Path(bound)/'batch-note.json';env=dict(os.environ,TMPDIR=bound,PYTHONDONTWRITEBYTECODE='1')
                 result=subprocess.run([sys.executable,'-B','-c',_PROJECT_BATCH_CHILD,str(note),mode],
@@ -262,11 +304,19 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                 self.assertFalse((root/'.synthesis-recovery-v1').exists())
                 with workspace.SynthesisWorkspaceRegistry(root) as store:rows=copy.deepcopy(store.body['rows'])
                 self.assertEqual(2,len(rows));self.assertTrue(all(row['windows']==0 for row in rows.values()))
+                if ':' in mode:
+                    self.assertTrue(all(row['encoding'] is True for row in rows.values()))
+                    encoded=Path(proof['encoded_path'])
+                    self.assertTrue(encoded.is_relative_to(root/workspace.DIRECTORY))
+                    self.assertEqual(proof['encoded_sha256'],hashlib.sha256(encoded.read_bytes()).hexdigest())
+                    self.assertFalse(list((root/'voicelines').glob('.chunk-*')))
+                    self.assertFalse(list((root/'voicelines').glob('.render-*')))
                 for name in rows:self.assertGreater((root/workspace.DIRECTORY/name/'assembled-parent.wav').stat().st_size,44)
                 with ensure_startup_recovery(root,timeout=0) as idle:
                     self.assertTrue(idle)
                     with ensure_book_state(root):self.assertEqual(2,workspace.apply_abandoned_synthesis_workspace_cleanup(root))
                 with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual({},store.body['rows'])
+                if ':' in mode:self.assertFalse(encoded.exists())
                 self.assertEqual(proof['prior_sha256'],hashlib.sha256(Path(proof['prior']).read_bytes()).hexdigest())
 
     def test_batch_routes_capture_scope_and_native_writer_guards(self):
@@ -442,6 +492,119 @@ class SynthesisWorkspaceTests(unittest.TestCase):
             unknown.unlink()
         self.assertEqual(1,self.cleanup_idle());self.assertFalse(space.exists())
 
+        from contextvars import copy_context
+        with ensure_audio_generation_owner(self.owner):
+            with workspace.ensure_synthesis_parent_output(self.parent,encoding=True) as raw:
+                stage=workspace.get_registered_encoding_stage(raw)
+                original_fstat=os.fstat
+                def shared_root(fd):
+                    info=original_fstat(fd)
+                    if (info.st_dev,info.st_ino)==stage.root_identity:
+                        fields=list(info);fields[4]=os.geteuid()+1
+                        return os.stat_result(fields)
+                    return info
+                with patch('synthesis_workspace.os.fstat',side_effect=shared_root):
+                    self.assertIs(stage,workspace.get_registered_encoding_stage(raw))
+                Path(raw).write_bytes(b'private raw bytes')
+                expired=copy_context()
+                self.assertTrue(next(iter(self.rows().values()))['encoding'])
+                self.assertEqual(b'private raw bytes',Path(stage.copy_wav()).read_bytes())
+                self.assertTrue(workspace.defer_registered_encoding_cleanup(raw))
+                with self.assertRaises(FileExistsError):stage.create_file('encoded-parent.wav')
+                for marker,windows in ((False,0),(1,0),('yes',0),(True,2)):
+                    body={'version':1,'rows':copy.deepcopy(self.rows())}
+                    row=next(iter(body['rows'].values()));row.update(encoding=marker,windows=windows)
+                    with self.subTest(marker=marker,windows=windows),self.assertRaises(workspace.SynthesisWorkspaceUnavailable):workspace._validate(body)
+                with workspace.ensure_synthesis_parent_output(self.parent,encoding=True) as second:
+                    self.assertEqual(2,len(self.rows()))
+                    self.assertIs(stage,workspace.get_registered_encoding_stage(raw))
+                    self.assertIsNot(stage,workspace.get_registered_encoding_stage(second))
+        self.assertEqual({},self.rows())
+        with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):expired.run(workspace.get_registered_encoding_stage,raw)
+        relative_owner,relative_parent=get_parent(Path(os.path.relpath(self.root)))
+        with ensure_audio_generation_owner(relative_owner):
+            with workspace.ensure_synthesis_parent_output(relative_parent,encoding=True) as relative_raw:
+                self.assertFalse(Path(relative_raw).is_absolute())
+                relative_stage=workspace.get_registered_encoding_stage(relative_raw)
+                self.assertTrue(relative_stage.directory.is_absolute())
+                self.assertTrue(workspace.defer_registered_encoding_cleanup(relative_raw))
+        self.assertEqual({},self.rows())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'book';root.mkdir(mode=0o700)
+            alias=Path(tmp)/'book-link';alias.symlink_to(root,target_is_directory=True)
+            owner,parent=get_parent(alias)
+            with ensure_audio_generation_owner(owner),workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                stage=workspace.get_registered_encoding_stage(raw)
+                self.assertEqual(root/workspace.DIRECTORY,stage.directory.parent)
+                Path(raw).write_bytes(b'aliased root audio')
+                self.assertEqual(b'aliased root audio',Path(stage.copy_wav()).read_bytes())
+                self.assertTrue(workspace.defer_registered_encoding_cleanup(raw))
+                other=Path(tmp)/'other-book';other.mkdir(mode=0o700)
+                alias.unlink();alias.symlink_to(other,target_is_directory=True)
+                with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):workspace.get_registered_encoding_stage(raw)
+                self.assertTrue(workspace.defer_registered_encoding_cleanup(raw))
+                (other/'sentinel').write_bytes(b'preserved other root')
+            with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual({},store.body['rows'])
+            self.assertFalse(stage.directory.exists())
+            self.assertEqual(b'preserved other root',(other/'sentinel').read_bytes())
+
+        initial_cwd=os.getcwd()
+        try:
+            # A root-clamping ../ path can still resolve to this book after
+            # chdir (notably with /var/tmp). Use a relative leaf so the fixture
+            # actually changes its resolved book rather than assuming it does.
+            os.chdir(self.root.parent)
+            relative_owner,relative_parent=get_parent(Path(self.root.name))
+            with ensure_audio_generation_owner(relative_owner),workspace.ensure_synthesis_parent_output(relative_parent,encoding=True) as raw:
+                os.chdir(self.root)
+                self.assertTrue(workspace.defer_registered_encoding_cleanup(raw))
+                with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):workspace.get_registered_encoding_stage(raw)
+        finally:os.chdir(initial_cwd)
+        self.assertEqual({},self.rows())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            first=Path(tmp)/'first';second=Path(tmp)/'second';first.mkdir();second.mkdir();initial_cwd=os.getcwd()
+            try:
+                os.chdir(first);owner,parent=get_parent(Path('.'))
+                with ensure_audio_generation_owner(owner),workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                    stage=workspace.get_registered_encoding_stage(raw);os.chdir(second)
+                    _,other_parent=get_parent(Path('.'))
+                    from types import SimpleNamespace
+                    with patch.object(workspace.uuid,'uuid4',return_value=SimpleNamespace(hex=stage.directory.name)):
+                        with self.assertRaisesRegex(workspace.SynthesisWorkspaceUnavailable,'Ambiguous'):
+                            with workspace.ensure_synthesis_parent_output(other_parent,encoding=True):pass
+                    with workspace.SynthesisWorkspaceRegistry(second) as store:self.assertEqual({},store.body['rows'])
+                    os.chdir(first);self.assertIs(stage,workspace.get_registered_encoding_stage(raw))
+            finally:os.chdir(initial_cwd)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'book';root.mkdir();owner,parent=get_parent(root)
+            with ensure_audio_generation_owner(owner),workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                Path(raw).write_bytes(b'original authority')
+                root.rename(Path(tmp)/'moved-book');root.mkdir();(root/'sentinel').write_bytes(b'new root')
+            self.assertEqual(b'new root',(root/'sentinel').read_bytes())
+            self.assertFalse((root/workspace.DIRECTORY).exists())
+            with workspace.SynthesisWorkspaceRegistry(Path(tmp)/'moved-book') as store:self.assertEqual(1,len(store.body['rows']))
+
+        with ensure_audio_generation_owner(self.owner):
+            with workspace.ensure_synthesis_parent_output(self.parent,encoding=True) as raw:
+                stage=workspace.get_registered_encoding_stage(raw);Path(raw).write_bytes(b'raw source')
+                old_profile=sys.getprofile()
+                def replace_target(frame,event,value):
+                    if (event=='return' and frame.f_code is workspace.RegisteredEncodingStage.create_file.__code__
+                            and frame.f_locals.get('name')=='encoded-parent.wav'):
+                        sys.setprofile(old_profile)
+                        target=stage.directory/'encoded-parent.wav'
+                        target.rename(stage.directory/'unknown-original.wav');target.write_bytes(b'replacement')
+                try:
+                    sys.setprofile(replace_target)
+                    with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):
+                        stage.copy_wav()
+                finally:sys.setprofile(old_profile)
+                self.assertEqual(b'replacement',(stage.directory/'encoded-parent.wav').read_bytes())
+        self.assertEqual(1,len(self.rows()))
+
     def test_project_parent_publication_cancel_replacement_and_capacity(self):
         import numpy as np
         from contextlib import ExitStack
@@ -511,6 +674,342 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                 with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual({},store.body['rows'])
                 self.assertTrue(previous.is_file())
 
+        if shutil.which('ffmpeg'):
+            import project
+            for outcome in ('success','history','wav','cancel','replace','edit','save_error','override','relative','root_alias',
+                            'swap_mp3','swap_wav','symlink_mp3','hardlink_mp3','root_retarget','root_assignment','cwd_drift'):
+                with self.subTest(registered_codec=outcome),case.fixture(False,enabled=outcome=='history') as (root,manager,previous,_),ExitStack() as stack:
+                    stack.enter_context(patch.object(project,'_export_audio_segment',project._RAW_CHUNK_CODEC_HELPERS[1]))
+                    before=copy.deepcopy(manager.load_chunks()[0]);prior=previous.read_bytes()
+                    if outcome=='cwd_drift':
+                        stack.callback(os.chdir,os.getcwd())
+                        os.chdir(root.parent)
+                    if outcome in ('relative','cwd_drift'):manager.root_dir=os.path.relpath(root)
+                    if outcome in ('root_alias','root_retarget'):
+                        alias=root/'book-link';alias.symlink_to(root,target_is_directory=True);manager.root_dir=str(alias)
+                    state={'cancelled':False,'replaced':False};encoded=[];mutex=threading.Lock()
+                    @contextmanager
+                    def owner(allow_cancelled=False):
+                        if not mutex.acquire(timeout=.25):raise TimeoutError('encoding owner mutex reentry')
+                        try:
+                            if state['replaced'] or (state['cancelled'] and not allow_cancelled):raise AudioGenerationCancelled()
+                            yield
+                        finally:mutex.release()
+                    stack.enter_context(ensure_audio_generation_owner(AudioGenerationOwner('f'*32,owner)))
+                    engine=case.engine();engine._synthesis_recovery=None;engine._synthesis_windows=None;engine._local_custom_model=Model();manager.engine=engine
+                    Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
+                    with patch.object(engine,'get_voice_backend',side_effect=AssertionError('encoding admission queried backend')):
+                        self.assertTrue(project._can_register_chunk_encoding(manager))
+                    if outcome in ('wav','swap_wav'):stack.enter_context(patch.object(project,'MP3_BITRATE','invalid-bitrate'))
+                    if outcome=='override':
+                        original=manager._export_chunk_audio
+                        def overridden(path,*args,**kwargs):
+                            self.assertEqual({},kwargs)
+                            self.assertIsNone(workspace.get_registered_encoding_stage(path))
+                            return original(path,*args,**kwargs)
+                        stack.enter_context(patch.object(manager,'_export_chunk_audio',side_effect=overridden))
+                    removed=stack.enter_context(patch.object(manager,'_remove_temp_file',wraps=manager._remove_temp_file))
+                    old_profile=sys.getprofile();initial_cwd=os.getcwd();foreign=[]
+                    def observe(frame,event,value):
+                        if event!='return' or frame.f_code is not project._RAW_CHUNK_EXPORT.__code__ or not isinstance(value,str):return
+                        sys.setprofile(old_profile);path=root/value
+                        encoded.append((path,hashlib.sha256(Path(frame.f_locals['temp_path']).read_bytes()).hexdigest(),hashlib.sha256(path.read_bytes()).hexdigest()))
+                        if outcome=='cancel':state['cancelled']=True
+                        elif outcome=='replace':state['replaced']=True
+                        elif outcome=='edit':manager._update_chunk_fields_by_uid(before['uid'],text='Edited after encoding.')
+                        elif outcome=='save_error':stack.enter_context(patch.object(manager,'_save_chunks_locked',side_effect=OSError('encoded metadata failure')))
+                        elif outcome in ('swap_mp3','swap_wav','symlink_mp3','hardlink_mp3'):
+                            data=path.read_bytes();path.rename(path.with_name('unknown-original'+path.suffix))
+                            if outcome=='symlink_mp3':path.symlink_to(previous)
+                            elif outcome=='hardlink_mp3':os.link(previous,path)
+                            else:path.write_bytes(data)
+                        elif outcome=='root_retarget':
+                            other=root/'other-book';other.mkdir();target=other/value;target.parent.mkdir(parents=True)
+                            target.write_bytes(b'unrelated staged file');foreign.append(target)
+                            alias.unlink();alias.symlink_to(other,target_is_directory=True)
+                        elif outcome=='root_assignment':
+                            other=root/'other-book';other.mkdir();sentinel=other/'sentinel';sentinel.write_bytes(b'unrelated staged file')
+                            foreign.append(sentinel);manager.root_dir=str(other)
+                        elif outcome=='cwd_drift':os.chdir(root)
+                    try:
+                        sys.setprofile(observe);success,payload=manager.generate_chunk_audio(0)
+                    finally:sys.setprofile(old_profile);os.chdir(initial_cwd)
+                    self.assertEqual(outcome in ('success','history','wav','override','relative','root_alias'),success,payload)
+                    self.assertEqual(1,len(encoded));path,raw_hash,encoded_hash=encoded[0]
+                    self.assertEqual(outcome!='override',path.is_relative_to(root/workspace.DIRECTORY))
+                    self.assertEqual(outcome=='override',path in [Path(os.path.abspath(call.args[0])) for call in removed.call_args_list])
+                    self.assertFalse(list((root/'voicelines').glob('.chunk-*')))
+                    self.assertFalse(list((root/'voicelines').glob('.render-*')))
+                    self.assertEqual(prior,previous.read_bytes())
+                    for target in foreign:self.assertEqual(b'unrelated staged file',target.read_bytes())
+                    kept=outcome in ('replace','swap_mp3','swap_wav','symlink_mp3','hardlink_mp3')
+                    with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual(1 if kept else 0,len(store.body['rows']))
+                    if success:
+                        self.assertTrue((root/payload).is_file());self.assertNotEqual(before['audio_revision'],manager.load_chunks()[0]['audio_revision'])
+                        if outcome=='wav':self.assertEqual(raw_hash,encoded_hash);self.assertEqual('.wav',Path(payload).suffix)
+                    else:
+                        self.assertEqual(before['audio_revision'],manager.load_chunks()[0]['audio_revision'])
+                    stack.close()
+                    with ensure_startup_recovery(root,timeout=0) as idle:
+                        self.assertTrue(idle)
+                        with ensure_book_state(root):workspace.apply_abandoned_synthesis_workspace_cleanup(root)
+                    with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual(1 if outcome in ('swap_mp3','swap_wav','symlink_mp3','hardlink_mp3') else 0,len(store.body['rows']))
+
+            with case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner(), \
+                    patch.object(project,'_export_audio_segment',project._RAW_CHUNK_CODEC_HELPERS[1]):
+                manager.engine=case.engine();manager.engine._synthesis_recovery=None;manager.engine._synthesis_windows=None
+                manager.engine._local_custom_model=Model()
+                Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
+                before=copy.deepcopy(manager.load_chunks()[0]);prior=previous.read_bytes();swapped=[]
+                old_profile=sys.getprofile()
+                def replace_created_slot(frame,event,value):
+                    if (event=='return' and frame.f_code is workspace.RegisteredEncodingStage.create_file.__code__
+                            and frame.f_locals.get('name')=='encoded-parent.mp3'):
+                        sys.setprofile(old_profile);stage=frame.f_locals['self'];path=stage.directory/'encoded-parent.mp3'
+                        path.rename(stage.directory/'unknown-created-slot.mp3');path.write_bytes(b'unknown replacement slot');swapped.append(path)
+                try:
+                    sys.setprofile(replace_created_slot);success,payload=manager.generate_chunk_audio(0)
+                finally:sys.setprofile(old_profile)
+                self.assertFalse(success,payload);self.assertEqual(1,len(swapped))
+                self.assertEqual(b'unknown replacement slot',swapped[0].read_bytes())
+                self.assertEqual(before['audio_revision'],manager.load_chunks()[0]['audio_revision'])
+                self.assertEqual(prior,previous.read_bytes())
+
+            for race in ('directory','source','destination'):
+                with self.subTest(final_rename_race=race),case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner(), \
+                        patch.object(project,'_export_audio_segment',project._RAW_CHUNK_CODEC_HELPERS[1]):
+                    manager.engine=case.engine();manager.engine._synthesis_recovery=None;manager.engine._synthesis_windows=None
+                    manager.engine._local_custom_model=Model()
+                    Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
+                    before=copy.deepcopy(manager.load_chunks()[0]);prior=previous.read_bytes();triggered=[]
+                    outside=root/'outside-stage';outside.mkdir();(outside/'encoded-parent.mp3').write_bytes(b'outside destination')
+                    old_profile=sys.getprofile()
+                    def replace_at_rename(frame,event,value):
+                        if event!='c_call' or value is not os.replace:return
+                        if race=='directory' and frame.f_code is workspace.RegisteredEncodingStage.finish_encoder_output.__code__:
+                            sys.setprofile(old_profile);stage=frame.f_locals['self'];triggered.append(stage.directory)
+                            stage.directory.rename(root/'moved-stage');stage.directory.symlink_to(outside,target_is_directory=True)
+                        elif race=='source' and frame.f_code is project.publish_audio_output.__code__:
+                            source=frame.f_back.f_locals.get('self')
+                            if type(source) is not workspace.RegisteredEncodingSource:return
+                            sys.setprofile(old_profile);path=Path(source.path);data=path.read_bytes();triggered.append(path)
+                            path.rename(path.with_name('unknown-original.mp3'));path.write_bytes(data)
+                        elif race=='destination' and frame.f_code is project.publish_audio_output.__code__:
+                            sys.setprofile(old_profile);voicelines=root/'voicelines';triggered.append(voicelines)
+                            voicelines.rename(root/'moved-voicelines');voicelines.symlink_to(outside,target_is_directory=True)
+                            (outside/Path(frame.f_locals['output_path']).name).write_bytes(b'unrelated destination')
+                    try:
+                        sys.setprofile(replace_at_rename);success,payload=manager.generate_chunk_audio(0)
+                    finally:sys.setprofile(old_profile)
+                    self.assertFalse(success,payload);self.assertEqual(1,len(triggered))
+                    self.assertEqual(before['audio_revision'],manager.load_chunks()[0]['audio_revision'])
+                    actual_previous=root/'moved-voicelines'/previous.name if race=='destination' else previous
+                    self.assertEqual(prior,actual_previous.read_bytes())
+                    self.assertEqual(b'outside destination',(outside/'encoded-parent.mp3').read_bytes())
+                    if race=='destination':
+                        self.assertEqual([b'outside destination',b'unrelated destination'],
+                            sorted((p.read_bytes() for p in outside.iterdir()),key=lambda value:value))
+                    with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual(0 if race=='destination' else 1,len(store.body['rows']))
+
+            for mutation in ('output_inplace','missing_report','oversize_report','duplicate_report','bad_type_report','nonfinite_report','wrong_inode_report','wav_inplace'):
+                with self.subTest(child_completion=mutation),case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner(), \
+                        patch.object(project,'_export_audio_segment',project._RAW_CHUNK_CODEC_HELPERS[1]),ExitStack() as checks:
+                    manager.engine=case.engine();manager.engine._synthesis_recovery=None;manager.engine._synthesis_windows=None
+                    manager.engine._local_custom_model=Model()
+                    Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':{'type':'custom','voice':'Ryan','seed':42}}))
+                    if mutation=='wav_inplace':checks.enter_context(patch.object(project,'MP3_BITRATE','invalid-bitrate'))
+                    before=copy.deepcopy(manager.load_chunks()[0]);prior=previous.read_bytes();triggered=[];old_profile=sys.getprofile()
+                    def corrupt_completion(frame,event,value):
+                        if (mutation=='wav_inplace' and event=='c_return'
+                                and frame.f_code is workspace.RegisteredEncodingStage.copy_wav.__code__
+                                and getattr(value,'__name__',None)=='flush'):
+                            sys.setprofile(old_profile);triggered.append(True)
+                            os.pwrite(frame.f_locals['writer'].fileno(),b'X',0);return
+                        if mutation=='wav_inplace' or event!='return' or frame.f_code is not subprocess.Popen.wait.__code__ or value!=0:return
+                        process=frame.f_locals['self']
+                        if not any(isinstance(arg,str) and arg.endswith('/audio_export.py') for arg in process.args):return
+                        sys.setprofile(old_profile);settings=json.loads(process.args[-1]);triggered.append(True)
+                        report=Path(settings['exception_path']);output=report.parent/'output.mp3'
+                        if mutation=='output_inplace':
+                            with output.open('r+b') as stream:
+                                data=stream.read();stream.seek(0);stream.write(bytes([data[0]^1])+data[1:])
+                        elif mutation=='missing_report':report.write_bytes(b'')
+                        elif mutation=='oversize_report':report.write_bytes(b'x'*4097)
+                        elif mutation=='duplicate_report':
+                            text=report.read_text();report.write_text('{"status":"success",'+text[1:])
+                        elif mutation=='nonfinite_report':report.write_text('{"status":"success","output":"output.mp3","version":[NaN]}')
+                        else:
+                            body=json.loads(report.read_text())
+                            if mutation=='bad_type_report':body['version'][0]=True
+                            else:body['version'][1]+=1
+                            report.write_text(json.dumps(body))
+                    try:
+                        sys.setprofile(corrupt_completion);success,payload=manager.generate_chunk_audio(0)
+                    finally:sys.setprofile(old_profile)
+                    self.assertFalse(success,payload);self.assertEqual([True],triggered)
+                    self.assertEqual(before['audio_revision'],manager.load_chunks()[0]['audio_revision'])
+                    self.assertEqual(prior,previous.read_bytes())
+
+            for target,name in ((project,'validate_generated_audio'),(workspace,'_check_encoding_source'),
+                                (workspace,'_check_encoding_destination')):
+                with self.subTest(late_helper=name),case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner(), \
+                        patch.object(project,'_export_audio_segment',project._RAW_CHUNK_CODEC_HELPERS[1]):
+                    manager.engine=case.engine();before=manager.load_chunks()[0]
+                    parent=manager._capture_synthesis_recovery_parent(manager.engine,0,before)
+                    with workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                        Path(raw).write_bytes(previous.read_bytes())
+                        with patch.object(target,name,side_effect=AssertionError('unknown helper received registered input')) as changed:
+                            with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):manager._publish_generated_chunk_audio(before,raw,'NARRATOR')
+                            changed.assert_not_called()
+
+            import audio_validation
+            for target,name in ((audio_validation,'publish_audio_output'),(None,'get_chunk_audio_path')):
+                with self.subTest(late_public_helper=name),case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner(), \
+                        patch.object(project,'_export_audio_segment',project._RAW_CHUNK_CODEC_HELPERS[1]):
+                    manager.engine=case.engine();before=manager.load_chunks()[0]
+                    parent=manager._capture_synthesis_recovery_parent(manager.engine,0,before)
+                    with workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                        Path(raw).write_bytes(previous.read_bytes())
+                        with patch.object(manager if target is None else target,name,side_effect=AssertionError('unknown helper received capability')) as changed:
+                            with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):manager._publish_generated_chunk_audio(before,raw,'NARRATOR')
+                            changed.assert_not_called()
+
+            for alias in ('symlink','hardlink'):
+                with self.subTest(raw_parent_alias=alias),case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner(), \
+                        patch.object(project,'_export_audio_segment',project._RAW_CHUNK_CODEC_HELPERS[1]):
+                    manager.engine=case.engine();before=manager.load_chunks()[0];prior=previous.read_bytes()
+                    parent=manager._capture_synthesis_recovery_parent(manager.engine,0,before)
+                    with workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                        Path(raw).unlink()
+                        if alias=='symlink':Path(raw).symlink_to(previous)
+                        else:os.link(previous,raw)
+                        with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):manager._export_chunk_audio(raw,'.unused')
+                        self.assertEqual(prior,previous.read_bytes())
+
+            import audio_export
+            from audio_export import export_audio_segment
+            from pydub import AudioSegment
+            for name in ('encoded-parent.mp3','encoded-parent.wav'):
+                for alias in ('regular','symlink','hardlink'):
+                    with self.subTest(encoded_slot=name,alias=alias),case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner(), \
+                            patch.object(project,'_export_audio_segment',project._RAW_CHUNK_CODEC_HELPERS[1]):
+                        manager.engine=case.engine();before=manager.load_chunks()[0];prior=previous.read_bytes()
+                        parent=manager._capture_synthesis_recovery_parent(manager.engine,0,before)
+                        with workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                            stage=workspace.get_registered_encoding_stage(raw);Path(raw).write_bytes(prior)
+                            target=stage.directory/name
+                            if alias=='regular':target.write_bytes(b'preexisting member')
+                            elif alias=='symlink':target.symlink_to(previous)
+                            else:os.link(previous,target)
+                            with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):manager._export_chunk_audio(raw,'.unused')
+                            self.assertEqual(prior,previous.read_bytes())
+                            if name=='encoded-parent.mp3':self.assertFalse((stage.directory/'encoded-parent.wav').exists())
+            for name in ('output.mp3','encoder-error.json'):
+                for alias in ('symlink','hardlink'):
+                    with self.subTest(encoder_member=name,alias=alias),tempfile.TemporaryDirectory() as tmp:
+                        root=Path(tmp);outside=root/'outside';outside.write_bytes(b'preserved outside bytes')
+                        owner,parent=get_parent(root)
+                        with ensure_audio_generation_owner(owner),workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                            stage=workspace.get_registered_encoding_stage(raw)
+                            fd=stage.create_file('encoded-parent.mp3');os.close(fd)
+                            member=stage.directory/name
+                            if alias=='symlink':member.symlink_to(outside)
+                            else:os.link(outside,member)
+                            with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):
+                                export_audio_segment(AudioSegment.silent(50),stage.directory/'encoded-parent.mp3','mp3',None,
+                                    workspace=stage,bitrate='invalid-bitrate' if name=='encoder-error.json' else '128k')
+                            self.assertEqual(b'preserved outside bytes',outside.read_bytes())
+
+            with tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);owner,parent=get_parent(root)
+                with ensure_audio_generation_owner(owner),workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                    stage=workspace.get_registered_encoding_stage(raw)
+                    fd=stage.create_file('encoded-parent.mp3');os.close(fd)
+                    (stage.directory/'join'/'pydub.py').write_text("raise RuntimeError('scratch must never supply trusted code')\n")
+                    with patch.dict(os.environ,{'PYTHONPATH':'.'+os.pathsep+os.environ.get('PYTHONPATH','')}):
+                        export_audio_segment(AudioSegment.silent(50),stage.directory/'encoded-parent.mp3','mp3',None,
+                            workspace=stage,bitrate='128k')
+                    self.assertGreater((stage.directory/'encoded-parent.mp3').stat().st_size,1024)
+
+            with tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);owner,parent=get_parent(root);drift=root/'drift';drift.mkdir()
+                (drift/'pydub.py').write_text("from pathlib import Path\nPath(__file__).with_suffix('.loaded').write_text('bad')\nraise RuntimeError('wrong cwd import')\n")
+                initial_cwd=os.getcwd();old_profile=sys.getprofile();triggered=[]
+                with ensure_audio_generation_owner(owner),workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                    stage=workspace.get_registered_encoding_stage(raw);fd=stage.create_file('encoded-parent.mp3');os.close(fd)
+                    def drift_before_spawn(frame,event,value):
+                        if event=='call' and frame.f_code is audio_export.start_owned_subprocess.__code__:
+                            sys.setprofile(old_profile);triggered.append(True);os.chdir(drift)
+                    try:
+                        with patch.dict(os.environ,{'PYTHONPATH':'.'+os.pathsep+os.environ.get('PYTHONPATH','')}):
+                            sys.setprofile(drift_before_spawn)
+                            export_audio_segment(AudioSegment.silent(50),stage.directory/'encoded-parent.mp3','mp3',None,
+                                workspace=stage,bitrate='128k')
+                    finally:sys.setprofile(old_profile);os.chdir(initial_cwd)
+                    self.assertEqual([True],triggered);self.assertFalse((drift/'pydub.loaded').exists())
+                    self.assertGreater((stage.directory/'encoded-parent.mp3').stat().st_size,1024)
+
+            for alias in ('symlink','directory'):
+                with self.subTest(late_encoder_join=alias),tempfile.TemporaryDirectory() as tmp:
+                    root=Path(tmp);outside=root/'outside';outside.mkdir();(outside/'sentinel').write_bytes(b'preserved')
+                    owner,parent=get_parent(root)
+                    with ensure_audio_generation_owner(owner),workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                        stage=workspace.get_registered_encoding_stage(raw)
+                        fd=stage.create_file('encoded-parent.mp3');os.close(fd)
+                        old_profile=sys.getprofile()
+                        def replace_join(frame,event,value):
+                            if event=='call' and frame.f_code is audio_export.start_owned_subprocess.__code__:
+                                sys.setprofile(old_profile);join=stage.directory/'join';join.rename(root/'original-join')
+                                if alias=='symlink':join.symlink_to(outside,target_is_directory=True)
+                                else:join.mkdir(mode=0o700)
+                        try:
+                            sys.setprofile(replace_join)
+                            with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):
+                                export_audio_segment(AudioSegment.silent(50),stage.directory/'encoded-parent.mp3','mp3',None,
+                                    workspace=stage,bitrate='128k')
+                        finally:sys.setprofile(old_profile)
+                        report=json.loads((stage.directory/'encoder-error.json').read_text())
+                        self.assertIn(report['type'],('NotADirectoryError','ValueError'))
+                        self.assertEqual(['sentinel'],[p.name for p in outside.iterdir()])
+                        self.assertEqual(b'preserved',(outside/'sentinel').read_bytes())
+
+            for name in ('input.pcm','output.mp3','encoder-error.json'):
+                for alias in ('symlink','hardlink'):
+                    with self.subTest(late_encoder_alias=name,alias=alias),tempfile.TemporaryDirectory() as tmp:
+                        root=Path(tmp);outside=root/'outside';outside.write_bytes(b'preserved outside bytes')
+                        owner,parent=get_parent(root)
+                        with ensure_audio_generation_owner(owner),workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                            stage=workspace.get_registered_encoding_stage(raw)
+                            fd=stage.create_file('encoded-parent.mp3');os.close(fd)
+                            old_profile=sys.getprofile()
+                            def replace_before_child(frame,event,value):
+                                if event=='call' and frame.f_code is audio_export.start_owned_subprocess.__code__:
+                                    sys.setprofile(old_profile)
+                                    member=stage.directory/name;member.unlink()
+                                    if alias=='symlink':member.symlink_to(outside)
+                                    else:os.link(outside,member)
+                            try:
+                                sys.setprofile(replace_before_child)
+                                with self.assertRaises(workspace.SynthesisWorkspaceUnavailable):
+                                    export_audio_segment(AudioSegment.silent(50),stage.directory/'encoded-parent.mp3','mp3',None,
+                                        workspace=stage,bitrate='invalid-bitrate' if name=='encoder-error.json' else '128k')
+                            finally:sys.setprofile(old_profile)
+                            self.assertEqual(b'preserved outside bytes',outside.read_bytes())
+
+        # Replacing a writer after parent admission must not receive the live
+        # encoding scope that was granted to the original implementation.
+        import project
+        with case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner(), \
+                patch.object(project,'_export_audio_segment',project._RAW_CHUNK_CODEC_HELPERS[1]):
+            manager.engine=case.engine();before=manager.load_chunks()[0]
+            parent=manager._capture_synthesis_recovery_parent(manager.engine,0,before)
+            with workspace.ensure_synthesis_parent_output(parent,encoding=True) as raw:
+                Path(raw).write_bytes(previous.read_bytes())
+                with patch.object(manager,'_export_chunk_audio',side_effect=AssertionError('late unknown writer invoked')) as changed:
+                    with self.assertRaisesRegex(workspace.SynthesisWorkspaceUnavailable,'writer changed'):
+                        manager._publish_generated_chunk_audio(before,raw,'NARRATOR')
+                    changed.assert_not_called()
+
     def test_unknown_aliases_links_and_substituted_directory_preserve_all_files(self):
         kinds=('unknown','symlink','hardlink','join_alias','root_alias','changed_directory')
         for windows,kind in ((n,k) for n in (0,2) for k in kinds):
@@ -532,6 +1031,33 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                 self.assertEqual(b'outside',outside.read_bytes())
                 original=path.with_name(name+'old') if kind in ('root_alias','changed_directory') else path
                 self.assertEqual(b'owned',(original/owned).read_bytes())
+
+        for kind in ('clean','symlink','hardlink','nested','join_mode','join_replaced','unknown_root',
+                     'overcount','oversize','legacy_join'):
+            with self.subTest(encoding=kind),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);owner,parent=get_parent(root)
+                with workspace.SynthesisWorkspaceRegistry(root,create=True) as store:
+                    name,row=store.reserve(parent,0,encoding=kind!='legacy_join')
+                path=root/workspace.DIRECTORY/name;raw=path/'assembled-parent.wav';raw.write_bytes(b'raw')
+                outside=root/'outside.wav';outside.write_bytes(b'outside')
+                if kind!='legacy_join':(path/'encoded-parent.mp3').write_bytes(b'encoded')
+                join=path/'join';first=join/'tmpA';first.write_bytes(b'encoder scratch')
+                (join/'tmpB').write_bytes(b'other scratch')
+                if kind in ('symlink','hardlink'):
+                    first.unlink()
+                    if kind=='symlink':first.symlink_to(outside)
+                    else:os.link(outside,first)
+                elif kind=='nested':(join/'nested').mkdir(mode=0o700)
+                elif kind=='join_mode':join.chmod(0o755)
+                elif kind=='join_replaced':join.rename(root/'original-join');join.mkdir(mode=0o700)
+                elif kind=='unknown_root':(path/'unknown.txt').write_bytes(b'unknown')
+                with patch.object(workspace,'MAX_ENCODER_TEMP_FILES',1 if kind=='overcount' else 16), \
+                        patch.object(workspace,'MAX_ENCODER_TEMP_BYTES',1 if kind=='oversize' else 8*1024**3):
+                    self.assertEqual(1 if kind=='clean' else 0,workspace.apply_abandoned_synthesis_workspace_cleanup(root))
+                self.assertEqual(b'outside',outside.read_bytes())
+                if kind!='clean':
+                    self.assertEqual(b'raw',raw.read_bytes())
+                    with workspace.SynthesisWorkspaceRegistry(root) as store:self.assertEqual(row,store.body['rows'][name])
 
     def test_reserved_creation_gap_does_not_authorize_deleting_present_directory(self):
         with workspace.SynthesisWorkspaceRegistry(self.root,create=True) as store:

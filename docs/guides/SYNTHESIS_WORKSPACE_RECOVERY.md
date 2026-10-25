@@ -17,6 +17,28 @@ needed for disposable cleanup. Their reusable cache, speech-input capture and
 publication-proof policies remain unchanged; ownership alone enables none of
 those optional features.
 
+For the original Project chunk encoder, the same parent registration also owns
+the encoded intermediate and its encoder scratch. It does not allocate another
+workspace or reduce the parallel-parent budget. MP3 encoding and WAV fallback
+stay inside that workspace until the existing selected-slot publication moves
+the result into `voicelines`. A hard exit before publication therefore leaves
+owned scratch rather than an unregistered `.chunk-*` or `.render-*` file.
+The encoder reads the raw parent through a checked, no-follow descriptor.
+Its PCM, output and error files are created exclusively; the child checks their
+registered inode identities before reading or truncating them. WAV fallback
+also verifies that its completed filename still names the file it wrote.
+The completed inode remains open through selected-slot publication. Both
+renames use pinned source and destination directories, and the selected destination must name
+that same inode before metadata changes. A replacement is preserved as evidence
+and cannot become a successful take merely because it decodes as valid audio.
+The child acknowledges its flushed output version in the existing bounded
+encoder metadata file. WAV fallback verifies the copied bytes through held
+descriptors, in cancellable blocks outside the publication locks. Relative
+imports are frozen before the child enters pinned scratch; its launch cwd is
+captured before startup so a later cwd change cannot redirect those imports.
+Overridden chunk readers, encoders or file-publication helpers retain their existing staging
+behavior; they are not handed this additional encoding authority.
+
 The same captured authority also covers participating local Project batch
 outputs for custom, clone, design, LoRA and ensemble. Each participating row has a separate parent workspace allocated
 before dispatch and retained through all batch finalizers. Native list batching,
@@ -43,6 +65,21 @@ declare two through 1,024 windows. Older application versions that reject a
 zero-window row preserve the registry rather than cleaning it. Use a version
 that understands parent rows to resume automatic maintenance.
 
+New encoding-enabled parent rows have an explicit `encoding: true` marker,
+committed together with both directory identities before any writer runs. Their
+existing private `join` directory is the encoder's temporary directory. Old
+five-field rows keep their original strict join-file rules. An older client
+that does not recognize the encoding marker preserves the registry and refuses
+new registered allocations; use an encoding-aware version to finish idle
+maintenance before downgrading. Saved takes and reusable recovery evidence are
+separate from these disposable rows.
+
+Retirement uses the canonical book root and directory identity captured during
+registration. Retargeting a book-root symlink cannot redirect cleanup into a
+different book. A replaced root or revoked owner preserves the original charged
+registration for admitted idle recovery; cleanup does not search for moved
+directories or force deletion after authority is lost.
+
 ## Limits and preserved evidence
 
 - At most 256 workspaces are registered, with at most 1,024 windows each. This is
@@ -60,6 +97,12 @@ that understands parent rows to resume automatic maintenance.
   scratch, plus their declared WAV design publication staging files, are
   disposable. Unknown files, symlinks, hardlinks, changed directory
   identities and invalid or missing registry authority are preserved.
+- Encoding-marked parent rows additionally declare fixed encoded, PCM and
+  encoder-error filenames. Their pinned private join directory delegates at most
+  16 regular, single-link, current-user temporary files, totaling at most 8 GiB,
+  to the encoder. Nested directories, aliases, excessive scratch and unsafe
+  entries preserve the entire registration. Every declared child is checked
+  before the first deletion; the marker does not adopt historical files.
 - A crash between directory creation and committing its identity can leave an
   empty ambiguous directory and a reserved slot. No provider may write audio
   before identity commitment. This slot stays reserved for explicit inspection;
@@ -82,8 +125,8 @@ that understands parent rows to resume automatic maintenance.
   workspaces. The Designer tab's previews under `designed_voices/previews` remain
   a separate staging path and are not covered by this registry.
 - Batch rows outside the participating local category paths, direct unleased
-  calls, and staging in `voicelines` or `.chapter-export-*` remain outside this
-  raw-parent registration. Existing
+  calls, legacy staging in `voicelines`, and chapter exports/PCM exports/merges
+  outside the chunk encoder remain outside this registration. Existing
   unregistered parent files are preserved; this change does not authorize
   filename-based cleanup of historical files.
 

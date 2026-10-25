@@ -439,6 +439,10 @@ class TakeRestorationTests(unittest.TestCase):
     @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
     def test_source_replacement_links_and_stage_aliases_refuse_without_overwriting_current_or_outside_bytes(self):
         import os
+        import shutil
+        import sys
+        import tempfile
+        import project
         from synthesis_workspace import SynthesisWorkspaceRegistry
         for journal in (False,True):
             for case in ('source_changed','source_replaced','source_hardlink','stage_symlink','stage_hardlink'):
@@ -468,6 +472,41 @@ class TakeRestorationTests(unittest.TestCase):
                     for field in ('take','audio_revision','audio_path'):self.assertEqual(row[field],current[field])
                     self.assertEqual((root/row['audio_path']).read_bytes(),displaced)
                     self.assertEqual(outside.read_bytes(),displaced)
+
+        # Qualify the existing shared restore guards rather than changing the
+        # protocol used by all four saved formats. A copied registry retains
+        # the old inode identities; it cannot authorize writing in another root.
+        for journal in (False,True):
+            for boundary in ('registry','read'):
+                with self.subTest(journal=journal,root_boundary=boundary),self.prepared(journal) as args, \
+                        tempfile.TemporaryDirectory() as tmp:
+                    root,manager,_,request,_,_,current,displaced,_=args
+                    other=Path(tmp)/'other-book';initial_root=manager.root_dir
+                    old_profile=sys.getprofile();admissions=0;changed=[];clone_before={}
+                    def switch_root(frame,event,value):
+                        nonlocal admissions
+                        if boundary=='registry':
+                            if (event!='call' or frame.f_code.co_name!='admit'
+                                    or frame.f_code.co_filename!=project.__file__):return
+                            admissions+=1
+                            if admissions!=2:return
+                        elif not (event=='return' and frame.f_code is SynthesisWorkspaceRegistry.create_encoded_parent.__code__):return
+                        sys.setprofile(old_profile);shutil.copytree(root,other,symlinks=True)
+                        namespace=other/'.synthesis-workspaces-v1'
+                        clone_before.update({str(path.relative_to(other)):path.read_bytes()
+                            for path in namespace.rglob('*') if path.is_file() and not path.is_symlink()})
+                        (other/'sentinel').write_bytes(b'unrelated book');manager.root_dir=str(other);changed.append(True)
+                    try:
+                        sys.setprofile(switch_root)
+                        with self.assertRaises((ValueError,OSError,RuntimeError)):
+                            restore_editor_take(manager,0,request,current)
+                    finally:sys.setprofile(old_profile);manager.root_dir=initial_root
+                    self.assertEqual([True],changed)
+                    row=manager.get_saved_chunks()[0]
+                    for field in ('take','audio_revision','audio_path'):self.assertEqual(current[field],row[field])
+                    self.assertEqual(displaced,(root/row['audio_path']).read_bytes())
+                    self.assertEqual(b'unrelated book',(other/'sentinel').read_bytes())
+                    for name,content in clone_before.items():self.assertEqual(content,(other/name).read_bytes())
 
 
 if __name__=='__main__':unittest.main()

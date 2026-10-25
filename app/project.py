@@ -739,14 +739,37 @@ def _get_legacy_export_audio(segments, speakers, pause_ms, same_speaker_pause_ms
     return audio, pcm_plan
 
 
-def _export_audio_segment(segment, path, format_name, cancel_check=None, **kwargs):
+def _export_audio_segment(segment, path, format_name, cancel_check=None, workspace=None, **kwargs):
     """Export audio with an explicitly owned output handle."""
     from audio_export import export_audio_segment, is_easy_wav_export
-    if (cancel_check is not None or kwargs.get("mastering") is not None
+    if workspace is not None:
+        from audio_export import _RAW_EXPORT_AUDIO_SEGMENT
+        from synthesis_workspace import SynthesisWorkspaceUnavailable
+        if export_audio_segment is not _RAW_EXPORT_AUDIO_SEGMENT:
+            raise SynthesisWorkspaceUnavailable('Encoding writer changed after workspace admission')
+    if (workspace is not None or cancel_check is not None or kwargs.get("mastering") is not None
             or kwargs.get("quality_plan") is not None or not is_easy_wav_export(format_name, kwargs)):
+        if workspace is not None:
+            return export_audio_segment(segment, path, format_name, cancel_check, workspace=workspace, **kwargs)
         return export_audio_segment(segment, path, format_name, cancel_check, **kwargs)
     with open(path, "wb+") as target:
         segment.export(target, format=format_name, **kwargs)
+
+
+def _can_register_chunk_encoding(manager, *, exporter=None):
+    from audio_export import export_audio_segment, _RAW_EXPORT_AUDIO_SEGMENT
+    from audio_validation import publish_audio_output as current_publisher, _RAW_PUBLISH_AUDIO_OUTPUT
+    from synthesis_workspace import encoding_checks_are_current
+    return (type(manager) is ProjectManager
+            and getattr(manager._export_chunk_audio if exporter is None else exporter,
+                        '__func__', None) is _RAW_CHUNK_EXPORT
+            and getattr(manager._update_chunk_fields_by_uid, '__func__', None) is _RAW_CHUNK_UPDATE
+            and getattr(manager.get_chunk_audio_path, '__func__', None) is _RAW_CHUNK_PATH
+            and validate_generated_audio is _RAW_CHUNK_VALIDATE
+            and (_load_audio_segment, _export_audio_segment, publish_audio_output) == _RAW_CHUNK_CODEC_HELPERS
+            and publish_audio_output is current_publisher is _RAW_PUBLISH_AUDIO_OUTPUT
+            and encoding_checks_are_current()
+            and export_audio_segment is _RAW_EXPORT_AUDIO_SEGMENT)
 CHAPTER_EXPORT_DIR = "chapter_exports"
 DEFAULT_CHAPTER_TEMPLATE = "{chapter_number} - {chapter_name}"
 CHAPTER_TEMPLATE_FIELDS = ("chapter_number", "chapter_name", "book_name",
@@ -1378,7 +1401,8 @@ class ProjectManager:
 
     def _update_chunk_fields_by_uid(self, uid, expected_chunk=None, required_status=None,
                                     audio_source=None, expected_fields=None, expected_related_chunks=None,
-                                    require_target=False, publication_audio=None, restore_speech_receipt=False, **kwargs):
+                                    require_target=False, publication_audio=None, restore_speech_receipt=False,
+                                    audio_source_authority=None, **kwargs):
         """Conditionally publish to the live UID under one lock, preserving other rows.
 
         Generation compares only captured render inputs. An owned converted temp
@@ -1387,6 +1411,13 @@ class ProjectManager:
         """
         if not uid:
             return None
+        if audio_source_authority is not None:
+            from synthesis_workspace import RegisteredEncodingSource, SynthesisWorkspaceUnavailable
+            if (type(audio_source_authority) is not RegisteredEncodingSource
+                    or audio_source != audio_source_authority.path):
+                raise SynthesisWorkspaceUnavailable('Invalid registered chunk publication source')
+            if os.path.realpath(self.root_dir) != str(audio_source_authority.stage.directory.parent.parent):
+                raise SynthesisWorkspaceUnavailable('Registered publication book changed')
         with self._chunks_lock, file_lock(self.chunks_path):
             use_journal = (self._active_journal_identity is not None
                            or os.path.exists(get_chunk_status_journal_path(self.chunks_path)))
@@ -1438,14 +1469,19 @@ class ProjectManager:
                 else:
                     raise ValueError("Both chunk audio publication slots are referenced; preserve the shared takes before retrying")
                 kwargs["audio_path"] = candidate
-                with open(audio_source, "rb+") as handle:
-                    os.fsync(handle.fileno())
-                publish_audio_output(audio_source, self.get_chunk_audio_path(candidate))
+                if audio_source_authority is not None:
+                    published_path = str(audio_source_authority.stage.directory.parent.parent / candidate)
+                    audio_source_authority.publish(published_path)
+                else:
+                    with open(audio_source, "rb+") as handle:
+                        os.fsync(handle.fileno())
+                    publish_audio_output(audio_source, self.get_chunk_audio_path(candidate))
                 sync_adapter_directory(self.voicelines_dir)
                 publication_version = None
                 if publication_audio is not None:
                     from take_publication import validate_published_take_audio
-                    publication_version = validate_published_take_audio(self.root_dir, self.get_chunk_audio_path(candidate),
+                    publication_version = validate_published_take_audio(self.root_dir,
+                        published_path if audio_source_authority is not None else self.get_chunk_audio_path(candidate),
                         publication_audio, ensure_audio_generation_active)
                 if restore_speech_receipt:
                     receipt = kwargs.get('speech_verification')
@@ -1455,6 +1491,10 @@ class ProjectManager:
                     kwargs['speech_verification'] = {**receipt,
                         'audio_file_version': list(publication_version[:4])}
             if kwargs:
+                if audio_source_authority is not None:
+                    if os.path.realpath(self.root_dir) != str(audio_source_authority.stage.directory.parent.parent):
+                        raise SynthesisWorkspaceUnavailable('Registered publication book changed')
+                    audio_source_authority.check()
                 if journal:
                     if audio_source is None and RETAINED_TAKE_KEY not in kwargs:
                         changed = {**chunk, **kwargs}
@@ -1471,9 +1511,14 @@ class ProjectManager:
     def _publish_generated_chunk_audio(self, chunk, temp_path, speaker, recovery_parent=None, publication_admission=None):
         """Convert privately, then attach/promote audio only to unchanged inputs."""
         ensure_audio_generation_active()
+        from synthesis_workspace import get_registered_encoding_stage, SynthesisWorkspaceUnavailable
+        workspace = get_registered_encoding_stage(temp_path)
+        if workspace is not None and not _can_register_chunk_encoding(self):
+            raise SynthesisWorkspaceUnavailable('Encoding writer changed after workspace admission')
         with ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context")):
             preparation = get_speech_normalization(chunk.get("text", ""))
-            validate_generated_audio(temp_path, "generated speech", expected_text=preparation["text"])
+            validator = _RAW_CHUNK_VALIDATE if workspace is not None else validate_generated_audio
+            validator(temp_path, "generated speech", expected_text=preparation["text"])
         revision = uuid.uuid4().hex
         evidence = {}
         if preparation.get("pronunciation_decisions"):
@@ -1496,9 +1541,21 @@ class ProjectManager:
         elif "synthesis_receipt" in chunk:
             evidence["synthesis_receipt"] = None
         staged_path = None
+        staging_scope = ExitStack()
         try:
-            staged_audio = self._export_chunk_audio(temp_path, f".render-{uuid.uuid4().hex}")
-            staged_path = self.get_chunk_audio_path(staged_audio)
+            exporter = self._export_chunk_audio
+            workspace = get_registered_encoding_stage(temp_path)
+            if workspace is not None and not _can_register_chunk_encoding(self, exporter=exporter):
+                raise SynthesisWorkspaceUnavailable('Encoding writer changed after workspace admission')
+            staged_audio = exporter(temp_path, f".render-{uuid.uuid4().hex}")
+            if workspace is not None and not _can_register_chunk_encoding(self):
+                raise SynthesisWorkspaceUnavailable('Encoding writer changed after export')
+            source_authority = None
+            if workspace is not None:
+                staged_path = workspace.completed_path(staged_audio)
+                source_authority = staging_scope.enter_context(workspace.open_completed(staged_path))
+            else:
+                staged_path = self.get_chunk_audio_path(staged_audio)
             speech_receipt, staged_version = self._verify_generated_chunk_speech(
                 chunk, temp_path, staged_path, preparation, revision)
             evidence.update(speech_verification=speech_receipt,speech_verification_failure=None,
@@ -1520,10 +1577,16 @@ class ProjectManager:
                     raise ValueError('Finished audio changed before speech evidence publication')
                 if publication_version is not None and self._get_speech_staged_version(staged_path) != publication_version:
                     raise ValueError('Finished audio changed before take evidence publication')
+                authority_options = {}
+                if source_authority is not None:
+                    if not _can_register_chunk_encoding(self):
+                        raise SynthesisWorkspaceUnavailable('Publication writer changed after workspace admission')
+                    source_authority.check()
+                    authority_options['audio_source_authority'] = source_authority
                 updated = self._update_chunk_fields_by_uid(
                     chunk["uid"], expected_chunk=chunk, audio_source=staged_path,
                     publication_audio=publication['audio'] if publication is not None else None,
-                    status="done", audio_revision=revision, error=None, drift=None, **evidence)
+                    status="done", audio_revision=revision, error=None, drift=None, **authority_options, **evidence)
             if updated is None:
                 raise ValueError(GENERATION_INPUTS_CHANGED)
             if recovery_parent is not None:
@@ -1531,7 +1594,9 @@ class ProjectManager:
                 retire_committed_synthesis_recovery(recovery_parent, synthesis_receipt)
             return updated["audio_path"]
         finally:
-            if staged_path:
+            staging_scope.close()
+            from synthesis_workspace import defer_registered_encoding_cleanup
+            if staged_path and not defer_registered_encoding_cleanup(temp_path):
                 self._remove_temp_file(staged_path)
 
     @contextmanager
@@ -1882,7 +1947,8 @@ class ProjectManager:
             workspace_parent = get_synthesis_workspace_parent(
                 engine, voice_category(chunk_voice_config.get(speaker_to_use, {})), recovery_parent)
             if workspace_parent is not None:
-                temp_path = scratch.enter_context(ensure_synthesis_parent_output(workspace_parent))
+                temp_path = scratch.enter_context(ensure_synthesis_parent_output(
+                    workspace_parent, encoding=_can_register_chunk_encoding(self)))
                 registered_temp = True
             else:
                 fd, temp_path = tempfile.mkstemp(prefix=f"chunk_{index}_", suffix=".wav", dir=self.root_dir)
@@ -3209,9 +3275,44 @@ class ProjectManager:
         lacks an MP3 encoder. Returns the relative audio_path (under voicelines/).
         Raises ValueError if the source audio has zero duration.
         """
-        segment = _load_audio_segment(temp_path)
+        from synthesis_workspace import get_registered_encoding_stage, SynthesisWorkspaceUnavailable
+        workspace = get_registered_encoding_stage(temp_path)
+        if workspace is not None and not _can_register_chunk_encoding(self):
+            raise SynthesisWorkspaceUnavailable('Encoding writer changed after workspace admission')
+        if workspace is not None:
+            workspace.require_fresh_encoding()
+            with workspace.open_parent() as source:
+                segment = AudioSegment.from_file(source)
+        else:
+            segment = _load_audio_segment(temp_path)
         if len(segment) == 0:
             raise ValueError("Audio has 0 duration")
+
+        if workspace is not None:
+            # This intermediate stays under its original registered parent until
+            # final slot publication. It must never visit voicelines/.render-*.
+            try:
+                fd = workspace.create_file('encoded-parent.mp3')
+            except OSError as error:
+                raise SynthesisWorkspaceUnavailable('Encoded parent slot already exists or is unsafe') from error
+            os.close(fd)
+            try:
+                path = str(workspace.directory / 'encoded-parent.mp3')
+                _export_audio_segment(segment, path, 'mp3', workspace=workspace, bitrate=MP3_BITRATE)
+                if not _can_register_chunk_encoding(self):
+                    raise SynthesisWorkspaceUnavailable('Encoding writer changed during export')
+                workspace.check_completed(path)
+                if os.path.getsize(path) < 1024:
+                    raise RuntimeError('MP3 export produced invalid file')
+                _RAW_CHUNK_VALIDATE(path, 'MP3 chunk export')
+                workspace.check_completed(path)
+            except Exception as error:
+                if isinstance(error, (AudioGenerationCancelled, SynthesisWorkspaceUnavailable)):
+                    raise
+                print(f'MP3 conversion failed: {error}')
+                path = workspace.copy_wav()
+            workspace.check_completed(path)
+            return os.path.relpath(path, workspace.directory.parent.parent)
 
         try:
             mp3_filename = f"{filename_base}.mp3"
@@ -3523,7 +3624,8 @@ class ProjectManager:
                             registered = get_synthesis_workspace_parent(engine, category, parent, batch=True)
                             if registered is not None:
                                 batch_outputs[row['index']] = os.path.abspath(batch_stack.enter_context(
-                                    ensure_synthesis_parent_output(registered)))
+                                    ensure_synthesis_parent_output(registered,
+                                        encoding=_can_register_chunk_encoding(self))))
                     batch_stack.enter_context(ensure_synthesis_batch_outputs(self.root_dir, batch_outputs))
                     with ensure_synthesis_recovery_batch(recovery_parents):
                         batch_results = (engine.generate_batch(
@@ -3592,6 +3694,12 @@ class ProjectManager:
               f"{len(results['failed'])} failed, {results['cancelled']} cancelled")
         return results
 
+
+_RAW_CHUNK_EXPORT = ProjectManager._export_chunk_audio
+_RAW_CHUNK_UPDATE = ProjectManager._update_chunk_fields_by_uid
+_RAW_CHUNK_PATH = ProjectManager.get_chunk_audio_path
+_RAW_CHUNK_VALIDATE = validate_generated_audio
+_RAW_CHUNK_CODEC_HELPERS = (_load_audio_segment, _export_audio_segment, publish_audio_output)
 
 from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code
 _LOADED_RECOVERY_CODE_SHA256 = _get_loaded_recovery_code()

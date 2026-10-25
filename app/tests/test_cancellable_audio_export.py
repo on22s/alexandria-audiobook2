@@ -82,6 +82,37 @@ time.sleep(60)
                 audio_export.export_audio_segment(AudioSegment.silent(duration=30),path,'invalid-format',lambda:False)
             self.assertEqual(b'previous audio',path.read_bytes())
             self.assertEqual([],list(root.glob('.chapter-export-*')))
+            report=root/'encoder-error.json';report.touch()
+            modes=[None]
+            from synthesis_workspace import is_synthesis_workspace_supported
+            if is_synthesis_workspace_supported():
+                identities={}
+                for name in ('input.pcm','output.mp3','encoder-error.json'):
+                    member=root/name;member.touch();info=member.stat();identities[name]=(info.st_dev,info.st_ino)
+                modes.append({'format':'mp3','registered_files':identities})
+            cases={
+                'oversize':json.dumps({'module':'builtins','type':'ValueError','args':['x'*65537]}),
+                'deep':'{"module":"builtins","type":"ValueError","args":'+'['*2000+'"nested"'+']'*2000+'}',
+                'duplicate':'{"module":"builtins","module":"builtins","type":"ValueError","args":["bad"]}',
+                'nonfinite':'{"module":"builtins","type":"ValueError","args":[NaN]}',
+                'positive-overflow':'{"module":"builtins","type":"ValueError","args":[1e9999]}',
+                'negative-overflow':'{"module":"builtins","type":"ValueError","args":[-1e9999]}',
+                'unicode-overflow':json.dumps({'module':'builtins','type':'UnicodeTranslateError','args':['x',10**100,1,'bad']})
+            }
+            for settings in modes:
+                for label,payload in cases.items():
+                    with self.subTest(report=label,registered=settings is not None):
+                        report.write_text(payload);fallback=RuntimeError('original encoder failure')
+                        self.assertIs(fallback,audio_export.get_encoder_exception(report,fallback,settings))
+                report.write_text(json.dumps({'module':'builtins','type':'ValueError','args':['ordinary encoder error']}))
+                error=audio_export.get_encoder_exception(report,RuntimeError('fallback'),settings)
+                self.assertIsInstance(error,ValueError);self.assertEqual(('ordinary encoder error',),error.args)
+                report.write_text(json.dumps({'module':'builtins','type':'OSError','args':[10**100,'bad']}))
+                error=audio_export.get_encoder_exception(report,RuntimeError('fallback'),settings)
+                self.assertIsInstance(error,OSError);self.assertEqual((10**100,'bad'),error.args)
+            for invalid in ({},'invalid',[],True):
+                fallback=RuntimeError('original encoder failure')
+                self.assertIs(fallback,audio_export.get_encoder_exception(report,fallback,invalid))
 
     def test_real_mp3_encoding_produces_decodable_audio(self):
         from pydub.generators import Sine
