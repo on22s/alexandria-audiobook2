@@ -593,8 +593,12 @@ def get_chunk_char_limit(text, base=MAX_CHUNK_CHARS):
 
 
 def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
-                      review_sink=None, include_source_indices=False):
-    """Group consecutive entries by same speaker into chunks up to max_chars"""
+                      review_sink=None, include_source_indices=False, cjk_limits=True):
+    """Group consecutive entries by same speaker into chunks up to max_chars
+
+    cjk_limits=False reproduces grouping from before the Chinese/Japanese
+    limits (#1353), so chunks made then can still be recognised.
+    """
     if not isinstance(max_chars, int) or isinstance(max_chars, bool) or max_chars < 1:
         raise ValueError("max_chars must be a positive integer")
     literal_policy = ensure_literal_narration(script_entries)
@@ -632,7 +636,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
                 and not _is_structural_text(current_text)
                 and not _is_structural_text(text)):
             combined = current_text + ("" if JOINS_WITHOUT_SPACE.match(text) else " ") + text
-            if len(combined) <= get_chunk_char_limit(combined, max_chars):
+            if len(combined) <= (get_chunk_char_limit(combined, max_chars) if cjk_limits else max_chars):
                 current_text = combined
                 if include_source_indices:
                     current_indices = sorted(set(current_indices + entry["_source_entry_indices"]))
@@ -660,7 +664,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
     bounded = []
     for chunk in chunks:
         remaining = chunk["text"]
-        limit = get_chunk_char_limit(chunk["text"], max_chars)
+        limit = get_chunk_char_limit(chunk["text"], max_chars) if cjk_limits else max_chars
         while len(remaining) > limit:
             boundaries = list(re.finditer(r"\s+|[.!?。！？]", remaining[:limit]))
             cut = boundaries[-1].end() if boundaries else limit

@@ -81,6 +81,20 @@ class GroupIntoChunksTests(unittest.TestCase):
         for chunk in chunks:
             self.assertLessEqual(len(chunk["text"]), CHINESE_LIMIT)
         self.assertEqual(strip_whitespace(join_chunk_texts(chunks)), "汉" * 600)
+        # A book chunked before these limits (#1353) stored one 500-character
+        # chunk. Delivery retry must still recognise it as unedited, keep its
+        # size, and refuse a real edit.
+        import copy
+        from delivery_review import get_delivery_retry_chunks
+        entries = [dict(make_entry("汉" * 600), instruct_unchecked=True)]
+        legacy = group_into_chunks(entries, include_source_indices=True, cjk_limits=False)
+        self.assertEqual([500, 100], [len(chunk["text"]) for chunk in legacy])
+        retried = get_delivery_retry_chunks(entries, entries, copy.deepcopy(legacy))
+        self.assertEqual([500, 100], [len(row["text"]) for row in retried])
+        edited = copy.deepcopy(legacy)
+        edited[0]["text"] = "字" + edited[0]["text"][1:]
+        with self.assertRaisesRegex(ValueError, "Editor text or delivery changed"):
+            get_delivery_retry_chunks(entries, entries, edited)
 
 
 if __name__ == "__main__":
