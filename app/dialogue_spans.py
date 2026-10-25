@@ -193,6 +193,7 @@ def get_other_speech_spans(text, convention):
                 merged.append((begin, stop))
         starts = [begin for begin, _stop in merged]
         for opener, closer in UNCLOSED_OPENERS.items():
+            paragraph_break = None
             for match in re.finditer(re.escape(opener), text):
                 start = match.start() + 1
                 if text.startswith(closer, start):  # “” is closed, just empty
@@ -200,8 +201,11 @@ def get_other_speech_spans(text, convention):
                 index = bisect_right(starts, start) - 1
                 if index >= 0 and merged[index][1] >= start:
                     continue
-                stop = text.find("\n\n", start)
-                spans.append((start, len(text) if stop == -1 else stop))
+                # Openers are ordered: reuse this paragraph's end, including
+                # the absence of another break, as _paired_spans does.
+                if paragraph_break is None or 0 <= paragraph_break < start:
+                    paragraph_break = text.find("\n\n", start)
+                spans.append((start, len(text) if paragraph_break == -1 else paragraph_break))
     return spans
 
 
