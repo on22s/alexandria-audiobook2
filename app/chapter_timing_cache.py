@@ -48,12 +48,15 @@ def read_source_identity(path, cancel_check):
 
 
 def _policy(decoder_codes):
-    functions = (tts.trim_edge_silence, tts._silent_edge_ms, get_pcm_source_shape)
+    functions = (tts.trim_edge_silence, tts.get_trim_bounds_ms,
+                 tts._silent_edge_ms, get_pcm_source_shape)
     codes = tuple(getattr(function, '__code__', None) for function in functions)
     if not all(isinstance(code, types.CodeType) for code in codes + decoder_codes):
         return None
     defaults = getattr(tts.trim_edge_silence, '__defaults__', None)
-    if not isinstance(defaults, tuple) or len(defaults) < 3:
+    bounds_defaults = getattr(tts.get_trim_bounds_ms, '__defaults__', None)
+    if (not isinstance(defaults, tuple) or len(defaults) < 3
+            or not isinstance(bounds_defaults, tuple) or len(bounds_defaults) < 3):
         return None
     converter = shutil.which(AudioSegment.converter)
     try:
@@ -62,6 +65,7 @@ def _policy(decoder_codes):
         converter_version = None
     return {'schema': 1, 'code': hashlib.sha256(marshal.dumps(codes + decoder_codes)).hexdigest(),
             'trim_defaults': list(defaults[:3]),
+            'bounds_defaults': list(bounds_defaults[:3]),
             'edge_step_ms': tts._EDGE_SILENCE_STEP_MS,
             'pydub': importlib.metadata.version('pydub'),
             'converter': converter, 'converter_version': converter_version}

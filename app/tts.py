@@ -639,6 +639,7 @@ def trim_edge_silence(segment, threshold_db=EDGE_SILENCE_THRESHOLD_DBFS,
     """-> the segment with leading/trailing silence cut back to keep_head_ms /
     keep_tail_ms. A segment that is silent throughout is returned unchanged
     (a missing line must stay visible as its full length, not vanish)."""
+    ensure_audio_export_active(cancel_check)
     if segment is None or len(segment) == 0:
         return segment
     bounds = get_trim_bounds_ms(segment, threshold_db, keep_head_ms, keep_tail_ms,

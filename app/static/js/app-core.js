@@ -6723,6 +6723,7 @@
         let isPlayingSequence = false;
         let playbackSequenceEpoch = 0;
         let sequencePauseTimer = null;
+        const SEQUENCE_READY_TIMEOUT_MS = 10000;
         let isRenderingAll = false;
         let chunkSnapshotBookToken = null;
         let cachedChunks = []; // Cache to track changes
@@ -7415,11 +7416,17 @@
                 if (!isCurrentSequence()) { return; }
                 pausePlan = new Map(((plan && plan.pauses) || []).map(
                     row => [Number(row.chunk_id), Number(row.pause_ms)]));
-                const trims = (plan && plan.trims) || [];
-                trimPlan = new Map(trims.map(row => [Number(row.chunk_id), {
+                const trims = plan && Array.isArray(plan.trims) ? plan.trims : null;
+                trimPlan = new Map((trims || []).filter(row => row
+                    && Number.isFinite(Number(row.chunk_id))
+                    && Number.isFinite(Number(row.start_ms))
+                    && Number.isFinite(Number(row.end_ms))
+                    && Number(row.end_ms) > Number(row.start_ms)).map(row => [Number(row.chunk_id), {
                     start_ms: Number(row.start_ms),
                     end_ms: Number(row.end_ms)}]));
-                playableIds = trims.length ? new Set(trimPlan.keys()) : null;
+                // An explicit empty trim list means nothing decodable is
+                // playable. Only an older payload without trims falls open.
+                playableIds = trims ? new Set(trimPlan.keys()) : null;
             } catch (error) {
                 if (!isCurrentSequence()) { return; }
                 console.error('Playback timing plan failed:', error);
@@ -7429,6 +7436,10 @@
             }
 
             const getAudioId = (audio) => {
+                const direct = audio.dataset && audio.dataset.id;
+                if (direct !== undefined && direct !== null && direct !== '') {
+                    return Number(direct);
+                }
                 const row = audio.closest('tr');
                 return row && row.dataset ? Number(row.dataset.id) : NaN;
             };
@@ -7436,7 +7447,7 @@
             const isPlayable = (audio) => {
                 if (!audio.getAttribute('src')) { return false; }
                 const chunkId = getAudioId(audio);
-                return !playableIds || playableIds.has(chunkId);
+                return playableIds === null || playableIds.has(chunkId);
             };
             const fetchGap = async (fromId, toId) => {
                 if (!Number.isFinite(fromId) || !Number.isFinite(toId)) { return 0; }
@@ -7476,17 +7487,34 @@
                 }
             };
             const startAudio = (audio, chunkId) => {
-                const trim = getTrim(chunkId);
-                if (trim && Number.isFinite(trim.start_ms) && trim.start_ms > 0) {
-                    try { audio.currentTime = trim.start_ms / 1000; } catch (error) {}
+                if (typeof audio._clearSequenceAttempt === 'function') {
+                    audio._clearSequenceAttempt();
                 }
+                const trim = getTrim(chunkId);
+                const startMs = trim && Number.isFinite(trim.start_ms) ? trim.start_ms : 0;
+                // Always reset, including a zero trim start: a word-timing
+                // seek or an inline preview may have left this element
+                // mid-clip.
+                try { audio.currentTime = startMs / 1000; } catch (error) {}
                 let advanced = false;
-                const advanceOnce = (isSkip) => {
-                    if (advanced || !isCurrentSequence()) { return; }
-                    advanced = true;
+                let trimTimer = null;
+                const clearAttempt = () => {
+                    if (trimTimer !== null) {
+                        clearTimeout(trimTimer);
+                        trimTimer = null;
+                    }
                     audio.onended = null;
                     audio.onerror = null;
                     audio.ontimeupdate = null;
+                    if (audio._clearSequenceAttempt === clearAttempt) {
+                        delete audio._clearSequenceAttempt;
+                    }
+                };
+                audio._clearSequenceAttempt = clearAttempt;
+                const advanceOnce = (isSkip) => {
+                    if (advanced || !isCurrentSequence()) { return; }
+                    advanced = true;
+                    clearAttempt();
                     if (isSkip) {
                         skippedCount++;
                         skippedSinceLastPlayed = true;
@@ -7499,12 +7527,25 @@
                     playNext();
                 };
                 if (trim && Number.isFinite(trim.end_ms)) {
-                    audio.ontimeupdate = () => {
-                        if (!advanced && audio.currentTime * 1000 >= trim.end_ms - 15) {
+                    const stopAtTrimEnd = () => {
+                        if (!advanced && isCurrentSequence()
+                                && audio.currentTime * 1000 >= trim.end_ms - 15) {
                             try { audio.pause(); } catch (error) {}
                             advanceOnce(false);
                         }
                     };
+                    audio.ontimeupdate = stopAtTrimEnd;
+                    // timeupdate is only ~4 Hz; schedule the canonical end too
+                    // so the kept tail is not left audible.
+                    const remaining = trim.end_ms - startMs;
+                    if (remaining > 0) {
+                        trimTimer = setTimeout(() => {
+                            trimTimer = null;
+                            if (!advanced && isCurrentSequence() && !audio.paused) {
+                                stopAtTrimEnd();
+                            }
+                        }, remaining + 10);
+                    }
                 }
                 audio.onended = () => advanceOnce(false);
                 audio.onerror = () => {
@@ -7553,22 +7594,45 @@
                 };
                 if (typeof audio.addEventListener === 'function'
                         && audio.readyState !== undefined && audio.readyState < 3) {
-                    const onReady = () => {
+                    let readyTimer = null;
+                    let settled = false;
+                    function clearReady() {
                         audio.removeEventListener('canplay', onReady);
                         audio.removeEventListener('error', onError);
-                        ready();
-                    };
-                    const onError = () => {
-                        audio.removeEventListener('canplay', onReady);
-                        audio.removeEventListener('error', onError);
+                        if (readyTimer !== null) {
+                            clearTimeout(readyTimer);
+                            readyTimer = null;
+                        }
+                        if (audio._clearSequenceAttempt === clearReady) {
+                            delete audio._clearSequenceAttempt;
+                        }
+                    }
+                    function skipUnready() {
+                        if (settled) { return; }
+                        settled = true;
+                        clearReady();
+                        if (!isCurrentSequence()) { return; }
                         skippedCount++;
                         skippedSinceLastPlayed = true;
                         currentIndex++;
                         playNext();
-                    };
+                    }
+                    function onReady() {
+                        if (settled) { return; }
+                        settled = true;
+                        clearReady();
+                        if (isCurrentSequence()) { ready(); }
+                    }
+                    function onError() {
+                        skipUnready();
+                    }
                     audio.addEventListener('canplay', onReady);
                     audio.addEventListener('error', onError);
-                    try { audio.load(); } catch (error) {}
+                    audio._clearSequenceAttempt = clearReady;
+                    readyTimer = setTimeout(skipUnready, SEQUENCE_READY_TIMEOUT_MS);
+                    if (audio.networkState === undefined || audio.networkState === 0) {
+                        try { audio.load(); } catch (error) {}
+                    }
                 } else {
                     ready();
                 }
@@ -7583,6 +7647,10 @@
             playbackSequenceEpoch++;
             isPlayingSequence = false;
             document.querySelectorAll('audio').forEach(a => {
+                if (typeof a._clearSequenceAttempt === 'function') {
+                    try { a._clearSequenceAttempt(); } catch (error) {}
+                }
+                delete a._clearSequenceAttempt;
                 a.pause();
                 a.currentTime = 0;
                 a.onended = null;

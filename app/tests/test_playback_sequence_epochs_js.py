@@ -181,6 +181,43 @@ await new Promise(r=>setTimeout(r,10));
 assert.deepStrictEqual(plays,[0,1,2]);
 ''')
 
+    def test_zero_trim_start_resets_stale_audio_position(self):
+        self.run_js(r'''
+ctx.API.get=async()=>({pauses:[],trims:[
+ {chunk_id:0,start_ms:0,end_ms:1000},
+ {chunk_id:1,start_ms:0,end_ms:1000},
+ {chunk_id:2,start_ms:0,end_ms:1000}]});
+audios[0].currentTime=7;
+await ctx.playSequence();
+assert.strictEqual(audios[0].currentTime,0);
+assert.deepStrictEqual(plays,[0]);
+ctx.stopSequence();
+''')
+
+    def test_stop_removes_pending_canplay_listeners(self):
+        self.run_js(r'''
+let ready=null;
+audios[0].readyState=0;audios[0].networkState=1;
+audios[0].addEventListener=(name,fn)=>{if(name==='canplay'){ready=fn;}};
+audios[0].removeEventListener=(name,fn)=>{if(name==='canplay'&&ready===fn){ready=null;}};
+audios[0].load=()=>{};
+await ctx.playSequence();
+assert.deepStrictEqual(plays,[]);
+assert.strictEqual(typeof ready,'function');
+ctx.stopSequence();
+assert.strictEqual(ready,null);
+assert.strictEqual(playing(),false);
+''')
+
+    def test_an_explicit_empty_trim_plan_fails_closed(self):
+        self.run_js(r'''
+ctx.API.get=async()=>({pauses:[],trims:[]});
+await ctx.playSequence();
+assert.deepStrictEqual(plays,[]);
+assert.strictEqual(playing(),false);
+assert.match(toasts.at(-1).text,/3 chunk\(s\) skipped/);
+''')
+
     def test_missing_source_and_undefined_play_promise_keep_normal_sequence_order(self):
         self.run_js(r'''
 audios[0].src='';audios[1].play=()=>{plays.push(1);return undefined;};

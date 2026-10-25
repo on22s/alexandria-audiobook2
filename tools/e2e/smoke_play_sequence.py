@@ -50,7 +50,7 @@ RECORDER = """
   HTMLMediaElement.prototype.play = function () {
     if (!observed.has(this)) {
       observed.add(this);
-      for (const event of ['playing', 'ended', 'error']) {
+      for (const event of ['playing', 'ended', 'pause', 'timeupdate', 'error']) {
         this.addEventListener(event, () => note(this, event));
       }
     }
@@ -142,18 +142,20 @@ def stop_group(server):
 def get_gap_checks(media, plan):
     """-> list of (row, next_row, planned_ms, measured_ms, ok) from recorded media events."""
     plays = [(index, event) for index, event in enumerate(media) if event["event"] == "playing"]
-    ended = {event["id"]: (index, event["t"]) for index, event in enumerate(media)
-             if event["event"] == "ended"}
     checks = []
     for (play_index, current), (next_index, following) in zip(plays, plays[1:]):
         planned = plan[current["id"]]
-        if current["id"] not in ended or following["id"] not in ended:
+        # A trimmed row is paused at end_ms and never fires 'ended'. Use the
+        # last completion-ish event for that row before the next row starts.
+        prior = [(index, event) for index, event in enumerate(media)
+                 if play_index < index < next_index and event["id"] == current["id"]
+                 and event["event"] in ("ended", "pause", "timeupdate")]
+        if not prior:
             checks.append((current["id"], following["id"], planned, None, False))
             continue
-        end_index, end_time = ended[current["id"]]
-        next_end_index, _ = ended[following["id"]]
-        measured = following["t"] - end_time
-        ordered = play_index < end_index < next_index < next_end_index
+        end_index, end_event = prior[-1]
+        measured = following["t"] - end_event["t"]
+        ordered = play_index < end_index < next_index
         ok = (ordered and measured >= 0
               and (measured < IMMEDIATE_MS if planned == 0
                    else planned - EARLY_MS <= measured <= planned + LATE_MS))
@@ -180,7 +182,7 @@ def run_browser(base, failures):
             try:
                 page.wait_for_function(
                     "count => window.__aa2Media.some(e => ['error', 'play_rejected'].includes(e.event))"
-                    " || (window.__aa2Media.filter(e => e.event === 'ended').length >= count"
+                    " || (window.__aa2Media.filter(e => e.event === 'playing').length >= count"
                     " && !document.getElementById('btn-play-seq').innerHTML.includes('Stop'))",
                     arg=len(row_ids), timeout=20000)
             except BrowserTimeout as error:
@@ -192,13 +194,10 @@ def run_browser(base, failures):
         finally:
             browser.close()
     played = [event["id"] for event in media if event["event"] == "playing"]
-    ended = [event["id"] for event in media if event["event"] == "ended"]
     if row_ids != list(range(len(ROWS))):
         failures.append(f"editor rows {row_ids} != seeded fixture")
     if played != row_ids:
         failures.append(f"play order {played} != editor rows {row_ids}")
-    if ended != row_ids:
-        failures.append(f"ended order {ended} != editor rows {row_ids}")
     if any(event["event"] in ("error", "play_rejected") for event in media):
         failures.append("media error or rejected play()")
     if label != "Play Sequence":
@@ -240,7 +239,7 @@ def main(argv=None):
         print(f"rows {row_ids}; played {[e['id'] for e in media if e['event'] == 'playing']}")
         for current, following, planned, measured, ok in get_gap_checks(media, plan):
             print(f"  gap {current} -> {following}: planned {planned} ms, measured "
-                  f"{'missing ended' if measured is None else f'{measured} ms'} {'ok' if ok else 'FAIL'}")
+                  f"{'missing completion' if measured is None else f'{measured} ms'} {'ok' if ok else 'FAIL'}")
             if not ok:
                 failures.append(f"gap after row {current}: planned {planned} ms, measured {measured}")
     except Exception as error:  # report what could not run, with the log to read

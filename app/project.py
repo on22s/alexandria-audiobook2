@@ -763,11 +763,12 @@ def get_playback_pause_plan(chunks, pause_ms=DEFAULT_PAUSE_MS,
     Project's own check (missing path, escaping path or missing file), so the
     gap after a row is measured to the same next row export joins it to. A file
     that exists but cannot be decoded is only discovered during playback or
-    export. A runtime playback failure may therefore leave the preceding gap
-    based on the planned neighbor, while export recomputes after decode skips.
-    The last planned row has no following gap. This plans pauses only:
-    the browser plays stored clip edges, while export additionally trims edge
-    silence, so this is pause-policy parity rather than acoustic timeline parity.
+    export. The preview's trim plan excludes those rows and recomputes a gap
+    from the last actually played row through `/api/chunks/playback_gap`; this
+    plan supplies the no-skip fast path. The last planned row has no following
+    gap. The plan is pause policy: the browser applies the trim plan's edge
+    bounds, so the audible gap is between trimmed clips, but this remains
+    timing parity rather than sample-accurate acoustic parity.
     """
     has_audio = has_audio or (lambda chunk: bool(chunk.get('audio_path')))
     playable = [index for index, chunk in enumerate(chunks)
