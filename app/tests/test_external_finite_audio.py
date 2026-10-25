@@ -28,7 +28,8 @@ class ExternalFiniteSampleTests(unittest.TestCase):
                     samples[70000, -1] = bad
                     sf.write(source, samples, 24000, subtype='FLOAT')
                     provider_bytes = source.read_bytes()
-                    with self.assertRaisesRegex(GeneratedAudioError, 'non-finite'):
+                    # Its samples are the fault, not decoding: the message must say so.
+                    with self.assertRaisesRegex(GeneratedAudioError, r'^(?!.*undecodable).*non-finite'):
                         engine._save_external_prediction((str(source),), str(output), None, 'Hello.')
                     self.assertEqual(previous, output.read_bytes())
                     self.assertEqual(provider_bytes, source.read_bytes())
