@@ -248,13 +248,13 @@ def get_native_custom_code_sha256(*, extra_callables=None, extra_code_files=(), 
 
 # The scope is installed only for an eligible owned CustomVoice split root.
 # Disabled/ordinary warmup never performs a model inventory or weight hash.
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from contextvars import ContextVar
 from dataclasses import dataclass
 from synthesis_recovery_identity import (capture_recovery_model_snapshot,
-    ensure_recovery_model_snapshot_current, get_recovery_digest)
+    ensure_recovery_model_snapshot_current, get_recovery_digest, RecoveryModelNamespaceGuard)
 
-_capture_model_load = ContextVar('capture_native_recovery_model_load', default=False)
+_capture_model_load = ContextVar('capture_native_recovery_model_load', default=None)
 _CUSTOM_MODEL_ID = 'Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice'
 
 
@@ -263,6 +263,7 @@ class NativeRecoveryLoadProposal:
     snapshot: object
     code_sha256: str
     options: tuple
+    namespace_guard: object
 
 
 @dataclass(frozen=True)
@@ -272,18 +273,28 @@ class NativeRecoveryLoadedModel:
     options_sha256: str
 
 
+@dataclass
+class _NativeRecoveryCaptureScope:
+    stack: object
+    active: bool = True
+
+
 @contextmanager
 def ensure_native_recovery_model_capture():
-    token = _capture_model_load.set(True)
-    try:
-        yield
-    finally:
-        _capture_model_load.reset(token)
+    with ExitStack() as stack:
+        scope = _NativeRecoveryCaptureScope(stack)
+        token = _capture_model_load.set(scope)
+        try:
+            yield
+        finally:
+            scope.active = False
+            _capture_model_load.reset(token)
 
 
 def capture_native_recovery_load(model_cls, model_id, local_path, load_kwargs):
     """Prepare evidence before a known actual local load; no retroactive labels."""
-    if not _capture_model_load.get():
+    scope = _capture_model_load.get()
+    if scope is None or not scope.active:
         return None
     if model_id != _CUSTOM_MODEL_ID or not local_path:
         raise RecoveryIdentityUnavailable('unqualified_model_source')
@@ -307,15 +318,21 @@ def capture_native_recovery_load(model_cls, model_id, local_path, load_kwargs):
         raise RecoveryIdentityUnavailable('unsupported_native_load_device')
     from audio_generation_owner import ensure_audio_generation_active
     code_sha256 = get_native_custom_code_sha256()
-    snapshot = capture_recovery_model_snapshot(local_path, check_active=ensure_audio_generation_active)
+    guard = scope.stack.enter_context(RecoveryModelNamespaceGuard(
+        local_path, check_active=ensure_audio_generation_active))
+    snapshot = capture_recovery_model_snapshot(str(guard.root), check_active=ensure_audio_generation_active)
+    guard.bind(snapshot)
     options = (('device', device), ('dtype', dtype_name))
-    return NativeRecoveryLoadProposal(snapshot, code_sha256, options)
+    return NativeRecoveryLoadProposal(snapshot, code_sha256, options, guard)
 
 
 def complete_native_recovery_load(model, proposal):
     """Record evidence only after the actual admitted local load succeeds."""
     if type(proposal) is not NativeRecoveryLoadProposal:
         raise RecoveryIdentityUnavailable('missing_native_load_proposal')
+    if (type(proposal.namespace_guard) is not RecoveryModelNamespaceGuard
+            or proposal.namespace_guard.snapshot is not proposal.snapshot):
+        raise RecoveryIdentityUnavailable('missing_model_namespace_guard')
     try:
         expected = importlib.import_module('qwen_tts.inference.qwen3_tts_model').Qwen3TTSModel
     except (ImportError, AttributeError) as error:
@@ -325,6 +342,7 @@ def complete_native_recovery_load(model, proposal):
     ensure_recovery_model_snapshot_current(proposal.snapshot)
     if get_native_custom_code_sha256() != proposal.code_sha256:
         raise RecoveryIdentityUnavailable('native_loader_code_changed')
+    proposal.namespace_guard.check()
     model._aa2_recovery_loaded_model = NativeRecoveryLoadedModel(
         proposal.snapshot.sha256, proposal.code_sha256, get_recovery_digest(dict(proposal.options)))
 

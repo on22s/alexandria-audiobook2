@@ -8,6 +8,7 @@ times. The source still has the marks: arc4_volume10wn carries 6,925 of them
 while its generated entries kept 16.
 """
 import unittest
+from unittest.mock import patch
 
 from dialogue_spans import (apply_dialogue_map, apply_source_narration, apply_source_speakers,
                             detect_convention, mark_entries,
@@ -382,6 +383,72 @@ class SourceNarrationTest(unittest.TestCase):
         self.assertEqual([{"type": "source_narration", "before": "LORD HENRY", "after": "NARRATOR"}],
                          result["narration_changes"])
         self.assertEqual("LORD HENRY", entries[0]["speaker"])
+        # Speech marked another way lies outside the main quotes without being
+        # narration: it is unestablished, so neither this reset nor the review
+        # guard may give it to the narrator.
+        from review_script import get_review_source_narration
+        pad = " " + "“Line.” " * 5
+        for source, rows in (
+                ("“Come here,” said Tom. ‘No, I don’t want to,’ Anna said." + pad,
+                 [("TOM", "Come here,"), ("NARRATOR", "said Tom."), ("ANNA", "No, I don’t want to,"),
+                  ("NARRATOR", "Anna said.")]),
+                ("Tom turned.\n—Where are you going? he asked." + pad,
+                 [("NARRATOR", "Tom turned."), ("TOM", "Where are you going?")]),
+                (pad + "\n\n“Wait for me, Tom said\n\nThe road went on.",
+                 [("TOM", "Wait for me, Tom said"), ("NARRATOR", "The road went on.")])):
+            with self.subTest(source=source[:30]):
+                result = apply_dialogue_map([{"speaker": s, "text": t} for s, t in rows], source)
+                self.assertEqual([s for s, _t in rows], [row["speaker"] for row in result["entries"]])
+                self.assertEqual([], result["narration_changes"])
+                character = next(row for row in result["entries"] if row["speaker"] not in ("NARRATOR",))
+                if character["text"] != "Come here,":
+                    self.assertEqual("other_convention", character["dialogue_ambiguity"])
+                    self.assertIsNone(get_review_source_narration(character))
+        # A closed empty pair is not an unclosed opener: the narration after it
+        # is still narration.
+        result = apply_dialogue_map([{"speaker": "ANNA", "text": "The road was dark."}],
+                                    "“Line.”\n\n" * 5 + "An empty pair “” stood on the sign. The road was dark.")
+        self.assertEqual(("NARRATOR", False), (result["entries"][0]["speaker"], result["entries"][0]["spoken"]))
+        # Each paired span is visited once, not once per opener: well-formed
+        # quotes must not make the unclosed check quadratic.
+        import dialogue_spans
+        visits = []
+
+        class Counted(list):
+            def __iter__(self):
+                for item in list.__iter__(self):
+                    visits.append(item)
+                    yield item
+
+        original = dialogue_spans._paired_spans
+        with patch.object(dialogue_spans, "_paired_spans", lambda text: Counted(original(text))):
+            for repeats in (500, 2000):
+                visits.clear()
+                dialogue_spans.get_other_speech_spans("“A.”\n\n" * repeats, "paired_quotes")
+                self.assertLessEqual(len(visits), repeats, repeats)
+        # Unclosed marks in one paragraph also share one forward search.
+        paragraph_searches = []
+
+        class CountedText(str):
+            def find(self, marker, *args):
+                if marker == "\n\n":
+                    paragraph_searches.append(args)
+                return super().find(marker, *args)
+
+        for opener in ("“", "「", "『"):
+            for repeats in (500, 2000):
+                paragraph_searches.clear()
+                text = CountedText((opener + "Wait ") * repeats)
+                spans = dialogue_spans.get_other_speech_spans(text, "paired_quotes")
+                self.assertEqual(repeats, len(spans))
+                self.assertTrue(all(stop == len(text) for _start, stop in spans))
+                self.assertEqual(1, len(paragraph_searches))
+            paragraph_searches.clear()
+            text = CountedText(f"{opener}Wait {opener}stay\n\n{opener}Go {opener}now")
+            spans = dialogue_spans.get_other_speech_spans(text, "paired_quotes")
+            boundary = text.index("\n\n")
+            self.assertEqual([boundary, boundary, len(text), len(text)], [end for _start, end in spans])
+            self.assertEqual(2, len(paragraph_searches))
 
     def test_unestablished_and_printed_lines_are_left_alone(self):
         # No `spoken` key means the source did not answer; a printed label is

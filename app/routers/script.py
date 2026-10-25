@@ -1973,13 +1973,15 @@ async def get_cast_list():
 
 def save_current_cast_list(update: CastListUpdate):
     _, path = get_current_cast_list_target()
-    previous = safe_load_json(path, default={})
-    provenance = dict((previous.get("provenance") or {}) if isinstance(previous, dict) else {})
-    provenance["edited"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     try:
+        # Read the provenance being carried forward under the same lock as the
+        # write, or a delete or build between them is overwritten by stale data.
         with file_lock(path):
-            save_cast_list(path, update.cast, provenance)
+            previous = safe_load_json(path, default={})
+            provenance = dict((previous.get("provenance") or {}) if isinstance(previous, dict) else {})
+            provenance["edited"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            save_cast_list(path, update.cast, provenance, lock=False)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Cast list refused: {exc}") from exc
     return {"status": "saved", "count": len(update.cast)}
