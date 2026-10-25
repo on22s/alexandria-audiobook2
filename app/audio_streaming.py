@@ -4,7 +4,6 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 import struct
-import tempfile
 import wave
 
 from pydub import AudioSegment
@@ -19,6 +18,7 @@ from audio_pcm_producer import (PCMProducer, is_bounded_pcm_supported,
 
 from tts import (ensure_audio_export_active, get_pause_duration_ms,
                  trim_edge_silence)
+from export_staging import create_export_staging
 
 
 # Python wave and Pydub's plain-WAV exporter write a 44-byte PCM header:
@@ -171,8 +171,9 @@ def write_combined_wav(segments, speakers, path, pause_ms, same_speaker_pause_ms
     destination = Path(path)
     channels, frame_rate, sample_width = layout
     frames = 0
-    with tempfile.TemporaryDirectory(prefix='.stream-wave-', dir=destination.parent) as directory:
-        staged = Path(directory) / 'output.wav'
+    with create_export_staging(destination.parent, 'wave') as staging:
+        directory = staging.path
+        staged = directory / 'output.wav'
         stream = wave.open(str(staged), 'wb')
         try:
             stream.setnchannels(channels)
@@ -390,8 +391,9 @@ def write_spooled_combined_wav(segments, speakers, path, pause_ms,
     plan = (get_combined_source_plan(segments, speakers, pause_ms, same_speaker_pause_ms,
                                       pause_overrides, cancel_check)
             if pcm_plan_callback is not None else None)
-    with tempfile.TemporaryDirectory(prefix='.stream-wave-', dir=destination.parent) as directory:
-        staged = Path(directory) / 'output.wav'
+    with create_export_staging(destination.parent, 'wave') as staging:
+        directory = staging.path
+        staged = directory / 'output.wav'
         with ensure_combined_pcm(segments, speakers, directory, pause_ms,
                                  same_speaker_pause_ms, pause_overrides, cancel_check) as producer:
             frames = producer.get_frame_count()
@@ -430,8 +432,9 @@ def write_combined_pcm(segments, speakers, path, pause_ms, same_speaker_pause_ms
                                       pause_overrides, cancel_check)
             if pcm_plan_callback is not None else None)
     destination = Path(path)
-    with tempfile.TemporaryDirectory(prefix='.stream-pcm-', dir=destination.parent) as directory:
-        staged = Path(directory) / 'output.pcm'
+    with create_export_staging(destination.parent, 'pcm') as staging:
+        directory = staging.path
+        staged = directory / 'output.pcm'
         with ensure_combined_pcm(segments, speakers, directory, pause_ms,
                                  same_speaker_pause_ms, pause_overrides, cancel_check) as producer:
             layout, frames = producer.layout, producer.get_frame_count()

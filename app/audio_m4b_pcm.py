@@ -2,8 +2,8 @@
 import os
 import subprocess
 import sys
+from export_staging import create_export_staging
 from pathlib import Path
-import tempfile
 
 from audio_encoder_identity import get_ffmpeg_runtime_identity, get_ffmpeg_runtime_digest
 from media_process import run_owned_media_check
@@ -55,8 +55,9 @@ def export_pcm_m4b(raw_path, output_path, settings, cancel_check, *, quality_pla
     input_args = ['-f',{1:'s8',2:'s16le',4:'s32le'}[width],'-ar',str(rate),
                   '-ac',str(channels),'-i',str(raw_path)]
     destination = Path(output_path)
-    with tempfile.TemporaryDirectory(prefix='.pcm-encode-',dir=destination.parent) as directory:
-        output = Path(directory)/'output.m4b'
+    with create_export_staging(destination.parent, 'encode') as staging:
+        directory = staging.path
+        output = directory/'output.m4b'
         meta = Path(directory)/'chapters.txt'
         meta.write_bytes(metadata)
         source_root = destination.parent.absolute()

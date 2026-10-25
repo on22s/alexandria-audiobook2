@@ -1,9 +1,9 @@
 """Bounded native MP3/WAV export of pinned PCM under existing audio ownership."""
 import os
+from export_staging import create_export_staging
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 
 from audio_encoder_identity import get_ffmpeg_runtime_identity, get_ffmpeg_runtime_digest
 from audio_mastering_filter import get_mastering_options
@@ -54,7 +54,8 @@ def export_bounded_pcm(raw_path, output_path, settings, cancel_check, *, quality
     mix_channels = shape.output_channels if shape.output_channels != shape.channels else None
     before = (get_loudness_measurements(inputs,mastering,cancel_check,output_channels=mix_channels,
         executable=runtime.binary.path,timeout=timeout) if mastering is not None else None)
-    with tempfile.TemporaryDirectory(prefix='.pcm-encode-',dir=destination.parent) as directory:
+    with create_export_staging(destination.parent, 'encode') as staging:
+        directory = staging.path
         request = dict(**shape.model_dump(),schema_version=1,format=fmt,
             raw=dict(version=facts['file_version'],sha256=facts['sha256']),
             encoder=runtime.model_dump(),output_limit=max_output_bytes,mux_profile=get_pcm_mux_profile(),

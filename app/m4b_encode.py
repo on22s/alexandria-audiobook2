@@ -7,14 +7,16 @@ import time
 
 from subprocess_ownership import start_owned_subprocess
 from tts import ensure_audio_export_active
+from export_staging import create_export_staging
 
 
 def encode_m4b(command, duration_seconds, cancel_check=None, progress_callback=None, timeout=600):
     from core import ensure_failed_subprocess_stopped
     ensure_audio_export_active(cancel_check)
     process = None
-    with tempfile.TemporaryDirectory(prefix='.m4b-progress-', dir=Path(command[-1]).parent) as directory:
-        progress_path = Path(directory) / 'progress.txt'
+    with create_export_staging(Path(command[-1]).parent, 'progress') as staging:
+        directory = staging.path
+        progress_path = directory / 'progress.txt'
         progress_path.touch()
         cmd = command[:-1] + ['-nostats', '-progress', str(progress_path), command[-1]]
         started = time.monotonic()
