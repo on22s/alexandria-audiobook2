@@ -52,6 +52,7 @@ class ExportStagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             process, path = self.run_child(tmp, mode='exit')
             process.wait(timeout=10)
+            process.communicate()
             self.assertEqual(76, process.returncode)
             self.assertTrue(path.is_dir())
             result = reclaim_export_staging((tmp,))
@@ -69,9 +70,30 @@ class ExportStagingTests(unittest.TestCase):
             finally:
                 process.kill()
                 process.wait(timeout=10)
+                process.communicate()
             result = reclaim_export_staging((tmp,))
             self.assertEqual([str(path)], result['removed'])
             self.assertFalse(path.exists())
+
+    def test_parallel_live_owners_are_both_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, first_path = self.run_child(tmp, mode='hold')
+            second, second_path = self.run_child(tmp, mode='hold')
+            try:
+                result = reclaim_export_staging((tmp,))
+                self.assertEqual([], result['removed'])
+                self.assertEqual({str(first_path), str(second_path)},
+                                 set(result['preserved']))
+                self.assertTrue(first_path.is_dir())
+                self.assertTrue(second_path.is_dir())
+            finally:
+                for process in (first, second):
+                    process.kill()
+                    process.wait(timeout=10)
+                    process.communicate()
+            result = reclaim_export_staging((tmp,))
+            self.assertEqual({str(first_path), str(second_path)},
+                             set(result['removed']))
 
     def test_unknown_sibling_missing_marker_and_foreign_parent_are_preserved(self):
         with tempfile.TemporaryDirectory() as tmp:
