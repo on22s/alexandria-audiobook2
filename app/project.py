@@ -185,6 +185,22 @@ def get_narrator_generation_context(entry):
             if field in entry}
 
 
+# What the dialogue map found about where an entry's text sits in the source.
+# True of that text only: an edit to the text leaves none of it established.
+SOURCE_FACT_FIELDS = ("spoken", "source_speaker", "source_span", "dialogue_ambiguity")
+
+
+def is_same_chunk_context(first, second):
+    """Whether two entries may share a chunk.
+
+    Every reader of a chunk's `spoken` asks only "is this speech?", so an
+    unlocated entry (no `spoken`) and located narration (`spoken: false`) do
+    not split a run of narration; neither ever joins confirmed speech.
+    """
+    return ({**first, "spoken": first.get("spoken") is True}
+            == {**second, "spoken": second.get("spoken") is True})
+
+
 def get_chunk_context(entry):
     """Copy voice selection and explicit structural intent for chunk rebuilding."""
     context = get_narrator_generation_context(entry)
@@ -627,7 +643,7 @@ def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS,
         # paragraph then played its pause after both sentences instead of
         # between them, which is not audible as a break at all.
         if (speaker == current_speaker and instruct == current_instruct
-                and narrator_context == current_context
+                and is_same_chunk_context(narrator_context, current_context)
                 and current_pause_after is None
                 and not _is_structural_text(current_text)
                 and not _is_structural_text(text)):
@@ -1284,6 +1300,10 @@ class ProjectManager:
         def mutator(chunk):
             render_changed = any(field in data and chunk.get(field, "") != data[field]
                                  for field in ("text", "instruct", "speaker"))
+            if "text" in data and chunk.get("text", "") != data["text"]:
+                # The source located the old text, not this one.
+                for field in SOURCE_FACT_FIELDS:
+                    chunk.pop(field, None)
             if "text" in data: chunk["text"] = data["text"]
             if "instruct" in data: chunk["instruct"] = data["instruct"]
             if "speaker" in data: chunk["speaker"] = data["speaker"]

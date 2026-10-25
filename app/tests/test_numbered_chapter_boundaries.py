@@ -140,6 +140,27 @@ class NumberedChapterBoundariesTests(unittest.TestCase):
                 self.assertFalse(any(chunk["text"].strip() == "CHAPTER II." for chunk in chunks))
                 groups = ProjectManager.__new__(ProjectManager)._chapter_groups(chunks, False)
                 self.assertEqual([("CHAPTER I", 0, len(chunks) - 1)], groups)
+        # An unlocated entry (no `spoken`) is not speech: it joins a narration
+        # run instead of splitting it, and never joins confirmed speech.
+        narration = [{"speaker": "NARRATOR", "text": "One.", "spoken": False},
+                     {"speaker": "NARRATOR", "text": "Two."},
+                     {"speaker": "NARRATOR", "text": "Three.", "spoken": False}]
+        self.assertEqual(["One. Two. Three."], [chunk["text"] for chunk in group_into_chunks(narration)])
+        speech = [{"speaker": "TOM", "text": "Hi.", "spoken": True}, {"speaker": "TOM", "text": "there."}]
+        self.assertEqual(["Hi.", "there."], [chunk["text"] for chunk in group_into_chunks(speech)])
+        # Source facts describe where the old text sits; an edited text keeps none.
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = ProjectManager(tmp)
+            manager.save_chunks([{"id": 0, "uid": "u0", "speaker": "NARRATOR", "text": "said Tom.",
+                                  "instruct": "", "status": "pending", "spoken": False,
+                                  "source_speaker": "Tom", "source_span": [10, 19],
+                                  "dialogue_ambiguity": "other_convention"}])
+            manager.update_chunk(0, {"speaker": "TOM", "text": "said Tom."})
+            self.assertEqual(("Tom", [10, 19]), tuple(manager.load_chunks()[0].get(k)
+                                                      for k in ("source_speaker", "source_span")))
+            manager.update_chunk(0, {"text": "CHAPTER II."})
+            row = manager.load_chunks()[0]
+            self.assertFalse({"spoken", "source_speaker", "source_span", "dialogue_ambiguity"} & set(row))
 
     def test_balanced_context_away_from_heading_keeps_its_boundary(self):
         for opening, closing in (('(', ')'), ('[', ']'), ('{', '}'), ('<', '>'),
