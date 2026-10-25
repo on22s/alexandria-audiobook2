@@ -7,10 +7,8 @@ import json
 import os
 import sys
 
-sys.path.insert(0, os.getcwd())
-import numpy as np
-import soundfile as sf
-from project import ProjectManager
+APP = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "app")
+sys.path.insert(0, APP)
 
 ROWS = [  # (speaker, text, pause_after ms or None, tone Hz, seconds)
     ("NARRATOR", "The lamp was lit.", 600, 440, 0.35),
@@ -20,6 +18,12 @@ ROWS = [  # (speaker, text, pause_after ms or None, tone Hz, seconds)
 
 
 def main(data_dir):
+    if (not os.path.isabs(data_dir) or os.path.islink(data_dir)
+            or not os.path.isdir(data_dir) or os.listdir(data_dir)):
+        raise ValueError("E2E seeding requires an existing empty absolute data directory")
+    import numpy as np
+    import soundfile as sf
+    from project import ProjectManager
     entries, chunks = [], []
     os.makedirs(os.path.join(data_dir, "voicelines"), exist_ok=True)
     for index, (speaker, text, pause, tone, seconds) in enumerate(ROWS):
