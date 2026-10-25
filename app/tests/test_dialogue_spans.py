@@ -426,6 +426,29 @@ class SourceNarrationTest(unittest.TestCase):
                 visits.clear()
                 dialogue_spans.get_other_speech_spans("“A.”\n\n" * repeats, "paired_quotes")
                 self.assertLessEqual(len(visits), repeats, repeats)
+        # Unclosed marks in one paragraph also share one forward search.
+        paragraph_searches = []
+
+        class CountedText(str):
+            def find(self, marker, *args):
+                if marker == "\n\n":
+                    paragraph_searches.append(args)
+                return super().find(marker, *args)
+
+        for opener in ("“", "「", "『"):
+            for repeats in (500, 2000):
+                paragraph_searches.clear()
+                text = CountedText((opener + "Wait ") * repeats)
+                spans = dialogue_spans.get_other_speech_spans(text, "paired_quotes")
+                self.assertEqual(repeats, len(spans))
+                self.assertTrue(all(stop == len(text) for _start, stop in spans))
+                self.assertEqual(1, len(paragraph_searches))
+            paragraph_searches.clear()
+            text = CountedText(f"{opener}Wait {opener}stay\n\n{opener}Go {opener}now")
+            spans = dialogue_spans.get_other_speech_spans(text, "paired_quotes")
+            boundary = text.index("\n\n")
+            self.assertEqual([boundary, boundary, len(text), len(text)], [end for _start, end in spans])
+            self.assertEqual(2, len(paragraph_searches))
 
     def test_unestablished_and_printed_lines_are_left_alone(self):
         # No `spoken` key means the source did not answer; a printed label is
