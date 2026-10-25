@@ -10682,6 +10682,7 @@
   ],
   "test_synthesis_recovery_identity": [
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_added_removed_replaced_or_missing_assets_are_ineligible",
+    "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_ancestor_replacement_invalidates_snapshot",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_asset_observation_checks_required_files_without_opening_or_hashing_weights",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_asset_observation_refuses_mutation_during_metadata_validation",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_each_serving_asset_changes_digest_and_invalidates_prior_admission",
@@ -10693,7 +10694,8 @@
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_restored_hf_link_and_directory_names_invalidate_load_admission",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_sharded_weight_index_requires_local_bounded_references",
     "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_tokenizer_and_processor_external_dependency_overrides_are_ineligible",
-    "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_trusted_hf_file_alias_is_bound_to_actual_target_and_rechecked"
+    "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_trusted_hf_file_alias_is_bound_to_actual_target_and_rechecked",
+    "tests.test_synthesis_recovery_identity.RecoveryModelIdentityTests.test_unrelated_ancestor_sibling_activity_does_not_invalidate_snapshot"
   ],
   "test_synthesis_recovery_load": [
     "tests.test_synthesis_recovery_load.RecoveryLoadBridgeTests.test_actual_capture_helper_binds_before_after_protocol_without_model_work",

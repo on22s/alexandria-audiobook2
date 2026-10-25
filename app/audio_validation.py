@@ -195,12 +195,17 @@ def validate_generated_audio(path, context="audio generation", *, expected_text=
                 block = audio.read(65536)
                 if not len(block):
                     break
-                validate_finite_audio_values(block, context)
+                try:
+                    validate_finite_audio_values(block, context)
+                except ValueError as error:
+                    # It decoded; its samples are the fault. Say so rather
+                    # than report it below as undecodable.
+                    raise GeneratedAudioError(str(error)) from error
                 if expected_text is not None:
                     import numpy as np
                     peak = max(peak, float(np.max(np.abs(block))))
                 decoded_frames += len(block)
-    except GeneratedAudioCancelled:
+    except GeneratedAudioError:  # includes cancellation; already names its fault
         raise
     except Exception as exc:  # noqa: BLE001
         raise GeneratedAudioError(
