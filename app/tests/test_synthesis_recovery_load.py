@@ -1,5 +1,6 @@
 """Actual loader orchestration distinguishes captured local loads from fallback."""
 from contextlib import redirect_stdout, redirect_stderr
+from contextvars import copy_context
 import io
 import sys
 from types import SimpleNamespace
@@ -10,6 +11,24 @@ from audio_generation_owner import AudioGenerationCancelled
 import synthesis_recovery_native as native
 from synthesis_recovery_identity import RecoveryIdentityUnavailable
 from tts import TTSEngine
+
+
+class FakeNamespaceGuard:
+    """Bridge double; real kernel observer cases live in identity tests."""
+    def __init__(self, path, **kwargs):
+        self.root = path
+        self.active = False
+        self.snapshot = None
+    def __enter__(self):
+        self.active = True
+        return self
+    def __exit__(self, *args):
+        self.active = False
+    def bind(self, snapshot):
+        self.snapshot = snapshot
+    def check(self):
+        if not self.active:
+            raise RecoveryIdentityUnavailable('model_namespace_changed_or_closed')
 
 
 class RecoveryLoadBridgeTests(unittest.TestCase):
@@ -105,22 +124,29 @@ class RecoveryLoadBridgeTests(unittest.TestCase):
               patch.object(native, '_ensure_supported_native_versions'),
               patch.object(native.importlib, 'import_module', return_value=SimpleNamespace(Qwen3TTSModel=cls)),
               patch.object(native, 'get_native_custom_code_sha256', return_value='b' * 64),
+              patch.object(native, 'RecoveryModelNamespaceGuard', FakeNamespaceGuard),
               patch.object(native, 'capture_recovery_model_snapshot', side_effect=capture),
               patch.object(native, 'ensure_recovery_model_snapshot_current', side_effect=verify)):
             self.assertIsNone(native.capture_native_recovery_load(cls, native._CUSTOM_MODEL_ID, '/cache/alias', {}))
             with native.ensure_native_recovery_model_capture():
+                retired_context = copy_context()
                 proposal = native.capture_native_recovery_load(cls, native._CUSTOM_MODEL_ID, '/cache/alias',
                                                                {'dtype': dtype, 'device_map': 'cuda:0'})
-            model = cls()
-            native.complete_native_recovery_load(model, proposal)
-            self.assertEqual('a' * 64, model._aa2_recovery_loaded_model.asset_sha256)
-            self.assertEqual('b' * 64, model._aa2_recovery_loaded_model.loader_code_sha256)
-            self.assertEqual(['snapshot', 'verify'], events)
-            with patch.object(native, 'get_native_custom_code_sha256', return_value='c' * 64):
-                other = cls()
-                with self.assertRaisesRegex(RecoveryIdentityUnavailable, 'native_loader_code_changed'):
-                    native.complete_native_recovery_load(other, proposal)
-                self.assertFalse(hasattr(other, '_aa2_recovery_loaded_model'))
+                model = cls()
+                native.complete_native_recovery_load(model, proposal)
+                self.assertEqual('a' * 64, model._aa2_recovery_loaded_model.asset_sha256)
+                self.assertEqual('b' * 64, model._aa2_recovery_loaded_model.loader_code_sha256)
+                self.assertEqual(['snapshot', 'verify'], events)
+                with patch.object(native, 'get_native_custom_code_sha256', return_value='c' * 64):
+                    other = cls()
+                    with self.assertRaisesRegex(RecoveryIdentityUnavailable, 'native_loader_code_changed'):
+                        native.complete_native_recovery_load(other, proposal)
+                    self.assertFalse(hasattr(other, '_aa2_recovery_loaded_model'))
+            with self.assertRaisesRegex(RecoveryIdentityUnavailable, 'model_namespace_changed_or_closed'):
+                native.complete_native_recovery_load(cls(), proposal)
+            self.assertIsNone(retired_context.run(native.capture_native_recovery_load,
+                cls, native._CUSTOM_MODEL_ID, '/cache/alias', {'dtype': dtype}))
+
 
     def test_missing_optional_metadata_or_layout_stays_temporary_and_owner_bugs_propagate(self):
         cls = self.model_class()
@@ -142,6 +168,7 @@ class RecoveryLoadBridgeTests(unittest.TestCase):
               patch.object(native, '_ensure_supported_native_versions'),
               patch.object(native.importlib, 'import_module', return_value=SimpleNamespace(Qwen3TTSModel=cls)),
               patch.object(native, 'get_native_custom_code_sha256', return_value='b' * 64),
+              patch.object(native, 'RecoveryModelNamespaceGuard', FakeNamespaceGuard),
               patch.object(native, 'capture_recovery_model_snapshot', side_effect=AttributeError('owner callback failed'))):
             with self.assertRaisesRegex(AttributeError, 'owner callback failed'):
                 native.capture_native_recovery_load(cls, native._CUSTOM_MODEL_ID, '/known/local', {'dtype': dtype})

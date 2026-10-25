@@ -15,32 +15,56 @@ Usage:
 Stdlib only. Read-only: it never reruns, comments or pushes.
 """
 import argparse
+import importlib.util
 import json
+from pathlib import Path
 import re
 import subprocess
 import sys
+from urllib.parse import urlsplit
+
+# Reuse the application's pure-stdlib credential scrubber without importing
+# the application, its configuration, or optional runtime dependencies.
+_spec = importlib.util.spec_from_file_location(
+    "_ci_diagnostics", Path(__file__).resolve().parents[3] / "app/diagnostics.py")
+_diagnostics = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_diagnostics)
+redact = _diagnostics.get_redacted_credentials
 
 TEST_HEADER = re.compile(r"^(FAIL|ERROR): (\w+) \(([\w.]+)\)(?: \((.*)\))?\s*$")
 SUMMARY = re.compile(r"^(Ran \d+ tests? in [\d.]+s|FAILED \(.*\)|OK(?: \(.*\))?)\s*$")
-DETAIL = re.compile(r"^\w*(Error|Exception|Failure)\b|^AssertionError")
+DETAIL = re.compile(r"^[\w.]*(Error|Exception|Failure)\b|^AssertionError")
 TIMESTAMP = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+Z ?")
-FAILED_CONCLUSIONS = {"FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "failure", "timed_out"}
+FAILED_CONCLUSIONS = {"FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "failure", "timed_out", "startup_failure"}
 
 
 def gh(*args):
     result = subprocess.run(["gh", *args], capture_output=True, text=True)
     if result.returncode != 0:
-        raise RuntimeError(f"gh {' '.join(args)}: {result.stderr.strip()[:300]}")
+        raise RuntimeError(f"gh {redact(' '.join(args))}: {redact(result.stderr.strip())[:300]}")
     return result.stdout
 
 
 def get_repo():
     url = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True,
                          text=True, check=True).stdout.strip()
-    match = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
-    if not match:
-        raise RuntimeError(f"origin is not a GitHub remote: {url}")
-    return match.group(1)
+    # Parse the host, rather than matching github.com inside another hostname.
+    # Never echo an origin URL: HTTPS/SSH credentials may be embedded in it.
+    scp = re.fullmatch(r"(?:[^@/:]+@)?github\.com:(.+)", url, flags=re.IGNORECASE)
+    path = scp.group(1) if scp else None
+    if path is None:
+        try:
+            parsed = urlsplit(url)
+            if (parsed.scheme in {"http", "https", "ssh", "git"}
+                    and parsed.hostname == "github.com" and not parsed.query and not parsed.fragment):
+                path = parsed.path.removeprefix("/")
+        except ValueError:
+            pass
+    path = path.removesuffix(".git") if path is not None else ""
+    if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", path)
+            or any(part in {".", ".."} for part in path.split("/"))):
+        raise RuntimeError("origin is not a supported GitHub remote; pass --repo owner/name")
+    return path
 
 
 def get_log_text(raw):
@@ -57,7 +81,7 @@ def get_log_lines(repo, job_id):
 
 def get_error_lines(lines, limit=3):
     """The job's last `##[error]` annotations, which name a non-test failure."""
-    errors = [line[len("##[error]"):].strip() for line in lines if line.startswith("##[error]")]
+    errors = [redact(line[len("##[error]"):].strip()) for line in lines if line.startswith("##[error]")]
     return [line[:240] for line in errors if line and not line.startswith(("raise ", "File "))][-limit:]
 
 
@@ -65,6 +89,7 @@ def get_job_failures(lines):
     """-> ({(test, class): {"subtests": [...], "detail": str}}, [summary lines])."""
     failures, summary, current = {}, [], None
     for index, line in enumerate(lines):
+        line = redact(line)
         header = TEST_HEADER.match(line)
         if header:
             key = (header.group(2), header.group(3))
@@ -88,8 +113,14 @@ def get_job_failures(lines):
 def get_failed_jobs_of_run(repo, run_id, attempt=None):
     extra = ("--attempt", str(attempt)) if attempt else ()
     data = json.loads(gh("run", "view", str(run_id), "-R", repo, *extra, "--json",
-                         "jobs,headSha,headBranch,conclusion,url,attempt"))
+                         "jobs,headSha,headBranch,conclusion,url,attempt,status"))
     jobs = [job for job in data["jobs"] if job.get("conclusion") in FAILED_CONCLUSIONS]
+    for job in jobs:
+        job["name"] = redact(job["name"])
+        if job.get("url"):
+            job["url"] = redact(job["url"])
+        for step in job.get("steps", ()):
+            step["name"] = redact(step["name"])
     return data, jobs
 
 
@@ -121,17 +152,26 @@ def get_pr_runs(repo, pr):
     data = json.loads(gh("pr", "view", str(pr), "-R", repo, "--json",
                          "headRefOid,headRefName,statusCheckRollup,title"))
     runs = set()
-    for check in data["statusCheckRollup"]:
+    checks = data["statusCheckRollup"]
+    if checks is None:
+        checks = []
+    if not isinstance(checks, list) or not all(isinstance(check, dict) for check in checks):
+        raise RuntimeError("Invalid GitHub check inventory")
+    data["statusCheckRollup"] = checks
+    data["unmapped_failed_checks"] = False
+    for check in checks:
         if check.get("conclusion") in FAILED_CONCLUSIONS:
             match = re.search(r"/actions/runs/(\d+)", check.get("detailsUrl") or "")
             if match:
                 runs.add(int(match.group(1)))
+            else:
+                data["unmapped_failed_checks"] = True
     return data, sorted(runs)
 
 
 def get_main_baseline(repo):
     """Failing test keys of the latest completed tests.yml run on main (empty if it passed)."""
-    runs = json.loads(gh("run", "list", "-R", repo, "--workflow", "tests.yml", "--branch", "main",
+    runs = json.loads(gh("run", "list", "-R", repo, "--workflow", "tests.yml", "--branch", "main", "--event", "push",
                          "--status", "completed", "--limit", "1",
                          "--json", "databaseId,headSha,conclusion,createdAt"))
     if not runs:
@@ -143,6 +183,19 @@ def get_main_baseline(repo):
         for result in results:
             keys.update(result["failures"])
     return run, keys
+
+
+def get_baseline_presence(key, run, failures):
+    """Absence proves NEW only when main's whole workflow passed.
+
+    A failed/cancelled workflow may never have run the relevant test. Known
+    failures still establish presence, but an absent key remains unknown.
+    """
+    if failures is None or run is None:
+        return None
+    if key in failures:
+        return True
+    return False if run["conclusion"] == "success" else None
 
 
 def main(argv=None):
@@ -162,34 +215,50 @@ def main(argv=None):
     else:
         pr, run_ids = get_pr_runs(repo, args.pr)
         header = f"PR #{args.pr} head {pr['headRefOid'][:10]} ({pr['headRefName']})"
+    header = redact(header)
+    pending = False
+    if not args.run:
+        checks = pr["statusCheckRollup"]
+        pending = pr.get("unmapped_failed_checks", False) or not checks or any(
+            check.get("status") not in (None, "COMPLETED")
+            or check.get("state") not in (None, "SUCCESS")
+            or check.get("conclusion") not in ({None, "SUCCESS"} | FAILED_CONCLUSIONS) for check in checks)
     results, retried = [], []
     for run_id in run_ids:
         meta, jobs = get_failures_of_run(repo, run_id, args.attempt)
+        pending = (pending or meta["status"] != "completed"
+                   or (meta["conclusion"] != "success" and not jobs))
         results.extend(dict(job, run_id=run_id, head=meta["headSha"][:10]) for job in jobs)
         if not args.attempt and meta.get("attempt", 1) > 1:
             for attempt, names in get_earlier_failed_attempts(repo, run_id, meta["attempt"]):
-                retried.append((run_id, attempt, meta["attempt"], names))
+                retried.append((run_id, attempt, meta["attempt"], names, meta["conclusion"] == "success"))
     # None, not an empty set, when skipped: nothing was compared, so claim nothing.
     baseline_run, baseline = (None, None) if args.no_baseline else get_main_baseline(repo)
 
     if args.json:
         print(json.dumps({"repo": repo, "target": header, "baseline_run": baseline_run,
+                          "checks_pending": pending,
                           "earlier_failed_attempts": retried, "jobs": [
             {**{k: v for k, v in job.items() if k != "failures"}, "failures": [
                 {"test": t, "class": c, **entry,
-                 "on_main": None if baseline is None else (t, c) in baseline}
+                 "on_main": get_baseline_presence((t, c), baseline_run, baseline)}
                 for (t, c), entry in job["failures"].items()]} for job in results]}, indent=1))
-        return 1 if results else 0
+        return 1 if results else 2 if pending else 0
 
     print(f"{repo}: {header}")
     if baseline_run:
-        state = "passed" if not baseline else f"failed {len(baseline)} tests"
+        state = ("passed" if baseline_run["conclusion"] == "success"
+                 else f"{baseline_run['conclusion']}; {len(baseline or ())} parsed failing tests")
         print(f"main baseline: run {baseline_run['databaseId']} at {baseline_run['headSha'][:10]} "
               f"({baseline_run['createdAt'][:16]}Z) {state}")
-    for run_id, attempt, latest, names in retried:
+    for run_id, attempt, latest, names, latest_passed in retried:
         print(f"note: run {run_id} attempt {attempt} of {latest} failed ({', '.join(names)}); "
-              f"a later attempt is shown. Inspect it with --run {run_id} --attempt {attempt}.")
+              f"latest attempt {'passed (flake signal)' if latest_passed else 'did not pass'}. "
+              f"Inspect it with --run {run_id} --attempt {attempt}.")
     if not results:
+        if pending:
+            print("CI pending/incomplete: no completed clean result is established.")
+            return 2
         print("No failing jobs" + (" in the latest attempt." if retried else "."))
         return 0
     for job in results:
@@ -204,8 +273,8 @@ def main(argv=None):
                 print(f"   ##[error] {error}")
             print(f"   {job['url']}")
         for (test, cls), entry in sorted(job["failures"].items(), key=lambda item: item[0][1]):
-            label = ("not compared" if baseline is None
-                     else "also on main" if (test, cls) in baseline else "NEW vs main")
+            presence = get_baseline_presence((test, cls), baseline_run, baseline)
+            label = "not compared" if presence is None else "also on main" if presence else "NEW vs main"
             subtests = f" [{len(entry['subtests'])} subtests]" if entry["subtests"] else ""
             print(f"   {entry['kind']:5} {label:12} {cls}.{test}{subtests}")
             if entry["detail"]:

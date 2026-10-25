@@ -20,7 +20,7 @@ import re
 import sys
 import time
 
-from utils import atomic_json_write
+from utils import atomic_json_write, file_lock
 
 PROMPT = ("Below is a complete novel. List every character who SPEAKS a quoted line at least "
           "once. Give each as the name a reader would use for them; if the text never names "
@@ -78,15 +78,22 @@ def get_cast_list_path(input_file, data_dir):
     return os.path.join(data_dir, CAST_LISTS_DIRNAME, digest.hexdigest() + ".json")
 
 
-def save_cast_list(path, cast, provenance=None):
+def save_cast_list(path, cast, provenance=None, *, lock=True):
     """Validate with the generator's own validator, then write atomically.
 
     Raises ValueError and writes nothing when generation would refuse the list.
+    Takes the list's file lock, so this build and the Editor's save and delete
+    serialize; a caller already holding it (it is not re-entrant) passes
+    lock=False.
     """
     from three_pass_generate import get_cast_from_data
     get_cast_from_data(cast)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    atomic_json_write({"cast": cast, "provenance": provenance or {}}, path)
+    if not lock:
+        atomic_json_write({"cast": cast, "provenance": provenance or {}}, path)
+        return
+    with file_lock(path):
+        atomic_json_write({"cast": cast, "provenance": provenance or {}}, path)
 
 
 def main(argv=None):
@@ -150,6 +157,13 @@ def main(argv=None):
         save_cast_list(args.out, cast, provenance)
     except ValueError as exc:
         print(f"Error: the model's list was refused: {exc}")
+        return 1
+    except TimeoutError:
+        print("Error: the cast list is busy. Retry after other cast-list operations finish.")
+        return 1
+    except OSError as exc:
+        print(f"Error: could not save the cast list ({type(exc).__name__}). "
+              "Check the output location and retry.")
         return 1
     print(f"Cast list: {len(cast)} characters -> {os.path.basename(args.out)}")
     return 0
