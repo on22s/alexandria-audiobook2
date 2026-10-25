@@ -7405,95 +7405,161 @@
             let currentIndex = 0;
             let skippedCount = 0;
             let pausePlan = new Map();
+            let trimPlan = new Map();
+            let playableIds = null;
+            let lastPlayedId = null;
+            let skippedSinceLastPlayed = false;
             try {
                 const plan = await API.get('/api/chunks/playback_plan');
                 if (!isCurrentSequence()) { return; }
                 pausePlan = new Map(((plan && plan.pauses) || []).map(
                     row => [Number(row.chunk_id), Number(row.pause_ms)]));
+                const trims = (plan && plan.trims) || [];
+                trimPlan = new Map(trims.map(row => [Number(row.chunk_id), {
+                    start_ms: Number(row.start_ms),
+                    end_ms: Number(row.end_ms)}]));
+                playableIds = trims.length ? new Set(trimPlan.keys()) : null;
             } catch (error) {
                 if (!isCurrentSequence()) { return; }
-                console.error('Playback pause plan failed:', error);
-                showActionError('Could not load playback pauses', error, 'Check the reported error and your connection, then try playing the sequence again.', 'warning');
+                console.error('Playback timing plan failed:', error);
+                showActionError('Could not load playback timing', error, 'Check the reported error and your connection, then try playing the sequence again.', 'warning');
                 stopSequence();
                 return;
             }
 
-            const getPauseMs = (audio) => {
+            const getAudioId = (audio) => {
                 const row = audio.closest('tr');
-                const chunkId = row && row.dataset ? Number(row.dataset.id) : NaN;
-                const pauseMs = pausePlan.get(chunkId);
-                return Number.isFinite(pauseMs) && pauseMs > 0 ? pauseMs : 0;
+                return row && row.dataset ? Number(row.dataset.id) : NaN;
             };
-
-            const playNext = () => {
-                if (!isCurrentSequence()) { return; }
-
-                const audios = Array.from(document.querySelectorAll('.chunk-audio'));
-
-                // Find next valid audio
-                while (currentIndex < audios.length) {
-                    const audio = audios[currentIndex];
-                    if (audio.getAttribute('src')) {
-                        break;
-                    }
-                    currentIndex++;
+            const getTrim = (chunkId) => trimPlan.get(chunkId) || null;
+            const isPlayable = (audio) => {
+                if (!audio.getAttribute('src')) { return false; }
+                const chunkId = getAudioId(audio);
+                return !playableIds || playableIds.has(chunkId);
+            };
+            const fetchGap = async (fromId, toId) => {
+                if (!Number.isFinite(fromId) || !Number.isFinite(toId)) { return 0; }
+                try {
+                    const response = await API.get(
+                        `/api/chunks/playback_gap?from_id=${fromId}&to_id=${toId}`);
+                    const pause = Number(response && response.pause_ms);
+                    return Number.isFinite(pause) && pause > 0 ? pause : 0;
+                } catch (error) {
+                    console.error('Playback gap lookup failed:', error);
+                    return 0;
                 }
-
-                if (currentIndex >= audios.length) {
-                    stopSequence();
-                    if (skippedCount > 0) {
-                        showToast(`Play Sequence finished - ${skippedCount} chunk(s) skipped due to playback errors`, 'warning');
-                    }
-                    return;
+            };
+            const schedule = (delay, callback) => {
+                if (delay > 0) {
+                    sequencePauseTimer = setTimeout(() => {
+                        sequencePauseTimer = null;
+                        if (isCurrentSequence()) { callback(); }
+                    }, delay);
+                } else {
+                    callback();
                 }
-
-                const audio = audios[currentIndex];
-                const tr = audio.closest('tr');
-
-                // Visual feedback
-                document.querySelectorAll('tr').forEach(r => r.classList.remove('table-primary'));
-                tr.classList.add('table-primary');
-                tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                // Guards against onerror and the play() promise rejection both
-                // firing for this same audio element - only the first should
-                // count as a skip and advance currentIndex, or both firing
-                // would double the skip count and skip over the next track too.
+            };
+            const finish = () => {
+                stopSequence();
+                if (skippedCount > 0) {
+                    showToast(`Play Sequence finished - ${skippedCount} chunk(s) skipped due to playback errors`, 'warning');
+                }
+            };
+            const startAudio = (audio, chunkId) => {
+                const trim = getTrim(chunkId);
+                if (trim && Number.isFinite(trim.start_ms) && trim.start_ms > 0) {
+                    try { audio.currentTime = trim.start_ms / 1000; } catch (error) {}
+                }
                 let advanced = false;
                 const advanceOnce = (isSkip) => {
                     if (advanced || !isCurrentSequence()) { return; }
                     advanced = true;
                     audio.onended = null;
                     audio.onerror = null;
-                    if (isSkip) { skippedCount++; }
-                    currentIndex++;
-                    const pauseMs = isSkip ? 0 : getPauseMs(audio);
-                    if (pauseMs > 0) {
-                        sequencePauseTimer = setTimeout(() => {
-                            sequencePauseTimer = null;
-                            if (isCurrentSequence()) { playNext(); }
-                        }, pauseMs);
+                    audio.ontimeupdate = null;
+                    if (isSkip) {
+                        skippedCount++;
+                        skippedSinceLastPlayed = true;
                     } else {
-                        playNext();
+                        lastPlayedId = chunkId;
+                        skippedSinceLastPlayed = false;
                     }
+                    currentIndex++;
+                    playNext();
                 };
-
+                if (trim && Number.isFinite(trim.end_ms)) {
+                    audio.ontimeupdate = () => {
+                        if (!advanced && audio.currentTime * 1000 >= trim.end_ms - 15) {
+                            try { audio.pause(); } catch (error) {}
+                            advanceOnce(false);
+                        }
+                    };
+                }
+                audio.onended = () => advanceOnce(false);
+                audio.onerror = () => {
+                    console.error('Audio error, skipping');
+                    advanceOnce(true);
+                };
                 const playPromise = audio.play();
-
                 if (playPromise !== undefined) {
                     playPromise.catch(e => {
-                        console.error("Play failed (empty or skipped):", e);
+                        console.error('Play failed (empty or skipped):', e);
                         advanceOnce(true);
                     });
                 }
+            };
+            const playNext = () => {
+                if (!isCurrentSequence()) { return; }
+                const audios = Array.from(document.querySelectorAll('.chunk-audio'));
+                while (currentIndex < audios.length && !isPlayable(audios[currentIndex])) {
+                    if (audios[currentIndex].getAttribute('src')) {
+                        skippedCount++;
+                        skippedSinceLastPlayed = true;
+                    }
+                    currentIndex++;
+                }
+                if (currentIndex >= audios.length) { finish(); return; }
+                const audio = audios[currentIndex];
+                const chunkId = getAudioId(audio);
+                const tr = audio.closest('tr');
+                document.querySelectorAll('tr').forEach(r => r.classList.remove('table-primary'));
+                tr.classList.add('table-primary');
+                tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-                audio.onended = () => {
-                    advanceOnce(false);
+                const ready = () => {
+                    if (!isCurrentSequence()) { return; }
+                    const apply = () => {
+                        if (isCurrentSequence()) { startAudio(audio, chunkId); }
+                    };
+                    if (lastPlayedId === null) { apply(); return; }
+                    if (!skippedSinceLastPlayed) {
+                        schedule(Number(pausePlan.get(lastPlayedId)) || 0, apply);
+                        return;
+                    }
+                    fetchGap(lastPlayedId, chunkId).then(delay => {
+                        if (isCurrentSequence()) { schedule(delay, apply); }
+                    });
                 };
-
-                audio.onerror = () => {
-                     console.error("Audio error, skipping");
-                     advanceOnce(true);
+                if (typeof audio.addEventListener === 'function'
+                        && audio.readyState !== undefined && audio.readyState < 3) {
+                    const onReady = () => {
+                        audio.removeEventListener('canplay', onReady);
+                        audio.removeEventListener('error', onError);
+                        ready();
+                    };
+                    const onError = () => {
+                        audio.removeEventListener('canplay', onReady);
+                        audio.removeEventListener('error', onError);
+                        skippedCount++;
+                        skippedSinceLastPlayed = true;
+                        currentIndex++;
+                        playNext();
+                    };
+                    audio.addEventListener('canplay', onReady);
+                    audio.addEventListener('error', onError);
+                    try { audio.load(); } catch (error) {}
+                } else {
+                    ready();
                 }
             };
 
@@ -7510,6 +7576,7 @@
                 a.currentTime = 0;
                 a.onended = null;
                 a.onerror = null;
+                a.ontimeupdate = null;
             });
             document.querySelectorAll('tr').forEach(r => r.classList.remove('table-primary'));
 

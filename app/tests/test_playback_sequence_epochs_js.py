@@ -115,7 +115,7 @@ ctx.stopSequence();const before=plays.length;
 ctx.API.get=async()=>{throw new Error('Playback pauses unavailable: Shorten the pause before exporting.');};
 await ctx.playSequence();await settle();
 assert.strictEqual(plays.length,before);assert.strictEqual(playing(),false);
-assert.deepStrictEqual(toasts.at(-1),{text:'Could not load playback pauses',reason:'Playback pauses unavailable: Shorten the pause before exporting.',tone:'warning'});
+assert.deepStrictEqual(toasts.at(-1),{text:'Could not load playback timing',reason:'Playback pauses unavailable: Shorten the pause before exporting.',tone:'warning'});
 ''')
 
     def test_stop_and_restart_cancel_pending_plan_pause(self):
@@ -125,6 +125,42 @@ await ctx.playSequence();audios[0].onended();ctx.stopSequence();
 await new Promise(r=>setTimeout(r,70));assert.deepStrictEqual(plays,[0]);assert.strictEqual(playing(),false);
 await ctx.playSequence();audios[0].onended();await ctx.playSequence();
 await new Promise(r=>setTimeout(r,70));assert.deepStrictEqual(plays,[0,0,0]);assert.strictEqual(playing(),true);
+''')
+
+    def test_trim_start_and_end_control_advance(self):
+        self.run_js(r'''
+ctx.API.get=async()=>({pauses:[],trims:[
+ {chunk_id:0,start_ms:50,end_ms:80},
+ {chunk_id:1,start_ms:0,end_ms:1000},
+ {chunk_id:2,start_ms:0,end_ms:1000}]});
+await ctx.playSequence();
+assert.deepStrictEqual(plays,[0]);
+assert.ok(Math.abs(audios[0].currentTime - 0.05) < 1e-6);
+audios[0].currentTime=0.1;
+audios[0].ontimeupdate();
+assert.deepStrictEqual(plays,[0,1]);
+assert.strictEqual(audios[0].ontimeupdate,null);
+''')
+
+    def test_runtime_skip_uses_gap_for_actual_neighbors(self):
+        self.run_js(r'''
+const gaps=[];
+ctx.API.get=async url => {
+  if (url.includes('playback_gap')) { gaps.push(url); return {pause_ms:30}; }
+  return {pauses:[],trims:[
+   {chunk_id:0,start_ms:0,end_ms:1000},
+   {chunk_id:1,start_ms:0,end_ms:1000},
+   {chunk_id:2,start_ms:0,end_ms:1000}]};
+};
+await ctx.playSequence();
+audios[0].onended();
+assert.deepStrictEqual(plays,[0,1]);
+attempts[1].reject(new Error('failed decode'));await settle();
+assert.deepStrictEqual(plays,[0,1]);
+assert.strictEqual(gaps.length,1);
+assert.match(gaps[0],/from_id=0&to_id=2/);
+await new Promise(r=>setTimeout(r,45));
+assert.deepStrictEqual(plays,[0,1,2]);
 ''')
 
     def test_missing_source_and_undefined_play_promise_keep_normal_sequence_order(self):

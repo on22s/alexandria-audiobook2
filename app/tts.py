@@ -619,22 +619,31 @@ def _silent_edge_ms(segment, from_end, threshold_db, cancel_check=None):
     return min(silent, length)
 
 
+def get_trim_bounds_ms(segment, threshold_db=EDGE_SILENCE_THRESHOLD_DBFS,
+                       keep_head_ms=EDGE_SILENCE_KEEP_HEAD_MS,
+                       keep_tail_ms=EDGE_SILENCE_KEEP_TAIL_MS, cancel_check=None):
+    """-> (start_ms, end_ms) for the canonical edge-trim rule."""
+    ensure_audio_export_active(cancel_check)
+    if segment is None or len(segment) == 0:
+        return 0, 0
+    lead = _silent_edge_ms(segment, False, threshold_db, cancel_check)
+    if lead >= len(segment):
+        return 0, len(segment)
+    tail = _silent_edge_ms(segment, True, threshold_db, cancel_check)
+    return max(0, lead - keep_head_ms), len(segment) - max(0, tail - keep_tail_ms)
+
+
 def trim_edge_silence(segment, threshold_db=EDGE_SILENCE_THRESHOLD_DBFS,
                       keep_head_ms=EDGE_SILENCE_KEEP_HEAD_MS,
                       keep_tail_ms=EDGE_SILENCE_KEEP_TAIL_MS, cancel_check=None):
     """-> the segment with leading/trailing silence cut back to keep_head_ms /
     keep_tail_ms. A segment that is silent throughout is returned unchanged
     (a missing line must stay visible as its full length, not vanish)."""
-    ensure_audio_export_active(cancel_check)
     if segment is None or len(segment) == 0:
         return segment
-    lead = _silent_edge_ms(segment, False, threshold_db, cancel_check)
-    if lead >= len(segment):
-        return segment
-    tail = _silent_edge_ms(segment, True, threshold_db, cancel_check)
-    start = max(0, lead - keep_head_ms)
-    end = len(segment) - max(0, tail - keep_tail_ms)
-    return segment[start:end] if (start, end) != (0, len(segment)) else segment
+    bounds = get_trim_bounds_ms(segment, threshold_db, keep_head_ms, keep_tail_ms,
+                                cancel_check)
+    return segment[bounds[0]:bounds[1]] if bounds != (0, len(segment)) else segment
 
 
 def get_pause_duration_ms(previous_chunk, next_chunk, pause_ms=DEFAULT_PAUSE_MS,

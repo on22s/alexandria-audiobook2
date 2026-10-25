@@ -6426,6 +6426,52 @@
         "summary": "Drift Check Endpoint"
       }
     },
+    "/api/chunks/playback_gap": {
+      "get": {
+        "operationId": "get_playback_gap_api_chunks_playback_gap_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from_id",
+            "required": true,
+            "schema": {
+              "title": "From Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_id",
+            "required": true,
+            "schema": {
+              "title": "To Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Playback Gap"
+      }
+    },
     "/api/chunks/playback_plan": {
       "get": {
         "operationId": "get_playback_plan_api_chunks_playback_plan_get",

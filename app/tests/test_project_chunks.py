@@ -6,7 +6,8 @@ import unittest
 from unittest.mock import ANY, patch
 
 from project import (EXPLICIT_SILENCE_MS, ProjectManager,
-                     get_playback_pause_plan, get_speakable_entries, group_into_chunks)
+                     get_playback_pause_plan, get_playback_trim_plan,
+                     get_speakable_entries, group_into_chunks)
 from tts import DEFAULT_PAUSE_MS
 
 
@@ -319,11 +320,39 @@ class ScenBreakPauseSurvivesGroupingTest(unittest.TestCase):
                  patch.object(core, 'DATA_DIR', tmp), TestClient(app) as client:
                 served = client.get('/api/chunks/playback_plan')
                 self.assertEqual(200, served.status_code, served.text)
-                self.assertEqual({'pauses': [{'chunk_id': 0, 'pause_ms': 250}]}, served.json())
+                self.assertEqual({'pauses': [{'chunk_id': 0, 'pause_ms': 250}], 'trims': []},
+                                 served.json())
+                gap = client.get('/api/chunks/playback_gap', params={'from_id': 0, 'to_id': 2})
+                self.assertEqual(200, gap.status_code, gap.text)
+                self.assertEqual({'pause_ms': 250}, gap.json())
                 chunks = manager.load_chunks(); chunks[0]['pause_after'] = 10 ** 9; manager.save_chunks(chunks)
                 refused = client.get('/api/chunks/playback_plan')
                 self.assertEqual(422, refused.status_code, refused.text)
                 self.assertIn('Shorten the pause before exporting', refused.json()['detail'])
+
+    def test_playback_trim_plan_matches_export_bounds_and_skips_empty(self):
+        from pydub import AudioSegment
+        from tts import get_trim_bounds_ms
+        silence = AudioSegment.silent(duration=200, frame_rate=11025)
+        tone = AudioSegment(data=b'\x00\x20' * 100, sample_width=2,
+                            frame_rate=11025, channels=1)
+        segment = silence + tone + silence
+        start_ms, end_ms = get_trim_bounds_ms(segment)
+        self.assertGreater(start_ms, 0)
+        self.assertLess(end_ms, len(segment))
+        start_frame = int(start_ms * segment.frame_rate / 1000)
+        end_frame = int(end_ms * segment.frame_rate / 1000)
+        self.assertEqual(segment[start_ms:end_ms].raw_data,
+                         segment.raw_data[start_frame * segment.frame_width:
+                                          end_frame * segment.frame_width])
+        chunks = [{'id': 0, 'audio_path': 'a.wav'},
+                  {'id': 1, 'audio_path': 'b.wav'}]
+        plan = get_playback_trim_plan(
+            chunks, lambda chunk: segment if chunk['id'] == 0 else AudioSegment.empty(),
+            has_audio=lambda chunk: True)
+        self.assertEqual({0: (start_ms, end_ms)}, plan)
+        all_silent = AudioSegment.silent(duration=200, frame_rate=11025)
+        self.assertEqual((0, len(all_silent)), get_trim_bounds_ms(all_silent))
 
     def test_entries_without_a_pause_still_merge(self):
         # The fix must not stop ordinary same-speaker merging.

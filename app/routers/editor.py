@@ -60,11 +60,12 @@ from speech_verification_receipt import get_speech_verification_chunk_view
 from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection,
-                     get_chunk_generation_requests, get_playback_pause_plan, get_speaker)
+                     get_chunk_generation_requests, get_playback_pause_plan,
+                     get_playback_trim_plan, get_speaker)
 from runtime_estimate import get_book_runtime_estimate
 from routers.voices import get_script_speaker
 from tts import (voice_config_for_chunk, resolve_narrator_voice_config, voice_category,
-                 ExportCancelled, ensure_audio_export_active)
+                 ExportCancelled, ensure_audio_export_active, get_pause_duration_ms)
 import voice_drift
 
 
@@ -427,11 +428,37 @@ def _ensure_playback_plan():
         try:
             plan = get_playback_pause_plan(chunks, pause_ms, same_speaker_pause_ms,
                                            has_audio=project_manager.has_chunk_audio_file)
+            trims = get_playback_trim_plan(
+                chunks, project_manager.get_chunk_audio_segment,
+                has_audio=project_manager.has_chunk_audio_file)
         except (TypeError, ValueError) as error:
             # A stored pause export would also refuse; say which, as export does.
             raise HTTPException(status_code=422, detail=f"Playback pauses unavailable: {error}") from error
     return {'pauses': [{'chunk_id': chunk_id, 'pause_ms': pause}
-                       for chunk_id, pause in sorted(plan.items())]}
+                       for chunk_id, pause in sorted(plan.items())],
+            'trims': [{'chunk_id': chunk_id, 'start_ms': start_ms, 'end_ms': end_ms}
+                      for chunk_id, (start_ms, end_ms) in sorted(trims.items())]}
+
+
+@router.get("/api/chunks/playback_gap")
+async def get_playback_gap(from_id: int, to_id: int):
+    return await asyncio.to_thread(_ensure_playback_gap, from_id, to_id)
+
+
+def _ensure_playback_gap(from_id, to_id):
+    root = os.path.dirname(SCRIPT_PATH)
+    with ensure_book_state(root):
+        chunks = _ensure_editor_chunks()
+        by_id = {chunk.get('id'): chunk for chunk in chunks}
+        if from_id not in by_id or to_id not in by_id:
+            raise HTTPException(status_code=404, detail="Playback chunk not found")
+        pause_ms, same_speaker_pause_ms = project_manager._load_pause_defaults()
+        try:
+            pause = get_pause_duration_ms(by_id[from_id], by_id[to_id],
+                                          pause_ms, same_speaker_pause_ms)
+        except (TypeError, ValueError) as error:
+            raise HTTPException(status_code=422, detail=f"Playback pause unavailable: {error}") from error
+    return {'pause_ms': pause}
 
 
 @router.get("/api/chunks")

@@ -62,6 +62,7 @@ from tts import (
     combine_audio_with_pauses,
     compute_timeline,
     iter_timeline,
+    get_trim_bounds_ms,
     get_pause_duration_ms,
     sanitize_filename,
     voice_category,
@@ -778,6 +779,29 @@ def get_playback_pause_plan(chunks, pause_ms=DEFAULT_PAUSE_MS,
         plan[current['id']] = get_pause_duration_ms(
             current, following, pause_ms, same_speaker_pause_ms)
     return plan
+
+
+def get_playback_trim_plan(chunks, audio_provider, has_audio=None):
+    """Resolve each decodable playable row's canonical edge-trim bounds.
+
+    The plan is computed once for a sequence; callers must not poll this from
+    status endpoints. audio_provider is the Project's owned loader, so missing,
+    escaping or undecodable files are excluded rather than guessed.
+    """
+    has_audio = has_audio or (lambda chunk: bool(chunk.get('audio_path')))
+    trims = {}
+    for chunk in chunks:
+        chunk_id = chunk.get('id')
+        if type(chunk_id) is not int or not has_audio(chunk):
+            continue
+        segment = audio_provider(chunk)
+        if segment is None:
+            continue
+        start_ms, end_ms = get_trim_bounds_ms(segment)
+        if end_ms > start_ms:
+            trims[chunk_id] = (start_ms, end_ms)
+        del segment
+    return trims
 
 
 def get_chapter_export_rows(manifest):
