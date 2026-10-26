@@ -10,10 +10,13 @@ A directory name is never enough authority. Reclamation requires a direct
 child of a known export parent, a valid marker naming the same parent and a
 known prefix, and a lock that can be acquired. A live lock, missing/invalid
 marker, foreign parent, symlink, unknown sibling or failed removal preserves the
-directory. Discovery is bounded to direct children and a fixed entry count.
+directory. Discovery is bounded to direct children and a fixed number of
+examined entries per parent, and resumes where it stopped so repeated calls
+reach every entry.
 """
 from __future__ import annotations
 
+import bisect
 from contextlib import contextmanager
 import json
 import os
@@ -31,6 +34,8 @@ MARKER = '.export-staging.json'
 OWNER_LOCK = '.export-staging.owner'
 MAX_MARKER_BYTES = 4096
 MAX_SCAN_ENTRIES = 4096
+# Where an unfinished discovery pass resumes; written only when a budget runs out.
+SCAN_CURSOR = '.export-staging-scan.json'
 MAX_RECLAIM = 64
 RECOVERY = '.export-staging-recovery'
 PREFIXES = {
@@ -389,13 +394,99 @@ def _matches_parent(marker, parent):
         return False
 
 
+def _load_scan_cursor(parent, parent_identity):
+    """-> (entry name the previous call stopped after, or None; problem or None).
+
+    A missing cursor starts from the beginning silently. An existing cursor
+    that is unreadable, malformed, foreign or not a regular file also restarts
+    the traversal, never widening the budget or skipping an entry, but the
+    problem is returned for reporting: a cursor that keeps failing would
+    otherwise bring the starvation back unseen. The read reuses descriptor
+    admission, so a FIFO here cannot block recovery.
+    """
+    from audio_take_history import _open_regular
+
+    root = Path(parent).resolve()
+    try:
+        source, _ = _open_regular(root / SCAN_CURSOR, root, MAX_MARKER_BYTES)
+        with source:
+            state = json.loads(source.read(MAX_MARKER_BYTES + 1))
+        if (not isinstance(state, dict) or type(state.get('schema')) is not int
+                or state['schema'] != 1
+                or state.get('parent_identity') != list(parent_identity)
+                or type(state.get('after_hex')) is not str):
+            raise ValueError('stale or malformed scan cursor')
+        # Names are stored as their filesystem bytes, so a name that is not
+        # valid UTF-8 round-trips exactly.
+        return os.fsdecode(bytes.fromhex(state['after_hex'])), None
+    except FileNotFoundError:
+        return None, None
+    except (OSError, ValueError, TypeError, RecursionError, MemoryError) as error:
+        return None, f'{root / SCAN_CURSOR}: scan cursor ignored, restarting ({error})'
+
+
+def _save_scan_cursor(parent, parent_identity, after):
+    """Persist where the next call resumes; None clears a completed pass."""
+    path = Path(parent) / SCAN_CURSOR
+    if after is None:
+        try:
+            if stat.S_ISREG(path.lstat().st_mode):
+                path.unlink()
+        except FileNotFoundError:
+            pass
+        return
+    try:
+        existing = path.lstat()
+    except FileNotFoundError:
+        pass
+    else:
+        # Something else holds the name: preserve it and report, rather than
+        # replacing a node this module did not write.
+        if not stat.S_ISREG(existing.st_mode):
+            raise OSError('scan cursor path is not a regular file; preserved')
+    from utils import atomic_json_write
+    atomic_json_write({'schema': 1, 'parent_identity': list(parent_identity),
+                       'after_hex': os.fsencode(after).hex()},
+                      str(path), allow_nonatomic_fallback=False)
+
+
+def _get_scan_window(names, after, budget):
+    """-> (names to examine this call, whether they complete a full pass).
+
+    Names are taken in sorted order, resuming just after `after` and wrapping
+    once, so a stable parent of N entries is fully examined within
+    ceil(N / budget) calls. Resuming by name rather than position survives the
+    cursor's own entry being removed and entries being added between calls.
+    """
+    ordered = sorted(names)
+    start = 0 if after is None else bisect.bisect_right(ordered, after)
+    rotated = ordered[start:] + ordered[:start]
+    return rotated[:budget], len(rotated) <= budget
+
+
 def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
                            max_scan=MAX_SCAN_ENTRIES):
     """Remove verifiably abandoned marked staging directories.
 
     Returns ``{'removed': [...], 'preserved': [...], 'errors': [...]}``. The
-    scan is one level deep, over known direct children only, and stops at
-    ``max_scan`` entries and ``max_remove`` removals.
+    scan is one level deep, over known direct children only. Its bounds:
+
+    - Discovery: at most ``max_scan`` entries are examined (stat'ed,
+      classified or admitted) per parent per call, whatever they are.
+      Entry names are read and sorted first, which is proportional to the
+      parent's size but costs no per-entry system call. When a parent is
+      not finished, a small cursor file records where the next call
+      resumes, so repeated calls reach every entry; a missing or invalid
+      cursor restarts the traversal under the same budget.
+    - Admission attempts: at most the examined candidates, so ``max_scan``
+      per parent.
+    - POSIX retirement slots: bounded separately by the private namespace
+      (128 slots plus one reserve, refused beyond that), not by
+      ``max_scan``. Each slot's recovery does its own receipt validation
+      and nested cleanup. Sharing ``max_scan`` would let repeatedly
+      preserved slots starve later ones, which visiting every slot avoids.
+    - Removals: at most ``max_remove`` successful removals per call, across
+      all parents. Attempts are bounded by the rows above, not by this.
     """
     if any(type(limit) is not int or limit < 0 for limit in (max_remove, max_scan)):
         raise ValueError('Export recovery budgets must be nonnegative integers')
@@ -403,7 +494,6 @@ def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
     if max_remove == 0 or max_scan == 0:
         return result
     removed = 0
-    scanned = 0
     for parent in parents:
         parent = Path(parent)
         if os.name != 'nt' and removed < max_remove:
@@ -420,35 +510,43 @@ def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
                 result['errors'].append('reclaim limit reached')
                 return result
         try:
-            entries = os.scandir(parent)
+            parent_identity = identity(os.stat(parent))
+            with os.scandir(parent) as entries:
+                names = [entry.name for entry in entries]
         except FileNotFoundError:
             continue
         except OSError as error:
             result['errors'].append(f'{parent}: {error}')
             continue
-        with entries:
-            for entry in entries:
+        after, problem = _load_scan_cursor(parent, parent_identity)
+        if problem:
+            result['errors'].append(problem)
+        window, complete = _get_scan_window(names, after, max_scan)
+        examined = None
+        try:
+            for name in window:
+                examined = name
+                entry_path = os.path.join(parent, name)
                 try:
                     # Windows DirEntry.stat reports zero device/inode fields.
                     # Admission requires the actual current filesystem identity.
-                    info = os.stat(entry.path, follow_symlinks=False)
+                    info = os.stat(entry_path, follow_symlinks=False)
+                except FileNotFoundError:
+                    # Removed since it was listed: nothing left to reclaim.
+                    continue
                 except OSError as error:
-                    result['errors'].append(f'{entry.path}: {error}')
+                    result['errors'].append(f'{entry_path}: {error}')
                     continue
                 if not stat.S_ISDIR(info.st_mode):
                     continue
                 if getattr(info, 'st_file_attributes', 0) & getattr(
                         stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0):
-                    result['preserved'].append(entry.path)
+                    result['preserved'].append(entry_path)
                     continue
-                path = Path(entry.path)
+                path = Path(entry_path)
                 kind, prefix = _candidate(path)
                 if kind is None:
                     continue
-                scanned += 1
-                if scanned > max_scan:
-                    result['errors'].append(f'{parent}: scan limit reached')
-                    break
                 if ((path / OWNER_LOCK).is_symlink()
                         or (path / (OWNER_LOCK + '.lock')).is_symlink()
                         or (path / MARKER).is_symlink()):
@@ -510,4 +608,20 @@ def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
                 if removed >= max_remove:
                     result['errors'].append('reclaim limit reached')
                     return result
+            if not complete:
+                result['errors'].append(f'{parent}: scan limit reached')
+        finally:
+            # Resume after the last entry actually examined, including when the
+            # removal limit returns early. A call that examined nothing keeps
+            # the previous cursor rather than discarding its progress.
+            finished = complete and examined == (window[-1] if window else None)
+            try:
+                if finished:
+                    _save_scan_cursor(parent, parent_identity, None)
+                elif examined is not None:
+                    _save_scan_cursor(parent, parent_identity, examined)
+            except (OSError, ValueError) as error:
+                # Losing the cursor only costs progress; it never blocks
+                # recovery or the export that called it.
+                result['errors'].append(f'{parent / SCAN_CURSOR}: {error}')
     return result
