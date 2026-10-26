@@ -930,6 +930,25 @@ raise SystemExit('Original lock was not held')
                     (Path(tmp) / f'unrelated-{index:02d}').mkdir()
                 else:
                     (Path(tmp) / f'unrelated-{index:02d}.txt').write_bytes(b'keep')
+            export_staging._close_scan_iterators()
+            consumed = []
+            real_scandir = os.scandir
+            class CountingEntries:
+                def __init__(self, parent):
+                    self.entries = real_scandir(parent)
+                def __next__(self):
+                    entry = next(self.entries)
+                    consumed.append(entry.name)
+                    return entry
+                def close(self):
+                    self.entries.close()
+            proxy = type('CountingOs', (), {
+                '__getattr__': lambda _self, name: getattr(os, name),
+                'scandir': staticmethod(CountingEntries)})()
+            with patch.object(export_staging, 'os', proxy):
+                reclaim_export_staging([tmp], max_scan=1)
+            self.assertEqual(1, len(consumed), consumed)
+            export_staging._close_scan_iterators()
             result, examined = self._count_child_stats(
                 tmp, lambda: reclaim_export_staging([tmp], max_scan=1))
             self.assertEqual(1, len(examined), examined)
@@ -940,6 +959,17 @@ raise SystemExit('Original lock was not held')
                 tmp, lambda: reclaim_export_staging([tmp], max_scan=1))
             self.assertEqual(1, len(following), following)
             self.assertNotEqual(examined, following)
+
+        # Repeated spellings identify one parent and share one call budget.
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "inner").mkdir()
+            for index in range(5):
+                (Path(tmp) / str(index)).write_bytes(b"keep")
+            alias = Path(tmp, "inner", "..")
+            result, examined = self._count_child_stats(
+                tmp, lambda: reclaim_export_staging([tmp, alias, tmp], max_scan=1))
+            self.assertEqual(1, len(examined))
+            self.assertIn(f"{tmp}: scan limit reached", result["errors"])
 
     def _abandoned_public_stage(self, parent, payload=b'abandoned owned output'):
         stage = export_staging._create_public_export_staging(parent, 'mp3')
@@ -965,16 +995,47 @@ raise SystemExit('Original lock was not held')
             for index in range(17):
                 (Path(tmp) / f'-filler-{index:02d}').write_bytes(b'keep')
             stage = self._abandoned_public_stage(tmp)
-            self.assertEqual(stage.path.name, sorted(os.listdir(tmp))[-1])
-            # The cursor file joins the parent after the first call.
+            # Force a deterministic unrelated-first native iterator so the
+            # restart-from-beginning counterfactual genuinely starves.
+            real_scandir = os.scandir
+            class OrderedEntries:
+                def __init__(self, parent):
+                    with real_scandir(parent) as entries:
+                        self.entries = iter(sorted(entries, key=lambda entry: entry.name))
+                def __iter__(self):
+                    return self
+                def __next__(self):
+                    return next(self.entries)
+                def close(self):
+                    pass
+            proxy = type('OrderedOs', (), {
+                '__getattr__': lambda _self, name: getattr(os, name),
+                'scandir': staticmethod(OrderedEntries)})()
+            # One conservative extra call allows the final EOF probe.
             bound = len(os.listdir(tmp)) + 1
-            call, results = self._reclaim_until_removed(tmp, 1, bound)
+            with patch.object(export_staging, "os", proxy):
+                call, results = self._reclaim_until_removed(tmp, 1, bound)
             self.assertIsNotNone(call, results[-1])
             self.assertLessEqual(call, bound)
             self.assertEqual([str(stage.path)], results[-1]['removed'])
             self.assertFalse(stage.path.exists())
             for index in range(17):
                 self.assertEqual(b'keep', (Path(tmp) / f'-filler-{index:02d}').read_bytes())
+
+            # Different export callers may interleave disjoint parent sets.
+            # Each parent must retain its own progress, rather than resetting
+            # the other caller at every invocation.
+            export_staging._close_scan_iterators()
+            later = self._abandoned_public_stage(tmp)
+            with tempfile.TemporaryDirectory() as other:
+                (Path(other) / "keep").write_bytes(b"keep")
+                with patch.object(export_staging, "os", proxy):
+                    for _ in range(bound):
+                        result = reclaim_export_staging([tmp], max_scan=1)
+                        reclaim_export_staging([other], max_scan=1)
+                        if result["removed"]:
+                            break
+                self.assertEqual([str(later.path)], result["removed"])
 
     def test_preservation_holds_wherever_traversal_meets_the_stage(self):
         from export_staging_directory import stage_directory
@@ -1047,12 +1108,6 @@ raise SystemExit('Original lock was not held')
                     result, examined = self._count_child_stats(
                         tmp, lambda: reclaim_export_staging([tmp], max_scan=1))
                     self.assertLessEqual(len(examined), 1, examined)
-                    if call == 1 and label not in ('missing', 'deleted entry'):
-                        # Invalid state restarts at the first entry rather
-                        # than trusting any part of it, and says so.
-                        self.assertEqual(['-f-0'], examined)
-                        self.assertTrue(any('scan cursor ignored' in e
-                                            for e in result['errors']), result['errors'])
                     if result['removed']:
                         break
                 self.assertEqual([str(stage.path)], result['removed'])
@@ -1067,9 +1122,9 @@ raise SystemExit('Original lock was not held')
                     (Path(tmp) / f'-f-{index}').write_bytes(b'keep')
                 cursor = Path(tmp, export_staging.SCAN_CURSOR)
                 os.mkfifo(cursor) if kind == 'fifo' else cursor.mkdir()
-                result = reclaim_export_staging([tmp], max_scan=1)
-                self.assertTrue(any('not a regular file' in e for e in result['errors']),
-                                result['errors'])
+                stage = self._abandoned_public_stage(tmp)
+                _, results = self._reclaim_until_removed(tmp, 1, len(os.listdir(tmp)) + 1)
+                self.assertEqual([str(stage.path)], results[-1]['removed'])
                 self.assertEqual(kind == 'fifo', stat.S_ISFIFO(cursor.lstat().st_mode))
                 self.assertEqual(kind == 'directory', cursor.is_dir())
 
@@ -1084,8 +1139,9 @@ raise SystemExit('Original lock was not held')
             stage = self._abandoned_public_stage(tmp)
             first = reclaim_export_staging([tmp], max_scan=1)
             self.assertFalse(any('scan cursor' in e for e in first['errors']), first['errors'])
-            call, _ = self._reclaim_until_removed(tmp, 1, len(os.listdir(tmp)) + 1)
-            self.assertIsNotNone(call)
+            if not first["removed"]:
+                call, _ = self._reclaim_until_removed(tmp, 1, len(os.listdir(tmp)) + 1)
+                self.assertIsNotNone(call)
             self.assertFalse(stage.path.exists())
             with open(raw, 'rb') as handle:
                 self.assertEqual(b'keep', handle.read())
@@ -1096,13 +1152,13 @@ raise SystemExit('Original lock was not held')
                 (Path(tmp) / f'-f-{index:02d}').write_bytes(b'keep')
             for _ in range(3):
                 reclaim_export_staging([tmp], max_scan=2)
-            state = json.loads(Path(tmp, export_staging.SCAN_CURSOR).read_text())
-            Path(tmp, os.fsdecode(bytes.fromhex(state['after_hex']))).unlink()
             Path(tmp, '-f-00').unlink()
+            Path(tmp, '-f-01').unlink()
             for index in range(5):
                 (Path(tmp) / f'-g-{index}').write_bytes(b'new')
             stage = self._abandoned_public_stage(tmp)
-            bound = (len(os.listdir(tmp)) + 1) // 2 + 2
+            # Mutation may require a fresh pass after the current iterator ends.
+            bound = len(os.listdir(tmp)) + 3
             removed_at = None
             real = export_staging.stage_directory
             for call in range(1, bound + 1):
@@ -1158,18 +1214,80 @@ raise SystemExit('Original lock was not held')
                              sorted(result['removed']))
 
     def test_finished_pass_leaves_no_scan_cursor(self):
+        export_staging._close_scan_iterators()
         with tempfile.TemporaryDirectory() as tmp:
             for index in range(4):
                 (Path(tmp) / f'-f-{index}').write_bytes(b'keep')
-            cursor = Path(tmp, export_staging.SCAN_CURSOR)
-            reclaim_export_staging([tmp])
-            self.assertFalse(cursor.exists())
             reclaim_export_staging([tmp], max_scan=2)
-            self.assertTrue(cursor.exists())
-            for _ in range(3):
-                reclaim_export_staging([tmp], max_scan=2)
+            self.assertIn(Path(tmp), export_staging._scan_iterators)
+            self.assertFalse(Path(tmp, export_staging.SCAN_CURSOR).exists())
             reclaim_export_staging([tmp])
-            self.assertFalse(cursor.exists())
+            self.assertNotIn(Path(tmp), export_staging._scan_iterators)
+            # Replacing a parent discards its iterator without modifying files
+            # in either the old directory or its replacement.
+            reclaim_export_staging([tmp], max_scan=1)
+            old = Path(tmp).with_name(Path(tmp).name + '-old')
+            Path(tmp).rename(old)
+            try:
+                Path(tmp).mkdir()
+                foreign = Path(tmp, export_staging.SCAN_CURSOR)
+                foreign.write_bytes(b'foreign state')
+                reclaim_export_staging([tmp], max_scan=1)
+                self.assertEqual(b'foreign state', foreign.read_bytes())
+                self.assertEqual(export_staging.identity(os.stat(tmp)),
+                                 export_staging._scan_iterators[Path(tmp)][0])
+            finally:
+                export_staging._close_scan_iterators()
+                import shutil
+                shutil.rmtree(old)
+        # Fixed descriptor cap evicts least-recently-used state rather than
+        # letting unrelated idle parents prevent new recovery forever.
+        with tempfile.TemporaryDirectory() as tmp:
+            roots = []
+            for index in range(3):
+                parent = Path(tmp, str(index))
+                parent.mkdir()
+                (parent / 'keep').write_bytes(b'keep')
+                roots.append(parent)
+            with patch.object(export_staging, 'MAX_OPEN_SCANS', 2):
+                result = reclaim_export_staging(roots, max_scan=1)
+                self.assertFalse(any("capacity" in e for e in result["errors"]))
+                self.assertEqual(2, len(export_staging._scan_iterators))
+                self.assertNotIn(roots[0], export_staging._scan_iterators)
+                self.assertIn(roots[2], export_staging._scan_iterators)
+            export_staging._close_scan_iterators()
+
+        if os.name != 'nt':
+            # Swap the discovery parent after its last iterator check. Existing
+            # retirement guards already preserve the foreign payload; admission
+            # must also avoid creating retirement metadata in that foreign root.
+            with tempfile.TemporaryDirectory() as tmp:
+                original, foreign = Path(tmp, "original"), Path(tmp, "foreign")
+                original.mkdir()
+                foreign.mkdir()
+                stage = self._abandoned_public_stage(foreign)
+                (original / stage.path.name).mkdir()
+                before = set(foreign.iterdir())
+                moved = Path(tmp, "moved-original")
+                real_stat = os.stat
+                swapped = []
+                def replace_before_stat(path, *args, **kwargs):
+                    if not swapped and os.fspath(path) == str(original / stage.path.name):
+                        original.rename(moved)
+                        original.symlink_to(foreign, target_is_directory=True)
+                        swapped.append(True)
+                    return real_stat(path, *args, **kwargs)
+                proxy = type('SwappingOs', (), {
+                    '__getattr__': lambda _self, name: getattr(os, name),
+                    'stat': staticmethod(replace_before_stat)})()
+                with patch.object(export_staging, 'os', proxy):
+                    result = reclaim_export_staging([original], max_scan=1)
+                self.assertEqual([True], swapped)
+                self.assertEqual([], result['removed'])
+                self.assertEqual(before, set(foreign.iterdir()))
+                self.assertEqual(b'abandoned owned output', (stage.path / 'payload.bin').read_bytes())
+                self.assertFalse((foreign / '.aa2-export-retirement').exists())
+                export_staging._close_scan_iterators()
 
     def test_owner_creation_refuses_existing_inode(self):
         from export_staging_directory import stage_directory, identity
@@ -1194,11 +1312,38 @@ raise SystemExit('Original lock was not held')
             stage = create_export_staging(good, 'mp3')
             stage._lock.__exit__(None, None, None)
             stage._closed = True
-            result = reclaim_export_staging([bad, good])
+            result = reclaim_export_staging(["\0", bad, good])
             self.assertTrue(result['errors'])
             self.assertEqual([str(stage.path)], result['removed'])
             self.assertFalse(stage.path.exists())
             self.assertEqual(b'preserve', bad.read_bytes())
+            if os.name != 'nt':
+                loop = root / 'loop'
+                loop.symlink_to(loop.name)
+                stage = self._abandoned_public_stage(good)
+                result = reclaim_export_staging([loop, good])
+                self.assertTrue(any(str(loop) in error for error in result['errors']))
+                self.assertEqual([str(stage.path)], result['removed'])
+                self.assertTrue(loop.is_symlink())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            bad, good = Path(tmp, "bad"), Path(tmp, "good")
+            bad.mkdir()
+            legacy = self._abandoned_public_stage(bad)
+            ready = create_export_staging(good, 'mp3')
+            ready._lock.__exit__(None, None, None)
+            ready._closed = True
+            real_cleanup = export_staging._cleanup_admitted
+            def fail_legacy(path, *args, **kwargs):
+                if Path(path) == legacy.path:
+                    raise RuntimeError('retirement path changed')
+                return real_cleanup(path, *args, **kwargs)
+            with patch.object(export_staging, '_cleanup_admitted', side_effect=fail_legacy):
+                result = reclaim_export_staging([bad, good])
+            self.assertIn(str(legacy.path), result['preserved'])
+            self.assertTrue(any('retirement path changed' in error for error in result['errors']))
+            self.assertTrue((legacy.path / 'payload.bin').exists())
+            self.assertEqual([str(ready.path)], result['removed'])
 
     @unittest.skipIf(os.name == 'nt', 'POSIX private allocation prototype')
     def test_private_creation_recovers_initialization_crashes(self):
