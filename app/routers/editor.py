@@ -49,7 +49,7 @@ from core import (
     check_global_gpu_lock,
     claim_gpu_task, schedule_claimed_background_task,
     reserve_background_task, register_claimed_background_task, release_gpu_task_claim,
-    process_state,
+    process_state, is_task_running,
     project_manager,
 )
 from generation_checkpoint_deltas import load_generation_checkpoint_document
@@ -1608,7 +1608,7 @@ def _apply_audio_cancel():
     """Cancel ongoing audio generation and reset in-progress chunks."""
     # Keep the idle decision and disk reset atomic with new audio claims.
     with _gpu_lock:
-        if process_state["audio"]["running"]:
+        if is_task_running("audio", process_state):
             process_state["audio"]["cancel"] = True
             process_state["audio"]["logs"].append("[CANCEL] Cancellation requested")
             return {"status": "cancelling"}
