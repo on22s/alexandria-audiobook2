@@ -1360,6 +1360,10 @@
     "tests.test_blinded_listening.BlindedListeningTests.test_rejects_truncated_wav_during_full_decode",
     "tests.test_blinded_listening.BlindedListeningTests.test_response_analysis_rejects_missing_listener_and_rating",
     "tests.test_blinded_listening.BlindedListeningTests.test_same_seed_produces_the_same_concealed_mapping",
+    "tests.test_blinded_listening.BlindedListeningTests.test_scene_package_is_held_to_its_own_set_count",
+    "tests.test_blinded_listening.BlindedListeningTests.test_scene_package_keeps_the_controls_and_hides_scene_arm_labels",
+    "tests.test_blinded_listening.BlindedListeningTests.test_scene_source_from_another_script_is_refused",
+    "tests.test_blinded_listening.BlindedListeningTests.test_scene_source_refusals",
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_audio_and_extra_files",
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_source_manifest"
   ],
@@ -9234,6 +9238,21 @@
   "test_saved_script_hydration_js": [
     "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_confirmed_saved_loads_are_serialized_and_only_latest_publishes",
     "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_hydration_overlaps_but_voices_wait_for_both_and_admission_stays_ordered"
+  ],
+  "test_scene_context_listening": [
+    "tests.test_scene_context_listening.ArmInstructionTests.test_each_arm_sends_exactly_its_stated_instruction",
+    "tests.test_scene_context_listening.ContentGateTests.test_an_unscored_arm_is_never_a_pass",
+    "tests.test_scene_context_listening.ContentGateTests.test_only_arms_worse_than_line_by_the_margin_are_flagged",
+    "tests.test_scene_context_listening.FixtureTests.test_an_uncast_speaker_is_refused",
+    "tests.test_scene_context_listening.FixtureTests.test_broken_fixtures_are_refused",
+    "tests.test_scene_context_listening.FixtureTests.test_every_line_is_the_pdnc_text_it_names",
+    "tests.test_scene_context_listening.FixtureTests.test_italics_markup_and_wrapping_are_not_spoken",
+    "tests.test_scene_context_listening.MainLifecycleTests.test_fresh_outputs_and_lease_cover_failure_and_cleanup",
+    "tests.test_scene_context_listening.MainLifecycleTests.test_real_render_join_and_publication_bind_the_admitted_inputs",
+    "tests.test_scene_context_listening.VoiceTests.test_clone_and_missing_voices_are_refused",
+    "tests.test_scene_context_listening.VoiceTests.test_styles_are_cleared_where_both_render_paths_look",
+    "tests.test_scene_context_listening.WrongSceneTests.test_no_scene_ever_borrows_its_own_description",
+    "tests.test_scene_context_listening.WrongSceneTests.test_the_fixture_borrows_from_a_different_book"
   ],
   "test_scene_narrowing": [
     "tests.test_scene_narrowing.BucketTest.test_a_row_with_no_gold_entry_is_skipped_not_counted_wrong",

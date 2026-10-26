@@ -194,14 +194,28 @@ class StartupTaskOwnershipTests(unittest.TestCase):
                         self.assertTrue(await asyncio.to_thread(arrived.wait,2))
                         request.cancel()
                         with self.assertRaises(asyncio.CancelledError):await request
-                        with self.assertRaises(TaskOwnershipBusy):acquire_task_lease(self.root,name,set())
+                        try:
+                            unexpected=acquire_task_lease(self.root,name,set())
+                        except TaskOwnershipBusy:
+                            pass
+                        else:
+                            unexpected.close()
+                            self.fail('Task lease became available while its worker was active')
                         with ensure_startup_recovery(self.root) as allowed:self.assertFalse(allowed)
                     finally:
                         release.set()
+                        # A claim is removed before its filesystem lease closes.
+                        # Wait for the actual lease rather than racing that gap.
                         for _ in range(200):
-                            if name not in core._task_claims:break
-                            await asyncio.sleep(.01)
+                            try:
+                                lease=acquire_task_lease(self.root,name,set())
+                            except TaskOwnershipBusy:
+                                await asyncio.sleep(.01)
+                            else:
+                                lease.close()
+                                break
+                        else:
+                            self.fail('Worker task lease did not release')
                     self.assertNotIn(name,core._task_claims)
-                    lease=acquire_task_lease(self.root,name,set());lease.close()
                 with patch.object(module,callback,side_effect=work):
                     asyncio.run(exercise())

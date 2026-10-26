@@ -202,7 +202,7 @@ def run_whisper_cpp_hybrid(wav, seg_model, txt_model, binary, language="en"):
     return " ".join(p for p in pieces if p), rebuilt
 
 
-def run_transformers_whisper(wav, model_id=None, language="en", _cache={}):
+def run_transformers_whisper(wav, model_id=None, language="en", _cache={}, *, device=None):
     # base.en cannot decode Japanese or Chinese at all, so the multilingual
     # checkpoint is used whenever the language is not English. Scoring a
     # non-English clip with an English-only model would measure the choice of
@@ -210,10 +210,10 @@ def run_transformers_whisper(wav, model_id=None, language="en", _cache={}):
     import torch
     model_id = model_id or ("openai/whisper-base.en" if language == "en"
                             else "openai/whisper-base")
-    key = "pipe:" + model_id
+    key = "pipe:" + model_id + ("" if device is None else ":device=" + str(device))
     if key not in _cache:
         from transformers import pipeline
-        dev = 0 if torch.cuda.is_available() else -1
+        dev = (0 if torch.cuda.is_available() else -1) if device is None else device
         _cache[key] = pipeline("automatic-speech-recognition", model=model_id,
                                device=dev, return_timestamps=True)
     kw = {} if language == "en" else {"generate_kwargs": {"language": language}}

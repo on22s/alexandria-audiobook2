@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import random
+import secrets
 import shutil
 import statistics
 import string
@@ -26,6 +27,11 @@ class ListeningPackageError(RuntimeError):
 
 
 from experiments.instruct_listening import identical_arms
+
+SCENE_ARMS = ("line", "scene", "wrong_scene")
+# The legacy package is four instruction sets, one casting set and three
+# controls; a scene package's size follows from its sources instead.
+LEGACY_SET_COUNT = 8
 
 
 def _load_document(path, expected_script=None):
@@ -70,7 +76,7 @@ def _validate_wav(path):
             f"cannot fully decode WAV {path}: {exc}") from exc
 
 
-def _resolve_source(path):
+def _resolve_file(path):
     if not isinstance(path, str):
         raise ListeningPackageError("source WAV path must be a string")
     resolved = os.path.realpath(
@@ -80,6 +86,11 @@ def _resolve_source(path):
         raise ListeningPackageError(f"source WAV escapes repository: {path}")
     if not os.path.isfile(resolved):
         raise ListeningPackageError(f"source WAV does not exist: {path}")
+    return resolved
+
+
+def _resolve_source(path):
+    resolved = _resolve_file(path)
     _validate_wav(resolved)
     return resolved
 
@@ -93,6 +104,8 @@ def _source_groups(instruction_doc, casting_doc, control_doc):
         raise ListeningPackageError("instruction source has no comparisons")
     groups = []
     for index, comparison in enumerate(comparisons):
+        if not isinstance(comparison, dict):
+            raise ListeningPackageError("scene comparison must be an object")
         files = comparison.get("arm_files")
         if set(files or {}) != {"none", "per_char", "per_line"}:
             raise ListeningPackageError(
@@ -121,7 +134,48 @@ def _source_groups(instruction_doc, casting_doc, control_doc):
     groups.append({"kind": "casting", "source_id": "casting_00",
                    "arms": {name: value.get("path")
                             for name, value in casting_arms.items()}})
+    return groups + _control_groups(control_doc)
 
+
+def _scene_source_groups(scene_doc, control_doc):
+    """Scene-context comparisons, followed by the same positive controls."""
+    if scene_doc.get("status") != "complete" or scene_doc.get("published") is not True:
+        raise ListeningPackageError("scene-context source is incomplete")
+    comparisons = scene_doc.get("comparisons")
+    if not isinstance(comparisons, list) or not comparisons:
+        raise ListeningPackageError("scene-context source has no comparisons")
+    groups = []
+    for index, comparison in enumerate(comparisons):
+        if not isinstance(comparison, dict):
+            raise ListeningPackageError("scene comparison must be an object")
+        files = comparison.get("arm_files")
+        if not isinstance(files, dict) or set(files) != set(SCENE_ARMS):
+            raise ListeningPackageError(
+                f"scene-context comparison {index} has wrong arms")
+        from experiments.scene_context_listening import get_content_regressions
+        if (comparison.get("content_regressions")
+                or get_content_regressions(comparison.get("wer"))):
+            raise ListeningPackageError(
+                f"scene-context comparison {index} failed its WER gate")
+        hashes = comparison.get("arm_sha256")
+        if (not isinstance(hashes, dict) or set(hashes) != set(SCENE_ARMS)
+                or any(file_sha256(_resolve_source(path)) != hashes[arm]
+                       for arm, path in files.items())):
+            raise ListeningPackageError(
+                f"scene-context comparison {index} audio hash changed or missing")
+        hollow = identical_arms({arm: os.path.join(REPO, path)
+                                 for arm, path in files.items()})
+        if hollow:
+            raise ListeningPackageError(
+                f"scene-context comparison {index} has identical renders for {hollow}")
+        groups.append({"kind": "scene_context",
+                       "source_id": f"scene_{index:02d}", "arms": dict(files),
+                       "arm_sha256": dict(hashes)})
+    return groups + _control_groups(control_doc)
+
+
+def _control_groups(control_doc):
+    groups = []
     rows = control_doc.get("rows")
     if not isinstance(rows, list) or not rows:
         raise ListeningPackageError("positive-control source has no rows")
@@ -144,23 +198,72 @@ def _source_groups(instruction_doc, casting_doc, control_doc):
     return groups
 
 
+def _validate_output_paths(package_dir, public_path, key_path):
+    from pathlib import Path
+    paths = [Path(os.path.realpath(path)) for path in (package_dir, public_path, key_path)]
+    if len(set(os.path.normcase(str(path)) for path in paths)) != 3:
+        raise ListeningPackageError("package and manifest output paths must be distinct")
+    if any(paths[i].is_relative_to(paths[j]) for i in range(3)
+           for j in range(3) if i != j):
+        raise ListeningPackageError("package and manifest outputs must not contain one another")
+    for path in (package_dir, public_path, key_path):
+        if os.path.lexists(path):
+            raise ListeningPackageError(f"refusing to overwrite existing {path}")
+
+
 def build_package(instruction_path, casting_path, control_path, package_dir,
                   public_path, key_path, seed):
     """Create the package once; refuse overwrite and return both manifests."""
-    for path in (package_dir, public_path, key_path):
-        if os.path.exists(path):
-            raise ListeningPackageError(f"refusing to overwrite existing {path}")
+    _validate_output_paths(package_dir, public_path, key_path)
     instruction = _load_document(
         instruction_path, "instruct_listening.py")
     casting = _load_document(casting_path, "casting_ab_audio.py")
     controls = _load_document(control_path, "seed_instruction_controls.py")
     groups = _source_groups(instruction, casting, controls)
+    return _write_package(
+        groups, (instruction_path, casting_path, control_path), package_dir,
+        public_path, key_path, seed,
+        ["No human ratings are included; this artifact only prepares it.",
+         "Non-prose remedies are absent because Stage 5 stopped at its gate."])
 
+
+def build_scene_package(scene_path, control_path, package_dir, public_path,
+                        key_path, seed):
+    """The scene-context package: same blinding, key and controls."""
+    _validate_output_paths(package_dir, public_path, key_path)
+    for path in (scene_path, control_path):
+        _resolve_file(path)
+    scene = _load_document(scene_path, "scene_context_listening.py")
+    controls = _load_document(control_path, "seed_instruction_controls.py")
+    groups = _scene_source_groups(scene, controls)
+    return _write_package(
+        groups, (scene_path, control_path), package_dir, public_path,
+        key_path, seed,
+        ["No human ratings are included; this artifact only prepares it."])
+
+
+def get_scene_set_count(scene_path, control_path):
+    """How many sets a scene package built from these sources must hold."""
+    scene = _load_document(scene_path, "scene_context_listening.py")
+    controls = _load_document(control_path, "seed_instruction_controls.py")
+    comparisons, rows = scene.get("comparisons"), controls.get("rows")
+    if (not isinstance(comparisons, list) or not 1 <= len(comparisons) <= 32
+            or not isinstance(rows, list) or not rows):
+        raise ListeningPackageError("scene source inventory is missing or invalid")
+    # Analysis uses the copied package audio; original WAVs need not remain.
+    # validate_package still binds these source JSON bytes to its saved hashes.
+    return len(comparisons) + len(rows)
+
+
+def _write_package(groups, source_paths, package_dir, public_path, key_path,
+                   seed, limitations):
     temporary = package_dir + ".building"
     if os.path.exists(temporary):
         raise ListeningPackageError(
             f"stale temporary package exists: {temporary}")
     os.makedirs(temporary)
+    if seed is None:
+        seed = secrets.randbits(128)
     rng = random.Random(seed)
     public_sets, key_sets = [], []
     try:
@@ -175,6 +278,10 @@ def build_package(instruction_path, casting_path, control_path, package_dir,
                 destination = os.path.join(temporary, filename)
                 shutil.copy2(source, destination)
                 _validate_wav(destination)
+                expected = group.get("arm_sha256", {}).get(arm)
+                if expected is not None and (file_sha256(destination) != expected
+                                             or file_sha256(source) != expected):
+                    raise ListeningPackageError("scene audio changed while packaging")
                 samples.append({"file": filename,
                                 "sha256": file_sha256(destination)})
                 mapping[filename] = {"arm": arm,
@@ -197,9 +304,11 @@ def build_package(instruction_path, casting_path, control_path, package_dir,
             __file__, None,
             source_artifacts={
                 os.path.relpath(path, REPO): file_sha256(path)
-                for path in (instruction_path, casting_path, control_path)},
+                for path in source_paths},
             randomization_seed=seed)
         public_provenance = dict(full_provenance)
+        # The seed reconstructs arm-to-letter assignments and belongs in the key.
+        public_provenance.pop("randomization_seed", None)
         # Branch names and dirty-file paths can disclose the concealed arms.
         # Keep exact source identities publicly, and the full Git evidence in the key.
         public_provenance["git"] = {
@@ -214,10 +323,7 @@ def build_package(instruction_path, casting_path, control_path, package_dir,
             "package_dir": os.path.relpath(package_dir, REPO),
             "sets": public_sets,
             "concealed_key_sha256": file_sha256(key_path),
-            "limitations": [
-                "No human ratings are included; this artifact only prepares it.",
-                "Non-prose remedies are absent because Stage 5 stopped at its gate.",
-            ],
+            "limitations": list(limitations),
         }
         atomic_json_write(public, public_path)
     except Exception:
@@ -241,7 +347,8 @@ def _load_json(path):
     return doc
 
 
-def validate_package(public_path, key_path, package_dir):
+def validate_package(public_path, key_path, package_dir,
+                     expected_sets=LEGACY_SET_COUNT):
     """Fully verify a previously built package without exposing its key."""
     public = _load_document(public_path, "blinded_listening.py")
     key = _load_json(key_path)
@@ -269,8 +376,9 @@ def validate_package(public_path, key_path, package_dir):
     public_sets = public.get("sets")
     key_sets = key.get("sets")
     if not isinstance(public_sets, list) or not isinstance(key_sets, list) or \
-            len(public_sets) != 8 or len(key_sets) != 8:
-        raise ListeningPackageError("blind package must contain eight sets")
+            len(public_sets) != expected_sets or len(key_sets) != expected_sets:
+        raise ListeningPackageError(
+            f"blind package must contain {expected_sets} sets")
     for label, sets in (("public", public_sets), ("key", key_sets)):
         for index, item in enumerate(sets):
             if not isinstance(item, dict):
@@ -281,7 +389,8 @@ def validate_package(public_path, key_path, package_dir):
     if len(keyed) != len(key_sets):
         raise ListeningPackageError("concealed key has duplicate set IDs")
     forbidden = ("very_slow", "very_fast", "per_char", "per_line",
-                 '\"current\"', '\"scene_aware\"')
+                 '\"current\"', '\"scene_aware\"',
+                 '\"line\"', '\"scene\"', "wrong_scene")
     leaked = [label for label in forbidden
               if label in json.dumps(public, sort_keys=True)]
     if leaked:
@@ -312,7 +421,12 @@ def validate_package(public_path, key_path, package_dir):
         if len(samples) < 2 or set(names) != set(mapping):
             raise ListeningPackageError(f"sample/key mismatch in {set_id}")
         for sample in samples:
-            path = os.path.join(package_dir, sample["file"])
+            filename = sample.get("file")
+            if (not isinstance(filename, str) or not filename
+                    or os.path.basename(filename) != filename
+                    or "\\" in filename or filename in (".", "..")):
+                raise ListeningPackageError("sample file must be a package basename")
+            path = os.path.join(package_dir, filename)
             _validate_wav(path)
             if file_sha256(path) != sample.get("sha256"):
                 raise ListeningPackageError(
@@ -332,11 +446,12 @@ def validate_package(public_path, key_path, package_dir):
 
 
 def analyze_responses(public_path, key_path, package_dir, responses_path,
-                      expected_listeners):
+                      expected_listeners, expected_sets=LEGACY_SET_COUNT):
     """Validate complete blinded responses and summarize only observed ratings."""
-    if expected_listeners < 1:
+    if type(expected_listeners) is not int or expected_listeners < 1:
         raise ListeningPackageError("expected_listeners must be explicitly positive")
-    public, key = validate_package(public_path, key_path, package_dir)
+    public, key = validate_package(public_path, key_path, package_dir,
+                                   expected_sets)
     responses = _load_json(responses_path)
     listeners = responses.get("listeners")
     if not isinstance(listeners, list) or len(listeners) != expected_listeners:
@@ -347,13 +462,18 @@ def analyze_responses(public_path, key_path, package_dir, responses_path,
     keyed_sets = {item["id"]: item for item in key["sets"]}
     listener_ids, observations, preferences = set(), [], []
     for listener in listeners:
+        if not isinstance(listener, dict):
+            raise ListeningPackageError("listener must be an object")
         listener_id = listener.get("id")
         if not isinstance(listener_id, str) or not listener_id.strip() or \
                 listener_id in listener_ids:
             raise ListeningPackageError("listener IDs must be non-empty and unique")
         listener_ids.add(listener_id)
         sets = listener.get("sets")
-        if not isinstance(sets, list) or {item.get("id") for item in sets} != \
+        if (not isinstance(sets, list)
+                or any(not isinstance(item, dict) or not isinstance(item.get("id"), str) for item in sets)):
+            raise ListeningPackageError("listener sets must contain objects with string IDs")
+        if {item.get("id") for item in sets} != \
                 set(public_sets) or len(sets) != len(public_sets):
             raise ListeningPackageError(
                 f"listener {listener_id} must rate every set exactly once")
@@ -375,7 +495,7 @@ def analyze_responses(public_path, key_path, package_dir, responses_path,
                 observations.append({"kind": public_sets[set_id]["kind"],
                                      "arm": mapping[filename]["arm"], **values})
             preference = response.get("preference")
-            if preference != "tie" and preference not in samples:
+            if not isinstance(preference, str) or (preference != "tie" and preference not in samples):
                 raise ListeningPackageError(
                     f"listener {listener_id} has invalid preference for {set_id}")
             preferences.append({"kind": public_sets[set_id]["kind"],
@@ -422,7 +542,11 @@ def main():
         REPO, "ab_test_runtime", "experiments", "blinded_listening.json"))
     ap.add_argument("--key", default=os.path.join(
         REPO, "ab_test_runtime", "blinded_listening_concealed_key.json"))
-    ap.add_argument("--seed", type=int, default=20260804)
+    ap.add_argument("--scene-context",
+                    help="scene_context_listening.py artifact; builds a scene package "
+                         "(with --controls) instead of the instruction/casting one")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="private shuffle seed; default uses fresh randomness; keep it concealed")
     ap.add_argument("--responses")
     ap.add_argument("--expected-listeners", type=int)
     ap.add_argument("--results")
@@ -433,16 +557,23 @@ def main():
         if os.path.exists(args.results):
             raise ListeningPackageError(
                 f"refusing to overwrite existing {args.results}")
+        expected_sets = (get_scene_set_count(args.scene_context, args.controls)
+                         if args.scene_context else LEGACY_SET_COUNT)
         result = analyze_responses(
             args.out, args.key, args.package_dir, args.responses,
-            args.expected_listeners)
+            args.expected_listeners, expected_sets)
         from utils import atomic_json_write
         atomic_json_write(result, args.results)
         print(f"wrote descriptive results for {result['listener_count']} listeners")
         return
-    public, _ = build_package(
-        args.instruction, args.casting, args.controls, args.package_dir,
-        args.out, args.key, args.seed)
+    if args.scene_context:
+        public, _ = build_scene_package(
+            args.scene_context, args.controls, args.package_dir, args.out,
+            args.key, args.seed)
+    else:
+        public, _ = build_package(
+            args.instruction, args.casting, args.controls, args.package_dir,
+            args.out, args.key, args.seed)
     print(f"wrote {len(public['sets'])} blinded sets to {args.package_dir}")
     print(f"public manifest: {args.out}")
     print(f"concealed key: {args.key}")

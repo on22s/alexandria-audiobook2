@@ -54,6 +54,12 @@ def get_character_instruction(entry, speaker):
     return constant_for(speaker)
 
 
+def get_unstyled_entry(entry):
+    """A copy of the voice entry without the styles the engine would re-add."""
+    return {k: v for k, v in entry.items()
+            if k not in ("character_style", "default_style")}
+
+
 def arm_requests(entry, per_char, per_line):
     """The instruction and voice entry each arm actually sends.
 
@@ -67,8 +73,7 @@ def arm_requests(entry, per_char, per_line):
     "per_char" is the standing direction once, and "per_line" is the
     annotator's line direction once.
     """
-    bare = {k: v for k, v in entry.items()
-            if k not in ("character_style", "default_style")}
+    bare = get_unstyled_entry(entry)
     return {"none": ("", bare),
             "per_char": (per_char, bare),
             "per_line": (per_line, bare)}
