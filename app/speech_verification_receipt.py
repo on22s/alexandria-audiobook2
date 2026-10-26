@@ -297,7 +297,7 @@ def get_current_speech_verification_receipt(chunk, book_token=None, *, failure=F
                     receipt.get('audio_file_version'), resolve_audio(chunk['audio_path'])):
                 return None
         return copy.deepcopy(receipt)
-    except (TypeError,ValueError,KeyError,OSError,OverflowError):
+    except (TypeError,ValueError,KeyError,OSError,OverflowError,RecursionError):
         return None
 
 
@@ -329,7 +329,7 @@ def _get_historical_state(chunk, book_token=None, resolve_audio=None, current_ch
                 else:
                     reason = 'changed'
         return copy.deepcopy(receipt), reason
-    except (TypeError,ValueError,KeyError,OSError,OverflowError):
+    except (TypeError,ValueError,KeyError,OSError,OverflowError,RecursionError):
         return None
 
 
@@ -337,6 +337,18 @@ def get_historical_speech_verification_receipt(chunk, book_token, resolve_audio)
     """Return a saved selected-take receipt that no longer proves current bytes."""
     state = _get_historical_state(chunk, book_token, resolve_audio)
     return state[0] if state is not None else None
+
+
+def get_validated_historical_speech_verification_receipt(receipt, chunk, book_token):
+    """Validate a view-provided historical receipt before exposing it."""
+    try:
+        if not _matches_saved_input(receipt, chunk, book_token, failure=False, recheck=False):
+            return None
+        if not _is_audio_file_version(receipt.get('audio_file_version')):
+            return None
+        return copy.deepcopy(receipt)
+    except (TypeError, ValueError, KeyError, OSError, OverflowError, RecursionError):
+        return None
 
 
 def get_speech_verification_chunk_view(chunk, book_token, resolve_audio):

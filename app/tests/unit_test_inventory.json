@@ -3486,11 +3486,17 @@
     "tests.test_editor_report_cover_boundary.EditorReportCoverBoundaryTests.test_portable_invalid_names_are_not_listed_or_downloaded"
   ],
   "test_editor_review_facts": [
+    "tests.test_editor_review_facts.EditorReviewFactsTests.test_current_receipt_ignores_extra_historical_field",
+    "tests.test_editor_review_facts.EditorReviewFactsTests.test_deeply_nested_stored_receipt_is_ignored",
+    "tests.test_editor_review_facts.EditorReviewFactsTests.test_deeply_nested_view_historical_receipt_is_ignored",
     "tests.test_editor_review_facts.EditorReviewFactsTests.test_failed_invalid_and_unmeasured_voice_checks_never_become_passes",
     "tests.test_editor_review_facts.EditorReviewFactsTests.test_flags_discriminate_pending_missing_failed_unknown_and_real_drift",
     "tests.test_editor_review_facts.EditorReviewFactsTests.test_loaded_rows_are_detached_from_later_persisted_status_changes",
+    "tests.test_editor_review_facts.EditorReviewFactsTests.test_malformed_stored_receipt_does_not_hide_valid_view_receipt",
     "tests.test_editor_review_facts.EditorReviewFactsTests.test_outside_paths_and_io_refusals_are_unavailable_without_reading_them",
-    "tests.test_editor_review_facts.EditorReviewFactsTests.test_route_refuses_wrong_book_and_returns_matching_revision_without_writing_chunks"
+    "tests.test_editor_review_facts.EditorReviewFactsTests.test_route_refuses_wrong_book_and_returns_matching_revision_without_writing_chunks",
+    "tests.test_editor_review_facts.EditorReviewFactsTests.test_valid_view_historical_receipt_is_preserved",
+    "tests.test_editor_review_facts.EditorReviewFactsTests.test_view_only_historical_field_is_ignored_when_not_revalidated"
   ],
   "test_editor_review_js": [
     "tests.test_editor_review_js.EditorReviewJsTests.test_filters_counts_text_injection_and_inspector_use_saved_facts",

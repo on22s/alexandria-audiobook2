@@ -4,7 +4,8 @@ import math
 from audio_validation import is_audio_file_present
 from speaker_traits import get_entry_speaker
 from speech_verification_receipt import (get_current_speech_verification_receipt,
-    get_historical_speech_verification_receipt)
+    get_historical_speech_verification_receipt,
+    get_validated_historical_speech_verification_receipt)
 
 
 def get_editor_review_facts(chunks, resolve_audio_path, book_token=None, *, include_readiness=False):
@@ -35,9 +36,15 @@ def get_editor_review_facts(chunks, resolve_audio_path, book_token=None, *, incl
             if drift_status == 'flagged':
                 issues.append('drift')
         speech=get_current_speech_verification_receipt(chunk,book_token,resolve_audio=resolve_audio_path)
-        historical=(chunk.get('speech_verification_historical')
-            or get_historical_speech_verification_receipt(
-                chunk,book_token,resolve_audio=resolve_audio_path))
+        if speech is not None:
+            historical=None
+        else:
+            historical=(get_historical_speech_verification_receipt(
+                chunk,book_token,resolve_audio=resolve_audio_path)
+                if chunk.get('speech_verification') is not None else None)
+            if historical is None:
+                historical=get_validated_historical_speech_verification_receipt(
+                    chunk.get('speech_verification_historical'),chunk,book_token)
         rejected=get_current_speech_verification_receipt(chunk,book_token,failure=True)
         recheck=get_current_speech_verification_receipt(chunk,book_token,recheck=True,resolve_audio=resolve_audio_path)
         speech_status=speech['status'] if speech else 'not_checked'
@@ -68,6 +75,7 @@ def get_editor_review_facts(chunks, resolve_audio_path, book_token=None, *, incl
             # Reuse the receipt filter above: an old or malformed receipt is
             # not a new check, and metadata currency is not a quality pass.
             row['speech_evidence'] = ('current_metadata' if speech else
-                'not_current' if chunk.get('speech_verification') is not None else 'not_checked')
+                'not_current' if historical is not None or chunk.get('speech_verification') is not None
+                else 'not_checked')
         rows.append(row)
     return rows
