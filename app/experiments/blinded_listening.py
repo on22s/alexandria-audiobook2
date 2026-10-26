@@ -27,6 +27,11 @@ class ListeningPackageError(RuntimeError):
 
 from experiments.instruct_listening import identical_arms
 
+SCENE_ARMS = ("line", "scene", "wrong_scene")
+# The legacy package is four instruction sets, one casting set and three
+# controls; a scene package's size follows from its sources instead.
+LEGACY_SET_COUNT = 8
+
 
 def _load_document(path, expected_script=None):
     try:
@@ -121,7 +126,37 @@ def _source_groups(instruction_doc, casting_doc, control_doc):
     groups.append({"kind": "casting", "source_id": "casting_00",
                    "arms": {name: value.get("path")
                             for name, value in casting_arms.items()}})
+    return groups + _control_groups(control_doc)
 
+
+def _scene_source_groups(scene_doc, control_doc):
+    """Scene-context comparisons, followed by the same positive controls."""
+    if scene_doc.get("status") != "complete" or not scene_doc.get("published"):
+        raise ListeningPackageError("scene-context source is incomplete")
+    comparisons = scene_doc.get("comparisons")
+    if not isinstance(comparisons, list) or not comparisons:
+        raise ListeningPackageError("scene-context source has no comparisons")
+    groups = []
+    for index, comparison in enumerate(comparisons):
+        files = comparison.get("arm_files")
+        if set(files or {}) != set(SCENE_ARMS):
+            raise ListeningPackageError(
+                f"scene-context comparison {index} has wrong arms")
+        if comparison.get("content_regressions"):
+            raise ListeningPackageError(
+                f"scene-context comparison {index} failed its WER gate")
+        hollow = identical_arms({arm: os.path.join(REPO, path)
+                                 for arm, path in files.items()})
+        if hollow:
+            raise ListeningPackageError(
+                f"scene-context comparison {index} has identical renders for {hollow}")
+        groups.append({"kind": "scene_context",
+                       "source_id": f"scene_{index:02d}", "arms": dict(files)})
+    return groups + _control_groups(control_doc)
+
+
+def _control_groups(control_doc):
+    groups = []
     rows = control_doc.get("rows")
     if not isinstance(rows, list) or not rows:
         raise ListeningPackageError("positive-control source has no rows")
@@ -155,7 +190,37 @@ def build_package(instruction_path, casting_path, control_path, package_dir,
     casting = _load_document(casting_path, "casting_ab_audio.py")
     controls = _load_document(control_path, "seed_instruction_controls.py")
     groups = _source_groups(instruction, casting, controls)
+    return _write_package(
+        groups, (instruction_path, casting_path, control_path), package_dir,
+        public_path, key_path, seed,
+        ["No human ratings are included; this artifact only prepares it.",
+         "Non-prose remedies are absent because Stage 5 stopped at its gate."])
 
+
+def build_scene_package(scene_path, control_path, package_dir, public_path,
+                        key_path, seed):
+    """The scene-context package: same blinding, key and controls."""
+    for path in (package_dir, public_path, key_path):
+        if os.path.exists(path):
+            raise ListeningPackageError(f"refusing to overwrite existing {path}")
+    scene = _load_document(scene_path, "scene_context_listening.py")
+    controls = _load_document(control_path, "seed_instruction_controls.py")
+    groups = _scene_source_groups(scene, controls)
+    return _write_package(
+        groups, (scene_path, control_path), package_dir, public_path,
+        key_path, seed,
+        ["No human ratings are included; this artifact only prepares it."])
+
+
+def get_scene_set_count(scene_path, control_path):
+    """How many sets a scene package built from these sources must hold."""
+    scene = _load_document(scene_path, "scene_context_listening.py")
+    controls = _load_document(control_path, "seed_instruction_controls.py")
+    return len(_scene_source_groups(scene, controls))
+
+
+def _write_package(groups, source_paths, package_dir, public_path, key_path,
+                   seed, limitations):
     temporary = package_dir + ".building"
     if os.path.exists(temporary):
         raise ListeningPackageError(
@@ -197,7 +262,7 @@ def build_package(instruction_path, casting_path, control_path, package_dir,
             __file__, None,
             source_artifacts={
                 os.path.relpath(path, REPO): file_sha256(path)
-                for path in (instruction_path, casting_path, control_path)},
+                for path in source_paths},
             randomization_seed=seed)
         public_provenance = dict(full_provenance)
         # Branch names and dirty-file paths can disclose the concealed arms.
@@ -214,10 +279,7 @@ def build_package(instruction_path, casting_path, control_path, package_dir,
             "package_dir": os.path.relpath(package_dir, REPO),
             "sets": public_sets,
             "concealed_key_sha256": file_sha256(key_path),
-            "limitations": [
-                "No human ratings are included; this artifact only prepares it.",
-                "Non-prose remedies are absent because Stage 5 stopped at its gate.",
-            ],
+            "limitations": list(limitations),
         }
         atomic_json_write(public, public_path)
     except Exception:
@@ -241,7 +303,8 @@ def _load_json(path):
     return doc
 
 
-def validate_package(public_path, key_path, package_dir):
+def validate_package(public_path, key_path, package_dir,
+                     expected_sets=LEGACY_SET_COUNT):
     """Fully verify a previously built package without exposing its key."""
     public = _load_document(public_path, "blinded_listening.py")
     key = _load_json(key_path)
@@ -269,8 +332,9 @@ def validate_package(public_path, key_path, package_dir):
     public_sets = public.get("sets")
     key_sets = key.get("sets")
     if not isinstance(public_sets, list) or not isinstance(key_sets, list) or \
-            len(public_sets) != 8 or len(key_sets) != 8:
-        raise ListeningPackageError("blind package must contain eight sets")
+            len(public_sets) != expected_sets or len(key_sets) != expected_sets:
+        raise ListeningPackageError(
+            f"blind package must contain {expected_sets} sets")
     for label, sets in (("public", public_sets), ("key", key_sets)):
         for index, item in enumerate(sets):
             if not isinstance(item, dict):
@@ -281,7 +345,8 @@ def validate_package(public_path, key_path, package_dir):
     if len(keyed) != len(key_sets):
         raise ListeningPackageError("concealed key has duplicate set IDs")
     forbidden = ("very_slow", "very_fast", "per_char", "per_line",
-                 '\"current\"', '\"scene_aware\"')
+                 '\"current\"', '\"scene_aware\"',
+                 '\"line\"', '\"scene\"', "wrong_scene")
     leaked = [label for label in forbidden
               if label in json.dumps(public, sort_keys=True)]
     if leaked:
@@ -332,11 +397,12 @@ def validate_package(public_path, key_path, package_dir):
 
 
 def analyze_responses(public_path, key_path, package_dir, responses_path,
-                      expected_listeners):
+                      expected_listeners, expected_sets=LEGACY_SET_COUNT):
     """Validate complete blinded responses and summarize only observed ratings."""
     if expected_listeners < 1:
         raise ListeningPackageError("expected_listeners must be explicitly positive")
-    public, key = validate_package(public_path, key_path, package_dir)
+    public, key = validate_package(public_path, key_path, package_dir,
+                                   expected_sets)
     responses = _load_json(responses_path)
     listeners = responses.get("listeners")
     if not isinstance(listeners, list) or len(listeners) != expected_listeners:
@@ -422,6 +488,9 @@ def main():
         REPO, "ab_test_runtime", "experiments", "blinded_listening.json"))
     ap.add_argument("--key", default=os.path.join(
         REPO, "ab_test_runtime", "blinded_listening_concealed_key.json"))
+    ap.add_argument("--scene-context",
+                    help="scene_context_listening.py artifact; builds a scene package "
+                         "(with --controls) instead of the instruction/casting one")
     ap.add_argument("--seed", type=int, default=20260804)
     ap.add_argument("--responses")
     ap.add_argument("--expected-listeners", type=int)
@@ -433,16 +502,23 @@ def main():
         if os.path.exists(args.results):
             raise ListeningPackageError(
                 f"refusing to overwrite existing {args.results}")
+        expected_sets = (get_scene_set_count(args.scene_context, args.controls)
+                         if args.scene_context else LEGACY_SET_COUNT)
         result = analyze_responses(
             args.out, args.key, args.package_dir, args.responses,
-            args.expected_listeners)
+            args.expected_listeners, expected_sets)
         from utils import atomic_json_write
         atomic_json_write(result, args.results)
         print(f"wrote descriptive results for {result['listener_count']} listeners")
         return
-    public, _ = build_package(
-        args.instruction, args.casting, args.controls, args.package_dir,
-        args.out, args.key, args.seed)
+    if args.scene_context:
+        public, _ = build_scene_package(
+            args.scene_context, args.controls, args.package_dir, args.out,
+            args.key, args.seed)
+    else:
+        public, _ = build_package(
+            args.instruction, args.casting, args.controls, args.package_dir,
+            args.out, args.key, args.seed)
     print(f"wrote {len(public['sets'])} blinded sets to {args.package_dir}")
     print(f"public manifest: {args.out}")
     print(f"concealed key: {args.key}")

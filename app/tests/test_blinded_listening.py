@@ -140,8 +140,8 @@ class BlindedListeningTests(unittest.TestCase):
             ("public", lambda d: dict(d, package_dir=[]), "package_dir"),
             ("public", lambda d: dict(d, provenance=dict(d["provenance"], source_artifacts=[1])), "source identities"),
             ("public", lambda d: dict(d, provenance=dict(d["provenance"], source_artifacts={"x": []})), "hashes must"),
-            ("public", lambda d: dict(d, sets={}), "eight sets"),
-            ("key", lambda d: dict(d, sets={}), "eight sets"),
+            ("public", lambda d: dict(d, sets={}), "must contain 8 sets"),
+            ("key", lambda d: dict(d, sets={}), "must contain 8 sets"),
         ]
         for side in ("public", "key"):
             cases.extend([
@@ -309,6 +309,87 @@ class BlindedListeningTests(unittest.TestCase):
         with self.assertRaisesRegex(blind.ListeningPackageError, "incomplete ratings"):
             blind.analyze_responses(
                 public_path, key_path, package, str(responses_path), 1)
+
+    def scene_document(self, scenes=2, **overrides):
+        comparisons = [{"arm_files": {arm: self.source(f"scene{n}_{arm}")
+                                      for arm in blind.SCENE_ARMS},
+                        "content_regressions": []}
+                       for n in range(scenes)]
+        document = {"status": "complete", "published": True,
+                    "provenance": provenance("scene_context_listening.py"),
+                    "comparisons": comparisons}
+        document.update(overrides)
+        return document
+
+    def build_scene(self, document):
+        scene_path = self.root / "scene.json"
+        scene_path.write_text(json.dumps(document), encoding="utf-8")
+        controls_path = self.root / "controls.json"
+        controls_path.write_text(json.dumps(self.documents()[2]), encoding="utf-8")
+        package = str(self.root / "scene_package")
+        public_path = str(self.root / "scene_public.json")
+        key_path = str(self.root / "scene_key.json")
+        public, key = blind.build_scene_package(
+            str(scene_path), str(controls_path), package, public_path, key_path, 42)
+        return public, key, package, public_path, key_path, str(scene_path), str(controls_path)
+
+    def test_scene_package_keeps_the_controls_and_hides_scene_arm_labels(self):
+        public, key, package, public_path, key_path, scene_path, controls_path = \
+            self.build_scene(self.scene_document(scenes=2))
+        # Two scene sets plus the three positive controls, counted from the
+        # sources rather than assumed.
+        self.assertEqual(5, blind.get_scene_set_count(scene_path, controls_path))
+        self.assertEqual(["scene_context"] * 2 + ["positive_control"] * 3,
+                         [item["kind"] for item in public["sets"]])
+        self.assertEqual((public, key), blind.validate_package(
+            public_path, key_path, package, expected_sets=5))
+        serialized = json.dumps(public)
+        for label in ('"line"', '"scene"', "wrong_scene"):
+            self.assertNotIn(label, serialized)
+        arms = {entry["arm"] for item in key["sets"][:2]
+                for entry in item["mapping"].values()}
+        self.assertEqual(set(blind.SCENE_ARMS), arms)
+
+    def test_scene_package_is_held_to_its_own_set_count(self):
+        _, _, package, public_path, key_path, _, _ = \
+            self.build_scene(self.scene_document(scenes=2))
+        # The legacy default is eight; a five-set scene package must not pass
+        # it, and the right count must not be satisfied by a smaller package.
+        with self.assertRaisesRegex(blind.ListeningPackageError, "must contain 8 sets"):
+            blind.validate_package(public_path, key_path, package)
+        with self.assertRaisesRegex(blind.ListeningPackageError, "must contain 6 sets"):
+            blind.validate_package(public_path, key_path, package, expected_sets=6)
+
+    def test_scene_source_refusals(self):
+        cases = [
+            (dict(status="partial"), "incomplete"),
+            (dict(published=False), "incomplete"),
+            (dict(comparisons=[]), "no comparisons"),
+        ]
+        wrong_arms = self.scene_document(scenes=1)
+        wrong_arms["comparisons"][0]["arm_files"].pop("wrong_scene")
+        regressed = self.scene_document(scenes=1)
+        regressed["comparisons"][0]["content_regressions"] = ["scene"]
+        hollow = self.scene_document(scenes=1)
+        files = hollow["comparisons"][0]["arm_files"]
+        files["scene"] = files["line"]
+        for index, (overrides, message) in enumerate(cases):
+            with self.subTest(message=message, index=index):
+                with self.assertRaisesRegex(blind.ListeningPackageError, message):
+                    self.build_scene(self.scene_document(scenes=1, **overrides))
+        for document, message in ((wrong_arms, "wrong arms"),
+                                  (regressed, "WER gate"),
+                                  (hollow, "identical renders")):
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(blind.ListeningPackageError, message):
+                    self.build_scene(document)
+        self.assertFalse((self.root / "scene_package").exists())
+
+    def test_scene_source_from_another_script_is_refused(self):
+        document = self.scene_document(
+            scenes=1, provenance=provenance("instruct_listening.py"))
+        with self.assertRaisesRegex(blind.ListeningPackageError, "expected"):
+            self.build_scene(document)
 
 
 if __name__ == "__main__":

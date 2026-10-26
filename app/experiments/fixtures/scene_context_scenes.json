@@ -1,0 +1,86 @@
+{
+  "description": "Six public-domain two-speaker scenes for scene_context_listening.py. Line text and speakers are NOT stored here: each turn names a PDNC row id and the harness reads the text from the checked-in gold fixture, so nothing is retyped. The scene descriptions and per-line instructions were written by hand on 2026-10-26, before any audio was rendered, and must not be tuned after listening.",
+  "source_fixture": "ab_test_runtime/evidence/thunder_20260929/fixtures/attribution_gold_pdnc_{book}.json",
+  "scenes": [
+    {
+      "id": "pp_bennets_news",
+      "book": "prideandprejudice",
+      "voices": {"MRS. BENNET": "female", "MR. BENNET": "male"},
+      "scene": "A drawing room at Longbourn. An excitable wife bursts with gossip about a rich new neighbour while her dry, unhurried husband teases her.",
+      "turns": [
+        {"id": "PrideAndPrejudice-00008", "instruct": "Breathless, delighted, words tumbling out."},
+        {"id": "PrideAndPrejudice-00009", "instruct": "Flat and mild, feigning ignorance."},
+        {"id": "PrideAndPrejudice-00010", "instruct": "Exasperated, rising pitch, impatient."},
+        {"id": "PrideAndPrejudice-00011", "instruct": "Deadpan, slow, quietly amused."},
+        {"id": "PrideAndPrejudice-00012", "instruct": "Indignant, then pleading and insistent."},
+        {"id": "PrideAndPrejudice-00013", "instruct": "Dry and teasing, a mock compliment at the end."}
+      ]
+    },
+    {
+      "id": "pp_accomplished_women",
+      "book": "prideandprejudice",
+      "voices": {"MR. DARCY": "male", "ELIZABETH": "female"},
+      "scene": "An evening at Netherfield. A proud gentleman and a sharp young woman spar politely across the room, each enjoying the contest.",
+      "turns": [
+        {"id": "PrideAndPrejudice-00202", "instruct": "Grave, measured, faintly superior."},
+        {"id": "PrideAndPrejudice-00203", "instruct": "Arch and playful, stressing the contrast."},
+        {"id": "PrideAndPrejudice-00204", "instruct": "Surprised, a little challenged."},
+        {"id": "PrideAndPrejudice-00205", "instruct": "Lively and ironic, building through the list."}
+      ]
+    },
+    {
+      "id": "emma_harriet_praise",
+      "book": "emma",
+      "voices": {"EMMA": "female", "MR. KNIGHTLEY": "male"},
+      "scene": "A quiet morning at Hartfield. Two old friends make easy, affectionate conversation while waiting for a visitor who is late.",
+      "turns": [
+        {"id": "Emma-00176", "instruct": "Pleased, a hint of self-satisfaction."},
+        {"id": "Emma-00177", "instruct": "Warm, gently teasing."},
+        {"id": "Emma-00178", "instruct": "Gracious, then lightly reproachful."},
+        {"id": "Emma-00179", "instruct": "Casual question, changing the subject."},
+        {"id": "Emma-00180", "instruct": "Slightly anxious, glancing at the door."},
+        {"id": "Emma-00181", "instruct": "Calm and reassuring."}
+      ]
+    },
+    {
+      "id": "emma_fairfax_reserve",
+      "book": "emma",
+      "voices": {"MR. KNIGHTLEY": "male", "EMMA": "female"},
+      "scene": "After an evening party, in front of the family. A frank older friend presses a young woman who is defensive and a little sulky about a rival.",
+      "turns": [
+        {"id": "Emma-00524", "instruct": "Pointed and meaningful, holding her eye."},
+        {"id": "Emma-00525", "instruct": "Short and cool, closing the subject."},
+        {"id": "Emma-00526", "instruct": "Patient, kindly correcting."},
+        {"id": "Emma-00527", "instruct": "Dismissive, slightly stubborn."},
+        {"id": "Emma-00528", "instruct": "Affectionate concern, coaxing."},
+        {"id": "Emma-00529", "instruct": "Wry and self-mocking."}
+      ]
+    },
+    {
+      "id": "persuasion_ships_wives",
+      "book": "persuasion",
+      "voices": {"MRS CROFT": "female", "CAPTAIN WENTWORTH": "male"},
+      "scene": "A cheerful family visit. A brisk naval wife scolds her brother, a captain, for his old-fashioned gallantry; the argument is fond, not bitter.",
+      "turns": [
+        {"id": "Persuasion-00110", "instruct": "Brisk and certain."},
+        {"id": "Persuasion-00111", "instruct": "Stubborn, half joking."},
+        {"id": "Persuasion-00112", "instruct": "Fond exasperation, sisterly scolding."},
+        {"id": "Persuasion-00113", "instruct": "Defensive, a little pleased with himself."},
+        {"id": "Persuasion-00114", "instruct": "Spirited and firm, making her point."}
+      ]
+    },
+    {
+      "id": "persuasion_eight_years",
+      "book": "persuasion",
+      "voices": {"CAPTAIN WENTWORTH": "male", "ANNE ELLIOT": "female"},
+      "scene": "A crowded room in Bath. Two former lovers, apart for eight years, speak quietly by the fireplace; every ordinary word carries old feeling.",
+      "turns": [
+        {"id": "Persuasion-00428", "instruct": "Careful, low, testing the ground."},
+        {"id": "Persuasion-00429", "instruct": "Soft and hesitant."},
+        {"id": "Persuasion-00430", "instruct": "Quiet, with a trace of bitterness."},
+        {"id": "Persuasion-00431", "instruct": "Barely above a whisper, trailing off."},
+        {"id": "Persuasion-00432", "instruct": "Low and heavy with feeling."}
+      ]
+    }
+  ]
+}
