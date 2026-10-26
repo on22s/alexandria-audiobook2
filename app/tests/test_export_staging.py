@@ -907,7 +907,7 @@ raise SystemExit('Original lock was not held')
             # bookkeeping done through pathlib or utils is not counted, while
             # the cursor file is counted whenever discovery examines it.
             if (isinstance(path, (str, os.PathLike))
-                    and os.path.dirname(os.fspath(path)) == os.fspath(parent)):
+                    and os.path.realpath(os.path.dirname(os.fspath(path))) == os.path.realpath(parent)):
                 examined.append(os.path.basename(os.fspath(path)))
             return real_stat(path, *args, **kwargs)
         # Only export_staging sees the counting proxy. Patching os.stat itself
@@ -970,6 +970,85 @@ raise SystemExit('Original lock was not held')
                 tmp, lambda: reclaim_export_staging([tmp, alias, tmp], max_scan=1))
             self.assertEqual(1, len(examined))
             self.assertIn(f"{tmp}: scan limit reached", result["errors"])
+
+        # Caller-facing paths retain their spelling even though continuation
+        # and duplicate admission use the canonical parent (Windows 8.3 too).
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "inner").mkdir()
+            alias = Path(tmp, "inner", "..")
+            stage = self._abandoned_public_stage(alias)
+            result = reclaim_export_staging([alias, tmp])
+            self.assertEqual([str(alias / stage.path.name)], result["removed"])
+            self.assertEqual([], result["errors"])
+            self.assertFalse(stage.path.exists())
+
+        if os.name != 'nt':
+            with tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp, "actual"); target.mkdir()
+                alias = Path(tmp, "alias")
+                alias.symlink_to(target, target_is_directory=True)
+                stage = self._abandoned_public_stage(alias)
+                result = reclaim_export_staging([alias, target])
+                self.assertEqual([str(alias / stage.path.name)], result["removed"])
+                self.assertEqual([], result["errors"])
+                self.assertFalse(stage.path.exists())
+
+                private = create_export_staging(alias, 'encode')
+                (private.path / 'payload.bin').write_bytes(b'owned encoding')
+                private._lock.__exit__(None, None, None)
+                private._closed = True
+                private_name = private.path.relative_to(target)
+                result = reclaim_export_staging([alias, target])
+                self.assertEqual([str(alias / private_name)], result["removed"])
+                self.assertEqual([], result["errors"])
+                self.assertFalse(private.path.exists())
+
+                # Symlink/.. must follow filesystem traversal, not lexical
+                # abspath collapsing, when selecting the cleanup authority.
+                nested = target / "inner"; nested.mkdir()
+                deep_alias = Path(tmp, "deep-alias")
+                deep_alias.symlink_to(nested, target_is_directory=True)
+                stage = self._abandoned_public_stage(target)
+                caller = deep_alias / ".."
+                result = reclaim_export_staging([caller, target])
+                self.assertEqual([str(caller / stage.path.name)], result["removed"])
+                self.assertEqual([], result["errors"])
+                self.assertFalse(stage.path.exists())
+
+                other = Path(tmp, "other"); other.mkdir()
+                for wrong_parent in (False, True):
+                    alias.unlink()
+                    alias.symlink_to(target, target_is_directory=True)
+                    stage = self._abandoned_public_stage(target)
+                    if wrong_parent:
+                        nested_stage = create_export_staging(stage.path, 'encode')
+                        nested_payload = nested_stage.path / 'nested.bin'
+                        nested_payload.write_bytes(b'preserve nested payload')
+                        nested_stage._lock.__exit__(None, None, None)
+                        nested_stage._closed = True
+                        marker_path = stage.path / MARKER
+                        marker = json.loads(marker_path.read_text())
+                        marker["parent"] = str(other.resolve())
+                        marker_path.write_text(json.dumps(marker))
+                    matches_parent = export_staging._matches_parent
+                    def retarget_caller(marker, admitted_parent):
+                        alias.unlink()
+                        alias.symlink_to(other, target_is_directory=True)
+                        return matches_parent(marker, admitted_parent)
+                    with patch.object(export_staging, '_matches_parent',
+                                      side_effect=retarget_caller):
+                        result = reclaim_export_staging([alias])
+                    reported = str(alias / stage.path.name)
+                    if wrong_parent:
+                        self.assertEqual([], result["removed"])
+                        self.assertIn(reported, result["preserved"])
+                        self.assertEqual([], result["errors"])
+                        self.assertEqual(b'preserve nested payload', nested_payload.read_bytes())
+                        self.assertEqual(b'abandoned owned output',
+                                         (stage.path / 'payload.bin').read_bytes())
+                    else:
+                        self.assertEqual([reported], result["removed"])
+                        self.assertFalse(stage.path.exists())
 
     def _abandoned_public_stage(self, parent, payload=b'abandoned owned output'):
         stage = export_staging._create_public_export_staging(parent, 'mp3')
@@ -1219,10 +1298,10 @@ raise SystemExit('Original lock was not held')
             for index in range(4):
                 (Path(tmp) / f'-f-{index}').write_bytes(b'keep')
             reclaim_export_staging([tmp], max_scan=2)
-            self.assertIn(Path(tmp), export_staging._scan_iterators)
+            self.assertIn(Path(os.path.realpath(tmp)), export_staging._scan_iterators)
             self.assertFalse(Path(tmp, export_staging.SCAN_CURSOR).exists())
             reclaim_export_staging([tmp])
-            self.assertNotIn(Path(tmp), export_staging._scan_iterators)
+            self.assertNotIn(Path(os.path.realpath(tmp)), export_staging._scan_iterators)
             # Replacing a parent discards its iterator without modifying files
             # in either the old directory or its replacement.
             reclaim_export_staging([tmp], max_scan=1)
@@ -1235,7 +1314,7 @@ raise SystemExit('Original lock was not held')
                 reclaim_export_staging([tmp], max_scan=1)
                 self.assertEqual(b'foreign state', foreign.read_bytes())
                 self.assertEqual(export_staging.identity(os.stat(tmp)),
-                                 export_staging._scan_iterators[Path(tmp)][0])
+                                 export_staging._scan_iterators[Path(os.path.realpath(tmp))][0])
             finally:
                 export_staging._close_scan_iterators()
                 import shutil
@@ -1253,8 +1332,8 @@ raise SystemExit('Original lock was not held')
                 result = reclaim_export_staging(roots, max_scan=1)
                 self.assertFalse(any("capacity" in e for e in result["errors"]))
                 self.assertEqual(2, len(export_staging._scan_iterators))
-                self.assertNotIn(roots[0], export_staging._scan_iterators)
-                self.assertIn(roots[2], export_staging._scan_iterators)
+                self.assertNotIn(Path(os.path.realpath(roots[0])), export_staging._scan_iterators)
+                self.assertIn(Path(os.path.realpath(roots[2])), export_staging._scan_iterators)
             export_staging._close_scan_iterators()
 
         if os.name != 'nt':
