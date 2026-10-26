@@ -1412,9 +1412,15 @@ raise SystemExit('Original lock was not held')
             ready = create_export_staging(good, 'mp3')
             ready._lock.__exit__(None, None, None)
             ready._closed = True
+            # Match the physical stage across canonical paths, Windows 8.3
+            # spelling and lexical aliases. The injected error must hit only
+            # this stage so recovery can continue to the good parent.
+            alias_dir = bad / 'alias'
+            alias_dir.mkdir()
+            legacy_reference = alias_dir / '..' / legacy.path.name
             real_cleanup = export_staging._cleanup_admitted
             def fail_legacy(path, *args, **kwargs):
-                if Path(path) == legacy.path:
+                if os.path.normcase(os.path.realpath(path)) == os.path.normcase(os.path.realpath(legacy_reference)):
                     raise RuntimeError('retirement path changed')
                 return real_cleanup(path, *args, **kwargs)
             with patch.object(export_staging, '_cleanup_admitted', side_effect=fail_legacy):
