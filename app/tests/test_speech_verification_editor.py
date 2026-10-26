@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 import copy
 import json
+import os
 from unittest.mock import patch
 import unittest
 
@@ -52,18 +53,31 @@ class SpeechVerificationEditorTests(unittest.TestCase):
             self.assertEqual(before,{path.name:path.read_bytes() for path in root.iterdir() if path.is_file()})
 
     def test_replaced_or_missing_selected_audio_invalidates_poll_evidence_without_writing_receipt(self):
-        for event in ('replace','delete'):
+        for event in ('replace','same_stat','delete'):
             with self.subTest(event=event),self.fixture() as (root,manager,client):
                 first=client.get('/api/chunks/status').json();raw=copy.deepcopy(manager.load_chunks()[0])
-                path=root/raw['audio_path']
+                path=root/raw['audio_path'];info=path.stat()
                 if event=='delete':path.unlink()
+                elif event=='same_stat':
+                    data=bytearray(path.read_bytes());data[0]^=1
+                    path.write_bytes(data);os.utime(path,ns=(info.st_atime_ns,info.st_mtime_ns))
+                    self.assertNotEqual(info.st_ctime_ns,path.stat().st_ctime_ns)
                 else:path.write_bytes(b'new unrelated artifact')
                 changed=client.get('/api/chunks/status',params={'revision':first['revision']}).json()
                 self.assertFalse(changed['full']);self.assertEqual([0],changed['changed_ids'])
                 self.assertIsNone(changed['chunks'][0]['speech_verification'])
+                if event=='same_stat':
+                    self.assertIsNotNone(changed['chunks'][0]['speech_verification_historical'])
+                    self.assertEqual('changed',changed['chunks'][0]['speech_verification_historical_reason'])
+                if event=='delete':
+                    self.assertEqual('unavailable',changed['chunks'][0]['speech_verification_historical_reason'])
+                    self.assertIn('speech_historical',self.quality(client,first['book_token'])['rows'][0]['issues'])
                 self.assertEqual(raw,manager.load_chunks()[0])
                 self.assertIsNone(client.get('/api/chunks').json()[0]['speech_verification'])
-                self.assertEqual('not_checked',self.quality(client,first['book_token'])['rows'][0]['speech'])
+                quality=self.quality(client,first['book_token'])['rows'][0]
+                self.assertEqual('not_checked',quality['speech'])
+                if event=='same_stat':
+                    self.assertIn('speech_historical',quality['issues'])
 
     def test_edited_source_or_reselected_book_does_not_expose_old_evidence(self):
         for event in ('source','book'):
@@ -73,6 +87,7 @@ class SpeechVerificationEditorTests(unittest.TestCase):
                 else:(root/'state.json').write_text(json.dumps({'active_book_id':'other-book'}))
                 fresh=client.get('/api/chunks/status').json()
                 self.assertIsNone(fresh['chunks'][0]['speech_verification'])
+                self.assertNotIn('speech_verification_historical',fresh['chunks'][0])
                 self.assertEqual('not_checked',self.quality(client,fresh['book_token'])['rows'][0]['speech'])
                 self.assertIsNotNone(manager.load_chunks()[0]['speech_verification'])
 

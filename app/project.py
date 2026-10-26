@@ -1505,19 +1505,38 @@ class ProjectManager:
                         os.fsync(handle.fileno())
                     publish_audio_output(audio_source, self.get_chunk_audio_path(candidate))
                 sync_adapter_directory(self.voicelines_dir)
+                final_path = (published_path if audio_source_authority is not None
+                              else self.get_chunk_audio_path(candidate))
                 publication_version = None
                 if publication_audio is not None:
                     from take_publication import validate_published_take_audio
                     publication_version = validate_published_take_audio(self.root_dir,
-                        published_path if audio_source_authority is not None else self.get_chunk_audio_path(candidate),
-                        publication_audio, ensure_audio_generation_active)
-                if restore_speech_receipt:
-                    receipt = kwargs.get('speech_verification')
-                    if publication_audio is None or receipt is None or receipt.get('audio') != {
-                            key: publication_audio[key] for key in ('sha256', 'size')}:
-                        raise ValueError('Saved speech evidence differs from the restored audio.')
+                        final_path, publication_audio, ensure_audio_generation_active)
+                receipt = kwargs.get('speech_verification')
+                if restore_speech_receipt and (receipt is None or publication_audio is None):
+                    raise ValueError('Saved speech evidence differs from the restored audio.')
+                if receipt is not None:
+                    expected_audio = ({key: publication_audio[key] for key in ('sha256', 'size')}
+                                      if publication_audio is not None else receipt.get('audio'))
+                    if publication_audio is not None and receipt.get('audio') != expected_audio:
+                        raise ValueError('Speech evidence differs from the published audio.')
+                    if publication_version is None:
+                        from speech_verification_receipt import get_audio_file_version
+                        audio = receipt.get('audio') or {}
+                        if audio.get('sha256') is None:
+                            if audio.get('size') != os.stat(final_path).st_size:
+                                raise ValueError('Speech evidence differs from the published audio.')
+                            publication_version = get_audio_file_version(final_path)
+                        else:
+                            from speech_verification_runtime import get_verifier_file_identity
+                            from word_timing import MAX_AUDIO_BYTES
+                            identity = get_verifier_file_identity(
+                                final_path, MAX_AUDIO_BYTES, ensure_audio_generation_active)
+                            if audio != {key: identity[key] for key in ('sha256', 'size')}:
+                                raise ValueError('Speech evidence differs from the published audio.')
+                            publication_version = identity['file_version']
                     kwargs['speech_verification'] = {**receipt,
-                        'audio_file_version': list(publication_version[:4])}
+                        'audio_file_version': list(publication_version[:5])}
             if kwargs:
                 if audio_source_authority is not None:
                     if os.path.realpath(self.root_dir) != str(audio_source_authority.stage.directory.parent.parent):
@@ -1744,8 +1763,8 @@ class ProjectManager:
 
     @staticmethod
     def _get_speech_staged_version(path):
-        info = os.stat(path)
-        return info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns
+        from speech_verification_receipt import get_audio_file_version
+        return tuple(get_audio_file_version(path))
 
     def _verify_generated_chunk_speech(self,chunk,temp_path,staged_path,preparation,revision):
         admission=chunk.get('_speech_verification_admission')
@@ -1798,7 +1817,7 @@ class ProjectManager:
         receipt=get_speech_verification_receipt(report,chunk,admission['book_token'],revision,speech_input)
         if report['status']=='corroborated_content_difference' and report.get('stage')=='complete':
             raise SpeechContentMismatchError(receipt)
-        receipt['audio_file_version']=list(current['file_version'][:4])
+        receipt['audio_file_version']=list(current['file_version'][:5])
         return receipt,tuple(current['file_version'])
 
     def _capture_synthesis_recovery_parent(self, engine, index, chunk):

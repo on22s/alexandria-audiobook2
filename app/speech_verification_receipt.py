@@ -6,6 +6,7 @@ import math
 import os
 from pathlib import Path
 import re
+import sys
 
 from editor_poll_snapshot import get_snapshot_digest
 from speech_verification_compare import get_comparison_tokens
@@ -15,6 +16,7 @@ from audio_validation import GeneratedAudioError
 
 MAX_RECEIPT_BYTES = 128 * 1024
 MAX_DIAGNOSTICS = 8
+_AUDIO_FILE_VERSION_FIELDS = 5
 _HEX64 = re.compile(r'[0-9a-f]{64}')
 _STATUSES = frozenset(('unavailable','review','no_content_candidate',
     'corroborated_content_difference','review_confirmation_unavailable','review_short_acoustic_unavailable'))
@@ -235,45 +237,125 @@ def _is_receipt_schema(receipt):
     return True
 
 
+def get_audio_file_version(path):
+    """Return the bounded quick-stat identity used for saved-take freshness."""
+    info = os.stat(path)
+    return [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns]
+
+
+def _is_audio_file_version(value):
+    return (isinstance(value, list) and len(value) in (4, _AUDIO_FILE_VERSION_FIELDS)
+            and all(type(item) is int and item >= 0 for item in value))
+
+
+def _ctime_attests_change():
+    # Windows exposes creation time as st_ctime, not a metadata-change time.
+    # Speech verification itself is Linux-only; on Windows a saved receipt is
+    # historical evidence and an explicit recheck still hashes the selected
+    # take before relying on it.
+    return not sys.platform.startswith('win')
+
+
+def _version_matches_file(version, path):
+    if not _is_audio_file_version(version) or len(version) != _AUDIO_FILE_VERSION_FIELDS:
+        return False
+    if not _ctime_attests_change():
+        return False
+    return get_audio_file_version(path) == version
+
+
+def _matches_saved_input(receipt, chunk, book_token, *, failure, recheck):
+    return bool(
+        isinstance(receipt, dict)
+        and len(json.dumps(receipt,ensure_ascii=False,allow_nan=False).encode('utf-8')) <= MAX_RECEIPT_BYTES
+        and _is_receipt_schema(receipt)
+        and receipt.get('uid') == chunk.get('uid')
+        and receipt.get('audio_revision')
+        and (failure or receipt['audio_revision'] == chunk.get('audio_revision'))
+        and (book_token is None or receipt.get('book_token') == book_token)
+        and not (failure and recheck)
+        and receipt.get('input_digest') == get_speech_verification_chunk_digest(chunk))
+
+
 def get_current_speech_verification_receipt(chunk, book_token=None, *, failure=False, recheck=False, resolve_audio=None):
     """Filter metadata; optional quick stat rejects replaced/missing selected takes.
 
-    This does not attest bytes against deliberate same-inode/mtime tampering.
-    An explicit recheck hashes the selected take before using its evidence.
+    New receipts bind the file's ctime as well as size, inode and mtime. On
+    Windows ctime is creation time, so this remains historical; explicit
+    recheck hashes the selected take before using its evidence.
     """
     if failure and recheck:return None
     receipt = chunk.get('speech_verification_failure' if failure else
                         'speech_verification_recheck' if recheck else 'speech_verification')
     try:
-        if (not isinstance(receipt, dict)
-                or len(json.dumps(receipt,ensure_ascii=False,allow_nan=False).encode('utf-8')) > MAX_RECEIPT_BYTES
-                or not _is_receipt_schema(receipt)
-                or receipt.get('uid') != chunk.get('uid')
-                or not receipt.get('audio_revision') or
-                not failure and receipt['audio_revision'] != chunk.get('audio_revision')
-                or book_token is not None and receipt.get('book_token') != book_token
-                or receipt.get('input_digest') != get_speech_verification_chunk_digest(chunk)):
+        if not _matches_saved_input(receipt, chunk, book_token, failure=failure, recheck=recheck):
             return None
         if failure:
             if receipt['status'] != 'corroborated_content_difference':return None
         elif resolve_audio is not None:
-            version=receipt['audio_file_version']
-            if (not isinstance(version,list) or len(version) != 4 or
-                    any(type(value) is not int or value < 0 for value in version) or not chunk.get('audio_path')):
+            if not chunk.get('audio_path') or not _version_matches_file(
+                    receipt.get('audio_file_version'), resolve_audio(chunk['audio_path'])):
                 return None
-            info=os.stat(resolve_audio(chunk['audio_path']))
-            if [info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns] != version:return None
         return copy.deepcopy(receipt)
     except (TypeError,ValueError,KeyError,OSError,OverflowError):
         return None
 
 
+def _get_historical_state(chunk, book_token=None, resolve_audio=None, current_checked=False):
+    """Classify saved evidence that no longer proves the current bytes."""
+    receipt = chunk.get('speech_verification')
+    try:
+        if not _matches_saved_input(receipt, chunk, book_token, failure=False, recheck=False):
+            return None
+        if not _is_audio_file_version(receipt.get('audio_file_version')):
+            return None
+        if not current_checked and get_current_speech_verification_receipt(chunk, book_token,
+                resolve_audio=resolve_audio) is not None:
+            return None
+        if not chunk.get('audio_path') or resolve_audio is None:
+            reason = 'unavailable'
+        else:
+            try:
+                os.stat(resolve_audio(chunk['audio_path']))
+            except OSError:
+                reason = 'unavailable'
+            else:
+                current = get_audio_file_version(resolve_audio(chunk['audio_path']))
+                version = receipt['audio_file_version']
+                if not _ctime_attests_change():
+                    reason = 'platform'
+                elif len(version) == 4:
+                    reason = 'legacy' if current[:4] == version else 'changed'
+                else:
+                    reason = 'changed'
+        return copy.deepcopy(receipt), reason
+    except (TypeError,ValueError,KeyError,OSError,OverflowError):
+        return None
+
+
+def get_historical_speech_verification_receipt(chunk, book_token, resolve_audio):
+    """Return a saved selected-take receipt that no longer proves current bytes."""
+    state = _get_historical_state(chunk, book_token, resolve_audio)
+    return state[0] if state is not None else None
+
+
 def get_speech_verification_chunk_view(chunk, book_token, resolve_audio):
     """Detach public evidence without mutating stored rows or starting a check."""
     row=dict(chunk)
+    row.pop('speech_verification_historical', None)
+    historical = None
+    historical_reason = None
     for field,failure,recheck in (('speech_verification',False,False),
             ('speech_verification_failure',True,False),('speech_verification_recheck',False,True)):
-        if field in row:
-            row[field]=get_current_speech_verification_receipt(chunk,book_token,
-                failure=failure,recheck=recheck,resolve_audio=resolve_audio)
+        if field not in row:
+            continue
+        row[field]=get_current_speech_verification_receipt(chunk,book_token,
+            failure=failure,recheck=recheck,resolve_audio=resolve_audio)
+        if field == 'speech_verification' and row[field] is None:
+            state = _get_historical_state(chunk,book_token,resolve_audio,current_checked=True)
+            if state is not None:
+                historical, historical_reason = state
+    if historical is not None:
+        row['speech_verification_historical'] = historical
+        row['speech_verification_historical_reason'] = historical_reason
     return row

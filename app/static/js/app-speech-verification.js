@@ -22,7 +22,9 @@ function isSpeechVerificationTaskActive() {
 
 function getSpeechVerificationTargetIdentity(target) {
     return target && JSON.stringify([chunkSnapshotBookToken,target.chunk.uid,
-        getChunkAudioIdentity(target.chunk),target.chunk.speech_verification?.input_digest,
+        getChunkAudioIdentity(target.chunk),
+        target.chunk.speech_verification?.input_digest
+            || target.chunk.speech_verification_historical?.input_digest,
         target.chunk.text,target.chunk.instruct,target.chunk.speaker,target.chunk.take,
         target.chunk.voice_revision,target.chunk.pronunciation_rules]);
 }
@@ -31,10 +33,14 @@ window.applySpeechVerificationInspector = () => {
     const button=document.getElementById('editor-line-speech-recheck');
     if (!button) { return; }
     const target=getEditorReviewTarget();
-    const receipt=target?.chunk.speech_verification;
+    const receipt=target?.chunk.speech_verification || target?.chunk.speech_verification_historical;
+    const historicalReason=target?.chunk.speech_verification_historical_reason;
+    const historicalUncheckable=target?.chunk.speech_verification_historical
+        && !target?.chunk.speech_verification && !['legacy','changed'].includes(historicalReason);
     button.disabled=isSpeechVerificationTaskActive() || isEditorEditPending() || !target?.chunk.audio_path
-        || !receipt?.expected_text || !receipt.audio?.sha256 || receipt.uid !== target.chunk.uid
-        || receipt.audio_revision !== target.chunk.audio_revision || receipt.book_token !== chunkSnapshotBookToken;
+        || historicalUncheckable || !receipt?.expected_text || !receipt.audio?.sha256
+        || receipt.uid !== target.chunk.uid || receipt.audio_revision !== target.chunk.audio_revision
+        || receipt.book_token !== chunkSnapshotBookToken;
     document.getElementById('editor-line-speech-cancel').disabled=!isSpeechVerificationTaskActive();
 };
 
@@ -54,7 +60,7 @@ async function recheckEditorSpeech() {
     const target=getEditorReviewTarget();
     window.applySpeechVerificationInspector();
     if (!target || document.getElementById('editor-line-speech-recheck').disabled) {
-        showToast('Choose a saved take with recorded synthesis input. Regenerate older takes with speech checks enabled.','warning');return;
+        showToast('Choose a saved take with recorded synthesis input. Takes without recorded input must be regenerated with speech checks enabled.','warning');return;
     }
     const identity=getSpeechVerificationTargetIdentity(target);
     const book=chunkSnapshotBookToken;

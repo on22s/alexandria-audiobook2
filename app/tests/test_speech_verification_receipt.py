@@ -1,6 +1,7 @@
 """Receipts preserve exact input and bounded identities without audio polling."""
 import hashlib
 import copy
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,7 +10,8 @@ from unittest.mock import patch
 from speech_verification_compare import get_speech_comparison
 from speech_verification_receipt import (get_validated_speech_input,get_pronunciation_ambiguity_regions,
     get_speech_verification_receipt,get_current_speech_verification_receipt,
-    get_speech_verification_chunk_digest)
+    get_historical_speech_verification_receipt,get_speech_verification_chunk_view,
+    get_speech_verification_chunk_digest, MAX_RECEIPT_BYTES)
 
 
 def get_identity(role='primary'):
@@ -117,7 +119,7 @@ class SpeechVerificationReceiptTests(unittest.TestCase):
 
     def test_selected_take_quick_stat_invalidates_changed_or_missing_audio_without_hashing(self):
         valid=get_speech_verification_receipt(get_report(self.path,self.text),self.chunk,'f'*64,'take',self.input)
-        info=self.path.stat();valid['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns]
+        info=self.path.stat();valid['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns]
         row={**self.chunk,'audio_path':str(self.path),'speech_verification':valid}
         with patch('speech_verification_receipt.get_verifier_file_identity',side_effect=AssertionError('poll hashed audio')):
             self.assertIsNotNone(get_current_speech_verification_receipt(row,'f'*64,resolve_audio=lambda path:path))
@@ -125,6 +127,83 @@ class SpeechVerificationReceiptTests(unittest.TestCase):
             self.assertIsNone(get_current_speech_verification_receipt(row,'f'*64,resolve_audio=lambda path:path))
             self.path.unlink()
             self.assertIsNone(get_current_speech_verification_receipt(row,'f'*64,resolve_audio=lambda path:path))
+
+    def test_same_inode_size_and_mtime_change_hides_current_evidence_as_historical(self):
+        valid=get_speech_verification_receipt(get_report(self.path,self.text),self.chunk,'f'*64,'take',self.input)
+        info=self.path.stat();valid['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns]
+        row={**self.chunk,'audio_path':str(self.path),'speech_verification':valid}
+        changed=bytearray(self.path.read_bytes());changed[0]^=1
+        self.path.write_bytes(changed)
+        os.utime(self.path,ns=(info.st_atime_ns,info.st_mtime_ns))
+        after=self.path.stat()
+        self.assertEqual((info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns),
+                         (after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns))
+        self.assertNotEqual(info.st_ctime_ns,after.st_ctime_ns)
+        with patch('speech_verification_receipt.get_verifier_file_identity',side_effect=AssertionError('poll hashed audio')):
+            self.assertIsNone(get_current_speech_verification_receipt(row,'f'*64,resolve_audio=lambda path:path))
+            view=get_speech_verification_chunk_view(row,'f'*64,lambda path:path)
+        self.assertIsNone(view['speech_verification'])
+        self.assertEqual(valid,view['speech_verification_historical'])
+        self.assertEqual('changed',view['speech_verification_historical_reason'])
+
+    def test_legacy_version_is_historical_but_still_available_for_recheck(self):
+        valid=get_speech_verification_receipt(get_report(self.path,self.text),self.chunk,'f'*64,'take',self.input)
+        info=self.path.stat();valid['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns]
+        row={**self.chunk,'audio_path':str(self.path),'speech_verification':valid}
+        with patch('speech_verification_receipt.get_verifier_file_identity',side_effect=AssertionError('poll hashed audio')):
+            self.assertIsNone(get_current_speech_verification_receipt(row,'f'*64,resolve_audio=lambda path:path))
+            self.assertEqual(valid,get_historical_speech_verification_receipt(
+                row,'f'*64,resolve_audio=lambda path:path))
+            view=get_speech_verification_chunk_view(row,'f'*64,lambda path:path)
+            self.assertEqual('legacy',view['speech_verification_historical_reason'])
+
+    def test_malformed_audio_file_version_is_not_exposed_as_historical(self):
+        valid=get_speech_verification_receipt(get_report(self.path,self.text),self.chunk,'f'*64,'take',self.input)
+        row={**self.chunk,'audio_path':str(self.path),'speech_verification':valid}
+        for version in (None,'bad',[1,2,3],[-1,2,3,4,5],[True,2,3,4,5]):
+            with self.subTest(version=version):
+                bad={**valid}
+                if version is None: bad.pop('audio_file_version',None)
+                else: bad['audio_file_version']=version
+                self.assertIsNone(get_historical_speech_verification_receipt(
+                    {**row,'speech_verification':bad},'f'*64,resolve_audio=lambda path:path))
+
+    def test_legacy_version_with_changed_four_field_stat_is_classified_changed(self):
+        valid=get_speech_verification_receipt(get_report(self.path,self.text),self.chunk,'f'*64,'take',self.input)
+        info=self.path.stat();valid['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns]
+        row={**self.chunk,'audio_path':str(self.path),'speech_verification':valid}
+        self.path.write_bytes(b'replaced artifact with different size')
+        view=get_speech_verification_chunk_view(row,'f'*64,lambda path:path)
+        self.assertEqual('changed',view['speech_verification_historical_reason'])
+
+    def test_historical_receipt_requires_saved_input_binding_and_size_bound(self):
+        valid=get_speech_verification_receipt(get_report(self.path,self.text),self.chunk,'f'*64,'take',self.input)
+        info=self.path.stat();valid['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns]
+        row={**self.chunk,'audio_path':str(self.path),'speech_verification':valid}
+        for changes in ({'text':'Edited source.'},{'uid':'other'},{'audio_revision':'new'}):
+            with self.subTest(changes=changes):
+                self.assertIsNone(get_historical_speech_verification_receipt(
+                    {**row,**changes},'f'*64,resolve_audio=lambda path:path))
+        for field in ('book_token','input_digest'):
+            with self.subTest(field=field):
+                bad=copy.deepcopy(row);bad['speech_verification'][field]='0'*64
+                self.assertIsNone(get_historical_speech_verification_receipt(
+                    bad,'f'*64,resolve_audio=lambda path:path))
+        oversized={**valid,'notice':'x'*MAX_RECEIPT_BYTES}
+        row={**row,'speech_verification':oversized}
+        self.assertIsNone(get_historical_speech_verification_receipt(
+            row,'f'*64,resolve_audio=lambda path:path))
+
+    def test_windows_creation_time_keeps_new_receipts_historical(self):
+        valid=get_speech_verification_receipt(get_report(self.path,self.text),self.chunk,'f'*64,'take',self.input)
+        info=self.path.stat();valid['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns]
+        row={**self.chunk,'audio_path':str(self.path),'speech_verification':valid}
+        with patch('speech_verification_receipt.sys.platform','win32'):
+            self.assertIsNone(get_current_speech_verification_receipt(row,'f'*64,resolve_audio=lambda path:path))
+            view=get_speech_verification_chunk_view(row,'f'*64,lambda path:path)
+        self.assertIsNone(view['speech_verification'])
+        self.assertEqual(valid,view['speech_verification_historical'])
+        self.assertEqual('platform',view['speech_verification_historical_reason'])
 
     def test_malformed_difference_entries_are_rejected_before_public_projection(self):
         report=get_report(self.path,self.text,'Exact.',status='review')

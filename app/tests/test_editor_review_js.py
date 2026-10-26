@@ -75,6 +75,36 @@ document.getElementById('editor-quality-filter').value='speech_rejected';context
 context.markEditorReviewStale();assert.equal(document.getElementById('editor-line-speech-evidence').textContent,'');assert(document.getElementById('editor-line-speech').textContent.includes('stale'));
 ''')
 
+    def test_historical_receipt_is_labelled_and_never_presented_as_current(self):
+        self.run_js(r'''
+const chunk=context.cachedChunks[1];chunk.audio_revision='selected';
+chunk.speech_verification_historical={book_token:context.chunkSnapshotBookToken,uid:chunk.uid,audio_revision:'selected',status:'no_content_candidate',expected_text:'Historical exact input',audio:{sha256:'e'.repeat(64)}};chunk.speech_verification_historical_reason='legacy';
+context.API.get=async()=>{const data=facts();data.rows[1]={...data.rows[1],speech:'not_checked'};return data;};
+await context.refreshEditorReview();context.selectEditorReviewLineById(1);
+assert(document.getElementById('editor-line-speech').textContent.includes('Historical speech evidence'));
+assert(document.getElementById('editor-line-speech-expected').textContent.includes('Historical exact input'));
+assert(document.getElementById('editor-line-speech-evidence').textContent.includes('Historical saved take (legacy)'));
+assert(!document.getElementById('editor-line-speech-evidence').textContent.includes('Selected take'));
+''')
+
+    def test_historical_reason_copy_and_recheck_availability_are_distinct(self):
+        self.run_js(r'''
+vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-speech-verification.js'),'utf8'),context);
+context.getChunkAudioIdentity=chunk=>chunk.audio_revision;context.isEditorEditPending=()=>false;
+const chunk=context.cachedChunks[1];chunk.audio_revision='selected';chunk.audio_path='one.wav';
+chunk.speech_verification_historical={book_token:context.chunkSnapshotBookToken,uid:chunk.uid,audio_revision:'selected',status:'no_content_candidate',expected_text:'Historical input',audio:{sha256:'e'.repeat(64)}};
+context.API.get=async()=>{const data=facts();data.rows[1].speech='not_checked';return data;};
+await context.refreshEditorReview();context.selectEditorReviewLineById(1);
+for(const [reason,text,disabled] of [['changed','no longer matches its recorded filesystem identity',false],['platform','cannot verify audio byte freshness',true],['unavailable','currently unavailable or unreadable',true],['unknown','freshness could not be classified',true]]){
+ chunk.speech_verification_historical_reason=reason;context.renderEditorLineInspector();
+ assert(document.getElementById('editor-line-speech').textContent.includes(text));
+ context.window.applySpeechVerificationInspector();
+ assert.equal(document.getElementById('editor-line-speech-recheck').disabled,disabled);
+}
+chunk.speech_verification_historical_reason='legacy';context.renderEditorLineInspector();context.window.applySpeechVerificationInspector();
+assert.equal(document.getElementById('editor-line-speech-recheck').disabled,false);
+''')
+
     def test_mismatched_selected_take_receipt_cannot_show_details(self):
         self.run_js(r'''
 const chunk=context.cachedChunks[1];chunk.audio_revision='new';chunk.speech_verification={book_token:context.chunkSnapshotBookToken,uid:chunk.uid,audio_revision:'old',status:'review',expected_text:'Stale API text'};
@@ -92,6 +122,26 @@ let finish,bodySent,calls=0;context.API.post=(url,body)=>{calls++;bodySent=body;
 const pending=context.recheckEditorSpeech();await tick();assert.equal(calls,1);assert.equal(bodySent.expected_uid,'u1');assert.equal(bodySent.expected_audio_revision,'selected');assert.equal(bodySent.expected_book_token,context.chunkSnapshotBookToken);assert.equal(document.getElementById('editor-line-speech-cancel').disabled,false);
 await context.recheckEditorSpeech();assert.equal(calls,1);context.selectEditorReviewLineById(0);finish({book_token:context.chunkSnapshotBookToken,uid:'u1',receipt:{audio_revision:'selected'}});await pending;
 assert.equal(run('speechVerificationBusy'),false);assert.equal(document.getElementById('editor-line-speech-cancel').disabled,true);assert(document.getElementById('editor-line-speech-status').textContent.includes('different selection'));assert(!document.getElementById('editor-line-speech-evidence').textContent.includes('Actual input'));
+''')
+
+    def test_historical_recheck_success_is_not_discarded_as_another_selection(self):
+        self.run_js(r'''
+vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-speech-verification.js'),'utf8'),context);
+context.getChunkAudioIdentity=chunk=>chunk.audio_revision;context.isEditorEditPending=()=>false;
+const chunk=context.cachedChunks[1];chunk.audio_revision='selected';chunk.audio_path='one.wav';
+chunk.speech_verification_historical={book_token:context.chunkSnapshotBookToken,uid:chunk.uid,audio_revision:'selected',status:'no_content_candidate',expected_text:'Historical input',input_digest:'d'.repeat(64),audio:{sha256:'e'.repeat(64)}};
+chunk.speech_verification_historical_reason='legacy';delete chunk.speech_verification;
+let serverRevision=context.chunkSnapshotRevision,refreshes=0;
+context.ensureEditorRenderSnapshot=async()=>[context.cachedChunks[0],context.cachedChunks[1]];
+context.ensureChunkRefresh=async()=>{refreshes++;context.cachedChunks[1]={...chunk,speech_verification:{...chunk.speech_verification_historical,status:'review'}};delete context.cachedChunks[1].speech_verification_historical;serverRevision='c'.repeat(64);context.chunkSnapshotRevision=serverRevision;return context.cachedChunks;};
+context.API.get=async()=>{const data=facts();data.revision=serverRevision;data.rows[1].speech=context.cachedChunks[1].speech_verification?.status||'not_checked';return data;};
+context.API.post=async()=>({book_token:context.chunkSnapshotBookToken,uid:chunk.uid,receipt:{audio_revision:'selected'}});
+await context.refreshEditorReview();context.selectEditorReviewLineById(1);
+assert.equal(document.getElementById('editor-line-speech-recheck').disabled,false);
+await context.recheckEditorSpeech();
+assert.equal(refreshes,1);assert.equal(run('editorReviewFresh'),true);
+assert(document.getElementById('editor-line-speech-status').textContent.includes('recorded'));
+assert(!document.getElementById('editor-line-speech-status').textContent.includes('different selection'));
 ''')
 
     def test_speech_recheck_requires_proven_input_and_cancel_uses_owned_endpoint(self):

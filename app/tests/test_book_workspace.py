@@ -83,7 +83,7 @@ class BookWorkspaceTests(unittest.TestCase):
         token = get_book_operation_token(str(self.root))
         receipt = get_speech_verification_receipt(report, row, token, 'take', speech_input)
         info = audio.stat()
-        receipt['audio_file_version'] = [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns]
+        receipt['audio_file_version'] = [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns]
         row['speech_verification'] = receipt
         self.write('chunks.json', [row])
         original_open = Path.open
@@ -112,6 +112,57 @@ class BookWorkspaceTests(unittest.TestCase):
                 self.assertEqual(0, facts['speech_current_metadata'])
                 self.assertEqual(1, facts['speech_not_current'])
                 self.assertEqual(before, self.files())
+
+    def test_legacy_saved_speech_evidence_is_historical_and_still_needs_attention(self):
+        from book_state_transaction import get_book_operation_token
+        from editor_review_facts import get_editor_review_facts
+        from speech_verification_receipt import get_speech_verification_receipt
+        from tests.test_speech_verification_receipt import get_report
+
+        self.prepare()
+        audio=self.root/'one.wav';audio.write_bytes(b'synthetic artifact presence')
+        row=dict(id=0,uid='one',status='done',text='Synthetic line.',speaker='ALICE',
+                 instruct='',audio_revision='take',audio_path='one.wav')
+        report=get_report(audio,row['text'],'Different but synthetic words.',status='review')
+        speech_input=dict(version=1,text=row['text'],language='English',provenance='known_leaf',
+                          audio=report['audio'])
+        token=get_book_operation_token(str(self.root))
+        receipt=get_speech_verification_receipt(report,row,token,'take',speech_input)
+        info=audio.stat();receipt['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns]
+        row['speech_verification']=receipt;self.write('chunks.json',[row])
+        with patch('speech_verification_receipt.get_verifier_file_identity',
+                side_effect=AssertionError('Workspace must not hash audio')):
+            facts=get_editor_review_facts([row],self.manager.get_chunk_audio_path,token)[0]
+            review=self.read()['audio']['review']
+        self.assertEqual('not_checked',facts['speech'])
+        self.assertIn('speech_historical',facts['issues'])
+        self.assertIn('speech_review',facts['issues'])
+        self.assertEqual(1,review['speech_not_current'])
+        self.assertEqual(1,review['speech_attention'])
+
+    def test_historical_quality_keeps_status_specific_speech_findings(self):
+        from book_state_transaction import get_book_operation_token
+        from editor_review_facts import get_editor_review_facts
+        from speech_verification_receipt import get_speech_verification_receipt
+        from tests.test_speech_verification_receipt import get_report
+
+        self.prepare();audio=self.root/'one.wav';audio.write_bytes(b'synthetic artifact presence')
+        row=dict(id=0,uid='one',status='done',text='Synthetic line.',speaker='ALICE',instruct='',
+                 audio_revision='take',audio_path='one.wav')
+        token=get_book_operation_token(str(self.root));info=audio.stat()
+        for status,transcript,issue in (
+                ('review','Different synthetic words.','speech_review'),
+                ('unavailable',None,'speech_unavailable'),
+                ('corroborated_content_difference','Different synthetic words.','speech_difference')):
+            with self.subTest(status=status):
+                report=get_report(audio,row['text'],transcript,status=status)
+                receipt=get_speech_verification_receipt(report,row,token,'take',dict(
+                    version=1,text=row['text'],language='English',provenance='known_leaf',audio=report['audio']))
+                receipt['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns]
+                stored={**row,'speech_verification':receipt};self.write('chunks.json',[stored])
+                facts=get_editor_review_facts([stored],self.manager.get_chunk_audio_path,token)[0]
+                self.assertIn('speech_historical',facts['issues'])
+                self.assertIn(issue,facts['issues'])
 
     def test_saved_script_recovery_uses_shared_candidate_policy_without_resuming_or_proving_source(self):
         from script_recovery_facts import three_pass_manifest_path

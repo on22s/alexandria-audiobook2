@@ -1,5 +1,5 @@
 // Review saved facts; reuse the Editor's original controls, drafts and audio.
-const EDITOR_ISSUE_LABELS = {unknown: 'Unknown speaker', failed: 'Failed render', missing: 'Missing audio file', drift: 'Voice drift', speech_rejected: 'Rejected speech attempt', speech_review: 'Speech review needed', speech_unavailable: 'Speech check unavailable', speech_difference: 'Speech content difference'};
+const EDITOR_ISSUE_LABELS = {unknown: 'Unknown speaker', failed: 'Failed render', missing: 'Missing audio file', drift: 'Voice drift', speech_rejected: 'Rejected speech attempt', speech_review: 'Speech review needed', speech_unavailable: 'Speech check unavailable', speech_difference: 'Speech content difference', speech_historical: 'Historical speech evidence needs recheck'};
 const EDITOR_DRIFT_LABELS = {not_rendered: 'Voice check not applicable before rendering', unmeasured: 'Voice check not measured', unavailable: 'Voice check unavailable or failed', flagged: 'Voice drift flagged', measured: 'Voice check measured; no drift flag'};
 const EDITOR_SPEECH_LABELS = {not_checked: 'No current speech check', unavailable: 'Speech check unavailable', review: 'Transcript or acoustic differences need listening review', no_content_candidate: 'No material content candidate found; listening review still needed', corroborated_content_difference: 'Two ASR passes confirmed material missing or extra speech', review_confirmation_unavailable: 'Suspicious speech; stronger confirmation unavailable', review_short_acoustic_unavailable: 'Short-utterance acoustic check incomplete'};
 let editorReviewData = null;
@@ -87,8 +87,21 @@ function renderEditorSpeechEvidence(chunk, fact) {
     }
     summary.textContent=EDITOR_SPEECH_LABELS[fact.speech] || EDITOR_SPEECH_LABELS.not_checked;
     const receipt=chunk.speech_verification;
+    const historical=chunk.speech_verification_historical;
+    const historicalReason=chunk.speech_verification_historical_reason;
     const current=receipt && receipt.book_token === chunkSnapshotBookToken && receipt.uid === chunk.uid
         && receipt.audio_revision === chunk.audio_revision && receipt.status === fact.speech;
+    if (!current && historical) {
+        summary.textContent = historicalReason === 'legacy'
+            ? 'Historical speech evidence saved before audio ctime was recorded. Recheck to renew it; no byte change has been detected.'
+            : historicalReason === 'platform'
+                ? 'Historical speech evidence; this host cannot verify audio byte freshness, so recheck is unavailable here.'
+                : historicalReason === 'unavailable'
+                    ? 'Historical speech evidence; the audio file is currently unavailable or unreadable.'
+                    : historicalReason === 'changed'
+                        ? 'Historical speech evidence; the current audio file no longer matches its recorded filesystem identity. Recheck verifies the bytes, or regenerate before relying on this result.'
+                        : 'Historical speech evidence; its freshness could not be classified. Recheck is unavailable until the reason is known.';
+    }
     const rejected=chunk.speech_verification_failure;
     const recheck=chunk.speech_verification_recheck;
     const incomplete=recheck && fact.speech_recheck === recheck.status && recheck.book_token === chunkSnapshotBookToken
@@ -97,7 +110,9 @@ function renderEditorSpeechEvidence(chunk, fact) {
         && rejected.uid === chunk.uid && rejected.status === 'corroborated_content_difference';
     attempt.textContent=failure ? 'A later attempt was rejected for confirmed missing or extra speech. The prior take was kept. Listen, review the line, and generate it again.' : '';
     if (incomplete) { attempt.textContent+=' Latest recheck incomplete or unavailable; the existing selected-take evidence is retained.'; }
-    expected.textContent=current && receipt.expected_text ? `Exact input sent for this take: ${receipt.expected_text}` : 'Exact synthesis input is not available for a current selected-take check.';
+    expected.textContent=current && receipt.expected_text ? `Exact input sent for this take: ${receipt.expected_text}`
+        : historical?.expected_text ? `Historical exact input sent for this take: ${historical.expected_text}`
+        : 'Exact synthesis input is not available for a current selected-take check.';
     const format=(value,label)=>{
         const notes=[label,EDITOR_SPEECH_LABELS[value.status],value.reason || '',
             Number.isFinite(value.seconds) ? `Added check time: ${value.seconds.toFixed(2)} seconds` : ''];
@@ -113,6 +128,7 @@ function renderEditorSpeechEvidence(chunk, fact) {
         return notes.filter(Boolean).join('\n');
     };
     details.textContent=[current ? format(receipt,'Selected take') : '',
+        !current && historical ? format(historical,`Historical saved take (${historicalReason || 'unverified'})`) : '',
         failure ? format(rejected,'Rejected attempt; this is not the selected take') : '',
         incomplete ? format(recheck,'Latest incomplete recheck; earlier selected-take evidence retained') : ''].filter(Boolean).join('\n\n');
 }

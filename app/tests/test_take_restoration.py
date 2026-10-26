@@ -297,7 +297,7 @@ class TakeRestorationTests(unittest.TestCase):
                         row=restore_editor_take(manager,0,request,current)
                         restored=row['speech_verification'];info=(root/row['audio_path']).stat()
                         self.assertEqual(restored['audio_file_version'],
-                            [info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns])
+                            [info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns])
                         self.assertEqual({**restored,'audio_file_version':[1,2,3,4]},receipt)
                         self.assertIsNotNone(get_current_speech_verification_receipt(row,request.expected_book_token,
                             resolve_audio=lambda path:root/path))

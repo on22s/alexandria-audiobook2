@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 import copy
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -30,6 +31,50 @@ class EditorSpeechVerificationTests(unittest.TestCase):
                     raise ValueError('Book or line changed')
             def run():return recheck_editor_speech(manager,0,request,{}, {},check)
             yield root,manager,row,path.read_bytes(),flags,run
+
+    def test_same_stat_byte_change_refuses_before_asr_and_retains_prior_audio(self):
+        with self.fixture() as (root,manager,before,prior,flags,run):
+            path=root/before['audio_path'];info=path.stat()
+            changed=bytearray(path.read_bytes());changed[0]^=1;path.write_bytes(changed)
+            os.utime(path,ns=(info.st_atime_ns,info.st_mtime_ns))
+            with patch('editor_speech_verification.verify_finished_speech',
+                    side_effect=AssertionError('ASR ran')), \
+                    self.assertRaisesRegex(ValueError,'bytes changed'):
+                run()
+            self.assertEqual(bytes(changed),(root/before['audio_path']).read_bytes())
+            self.assertEqual(before,manager.load_chunks()[0])
+
+    def test_changed_ctime_metadata_recheck_verifies_unchanged_bytes_and_upgrades(self):
+        with self.fixture() as (root,manager,before,prior,flags,run):
+            row=manager.load_chunks()[0];old=copy.deepcopy(row['speech_verification'])
+            old['audio_file_version'][4]+=1
+            manager._update_chunk_fields_by_uid(row['uid'],speech_verification=old)
+            self.assertIsNone(get_current_speech_verification_receipt(manager.load_chunks()[0],
+                get_book_operation_token(root),resolve_audio=manager.get_chunk_audio_path))
+            with patch('editor_speech_verification.verify_finished_speech',
+                    side_effect=lambda path,text,*a,**kw:get_report(path,text)) as verifier:
+                run()
+            verifier.assert_called_once()
+            self.assertEqual(prior,(root/before['audio_path']).read_bytes())
+            self.assertIsNotNone(get_current_speech_verification_receipt(
+                manager.load_chunks()[0],get_book_operation_token(root),
+                resolve_audio=manager.get_chunk_audio_path))
+
+    def test_legacy_saved_evidence_can_be_rechecked_and_is_upgraded(self):
+        with self.fixture() as (root,manager,before,prior,flags,run):
+            row=manager.load_chunks()[0];old=copy.deepcopy(row['speech_verification'])
+            old['audio_file_version']=old['audio_file_version'][:4]
+            manager._update_chunk_fields_by_uid(row['uid'],speech_verification=old)
+            with patch('editor_speech_verification.verify_finished_speech',
+                    side_effect=lambda path,text,*a,**kw:get_report(path,text)) as verifier:
+                run()
+            verifier.assert_called_once()
+            updated=manager.load_chunks()[0]['speech_verification']
+            self.assertEqual(5,len(updated['audio_file_version']))
+            self.assertEqual(prior,(root/before['audio_path']).read_bytes())
+            self.assertIsNotNone(get_current_speech_verification_receipt(
+                manager.load_chunks()[0],get_book_operation_token(root),
+                resolve_audio=manager.get_chunk_audio_path))
 
     def test_recheck_binds_exact_original_input_and_retains_audio_even_when_content_difference_found(self):
         with self.fixture() as (root,manager,before,prior,flags,run):

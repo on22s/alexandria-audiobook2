@@ -39,7 +39,7 @@ class SpeechVerificationPublicationTests(unittest.TestCase):
             old=get_speech_verification_receipt(get_report(root/row['audio_path'],TEXT),row,
                 get_book_operation_token(root),row['audio_revision'],
                 dict(text=TEXT,language='English',provenance='previous_fixture'))
-            old['audio_file_version']=list(manager._get_speech_staged_version(root/row['audio_path'])[:4])
+            old['audio_file_version']=list(manager._get_speech_staged_version(root/row['audio_path'])[:5])
             manager._update_chunk_fields_by_uid('line-0',speech_verification=old)
             before=copy.deepcopy(manager.load_chunks()[0]);prior=(root/before['audio_path']).read_bytes()
             flags={'cancelled':False,'released':False}
@@ -184,7 +184,30 @@ class SpeechVerificationPublicationTests(unittest.TestCase):
             self.assertEqual('unavailable',receipt['status']);self.assertIn('64 MiB',receipt['reason'])
             self.assertEqual({'sha256':None,'size':path.stat().st_size},receipt['audio'])
             self.assertEqual(manager._get_speech_staged_version(path),version)
-            self.assert_prior(root,manager,before,prior)
+            with patch('speech_verification_runtime.get_verifier_file_identity',
+                    side_effect=AssertionError('oversized publication hashed')):
+                updated=manager._update_chunk_fields_by_uid(before['uid'],
+                    audio_source=str(path),status='done',audio_revision=receipt['audio_revision'],
+                    speech_verification=receipt)
+            self.assertIsNotNone(updated)
+            self.assertEqual(5,len(updated['speech_verification']['audio_file_version']))
+            self.assertIsNotNone(get_current_speech_verification_receipt(updated,
+                get_book_operation_token(root),resolve_audio=manager.get_chunk_audio_path))
+
+    def test_publication_without_take_receipt_hashes_and_rejects_wrong_speech_evidence(self):
+        with self.fixture() as (root,manager,before,prior,flags):
+            source=root/'source.wav';source.write_bytes((root/before['audio_path']).read_bytes())
+            receipt=copy.deepcopy(before['speech_verification'])
+            updated=manager._update_chunk_fields_by_uid(before['uid'],audio_source=str(source),
+                status='done',audio_revision=receipt['audio_revision'],speech_verification=receipt)
+            self.assertIsNotNone(updated)
+            self.assertIsNotNone(get_current_speech_verification_receipt(updated,
+                get_book_operation_token(root),resolve_audio=manager.get_chunk_audio_path))
+            bad_source=root/'bad.wav';bad_source.write_bytes((root/updated['audio_path']).read_bytes())
+            bad=copy.deepcopy(receipt);bad['audio']={'sha256':'f'*64,'size':receipt['audio']['size']}
+            with self.assertRaisesRegex(ValueError,'differs from the published audio'):
+                manager._update_chunk_fields_by_uid(updated['uid'],audio_source=str(bad_source),
+                    status='done',audio_revision=bad['audio_revision'],speech_verification=bad)
 
     def test_unrepresentable_comparison_records_unavailable_and_can_publish_audio(self):
         for text in ('word '*2049,'The name q\u0323 was spoken clearly.'):

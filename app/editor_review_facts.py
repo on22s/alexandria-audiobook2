@@ -3,7 +3,8 @@ import math
 
 from audio_validation import is_audio_file_present
 from speaker_traits import get_entry_speaker
-from speech_verification_receipt import get_current_speech_verification_receipt
+from speech_verification_receipt import (get_current_speech_verification_receipt,
+    get_historical_speech_verification_receipt)
 
 
 def get_editor_review_facts(chunks, resolve_audio_path, book_token=None, *, include_readiness=False):
@@ -34,9 +35,21 @@ def get_editor_review_facts(chunks, resolve_audio_path, book_token=None, *, incl
             if drift_status == 'flagged':
                 issues.append('drift')
         speech=get_current_speech_verification_receipt(chunk,book_token,resolve_audio=resolve_audio_path)
+        historical=(chunk.get('speech_verification_historical')
+            or get_historical_speech_verification_receipt(
+                chunk,book_token,resolve_audio=resolve_audio_path))
         rejected=get_current_speech_verification_receipt(chunk,book_token,failure=True)
         recheck=get_current_speech_verification_receipt(chunk,book_token,recheck=True,resolve_audio=resolve_audio_path)
         speech_status=speech['status'] if speech else 'not_checked'
+        if historical:
+            issues.append('speech_historical')
+            historical_status=historical.get('status')
+            if historical_status in ('review','review_confirmation_unavailable','review_short_acoustic_unavailable'):
+                issues.append('speech_review')
+            elif historical_status == 'unavailable':
+                issues.append('speech_unavailable')
+            elif historical_status == 'corroborated_content_difference':
+                issues.append('speech_difference')
         if rejected:
             issues.append('speech_rejected')
         if speech_status in ('review','review_confirmation_unavailable','review_short_acoustic_unavailable'):

@@ -24,15 +24,22 @@ def recheck_editor_speech(manager,index,request,primary_runtime,confirmation_run
         chunk=copy.deepcopy(rows[index])
         if chunk.get('audio_revision') != request.expected_audio_revision:
             raise ValueError('The selected audio take changed. Refresh Editor.')
-        previous=get_current_speech_verification_receipt(chunk,request.expected_book_token,
-            resolve_audio=manager.get_chunk_audio_path)
-        if previous is None or not previous['expected_text'] or not previous['audio']['sha256']:
-            raise ValueError('This take has no current, proven synthesis input. Regenerate it with speech checks enabled.')
+        previous=get_current_speech_verification_receipt(chunk,request.expected_book_token)
+        version=previous.get('audio_file_version') if previous is not None else None
+        if (previous is None or not previous['expected_text'] or not previous['audio']['sha256']
+                or not isinstance(version,list) or len(version) not in (4,5)
+                or any(type(value) is not int or value < 0 for value in version)):
+            raise ValueError('This take has no saved, proven synthesis input. Regenerate it with speech checks enabled.')
         path=manager.get_chunk_audio_path(chunk.get('audio_path'))
     ensure_audio_generation_active()
-    before=get_verifier_file_identity(path,MAX_AUDIO_BYTES,is_audio_generation_cancelled)
+    try:
+        before=get_verifier_file_identity(path,MAX_AUDIO_BYTES,is_audio_generation_cancelled)
+    except OSError as error:
+        if is_audio_generation_cancelled():
+            raise
+        raise ValueError('The selected audio file changed or is unavailable. Regenerate the line before checking it.') from error
     binding={key:before[key] for key in ('sha256','size')}
-    if (binding != previous['audio'] or list(before['file_version'][:4]) != previous['audio_file_version']):
+    if binding != previous['audio']:
         raise ValueError('The selected audio bytes changed. Regenerate the line before checking it.')
     report=verify_finished_speech(path,previous['expected_text'],previous['language'],
         primary_runtime,confirmation_runtime,is_audio_generation_cancelled,
@@ -46,7 +53,7 @@ def recheck_editor_speech(manager,index,request,primary_runtime,confirmation_run
                   'provenance':previous['input_provenance']}
     receipt=get_speech_verification_receipt(report,chunk,request.expected_book_token,
         request.expected_audio_revision,speech_input)
-    receipt['audio_file_version']=list(current['file_version'][:4])
+    receipt['audio_file_version']=list(current['file_version'][:5])
     complete=report.get('stage') == 'complete' and report['status'] in (
         'no_content_candidate','review','corroborated_content_difference')
     # No new complete assessment means no contrary content evidence. Keep the
