@@ -12928,6 +12928,10 @@
     "tests.test_whisper_download_stream.WhisperDownloadStreamTests.test_streamed_weights_unchanged_local_processor_and_cache_retained",
     "tests.test_whisper_download_stream.WhisperDownloadStreamTests.test_success_does_not_claim_model_parameter_measurement"
   ],
+  "test_windows_export_qualification": [
+    "tests.test_windows_export_qualification.WindowsQualificationVerdictTests.test_junction_refusal_cannot_be_inferred_from_unrelated_failure",
+    "tests.test_windows_export_qualification.WindowsQualificationVerdictTests.test_rename_denial_requires_a_sharing_violation_and_releases_child"
+  ],
   "test_windows_import_boundary": [
     "tests.test_windows_import_boundary.WindowsImportBoundaryTests.test_application_and_preparer_import_with_fcntl_unavailable"
   ],
