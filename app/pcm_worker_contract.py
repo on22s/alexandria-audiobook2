@@ -37,10 +37,26 @@ class PCMInputShape(BaseModel):
         return self
 
 
+def get_duration_encode_timeout(duration_seconds):
+    """Finite per-encode allowance shared by native and legacy media paths."""
+    if isinstance(duration_seconds, bool):
+        raise ValueError('Encode duration must be a finite non-negative number')
+    try:
+        duration = float(duration_seconds)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError('Encode duration must be a finite non-negative number') from error
+    if not math.isfinite(duration) or duration < 0:
+        raise ValueError('Encode duration must be a finite non-negative number')
+    timeout = max(600.0, duration * 2 + 30)
+    if not math.isfinite(timeout):
+        raise ValueError('Encode duration produces a non-finite timeout')
+    return timeout
+
+
 def get_pcm_encode_timeout(shape):
     """Finite per-encode allowance, not an entire multi-pass route deadline."""
     shape = PCMInputShape.model_validate(shape)
-    return max(600, 2*shape.frames/shape.frame_rate + 30)
+    return get_duration_encode_timeout(shape.frames / shape.frame_rate)
 
 
 def get_pcm_output_shape(format_name, shape, output_limit):

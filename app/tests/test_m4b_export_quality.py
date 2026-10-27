@@ -70,6 +70,39 @@ class M4BExportQualityTests(unittest.TestCase):
                     self.assertEqual(before, {row['audio_path']: (Path(tmp) / row['audio_path']).read_bytes() for row in rows})
                     self.assert_clean(tmp)
 
+    def test_merge_forwards_scaled_timeout_to_encoder_and_mastering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self.fixture(tmp)
+            seen = []
+            durations = []
+            real_encode = m4b_encode.encode_m4b
+            def capture_encode(command, *args, **kwargs):
+                seen.append(('encode', kwargs.get('timeout'), args[0]))
+                return real_encode(command, *args, **kwargs)
+            before = {'input_i': -24, 'input_tp': -10, 'input_lra': 0,
+                      'input_thresh': -34, 'target_offset': 0}
+            def measure(*args, **kwargs):
+                seen.append(('measure', kwargs.get('timeout')))
+                return before
+            def report(*args, **kwargs):
+                seen.append(('report', kwargs.get('timeout')))
+                return {}
+            def scaled_timeout(duration):
+                durations.append(duration)
+                return 1234
+            with patch.object(m4b_encode, 'get_m4b_encode_timeout', side_effect=scaled_timeout), \
+                    patch.object(m4b_encode, 'encode_m4b', side_effect=capture_encode), \
+                    patch('audio_mastering.get_loudness_measurements', side_effect=measure), \
+                    patch('audio_mastering.get_mastering_report', side_effect=report):
+                success, message = manager.merge_m4b(mastering={})
+            self.assertTrue(success, message)
+            self.assertEqual(1, len(durations))
+            self.assertGreater(durations[0], 3.0)
+            self.assertIn(('measure', 1234), seen)
+            encode_call = [row for row in seen if row[0] == 'encode'][0]
+            self.assertEqual((1234, durations[0]), encode_call[1:])
+            self.assertIn(('report', 1234), seen)
+
     def test_successful_encoder_with_short_audio_missing_moved_or_renamed_chapter_and_wrong_tags_is_refused(self):
         for fault in ('short', 'missing', 'time', 'title', 'book-tag', 'corrupt', 'empty'):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:

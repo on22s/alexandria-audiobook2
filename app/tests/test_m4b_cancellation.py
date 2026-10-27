@@ -76,7 +76,7 @@ class M4bCancellationTests(unittest.TestCase):
                 root = Path(tmp); pm, chunks = _project(tmp); pm.save_chunks(chunks)
                 output = root / 'audiobook.m4b'; output.write_bytes(b'previous complete')
                 cancelled = False; messages = []
-                def encode(command, *args):
+                def encode(command, *args, **kwargs):
                     nonlocal cancelled
                     Path(command[-1]).write_bytes(b'new unpublished encode')
                     cancelled = not failure
@@ -160,6 +160,45 @@ sys.exit(7)
             self.assertTrue(errors.endswith('native encode failure'))
             self.assertLessEqual(len(errors), 4096)
             self.assertFalse(list(root.glob('.m4b*')))
+
+    def test_default_deadline_scales_with_audio_duration(self):
+        import m4b_encode
+        from types import SimpleNamespace
+        class FakeProcess:
+            def __init__(self, exited):
+                self.exited = exited
+            def wait(self, timeout=None):
+                return 0
+            def poll(self):
+                return 0 if self.exited else None
+        self.assertEqual(600.0, m4b_encode.get_m4b_encode_timeout(0))
+        self.assertEqual(600.0, m4b_encode.get_m4b_encode_timeout(2))
+        self.assertEqual(72030.0, m4b_encode.get_m4b_encode_timeout(10 * 3600))
+        for invalid in (-1, float('nan'), float('inf'), None, True, 10 ** 400, 1e308):
+            with self.subTest(duration=invalid), self.assertRaises(ValueError):
+                m4b_encode.get_m4b_encode_timeout(invalid)
+        for duration, elapsed, exited, should_timeout in (
+                (2, 601, False, True),
+                (10 * 3600, 601, False, False),
+                (10 * 3600, 72030, True, False),
+                (10 * 3600, 72030, False, True)):
+            with self.subTest(duration=duration), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                clock = iter((0, elapsed))
+                with patch.object(m4b_encode, 'start_owned_subprocess',
+                                  return_value=FakeProcess(exited)), \
+                        patch.object(m4b_encode, 'time', SimpleNamespace(
+                            monotonic=lambda: next(clock))), \
+                        patch('core.ensure_failed_subprocess_stopped'):
+                    if should_timeout:
+                        with self.assertRaises(subprocess.TimeoutExpired):
+                            m4b_encode.encode_m4b(['ffmpeg', str(root / 'pending.m4b')],
+                                                  duration)
+                    else:
+                        result, errors = m4b_encode.encode_m4b(
+                            ['ffmpeg', str(root / 'pending.m4b')], duration)
+                        self.assertEqual((0, ''), (result, errors))
+                self.assertFalse(list(root.glob('.m4b*')))
 
     def test_timeout_and_progress_callback_failure_reap_real_encoder(self):
         import m4b_encode

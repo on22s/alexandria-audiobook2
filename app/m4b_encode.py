@@ -1,4 +1,5 @@
 """Owned, cancellable FFmpeg M4B encoding with progress from the encoder."""
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -8,9 +9,40 @@ import time
 from subprocess_ownership import start_owned_subprocess
 from tts import ensure_audio_export_active
 from export_staging import create_export_staging
+from pcm_worker_contract import get_duration_encode_timeout
 
 
-def encode_m4b(command, duration_seconds, cancel_check=None, progress_callback=None, timeout=600):
+def get_m4b_duration(duration_seconds):
+    """Coerce one M4B duration to a finite non-negative float."""
+    if isinstance(duration_seconds, bool):
+        raise ValueError('M4B duration must be a finite non-negative number')
+    try:
+        duration = float(duration_seconds)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError('M4B duration must be a finite non-negative number') from error
+    if not math.isfinite(duration) or duration < 0:
+        raise ValueError('M4B duration must be a finite non-negative number')
+    return duration
+
+
+def get_m4b_encode_timeout(duration_seconds):
+    """Return the shared finite wall-clock safety bound for one M4B encode."""
+    return get_duration_encode_timeout(duration_seconds)
+
+
+def encode_m4b(command, duration_seconds, cancel_check=None, progress_callback=None, timeout=None):
+    duration_seconds = get_m4b_duration(duration_seconds)
+    if timeout is None:
+        timeout = get_m4b_encode_timeout(duration_seconds)
+    else:
+        if isinstance(timeout, bool):
+            raise ValueError('M4B encoder timeout must be finite and positive')
+        try:
+            timeout = float(timeout)
+        except (TypeError, ValueError, OverflowError) as error:
+            raise ValueError('M4B encoder timeout must be finite and positive') from error
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError('M4B encoder timeout must be finite and positive')
     from core import ensure_failed_subprocess_stopped
     ensure_audio_export_active(cancel_check)
     process = None
@@ -29,7 +61,10 @@ def encode_m4b(command, duration_seconds, cancel_check=None, progress_callback=N
                     ensure_audio_export_active(cancel_check)
                     elapsed = time.monotonic() - started
                     if elapsed >= timeout:
-                        raise subprocess.TimeoutExpired(command, timeout)
+                        result = process.poll()
+                        if result is None:
+                            raise subprocess.TimeoutExpired(command, timeout)
+                        break
                     while True:
                         offset = progress.tell()
                         line = progress.readline()

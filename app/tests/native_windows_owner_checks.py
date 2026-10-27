@@ -12,7 +12,7 @@ from unittest.mock import patch
 import windows_subprocess_owner as owner
 
 from windows_subprocess_owner import start_windows_owned_subprocess
-from export_staging import create_export_staging, reclaim_export_staging
+from export_staging import MARKER, create_export_staging, reclaim_export_staging
 from windows_export_staging_retirement import DIRECTORY, reclaim_windows_retired_slots
 
 
@@ -163,12 +163,15 @@ class NativeWindowsRetirementTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / 'book'
             root.mkdir()
+            (root / MARKER).write_bytes(b'user project marker collision')
             stage = create_export_staging(root, 'mp3')
             path = stage.path
+            self.assertEqual(root / DIRECTORY, path.parent.parent)
             (path / 'payload.bin').write_bytes(b'native payload')
             stage.finish(remove=True)
             self.assertFalse(path.exists())
             self.assertFalse((root / DIRECTORY / stage._registry_slot).exists())
+            self.assertEqual(b'user project marker collision', (root / MARKER).read_bytes())
 
     def test_hard_exit_recovery_removes_private_slot(self):
         script = r"""

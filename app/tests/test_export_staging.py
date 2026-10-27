@@ -18,6 +18,10 @@ from export_staging import (ExportStaging, create_export_staging, reclaim_export
 
 
 APP = Path(__file__).resolve().parent.parent
+HAS_POSIX_FD_SCAN = (os.name != 'nt' and os.scandir in os.supports_fd
+                     and os.stat in os.supports_dir_fd
+                     and os.stat in os.supports_follow_symlinks
+                     and hasattr(os, 'O_DIRECTORY') and hasattr(os, 'O_NOFOLLOW'))
 CHILD = r'''
 import os, sys, time
 sys.path.insert(0, sys.argv[1])
@@ -37,6 +41,153 @@ else:
 
 
 class ExportStagingTests(unittest.TestCase):
+    @unittest.skipUnless(HAS_POSIX_FD_SCAN, 'POSIX descriptor-based legacy discovery')
+    def test_saved_legacy_scan_identity_must_match_pinned_parent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            target, saved = root / 'target', root / 'saved'
+            target.mkdir()
+            (target / 'old-only').write_bytes(b'old')
+            old_identity = export_staging.identity(os.stat(target))
+            old_entries = os.scandir(target)
+            target.rename(saved)
+            target.mkdir()
+            (target / 'new-only').write_bytes(b'new')
+            new_identity = export_staging.identity(os.stat(target))
+            descriptor = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            real_stat = os.stat
+            observed = []
+
+            def old_parent_during_maintenance(path, *args, **kwargs):
+                if os.fspath(path) == str(target) and not observed:
+                    observed.append(True)
+                    return real_stat(saved, *args, **kwargs)
+                return real_stat(path, *args, **kwargs)
+
+            proxy = type('SwappingOs', (), {
+                '__getattr__': lambda _self, name: getattr(os, name),
+                'stat': staticmethod(old_parent_during_maintenance)})()
+            export_staging._close_scan_iterators()
+            with export_staging._scan_lock:
+                export_staging._scan_iterators[target] = (old_identity, old_entries)
+            try:
+                with patch.object(export_staging, 'os', proxy):
+                    with export_staging._scan_entries(
+                            target, 10, expected_parent_identity=new_identity,
+                            pinned_parent_fd=descriptor) as window:
+                        names = list(window)
+                self.assertEqual([True], observed)
+                self.assertEqual(['new-only'], names)
+            finally:
+                export_staging._close_scan_iterators()
+                old_entries.close()
+                os.close(descriptor)
+
+    @unittest.skipUnless(HAS_POSIX_FD_SCAN, 'POSIX descriptor-based legacy discovery')
+    def test_legacy_scan_missing_fd_capability_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary).resolve()
+            stage = self._abandoned_public_stage(target)
+            payload = stage.path / 'payload.bin'
+            for capability in ('_SCANDIR_SUPPORTS_FD', '_STAT_SUPPORTS_DIR_FD',
+                               '_STAT_SUPPORTS_NOFOLLOW'):
+                with self.subTest(capability=capability):
+                    export_staging._close_scan_iterators()
+                    with patch.object(export_staging, capability, False):
+                        result = reclaim_export_staging([str(target)], max_remove=1, max_scan=10)
+                    self.assertEqual([], result['removed'])
+                    self.assertTrue(payload.exists())
+                    self.assertTrue(any('Safe export directory scanning is unavailable' in error
+                                        for error in result['errors']))
+                    self.assertNotIn(target, export_staging._scan_iterators)
+
+    @unittest.skipUnless(HAS_POSIX_FD_SCAN, 'POSIX descriptor-based legacy discovery')
+    def test_legacy_scan_parent_swap_during_open_recovers_original(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            target, foreign, saved = (root / name for name in ('target', 'foreign', 'saved'))
+            target.mkdir()
+            foreign.mkdir()
+            sentinel = foreign / 'foreign-payload'
+            sentinel.write_bytes(b'foreign')
+            stage = self._abandoned_public_stage(target)
+            payload = stage.path / 'payload.bin'
+            opened = []
+            real_scandir = os.scandir
+
+            def swap_only_during_open(path):
+                if not opened and (isinstance(path, int) or os.fspath(path) == str(target)):
+                    target.rename(saved)
+                    foreign.rename(target)
+                    try:
+                        entries = real_scandir(path)
+                    finally:
+                        target.rename(foreign)
+                        saved.rename(target)
+                    opened.append(True)
+                    return entries
+                return real_scandir(path)
+
+            proxy = type('SwappingOs', (), {
+                '__getattr__': lambda _self, name: getattr(os, name),
+                'scandir': staticmethod(swap_only_during_open)})()
+            export_staging._close_scan_iterators()
+            try:
+                with patch.object(export_staging, 'os', proxy):
+                    result = reclaim_export_staging([str(target)], max_remove=1, max_scan=10)
+                self.assertEqual([True], opened)
+                self.assertEqual([str(stage.path)], result['removed'])
+                self.assertFalse(payload.exists())
+                self.assertEqual(b'foreign', sentinel.read_bytes())
+            finally:
+                export_staging._close_scan_iterators()
+
+    @unittest.skipUnless(HAS_POSIX_FD_SCAN, 'POSIX descriptor-based legacy discovery')
+    def test_legacy_child_stat_parent_swap_recovers_original(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            target, foreign, saved = (root / name for name in ('target', 'foreign', 'saved'))
+            target.mkdir()
+            foreign_stage = self._abandoned_public_stage(target, b'foreign')
+            name = foreign_stage.path.name
+            target.rename(foreign)
+            target.mkdir()
+            original_stage = self._abandoned_public_stage(target, b'original')
+            original_stage.path.rename(target / name)
+            original_payload = target / name / 'payload.bin'
+            foreign_payload = foreign / name / 'payload.bin'
+            real_stat = os.stat
+            swapped = []
+
+            def swap_only_during_child_stat(path, *args, **kwargs):
+                if (not swapped and kwargs.get('follow_symlinks') is False
+                        and (os.fspath(path) == str(target / name)
+                             or (kwargs.get('dir_fd') is not None and os.fspath(path) == name))):
+                    target.rename(saved)
+                    foreign.rename(target)
+                    try:
+                        info = real_stat(path, *args, **kwargs)
+                    finally:
+                        target.rename(foreign)
+                        saved.rename(target)
+                    swapped.append(True)
+                    return info
+                return real_stat(path, *args, **kwargs)
+
+            proxy = type('SwappingOs', (), {
+                '__getattr__': lambda _self, attr: getattr(os, attr),
+                'stat': staticmethod(swap_only_during_child_stat)})()
+            export_staging._close_scan_iterators()
+            try:
+                with patch.object(export_staging, 'os', proxy):
+                    result = reclaim_export_staging([str(target)], max_remove=1, max_scan=10)
+                self.assertEqual([True], swapped)
+                self.assertEqual([str(target / name)], result['removed'])
+                self.assertFalse(original_payload.exists())
+                self.assertEqual(b'foreign', foreign_payload.read_bytes())
+            finally:
+                export_staging._close_scan_iterators()
+
     def test_bound_retirement_rejects_registry_creation_before_side_effects(self):
         from export_staging_retirement import PosixRetirement, DIRECTORY
         with tempfile.TemporaryDirectory() as tmp:
@@ -926,7 +1077,7 @@ with PosixRetirement(parent=sys.argv[1], create=False):
                         parent.rename(released_parent)
                         self.assertEqual(parent_id, (released_parent.stat().st_dev,
                                                      released_parent.stat().st_ino))
-                        released_stage = released_parent / staging.path.relative_to(parent)
+                        released_stage = released_parent / staging.path.name
                         stage_id = (released_stage.stat().st_dev, released_stage.stat().st_ino)
                         released_stage.rename(root / 'released-stage')
                         moved = (root / 'released-stage').stat()
@@ -1141,7 +1292,7 @@ raise SystemExit('Original lock was not held')
             payload.write_bytes(b'preserve audio')
             stage._lock.__exit__(None, None, None)
             stage._closed = True
-            for parameter in ('max_remove', 'max_scan'):
+            for parameter in ('max_remove', 'max_scan', 'max_total_scan'):
                 with self.subTest(parameter=parameter):
                     self.assertEqual({'removed': [], 'preserved': [], 'errors': []},
                                      reclaim_export_staging([tmp], **{parameter: 0}))
@@ -1160,10 +1311,12 @@ raise SystemExit('Original lock was not held')
         real_stat = os.stat
         examined = []
         def counting_stat(path, *args, **kwargs):
-            # Only export_staging's own os.stat calls reach here, so fixed-name
-            # bookkeeping done through pathlib or utils is not counted, while
-            # the cursor file is counted whenever discovery examines it.
-            if (isinstance(path, (str, os.PathLike))
+            # POSIX discovery stats each name relative to its pinned parent.
+            # The Windows branch still supplies the full pathname.
+            if (kwargs.get('dir_fd') is not None and isinstance(path, str)
+                    and path not in ('.', '..') and '/' not in path):
+                examined.append(path)
+            elif (isinstance(path, (str, os.PathLike))
                     and os.path.realpath(os.path.dirname(os.fspath(path))) == os.path.realpath(parent)):
                 examined.append(os.path.basename(os.fspath(path)))
             return real_stat(path, *args, **kwargs)
@@ -1549,6 +1702,296 @@ raise SystemExit('Original lock was not held')
             self.assertEqual(sorted(str(stage.path) for stage in stages),
                              sorted(result['removed']))
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX descriptor-backed discovery')
+    def test_stable_65_roots_reach_later_entries_without_iterator_eviction(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            roots, stages = [], []
+            try:
+                export_staging._close_scan_iterators()
+                for index in range(65):
+                    root = Path(temporary, f'root-{index:03d}')
+                    root.mkdir()
+                    (root / 'foreign').write_bytes(b'preserve')
+                    stage = self._abandoned_public_stage(root)
+                    roots.append(root)
+                    stages.append(stage.path)
+                real_scandir = os.scandir
+
+                class OrderedFixtureIterator:
+                    def __init__(self, parent):
+                        with real_scandir(parent) as entries:
+                            self.entries = iter(sorted(
+                                entries, key=lambda entry: (entry.name != 'foreign', entry.name)))
+
+                    def __next__(self):
+                        return next(self.entries)
+
+                    def close(self):
+                        pass
+
+                proxy = type('FixtureOs', (), {
+                    '__getattr__': lambda self, name: getattr(os, name),
+                    'scandir': staticmethod(OrderedFixtureIterator),
+                })()
+                with patch.object(export_staging, 'os', proxy):
+                    for _ in range(4):
+                        reclaim_export_staging(roots, max_scan=1, max_remove=128)
+                        self.assertLessEqual(len(export_staging._scan_iterators), 128)
+                        if all(not stage.exists() for stage in stages):
+                            break
+                self.assertTrue(all(not stage.exists() for stage in stages))
+                self.assertTrue(all((root / 'foreign').read_bytes() == b'preserve'
+                                    for root in roots))
+            finally:
+                export_staging._close_scan_iterators()
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX private retirement registry')
+    def test_recurring_first_root_removals_do_not_starve_later_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            first, later = Path(temporary, 'first'), Path(temporary, 'later')
+            first.mkdir()
+            later.mkdir()
+            try:
+                export_staging._close_scan_iterators()
+                pending = self._abandoned_public_stage(later)
+                for _ in range(4):
+                    self._abandoned_public_stage(first)
+                    result = reclaim_export_staging([first, later], max_scan=1, max_remove=1)
+                    self.assertLessEqual(len(result['removed']), 1)
+                    if not pending.path.exists():
+                        break
+                self.assertFalse(pending.path.exists())
+            finally:
+                export_staging._close_scan_iterators()
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink alias fixture')
+    def test_rotated_removal_keeps_first_requested_alias_in_result(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary, 'actual')
+            target.mkdir()
+            alias = Path(temporary, 'alias')
+            alias.symlink_to(target, target_is_directory=True)
+            try:
+                export_staging._close_scan_iterators()
+                first = reclaim_export_staging([alias, target], max_total_scan=1)
+                self.assertIn('parent scan budget reached; input rows deferred', first['errors'])
+                stage = self._abandoned_public_stage(alias)
+                removed = reclaim_export_staging([alias, target], max_remove=1)
+                self.assertEqual([str(alias / stage.path.name)], removed['removed'])
+            finally:
+                export_staging._close_scan_iterators()
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink alias fixture')
+    def test_rotated_scan_error_keeps_first_requested_alias(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary, 'actual')
+            target.mkdir()
+            alias = Path(temporary, 'alias')
+            alias.symlink_to(target, target_is_directory=True)
+            for index in range(3):
+                (target / f'foreign-{index}').write_bytes(b'preserve')
+            try:
+                export_staging._close_scan_iterators()
+                reclaim_export_staging([alias, target], max_total_scan=1)
+                result = reclaim_export_staging([alias, target], max_scan=1)
+                self.assertIn(f'{alias}: scan limit reached', result['errors'])
+                self.assertNotIn(f'{target}: scan limit reached', result['errors'])
+            finally:
+                export_staging._close_scan_iterators()
+
+    def test_parent_input_limit_refuses_without_consuming_or_reclaiming(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            stage = self._abandoned_public_stage(temporary)
+
+            class ExplodingIterator:
+                def __iter__(self):
+                    raise AssertionError('parent iterator must not be consumed')
+
+            untouched = ExplodingIterator()
+            self.assertEqual({'removed': [], 'preserved': [], 'errors': []},
+                             reclaim_export_staging(untouched, max_scan=0))
+            with self.assertRaisesRegex(ValueError, 'bounded list or tuple'):
+                reclaim_export_staging(untouched)
+            with self.assertRaisesRegex(ValueError, 'row limit'):
+                reclaim_export_staging([temporary] * 129)
+            with self.assertRaisesRegex(ValueError, 'budget exceeds'):
+                reclaim_export_staging([temporary], max_total_scan=export_staging.MAX_TOTAL_LEGACY_SCAN + 1)
+            self.assertTrue(stage.path.exists())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX process descriptor limit')
+    def test_low_descriptor_headroom_preserves_requested_roots(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            first, second = Path(temporary, 'first'), Path(temporary, 'second')
+            first.mkdir()
+            second.mkdir()
+            stage = self._abandoned_public_stage(second)
+            with patch.object(export_staging, '_fd_headroom', return_value=1):
+                result = reclaim_export_staging([first, second])
+            self.assertEqual([], result['removed'])
+            self.assertIn('Export recovery skipped: insufficient descriptor capacity', result['errors'])
+            self.assertTrue(stage.path.exists())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink alias fixture')
+    def test_low_descriptor_headroom_counts_unique_roots(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary, 'target')
+            target.mkdir()
+            alias = Path(temporary, 'alias')
+            alias.symlink_to(target, target_is_directory=True)
+            stage = self._abandoned_public_stage(target)
+            with patch.object(export_staging, '_fd_headroom', return_value=1):
+                result = reclaim_export_staging([alias, target])
+            self.assertEqual([str(alias / stage.path.name)], result['removed'])
+            self.assertFalse(stage.path.exists())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX descriptor limit fixture')
+    def test_lowered_descriptor_limit_closes_cached_handles(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            roots = []
+            for index in range(3):
+                root = Path(temporary, f'root-{index}')
+                root.mkdir()
+                (root / 'foreign-a').write_bytes(b'keep')
+                (root / 'foreign-b').write_bytes(b'keep')
+                roots.append(root)
+            try:
+                export_staging._close_scan_iterators()
+                for root in roots:
+                    reclaim_export_staging([root], max_scan=1)
+                self.assertEqual(3, len(export_staging._scan_iterators))
+                with patch.object(export_staging, '_fd_headroom', return_value=1):
+                    reclaim_export_staging([roots[-1]], max_scan=1)
+                self.assertLessEqual(len(export_staging._scan_iterators), 1)
+            finally:
+                export_staging._close_scan_iterators()
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX descriptor limit fixture')
+    def test_low_descriptor_refusal_still_prunes_cached_handles(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            roots = []
+            for index in range(3):
+                root = Path(temporary, f'root-{index}')
+                root.mkdir()
+                (root / 'foreign-a').write_bytes(b'keep')
+                (root / 'foreign-b').write_bytes(b'keep')
+                roots.append(root)
+            try:
+                export_staging._close_scan_iterators()
+                for root in roots:
+                    reclaim_export_staging([root], max_scan=1)
+                self.assertEqual(3, len(export_staging._scan_iterators))
+                with patch.object(export_staging, '_fd_headroom', return_value=2):
+                    result = reclaim_export_staging(roots, max_scan=1)
+                self.assertEqual([], result['removed'])
+                self.assertIn('Export recovery skipped: insufficient descriptor capacity',
+                              result['errors'])
+                self.assertLessEqual(len(export_staging._scan_iterators), 2)
+                self.assertTrue(all((root / 'foreign-a').read_bytes() == b'keep'
+                                    for root in roots))
+            finally:
+                export_staging._close_scan_iterators()
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX open-directory replacement fixture')
+    def test_unrequested_replaced_root_releases_saved_iterator(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            first, other = Path(temporary, 'first'), Path(temporary, 'other')
+            first.mkdir()
+            other.mkdir()
+            (first / 'foreign-a').write_bytes(b'keep-a')
+            (first / 'foreign-b').write_bytes(b'keep-b')
+            moved = Path(temporary, 'moved')
+            try:
+                export_staging._close_scan_iterators()
+                reclaim_export_staging([first], max_scan=1)
+                self.assertIn(Path(os.path.realpath(first)), export_staging._scan_iterators)
+                first.rename(moved)
+                first.mkdir()
+                reclaim_export_staging([other])
+                self.assertNotIn(first, export_staging._scan_iterators)
+                self.assertEqual(b'keep-a', (moved / 'foreign-a').read_bytes())
+                self.assertEqual(b'keep-b', (moved / 'foreign-b').read_bytes())
+            finally:
+                export_staging._close_scan_iterators()
+
+    def test_global_legacy_scan_budget_rotates_to_unvisited_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            roots = []
+            for index in range(3):
+                root = Path(temporary, f'root-{index}')
+                root.mkdir()
+                (root / 'foreign').write_bytes(b'preserve')
+                roots.append(root)
+            stage = self._abandoned_public_stage(roots[2])
+            try:
+                export_staging._close_scan_iterators()
+                examined = []
+                real_scandir = os.scandir
+
+                class CountingIterator:
+                    def __init__(self, parent):
+                        self.entries = real_scandir(parent)
+
+                    def __next__(self):
+                        entry = next(self.entries)
+                        examined.append(entry.name)
+                        return entry
+
+                    def close(self):
+                        self.entries.close()
+
+                proxy = type('FixtureOs', (), {
+                    '__getattr__': lambda self, name: getattr(os, name),
+                    'scandir': staticmethod(CountingIterator),
+                })()
+                with patch.object(export_staging, 'os', proxy):
+                    first = reclaim_export_staging(roots, max_scan=20, max_total_scan=2)
+                self.assertEqual(2, len(examined))
+                self.assertTrue(stage.path.exists())
+                self.assertIn('parent scan budget reached; input rows deferred', first['errors'])
+                for _ in range(3):
+                    reclaim_export_staging(roots, max_scan=20, max_total_scan=2)
+                    if not stage.path.exists():
+                        break
+                self.assertFalse(stage.path.exists())
+            finally:
+                export_staging._close_scan_iterators()
+
+    def test_positive_quota_reports_partial_parent_pass(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            first, second = Path(temporary, 'first'), Path(temporary, 'second')
+            first.mkdir()
+            second.mkdir()
+            for index in range(3):
+                (first / f'foreign-{index}').write_bytes(b'preserve')
+            try:
+                export_staging._close_scan_iterators()
+                result = reclaim_export_staging([first, second], max_scan=3,
+                                                max_total_scan=2)
+                self.assertIn(f'{first}: scan limit reached', result['errors'])
+                self.assertTrue(all((first / f'foreign-{index}').read_bytes() == b'preserve'
+                                    for index in range(3)))
+            finally:
+                export_staging._close_scan_iterators()
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink alias fixture')
+    def test_duplicate_alias_rows_do_not_permanently_hide_later_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            first, later = Path(temporary, 'first'), Path(temporary, 'later')
+            first.mkdir()
+            later.mkdir()
+            alias = Path(temporary, 'alias')
+            alias.symlink_to(first, target_is_directory=True)
+            stage = self._abandoned_public_stage(later)
+            try:
+                export_staging._close_scan_iterators()
+                for _ in range(4):
+                    reclaim_export_staging([alias, first, later], max_total_scan=1)
+                    if not stage.path.exists():
+                        break
+                self.assertFalse(stage.path.exists())
+            finally:
+                export_staging._close_scan_iterators()
+
     def test_finished_pass_leaves_no_scan_cursor(self):
         export_staging._close_scan_iterators()
         with tempfile.TemporaryDirectory() as tmp:
@@ -1608,7 +2051,9 @@ raise SystemExit('Original lock was not held')
                 real_stat = os.stat
                 swapped = []
                 def replace_before_stat(path, *args, **kwargs):
-                    if not swapped and os.fspath(path) == str(original / stage.path.name):
+                    if (not swapped and (os.fspath(path) == str(original / stage.path.name)
+                                         or (kwargs.get('dir_fd') is not None
+                                             and os.fspath(path) == stage.path.name))):
                         original.rename(moved)
                         original.symlink_to(foreign, target_is_directory=True)
                         swapped.append(True)
@@ -2195,9 +2640,8 @@ print(json.dumps(reclaim_export_staging((sys.argv[2],))))
             original = OSError('marker publication failed')
             cleanup = OSError('staging directory changed during cleanup')
             from export_staging_retirement import PosixRetirement
-            from windows_export_staging_retirement import WindowsRetirement
-            target = WindowsRetirement if os.name == 'nt' else PosixRetirement
-            method = 'recover_slot' if os.name == 'nt' else 'recover_creation_slot'
+            target = export_staging if os.name == 'nt' else PosixRetirement
+            method = '_remove_tree' if os.name == 'nt' else 'recover_creation_slot'
             with patch.object(export_staging, '_write_marker', side_effect=original), \
                     patch.object(target, method, side_effect=cleanup):
                 with self.assertRaises(OSError) as caught:

@@ -19,6 +19,7 @@ import stat
 import time
 from contextlib import ExitStack
 
+from audio_take_history import _version
 from export_staging_directory import (OWNER_FILE, StageDirectoryChanged, identity,
                                       stage_directory, stage_owner_lock)
 from export_staging_records import (decode_creation_receipt, decode_receipt,
@@ -29,7 +30,6 @@ DIRECTORY = '.aa2-export-retirement'
 LOCK = 'owner.lock'
 MAX_SLOTS = 128
 RETIREMENT_RESERVE = '0' * 32
-RETAINED_OWNER = 'owner.retained'
 PENDING_SUFFIX = '.pending'
 MAX_RECEIPT_BYTES = 8192
 
@@ -58,13 +58,20 @@ def _write_json(path, value):
 
 
 def _read_bytes(path, limit=MAX_RECEIPT_BYTES):
+    named = os.stat(path, follow_symlinks=False)
+    if (not stat.S_ISREG(named.st_mode) or named.st_nlink != 1
+            or named.st_size > limit or _is_reparse(named)):
+        raise StageDirectoryChanged('Unsafe retirement metadata')
     with open(path, 'rb') as stream:
         before = os.fstat(stream.fileno())
-        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > limit:
+        if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
+                or before.st_size > limit or _version(before) != _version(named)):
             raise StageDirectoryChanged('Unsafe retirement metadata')
         raw = stream.read(limit + 1)
         after = os.fstat(stream.fileno())
-        if len(raw) > limit or identity(before) != identity(after):
+        current = os.stat(path, follow_symlinks=False)
+        if (len(raw) > limit or _version(before) != _version(after)
+                or _version(before) != _version(current) or _is_reparse(current)):
             raise StageDirectoryChanged('Retirement metadata changed while reading')
     return raw
 
@@ -116,7 +123,13 @@ class WindowsRetirement:
                             for value in expected_parent_identity))):
             raise ValueError('Invalid retirement parent identity')
         self.authority = authority
-        self.parent = Path(parent if parent is not None else authority.path.parent).absolute()
+        if authority is not None:
+            stage = Path(authority.path).absolute()
+            if (stage.name != 'stage' or stage.parent.parent.name != DIRECTORY
+                    or re.fullmatch(r'[0-9a-f]{32}', stage.parent.name) is None):
+                raise ValueError('Admitted stage is not a private retirement stage')
+            parent = stage.parents[2]
+        self.parent = Path(parent).absolute()
         self.expected_parent_identity = expected_parent_identity
         self.wait = wait
         self.create = create
@@ -136,7 +149,7 @@ class WindowsRetirement:
                 raise StageDirectoryChanged('Retirement parent changed')
             if self.authority is not None:
                 self.authority.check()
-                if identity(_check_directory(self.authority.path.parent,
+                if identity(_check_directory(self.authority.path.parents[2],
                                              label='staging parent')) != identity(parent_info):
                     raise StageDirectoryChanged('Staging and export parents differ')
             if self.create:
@@ -364,18 +377,32 @@ class WindowsRetirement:
             raise StageDirectoryChanged('Cannot discard a populated retirement slot')
         allowed = {'allocation.json', 'creation.json', 'owner.json',
                    'allocation.json' + PENDING_SUFFIX, 'creation.json' + PENDING_SUFFIX,
-                   'owner.json' + PENDING_SUFFIX, RETAINED_OWNER}
+                   'owner.json' + PENDING_SUFFIX}
         with os.scandir(slot_path) as entries:
             names = [entry.name for entry in entries]
         if any(name not in allowed for name in names):
             raise StageDirectoryChanged('Unknown retirement contents preserved')
+        admitted = {}
         for name in names:
             path = slot_path / name
             info = os.stat(path, follow_symlinks=False)
-            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                    or info.st_size > MAX_RECEIPT_BYTES or _is_reparse(info)):
                 raise StageDirectoryChanged('Unsafe retirement metadata preserved')
-            if name in ('allocation.json', 'creation.json', 'owner.json'):
-                self._read_receipt(name)
+            admitted[name] = identity(info)
+        _, created = self._read_creation()
+        self._read_owner(created)
+        # Retire dependents before prerequisites so a hard exit always leaves
+        # a subset that the next recovery can still validate.
+        removal_order = ('owner.json.pending', 'creation.json.pending',
+                         'allocation.json.pending', 'owner.json',
+                         'creation.json', 'allocation.json')
+        for name in removal_order:
+            if name not in admitted:
+                continue
+            path = slot_path / name
+            if identity(os.stat(path, follow_symlinks=False)) != admitted[name]:
+                raise StageDirectoryChanged('Retirement metadata changed before removal')
             path.unlink()
         slot_path.rmdir()
         self.slot = None

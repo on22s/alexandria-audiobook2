@@ -84,7 +84,10 @@ def run_owned_media_check(command, check_active, timeout, *, output_limit=0,
             raise_reader_error()
             elapsed = time.monotonic() - started
             if timeout is not None and elapsed >= timeout:
-                raise subprocess.TimeoutExpired(command, timeout)
+                result = process.poll()
+                if result is None:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                break
             if progress_callback and time.monotonic() >= next_progress:
                 progress_callback(f'Checking finished export: {elapsed:.1f} seconds elapsed')
                 next_progress = time.monotonic() + 2

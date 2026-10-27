@@ -2483,10 +2483,14 @@ class ProjectManager:
             if has_cover:
                 # Map cover as attached picture
                 cmd += ["-map", "1:v", "-c:v", "copy", "-disposition:v:0", "attached_pic"]
+            from m4b_encode import encode_m4b, get_m4b_encode_timeout
+            export_duration = pcm_plan['frames'] / pcm_plan['frame_rate']
+            export_timeout = get_m4b_encode_timeout(export_duration)
             mastering_before = None
             if mastering is not None:
                 from audio_mastering import get_loudness_measurements, get_mastering_filter
-                mastering_before = get_loudness_measurements(['-i', temp_wav], mastering, cancel_check)
+                mastering_before = get_loudness_measurements(
+                    ['-i', temp_wav], mastering, cancel_check, timeout=export_timeout)
                 cmd += ['-af', get_mastering_filter(mastering, mastering_before)]
             cmd += ['-ar', str(quality_plan['sample_rate']), '-ac', str(quality_plan['channels'])]
             cmd += [
@@ -2496,8 +2500,9 @@ class ProjectManager:
                 "-f", "mp4",
                 pending_output
             ]
-            from m4b_encode import encode_m4b
-            result, stderr = encode_m4b(cmd, pcm_plan['frames'] / pcm_plan['frame_rate'], cancel_check, progress_callback)
+            result, stderr = encode_m4b(
+                cmd, export_duration, cancel_check, progress_callback,
+                timeout=export_timeout)
             if result != 0:
                 if progress_callback:
                     progress_callback("FFmpeg stderr: " + stderr[-500:])
@@ -2506,7 +2511,9 @@ class ProjectManager:
             mastering_report = None
             if mastering_before is not None:
                 from audio_mastering import get_mastering_report
-                mastering_report = get_mastering_report(pending_output, mastering, mastering_before, stderr, cancel_check)
+                mastering_report = get_mastering_report(
+                    pending_output, mastering, mastering_before, stderr, cancel_check,
+                    timeout=export_timeout)
             quality_report = get_admitted_export_report(pending_output, quality_plan,
                 cancel_check=cancel_check, progress_callback=progress_callback)
             from m4b_cover import ensure_m4b_output_cover

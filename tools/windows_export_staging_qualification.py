@@ -201,31 +201,79 @@ PARTIAL_WINDOWS_CHILD = r'''
 import os, sys
 sys.path.insert(0, sys.argv[1])
 from unittest.mock import patch
+from pathlib import Path
+import export_staging
 from export_staging import create_export_staging
 from windows_export_staging_retirement import WindowsRetirement
+mode = sys.argv[3]
 original = WindowsRetirement._write_receipt
 def write(self, name, value):
-    if name == 'creation.json':
+    if name == ('creation.json' if mode == 'allocation' else 'owner.json'):
         print(self.registry / self.slot, flush=True)
         os._exit(76)
     return original(self, name, value)
-with patch.object(WindowsRetirement, '_write_receipt', new=write):
-    create_export_staging(sys.argv[2], 'mp3')
+if mode in ('allocation', 'owner'):
+    with patch.object(WindowsRetirement, '_write_receipt', new=write):
+        create_export_staging(sys.argv[2], 'mp3')
+elif mode == 'marker':
+    original_marker = export_staging._write_marker
+    def write_marker(path, marker, *, authority=None):
+        original_marker(path, marker, authority=authority)
+        print(Path(path).parent.parent, flush=True)
+        os._exit(76)
+    with patch.object(export_staging, '_write_marker', new=write_marker):
+        create_export_staging(sys.argv[2], 'mp3')
+else:
+    raise ValueError('Unknown partial creation crash point')
+'''
+
+DISCARD_WINDOWS_CHILD = r'''
+import os, sys
+sys.path.insert(0, sys.argv[1])
+from pathlib import Path
+from unittest.mock import patch
+from export_staging import create_export_staging
+stage = create_export_staging(sys.argv[2], 'mp3')
+slot = stage.path.parent
+original_unlink = Path.unlink
+def after_owner_receipt(self, *args, **kwargs):
+    result = original_unlink(self, *args, **kwargs)
+    if self == slot / 'owner.json':
+        print(slot, flush=True)
+        os._exit(76)
+    return result
+with patch.object(Path, 'unlink', new=after_owner_receipt):
+    stage.finish()
 '''
 
 RETIRE_WINDOWS_CHILD = r'''
 import os, sys
 sys.path.insert(0, sys.argv[1])
 from unittest.mock import patch
-from export_staging import create_export_staging
-from windows_export_staging_retirement import WindowsRetirement
+from export_staging import MARKER, create_export_staging
+from windows_export_staging_directory import WindowsStageDirectory
 stage = create_export_staging(sys.argv[2], 'mp3')
 (stage.path / 'payload.bin').write_bytes(b'windows retirement payload')
-def exit_before_cleanup(self, *args, **kwargs):
-    print(self.registry / self.slot, flush=True)
-    os._exit(76)
-with patch.object(WindowsRetirement, 'cleanup_initialized_creation', new=exit_before_cleanup):
-    stage.finish()
+mode = sys.argv[3]
+def exit_after_marker(self, name):
+    original_unlink(self, name)
+    if name == MARKER:
+        print(stage.path.parent, flush=True)
+        os._exit(76)
+if mode == 'payload':
+    original_remove = WindowsStageDirectory.remove_contents
+    def exit_after_payload(self, retained_names):
+        original_remove(self, retained_names)
+        print(stage.path.parent, flush=True)
+        os._exit(76)
+    with patch.object(WindowsStageDirectory, 'remove_contents', new=exit_after_payload):
+        stage.finish()
+elif mode == 'marker':
+    original_unlink = WindowsStageDirectory.unlink
+    with patch.object(WindowsStageDirectory, 'unlink', new=exit_after_marker):
+        stage.finish()
+else:
+    raise ValueError('Unknown finalization crash point')
 '''
 
 def _terminate(process):
@@ -569,19 +617,26 @@ def check_windows_readonly_deletion(platform):
 
 
 def check_windows_partial_creation(platform):
-    with tempfile.TemporaryDirectory() as base:
-        root = Path(base) / 'book'
-        root.mkdir()
-        result = child(PARTIAL_WINDOWS_CHILD, root)
-        assert result.returncode == 76, result.stderr[-2000:]
-        slot = Path(result.stdout.strip().splitlines()[-1])
-        assert slot.is_dir(), 'partial Windows creation slot is missing'
-        assert (slot / 'allocation.json').exists()
-        assert not (slot / 'creation.json').exists()
-        reclaimed = reclaim_export_staging([root])
-        assert reclaimed['removed'], reclaimed
-        assert not slot.exists(), 'partial Windows creation slot survived recovery'
-        return {'slot': str(slot), 'result': reclaimed}
+    observed = []
+    for mode in ('allocation', 'owner', 'marker'):
+        with tempfile.TemporaryDirectory() as base:
+            root = Path(base) / 'book'
+            root.mkdir()
+            result = child(PARTIAL_WINDOWS_CHILD, root, mode)
+            assert result.returncode == 76, result.stderr[-2000:]
+            slot = Path(result.stdout.strip().splitlines()[-1])
+            stage = slot / 'stage'
+            assert slot.is_dir(), 'partial Windows creation slot is missing'
+            assert (slot / 'allocation.json').exists()
+            assert (slot / 'creation.json').exists() == (mode != 'allocation')
+            assert (slot / 'owner.json').exists() == (mode == 'marker')
+            assert (stage / '.export-staging.owner.lock').exists() == (mode != 'allocation')
+            assert (stage / MARKER).exists() == (mode == 'marker')
+            reclaimed = reclaim_export_staging([root])
+            assert reclaimed['removed'], reclaimed
+            assert not slot.exists(), 'partial Windows creation slot survived recovery'
+            observed.append({'mode': mode, 'slot': str(slot), 'result': reclaimed})
+    return {'crash_points': observed}
 
 
 def check_windows_failed_deletion(platform):
@@ -623,9 +678,21 @@ def check_native_abi(platform):
 
 
 def check_windows_private_state_machine(platform):
-    detail = check_windows_current(platform)
-    assert '.aa2-export-retirement' in str(detail['stage']), 'private stage was not used'
-    return detail
+    partial = check_windows_partial_creation(platform)
+    with tempfile.TemporaryDirectory() as base:
+        root = Path(base) / 'book'
+        root.mkdir()
+        result = child(DISCARD_WINDOWS_CHILD, root)
+        assert result.returncode == 76, result.stderr[-2000:]
+        slot = Path(result.stdout.strip().splitlines()[-1])
+        assert slot.parent.name == '.aa2-export-retirement', 'private slot was not used'
+        assert not (slot / 'stage').exists(), 'discard crash occurred before stage removal'
+        assert not (slot / 'owner.json').exists(), 'discard crash occurred before owner receipt removal'
+        assert (slot / 'creation.json').exists() and (slot / 'allocation.json').exists()
+        reclaimed = reclaim_export_staging([root])
+        assert reclaimed['removed'], reclaimed
+        assert not slot.exists(), 'interrupted discard slot survived recovery'
+        return {'partial': partial, 'discard': {'slot': str(slot), 'result': reclaimed}}
 
 def check_windows_private_live_owner(platform):
     detail = check_windows_live_owner(platform)
@@ -676,10 +743,15 @@ def check_windows_finalization(platform, restart=False):
     with tempfile.TemporaryDirectory() as base:
         root = Path(base) / 'book'
         root.mkdir()
-        result = child(RETIRE_WINDOWS_CHILD, root)
+        mode = 'marker' if restart else 'payload'
+        result = child(RETIRE_WINDOWS_CHILD, root, mode)
         assert result.returncode == 76, result.stderr[-2000:]
         slot = Path(result.stdout.strip().splitlines()[-1])
         assert slot.is_dir(), 'Windows retirement slot is missing'
+        stage = slot / 'stage'
+        assert not (stage / 'payload.bin').exists(), 'finalization did not remove the payload before exit'
+        assert (stage / MARKER).exists() == (mode == 'payload'), 'finalization stopped at the wrong marker boundary'
+        assert (stage / '.export-staging.owner.lock').exists(), 'finalization did not retain its owner'
         if restart:
             recovered = child(RECOVER_CHILD, root)
             assert recovered.returncode == 0, recovered.stderr[-2000:]
