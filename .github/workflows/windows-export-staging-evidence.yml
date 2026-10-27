@@ -1,0 +1,145 @@
+name: Windows export-staging evidence (manual)
+
+# Manual evidence collection only. This workflow intentionally has no push,
+# pull_request, schedule, or repository_dispatch trigger.
+on:
+  workflow_dispatch:
+
+run-name: Windows export-staging evidence (${{ github.ref_name }})
+
+permissions:
+  contents: read
+
+jobs:
+  windows-export-staging-evidence:
+    name: Windows export-staging evidence (manual)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out the dispatched commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Run full qualification harness
+        id: harness
+        run: |
+          $json = Join-Path $env:RUNNER_TEMP "windows-export-staging-evidence.json"
+          $log = Join-Path $env:RUNNER_TEMP "windows-export-staging-evidence.log"
+          python tools/windows_export_staging_qualification.py --json $json *> $log
+          $exitCode = $LASTEXITCODE
+          "harness_exit=$exitCode" | Out-File -FilePath $log -Append -Encoding utf8
+          "exit_code=$exitCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Output "Harness exit code: $exitCode"
+
+      - name: Upload JSON result and log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-export-staging-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/windows-export-staging-evidence.json
+            ${{ runner.temp }}/windows-export-staging-evidence.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish evidence summary
+        if: always()
+        env:
+          HARNESS_EXIT: ${{ steps.harness.outputs.exit_code }}
+        run: |
+          $json = Join-Path $env:RUNNER_TEMP "windows-export-staging-evidence.json"
+          $summaryPath = $env:GITHUB_STEP_SUMMARY
+          if (-not (Test-Path $json)) {
+            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
+            "**EVIDENCE MISSING - NOT COLLECTED**" | Add-Content -Path $summaryPath -Encoding utf8
+            throw "Qualification harness did not produce $json"
+          }
+          $result = Get-Content $json -Raw | ConvertFrom-Json
+          if ($null -eq $result -or $null -eq $result.summary -or $null -eq $result.checks) {
+            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
+            "**EVIDENCE INVALID - NOT COLLECTED**" | Add-Content -Path $summaryPath -Encoding utf8
+            throw "Qualification harness JSON is missing summary or checks."
+          }
+          if ($result.platform -ne "windows") {
+            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
+            "**EVIDENCE INVALID - NOT WINDOWS**" | Add-Content -Path $summaryPath -Encoding utf8
+            throw "Harness JSON platform is '$($result.platform)', not windows."
+          }
+          if ($result.summary.qualified -isnot [bool]) {
+            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
+            "**EVIDENCE INVALID - QUALIFIED FLAG IS NOT BOOLEAN**" | Add-Content -Path $summaryPath -Encoding utf8
+            throw "Harness JSON summary.qualified is not a boolean."
+          }
+          $checks = @($result.checks)
+          if ($checks.Count -eq 0) {
+            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
+            "**EVIDENCE INVALID - NO CHECKS**" | Add-Content -Path $summaryPath -Encoding utf8
+            throw "Harness JSON contains no checks."
+          }
+          $failed = @($checks | Where-Object { $_.status -eq "failed" })
+          $unsupported = @($checks | Where-Object { $_.status -eq "unsupported" })
+          $qualified = [bool]$result.summary.qualified
+          $provenance_ok = $result.git.head -eq $env:GITHUB_SHA -and $result.git.dirty -eq $false
+          $exit_ok = $env:HARNESS_EXIT -eq "0"
+          $status = if (-not $provenance_ok) {
+            "EVIDENCE COLLECTED - PROVENANCE MISMATCH"
+          } elseif ($failed.Count -gt 0) {
+            "HARNESS FAILED - EVIDENCE ONLY"
+          } elseif (-not $exit_ok) {
+            "EVIDENCE COLLECTED - HARNESS ERROR"
+          } elseif (-not $qualified) {
+            "EVIDENCE COLLECTED - NOT FULLY QUALIFIED"
+          } else {
+            "FULLY QUALIFIED"
+          }
+          "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
+          "**Status: $status**" | Add-Content -Path $summaryPath -Encoding utf8
+          "This is a manual evidence run, not a required PR check." | Add-Content -Path $summaryPath -Encoding utf8
+          "" | Add-Content -Path $summaryPath
+          "| Metric | Count |" | Add-Content -Path $summaryPath
+          "|---|---:|" | Add-Content -Path $summaryPath
+          "| Passed | $($checks.Count - $failed.Count - $unsupported.Count) |" | Add-Content -Path $summaryPath
+          "| Failed | $($failed.Count) |" | Add-Content -Path $summaryPath
+          "| Unsupported | $($unsupported.Count) |" | Add-Content -Path $summaryPath
+          "| Total | $($checks.Count) |" | Add-Content -Path $summaryPath
+          "| Harness exit | $env:HARNESS_EXIT |" | Add-Content -Path $summaryPath
+          "" | Add-Content -Path $summaryPath
+          "### Git provenance" | Add-Content -Path $summaryPath
+          "Harness head: $($result.git.head)" | Add-Content -Path $summaryPath
+          "Dispatched commit: $env:GITHUB_SHA" | Add-Content -Path $summaryPath
+          "Harness dirty: $($result.git.dirty)" | Add-Content -Path $summaryPath
+          "" | Add-Content -Path $summaryPath
+          if ($unsupported.Count -gt 0) {
+            "### Unsupported checks (visible, not passes)" | Add-Content -Path $summaryPath
+            foreach ($check in $unsupported) {
+              $required = if ($check.required) { "required" } else { "optional" }
+              "- **$($check.name)** ($required): $($check.reason)" | Add-Content -Path $summaryPath
+            }
+            "" | Add-Content -Path $summaryPath
+          }
+          if ($failed.Count -gt 0) {
+            "### Failed checks" | Add-Content -Path $summaryPath
+            foreach ($check in $failed) {
+              "- **$($check.name)**: $($check.detail)" | Add-Content -Path $summaryPath
+            }
+            "" | Add-Content -Path $summaryPath
+          }
+          if (-not $provenance_ok) {
+            "**Provenance mismatch: harness JSON does not bind the dispatched clean commit.**" | Add-Content -Path $summaryPath -Encoding utf8
+            throw "Harness provenance does not match the dispatched commit or reports a dirty tree."
+          }
+          if ($failed.Count -gt 0) {
+            throw "Qualification harness reported $($failed.Count) failed check(s)."
+          }
+          if (-not $exit_ok) {
+            throw "Qualification harness exited $env:HARNESS_EXIT without a failed-check record."
+          }
