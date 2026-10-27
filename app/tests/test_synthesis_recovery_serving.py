@@ -151,7 +151,9 @@ class RecoveryServingTests(unittest.TestCase):
         from pathlib import Path
         source_path = Path(speech_policy.__file__)
         source = source_path.read_text()
-        changed = source.replace("in '.!?。！？'", "in '.!?。！？…'", 1)
+        changed = source.replace(
+            "has_trailing_punctuation(text, '.!?。！？')",
+            "has_trailing_punctuation(text, '.!?。！？…')", 1)
         self.assertNotEqual(source, changed)
         versions = []
         for code in (source, changed):
