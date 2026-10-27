@@ -41,10 +41,12 @@ jobs:
           Write-Output "Harness exit code: $exitCode"
 
       - name: Upload JSON result and log
+        id: upload
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: windows-export-staging-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          # Raw files are retained even when later validation rejects them.
+          name: windows-export-staging-raw-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/windows-export-staging-evidence.json
             ${{ runner.temp }}/windows-export-staging-evidence.log
@@ -55,42 +57,187 @@ jobs:
         if: always()
         env:
           HARNESS_EXIT: ${{ steps.harness.outputs.exit_code }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
         run: |
           $json = Join-Path $env:RUNNER_TEMP "windows-export-staging-evidence.json"
           $summaryPath = $env:GITHUB_STEP_SUMMARY
+          function Summary-Text([string]$value) {
+            $flat = $value -replace '[\r\n|]', ' '
+            return '<code>' + [System.Net.WebUtility]::HtmlEncode($flat) + '</code>'
+          }
+          function Invalid-Evidence([string]$message) {
+            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
+            $retention = if ($env:UPLOAD_OUTCOME -ceq "success") {
+              "RAW ARTIFACT RETAINED"
+            } else { "RAW ARTIFACT UNAVAILABLE" }
+            "**EVIDENCE INVALID - $retention**" | Add-Content -Path $summaryPath -Encoding utf8
+            "Reason: $(Summary-Text $message)" | Add-Content -Path $summaryPath -Encoding utf8
+            throw $message
+          }
+          function Valid-Count($value) {
+            return (($value -is [int] -or $value -is [long]) -and $value -ge 0)
+          }
           if (-not (Test-Path $json)) {
-            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
-            "**EVIDENCE MISSING - NOT COLLECTED**" | Add-Content -Path $summaryPath -Encoding utf8
-            throw "Qualification harness did not produce $json"
+            Invalid-Evidence "Qualification harness did not produce its JSON result."
           }
-          $result = Get-Content $json -Raw | ConvertFrom-Json
-          if ($null -eq $result -or $null -eq $result.summary -or $null -eq $result.checks) {
-            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
-            "**EVIDENCE INVALID - NOT COLLECTED**" | Add-Content -Path $summaryPath -Encoding utf8
-            throw "Qualification harness JSON is missing summary or checks."
+          if ((Get-Item $json).Length -gt 1048576) {
+            Invalid-Evidence "Qualification harness JSON exceeds the 1 MiB evidence limit."
           }
-          if ($result.platform -ne "windows") {
-            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
-            "**EVIDENCE INVALID - NOT WINDOWS**" | Add-Content -Path $summaryPath -Encoding utf8
-            throw "Harness JSON platform is '$($result.platform)', not windows."
+          try {
+            $result = Get-Content $json -Raw | ConvertFrom-Json -ErrorAction Stop
+          } catch {
+            Invalid-Evidence "Qualification harness JSON could not be parsed."
+          }
+          if ($result -isnot [pscustomobject] -or $result.summary -isnot [pscustomobject] -or
+              $result.git -isnot [pscustomobject] -or $result.checks -isnot [array]) {
+            Invalid-Evidence "Qualification harness JSON has an invalid result shape."
+          }
+          if ($result.platform -isnot [string] -or $result.platform -cne "windows") {
+            Invalid-Evidence "Qualification harness JSON is not native Windows evidence."
+          }
+          if ($env:RUNNER_OS -cne "Windows" -or $result.environment -isnot [pscustomobject] -or
+              $result.environment.platform -isnot [string] -or
+              $result.environment.platform -cnotmatch '^Windows-' -or
+              $result.environment.windows_version -isnot [array] -or
+              $result.environment.windows_version.Count -lt 3) {
+            Invalid-Evidence "Qualification harness native Windows environment is unverified."
+          }
+          foreach ($versionPart in $result.environment.windows_version[0..2]) {
+            if (-not (Valid-Count $versionPart)) {
+              Invalid-Evidence "Qualification harness Windows version is malformed."
+            }
+          }
+          if ($result.git.head -isnot [string] -or
+              $result.git.head -cnotmatch '^[0-9a-f]{40}$' -or
+              $result.git.dirty -isnot [bool]) {
+            Invalid-Evidence "Qualification harness Git provenance is malformed."
           }
           if ($result.summary.qualified -isnot [bool]) {
-            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
-            "**EVIDENCE INVALID - QUALIFIED FLAG IS NOT BOOLEAN**" | Add-Content -Path $summaryPath -Encoding utf8
-            throw "Harness JSON summary.qualified is not a boolean."
+            Invalid-Evidence "Qualification harness qualified flag is not boolean."
+          }
+          if ($result.limitations -isnot [array] -or $result.limitations.Count -gt 32) {
+            Invalid-Evidence "Qualification harness limitations are malformed."
+          }
+          foreach ($limitation in $result.limitations) {
+            if ($limitation -isnot [string] -or $limitation.Length -gt 2048) {
+              Invalid-Evidence "Qualification harness limitation text is malformed."
+            }
+          }
+          # These statements are part of the reviewed harness contract. Any
+          # change needs a new evidence review, particularly before a full pass.
+          $expectedLimitations = @(
+            "Unsupported checks are never passes.",
+            "No native Windows runner was available for this run unless platform=windows.",
+            "Private Windows retirement is implemented but native qualification and power-loss directory durability remain outstanding.",
+            "Synthetic temp files only; no application, model, GPU or user project data."
+          )
+          if ($result.limitations.Count -ne $expectedLimitations.Count) {
+            Invalid-Evidence "Qualification harness limitation inventory changed."
+          }
+          for ($index = 0; $index -lt $expectedLimitations.Count; $index++) {
+            if ($result.limitations[$index] -cne $expectedLimitations[$index]) {
+              Invalid-Evidence "Qualification harness limitation text changed."
+            }
           }
           $checks = @($result.checks)
-          if ($checks.Count -eq 0) {
-            "## Windows export-staging evidence" | Add-Content -Path $summaryPath -Encoding utf8
-            "**EVIDENCE INVALID - NO CHECKS**" | Add-Content -Path $summaryPath -Encoding utf8
-            throw "Harness JSON contains no checks."
+          if ($checks.Count -eq 0 -or $checks.Count -gt 256) {
+            Invalid-Evidence "Qualification harness JSON has an invalid check count."
           }
+          # Pin the present harness inventory. A changed or truncated harness
+          # needs a reviewed workflow update before claiming qualification.
+          $requiredNames = @(
+            "windows_partial_creation_recovery", "windows_hard_termination_recovery",
+            "windows_restart_recovery", "windows_live_owner_preserved",
+            "windows_parent_replacement_refused", "windows_reparse_point_refused",
+            "windows_malformed_marker_preserved", "windows_failed_deletion_preserves_payload",
+            "windows_readonly_deletion_preserved", "windows_native_abi",
+            "windows_hard_termination_finalization", "windows_restart_finalization",
+            "windows_private_retirement_state_machine", "windows_private_retirement_live_owner",
+            "windows_private_retirement_malformed_receipt", "windows_private_retirement_failed_deletion",
+            "windows_power_loss_directory_durability"
+          )
+          $optionalNames = @(
+            "posix_hard_termination_recovery", "posix_restart_recovery",
+            "posix_live_owner_preserved", "posix_parent_replacement",
+            "posix_malformed_receipt", "posix_failed_deletion_preserves_payload",
+            "posix_reparse_point_refused", "posix_hard_termination_finalization",
+            "posix_restart_finalization", "posix_partial_creation_recovery",
+            "posix_partial_creation_restart", "posix_moved_unverified_recovery"
+          )
+          $expected = @{}
+          foreach ($name in $requiredNames) { $expected[$name] = $true }
+          foreach ($name in $optionalNames) { $expected[$name] = $false }
+          if ($checks.Count -ne $expected.Count -or $expected.Count -ne 29) {
+            Invalid-Evidence "Qualification harness check inventory is incomplete."
+          }
+          $seen = @{}
+          foreach ($check in $checks) {
+            if ($check -isnot [pscustomobject] -or $check.name -isnot [string] -or
+                $check.name -cnotmatch '^[a-z][a-z0-9_]{0,127}$' -or
+                $check.required -isnot [bool] -or $check.status -isnot [string] -or
+                ($check.status -cne "passed" -and $check.status -cne "failed" -and
+                 $check.status -cne "unsupported")) {
+              Invalid-Evidence "Qualification harness contains an invalid check row."
+            }
+            if ($seen.ContainsKey($check.name)) {
+              Invalid-Evidence "Qualification harness contains duplicate check names."
+            }
+            $seen[$check.name] = $true
+            if (-not $expected.ContainsKey($check.name) -or
+                $check.required -ne $expected[$check.name]) {
+              Invalid-Evidence "Qualification harness check identity or requirement changed."
+            }
+            $expectedPlatform = if ($check.name -ceq "windows_power_loss_directory_durability") {
+              "both"
+            } elseif ($check.required) { "windows" } else { "posix" }
+            if ($check.platforms -isnot [string] -or $check.platforms -cne $expectedPlatform) {
+              Invalid-Evidence "Qualification harness check platform changed."
+            }
+            if ($check.status -ceq "unsupported" -and
+                ($check.reason -isnot [string] -or [string]::IsNullOrWhiteSpace($check.reason) -or
+                 $check.reason.Length -gt 2048)) {
+              Invalid-Evidence "An unsupported check has an invalid reason."
+            }
+            if ($check.status -ceq "passed" -and
+                ($check.detail -isnot [pscustomobject] -or
+                 $check.detail.PSObject.Properties.Count -eq 0)) {
+              Invalid-Evidence "A passed check has no structured evidence detail."
+            }
+            if ($check.status -ceq "failed" -and
+                ($check.detail -isnot [string] -or
+                 [string]::IsNullOrWhiteSpace($check.detail) -or $check.detail.Length -gt 2048)) {
+              Invalid-Evidence "A failed check has an invalid detail."
+            }
+          }
+          $passed = @($checks | Where-Object { $_.status -ceq "passed" })
           $failed = @($checks | Where-Object { $_.status -eq "failed" })
           $unsupported = @($checks | Where-Object { $_.status -eq "unsupported" })
-          $qualified = [bool]$result.summary.qualified
-          $provenance_ok = $result.git.head -eq $env:GITHUB_SHA -and $result.git.dirty -eq $false
+          $required_unsupported = @($unsupported | Where-Object { $_.required })
+          $counts = @{passed=$passed.Count; failed=$failed.Count;
+                      unsupported=$unsupported.Count; required_unsupported=$required_unsupported.Count;
+                      total=$checks.Count}
+          foreach ($key in $counts.Keys) {
+            $value = $result.summary.$key
+            if (-not (Valid-Count $value) -or $value -ne $counts[$key]) {
+              Invalid-Evidence "Qualification harness summary counts disagree with check rows."
+            }
+          }
+          $qualified = $failed.Count -eq 0 -and $required_unsupported.Count -eq 0
+          if ($result.summary.qualified -ne $qualified) {
+            Invalid-Evidence "Qualification harness qualified flag disagrees with check rows."
+          }
+          if ($qualified -and @($result.limitations | Where-Object {
+                $_ -match '(?i)\b(unqualified|not qualified|remain outstanding)\b'
+              }).Count -gt 0) {
+            Invalid-Evidence "Qualification flag contradicts a documented limitation."
+          }
+          $provenance_ok = ($result.git.head -ceq $env:GITHUB_SHA -and
+                            $result.git.dirty -eq $false)
           $exit_ok = $env:HARNESS_EXIT -eq "0"
-          $status = if (-not $provenance_ok) {
+          $upload_ok = $env:UPLOAD_OUTCOME -ceq "success"
+          $status = if (-not $upload_ok) {
+            "EVIDENCE NOT RETAINED - UPLOAD FAILED"
+          } elseif (-not $provenance_ok) {
             "EVIDENCE COLLECTED - PROVENANCE MISMATCH"
           } elseif ($failed.Count -gt 0) {
             "HARNESS FAILED - EVIDENCE ONLY"
@@ -107,7 +254,7 @@ jobs:
           "" | Add-Content -Path $summaryPath
           "| Metric | Count |" | Add-Content -Path $summaryPath
           "|---|---:|" | Add-Content -Path $summaryPath
-          "| Passed | $($checks.Count - $failed.Count - $unsupported.Count) |" | Add-Content -Path $summaryPath
+          "| Passed | $($passed.Count) |" | Add-Content -Path $summaryPath
           "| Failed | $($failed.Count) |" | Add-Content -Path $summaryPath
           "| Unsupported | $($unsupported.Count) |" | Add-Content -Path $summaryPath
           "| Total | $($checks.Count) |" | Add-Content -Path $summaryPath
@@ -122,16 +269,19 @@ jobs:
             "### Unsupported checks (visible, not passes)" | Add-Content -Path $summaryPath
             foreach ($check in $unsupported) {
               $required = if ($check.required) { "required" } else { "optional" }
-              "- **$($check.name)** ($required): $($check.reason)" | Add-Content -Path $summaryPath
+              "- **$($check.name)** ($required): $(Summary-Text $check.reason)" | Add-Content -Path $summaryPath
             }
             "" | Add-Content -Path $summaryPath
           }
           if ($failed.Count -gt 0) {
             "### Failed checks" | Add-Content -Path $summaryPath
             foreach ($check in $failed) {
-              "- **$($check.name)**: $($check.detail)" | Add-Content -Path $summaryPath
+              "- **$($check.name)**: $(Summary-Text $check.detail)" | Add-Content -Path $summaryPath
             }
             "" | Add-Content -Path $summaryPath
+          }
+          if (-not $upload_ok) {
+            throw "Qualification evidence artifact upload failed; no retained proof is available."
           }
           if (-not $provenance_ok) {
             "**Provenance mismatch: harness JSON does not bind the dispatched clean commit.**" | Add-Content -Path $summaryPath -Encoding utf8
