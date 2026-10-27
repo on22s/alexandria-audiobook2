@@ -5,6 +5,14 @@ module.exports = {
     bundle: "ai"
   },
   run: [{
+    method: "fs.write",
+    params: { path: "app/.whisper-install-pending", text: "Whisper install in progress or incomplete.\n" }
+  }, {
+    // A previous successful run must never make a failed retry look successful.
+    when: "{{exists('app/.whisper-install-ok')}}",
+    method: "fs.rm",
+    params: { path: "app/.whisper-install-ok" }
+  }, {
     method: "shell.run",
     params: {
       message: "uv cache clean"
@@ -127,43 +135,52 @@ module.exports = {
       message: "python tools/verify_whisper_assets.py"
     }
   }, {
+    // Xcode Command Line Tools do not include CMake. Install a reproducible
+    // build tool into the existing application environment on every platform.
+    method: "shell.run",
+    params: {
+      venv: "app/env",
+      message: "uv pip install cmake==3.31.10"
+    }
+  }, {
     when: "{{platform === 'linux' && gpu === 'amd'}}",
     method: "shell.run",
     params: {
-      path: "whisper.cpp",
-      message: "cmake -S . -B build -DGGML_HIP=ON -DAMDGPU_TARGETS=\"$(rocminfo | awk '/Name: *gfx/{print $2; exit}')\""
+      venv: "app/env",
+      message: "python tools/build_whisper.py hip"
     }
   }, {
-    when: "{{gpu === 'nvidia'}}",
+    when: "{{platform !== 'darwin' && gpu === 'nvidia'}}",
     method: "shell.run",
     params: {
-      path: "whisper.cpp",
-      message: "cmake -S . -B build -DGGML_CUDA=ON"
+      venv: "app/env",
+      message: "python tools/build_whisper.py cuda"
     }
   }, {
     when: "{{platform === 'darwin'}}",
     method: "shell.run",
     params: {
-      path: "whisper.cpp",
-      message: "cmake -S . -B build -DGGML_METAL=ON"
+      venv: "app/env",
+      message: "python tools/build_whisper.py metal"
     }
   }, {
     when: "{{!(platform === 'linux' && gpu === 'amd') && gpu !== 'nvidia' && platform !== 'darwin'}}",
     method: "shell.run",
     params: {
-      path: "whisper.cpp",
-      message: "cmake -S . -B build"
+      venv: "app/env",
+      message: "python tools/build_whisper.py cpu"
     }
   }, {
-    method: "shell.run",
-    params: {
-      path: "whisper.cpp",
-      message: "cmake --build build --config Release -j"
-    }
-  }, {
+    when: "{{exists('app/.whisper-install-ok') && !exists('app/.whisper-install-pending')}}",
     method: "notify",
     params: {
-      html: "Installation Complete! Click 'Start' to launch the application."
+      html: "Whisper build completed. Check the installer log for any earlier errors, then click Start."
+    }
+  }, {
+    when: "{{!exists('app/.whisper-install-ok') || exists('app/.whisper-install-pending')}}",
+    method: "notify",
+    params: {
+      html: "Whisper installation did not complete. Check the installer log and retry Install."
     }
   }]
 }

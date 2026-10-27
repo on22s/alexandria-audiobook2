@@ -904,6 +904,18 @@ How to change them:
 
 ## Troubleshooting
 
+### Pinokio reports an incomplete Whisper installation
+
+Open **Repair bundled Whisper installation** and inspect the install log if the
+retry fails. If Pinokio still shows the installer running after an error, stop
+that installer before retrying. The launcher keeps an incomplete attempt marked until the pinned
+source and model are verified and the built `whisper-cli` passes a startup
+check. It retains the existing app environment and book data. If the log reports
+a model checksum mismatch or a modified or unpinned `whisper.cpp` source tree,
+preserve those files and move the affected model or source directory aside before
+retrying; the installer does not silently overwrite them. The menu's lightweight
+file check does not itself verify the checksum of a legacy installation.
+
 ### Pinokio does not reach "Open Web UI"
 
 `start.js` waits for Alexandria to print its web address. Import errors, port conflicts,

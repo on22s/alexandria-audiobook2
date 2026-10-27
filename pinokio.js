@@ -19,6 +19,23 @@ module.exports = {
 
     // Check file existence states
     let installed = info.exists("app/env")
+    // This is a cheap availability check, not a model checksum or binary probe.
+    // Full validation runs during installation. Always retain a repair action.
+    const usableFile = (candidate, executable = false) => {
+      if (!info.exists(candidate)) return false
+      try {
+        const file = path.resolve(__dirname, candidate)
+        const stat = fs.statSync(file)
+        if (!stat.isFile() || stat.size === 0) return false
+        if (executable) fs.accessSync(file, fs.constants.X_OK)
+        return true
+      } catch (_) { return false }
+    }
+    let bundledWhisper = !info.exists("app/.whisper-install-pending") && usableFile("models/whisper.cpp/ggml-small.en.bin") && [
+      "whisper.cpp/build/bin/whisper-cli",
+      "whisper.cpp/build/bin/Release/whisper-cli.exe",
+      "whisper.cpp/build/Release/whisper-cli.exe"
+    ].some(candidate => usableFile(candidate, true))
 
     // Handle running states first
     if (running.install) {
@@ -114,12 +131,18 @@ module.exports = {
     }
 
     // STATE: INSTALLED
-    return [{
-      default: true,
+    const repair = {
+      icon: "fa-solid fa-triangle-exclamation",
+      text: "Repair bundled Whisper installation",
+      href: "install.js"
+    }
+    const start = {
+      default: bundledWhisper,
       icon: "fa-solid fa-power-off",
       text: "Start",
       href: "start.js"
-    }, {
+    }
+    return [...(bundledWhisper ? [start, repair] : [repair, start]), {
       icon: "fa-solid fa-flask",
       text: "Run Stage 4 Checkpoint",
       href: "run_stage4_checkpoint.js"
