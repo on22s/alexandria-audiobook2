@@ -12963,6 +12963,20 @@
     "tests.test_whisper_download_stream.WhisperDownloadStreamTests.test_streamed_weights_unchanged_local_processor_and_cache_retained",
     "tests.test_whisper_download_stream.WhisperDownloadStreamTests.test_success_does_not_claim_model_parameter_measurement"
   ],
+  "test_whisper_install_recovery": [
+    "tests.test_whisper_install_recovery.BuildWhisperTests.test_corrupt_executable_does_not_clear_pending_state",
+    "tests.test_whisper_install_recovery.BuildWhisperTests.test_failure_clears_stale_marker_and_does_not_claim_success",
+    "tests.test_whisper_install_recovery.BuildWhisperTests.test_help_timeout_preserves_pending_and_rejects_old_success",
+    "tests.test_whisper_install_recovery.BuildWhisperTests.test_missing_cmake_package_and_unknown_backend_do_not_claim_success",
+    "tests.test_whisper_install_recovery.BuildWhisperTests.test_success_needs_verified_assets_configure_build_and_executable",
+    "tests.test_whisper_install_recovery.LauncherRepairMenuTests.test_empty_legacy_files_offer_repair",
+    "tests.test_whisper_install_recovery.LauncherRepairMenuTests.test_existing_complete_install_keeps_start_default",
+    "tests.test_whisper_install_recovery.LauncherRepairMenuTests.test_failed_retry_offers_repair_even_when_old_files_exist",
+    "tests.test_whisper_install_recovery.LauncherRepairMenuTests.test_no_environment_offers_install",
+    "tests.test_whisper_install_recovery.LauncherRepairMenuTests.test_non_executable_legacy_binary_offers_repair",
+    "tests.test_whisper_install_recovery.LauncherRepairMenuTests.test_one_backend_is_selected_on_supported_platforms",
+    "tests.test_whisper_install_recovery.LauncherRepairMenuTests.test_partial_install_offers_repair_and_retains_start"
+  ],
   "test_windows_export_qualification": [
     "tests.test_windows_export_qualification.WindowsQualificationVerdictTests.test_junction_refusal_cannot_be_inferred_from_unrelated_failure",
     "tests.test_windows_export_qualification.WindowsQualificationVerdictTests.test_rename_denial_requires_a_sharing_violation_and_releases_child"
