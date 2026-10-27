@@ -192,10 +192,10 @@ def get_speech_normalization(text):
         logging.getLogger(__name__).warning(
             "Pronunciation processing failed; continuing without substitutions: %s", error)
     stripped = normalized.strip(" \t\r\n").lstrip(" .\t\r\n")
-    # A comma or semicolon is an authored continuation cue. Adding a full stop
-    # after it creates malformed TTS input (",." / ";.").
+    # A clause separator is an authored continuation cue. Adding a full stop
+    # after it creates malformed TTS input (",." / ";." / ":.").
     appended_period = (bool(stripped) and not is_sentence_terminated(stripped)
-                       and not has_trailing_punctuation(stripped, ',;'))
+                       and not has_trailing_punctuation(stripped, ',;:'))
     bounded = stripped + "." if appended_period else stripped
     if bounded != normalized:
         transformations.append({"type": "normalized_sentence_boundary",

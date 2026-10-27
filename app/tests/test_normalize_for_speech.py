@@ -204,6 +204,21 @@ class TestTerminalBoundaryEvidence(unittest.TestCase):
                                      for change in result['transformations']))
                 self.assertEqual([], get_speech_normalization(result['text'])['transformations'])
 
+    def test_trailing_colon_remains_an_authored_continuation(self):
+        for source, expected in (('Note:', 'Note:'),
+                                 ('She answered:', 'She answered:'),
+                                 ('“Read this:”', '“Read this:”'),
+                                 ('“Read this:”  ', '“Read this:”'),
+                                 ('No:  ', 'No:'),
+                                 ('No:\r\n', 'No:')):
+            with self.subTest(source=source):
+                result = get_speech_normalization(source)
+                self.assertEqual(expected, result['text'])
+                self.assertFalse(any(change.get('appended_period')
+                                     for change in result['transformations']))
+                self.assertEqual([], get_speech_normalization(expected)['transformations'])
+                self.assertEqual(expected, get_speech_preparation(source)['text'])
+
     def test_prepared_tts_input_preserves_measured_source_fragments(self):
         for source in ('Kitty has no discretion in her coughs,',
                        'said her father;',
