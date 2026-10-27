@@ -17,7 +17,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tts import normalize_for_speech
-from speech_text import get_speech_normalization, get_speech_risks
+from speech_text import get_speech_normalization, get_speech_preparation, get_speech_risks
 
 
 class TestStructuralMarks(unittest.TestCase):
@@ -175,12 +175,46 @@ class TestTerminalBoundaryEvidence(unittest.TestCase):
                 self.assertEqual(expected, normalize_for_speech(source))
 
     def test_unterminated_prose_and_quoted_fragments_keep_existing_period_policy(self):
-        for text in ('Plain prose', '"A title"', '“A fragment”', '「見出し」', 'I will go,'):
+        for text in ('Plain prose', '"A title"', '“A fragment”', '「見出し」'):
             with self.subTest(text=text):
                 result = get_speech_normalization(text)
                 self.assertEqual(text + '.', result['text'])
                 self.assertTrue(result['transformations'][-1]['appended_period'])
                 self.assertEqual([], get_speech_normalization(result['text'])['transformations'])
+
+    def test_trailing_comma_and_semicolon_remain_authored_continuations(self):
+        for text in ('I will go,', 'said her father;', '“I will go,”',
+                     '"said her father;"', 'Kitty has no discretion in her coughs,'):
+            with self.subTest(text=text):
+                result = get_speech_normalization(text)
+                self.assertEqual(text, result['text'])
+                self.assertFalse(result['changed'])
+                self.assertEqual([], result['transformations'])
+                self.assertEqual(result, get_speech_normalization(result['text']))
+
+    def test_trailing_clause_separator_with_whitespace_is_trimmed_without_period(self):
+        for source, expected in [('I will go,  ', 'I will go,'),
+                                 ('said her father;\n', 'said her father;'),
+                                 ('I will go,\r\n', 'I will go,'),
+                                 ('said her father;\r\n', 'said her father;')]:
+            with self.subTest(source=source):
+                result = get_speech_normalization(source)
+                self.assertEqual(expected, result['text'])
+                self.assertFalse(any(change.get('appended_period')
+                                     for change in result['transformations']))
+                self.assertEqual([], get_speech_normalization(result['text'])['transformations'])
+
+    def test_prepared_tts_input_preserves_measured_source_fragments(self):
+        for source in ('Kitty has no discretion in her coughs,',
+                       'said her father;',
+                       'I do not cough for my own amusement,',
+                       'Ay, so it is,',
+                       'cried her mother,',
+                       'The girls stared at their father. Mrs. Bennet said only,'):
+            with self.subTest(source=source):
+                prepared = get_speech_preparation(source, 'Quietly.')
+                self.assertEqual(source, prepared['text'])
+                self.assertEqual('Quietly.', prepared['instruct'])
 
 
 class TestIdempotence(unittest.TestCase):

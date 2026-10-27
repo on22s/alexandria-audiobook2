@@ -51,12 +51,17 @@ def get_spoken_text_spacing(text):
     return re.subn(r"[ \t]+(?=[,;:.!?])", "", text)
 
 
-def is_sentence_terminated(text):
-    """Recognize a sentence end inside supported closing marks and whitespace."""
+def has_trailing_punctuation(text, marks):
+    """Recognize a final mark inside supported closing marks and whitespace."""
     end = len(text)
     while end and (text[end - 1] in '\"\'”’»」』)）]】' or text[end - 1].isspace()):
         end -= 1
-    return bool(end) and text[end - 1] in '.!?。！？'
+    return bool(end) and text[end - 1] in marks
+
+
+def is_sentence_terminated(text):
+    """Recognize a sentence end inside supported closing marks and whitespace."""
+    return has_trailing_punctuation(text, '.!?。！？')
 
 
 UNSPEAKABLE_CATEGORIES = frozenset({"So", "Sm", "Sk", "Co", "Cn", "Cs", "Cc"})
