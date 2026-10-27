@@ -12,6 +12,8 @@ from unittest.mock import patch
 import windows_subprocess_owner as owner
 
 from windows_subprocess_owner import start_windows_owned_subprocess
+from export_staging import create_export_staging, reclaim_export_staging
+from windows_export_staging_retirement import DIRECTORY, reclaim_windows_retired_slots
 
 
 class NativeWindowsOwnerTests(unittest.TestCase):
@@ -117,6 +119,8 @@ while not pathlib.Path(sys.argv[2]).exists():
             ready, release = root / 'ready', root / 'release'
             controller = """import json,os,pathlib,sys,time
 from windows_subprocess_owner import start_windows_owned_subprocess
+from export_staging import create_export_staging, reclaim_export_staging
+from windows_export_staging_retirement import DIRECTORY, reclaim_windows_retired_slots
 process=start_windows_owned_subprocess([sys.executable,'-c','import time;time.sleep(60)'])
 control=process._alexandria_windows_owner
 pathlib.Path(sys.argv[1]).write_text(json.dumps(control.job.get_process_ids()))
@@ -152,13 +156,70 @@ os._exit(7)
                     api.CloseHandle(handle)
 
 
+
+
+class NativeWindowsRetirementTests(unittest.TestCase):
+    def test_private_stage_finish_removes_stage_and_slot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'book'
+            root.mkdir()
+            stage = create_export_staging(root, 'mp3')
+            path = stage.path
+            (path / 'payload.bin').write_bytes(b'native payload')
+            stage.finish(remove=True)
+            self.assertFalse(path.exists())
+            self.assertFalse((root / DIRECTORY / stage._registry_slot).exists())
+
+    def test_hard_exit_recovery_removes_private_slot(self):
+        script = r"""
+import os, sys
+sys.path.insert(0, sys.argv[1])
+from export_staging import create_export_staging
+stage = create_export_staging(sys.argv[2], 'mp3')
+(stage.path / 'payload.bin').write_bytes(b'native hard-exit payload')
+print(stage.path.parent, flush=True)
+os._exit(76)
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'book'
+            root.mkdir()
+            result = subprocess.run(
+                [sys.executable, '-c', script, str(Path(__file__).parents[1]), str(root)],
+                capture_output=True, text=True, timeout=30,
+                env={**os.environ, 'PYTHONPATH': str(Path(__file__).parents[1])})
+            self.assertEqual(76, result.returncode, result.stderr[-2000:])
+            slot = Path(result.stdout.strip().splitlines()[-1])
+            self.assertTrue((slot / 'stage' / 'payload.bin').is_file())
+            reclaimed = reclaim_export_staging([root])
+            self.assertTrue(reclaimed['removed'], reclaimed)
+            self.assertFalse(slot.exists())
+
+    def test_live_owner_is_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'book'
+            root.mkdir()
+            stage = create_export_staging(root, 'mp3')
+            try:
+                (stage.path / 'payload.bin').write_bytes(b'native live payload')
+                reclaimed = reclaim_export_staging([root])
+                self.assertFalse(reclaimed['removed'], reclaimed)
+                self.assertTrue(reclaimed['preserved'], reclaimed)
+                self.assertFalse(reclaimed['errors'], reclaimed)
+                self.assertTrue((stage.path / 'payload.bin').is_file())
+            finally:
+                stage.finish(remove=True)
+            self.assertFalse(stage.path.exists())
+
 def main():
     if sys.platform != 'win32':
         print('Native Windows Job Object checks require Windows; nothing was verified.', file=sys.stderr)
         return 2
-    suite = unittest.defaultTestLoader.loadTestsFromTestCase(NativeWindowsOwnerTests)
+    suite = unittest.TestSuite([
+        unittest.defaultTestLoader.loadTestsFromTestCase(NativeWindowsOwnerTests),
+        unittest.defaultTestLoader.loadTestsFromTestCase(NativeWindowsRetirementTests),
+    ])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() and result.testsRun == 4 and not result.skipped else 1
+    return 0 if result.wasSuccessful() and result.testsRun == 7 and not result.skipped else 1
 
 
 if __name__ == '__main__':

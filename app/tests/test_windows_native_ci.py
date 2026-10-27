@@ -11,7 +11,7 @@ SCRIPT = ROOT / 'app/tests/native_windows_owner_checks.py'
 
 
 class NativeWindowsCiTests(unittest.TestCase):
-    def test_ci_runs_all_four_native_methods_on_windows(self):
+    def test_ci_runs_all_native_methods_on_windows(self):
         source = SCRIPT.read_text()
         tree = ast.parse(source)
         cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == 'NativeWindowsOwnerTests')
@@ -20,7 +20,14 @@ class NativeWindowsCiTests(unittest.TestCase):
                           'test_closed_pipe_retains_detached_child_ownership',
                           'test_native_high_bit_worker_exit_status_is_preserved',
                           'test_parent_exit_closes_the_only_job_handle_and_stops_its_members'}, methods)
-        self.assertIn('result.testsRun == 4 and not result.skipped', source)
+        retirement = next(node for node in tree.body if isinstance(node, ast.ClassDef)
+                          and node.name == 'NativeWindowsRetirementTests')
+        retirement_methods = {node.name for node in retirement.body
+                              if isinstance(node, ast.FunctionDef) and node.name.startswith('test_')}
+        self.assertEqual({'test_private_stage_finish_removes_stage_and_slot',
+                          'test_hard_exit_recovery_removes_private_slot',
+                          'test_live_owner_is_preserved'}, retirement_methods)
+        self.assertIn('result.testsRun == 7 and not result.skipped', source)
         workflow = (ROOT / '.github/workflows/tests.yml').read_text().split('  windows-owner:', 1)[1]
         self.assertIn('runs-on: windows-latest', workflow)
         self.assertIn('run: python tests/native_windows_owner_checks.py', workflow)
@@ -33,7 +40,7 @@ class NativeWindowsCiTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=10)
         if sys.platform == 'win32':
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertIn('Ran 4 tests', result.stderr)
+            self.assertIn('Ran 7 tests', result.stderr)
             self.assertIn('OK', result.stderr)
         else:
             self.assertEqual(2, result.returncode, result.stderr)

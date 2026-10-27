@@ -1,9 +1,10 @@
 # Windows export-staging durability design
 
-Status: design + qualification harness only. Production cleanup is unchanged.
-This document audits the current POSIX retirement protocol and the native
-Windows staging prototype, then specifies the missing Windows durability path
-and the checks needed to qualify it.
+Status: Windows private creation/retirement is implemented in
+`app/windows_export_staging_retirement.py` and bound to production Windows
+creation, finish and recovery. Native Windows qualification remains pending;
+POSIX behavior is unchanged. This document audits the POSIX reference protocol
+and the Windows path, and specifies the checks needed to qualify it.
 
 ## Current implementation
 
@@ -53,16 +54,18 @@ provides useful native primitives:
 
 `export_staging.py::_cleanup_admitted` intentionally uses a direct Windows
 cleanup path: `_remove_contents(...)` followed by `_finish_removal(...)`.
-There is no Windows retirement registry, no `reserved.json`/`verified.json`
-state machine, and `reclaim_export_staging` skips private retirement discovery
-on Windows (`os.name != 'nt'`).
+The new private Windows path adds a bounded registry with creation receipts,
+owner-bound recovery and `reclaim_export_staging` discovery. It does not yet
+implement the POSIX public-stage move or `reserved.json`/`verified.json`
+sequence; legacy public stages remain on the old cleanup path.
 
 ### Current code references
 
-- `app/export_staging.py:319` selects the Windows public staging allocator;
-  `app/export_staging.py:179-195::_cleanup_admitted` then deletes in place.
-- `app/export_staging.py:392-421::reclaim_export_staging` only calls the private
-  retirement registry when `os.name != 'nt'`.
+- `app/export_staging.py` now selects private Windows creation for top-level
+  stages; public `_create_public_export_staging` remains for sound delivery,
+  nested stages and legacy recovery.
+- `app/export_staging.py::reclaim_export_staging` runs the private Windows
+  registry before the legacy public scan.
 - `app/windows_export_staging_directory.py:98-132` opens and verifies ancestor
   and stage handles; `:138-186` owner/marker admission; `:212-279` recursive
   handle deletion; `:281-291` delete-on-close directory removal; `:293-299`
@@ -70,10 +73,14 @@ on Windows (`os.name != 'nt'`).
 - `app/export_staging_retirement.py:33-...::PosixRetirement` is the reference
   protocol: `:332::recover_slot`, `:401::cleanup_verified_stage`,
   `:859::move`.
-- `app/tests/NATIVE_CHECKS.md` already states that the Windows interrupted
-  finalization recovery protocol remains unfinished.
+- `app/tests/NATIVE_CHECKS.md` records the native Windows gate; legacy public
+  finalization and power-loss durability remain unqualified.
 
-## Confirmed gaps
+## Pre-implementation gaps
+
+The private creation path now covers the following gaps for top-level windows
+stages; legacy public stages, nested stages and native qualification still need
+the noted follow-up.
 
 1. **No durable retirement state.** A hard termination between payload
    deletion, marker removal, owner release and directory deletion leaves a
@@ -107,9 +114,10 @@ retirement checks as `unsupported`, never `passed`.
 
 ## Proposed Windows retirement protocol
 
-Add `app/windows_export_staging_retirement.py` with a `WindowsRetirement`
-registry that mirrors the POSIX state machine. Production integration is a
-later handoff; this document and harness define the contract.
+`app/windows_export_staging_retirement.py` provides the Windows registry;
+production top-level creation, finish and recovery are bound to it. The registry
+uses pathname admission plus the private owner lock; full native handle-relative
+ACL/reparse equivalence remains a qualification item.
 
 ### Namespace and locks
 
@@ -257,8 +265,7 @@ the receipt directory entry does not is explicitly unqualified.
 modify production cleanup. It records each check as `passed`, `failed` or
 `unsupported` with a reason. On Linux it runs the POSIX reference checks and
 marks native Windows checks unsupported. On Windows it runs the current
-Windows staging checks; private-retirement checks are unsupported until an
-adapter is bound. Module presence alone is not sufficient. `--require-windows` fails when
+Windows staging and private-retirement checks. `--require-windows` fails when
 any required native Windows/durability check is unsupported; POSIX-reference
 checks skipped on Windows do not count against that strict mode.
 
@@ -266,16 +273,16 @@ Checks:
 
 | Check | Linux | Native Windows |
 |---|---|---|
-| hard termination while creating a stage | POSIX full and partial creation | current Windows full-stage creation; partial unsupported |
-| hard termination after retirement move | POSIX verified/unverified move | unsupported: no Windows retirement |
+| hard termination while creating a stage | POSIX full and partial creation | private Windows creation receipts and partial recovery |
+| hard termination after retirement move | POSIX verified/unverified move | private Windows slot recovery; no public move |
 | restart recovery by a new process | POSIX | current Windows creation recovery |
-| restart after retirement move | POSIX | unsupported: no Windows retirement |
+| restart after retirement move | POSIX | private creation-slot recovery; no public move |
 | live owner preservation | POSIX | current Windows creation owner |
 | parent replacement / rename denial | POSIX registry parent mismatch | native handle/rename denial |
 | reparse point / symlink refusal | POSIX private slot symlink | native junction |
 | malformed receipts/markers | POSIX truncated/duplicate-key receipt | current Windows marker |
 | failed deletion preserves payload | POSIX fault injection | Python fault injection + native read-only |
-| private Windows retirement state machine | unsupported | unsupported until an adapter is bound (module presence alone is not enough) |
+| private Windows retirement state machine | unsupported | implemented; native qualification pending |
 | power-loss directory durability | unsupported | unsupported |
 | native handle/delete ABI | unsupported | required open/identity mapping/delete smoke; no rename/lock coverage |
 
@@ -283,33 +290,33 @@ The harness uses only synthetic files and subprocesses. It does not start the
 application, load a model, use the GPU, or touch user project data.
 
 Current Linux evidence: 12 POSIX checks passed, 0 failed, 17 native Windows /
-unimplemented checks unsupported; `qualified=false`. `--require-windows` exits 2
-because required Windows checks are unsupported. The existing staging suites
-also pass: 57 tests (`tests.test_export_staging`,
-`tests.test_project_export_staging`). The private-retirement checks are
-deliberate placeholders: the future implementation handoff must bind an adapter
-before they can pass. The harness does not silently treat the current Windows
-public cleanup as the missing retirement protocol.
+durability checks unsupported, `qualified=false`. `--require-windows` exits 2
+because the native checks are unsupported on Linux. The existing staging suites
+also pass. Native Windows execution is still required for final qualification.
 
 ## Remaining limitations
 
-- No native Windows runner is available in this environment, so no Windows
-  kernel behavior is claimed.
-- The private Windows retirement implementation is not part of this handoff.
-  Placeholders currently include the four private-retirement checks, the
-  Windows partial-creation check, the two Windows finalization checks, and the
-  power-loss check. The private-retirement placeholders need an adapter; the
-  finalization and partial-creation checks also need production protocol work.
-- `windows_partial_creation_recovery` is required and currently unsupported:
-  current Windows creation has no durable allocation/creation receipt.
+- Native Windows qualification is still required; this environment cannot run
+  a Windows kernel, so no native durability claim is made here.
+- The private Windows retirement implementation is now present and bound to
+  top-level production stages. Sound delivery and nested stages intentionally
+  retain the public path. Power-loss directory-entry durability remains
+  unqualified.
+- Native handle-relative registry integrity, ACL enforcement and nested
+  retirement remain limitations until exercised on a Windows runner.
+- `windows_partial_creation_recovery` is implemented against private creation
+  receipts; native execution remains pending.
 - The harness's Windows fault injection is a Python mock of
   `remove_contents`; the native read-only-attribute check is a separate
   preservation probe, not a general ACL/delete-pending qualification.
+- The Windows registry currently uses bounded pathname admission plus the
+  private owner lock; ACL enforcement and every handle-relative rename/open
+  operation described above still need native qualification before claiming
+  full #1629 equivalence.
 - The harness does not exercise `FileRenameInfo`, `LockFileEx`, the
-  `ERROR_DELETE_PENDING`/`ACCESS_DENIED` retry branch, or ACL failure because
-  the Windows retirement protocol does not exist yet. The native ABI smoke
-  check covers CreateFileW identity mapping and FileDispositionInfo
-  delete-on-close only.
+  `ERROR_DELETE_PENDING`/`ACCESS_DENIED` retry branch, or ACL failure; those
+  remain native qualification items. The native ABI smoke check covers
+  CreateFileW identity mapping and FileDispositionInfo delete-on-close only.
 - Directory-entry power-loss durability and ACL equivalence to POSIX
   owner-only modes require native evidence.
 - The existing POSIX protocol remains the reference; this design does not

@@ -89,6 +89,24 @@ def get_encoder_staging_source_root(directory):
         if directory.parent.parent.name == DIRECTORY:
             raise ValueError('Legacy encoder layout cannot bypass a private registry slot')
         return directory.parent
+    if os.name == 'nt' and directory.name == 'stage' and directory.parent.parent.name == DIRECTORY:
+        from windows_export_staging_retirement import WindowsRetirement
+        slot = directory.parent.name
+        if re.fullmatch(r'[0-9a-f]{32}', slot) is None:
+            raise ValueError('Encoder worker requires a private canonical directory')
+        parent = directory.parents[2]
+        with WindowsRetirement(parent=parent, wait=True, create=False) as transaction:
+            transaction.open_slot(slot)
+            _, created = transaction._read_creation()
+            if created is None or created['kind'] != 'encode':
+                raise ValueError('Encoder worker requires an encoding stage receipt')
+            with stage_directory(directory, tuple(created['stage_identity'])) as authority:
+                with authority.open_owner_stream() as stream:
+                    transaction.validate_initialized_creation(authority, stream)
+                if authority.has_recovery_guard():
+                    raise ValueError('Encoder staging awaits recovery')
+            transaction.check()
+        return parent
     if (os.name == 'nt' or directory.name != 'stage'
             or directory.parent.parent.name != DIRECTORY
             or re.fullmatch('[0-9a-f]{32}', directory.parent.name) is None):
@@ -140,7 +158,6 @@ class ExportStaging:
         if type(preserve_on_error) is not bool:
             raise ValueError('Invalid cleanup preservation policy')
         self._closed = True
-        # Prototype integration: supported-platform completion is still pending.
         released = False
         def release_owner():
             nonlocal released
@@ -149,6 +166,25 @@ class ExportStaging:
                 self._lock.__exit__(None, None, None)
         try:
             if self._registry_slot is not None:
+                if os.name == 'nt':
+                    from windows_export_staging_retirement import WindowsRetirement
+                    with WindowsRetirement(parent=self._registry_parent, wait=True,
+                                           create=False) as transaction:
+                        transaction.open_slot(self._registry_slot)
+                        with stage_directory(self.path, self._directory_identity) as authority, \
+                                _preserve_removal_failure(authority, preserve_on_error):
+                            if remove:
+                                transaction.cleanup_initialized_creation(
+                                    authority, self._owner_stream, release_owner=release_owner)
+                            else:
+                                authority.create_recovery_guard(RECOVERY)
+                                try:
+                                    authority.unlink(MARKER)
+                                except FileNotFoundError:
+                                    pass
+                        if remove:
+                            transaction.discard_empty_slot()
+                    return
                 from export_staging_retirement import PosixRetirement
                 with stage_directory(self.path, self._directory_identity) as authority, \
                         _preserve_removal_failure(authority, preserve_on_error):
@@ -326,7 +362,14 @@ def owner_identity_matches(marker, stream):
 def create_export_staging(parent, kind):
     """Create same-filesystem staging while holding its original owner lock."""
     if os.name == 'nt':
-        return _create_public_export_staging(parent, kind)
+        # Sound delivery retains its separate quota/candidate protocol; nested
+        # stages stay in the public namespace so the outer stage can retain
+        # their existing nested-owner boundary.
+        if kind == 'sound_delivery' or (
+                (Path(parent) / MARKER).exists()
+                or (Path(parent) / (OWNER_LOCK + '.lock')).exists()):
+            return _create_public_export_staging(parent, kind)
+        return _create_windows_export_staging(parent, kind)
     if kind not in PREFIXES:
         raise ValueError(f'Unknown export staging kind: {kind}')
     from export_staging_retirement import PosixRetirement
@@ -339,6 +382,20 @@ def create_export_staging(parent, kind):
             path, expected, marker, owner, stream = transaction.initialize_creation(kind)
             return ExportStaging(path, kind, marker, owner, expected, stream,
                                  registry_parent=parent, registry_slot=transaction.slot)
+
+
+def _create_windows_export_staging(parent, kind):
+    """Create a private, receipt-bound Windows stage instead of a public one."""
+    if kind not in PREFIXES:
+        raise ValueError(f'Unknown export staging kind: {kind}')
+    parent = Path(parent)
+    parent.mkdir(parents=True, exist_ok=True)
+    parent = Path(os.path.abspath(parent))
+    from windows_export_staging_retirement import WindowsRetirement
+    with WindowsRetirement(parent, wait=True, create=True) as transaction:
+        path, expected, marker, owner, stream, slot = transaction.initialize_creation(kind)
+    return ExportStaging(path, kind, marker, owner, expected, stream,
+                         registry_parent=parent, registry_slot=slot)
 
 
 def _create_public_export_staging(parent, kind):
@@ -579,6 +636,23 @@ def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
             except OSError as error:
                 result['errors'].append(f'{parent}: {error}')
                 continue
+            if os.name == 'nt' and removed < max_remove:
+                from windows_export_staging_retirement import reclaim_windows_retired_slots
+                try:
+                    retired = reclaim_windows_retired_slots(
+                        scan_parent, max_remove=max_remove - removed,
+                        expected_parent_identity=expected_parent_identity)
+                except FileNotFoundError:
+                    retired = {'removed': [], 'preserved': [], 'errors': []}
+                except (OSError, RuntimeError) as error:
+                    result['errors'].append(f'{parent}: {error}')
+                    retired = {'removed': [], 'preserved': [], 'errors': []}
+                for key in result:
+                    result[key].extend(display_path(value) for value in retired[key])
+                removed += len(retired['removed'])
+                if removed >= max_remove:
+                    result['errors'].append('reclaim limit reached')
+                    return result
             if os.name != 'nt' and removed < max_remove:
                 from export_staging_retirement import reclaim_retired_slots
                 try:

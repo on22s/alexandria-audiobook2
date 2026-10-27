@@ -926,7 +926,7 @@ with PosixRetirement(parent=sys.argv[1], create=False):
                         parent.rename(released_parent)
                         self.assertEqual(parent_id, (released_parent.stat().st_dev,
                                                      released_parent.stat().st_ino))
-                        released_stage = released_parent / staging.path.name
+                        released_stage = released_parent / staging.path.relative_to(parent)
                         stage_id = (released_stage.stat().st_dev, released_stage.stat().st_ino)
                         released_stage.rename(root / 'released-stage')
                         moved = (root / 'released-stage').stat()
@@ -2195,8 +2195,9 @@ print(json.dumps(reclaim_export_staging((sys.argv[2],))))
             original = OSError('marker publication failed')
             cleanup = OSError('staging directory changed during cleanup')
             from export_staging_retirement import PosixRetirement
-            target = export_staging if os.name == 'nt' else PosixRetirement
-            method = '_remove_tree' if os.name == 'nt' else 'recover_creation_slot'
+            from windows_export_staging_retirement import WindowsRetirement
+            target = WindowsRetirement if os.name == 'nt' else PosixRetirement
+            method = 'recover_slot' if os.name == 'nt' else 'recover_creation_slot'
             with patch.object(export_staging, '_write_marker', side_effect=original), \
                     patch.object(target, method, side_effect=cleanup):
                 with self.assertRaises(OSError) as caught:
