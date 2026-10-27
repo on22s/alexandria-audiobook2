@@ -1077,7 +1077,9 @@ with PosixRetirement(parent=sys.argv[1], create=False):
                         parent.rename(released_parent)
                         self.assertEqual(parent_id, (released_parent.stat().st_dev,
                                                      released_parent.stat().st_ino))
-                        released_stage = released_parent / staging.path.name
+                        # Windows top-level stages now live below a private
+                        # registry slot, not directly below the export parent.
+                        released_stage = released_parent / staging.path.relative_to(parent)
                         stage_id = (released_stage.stat().st_dev, released_stage.stat().st_ino)
                         released_stage.rename(root / 'released-stage')
                         moved = (root / 'released-stage').stat()
@@ -2636,18 +2638,25 @@ print(json.dumps(reclaim_export_staging((sys.argv[2],))))
 
 
     def test_creation_failure_keeps_original_error_when_cleanup_also_fails(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            original = OSError('marker publication failed')
-            cleanup = OSError('staging directory changed during cleanup')
-            from export_staging_retirement import PosixRetirement
-            target = export_staging if os.name == 'nt' else PosixRetirement
-            method = '_remove_tree' if os.name == 'nt' else 'recover_creation_slot'
-            with patch.object(export_staging, '_write_marker', side_effect=original), \
-                    patch.object(target, method, side_effect=cleanup):
-                with self.assertRaises(OSError) as caught:
-                    create_export_staging(tmp, 'mp3')
-            self.assertIs(original, caught.exception)
-            self.assertIs(cleanup, caught.exception.__cause__)
+        from export_staging_retirement import PosixRetirement
+        if os.name == 'nt':
+            from windows_export_staging_retirement import WindowsRetirement
+            cases = ((export_staging._create_public_export_staging,
+                      export_staging, '_remove_tree'),
+                     (create_export_staging, WindowsRetirement, 'recover_slot'))
+        else:
+            cases = ((create_export_staging, PosixRetirement,
+                      'recover_creation_slot'),)
+        for factory, target, method in cases:
+            with self.subTest(method=method), tempfile.TemporaryDirectory() as tmp:
+                original = OSError('marker publication failed')
+                cleanup = OSError('staging directory changed during cleanup')
+                with patch.object(export_staging, '_write_marker', side_effect=original), \
+                        patch.object(target, method, side_effect=cleanup):
+                    with self.assertRaises(OSError) as caught:
+                        factory(tmp, 'mp3')
+                self.assertIs(original, caught.exception)
+                self.assertIs(cleanup, caught.exception.__cause__)
 
     def test_rollback_alias_is_preserved_without_traversal(self):
         with tempfile.TemporaryDirectory() as tmp:
