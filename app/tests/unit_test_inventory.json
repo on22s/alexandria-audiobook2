@@ -13279,6 +13279,7 @@
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_native_handles_deny_parent_rename_until_released",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_recovery_guard_blocks_metadata_unlink_and_directory_removal",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_reparse_ancestor_refuses_and_releases_prior_handles",
+    "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_system_ancestor_access_denial_does_not_weaken_owned_root",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_untrusted_outside_target_is_refused_before_native_access"
   ],
   "test_windows_export_qualification": [

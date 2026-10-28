@@ -31,6 +31,19 @@ class FakeHandle:
 
 
 class WindowsBookMoveGuardTests(unittest.TestCase):
+    def test_system_ancestor_access_denial_does_not_weaken_owned_root(self):
+        denied = OSError('synthetic access denial')
+        denied.winerror = 5
+        fallback = object()
+        with patch.object(windows, '_Handle', side_effect=[denied, fallback]) as opened:
+            self.assertIs(fallback, windows._open_rename_guard(
+                object(), Path('system-ancestor'), required=False))
+        self.assertEqual({}, opened.call_args_list[1].kwargs)
+        with patch.object(windows, '_Handle', side_effect=denied) as opened:
+            with self.assertRaises(OSError):
+                windows._open_rename_guard(object(), Path('owned-root'), required=True)
+        self.assertEqual({'protect_rename': True}, opened.call_args.kwargs)
+
     def test_book_root_guard_uses_non_deleting_handles_and_checks_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / 'book'
@@ -42,8 +55,7 @@ class WindowsBookMoveGuardTests(unittest.TestCase):
                 with windows.WindowsBookRoot(root, (identity.st_dev, identity.st_ino)) as guard:
                     guard.check()
                     self.assertEqual(root, FakeHandle.opened[-1].path)
-                    self.assertTrue(all(handle.options == {'protect_rename': True}
-                                        for handle in FakeHandle.opened))
+                    self.assertEqual({'protect_rename': True}, FakeHandle.opened[-1].options)
                     self.assertTrue(all(not handle.closed for handle in FakeHandle.opened))
                 self.assertTrue(all(handle.closed for handle in FakeHandle.opened))
 
@@ -102,8 +114,10 @@ class WindowsBookMoveGuardTests(unittest.TestCase):
                     self.assertIn(root / 'source', paths)
                     self.assertIn(root / 'destination', paths)
                     self.assertEqual(len(paths), len(set(paths)))
-                    self.assertTrue(all(handle.options == {'protect_rename': True}
-                                        for handle in FakeHandle.opened))
+                    by_path = {handle.path: handle.options for handle in FakeHandle.opened}
+                    self.assertEqual({'protect_rename': True}, by_path[root])
+                    self.assertEqual({'protect_rename': True}, by_path[root / 'source'])
+                    self.assertEqual({'protect_rename': True}, by_path[root / 'destination'])
                     self.assertTrue(all(not handle.closed for handle in FakeHandle.opened))
                 self.assertTrue(all(handle.closed for handle in FakeHandle.opened))
 

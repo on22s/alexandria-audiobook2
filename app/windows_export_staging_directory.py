@@ -85,6 +85,21 @@ def _identity(info):
     return info.volume, (info.index_high << 32) | info.index_low
 
 
+def _open_rename_guard(api, directory, *, required):
+    """Request rename authority where the app controls the directory tree.
+
+    System ancestors can deny DELETE access to an ordinary user precisely
+    because that user cannot rename them.  Retain an identity handle there;
+    never weaken the guard for the admitted root or one of its descendants.
+    """
+    try:
+        return _Handle(api, directory, protect_rename=True)
+    except OSError as error:
+        if required or getattr(error, 'winerror', None) != 5:
+            raise
+        return _Handle(api, directory)
+
+
 class WindowsBookRoot:
     """Pin one admitted book root and its ancestor chain without blocking writes.
 
@@ -110,7 +125,8 @@ class WindowsBookRoot:
         try:
             api = _api()
             for directory in (*reversed(self.path.parents), self.path):
-                handle = _Handle(api, directory, protect_rename=True)
+                handle = _open_rename_guard(
+                    api, directory, required=directory == self.path)
                 self.stack.callback(handle.close)
                 info = handle.information()
                 if not info.attributes & 0x10 or info.attributes & 0x400:
@@ -173,7 +189,9 @@ def guard_windows_book_move_parents(root, source, destination):
     with ExitStack() as stack:
         guards = []
         for directory in ordered:
-            handle = _Handle(api, directory, protect_rename=True)
+            handle = _open_rename_guard(
+                api, directory,
+                required=(directory == root or directory.is_relative_to(root)))
             stack.callback(handle.close)
             info = handle.information()
             if not info.attributes & 0x10 or info.attributes & 0x400:
