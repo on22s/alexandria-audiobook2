@@ -23,6 +23,19 @@ from script_selection_binding import BINDING_NAME, capture_generation_selection,
 
 
 class SavedPublicationSourceTests(unittest.TestCase):
+    def test_review_voice_mapping_requires_the_matching_voice_config(self):
+        from script_selection_binding import (publish_controlled_script_edit,
+                                               publish_saved_script_edit)
+        with self.fixture() as (root, _client):
+            with self.assertRaisesRegex(ValueError, 'Voice remap requires'):
+                publish_controlled_script_edit(str(root), b'[]', b'[]',
+                                               voice_mapping={'Alias': 'Canonical'})
+            saved = root / 'scripts/book.json'
+            with self.assertRaisesRegex(ValueError, 'Voice remap requires'):
+                publish_saved_script_edit(str(root), str(saved.parent), str(saved),
+                                          saved.read_bytes(), saved.read_bytes(),
+                                          voice_mapping={'Alias': 'Canonical'})
+
     @contextmanager
     def fixture(self):
         with fixtures.SavedBookPublicationTests().fixture() as (root, api), ExitStack() as stack:
@@ -255,7 +268,9 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
         with self.fixture() as (root, client):
             source = root/'scripts/book.json'
             for name in ('state.json', 'voice_config.json', 'chunks.json',
-                         'annotated_script.selection_binding.json'):
+                         'annotated_script.selection_binding.json',
+                         'annotated_script.json.threepass_checkpoint.json',
+                         'annotated_script.json.threepass_manifest.json'):
                 destination = root/name
                 if not destination.exists():
                     destination.write_bytes(b'preserve')

@@ -500,6 +500,17 @@ class BookRecoveryInventoryTests(unittest.TestCase):
             self.assertNotIn(str(secret), json.dumps(result))
             self.assertFalse(result['ready_for_capture'])
 
+    def test_voice_recovery_traversal_bounds_total_nested_fields(self):
+        with self.fixture() as (root, _):
+            voices = {'versions': [
+                {f'field_{field}': field for field in range(100)}
+                for _version in range(50)
+            ]}
+            (root / 'voice_config.json').write_text(json.dumps(voices))
+            with patch.object(inventory, 'MAX_FILES', 100), \
+                    self.assertRaisesRegex(ValueError, 'traversal limit'):
+                inventory.inspect_active_book_recovery_candidates(root, byte_limit=1000000)
+
     def test_changes_and_new_optional_files_during_scan_are_rejected(self):
         for mutate in ('change', 'appear'):
             with self.subTest(mutate=mutate), self.fixture() as (root, _):

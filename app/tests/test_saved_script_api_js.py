@@ -10,13 +10,13 @@ SETUP = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8'),core=fs.readFileSync(process.argv[2],'utf8');
 const turn=()=>new Promise(setImmediate);
 function client(){
- const fields={},calls=[],toasts=[],effects=[];let response=new Response('{}'),flush=Promise.resolve(),choice=true;
+ const fields={},calls=[],toasts=[],effects=[];let response=new Response('{}'),flush=Promise.resolve(),flushCalls=0,choice=true;
  const el=id=>fields[id]||(fields[id]={value:id==='save-script-name'?'Book #? 日本':'',style:{}});
- const ctx={currentBookFilename:'book-a.json',_voiceSaveSnapshot:{book_identity_token:'a'.repeat(64)},document:{getElementById:el},console:{error(){}},fetch:async(url,options)=>{calls.push({url,...options});return response;},showConfirm:async()=>choice,ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:()=>flush,showToast:(...args)=>toasts.push(args),
+ const ctx={currentBookFilename:'book-a.json',_voiceSaveSnapshot:{book_identity_token:'a'.repeat(64)},document:{getElementById:el},console:{error(){}},fetch:async(url,options)=>{calls.push({url,...options});return response;},showConfirm:async()=>choice,ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:()=>{flushCalls++;return flush;},showToast:(...args)=>toasts.push(args),
  applyCurrentBookFilename:name=>effects.push(['book',name]),clearCharacterAliases:()=>effects.push(['aliases']),resetDesignerForm:()=>effects.push(['designer']),clearVoiceSuggestions:()=>effects.push(['suggestions']),loadCharacterAliases:async()=>effects.push(['alias-load']),loadChunks:async()=>effects.push(['chunks']),refreshVoiceMetadata:async()=>{},loadVoices:async()=>effects.push(['voices']),loadDesignedVoices:()=>effects.push(['designs'])};
  ctx.window=ctx;vm.createContext(ctx);vm.runInContext(core.slice(core.indexOf('function enqueueBookSelection('),core.indexOf('function getCurrentBookName(')),ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(core.slice(core.indexOf('const API ='),core.indexOf('function getTaskLogUpdate(')),ctx);
  vm.runInContext(source.slice(source.indexOf('async function saveScript()'),source.indexOf('// --- Voice Designer ---')),ctx);ctx.loadSavedScripts=()=>effects.push(['saved-list']);
- return {ctx,el,calls,toasts,effects,setResponse:value=>response=value,setFlush:value=>flush=value,setChoice:value=>choice=value};
+ return {ctx,el,calls,toasts,effects,flushCalls:()=>flushCalls,setResponse:value=>response=value,setFlush:value=>flush=value,setChoice:value=>choice=value};
 }
 const operations=c=>[()=>c.ctx.saveScript(),()=>c.ctx.loadScript('Book #? 日本'),()=>c.ctx.deleteScript('Book #? 日本')];
 '''
@@ -65,7 +65,7 @@ for(const change of ['filename','generation']){
  assert.strictEqual(c.calls.length,0);assert.deepStrictEqual(c.effects,[]);
  assert.strictEqual(c.el('save-script-name').value,'Book #? 日本');assert.strictEqual(c.toasts[0][1],'error');assert.match(c.toasts[0][0],/book changed/i);
 }
-const c=client();c.ctx._voiceSaveSnapshot=null;await c.ctx.saveScript();assert.strictEqual(c.calls.length,0);assert.strictEqual(c.toasts[0][1],'error');
+const c=client();c.ctx._voiceSaveSnapshot=null;await c.ctx.saveScript();assert.strictEqual(c.calls.length,0);assert.strictEqual(c.flushCalls(),0);assert.strictEqual(c.toasts[0][1],'error');
 ''')
 
     def test_save_refreshes_only_the_confirmed_upload_identity(self):

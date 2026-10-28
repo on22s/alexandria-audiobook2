@@ -1482,6 +1482,8 @@ def main():
                      and os.path.abspath(output_path) == os.path.abspath(default_script))
     saved_review = (os.path.abspath(os.path.dirname(output_path)) == os.path.abspath(saved_dir)
                     and os.path.abspath(script_path) == os.path.abspath(output_path))
+    from three_pass_generate import three_pass_checkpoint_path
+    from script_recovery_facts import three_pass_manifest_path
     reserved_outputs = {
         os.path.normcase(os.path.realpath(os.path.join(data_dir, name)))
         for name in ('state.json', 'voice_config.json', 'chunks.json',
@@ -1490,6 +1492,8 @@ def main():
     }
     reserved_outputs.add(os.path.normcase(os.path.realpath(
         get_review_receipt_path(default_script))))
+    reserved_outputs.update(os.path.normcase(os.path.realpath(path)) for path in (
+        three_pass_checkpoint_path(default_script), three_pass_manifest_path(default_script)))
     try:
         relative_output = os.path.relpath(canonical_output, canonical_data)
     except ValueError:

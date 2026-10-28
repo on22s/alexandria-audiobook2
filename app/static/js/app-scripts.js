@@ -77,6 +77,9 @@
                 const book = currentBookFilename;
                 let bookToken = _voiceSaveSnapshot?.book_identity_token;
                 const selection = window._selectedUploadIdentity;
+                if (!bookToken && !(selection && selection.filename === book && selection.token)) {
+                    throw new Error('Wait for the current book to finish loading before saving.');
+                }
                 await flushVoiceSaves();
                 if (selection && selection.filename === book && selection.token !== bookToken) {
                     if (window._selectedUploadIdentity !== selection

@@ -293,6 +293,8 @@ def publish_controlled_script_edit(data_dir, old_script, new_script, *,
     journal = Path(get_chunk_status_journal_path(chunks))
     registry = _staged_registry_path(data_dir, registry_staging)
     voice = root / 'voice_config.json'
+    if voice_mapping and not voice_config_path:
+        raise ValueError('Voice remap requires the active book voice config')
     if voice_mapping and voice_config_path:
         if os.path.abspath(voice_config_path) != os.path.abspath(voice):
             raise ValueError('Active review voice config must belong to the active book')
@@ -379,6 +381,8 @@ def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, ne
     voice = directory / (script.stem + '.voice_config.json')
     publication = Path(get_publication_source_path(str(script)))
     registry = _staged_registry_path(data_dir, registry_staging)
+    if voice_mapping and not voice_config_path:
+        raise ValueError('Voice remap requires this saved book voice config')
     if voice_mapping and voice_config_path:
         if os.path.abspath(voice_config_path) != os.path.abspath(voice) or not callable(remap_voice_config):
             raise ValueError('Saved review voice config must belong to this book')

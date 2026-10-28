@@ -270,6 +270,7 @@ def _save_script_sync(request):
         except (OSError, ValueError) as error:
             raise HTTPException(status_code=409, detail=(
                 'Active script requires inspection; existing files were preserved.')) from error
+        validate_book_json_bytes(script_bytes, list, 422, "Active script")
         try:
             active_state = _read_selection_state(DATA_DIR, required=False)
         except (OSError, ValueError, TypeError, RecursionError) as error:
@@ -303,7 +304,6 @@ def _save_script_sync(request):
         except (OSError, ValueError, TypeError, RecursionError) as error:
             raise HTTPException(status_code=409, detail=(
                 'The selected source or script identity changed; existing files were preserved.')) from error
-        validate_book_json_bytes(script_bytes, list, 422, "Active script")
         book_id = get_active_book_id(state=active_state) or safe_name
         cue_bytes, rendition_bytes = _capture_sound_companions(DATA_DIR, ACTIVE_CUES, ACTIVE_RENDITIONS, book_id)
         _validate_sound_destination(SCRIPTS_DIR, os.path.basename(get_saved_sound_design_path(dest)), limit=MAX_REGISTRY_BYTES)

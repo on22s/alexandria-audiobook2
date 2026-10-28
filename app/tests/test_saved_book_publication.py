@@ -20,6 +20,18 @@ from routers import scripts_library as routes
 
 
 class SavedBookPublicationTests(unittest.TestCase):
+    def test_invalid_active_script_is_422_before_binding_identity_parsing(self):
+        with self.fixture() as (root, api), TestClient(api) as client:
+            before = self.artifacts(root)
+            (root / 'annotated_script.json').write_bytes(b'not-json')
+            (root / routes.BINDING_NAME).write_bytes(b'not-a-binding')
+            state = json.loads((root / 'state.json').read_text())
+            state['script_binding_required'] = True
+            (root / 'state.json').write_text(json.dumps(state))
+            response = client.post('/api/scripts/save', json={'name': 'invalid'})
+            self.assertEqual(422, response.status_code, response.text)
+            self.assertEqual(before, self.artifacts(root))
+
     def test_saved_listing_refuses_pending_parent_book_transaction(self):
         with self.fixture() as (root, api), TestClient(api) as client:
             journal = root / books.JOURNAL

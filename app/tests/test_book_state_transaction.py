@@ -14,6 +14,23 @@ import book_state_transaction as books
 class BookStateTransactionTests(unittest.TestCase):
     @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
                          'POSIX directory descriptors required')
+    def test_process_death_before_initial_journal_publication_never_exposes_partial_final(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code = r'''import os,sys
+from pathlib import Path
+import book_state_transaction as books
+import source_upload_publication as publication
+root=Path(sys.argv[1]); descriptor=os.open(root, os.O_RDONLY|os.O_DIRECTORY)
+publication.move_source_upload_exclusively=lambda *_args,**_kwargs: os._exit(77)
+books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
+                    root_fd=descriptor)
+'''
+            result = subprocess.run([sys.executable, '-c', code, tmp], cwd=Path(__file__).parent.parent)
+            self.assertEqual(77, result.returncode)
+            self.assertFalse((Path(tmp) / books.JOURNAL).exists())
+
+    @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
+                         'POSIX directory descriptors required')
     def test_failed_initial_journal_fsync_removes_the_owned_partial_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -53,6 +70,30 @@ class BookStateTransactionTests(unittest.TestCase):
                     books._require_target_parent_identities(descriptor, 'absent/child/file', missing)
             finally:
                 os.close(descriptor)
+
+    @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
+                         'POSIX directory descriptors required')
+    def test_parent_change_before_first_move_cleans_byte_journal_and_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); (root / 'sub').mkdir(); target = root / 'sub/file.json'
+            target.write_bytes(b'original')
+            with books.ensure_book_state(root), \
+                    patch.object(books, '_require_transaction_parent_identities',
+                                 side_effect=ValueError('parent changed')), \
+                    self.assertRaisesRegex(ValueError, 'parent changed'):
+                books.apply_book_state_locked(root, {'sub/file.json': b'replacement'}, [])
+            self.assertEqual(b'original', target.read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
+            self.assertEqual([], list(root.glob('.book-switch-*')))
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX surrogate-escaped filename required')
+    def test_stream_digest_accepts_surrogate_escaped_filename(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            name = os.fsdecode(b'non-utf8-\xff')
+            (root / name).write_bytes(b'content')
+            digest = books._bounded_book_digest(root, books._BookScanBudget(1024, 8, None))
+            self.assertRegex(digest, r'^[0-9a-f]{64}$')
     def test_scalar_journal_entry_is_rejected_without_mutation(self):
         for version in (2, 3):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as tmp:
@@ -133,8 +174,8 @@ class BookStateTransactionTests(unittest.TestCase):
             self.assertEqual(b'do not modify', (root/'foreign').read_bytes())
             self.assertFalse((root/'script.json').exists())
             self.assertEqual(b'original', (retained/'script.json').read_bytes())
-            journal = json.loads((retained/books.JOURNAL).read_text())
-            self.assertEqual(b'generated', (retained/journal['workspace']/'new-0').read_bytes())
+            self.assertFalse((retained/books.JOURNAL).exists())
+            self.assertEqual([], list(retained.glob('.book-switch-*')))
 
     def test_byte_target_changed_before_commit_keeps_publishing_recovery_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -199,7 +240,8 @@ class BookStateTransactionTests(unittest.TestCase):
                     books.apply_book_state_locked(root, {'sub/file':b'generated'}, [])
             self.assertTrue(swapped)
             self.assertFalse((outside / 'file').exists())
-            self.assertTrue((root / books.JOURNAL).exists())
+            self.assertFalse((root / books.JOURNAL).exists())
+            self.assertEqual([], list(root.glob('.book-switch-*')))
 
     @unittest.skipIf(os.name == 'nt', 'Windows junction qualification requires a native test')
     def test_byte_cleanup_refuses_parent_swapped_after_publication(self):

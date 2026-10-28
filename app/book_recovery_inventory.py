@@ -385,7 +385,7 @@ def inspect_active_book_recovery_candidates(root, *, byte_limit, cancel_check=No
             raise ValueError('Invalid voice configuration') from error
         if not isinstance(voices, dict):
             raise ValueError('Invalid voice configuration')
-        pending, visited = [voices], 0
+        pending, visited, visited_items = [voices], 0, 0
         while pending:
             _check_cancelled(cancel_check)
             current = pending.pop()
@@ -393,6 +393,9 @@ def inspect_active_book_recovery_candidates(root, *, byte_limit, cancel_check=No
             if visited + len(pending) > MAX_FILES * 16:
                 raise ValueError('Voice configuration exceeds recovery traversal limit')
             if isinstance(current, dict):
+                visited_items += len(current)
+                if visited_items > MAX_FILES * 16:
+                    raise ValueError('Voice configuration exceeds recovery traversal limit')
                 if visited + len(pending) + len(current) > MAX_FILES * 16:
                     raise ValueError('Voice configuration exceeds recovery traversal limit')
                 for key, value in current.items():
@@ -433,6 +436,9 @@ def inspect_active_book_recovery_candidates(root, *, byte_limit, cancel_check=No
                     if isinstance(value, (dict, list)):
                         pending.append(value)
             elif isinstance(current, list):
+                visited_items += len(current)
+                if visited_items > MAX_FILES * 16:
+                    raise ValueError('Voice configuration exceeds recovery traversal limit')
                 if visited + len(pending) + len(current) > MAX_FILES * 16:
                     raise ValueError('Voice configuration exceeds recovery traversal limit')
                 for value in current:
