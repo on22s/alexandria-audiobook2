@@ -20,6 +20,45 @@ def stream(data):
 
 
 class BookStateStreamingTests(unittest.TestCase):
+    def test_stream_replacement_rechecks_identity_after_digest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'new-0'
+            path.write_bytes(b'new audio')
+            info = path.lstat()
+            row = {
+                'new_file_identity': [info.st_dev, info.st_ino],
+                'new_sha256': hashlib.sha256(b'new audio').hexdigest(),
+            }
+            digest = books._bounded_book_digest
+            def replace_after_digest(candidate, budget):
+                result = digest(candidate, budget)
+                candidate.rename(candidate.with_name('replaced'))
+                candidate.write_bytes(b'new audio')
+                return result
+            budget = books._BookScanBudget(100, 10, None)
+            with patch.object(books, '_bounded_book_digest', side_effect=replace_after_digest):
+                with self.assertRaisesRegex(ValueError, 'replacement changed'):
+                    books._validate_stream_replacement(row, path, budget)
+
+    def test_windows_cleanup_inventory_refuses_reparse_before_traversal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            child = root / 'junction'
+            child.mkdir()
+            real_lstat = Path.lstat
+            class ReparseInfo:
+                st_file_attributes = stat.FILE_ATTRIBUTE_REPARSE_POINT
+                def __init__(self, value):
+                    self.value = value
+                def __getattr__(self, name):
+                    return getattr(self.value, name)
+            def marked(candidate):
+                info = real_lstat(candidate)
+                return ReparseInfo(info) if candidate == child else info
+            with patch.object(Path, 'lstat', marked):
+                with self.assertRaisesRegex(ValueError, 'unsafe artifact'):
+                    books._capture_cleanup_tree_path(root)
+
     def test_stream_transaction_rejects_nested_replacement_and_removal_targets(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

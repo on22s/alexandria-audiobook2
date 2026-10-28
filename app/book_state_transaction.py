@@ -204,10 +204,13 @@ def _stage_book_stream(path, source, mode, cancel_check, *, on_open=None, direct
         sync_adapter_directory(str(path.parent))
 
 
-def _book_target_version(path):
-    info = path.lstat()
+def _book_info_version(info):
     return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
             info.st_ctime_ns, info.st_mode, info.st_nlink)
+
+
+def _book_target_version(path):
+    return _book_info_version(path.lstat())
 
 
 class _BookScanBudget:
@@ -788,11 +791,13 @@ def _validate_stream_replacement(row, path, budget):
     if (not isinstance(expected, list) or len(expected) != 2
             or any(type(value) is not int or value < 0 for value in expected)):
         raise ValueError('Invalid active-book replacement identity')
-    info = path.lstat()
-    if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
-            or [info.st_dev, info.st_ino] != expected):
+    version = _book_target_version(path)
+    if (not stat.S_ISREG(version[5]) or version[6] != 1
+            or [version[0], version[1]] != expected):
         raise ValueError('Active-book replacement ownership changed; refusing destructive recovery')
-    if row.get('new_sha256') is None or _bounded_book_digest(path, budget) != row['new_sha256']:
+    if (row.get('new_sha256') is None
+            or _bounded_book_digest(path, budget) != row['new_sha256']
+            or _book_target_version(path) != version):
         raise ValueError('Active-book replacement changed; refusing destructive recovery')
 
 
@@ -1202,16 +1207,22 @@ def _capture_cleanup_tree_path(path, depth=0, prefix=(), rows=None):
     if depth > 128:
         raise ValueError('Book cleanup directory depth exceeds its limit')
     rows = {} if rows is None else rows
-    before = _book_target_version(path)
-    if not stat.S_ISDIR(before[5]) or Path(path).is_symlink():
+    before_info = Path(path).lstat()
+    before = _book_info_version(before_info)
+    if (not stat.S_ISDIR(before[5]) or stat.S_ISLNK(before[5])
+            or getattr(before_info, 'st_file_attributes', 0)
+            & stat.FILE_ATTRIBUTE_REPARSE_POINT):
         raise ValueError('Book cleanup tree contains an unsafe artifact')
     with os.scandir(path) as entries:
         children = sorted((entry.name, Path(path) / entry.name) for entry in entries)
     for name, child in children:
         if len(rows) >= MAX_LEGACY_CLEANUP_ENTRIES:
             raise ValueError('Book cleanup entry count exceeds its limit')
-        version = _book_target_version(child)
-        if (not stat.S_ISDIR(version[5])
+        child_info = child.lstat()
+        version = _book_info_version(child_info)
+        if (getattr(child_info, 'st_file_attributes', 0)
+                & stat.FILE_ATTRIBUTE_REPARSE_POINT
+                or not stat.S_ISDIR(version[5])
                 and not (stat.S_ISREG(version[5]) and version[6] == 1)):
             raise ValueError('Book cleanup tree contains an unsafe artifact')
         relative = (*prefix, name)

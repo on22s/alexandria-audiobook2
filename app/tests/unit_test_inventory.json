@@ -1543,6 +1543,7 @@
     "tests.test_book_state_streaming.BookStateStreamingTests.test_stream_cleanup_refuses_parent_swapped_after_publication",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_stream_cleanup_refuses_workspace_symlink_swap",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_stream_journal_downgrade_and_original_substitution_preserve_evidence",
+    "tests.test_book_state_streaming.BookStateStreamingTests.test_stream_replacement_rechecks_identity_after_digest",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_stream_requires_book_admission",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_stream_staging_does_not_follow_replaced_workspace_name",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_stream_transaction_rejects_nested_replacement_and_removal_targets",
@@ -1550,6 +1551,7 @@
     "tests.test_book_state_streaming.BookStateStreamingTests.test_transaction_entry_limit_is_checked_before_any_staging",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_unexpected_prepublication_file_is_preserved_on_staging_error",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_unknown_workspace_file_blocks_cleanup_without_losing_evidence",
+    "tests.test_book_state_streaming.BookStateStreamingTests.test_windows_cleanup_inventory_refuses_reparse_before_traversal",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_wrong_size_hash_or_limit_preserves_existing_book"
   ],
   "test_book_state_transaction": [
