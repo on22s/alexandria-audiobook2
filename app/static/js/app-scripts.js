@@ -75,9 +75,23 @@
             }
             try {
                 const book = currentBookFilename;
-                const bookToken = _voiceSaveSnapshot?.book_identity_token;
-                if (!bookToken) { throw new Error('Wait for the current book to finish loading before saving.'); }
+                let bookToken = _voiceSaveSnapshot?.book_identity_token;
+                const selection = window._selectedUploadIdentity;
                 await flushVoiceSaves();
+                if (selection && selection.filename === book && selection.token !== bookToken) {
+                    if (window._selectedUploadIdentity !== selection
+                            || currentBookFilename !== book) {
+                        throw new Error('Active book changed; restart Save Current for the current book.');
+                    }
+                    await refreshVoiceMetadata({ expectedSelection: selection });
+                    if (window._selectedUploadIdentity !== selection
+                            || currentBookFilename !== book
+                            || _voiceSaveSnapshot?.book_identity_token !== selection.token) {
+                        throw new Error('Active book changed; restart Save Current for the current book.');
+                    }
+                    bookToken = selection.token;
+                }
+                if (!bookToken) { throw new Error('Wait for the current book to finish loading before saving.'); }
                 if (book !== currentBookFilename || bookToken !== _voiceSaveSnapshot?.book_identity_token) {
                     throw new Error('Active book changed; restart Save Current for the current book.');
                 }
@@ -101,6 +115,7 @@
                 if (!await ensureCastListEditsDiscardable()) { return; }
                 request = {};
                 loadScript.request = request;
+                window._bookSelectionEpoch = (window._bookSelectionEpoch || 0) + 1;
                 window._existingUploadSelectionRequest = request;
                 loading = enqueueBookSelection(request, async () => {
                     if (!isCurrent()) { return; }

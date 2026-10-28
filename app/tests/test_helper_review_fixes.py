@@ -20,6 +20,26 @@ import utils
 
 
 class HelperReviewTests(unittest.TestCase):
+    def test_review_input_reader_refuses_aliases_nonfiles_and_oversize_claims(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root/'book.json'; source.write_bytes(b'[]')
+            self.assertEqual(b'[]', review_script._read_review_script_bytes(source))
+            alias = root/'alias.json'; alias.symlink_to(source)
+            with self.assertRaisesRegex(ValueError, 'bounded regular file'):
+                review_script._read_review_script_bytes(alias)
+            folder = root/'folder'; folder.mkdir()
+            with self.assertRaisesRegex(ValueError, 'bounded regular file'):
+                review_script._read_review_script_bytes(folder)
+            before = source.stat()
+            oversized = SimpleNamespace(**{
+                name:getattr(before, name) for name in
+                ('st_dev','st_ino','st_mtime_ns','st_ctime_ns','st_mode','st_nlink')})
+            oversized.st_size = review_script.MAX_REVIEW_SCRIPT_BYTES + 1
+            with patch.object(review_script.os, 'lstat', return_value=oversized):
+                with self.assertRaisesRegex(ValueError, 'bounded regular file'):
+                    review_script._read_review_script_bytes(source)
+
     def test_object_parser_rejects_other_json_shapes(self):
         for text in ('[]', '[1]', '42', 'null', '"text"'):
             self.assertIsNone(utils.extract_json_object(text))

@@ -255,6 +255,8 @@ class SoundDesignSavedBookTests(unittest.TestCase):
 
     def test_checkpoint_snapshot_keeps_exact_cue_history_on_reload(self):
         with self.fixture() as (root, api):
+            import core
+            from script_selection_binding import capture_generation_selection
             from sound_design_renditions import ACTIVE_RENDITIONS, get_saved_sound_renditions_path
             api.include_router(script.router)
             raw = self.write_active(root)
@@ -263,11 +265,22 @@ class SoundDesignSavedBookTests(unittest.TestCase):
             checkpoint = dict(stage='instruct', chunks_done=1, segmented=entries,
                               named=entries, annotated=entries)
             Path(script.three_pass_checkpoint_path(str(root / 'annotated_script.json'))).write_text(json.dumps(checkpoint))
+            source = root / 'source.txt'
+            source.write_text('Completed prefix.')
+            state_path = root / 'state.json'
+            state = json.loads(state_path.read_text())
+            state['input_file_path'] = str(source)
+            state_path.write_text(json.dumps(state))
+            state['script_generation_selection'] = capture_generation_selection(str(root), str(source))
+            state['script_generation_run_id'] = 'a' * 32
+            state_path.write_text(json.dumps(state))
             with patch.object(script, 'DATA_DIR', str(root)), \
                     patch.object(script, 'SCRIPTS_DIR', str(root / 'scripts')), \
                     patch.object(script, 'SCRIPT_PATH', str(root / 'annotated_script.json')), \
                     patch.object(script, 'VOICE_CONFIG_PATH', str(root / 'voice_config.json')), \
-                    patch.object(script, 'process_state', {'script': {'running': True}}), TestClient(api) as client:
+                    patch.object(script, 'process_state', {'script': {'running': True}}), \
+                    patch.dict(core._task_claims, {'script': {'id': 'a' * 32, 'phase': 'started'}}), \
+                    TestClient(api) as client:
                 response = client.post('/api/generate_script/snapshot', json={'name': 'prefix'})
                 self.assertEqual(200, response.status_code, response.text)
                 companion = Path(get_saved_sound_design_path(root / 'scripts/prefix.json'))
@@ -277,6 +290,10 @@ class SoundDesignSavedBookTests(unittest.TestCase):
                 self.assertEqual(entries, json.loads((root / 'scripts/prefix.json').read_bytes()))
                 self.write_active(root, -24)
                 self.write_renditions(root)
+                # Loading a snapshot is a book switch and must wait until the
+                # generation that owned the checkpoint has actually finished.
+                core._task_claims.pop('script')
+                script.process_state['script']['running'] = False
                 response = client.post('/api/scripts/load', json={'name': 'prefix'})
                 self.assertEqual(200, response.status_code, response.text)
                 self.assertEqual(raw, (root / ACTIVE_CUES).read_bytes())
@@ -300,9 +317,9 @@ class SoundDesignSavedBookTests(unittest.TestCase):
             before_cues = (root / ACTIVE_CUES).read_bytes()
             before_state = (root / 'state.json').read_bytes()
             move = books._move; failed = False
-            def fail_after_install(source, destination):
+            def fail_after_install(source, destination, **kwargs):
                 nonlocal failed
-                move(source, destination)
+                move(source, destination, **kwargs)
                 if Path(destination) == root / ACTIVE_RENDITIONS and not failed:
                     failed = True
                     raise OSError('fixture after cue install')
@@ -323,16 +340,17 @@ import book_state_transaction as books
 root = Path(sys.argv[1]); point = int(sys.argv[2]); count = 0
 if point:
     move = books._move
-    def stop_after_move(source, destination):
+    def stop_after_move(source, destination, **kwargs):
         global count
-        move(source, destination); count += 1
+        move(source, destination, **kwargs); count += 1
         if count == point: os._exit(77)
     books._move = stop_after_move
 else:
     save = books._save_journal
-    def stop_after_commit(root, journal):
-        save(root, journal)
+    def stop_after_commit(root, journal, **kwargs):
+        result = save(root, journal, **kwargs)
         if journal['phase'] == 'committed': os._exit(78)
+        return result
     books._save_journal = stop_after_commit
 books.apply_book_input_selection(root, 'new.txt', 'new')
 """

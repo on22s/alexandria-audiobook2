@@ -484,9 +484,19 @@ def _get_editor_chunk_views(chunks, book_token):
     return views
 
 
+def _ensure_editor_selection():
+    """Refuse operations against retained chunks from an older selection."""
+    try:
+        from script_selection_binding import require_published_selection
+        require_published_selection(os.path.dirname(SCRIPT_PATH))
+    except (ValueError, OSError, RecursionError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
 def _ensure_editor_chunks():
     """Load rows without inventing IDs or discarding persisted progress."""
     try:
+        _ensure_editor_selection()
         chunks = project_manager.load_chunks()
     except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
@@ -599,6 +609,7 @@ def _get_undo_take_rows():
 def check_chunk_identity(index, expected_book_token=None, expected_uid=None):
     """Caller holds the book lock through the following mutation."""
     root = os.path.dirname(SCRIPT_PATH)
+    _ensure_editor_selection()
     if (expected_book_token is not None
             and expected_book_token != get_snapshot_digest(get_editor_book_identity(root))):
         raise HTTPException(status_code=409, detail="Active book changed; reload the Editor before saving")
@@ -624,6 +635,7 @@ def ensure_audio_generation_requests(indices, expected_book_token=None, expected
     """Read and bind selection once while its caller owns the audio reservation."""
     root = os.path.dirname(SCRIPT_PATH)
     with ensure_book_state(root):
+        _ensure_editor_selection()
         identity = get_snapshot_digest(get_editor_book_identity(root))
         if (expected_book_token is not None and expected_book_token != identity):
             raise HTTPException(status_code=409, detail="Active book changed; reload before rendering")
@@ -867,6 +879,7 @@ def get_export_quality_attempt(request, state, *, audacity=False):
     # A cancelled queued worker must not start book I/O for evidence capture.
     ensure_audio_export_active(lambda: state.get('cancel', False))
     with ensure_book_state(DATA_DIR):
+        _ensure_editor_selection()
         token = get_snapshot_digest(get_editor_book_identity(DATA_DIR))
     options = getattr(request, 'export_quality', None)
     return ExportQualityAttempt(state, token,
@@ -1016,6 +1029,8 @@ async def export_audacity_endpoint(background_tasks: BackgroundTasks):
     # where two rapid POSTs both pass a plain running check before either sets it).
     # audacity_export is a NON_GPU_TASK, so this only guards against self-double-start.
 
+    await asyncio.to_thread(_ensure_editor_selection)
+
     def task():
         process_state["audacity_export"]["logs"] = ["Starting Audacity export..."]
         quality_attempt = None
@@ -1104,6 +1119,7 @@ def get_unready_export_speakers():
 
 
 async def validate_export_readiness(require_ready):
+    await asyncio.to_thread(_ensure_editor_selection)
     if require_ready:
         missing = await asyncio.to_thread(get_unready_export_speakers)
         if missing:

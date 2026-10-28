@@ -78,6 +78,47 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
             self.assertIs(False,response.json().get('voice_config_invalidated'))
             self.assertIsNone(response.json()['voice_config_backup'])
 
+    def test_active_saved_speaker_repair_updates_active_script_and_invalidates_active_voice(self):
+        with self.fixture() as (root,api),TestClient(api) as client:
+            saved = root/'scripts/book.json'; saved_voice = root/'scripts/book.voice_config.json'
+            active = root/'annotated_script.json'; active_voice = root/'voice_config.json'
+            active.write_bytes(saved.read_bytes()); active_voice.write_bytes(b'{"active":"new assignment"}')
+            active_voice_before = active_voice.read_bytes()
+            (root/'chunks.json').write_text('[{"speaker":"Alice","text":"stale"}]')
+            (root/'chunks.json.status.jsonl').write_text('{"stale":true}\n')
+            (root/'state.json').write_text(json.dumps({
+                'active_book_id':'book', 'book_generation':'generation',
+                'input_file_path':str(saved)}))
+            response=client.post('/api/scripts/book/repair/speakers/apply',json=self.request(
+                root,[self.select(1,'Alice','NARRATOR')]))
+            self.assertEqual(200,response.status_code,response.text)
+            self.assertEqual(saved.read_bytes(), active.read_bytes())
+            self.assertFalse(saved_voice.exists())
+            self.assertFalse(active_voice.exists())
+            self.assertFalse((root/'chunks.json').exists())
+            self.assertFalse((root/'chunks.json.status.jsonl').exists())
+            active_backup = root/response.json()['active_voice_config_backup']
+            self.assertEqual(active_voice_before, active_backup.read_bytes())
+
+    def test_active_speaker_repair_refuses_missing_saved_binding_when_active_binding_exists(self):
+        from script_selection_binding import BINDING_NAME
+        with self.fixture() as (root,api), TestClient(api) as client:
+            saved = root/'scripts/book.json'
+            active = root/'annotated_script.json'
+            active.write_bytes(saved.read_bytes())
+            (root/'state.json').write_text(json.dumps({
+                'active_book_id':'book', 'book_generation':'generation',
+                'input_file_path':str(saved), 'script_binding_required': True}))
+            binding = root/BINDING_NAME
+            binding.write_bytes(b'active identity must remain')
+            before = saved.read_bytes()
+            response = client.post('/api/scripts/book/repair/speakers/apply',
+                                   json=self.request(root,[self.select(1,'Alice','NARRATOR')]))
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(before, saved.read_bytes())
+            self.assertEqual(before, active.read_bytes())
+            self.assertEqual(b'active identity must remain', binding.read_bytes())
+
     def test_dangling_voice_symlink_is_refused_before_script_publication(self):
         with self.fixture() as (root,api),TestClient(api) as client:
             voice=root/'scripts/book.voice_config.json';voice.unlink()
@@ -101,14 +142,15 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
 
     def test_voice_removal_failure_restores_script_voices_checkpoints_and_backup_ownership(self):
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
-            before=self.snapshot(root);replace=os.replace;failed=False
-            def fail_once(source,destination,*args,**kwargs):
+            from source_upload_publication import move_source_upload_exclusively
+            before=self.snapshot(root);failed=False
+            def fail_once(source,destination,**kwargs):
                 nonlocal failed
-                if str(source)==str(root/'scripts/book.voice_config.json') and not failed:
+                if Path(source).name=='book.voice_config.json' and not failed:
                     failed=True;raise OSError('fixture voice invalidation disk full')
-                return replace(source,destination,*args,**kwargs)
+                return move_source_upload_exclusively(source,destination,**kwargs)
             body=self.request(root,[self.select(1,'Alice','NARRATOR')])
-            with patch('os.replace',side_effect=fail_once):
+            with patch('source_upload_publication.move_source_upload_exclusively',side_effect=fail_once):
                 response=client.post('/api/scripts/book/repair/speakers/apply',json=body)
             self.assertTrue(failed);self.assertEqual(500,response.status_code)
             self.assertEqual(before,self.snapshot(root))
@@ -152,9 +194,9 @@ import book_state_transaction as books
 from routers import scripts_library as routes
 root=Path(sys.argv[1]);routes.SCRIPTS_DIR=str(root/'scripts');routes.process_state={}
 move=books._move;count=0
-def die(source,destination):
+def die(source,destination, **kwargs):
  global count
- result=move(source,destination);count+=1
+ result=move(source,destination, **kwargs);count+=1
  if count==5:os._exit(77)
  return result
 books._move=die

@@ -471,11 +471,11 @@ class DeliveryReviewApiTests(unittest.TestCase):
             original_move = transaction._move
             failures = []
 
-            def fail_one_publish(source, destination):
+            def fail_one_publish(source, destination, **kwargs):
                 if Path(destination) == manifest and Path(source).name.startswith('new-') and not failures:
                     failures.append('injected manifest publish failure')
                     raise OSError(failures[-1])
-                return original_move(source, destination)
+                return original_move(source, destination, **kwargs)
 
             with patch.object(transaction, '_move', side_effect=fail_one_publish):
                 with self.assertRaisesRegex(OSError, 'manifest publish failure'):

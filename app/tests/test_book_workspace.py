@@ -297,7 +297,8 @@ class BookWorkspaceTests(unittest.TestCase):
             with TestClient(application) as client:
                 for phase in ('publishing', 'committed', 'recovered', 'malformed'):
                     with self.subTest(phase=phase):
-                        script = library/'Book.json'; script.write_bytes(replacement)
+                        script = library/'Book.json'
+                        script.write_bytes(old if phase == 'recovered' else replacement)
                         workspace = library/f'.book-switch-{phase}'; workspace.mkdir()
                         backup = workspace/'old-0'; backup.write_bytes(old)
                         journal = library/JOURNAL
@@ -313,15 +314,12 @@ class BookWorkspaceTests(unittest.TestCase):
                         self.assertEqual(200, client.get('/api/workspace').status_code)
                         self.assertEqual(409, client.get('/api/scripts').status_code)
                         self.assertEqual(before, files())
-                        if phase == 'malformed':
-                            journal.unlink(); backup.unlink(); workspace.rmdir()
-                        else:
-                            with ensure_book_state(str(library)):
-                                pass
-                            self.assertFalse(journal.exists())
-                            self.assertFalse(workspace.exists())
-                            self.assertEqual(old if phase == 'publishing' else replacement, script.read_bytes())
-                            self.assertEqual(200, client.get('/api/scripts').status_code)
+                        if phase != 'malformed':
+                            with self.assertRaises(ValueError):
+                                with ensure_book_state(str(library)):
+                                    self.fail('Identity-free legacy recovery was admitted')
+                            self.assertEqual(before, files())
+                        journal.unlink(); backup.unlink(); workspace.rmdir()
 
     def test_optional_deeply_corrupt_manifest_does_not_hide_the_book_or_repair_it(self):
         self.prepare()
@@ -373,14 +371,11 @@ class BookWorkspaceTests(unittest.TestCase):
                         self.assertEqual(before, self.files())
                         self.assertEqual(b'preserved backup', backup.read_bytes())
                         if phase in ('committed', 'recovered'):
-                            # Explicit recovering admission retains canonical terminal cleanup.
-                            with ensure_book_state(str(self.root)):
-                                pass
-                            self.assertFalse(journal.exists())
-                            self.assertFalse(workspace.exists())
-                            self.assertEqual(200, client.get('/api/workspace').status_code)
-                        else:
-                            journal.unlink(); backup.unlink(); workspace.rmdir()
+                            with self.assertRaises(ValueError):
+                                with ensure_book_state(str(self.root)):
+                                    self.fail('Malformed terminal journal was admitted')
+                            self.assertEqual(before, self.files())
+                        journal.unlink(); backup.unlink(); workspace.rmdir()
 
     def test_actual_route_refuses_pending_book_publication_without_recovering_it(self):
         import hashlib
@@ -413,8 +408,9 @@ class BookWorkspaceTests(unittest.TestCase):
         self.assertEqual(before, self.files())
         self.assertEqual(original, (workspace/'old-0').read_bytes())
         from book_state_transaction import ensure_book_state
-        with ensure_book_state(str(self.root)):
-            pass
-        self.assertEqual(original, (self.root/'annotated_script.json').read_bytes())
-        self.assertFalse((self.root/JOURNAL).exists())
-        self.assertFalse(workspace.exists())
+        with self.assertRaises(ValueError):
+            with ensure_book_state(str(self.root)):
+                self.fail('Legacy publishing recovery was admitted without identity evidence')
+        self.assertEqual(replacement, (self.root/'annotated_script.json').read_bytes())
+        self.assertTrue((self.root/JOURNAL).exists())
+        self.assertEqual(original, (workspace/'old-0').read_bytes())

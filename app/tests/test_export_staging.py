@@ -536,7 +536,8 @@ class ExportStagingTests(unittest.TestCase):
             payload = nested / 'keep.bin'
             payload.write_bytes(b'live nested payload')
             authority = WindowsStageDirectory.__new__(WindowsStageDirectory)
-            for marker in (MARKER, OWNER_LOCK + '.lock'):
+            authority.check = lambda: None
+            for marker in (MARKER, OWNER_LOCK + '.lock', export_staging.RECOVERY):
                 with self.subTest(marker=marker):
                     metadata = nested / marker
                     metadata.write_bytes(b'torn metadata is still a preservation signal')

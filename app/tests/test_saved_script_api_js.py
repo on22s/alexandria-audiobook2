@@ -67,3 +67,20 @@ for(const change of ['filename','generation']){
 }
 const c=client();c.ctx._voiceSaveSnapshot=null;await c.ctx.saveScript();assert.strictEqual(c.calls.length,0);assert.strictEqual(c.toasts[0][1],'error');
 ''')
+
+    def test_save_refreshes_only_the_confirmed_upload_identity(self):
+        self.run_js(r'''
+const c=client();const request={};const selection={filename:'book-a.json',token:'b'.repeat(64),request};
+c.ctx._selectedUploadIdentity=selection;c.ctx._existingUploadSelectionRequest=request;
+c.ctx.refreshVoiceMetadata=async()=>{c.ctx._voiceSaveSnapshot={book_identity_token:'b'.repeat(64)}};
+c.setResponse(new Response(JSON.stringify({status:'saved'})));await c.ctx.saveScript();
+assert.strictEqual(c.calls.length,1);assert.strictEqual(JSON.parse(c.calls[0].body).expected_book_token,'b'.repeat(64));
+for(const change of ['selection','snapshot','filename']){
+ const d=client(),req={};d.ctx._selectedUploadIdentity={filename:'book-a.json',token:'b'.repeat(64),request:req};d.ctx._existingUploadSelectionRequest=req;
+ d.ctx.refreshVoiceMetadata=async()=>{d.ctx._voiceSaveSnapshot={book_identity_token:(change==='snapshot'?'c':'b').repeat(64)};if(change==='selection')d.ctx._selectedUploadIdentity={};if(change==='filename')d.ctx.currentBookFilename='book-b.json';};
+ await d.ctx.saveScript();assert.strictEqual(d.calls.length,0);assert.strictEqual(d.toasts[0][1],'error');assert.strictEqual(d.el('save-script-name').value,'Book #? 日本');
+}
+const e=client(), prior={};e.ctx._selectedUploadIdentity={filename:'book-a.json',token:'b'.repeat(64),request:prior};e.ctx._existingUploadSelectionRequest={};
+e.ctx.refreshVoiceMetadata=async()=>{e.ctx._voiceSaveSnapshot={book_identity_token:'b'.repeat(64)}};e.setResponse(new Response(JSON.stringify({status:'saved'})));
+await e.ctx.saveScript();assert.strictEqual(e.calls.length,1,'cancelled selection does not block committed book');
+''')

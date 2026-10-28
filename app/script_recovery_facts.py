@@ -23,6 +23,6 @@ def get_saved_script_recovery_manifest(data_dir, manifest_path):
     except RecursionError:
         # Optional corrupt diagnostics must not hide an otherwise readable book.
         return None
-    if not isinstance(manifest, dict) or manifest.get("status") not in {"failed", "incomplete"}:
+    if not isinstance(manifest, dict) or manifest.get("status") not in {"failed", "incomplete", "publishing"}:
         return None
     return manifest

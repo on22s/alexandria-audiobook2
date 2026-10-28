@@ -36,7 +36,7 @@ class BatchAliasRegistryTests(unittest.TestCase):
                         return 0,['Review complete: 3 -> 3 entries','Total changes: '+str(renamed)]
                     for owner,name,value in ((script,'process_state',states),(core,'process_state',states),
                                              (core,'_task_claims',{}),(core,'_gpu_leases',{}),
-                                             (script,'SCRIPTS_DIR',str(library)),(script,'CHARACTER_ALIASES_PATH',str(public)),
+                                             (script,'DATA_DIR',tmp),(script,'SCRIPTS_DIR',str(library)),(script,'CHARACTER_ALIASES_PATH',str(public)),
                                              (script,'REPORTS_DIR',str(root/'reports')),(script,'ROOT_DIR',tmp)):
                         stack.enter_context(patch.object(owner,name,value))
                     stack.enter_context(patch.object(core,'acquire_gpu_lock',return_value=None))

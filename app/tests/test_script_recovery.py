@@ -83,6 +83,8 @@ class RecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             script_path = os.path.join(tmp, "annotated_script.json")
             atomic_json_write({"input_file_path": os.path.join(tmp, "book.txt")}, os.path.join(tmp, "state.json"))
+            with open(os.path.join(tmp, "book.txt"), "w", encoding="utf-8") as source:
+                source.write("Fixture source.")
             held = False
 
             @contextmanager
@@ -316,7 +318,7 @@ class GenerateScriptStateTests(unittest.TestCase):
             tasks, input_file, request = dispatch.call_args.args
             self.assertIsInstance(tasks, script_module.BackgroundTasks)
             self.assertEqual(str(book), input_file)
-            self.assertEqual(options, request.model_dump())
+            self.assertEqual(options, request.model_dump(exclude_none=True))
             self.assertEqual(payload, state.read_bytes())
             self.assertEqual('Selected source text.', book.read_text(encoding='utf-8'))
 

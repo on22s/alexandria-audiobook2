@@ -184,5 +184,12 @@ def apply_delivery_retry(data_dir, snapshot, entries, cancel_check=None, retry_r
         replacements = {name: json.dumps(value, ensure_ascii=False, indent=2,
                                          allow_nan=False).encode("utf-8")
                         for name, value in values.items()}
+        from script_selection_binding import BINDING_NAME, binding_for_controlled_edit
+        binding = binding_for_controlled_edit(data_dir, snapshot['artifacts']['annotated_script.json'],
+                                              replacements['annotated_script.json'])
+        if binding is not None:
+            replacements[BINDING_NAME] = binding
+        if cancel_check:
+            cancel_check()
         apply_book_state_locked(data_dir, replacements, list(dict.fromkeys(removals)))
     return get_delivery_review_info(entries)

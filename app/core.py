@@ -170,9 +170,10 @@ EVALUATION_REVIEWS_DIR = os.path.join(DATA_DIR, "evaluation_reviews")
 os.makedirs(API_LOG_DIR, exist_ok=True)
 
 
-def get_active_book_id() -> Optional[str]:
+def get_active_book_id(*, state=None) -> Optional[str]:
     """Return the stable active-book id stored in state.json, if available."""
-    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), default={})
+    if state is None:
+        state = safe_load_json(os.path.join(DATA_DIR, "state.json"), default={})
     book_id = secure_filename(state.get("active_book_id") or "")
     if book_id:
         return book_id
@@ -804,6 +805,8 @@ def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources
                     threading.Thread(target=_reap_gpu_leases, daemon=True).start()
             if "cancel" in process_state[task_name]:
                 process_state[task_name]["cancel"] = False
+            if task_name == 'script':
+                process_state[task_name].pop('_script_published_cleanup_stop', None)
             process_state[task_name]["running"] = True
             claim_id = uuid.uuid4().hex
             _task_claims[task_name] = {"id": claim_id, "phase": "claimed", "lease": task_lease,
@@ -1137,6 +1140,8 @@ def _compute_eta(state: dict) -> dict:
 def run_process(command: List[str], task_name: str, cwd: str = None):
     """Run a subprocess and stream its output into process_state logs."""
     state = process_state[task_name]
+    if task_name == 'script':
+        state.pop('_script_published_cleanup_stop', None)
 
     # NOTE: do NOT bail out here if state["running"] is already True. GPU tasks
     # reserve their slot via claim_gpu_task() on the request thread (which sets
@@ -1166,7 +1171,11 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
         return_code, _ = _stream_subprocess_to_logs(
             command, cwd or BASE_DIR, state, log_file=log_path, env=env)
 
-        if state.get("cancel"):
+        if task_name == 'script' and state.get('_script_published_cleanup_stop'):
+            state['logs'].append('The worker was stopped after script publication.')
+            state['logs'].append('Task script completed successfully.')
+            if 'status' in state: state['status'] = 'done'
+        elif state.get("cancel"):
             state["logs"].append(f"Task {task_name} cancelled.")
             if "status" in state: state["status"] = "cancelled"
         elif return_code == 0:
@@ -1221,7 +1230,11 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
         # is unexpected (e.g. AttributeError, KeyError from internal bugs).
         logger.exception(f"Error running {task_name}: {e}")
         state["logs"].append(f"Error: {str(e)}")
-        if "status" in state:
+        if task_name == 'script' and state.get('_script_published_cleanup_stop'):
+            state['logs'].append('The script was published; worker cleanup reported an error.')
+            state['logs'].append('Task script completed successfully.')
+            if 'status' in state: state['status'] = 'done'
+        elif "status" in state:
             state["status"] = "cancelled" if state.get("cancel") else "failed"
     finally:
         if "process"     in state: state["process"]     = None
@@ -1355,6 +1368,8 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
                     logger.exception("Could not record artifact for run %s", run_id)
             if error is not None or state.get("status") == "failed":
                 final_status = "failed"
+            elif task_name == 'script' and state.get('_script_published_cleanup_stop'):
+                final_status = 'completed'
             elif state.get("cancel") or state.get("status") == "cancelled":
                 final_status = "cancelled"
             else:

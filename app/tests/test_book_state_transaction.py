@@ -1,3 +1,5 @@
+import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -10,6 +12,714 @@ import book_state_transaction as books
 
 
 class BookStateTransactionTests(unittest.TestCase):
+    @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
+                         'POSIX directory descriptors required')
+    def test_parent_identity_capture_refuses_substitution_and_missing_suffix_creation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); parent = root/'sub'; parent.mkdir()
+            descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                expected = books._capture_target_parent_identities(descriptor, 'sub/file')
+                missing = books._capture_target_parent_identities(descriptor, 'absent/child/file')
+                self.assertEqual([None, None], missing[1:])
+                books._require_target_parent_identities(descriptor, 'sub/file', expected)
+                parent.rename(root/'retained'); parent.mkdir()
+                with self.assertRaisesRegex(ValueError, 'parent changed'):
+                    books._require_target_parent_identities(descriptor, 'sub/file', expected)
+                (root/'absent').mkdir()
+                with self.assertRaisesRegex(ValueError, 'parent changed'):
+                    books._require_target_parent_identities(descriptor, 'absent/child/file', missing)
+            finally:
+                os.close(descriptor)
+    def test_scalar_journal_entry_is_rejected_without_mutation(self):
+        for version in (2, 3):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                journal = root / books.JOURNAL
+                raw = json.dumps({'version': version, 'phase': 'publishing',
+                                  'workspace': '.book-switch-test', 'entries': [42]}).encode()
+                journal.write_bytes(raw)
+                with self.assertRaisesRegex(ValueError, 'entries'):
+                    books.recover_book_state_locked(root)
+                self.assertEqual(raw, journal.read_bytes())
+    def test_stream_admission_is_bound_to_the_admitted_root_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary); root = base/'book'; root.mkdir()
+            (root/'audio.wav').write_bytes(b'original')
+            retained = base/'retained'
+            with books.ensure_book_state(root):
+                root.rename(retained); root.mkdir()
+                (root/'foreign').write_bytes(b'preserve')
+                with self.assertRaisesRegex(ValueError, 'admission'):
+                    books.apply_book_state_locked(
+                        root, {'audio.wav':books.BookStateStream(
+                            io.BytesIO(b'generated'), 9,
+                            hashlib.sha256(b'generated').hexdigest())}, [],
+                        stream_byte_limit=100)
+            self.assertEqual(b'preserve', (root/'foreign').read_bytes())
+            self.assertFalse((root/'audio.wav').exists())
+            self.assertEqual(b'original', (retained/'audio.wav').read_bytes())
+
+    def test_staged_replacement_change_after_journal_is_refused_before_original_move(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); target = root/'script.json'; target.write_bytes(b'original')
+            save = books._save_journal; changed = []
+            def replace_staged(directory, document, **kwargs):
+                result = save(directory, document, **kwargs)
+                if document['phase'] == 'publishing' and not changed:
+                    staged = root/document['workspace']/'new-0'
+                    staged.unlink(); staged.write_bytes(b'foreign')
+                    changed.append(True)
+                return result
+            with patch.object(books, '_save_journal', side_effect=replace_staged):
+                with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'replacement'):
+                    books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+            self.assertEqual(b'original', target.read_bytes())
+            self.assertTrue((root/books.JOURNAL).exists())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
+    def test_symlinked_book_ancestor_is_rejected_before_staging(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary); real = base/'real'; real.mkdir(); root = real/'book'; root.mkdir()
+            alias = base/'alias'; alias.symlink_to(real, target_is_directory=True)
+            aliased_root = alias/'book'
+            with self.assertRaisesRegex(ValueError, 'direct directory'):
+                books.apply_book_state_locked(aliased_root, {'script.json':b'generated'}, [])
+            self.assertFalse((root/books.JOURNAL).exists())
+            self.assertFalse(list(root.glob('.book-switch-*')))
+
+    @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd
+                         and os.mkdir in os.supports_dir_fd,
+                         'POSIX descriptor-relative staging unavailable')
+    def test_root_relocation_during_staging_cannot_publish_into_replacement_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary); root = base/'book'; root.mkdir()
+            target = root/'script.json'; target.write_bytes(b'original')
+            retained = base/'retained-book'; stage = books._stage_book_stream
+            relocated = []
+            def relocate_root(*args, **kwargs):
+                result = stage(*args, **kwargs)
+                if not relocated:
+                    root.rename(retained)
+                    root.mkdir()
+                    (root/'foreign').write_bytes(b'do not modify')
+                    relocated.append(True)
+                return result
+            with patch.object(books, '_stage_book_stream', side_effect=relocate_root):
+                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                    books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+            self.assertEqual(b'do not modify', (root/'foreign').read_bytes())
+            self.assertFalse((root/'script.json').exists())
+            self.assertEqual(b'original', (retained/'script.json').read_bytes())
+            journal = json.loads((retained/books.JOURNAL).read_text())
+            self.assertEqual(b'generated', (retained/journal['workspace']/'new-0').read_bytes())
+
+    def test_byte_target_changed_before_commit_keeps_publishing_recovery_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            validate = books._validate_byte_cleanup_targets
+            changed = []
+            def change_before_validation(rows, targets, phase):
+                if phase == 'committed' and not changed:
+                    target.write_bytes(b'writer edit')
+                    changed.append(True)
+                return validate(rows, targets, phase)
+            with patch.object(books, '_validate_byte_cleanup_targets',
+                              side_effect=change_before_validation):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            self.assertTrue(changed)
+            self.assertEqual(b'writer edit', target.read_bytes())
+            journal = json.loads((root / books.JOURNAL).read_text())
+            self.assertEqual('publishing', journal['phase'])
+            self.assertEqual(b'original', (root / journal['workspace'] / 'old-0').read_bytes())
+
+    def test_phase_update_refuses_journal_replaced_before_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            save = books._save_journal
+            foreign = b'{"foreign":"journal"}'
+            replaced = []
+            def replace_before_update(directory, document, **kwargs):
+                if kwargs.get('expected_version') is not None and not replaced:
+                    journal = root / books.JOURNAL
+                    journal.unlink()
+                    journal.write_bytes(foreign)
+                    replaced.append(True)
+                return save(directory, document, **kwargs)
+            with patch.object(books, '_save_journal', side_effect=replace_before_update):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            self.assertTrue(replaced)
+            self.assertEqual(foreign, (root / books.JOURNAL).read_bytes())
+            self.assertEqual(b'generated', target.read_bytes())
+            self.assertEqual(b'original', next(root.glob('.book-switch-*/old-0')).read_bytes())
+
+    @unittest.skipIf(os.name == 'nt', 'Windows junction qualification requires a native test')
+    def test_byte_publication_refuses_parent_symlink_swap(self):
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as outside_dir:
+            root, outside = Path(temporary), Path(outside_dir)
+            parent = root / 'sub'; parent.mkdir()
+            save = books._save_journal; swapped = []
+            def swap_after_journal(directory, document, **kwargs):
+                result = save(directory, document, **kwargs)
+                if document['phase'] == 'publishing' and not swapped:
+                    parent.rename(root / 'retained')
+                    parent.symlink_to(outside, target_is_directory=True)
+                    swapped.append(True)
+                return result
+            with patch.object(books, '_save_journal', side_effect=swap_after_journal):
+                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                    books.apply_book_state_locked(root, {'sub/file':b'generated'}, [])
+            self.assertTrue(swapped)
+            self.assertFalse((outside / 'file').exists())
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    @unittest.skipIf(os.name == 'nt', 'Windows junction qualification requires a native test')
+    def test_byte_cleanup_refuses_parent_swapped_after_publication(self):
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as outside_dir:
+            root, outside = Path(temporary), Path(outside_dir)
+            parent = root / 'sub'; parent.mkdir()
+            target = parent / 'file'; target.write_bytes(b'original')
+            move = books._move
+            swapped = []
+            def swap_after_publish(source, destination, **kwargs):
+                result = move(source, destination, **kwargs)
+                if Path(destination) == target and not swapped:
+                    parent.rename(root / 'retained')
+                    (root / 'retained' / 'file').rename(outside / 'file')
+                    parent.symlink_to(outside, target_is_directory=True)
+                    swapped.append(True)
+                return result
+            with patch.object(books, '_move', side_effect=swap_after_publish):
+                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                    books.apply_book_state_locked(root, {'sub/file': b'generated'}, [])
+            self.assertTrue(swapped)
+            self.assertEqual(b'generated', (outside / 'file').read_bytes())
+            self.assertEqual(b'original', next(root.glob('.book-switch-*/old-0')).read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+            document = json.loads((root / books.JOURNAL).read_text())
+            self.assertEqual(2, len(document['target_parent_identities'][0]))
+            with self.assertRaisesRegex(ValueError, 'parent changed'):
+                with books.ensure_book_state(root):
+                    self.fail('Recovery followed a substituted target parent')
+            self.assertEqual(b'generated', (outside / 'file').read_bytes())
+            self.assertEqual(b'original', next(root.glob('.book-switch-*/old-0')).read_bytes())
+    def test_byte_transaction_preserves_edit_made_during_original_move(self):
+        # A conflict can leave recovery fenced; it must not silently delete the
+        # writer's changed backup while publishing the generated replacement.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); target = root / 'script.json'
+            target.write_bytes(b'original')
+            move = books._move; injected = []
+            def edit_before_backup(source, destination, **kwargs):
+                if Path(source) == target and not injected:
+                    target.write_bytes(b'writer edit'); injected.append(True)
+                return move(source, destination, **kwargs)
+            with patch.object(books, '_move', side_effect=edit_before_backup):
+                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                    books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+            self.assertTrue(injected)
+            journal = json.loads((root / books.JOURNAL).read_text())
+            backup = root / journal['workspace'] / 'old-0'
+            self.assertEqual(b'writer edit', backup.read_bytes())
+            self.assertFalse(target.exists())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX mode semantics required')
+    def test_byte_transaction_preserves_mode_change_during_original_move(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); target = root / 'script.json'
+            target.write_bytes(b'original'); target.chmod(0o600)
+            move = books._move; injected = []
+            def chmod_before_backup(source, destination, **kwargs):
+                if Path(source) == target and not injected:
+                    target.chmod(0o640); injected.append(True)
+                return move(source, destination, **kwargs)
+            with patch.object(books, '_move', side_effect=chmod_before_backup):
+                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                    books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+            candidates = [p for p in (target, *root.glob('.book-switch-*/old-0')) if p.exists()]
+            self.assertEqual(1, len(candidates))
+            self.assertEqual(0o640, candidates[0].stat().st_mode & 0o777)
+            self.assertEqual(b'original', candidates[0].read_bytes())
+
+    @unittest.skipIf(os.name == 'nt', 'Windows may deny moving an open file')
+    def test_byte_transaction_preserves_backup_edited_before_commit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); target = root / 'script.json'
+            target.write_bytes(b'original')
+            move = books._move; injected = []
+            with target.open('r+b') as writer:
+                def edit_after_publish(source, destination, **kwargs):
+                    result = move(source, destination, **kwargs)
+                    if Path(destination) == target and Path(source).name == 'new-0' and not injected:
+                        writer.seek(0); writer.write(b'writer edit'); writer.truncate(); writer.flush()
+                        injected.append(True)
+                    return result
+                with patch.object(books, '_move', side_effect=edit_after_publish):
+                    with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                        books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+            self.assertTrue(injected)
+            journal = json.loads((root / books.JOURNAL).read_text())
+            self.assertEqual(b'writer edit', (root / journal['workspace'] / 'old-0').read_bytes())
+            self.assertEqual(b'generated', target.read_bytes())
+
+    @unittest.skipIf(os.name == 'nt', 'Windows may deny moving an open file')
+    def test_committed_byte_recovery_preserves_backup_modified_after_commit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); target = root / 'script.json'
+            target.write_bytes(b'original')
+            save = books._save_journal; injected = []
+            with target.open('r+b') as writer:
+                def edit_after_commit(directory, document, **kwargs):
+                    result = save(directory, document, **kwargs)
+                    if document['phase'] == 'committed' and not injected:
+                        writer.seek(0); writer.write(b'writer edit'); writer.truncate(); writer.flush()
+                        injected.append(True)
+                    return result
+                with patch.object(books, '_save_journal', side_effect=edit_after_commit):
+                    with books.ensure_book_state(root), self.assertRaises(ValueError):
+                        books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+            self.assertTrue(injected)
+            journal = json.loads((root / books.JOURNAL).read_text())
+            self.assertEqual('committed', journal['phase'])
+            self.assertEqual(b'writer edit', (root / journal['workspace'] / 'old-0').read_bytes())
+            self.assertEqual(b'generated', target.read_bytes())
+
+    def test_committed_byte_cleanup_refuses_unknown_workspace_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); target = root / 'script.json'
+            target.write_bytes(b'original')
+            save = books._save_journal; injected = []
+            def add_unknown(directory, document, **kwargs):
+                result = save(directory, document, **kwargs)
+                if document['phase'] == 'committed' and not injected:
+                    foreign = root / document['workspace'] / 'foreign'
+                    foreign.write_bytes(b'user data'); injected.append(foreign)
+                return result
+            with patch.object(books, '_save_journal', side_effect=add_unknown):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+            self.assertEqual(b'user data', injected[0].read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    def test_legacy_recovered_cleanup_refuses_unowned_workspace_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workspace = root / '.book-switch-legacy-fixture'
+            workspace.mkdir()
+            foreign = workspace / 'user-data.bin'
+            foreign.write_bytes(b'preserve me')
+            target = root / 'script.json'
+            target.write_bytes(b'after')
+            (root / books.JOURNAL).write_text(json.dumps({
+                'version': 1,
+                'phase': 'recovered',
+                'workspace': workspace.name,
+                'entries': [{
+                    'path': target.name,
+                    'existed': False,
+                    'old_sha256': None,
+                    'new_sha256': hashlib.sha256(b'after').hexdigest(),
+                }],
+            }))
+            with self.assertRaises(ValueError):
+                with books.ensure_book_state(root):
+                    self.fail('Unvalidated recovered cleanup was admitted')
+            self.assertEqual(b'preserve me', foreign.read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+            self.assertEqual(b'after', target.read_bytes())
+
+    def test_committed_byte_cleanup_refuses_entry_added_after_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            validate = books._validate_committed_byte_backups
+            planted = []
+            def add_after_validation(workspace, rows, targets):
+                result = validate(workspace, rows, targets)
+                foreign = Path(workspace) / 'foreign'
+                foreign.write_bytes(b'user data')
+                planted.append(foreign)
+                return result
+            with patch.object(books, '_validate_committed_byte_backups',
+                              side_effect=add_after_validation):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            self.assertEqual(1, len(planted))
+            self.assertEqual(b'user data', planted[0].read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    def test_cleanup_refuses_to_unlink_replaced_journal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            cleanup = books._cleanup_validated_byte_workspace
+            foreign = b'{"foreign":"journal"}'
+            replaced = []
+            def replace_after_cleanup(directory, workspace, document, targets, journal_version):
+                result = cleanup(directory, workspace, document, targets, journal_version)
+                journal = root / books.JOURNAL
+                journal.unlink()
+                journal.write_bytes(foreign)
+                replaced.append(True)
+                return result
+            with patch.object(books, '_cleanup_validated_byte_workspace',
+                              side_effect=replace_after_cleanup):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            self.assertTrue(replaced)
+            self.assertEqual(foreign, (root / books.JOURNAL).read_bytes())
+            self.assertEqual(b'generated', target.read_bytes())
+
+    def test_recovery_binds_cleanup_to_journal_identity_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'generated')
+            workspace = root / '.book-switch-fixture'
+            workspace.mkdir()
+            backup = workspace / 'old-0'
+            backup.write_bytes(b'original')
+            old_version = books._book_target_version(backup)
+            new_version = books._book_target_version(target)
+            document = {
+                'version': 3,
+                'phase': 'committed',
+                'workspace': workspace.name,
+                'entries': [{
+                    'path': target.name,
+                    'existed': True,
+                    'old_sha256': hashlib.sha256(b'original').hexdigest(),
+                    'new_sha256': hashlib.sha256(b'generated').hexdigest(),
+                    'old_file_identity': [old_version[index] for index in (0, 1, 2, 3, 5, 6)],
+                    'new_file_identity': [new_version[0], new_version[1]],
+                }],
+            }
+            books._save_journal(root, document)
+            validate = books._validate_committed_byte_backups
+            foreign = b'{"foreign":"new transaction"}'
+            def replace_after_read(workspace_path, rows, targets):
+                result = validate(workspace_path, rows, targets)
+                journal = root / books.JOURNAL
+                journal.unlink()
+                journal.write_bytes(foreign)
+                return result
+            with patch.object(books, '_validate_committed_byte_backups',
+                              side_effect=replace_after_read):
+                with self.assertRaises(ValueError):
+                    with books.ensure_book_state(root):
+                        self.fail('Cleanup used a journal replaced after its read')
+            self.assertEqual(foreign, (root / books.JOURNAL).read_bytes())
+            self.assertEqual(b'original', backup.read_bytes())
+            self.assertEqual(b'generated', target.read_bytes())
+
+    def test_byte_directory_cleanup_refuses_nested_entry_added_after_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / 'chapters'
+            (directory / 'nested').mkdir(parents=True)
+            (directory / 'nested' / 'owned').write_bytes(b'owned')
+            validate = books._validate_byte_workspace_for_cleanup
+            planted = []
+            def add_nested(workspace, document):
+                result = validate(workspace, document)
+                foreign = Path(workspace) / 'old-0' / 'nested' / 'foreign'
+                foreign.write_bytes(b'user data')
+                planted.append(foreign)
+                return result
+            with patch.object(books, '_validate_byte_workspace_for_cleanup',
+                              side_effect=add_nested):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {}, ['chapters'])
+            self.assertEqual(b'user data', planted[0].read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    def test_stream_directory_cleanup_refuses_nested_entry_added_after_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / 'chapters'
+            (directory / 'nested').mkdir(parents=True)
+            (directory / 'nested' / 'owned').write_bytes(b'owned')
+            validate = books._validate_stream_workspace_for_cleanup
+            planted = []
+            def add_nested(workspace, document):
+                result = validate(workspace, document)
+                foreign = Path(workspace) / 'old-1' / 'nested' / 'foreign'
+                foreign.write_bytes(b'user data')
+                planted.append(foreign)
+                return result
+            source = books.BookStateStream(io.BytesIO(b'generated'), len(b'generated'),
+                                           hashlib.sha256(b'generated').hexdigest())
+            with patch.object(books, '_validate_stream_workspace_for_cleanup',
+                              side_effect=add_nested):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {'script.json': source}, ['chapters'],
+                                                  stream_byte_limit=1024)
+            self.assertEqual(b'user data', planted[0].read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    def test_legacy_v1_cleanup_requires_explicit_inspection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'generated')
+            workspace = root / '.book-switch-legacy'
+            workspace.mkdir()
+            foreign = workspace / 'old-0'
+            foreign.write_bytes(b'original')
+            (root / books.JOURNAL).write_text(json.dumps({
+                'version': 1,
+                'phase': 'committed',
+                'workspace': workspace.name,
+                'entries': [{
+                    'path': target.name,
+                    'existed': True,
+                    'old_sha256': hashlib.sha256(b'original').hexdigest(),
+                    'new_sha256': hashlib.sha256(b'generated').hexdigest(),
+                }],
+            }))
+            with self.assertRaisesRegex(ValueError, 'explicit recovery inspection'):
+                with books.ensure_book_state(root):
+                    self.fail('Identity-free v1 cleanup was admitted')
+            self.assertEqual(b'original', foreign.read_bytes())
+            self.assertEqual(b'generated', target.read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    def test_committed_stream_cleanup_rechecks_target_before_deleting_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            validate = books._validate_stream_workspace_for_cleanup
+            changed = []
+            def change_target_after_validation(workspace, document):
+                result = validate(workspace, document)
+                if document['phase'] == 'committed' and not changed:
+                    target.write_bytes(b'writer edit')
+                    changed.append(True)
+                return result
+            source = books.BookStateStream(io.BytesIO(b'generated'), len(b'generated'),
+                                           hashlib.sha256(b'generated').hexdigest())
+            with patch.object(books, '_validate_stream_workspace_for_cleanup',
+                              side_effect=change_target_after_validation):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {'script.json': source}, [],
+                                                  stream_byte_limit=1024)
+            self.assertTrue(changed)
+            self.assertEqual(b'writer edit', target.read_bytes())
+            backups = list(root.glob('.book-switch-*/old-0'))
+            self.assertEqual(1, len(backups))
+            self.assertEqual(b'original', backups[0].read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    def test_byte_prejournal_failure_preserves_unowned_workspace_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stage = books._stage_book_stream
+            def stage_then_foreign(path, value, *args, **kwargs):
+                result = stage(path, value, *args, **kwargs)
+                if Path(path).name == 'new-0':
+                    directory_fd = kwargs.get('directory_fd')
+                    descriptor = os.open('foreign', os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                                         0o600, dir_fd=directory_fd)
+                    with os.fdopen(descriptor, 'wb') as output:
+                        output.write(b'user data')
+                    raise OSError('fixture staging failure')
+                return result
+            with patch.object(books, '_stage_book_stream',
+                              side_effect=stage_then_foreign):
+                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                    books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            survivors = list(root.glob('.book-switch-*/foreign'))
+            self.assertEqual(1, len(survivors))
+            self.assertEqual(b'user data', survivors[0].read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
+
+    @unittest.skipIf(os.name == 'nt', 'symlink creation may require privileges')
+    def test_recovery_refuses_dangling_symlink_target_and_keeps_staged_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            save = books._save_journal
+            injected = []
+            def plant_link(directory, document, **kwargs):
+                result = save(directory, document, **kwargs)
+                if document['phase'] == 'publishing' and not injected:
+                    target.symlink_to(root / 'missing')
+                    injected.append(True)
+                return result
+            with patch.object(books, '_save_journal', side_effect=plant_link):
+                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                    books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            self.assertTrue(injected)
+            self.assertTrue(target.is_symlink())
+            self.assertEqual(1, len(list(root.glob('.book-switch-*/new-0'))))
+            self.assertTrue((root / books.JOURNAL).exists())
+            with self.assertRaises(ValueError):
+                with books.ensure_book_state(root):
+                    self.fail('Recovery consumed an occupied target')
+
+    def test_committed_byte_cleanup_preserves_backup_when_target_changed(self):
+        for remove in (False, True):
+            with self.subTest(remove=remove), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); target = root / 'script.json'
+                target.write_bytes(b'original')
+                save = books._save_journal; injected = []
+                def change_target(directory, document, **kwargs):
+                    result = save(directory, document, **kwargs)
+                    if document['phase'] == 'committed' and not injected:
+                        if remove:
+                            target.unlink()
+                        else:
+                            target.write_bytes(b'writer edit')
+                        injected.append(True)
+                    return result
+                with patch.object(books, '_save_journal', side_effect=change_target):
+                    with books.ensure_book_state(root), self.assertRaises(ValueError):
+                        books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+                journal = json.loads((root / books.JOURNAL).read_text())
+                self.assertEqual(b'original', (root / journal['workspace'] / 'old-0').read_bytes())
+                if remove:
+                    self.assertFalse(target.exists())
+                else:
+                    self.assertEqual(b'writer edit', target.read_bytes())
+
+    def test_byte_transaction_preserves_target_created_during_publication(self):
+        # This tests only preservation on conflict. The resulting journal still
+        # needs a separately designed, resumable conflict-resolution path.
+        for existed in (False, True):
+            with self.subTest(existed=existed), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); target = root / 'script.json'
+                if existed:
+                    target.write_bytes(b'original')
+                move, save = books._move, books._save_journal
+                injected = []
+                def after_move(source, destination, **kwargs):
+                    result = move(source, destination, **kwargs)
+                    if existed and Path(source) == target and not injected:
+                        target.write_bytes(b'writer'); injected.append(True)
+                    return result
+                def after_journal(directory, data, **kwargs):
+                    result = save(directory, data, **kwargs)
+                    if not existed and data['phase'] == 'publishing' and not injected:
+                        target.write_bytes(b'writer'); injected.append(True)
+                    return result
+                with patch.object(books, '_move', side_effect=after_move), \
+                     patch.object(books, '_save_journal', side_effect=after_journal):
+                    with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                        books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+                self.assertTrue(injected)
+                self.assertEqual(b'writer', target.read_bytes())
+                self.assertTrue((root / books.JOURNAL).exists())
+                if existed:
+                    journal = json.loads((root / books.JOURNAL).read_text())
+                    self.assertEqual(b'original', (root / journal['workspace'] / 'old-0').read_bytes())
+
+    def test_byte_recovery_preserves_new_target_even_if_bytes_match_staged_output(self):
+        for existed in (False, True):
+            with self.subTest(existed=existed), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); target = root / 'script.json'
+                if existed:
+                    target.write_bytes(b'original')
+                move, save = books._move, books._save_journal
+                injected = []
+                def after_move(source, destination, **kwargs):
+                    result = move(source, destination, **kwargs)
+                    if existed and Path(source) == target and not injected:
+                        target.write_bytes(b'generated'); injected.append(True)
+                    return result
+                def after_journal(directory, data, **kwargs):
+                    result = save(directory, data, **kwargs)
+                    if not existed and data['phase'] == 'publishing' and not injected:
+                        target.write_bytes(b'generated'); injected.append(True)
+                    return result
+                with patch.object(books, '_move', side_effect=after_move), \
+                     patch.object(books, '_save_journal', side_effect=after_journal):
+                    with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                        books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+                self.assertTrue(injected)
+                self.assertEqual(b'generated', target.read_bytes())
+                self.assertTrue((root / books.JOURNAL).exists())
+                for _ in range(2):
+                    with self.assertRaises(ValueError):
+                        with books.ensure_book_state(root):
+                            self.fail('Unowned target was admitted')
+                    self.assertEqual(b'generated', target.read_bytes())
+                if existed:
+                    journal = json.loads((root / books.JOURNAL).read_text())
+                    self.assertEqual(b'original', (root / journal['workspace'] / 'old-0').read_bytes())
+
+    def test_byte_recovery_preserves_same_content_foreign_target_after_publication(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            move = books._move
+            def interrupt_after_publication(source, destination, **kwargs):
+                result = move(source, destination, **kwargs)
+                if Path(source).name == 'new-0' and Path(destination).name == target.name:
+                    raise OSError('fixture publication interruption')
+                return result
+            with books.ensure_book_state(root), \
+                 patch.object(books, '_move', side_effect=interrupt_after_publication), \
+                 patch.object(books, 'recover_book_state_locked', side_effect=SystemExit('fixture process exit')), \
+                 self.assertRaises(SystemExit):
+                    books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            journal = json.loads((root / books.JOURNAL).read_text())
+            self.assertEqual(3, journal['version'])
+            target.unlink()
+            target.write_bytes(b'generated')
+            foreign_identity = (target.stat().st_dev, target.stat().st_ino)
+            with self.assertRaises(ValueError):
+                with books.ensure_book_state(root):
+                    self.fail('Same-content foreign target was admitted')
+            self.assertEqual(foreign_identity, (target.stat().st_dev, target.stat().st_ino))
+            self.assertEqual(b'generated', target.read_bytes())
+            self.assertEqual(b'original',
+                             (root / journal['workspace'] / 'old-0').read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    def test_oversized_or_duplicate_journal_is_refused_without_mutation(self):
+        for raw in (b' ' * 65, b'{"version":1,"version":2}'):
+            with self.subTest(size=len(raw)), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                journal = root / books.JOURNAL
+                target = root / 'user-file'
+                journal.write_bytes(raw)
+                target.write_bytes(b'preserve')
+                with patch.object(books, 'MAX_BOOK_JOURNAL_BYTES', 64):
+                    with self.assertRaises(ValueError):
+                        with books.ensure_book_state(root):
+                            self.fail('Invalid journal was admitted')
+                self.assertEqual(raw, journal.read_bytes())
+                self.assertEqual(b'preserve', target.read_bytes())
+
+    def test_journal_writer_refuses_oversize_before_publication(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.object(books, 'MAX_BOOK_JOURNAL_BYTES', 64):
+                with self.assertRaisesRegex(ValueError, 'journal limit'):
+                    books._save_journal(root, {'content': 'x' * 100})
+            self.assertFalse((root / books.JOURNAL).exists())
+
+    @unittest.skipIf(os.name == 'nt', 'Windows symlink creation may require privileges')
+    def test_dangling_journal_link_is_not_treated_as_absent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            journal = root / books.JOURNAL
+            journal.symlink_to(root / 'missing')
+            with self.assertRaises(ValueError):
+                with books.ensure_book_state(root):
+                    self.fail('Journal link was treated as absent')
+            self.assertTrue(journal.is_symlink())
+
     def prepare(self, root):
         (root/'script.json').write_bytes(b'old script')
         (root/'voice.json').write_bytes(b'old voices')
@@ -36,11 +746,11 @@ class BookStateTransactionTests(unittest.TestCase):
         for failure_at in range(1,11):
             with self.subTest(move=failure_at),tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp);originals=self.prepare(root);move=books._move;counter=0
-                def fail_once(source,destination):
+                def fail_once(source,destination, **kwargs):
                     nonlocal counter
                     counter+=1
                     if counter==failure_at:raise OSError('fixture publication disk full')
-                    return move(source,destination)
+                    return move(source,destination, **kwargs)
                 with patch.object(books,'_move',side_effect=fail_once):
                     with self.assertRaisesRegex(OSError,'publication disk full'):self.switch(root)
                 self.assertEqual(originals,self.snapshot(root))
@@ -78,9 +788,9 @@ with books.ensure_book_state(str(root)):
     def test_corrupt_original_fails_before_restoring_any_artifact(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.prepare(root);move=books._move;counter=0
-            def leave_pending(source,destination):
+            def leave_pending(source,destination, **kwargs):
                 nonlocal counter
-                move(source,destination);counter+=1
+                move(source,destination, **kwargs);counter+=1
                 if counter==3:raise SystemExit('fixture stop')
             with patch.object(books,'_move',side_effect=leave_pending),patch.object(books,'recover_book_state_locked'):
                 with self.assertRaises(SystemExit):self.switch(root)
@@ -106,9 +816,9 @@ import os,sys
 from pathlib import Path
 import book_state_transaction as books
 root=Path(sys.argv[1]);move=books._move;count=0
-def crash_after_publish(source,destination):
+def crash_after_publish(source,destination, **kwargs):
  global count
- move(source,destination);count+=1
+ move(source,destination, **kwargs);count+=1
  if count==10:os._exit(77)
 books._move=crash_after_publish
 with books.ensure_book_state(str(root)):
@@ -175,11 +885,11 @@ class SavedBookTransactionHttpTests(unittest.TestCase):
                     stack.enter_context(patch.object(lib,'_get_saved_book_id',return_value='new-book'))
                     if mode=='move_failure':
                         move=books._move;count=0
-                        def fail_once(source,destination):
+                        def fail_once(source,destination, **kwargs):
                             nonlocal count
                             count+=1
                             if count==4:raise OSError('fixture load disk full')
-                            return move(source,destination)
+                            return move(source,destination, **kwargs)
                         stack.enter_context(patch.object(books,'_move',side_effect=fail_once))
                     client=stack.enter_context(TestClient(app,raise_server_exceptions=False))
                     response=client.post('/api/scripts/load',json={'name':'new'})
@@ -197,6 +907,14 @@ class SavedBookTransactionHttpTests(unittest.TestCase):
 
 
 class BookPersonaBindingTests(unittest.TestCase):
+    def test_reselecting_same_source_returns_distinct_committed_tokens(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first = books.apply_book_input_selection(tmp, 'same.txt', 'same')
+            self.assertEqual(first, books.get_book_operation_token(tmp))
+            second = books.apply_book_input_selection(tmp, 'same.txt', 'same')
+            self.assertEqual(second, books.get_book_operation_token(tmp))
+            self.assertNotEqual(first, second)
+
     def test_actual_persona_main_rejects_changed_book_and_keeps_original_artifact_identity(self):
         from contextlib import ExitStack
         import array
@@ -256,8 +974,8 @@ class BookPersonaBindingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);(root/'script.json').write_bytes(b'old script');(root/'state.json').write_bytes(b'old identity')
             move=books._move
-            def die(source,destination):
-                move(source,destination)
+            def die(source,destination, **kwargs):
+                move(source,destination, **kwargs)
                 if destination.name=='script.json':raise SystemExit('fixture interruption')
             with books.ensure_book_state(tmp),patch.object(books,'_move',side_effect=die),patch.object(books,'recover_book_state_locked'):
                 with self.assertRaises(SystemExit):books.apply_book_state_locked(tmp,{'script.json':b'new script','state.json':b'new identity'},[])
@@ -287,8 +1005,8 @@ class BookReaderAdmissionTests(unittest.TestCase):
             app=FastAPI();app.include_router(lib.router);app.include_router(voices.router)
             paused=threading.Event();release=threading.Event();reader_entered=threading.Event()
             move=books._move;read=voices._ensure_voice_listing
-            def pause_mid_switch(source,destination):
-                move(source,destination)
+            def pause_mid_switch(source,destination, **kwargs):
+                move(source,destination, **kwargs)
                 if destination==active:
                     paused.set()
                     if not release.wait(5):raise TimeoutError('fixture did not release switch')

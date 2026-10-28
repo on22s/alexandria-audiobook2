@@ -3,7 +3,7 @@
 Directory handles deny rename while child paths are in use. Deletion addresses
 the opened object through FileDispositionInfo, including empty directories.
 """
-from contextlib import ExitStack
+from contextlib import contextmanager, ExitStack
 import ctypes
 import os
 import stat
@@ -47,10 +47,12 @@ def _api():
 class _Handle:
     def __init__(self, api, path, *, delete=False, create=False):
         self.api = api
-        # Read attributes, optionally DELETE. Share reads/writes but not delete:
-        # another handle cannot rename this object while it is admitted.
+        # A deletion handle permits existing readers, but denies new writers
+        # and renames while the object's final version is checked and removed.
+        share_mode = 1 if delete else 3
         self.handle = api.CreateFileW(str(path), 0x80 | (0x10000 if delete else 0),
-                                      3, None, 1 if create else 3, 0x02000000 | 0x00200000, None)
+                                      share_mode, None, 1 if create else 3,
+                                      0x02000000 | 0x00200000, None)
         if self.handle == ctypes.c_void_p(-1).value:
             self.handle = None
             raise ctypes.WinError(ctypes.get_last_error())
@@ -78,13 +80,61 @@ def _identity(info):
     return info.volume, (info.index_high << 32) | info.index_low
 
 
+@contextmanager
+def guard_windows_book_move_parents(root, source, destination):
+    """Pin every parent without delete sharing while an admitted move runs.
+
+    Reparse points and paths outside the book root are refused. The guard does
+    not authorize source bytes, publication, staging cleanup, or crash recovery.
+    """
+    root = Path(os.path.abspath(root))
+    source = Path(os.path.abspath(source))
+    destination = Path(os.path.abspath(destination))
+    for path in (source, destination):
+        try:
+            relative = path.relative_to(root)
+        except ValueError as error:
+            raise ValueError('Book move escapes its admitted root') from error
+        if not relative.parts:
+            raise ValueError('Book move requires a child path')
+    paths = {}
+    for path in (source.parent, destination.parent):
+        for directory in (*path.parents, path):
+            key = os.path.normcase(os.path.abspath(directory))
+            paths[key] = directory
+    ordered = sorted(paths.values(), key=lambda path: (len(path.parts), os.path.normcase(str(path))))
+    api = _api()
+    with ExitStack() as stack:
+        guards = []
+        for directory in ordered:
+            handle = _Handle(api, directory)
+            stack.callback(handle.close)
+            info = handle.information()
+            if not info.attributes & 0x10 or info.attributes & 0x400:
+                raise StageDirectoryChanged('Unsafe book move ancestor')
+            current = directory.lstat()
+            if (current.st_dev, current.st_ino) != _identity(info):
+                raise StageDirectoryChanged('Book move ancestor was replaced')
+            guards.append((directory, handle, _identity(info)))
+        yield
+        for directory, handle, expected in guards:
+            info = handle.information()
+            current = directory.lstat()
+            if (not info.attributes & 0x10 or info.attributes & 0x400
+                    or _identity(info) != expected or (current.st_dev, current.st_ino) != expected):
+                raise StageDirectoryChanged('Book move ancestor changed')
+
+
 class WindowsStageDirectory:
     def __init__(self, path, expected_identity):
         if (type(expected_identity) is not tuple or len(expected_identity) != 2
                 or any(type(value) is not int or value < 0 for value in expected_identity)):
             raise ValueError('Invalid admitted staging identity')
-        path = Path(path)
-        self.path = path.parent.resolve(strict=True) / path.name
+        path = Path(os.path.abspath(path))
+        # Preserve the caller's actual ancestor chain. Resolving the parent here
+        # would erase the very junction/reparse component that __enter__ must
+        # reject before cleanup or staging uses it.
+        self.path = path
         self.expected = expected_identity
         self.stack = ExitStack()
         self.stage = None
@@ -133,6 +183,8 @@ class WindowsStageDirectory:
                 or any(not _member(name) for name in retained_names)):
             raise ValueError('Invalid retained staging names')
         self.check()
+        if self.has_recovery_guard():
+            raise StageDirectoryChanged('Staging recovery guard requires explicit recovery')
         self._remove_children(self.path, retained_names, 0)
 
     def open_owner_stream(self, *, create=False):
@@ -216,7 +268,7 @@ class WindowsStageDirectory:
             # A nested stage has an independent owner. Its Windows retirement
             # protocol is not qualified here, so preserve it before touching
             # either metadata or payload, including when the marker is torn.
-            for name in ('.export-staging.json', OWNER_FILE):
+            for name in ('.export-staging.json', OWNER_FILE, '.export-staging-recovery'):
                 try:
                     (path / name).lstat()
                 except FileNotFoundError:
@@ -252,6 +304,8 @@ class WindowsStageDirectory:
         if not _member(name):
             raise ValueError('Invalid staging member')
         self.check()
+        if self.has_recovery_guard():
+            raise StageDirectoryChanged('Staging recovery guard requires explicit recovery')
         child = _Handle(self.api, self.path / name, delete=True)
         try:
             info = child.information()
@@ -280,6 +334,8 @@ class WindowsStageDirectory:
 
     def remove_empty_directory(self):
         self.check()
+        if self.has_recovery_guard():
+            raise StageDirectoryChanged('Staging recovery guard requires explicit recovery')
         self.stage.delete()
 
     def has_recovery_guard(self):

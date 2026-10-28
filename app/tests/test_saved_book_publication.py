@@ -20,6 +20,16 @@ from routers import scripts_library as routes
 
 
 class SavedBookPublicationTests(unittest.TestCase):
+    def test_saved_listing_refuses_pending_parent_book_transaction(self):
+        with self.fixture() as (root, api), TestClient(api) as client:
+            journal = root / books.JOURNAL
+            journal.write_bytes(b'pending parent transaction')
+            response = client.get('/api/scripts')
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(b'pending parent transaction', journal.read_bytes())
+            journal.unlink()
+            self.assertEqual(200, client.get('/api/scripts').status_code)
+
     @contextlib.contextmanager
     def fixture(self, voices=True):
         with tempfile.TemporaryDirectory() as tmp,contextlib.ExitStack() as stack:
@@ -31,6 +41,8 @@ class SavedBookPublicationTests(unittest.TestCase):
             (uploads/'source.txt').write_text('Alice arrived.')
             (saved/'book.json').write_text('[{"speaker":"Old","text":"Old book."}]')
             for path in routes._get_saved_book_companions(str(saved/'book.json')):
+                if path.endswith('.selection_binding.json'):
+                    continue  # This fixture represents a pre-binding saved book.
                 Path(path).write_bytes(b'old companion bytes')
             for module in (routes,core):
                 for key,value in (('DATA_DIR',root),('SCRIPTS_DIR',saved),('SCRIPT_PATH',script),
@@ -77,14 +89,16 @@ class SavedBookPublicationTests(unittest.TestCase):
             self.assertNotIn('speech_date_order',json.loads((root/'state.json').read_text()))
 
     def test_real_metadata_publication_failure_restores_every_original_saved_artifact(self):
+        import source_upload_publication
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
-            before=self.artifacts(root);replace=os.replace;failed=False
+            before=self.artifacts(root);move=source_upload_publication.move_source_upload_exclusively;failed=False
             def fail_metadata(source,destination,*args,**kwargs):
                 nonlocal failed
-                if not failed and str(destination)==str(root/'scripts/book.meta.json'):
+                if (not failed and Path(destination).name == 'book.meta.json'
+                        and Path(source).name.startswith('new-')):
                     failed=True;raise OSError('fixture metadata publication disk full')
-                return replace(source,destination,*args,**kwargs)
-            with patch('os.replace',side_effect=fail_metadata):
+                return move(source,destination,*args,**kwargs)
+            with patch.object(source_upload_publication,'move_source_upload_exclusively',side_effect=fail_metadata):
                 response=client.post('/api/scripts/save',json={'name':'book'})
             self.assertTrue(failed)
             self.assertEqual(500,response.status_code)
@@ -100,6 +114,35 @@ class SavedBookPublicationTests(unittest.TestCase):
                     response=client.delete('/api/scripts/book')
                 self.assertEqual(409 if task else 200,response.status_code,response.text)
                 self.assertEqual(before if task else {},self.artifacts(root))
+
+    def test_delete_refuses_the_saved_source_of_the_loaded_book(self):
+        with self.fixture() as (root,api),TestClient(api) as client:
+            saved = root / 'scripts/book.json'
+            state = {'active_book_id':'book', 'book_generation':'generation',
+                     'input_file_path':str(saved)}
+            (root/'state.json').write_text(json.dumps(state))
+            before = self.artifacts(root)
+            response = client.delete('/api/scripts/book')
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertIn('currently loaded', response.json()['detail'])
+            self.assertEqual(before, self.artifacts(root))
+
+    def test_active_saved_content_repair_updates_saved_and_active_copies_together(self):
+        with self.fixture() as (root,api):
+            saved = root / 'scripts/book.json'
+            original = saved.read_bytes()
+            (root/'annotated_script.json').write_bytes(original)
+            (root/'state.json').write_text(json.dumps({
+                'active_book_id':'book', 'book_generation':'generation',
+                'input_file_path':str(saved)}))
+            (root/'chunks.json').write_text('[{"text":"stale"}]')
+            (root/'chunks.json.status.jsonl').write_text('{"stale":true}\n')
+            entries = [{'speaker':'Old', 'text':'Repaired book.'}]
+            backup = routes._publish_saved_repair(str(saved), entries)
+            self.assertEqual(saved.read_bytes(), (root/'annotated_script.json').read_bytes())
+            self.assertEqual(original, Path(backup).read_bytes())
+            self.assertFalse((root/'chunks.json').exists())
+            self.assertFalse((root/'chunks.json.status.jsonl').exists())
 
     def test_reserved_companion_names_are_rejected_before_writing(self):
         names=('book.voice_config','book.meta','book.review_checkpoint','book.generation_checkpoint',
@@ -140,11 +183,11 @@ class SavedBookPublicationTests(unittest.TestCase):
     def test_delete_move_failure_rolls_back_complete_family(self):
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
             before=self.artifacts(root);move=books._move;count=0
-            def fail_once(source,destination):
+            def fail_once(source,destination, **kwargs):
                 nonlocal count
                 count+=1
                 if count==3:raise OSError('fixture removal disk full')
-                return move(source,destination)
+                return move(source,destination, **kwargs)
             with patch.object(books,'_move',side_effect=fail_once):
                 response=client.delete('/api/scripts/book')
             self.assertEqual(500,response.status_code)
@@ -160,9 +203,9 @@ for module in (routes,core):
  module.DATA_DIR=str(root);module.SCRIPTS_DIR=str(root/'scripts')
  module.SCRIPT_PATH=str(root/'annotated_script.json');module.VOICE_CONFIG_PATH=str(root/'voice_config.json')
 move=books._move;count=0
-def die(source,destination):
+def die(source,destination, **kwargs):
  global count
- result=move(source,destination);count+=1
+ result=move(source,destination, **kwargs);count+=1
  if count==3:os._exit(77)
  return result
 books._move=die

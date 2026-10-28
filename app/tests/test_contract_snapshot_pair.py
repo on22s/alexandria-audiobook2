@@ -28,10 +28,10 @@ class ContractSnapshotPairTests(unittest.TestCase):
             root=Path(tmp);old=application('old');new=application('new')
             paths=snapshots.write_snapshots(old,root);original=[p.read_bytes() for p in paths]
             move=transaction._move
-            def fail(source,target):
+            def fail(source,target, **kwargs):
                 if Path(target).name=='routes.json' and Path(source).name=='new-1':
                     raise OSError('fixture second replacement failed')
-                return move(source,target)
+                return move(source,target, **kwargs)
             with patch.object(transaction,'_move',side_effect=fail),self.assertRaisesRegex(OSError,'second replacement'):
                 snapshots.write_snapshots(new,root)
             self.assertEqual(original,[p.read_bytes() for p in paths])
@@ -59,8 +59,8 @@ app=FastAPI(title='new')
 @app.get('/new')
 def endpoint():return {'title':'new'}
 move=transaction._move
-def interrupted(source,target):
- move(source,target)
+def interrupted(source,target, **kwargs):
+ move(source,target, **kwargs)
  if Path(target).name=='openapi.json' and Path(source).name=='new-0':
   (root/'fixture_ready').write_text('first published')
   while True:time.sleep(.1)
@@ -92,8 +92,8 @@ snapshots.write_snapshots(app,root)
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);snapshots.write_snapshots(application('old'),root);new=application('new')
             entered=threading.Event();release=threading.Event();reader_started=threading.Event();move=transaction._move
-            def pause(source,target):
-                move(source,target)
+            def pause(source,target, **kwargs):
+                move(source,target, **kwargs)
                 if Path(target).name=='openapi.json' and Path(source).name=='new-0':
                     entered.set()
                     if not release.wait(3):raise RuntimeError('fixture release timed out')
