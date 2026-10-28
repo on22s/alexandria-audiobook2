@@ -53,6 +53,33 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
 
     @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
                          'POSIX directory descriptors required')
+    def test_journal_update_preserves_reused_temporary_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                version = books._save_journal(
+                    root, {'version':3, 'phase':'publishing'}, create=True,
+                    root_fd=descriptor)
+                replace = os.replace
+                foreign = b'foreign data'
+                def reuse_name(source, destination, **kwargs):
+                    replace(source, destination, **kwargs)
+                    planted = os.open(source, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                                      0o600, dir_fd=kwargs['src_dir_fd'])
+                    with os.fdopen(planted, 'wb') as output:
+                        output.write(foreign)
+                with patch.object(books.os, 'replace', side_effect=reuse_name):
+                    books._save_journal(root, {'version':3, 'phase':'committed'},
+                                        expected_version=version, root_fd=descriptor)
+            finally:
+                os.close(descriptor)
+            temporary = list(root.glob(f'{books.JOURNAL}.new-*'))
+            self.assertEqual(1, len(temporary))
+            self.assertEqual(foreign, temporary[0].read_bytes())
+
+    @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
+                         'POSIX directory descriptors required')
     def test_parent_identity_capture_refuses_substitution_and_missing_suffix_creation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); parent = root/'sub'; parent.mkdir()

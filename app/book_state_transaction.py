@@ -1007,10 +1007,12 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
     if root_fd is not None:
         temporary = f'{JOURNAL}.new-{uuid.uuid4().hex}'
         descriptor = None
+        created_version = None
         try:
             descriptor = os.open(temporary,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0),
                 0o600, dir_fd=root_fd)
+            created_version = _book_info_version(os.fstat(descriptor))
             with os.fdopen(descriptor, 'wb') as output:
                 descriptor = None
                 if output.write(payload) != len(payload):
@@ -1025,7 +1027,11 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
             if descriptor is not None:
                 os.close(descriptor)
             try:
-                os.unlink(temporary, dir_fd=root_fd)
+                current = os.stat(temporary, dir_fd=root_fd, follow_symlinks=False)
+                version = _book_info_version(current)
+                if (created_version is not None and version[:2] == created_version[:2]
+                        and stat.S_ISREG(version[5]) and version[6] == 1):
+                    os.unlink(temporary, dir_fd=root_fd)
             except FileNotFoundError:
                 pass
     save_adapter_publication_bytes(str(path), bytes(payload))

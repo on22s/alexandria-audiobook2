@@ -1582,6 +1582,7 @@
     "tests.test_book_state_transaction.BookStateTransactionTests.test_dangling_journal_link_is_not_treated_as_absent",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_external_symlink_and_duplicate_targets_are_rejected",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_failed_initial_journal_fsync_removes_the_owned_partial_file",
+    "tests.test_book_state_transaction.BookStateTransactionTests.test_journal_update_preserves_reused_temporary_name",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_journal_writer_refuses_oversize_before_publication",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_legacy_recovered_cleanup_refuses_unowned_workspace_entry",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_legacy_v1_cleanup_requires_explicit_inspection",
