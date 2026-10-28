@@ -8,9 +8,11 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'app'))
 from macos_subprocess_kernel import MacApi, is_macos_coalition_reaped
+from macos_subprocess_owner import _bounded_command_output, _macos_job_is_absent, _MAX_JOB_LIST_BYTES
 from subprocess_ownership import start_owned_subprocess as start_macos_owned_subprocess
 from subprocess_ownership import send_subprocess_signal
 
@@ -131,6 +133,74 @@ def check_app_death(tmp):
         app.stderr.close()
 
 
+def check_long_lived_owner(tmp, *, cancel):
+    """Exercise launchd after its restart throttle, retaining a real lease."""
+    name = 'long-cancel' if cancel else 'long-finish'
+    identity, lease, receipt = [tmp / (name + suffix) for suffix in ('.identity', '.lease', '.receipt')]
+    environment = {**os.environ, 'PYTHONPATH': str(Path(__file__).resolve().parents[2] / 'app')}
+    code = ("import json,os,sys,time; from pathlib import Path; "
+            "from macos_subprocess_kernel import MacApi; "
+            "path=Path(sys.argv[1]); temporary=path.with_suffix('.pending'); "
+            "temporary.write_text(json.dumps(MacApi().get_info(os.getpid()))); os.replace(temporary,path); "
+            f"time.sleep({120 if cancel else 12.5})")
+    with lease.open('w+b') as held:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        process = start_macos_owned_subprocess([sys.executable, '-c', code, str(identity)],
+            gpu_lease_fd=held.fileno(), stop_receipt_path=receipt, env=environment,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        held.close()
+        try:
+            wait_for(identity.exists, 'long worker admission missing')
+            info = json.loads(identity.read_text())
+            time.sleep(10.5)
+            assert process.poll() is None and not is_lease_free(lease)
+            if cancel:
+                assert MacApi().get_info(info['pid']) == info, 'worker exited before cancellation'
+                send_subprocess_signal(process, signal.SIGKILL)
+            output, errors = process.communicate(timeout=30)
+            assert process.returncode == (128 + signal.SIGKILL if cancel else 0), (process.returncode, errors)
+            assert output == ''
+            assert receipt.read_text() == 'stopped\n'
+            assert is_macos_coalition_reaped(MacApi(), info['coalition'])
+            assert is_lease_free(lease), 'long worker retained lease after reaping'
+            return {'cancel': cancel, 'coalition': info['coalition'], 'reaped': True}
+        finally:
+            if process.poll() is None:
+                send_subprocess_signal(process, signal.SIGKILL)
+                process.wait(timeout=20)
+            process._alexandria_control.close()
+            process.stdout.close()
+            process.stderr.close()
+
+
+def check_launchd_absence_probe():
+    """Qualify list visibility with a unique disposable job in this context."""
+    label = 'org.alexandria.probe.' + uuid.uuid4().hex
+    try:
+        submitted = subprocess.run(['/bin/launchctl', 'submit', '-l', label, '--',
+                                    sys.executable, '-c', 'import time; time.sleep(60)'],
+                                   capture_output=True, timeout=20)
+        assert submitted.returncode == 0, 'disposable launchd job submission failed'
+        def listed():
+            raw = _bounded_command_output(['/bin/launchctl', 'list'], limit=_MAX_JOB_LIST_BYTES, timeout=20)
+            return raw is not None and any(line.split(b'\t')[-1] == label.encode()
+                                           for line in raw.splitlines()[1:])
+        wait_for(listed, 'disposable job absent from its bootstrap listing')
+        assert not _macos_job_is_absent(label), 'probe falsely declared a live job absent'
+        removed = subprocess.run(['/bin/launchctl', 'remove', label], capture_output=True, timeout=20)
+        assert removed.returncode == 0, 'disposable launchd job removal failed'
+        wait_for(lambda: _macos_job_is_absent(label), 'removed job still visible or listing unobservable')
+        return {'visible_before_removal': True, 'absent_after_removal': True}
+    finally:
+        try:
+            removed = subprocess.run(['/bin/launchctl', 'remove', label], capture_output=True, timeout=20)
+            clean = removed.returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            clean = False
+        if not clean and not _macos_job_is_absent(label):
+            raise RuntimeError('Disposable launchd job cleanup could not be verified')
+
+
 def main():
     result = {'platform': sys.platform, 'checks_passed': False}
     destination = Path('macos_369_owner_result.json')
@@ -149,6 +219,9 @@ def main():
             finally:
                 process._alexandria_control.close()
             result['scope_checks'] = [check_detached_scope(tmp, False), check_detached_scope(tmp, True), check_app_death(tmp)]
+            result['long_scope_checks'] = [check_long_lived_owner(tmp, cancel=False),
+                                           check_long_lived_owner(tmp, cancel=True)]
+            result['launchd_absence_probe'] = check_launchd_absence_probe()
             assert sentinel.poll() is None, 'unrelated sentinel was signalled'
             result['unrelated_sentinel_alive'] = True
             result['checks_passed'] = True
