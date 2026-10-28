@@ -198,6 +198,15 @@ def get_verified_macos_task_scope(api, candidate, broker):
     return candidate
 
 
+def ensure_macos_job_removed(label):
+    """Ask launchd to drop the task job; True only when launchctl reports success.
+
+    A `launchctl submit` job is KeepAlive, so until this succeeds launchd may
+    start a replacement actor inside the private scope (#1646)."""
+    return subprocess.run(['/bin/launchctl', 'remove', label], capture_output=True,
+                          timeout=30).returncode == 0
+
+
 def ensure_macos_scope_reaped(api, coalition, label):
     """Retain the broker's leases through failures, until the kernel removes CID."""
     reported = False
@@ -207,7 +216,7 @@ def ensure_macos_scope_reaped(api, coalition, label):
                 return
             apply_macos_scope_signal(api, coalition, signal.SIGCONT)
             apply_macos_scope_signal(api, coalition, signal.SIGKILL)
-            subprocess.run(['/bin/launchctl', 'remove', label], capture_output=True, timeout=30)
+            ensure_macos_job_removed(label)
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             if not reported:
                 print(f'ERROR: macOS cleanup failed; retaining ownership: {error}',
@@ -238,6 +247,7 @@ def run_macos_owner_broker(control, specification):
         resume = False
         connected = True
         removing = False
+        finished = False
         reported = False
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
             listener.bind(address)
@@ -331,10 +341,20 @@ def run_macos_owner_broker(control, specification):
                             actor.sendall(b'finish\n')
                             actor.close()
                             actor = None
+                            finished = True
+                        # `launchctl submit` jobs are KeepAlive: launchd restarts an
+                        # actor that exits after running past its 10 s throttle, and
+                        # the restarted actor waits forever for a configuration, so
+                        # the scope would never reach zero members (#1646). Once the
+                        # actor-only scope has been told to finish, or the whole scope
+                        # is being SIGKILLed anyway (a graceful stop keeps its grace),
+                        # remove the job without waiting to observe it empty, retrying
+                        # until launchctl succeeds. Reaping is still proven only by
+                        # ESRCH above; the leases are held until then.
                         if (actor is None and not removing
-                                and api.get_active_count(owner['coalition']) == 0):
-                            subprocess.run(['/bin/launchctl', 'remove', label], capture_output=True, timeout=30)
-                            removing = True
+                                and (finished or stopping == signal.SIGKILL
+                                     or api.get_active_count(owner['coalition']) == 0)):
+                            removing = ensure_macos_job_removed(label)
                     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
                         if not reported:
                             print(f'ERROR: Could not control macOS task; retaining ownership: {error}',
@@ -358,7 +378,7 @@ def run_macos_owner_broker(control, specification):
                     actor.close()
                 if owner is None:
                     # No worker was admitted before a private coalition was proven.
-                    subprocess.run(['/bin/launchctl', 'remove', label], capture_output=True, timeout=30)
+                    ensure_macos_job_removed(label)
                 if reaped and specification['stop_receipt'] is not None:
                     from subprocess_ownership import save_subprocess_stop_receipt
                     save_subprocess_stop_receipt(specification['stop_receipt'])
