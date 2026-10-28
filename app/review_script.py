@@ -385,8 +385,9 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
             data.get("context_window") != context_window):
         print("Found a review checkpoint but parameters changed - starting fresh.")
         return None
-    if _entries_fingerprint(entries) not in (data.get("source_sha256"),
-                                               data.get("output_sha256")):
+    entries_sha256 = _entries_fingerprint(entries)
+    if entries_sha256 not in (data.get("source_sha256"),
+                               data.get("output_sha256")):
         print("Review checkpoint source changed or has no fingerprint - starting fresh.")
         return None
     if (not isinstance(data.get("completed_batches"), int) or
@@ -401,13 +402,15 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
     if offsets is not None and (
             not isinstance(offsets, list) or len(offsets) != data["completed_batches"]
             or any(not isinstance(offset, int) or isinstance(offset, bool) or offset < 0 for offset in offsets)
-            or offsets != sorted(offsets)):
+            or offsets != sorted(offsets)
+            or (entries_sha256 == data.get("source_sha256")
+                and offsets and offsets[-1] > len(entries))):
         print("Invalid review checkpoint source offsets - starting fresh.")
         return None
     if get_literal_policy(entries) is not None and (
             data["completed_batches"] or data["all_corrected"]):
         end = ((offsets[-1] if offsets else data["completed_batches"] * batch_size)
-               if _entries_fingerprint(entries) == data.get("source_sha256")
+               if entries_sha256 == data.get("source_sha256")
                else len(data["all_corrected"]))
         prefix = " ".join(entry.get("text", "") for entry in entries[:end])
         if not audit_literal_words(prefix, data["all_corrected"])["passed"]:

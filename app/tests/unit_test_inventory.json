@@ -5070,6 +5070,8 @@
     "tests.test_helper_review_fixes.HelperReviewTests.test_long_filename_collision",
     "tests.test_helper_review_fixes.HelperReviewTests.test_object_parser_rejects_other_json_shapes",
     "tests.test_helper_review_fixes.HelperReviewTests.test_persisted_shapes_and_line_counts",
+    "tests.test_helper_review_fixes.HelperReviewTests.test_review_checkpoint_accepts_source_offset_past_partial_output",
+    "tests.test_helper_review_fixes.HelperReviewTests.test_review_checkpoint_rejects_offset_past_original_source",
     "tests.test_helper_review_fixes.HelperReviewTests.test_review_checkpoint_rejects_other_book_and_accepts_saved_partial_output",
     "tests.test_helper_review_fixes.HelperReviewTests.test_write_syncs_content_before_replace",
     "tests.test_helper_review_fixes.HelperReviewTests.test_writes_reject_invalid_parameters_without_changing_artifact",

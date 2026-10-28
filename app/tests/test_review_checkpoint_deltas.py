@@ -54,7 +54,7 @@ class ReviewCheckpointDeltaTests(unittest.TestCase):
                     corrected.extend({'speaker': 'ANN', 'text': f'証拠 {i}', 'instruct': 'Plain.'}
                                      for i in range((batch - 1) * 10, batch * 10))
                     save(output, corrected, batch, writer)
-                    resumed = review.load_checkpoint(str(output), 20, 10, 0, [])
+                    resumed = review.load_checkpoint(str(output), 20, 10, 0, corrected)
                     self.assertEqual(corrected, resumed['all_corrected'])
                     self.assertEqual(batch, resumed['completed_batches'])
                     self.assertEqual(corrected[-2:], resumed['previous_tail'])
@@ -101,7 +101,7 @@ class ReviewCheckpointDeltaTests(unittest.TestCase):
             save(output, rows[:10], 1, writer)
             save(output, rows, 2, writer, failed=[2])
             with patch.object(review, '_entries_fingerprint', return_value='source'):
-                resumed = review.load_checkpoint(str(output), 20, 10, 0, [])
+                resumed = review.load_checkpoint(str(output), 20, 10, 0, rows)
             self.assertEqual(rows[:10], resumed['all_corrected'])
             self.assertEqual(1, resumed['completed_batches'])
             self.assertEqual([], resumed['failed_batches'])
