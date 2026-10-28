@@ -148,6 +148,41 @@ class RecoveryLoadBridgeTests(unittest.TestCase):
                 cls, native._CUSTOM_MODEL_ID, '/cache/alias', {'dtype': dtype}))
 
 
+    def test_explicit_attention_backend_joins_identity_and_unknown_backends_are_refused(self):
+        # #1650 loads MPS models with eager attention. That must stay part of
+        # the recovery identity, leave every existing identity byte-identical,
+        # and never admit a backend the serving check would not.
+        cls = self.model_class()
+        dtype = object()
+        torch = SimpleNamespace(float16=object(), bfloat16=dtype, float32=object())
+        snapshots = []
+        def capture(path, **kwargs):
+            snapshots.append(path)
+            return SimpleNamespace(root=path, sha256='a' * 64)
+        with (patch.dict(sys.modules, {'torch': torch}),
+              patch.object(native, '_ensure_supported_native_versions'),
+              patch.object(native.importlib, 'import_module', return_value=SimpleNamespace(Qwen3TTSModel=cls)),
+              patch.object(native, 'get_native_custom_code_sha256', return_value='b' * 64),
+              patch.object(native, 'RecoveryModelNamespaceGuard', FakeNamespaceGuard),
+              patch.object(native, 'capture_recovery_model_snapshot', side_effect=capture),
+              native.ensure_native_recovery_model_capture()):
+            def options(**extra):
+                return native.capture_native_recovery_load(
+                    cls, native._CUSTOM_MODEL_ID, '/local', {'dtype': dtype, **extra}).options
+            self.assertEqual((('device', 'cuda:0'), ('dtype', 'bfloat16')),
+                             options(device_map='cuda:0'))
+            self.assertEqual((('device', 'mps'), ('dtype', 'bfloat16'), ('attention', 'eager')),
+                             options(device_map='mps', attn_implementation='eager'))
+            self.assertEqual((('device', 'cpu'), ('dtype', 'bfloat16'), ('attention', 'sdpa')),
+                             options(attn_implementation='sdpa'))
+            captured = len(snapshots)
+            for backend in ('flash_attention_2', None, ''):
+                with self.subTest(backend=backend), self.assertRaisesRegex(
+                        RecoveryIdentityUnavailable, 'unsupported_native_load_options'):
+                    options(device_map='mps', attn_implementation=backend)
+            # Refused before any model asset is hashed.
+            self.assertEqual(captured, len(snapshots))
+
     def test_missing_optional_metadata_or_layout_stays_temporary_and_owner_bugs_propagate(self):
         cls = self.model_class()
         with (patch.object(TTSEngine, '_resolve_local_model_path', return_value='/known/local'),

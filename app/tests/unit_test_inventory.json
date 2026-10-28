@@ -6562,6 +6562,26 @@
   "test_mp3_bitrate": [
     "tests.test_mp3_bitrate.Mp3BitrateTests.test_chunk_export_is_at_least_96_kbps"
   ],
+  "test_mps_batch_padding": [
+    "tests.test_mps_batch_padding.MpsAttentionLoadTests.test_eager_attention_only_on_mps",
+    "tests.test_mps_batch_padding.MpsAttentionLoadTests.test_every_local_model_family_loads_with_the_device_attention_kwargs",
+    "tests.test_mps_batch_padding.MpsAttentionLoadTests.test_lora_base_model_loads_with_the_device_attention_kwargs",
+    "tests.test_mps_batch_padding.MpsBatchShapeTests.test_clone_and_lora_batches_on_mps_also_send_one_line_per_request",
+    "tests.test_mps_batch_padding.MpsBatchShapeTests.test_custom_batch_on_mps_sends_one_line_per_request_and_keeps_failures_visible",
+    "tests.test_mps_batch_padding.MpsBatchSizeTests.test_cpu_sizing_is_unchanged",
+    "tests.test_mps_batch_padding.MpsBatchSizeTests.test_mps_models_get_one_sequence_whatever_else_is_available"
+  ],
+  "test_mps_batch_padding_probe": [
+    "tests.test_mps_batch_padding_probe.ProbeCaseTests.test_every_padded_line_is_also_rendered_alone_once",
+    "tests.test_mps_batch_padding_probe.ProbeCaseTests.test_padded_cases_differ_and_the_control_does_not",
+    "tests.test_mps_batch_padding_probe.ProbeReadingTests.test_each_pre_registered_reading",
+    "tests.test_mps_batch_padding_probe.ProbeReadingTests.test_loaded_backends_are_read_from_every_configured_module_once",
+    "tests.test_mps_batch_padding_probe.ProbeReadingTests.test_the_instrument_rejects_runs_that_did_not_test_the_hypothesis",
+    "tests.test_mps_batch_padding_probe.ProbeReadingTests.test_token_lengths_use_the_same_prompt_qwen_tts_builds",
+    "tests.test_mps_batch_padding_probe.ProbeRecordTests.test_an_exception_is_recorded_with_its_text",
+    "tests.test_mps_batch_padding_probe.ProbeRecordTests.test_non_finite_or_empty_audio_is_never_ok",
+    "tests.test_mps_batch_padding_probe.ProbeRefusalTests.test_refuses_without_mps_before_loading_anything"
+  ],
   "test_multi_process_state": [
     "tests.test_multi_process_state.LlmOffGpuLockTests.test_off_gpu_lets_script_and_audio_overlap_but_not_two_llm_tasks",
     "tests.test_multi_process_state.LlmOffGpuLockTests.test_on_gpu_keeps_the_full_lock",
@@ -10924,6 +10944,7 @@
   "test_synthesis_recovery_load": [
     "tests.test_synthesis_recovery_load.RecoveryLoadBridgeTests.test_actual_capture_helper_binds_before_after_protocol_without_model_work",
     "tests.test_synthesis_recovery_load.RecoveryLoadBridgeTests.test_disabled_local_loading_does_not_hash_or_import_native_models",
+    "tests.test_synthesis_recovery_load.RecoveryLoadBridgeTests.test_explicit_attention_backend_joins_identity_and_unknown_backends_are_refused",
     "tests.test_synthesis_recovery_load.RecoveryLoadBridgeTests.test_local_capture_uses_the_admitted_canonical_root_and_completes_after_success",
     "tests.test_synthesis_recovery_load.RecoveryLoadBridgeTests.test_missing_optional_metadata_or_layout_stays_temporary_and_owner_bugs_propagate",
     "tests.test_synthesis_recovery_load.RecoveryLoadBridgeTests.test_moving_id_fallback_never_inherits_local_capture",
