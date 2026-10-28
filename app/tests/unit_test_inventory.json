@@ -13273,6 +13273,7 @@
     "tests.test_whisper_install_recovery.LauncherRepairMenuTests.test_partial_install_offers_repair_and_retains_start"
   ],
   "test_windows_book_move": [
+    "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_book_root_guard_uses_non_deleting_handles_and_checks_identity",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_guard_holds_all_ancestors_once_and_releases_them",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_native_byte_and_stream_transactions_finish_cleanup",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_native_handles_deny_parent_rename_until_released",

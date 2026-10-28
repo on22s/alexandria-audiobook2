@@ -2051,8 +2051,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             workspace_fd = os.open(workspace_name, flags, dir_fd=root_fd)
         else:
             if os.name == 'nt':
-                from windows_export_staging_directory import WindowsStageDirectory
-                root_guard = WindowsStageDirectory(root, root_identity)
+                from windows_export_staging_directory import WindowsBookRoot
+                root_guard = WindowsBookRoot(root, root_identity)
                 root_guard.__enter__()
             workspace = Path(tempfile.mkdtemp(prefix='.book-switch-', dir=root))
             workspace_name = workspace.name

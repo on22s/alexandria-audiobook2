@@ -80,6 +80,67 @@ def _identity(info):
     return info.volume, (info.index_high << 32) | info.index_low
 
 
+class WindowsBookRoot:
+    """Pin one admitted book root and its ancestor chain without blocking writes.
+
+    Unlike ``WindowsStageDirectory``, this guard never deletes the opened root
+    and therefore does not deny write sharing.  It prevents the root or an
+    ancestor from being renamed while a transaction creates journals and moves
+    child artifacts inside the admitted directory.
+    """
+    def __init__(self, path, expected_identity):
+        if (type(expected_identity) is not tuple or len(expected_identity) != 2
+                or any(type(value) is not int or value < 0 for value in expected_identity)):
+            raise ValueError('Invalid admitted book root identity')
+        self.path = Path(os.path.abspath(path))
+        self.expected = expected_identity
+        self.stack = ExitStack()
+        self.guards = []
+        self.entered = False
+
+    def __enter__(self):
+        if self.entered:
+            raise StageDirectoryChanged('Book root context cannot be reused')
+        self.entered = True
+        try:
+            api = _api()
+            for directory in (*reversed(self.path.parents), self.path):
+                handle = _Handle(api, directory)
+                self.stack.callback(handle.close)
+                info = handle.information()
+                if not info.attributes & 0x10 or info.attributes & 0x400:
+                    raise StageDirectoryChanged('Unsafe book root ancestor')
+                current = directory.lstat()
+                identity = _identity(info)
+                if (current.st_dev, current.st_ino) != identity:
+                    raise StageDirectoryChanged('Book root ancestor was replaced')
+                self.guards.append((directory, handle, identity))
+            self.check()
+            return self
+        except BaseException:
+            self.__exit__(None, None, None)
+            raise
+
+    def __exit__(self, *args):
+        try:
+            self.stack.close()
+        finally:
+            self.guards = []
+
+    def check(self):
+        if not self.guards:
+            raise StageDirectoryChanged('Book root context is not active')
+        for directory, handle, expected in self.guards:
+            info = handle.information()
+            current = directory.lstat()
+            if (not info.attributes & 0x10 or info.attributes & 0x400
+                    or _identity(info) != expected
+                    or (current.st_dev, current.st_ino) != expected):
+                raise StageDirectoryChanged('Book root ancestor changed')
+        if self.guards[-1][2] != self.expected:
+            raise StageDirectoryChanged('Admitted book root was replaced')
+
+
 @contextmanager
 def guard_windows_book_move_parents(root, source, destination):
     """Pin every parent without delete sharing while an admitted move runs.

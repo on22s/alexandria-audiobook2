@@ -30,6 +30,20 @@ class FakeHandle:
 
 
 class WindowsBookMoveGuardTests(unittest.TestCase):
+    def test_book_root_guard_uses_non_deleting_handles_and_checks_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'book'
+            root.mkdir()
+            identity = root.lstat()
+            FakeHandle.opened = []
+            with patch.object(windows, '_api', return_value=object()), \
+                    patch.object(windows, '_Handle', FakeHandle):
+                with windows.WindowsBookRoot(root, (identity.st_dev, identity.st_ino)) as guard:
+                    guard.check()
+                    self.assertEqual(root, FakeHandle.opened[-1].path)
+                    self.assertTrue(all(not handle.closed for handle in FakeHandle.opened))
+                self.assertTrue(all(handle.closed for handle in FakeHandle.opened))
+
     @unittest.skipUnless(os.name == 'nt', 'Requires native Windows cleanup handles')
     def test_recovery_guard_blocks_metadata_unlink_and_directory_removal(self):
         from export_staging_directory import OWNER_FILE
