@@ -4,8 +4,10 @@ import errno
 import fcntl
 import json
 import os
+import re
 from pathlib import Path
 import select
+import selectors
 import signal
 import socket
 import subprocess
@@ -15,6 +17,9 @@ import time
 import uuid
 
 from macos_subprocess_kernel import MacApi, is_macos_coalition_reaped
+
+_JOB_REMOVAL_RETRY_SECONDS = 0.5
+_MAX_JOB_LIST_BYTES = 4 * 1024 * 1024
 
 
 def send_macos_owner_event(channel, message):
@@ -198,22 +203,125 @@ def get_verified_macos_task_scope(api, candidate, broker):
     return candidate
 
 
-def ensure_macos_scope_reaped(api, coalition, label):
+def _bounded_command_output(command, *, limit, timeout):
+    """Capture a private probe with hard time and byte limits; reap it on failure."""
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                               env={**os.environ, 'LC_ALL': 'C'})
+    deadline = time.monotonic() + timeout
+    data = bytearray()
+    try:
+        os.set_blocking(process.stdout.fileno(), False)
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None
+                if not selector.select(min(remaining, 0.5)):
+                    continue
+                try:
+                    chunk = os.read(process.stdout.fileno(), min(65536, limit + 1 - len(data)))
+                except BlockingIOError:
+                    continue
+                if not chunk:
+                    break
+                data.extend(chunk)
+                if len(data) > limit:
+                    return None
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        try:
+            if process.wait(timeout=remaining) != 0:
+                return None
+        except subprocess.TimeoutExpired:
+            return None
+        return bytes(data)
+    finally:
+        try:
+            if process.poll() is None:
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+            process.wait(timeout=5)
+        finally:
+            process.stdout.close()
+
+
+def _macos_job_is_absent(label):
+    """Prove absence only from a successful, complete list in this bootstrap context."""
+    raw = _bounded_command_output(['/bin/launchctl', 'list'], limit=_MAX_JOB_LIST_BYTES, timeout=30)
+    if raw is None or not raw.endswith(b'\n'):
+        return False
+    try:
+        lines = raw.decode('utf-8').splitlines()
+    except UnicodeDecodeError:
+        return False
+    if not lines or lines[0].split('\t') != ['PID', 'Status', 'Label']:
+        return False
+    present = False
+    for line in lines[1:]:
+        fields = line.split('\t')
+        if (len(fields) != 3 or not fields[2]
+                or not (fields[0] == '-' or re.fullmatch(r'[0-9]+', fields[0]))
+                or not (fields[1] in ('-', '???') or re.fullmatch(r'-?[0-9]+', fields[1]))):
+            return False
+        present |= fields[2] == label
+    return not present
+
+
+def ensure_macos_job_removed(label):
+    """Ask launchd to drop the task job; True only when launchctl reports success.
+
+    A `launchctl submit` job is KeepAlive, so until this succeeds launchd may
+    start a replacement actor inside the private scope (#1646)."""
+    try:
+        result = subprocess.run(['/bin/launchctl', 'remove', label], capture_output=True, timeout=30)
+        if result.returncode == 0:
+            return True
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        pass
+    try:
+        return _macos_job_is_absent(label)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return False
+
+
+def ensure_macos_unadmitted_job_removed(label):
+    """Do not leave a submitted KeepAlive job behind after failed admission."""
+    reported = False
+    while not ensure_macos_job_removed(label):
+        if not reported:
+            print('ERROR: macOS task job removal failed; retaining ownership',
+                  file=sys.stderr, flush=True)
+            reported = True
+        time.sleep(_JOB_REMOVAL_RETRY_SECONDS)
+
+
+def ensure_macos_scope_reaped(api, coalition, label, *, removal_confirmed=False):
     """Retain the broker's leases through failures, until the kernel removes CID."""
     reported = False
     while True:
         try:
-            if is_macos_coalition_reaped(api, coalition):
+            reaped = is_macos_coalition_reaped(api, coalition)
+            if not reaped:
+                apply_macos_scope_signal(api, coalition, signal.SIGCONT)
+                apply_macos_scope_signal(api, coalition, signal.SIGKILL)
+            if not removal_confirmed:
+                removal_confirmed = ensure_macos_job_removed(label)
+                if not removal_confirmed and not reported:
+                    print('ERROR: macOS task job removal failed; retaining ownership',
+                          file=sys.stderr, flush=True)
+                    reported = True
+            if reaped and removal_confirmed:
                 return
-            apply_macos_scope_signal(api, coalition, signal.SIGCONT)
-            apply_macos_scope_signal(api, coalition, signal.SIGKILL)
-            subprocess.run(['/bin/launchctl', 'remove', label], capture_output=True, timeout=30)
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             if not reported:
                 print(f'ERROR: macOS cleanup failed; retaining ownership: {error}',
                       file=sys.stderr, flush=True)
                 reported = True
-        time.sleep(.05)
+        time.sleep(_JOB_REMOVAL_RETRY_SECONDS)
 
 
 def run_macos_owner_broker(control, specification):
@@ -238,15 +346,37 @@ def run_macos_owner_broker(control, specification):
         resume = False
         connected = True
         removing = False
+        submission_impossible = False
+        next_remove = 0.0
+        removal_reported = False
+        finished = False
         reported = False
+        def request_job_removal():
+            nonlocal removing, next_remove, removal_reported
+            if removing or time.monotonic() < next_remove:
+                return
+            next_remove = time.monotonic() + _JOB_REMOVAL_RETRY_SECONDS
+            try:
+                removing = ensure_macos_job_removed(label)
+            except (OSError, ValueError, subprocess.TimeoutExpired):
+                removing = False
+            if not removing and not removal_reported:
+                print('ERROR: macOS task job removal failed; retaining ownership',
+                      file=sys.stderr, flush=True)
+                removal_reported = True
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
             listener.bind(address)
             listener.listen(1)
             listener.settimeout(30)
             try:
-                launched = subprocess.run(['/bin/launchctl', 'submit', '-l', label, '--',
-                    sys.executable, str(Path(__file__).resolve()), '--job', address],
-                    capture_output=True, text=True, timeout=30)
+                try:
+                    launched = subprocess.run(['/bin/launchctl', 'submit', '-l', label, '--',
+                        sys.executable, str(Path(__file__).resolve()), '--job', address],
+                        capture_output=True, text=True, timeout=30)
+                except (FileNotFoundError, PermissionError, NotADirectoryError):
+                    # These executable-start failures cannot have submitted a job.
+                    submission_impossible = True
+                    raise
                 if launched.returncode:
                     raise OSError('launchctl task admission failed: ' + launched.stderr)
                 actor = listener.accept()[0]
@@ -267,9 +397,13 @@ def run_macos_owner_broker(control, specification):
                                   file=sys.stderr, flush=True)
                             reported = True
                     if reaped:
-                        if root_result is not None:
-                            return root_result
-                        return 128 + stopping if stopping is not None else 1
+                        request_job_removal()
+                        if removing:
+                            if root_result is not None:
+                                return root_result
+                            return 128 + stopping if stopping is not None else 1
+                        time.sleep(.05)
+                        continue
                     channels = ([control] if connected else []) + ([actor] if actor is not None else [])
                     ready, _, _ = select.select(channels, [], [], .05)
                     if control in ready:
@@ -331,10 +465,20 @@ def run_macos_owner_broker(control, specification):
                             actor.sendall(b'finish\n')
                             actor.close()
                             actor = None
+                            finished = True
+                        # `launchctl submit` jobs are KeepAlive: launchd restarts an
+                        # actor that exits after running past its 10 s throttle, and
+                        # the restarted actor waits forever for a configuration, so
+                        # the scope would never reach zero members (#1646). Once the
+                        # actor-only scope has been told to finish, or the whole scope
+                        # is being SIGKILLed anyway (a graceful stop keeps its grace),
+                        # remove the job without waiting to observe it empty, retrying
+                        # until launchctl succeeds. Reaping is still proven only by
+                        # ESRCH above; the leases are held until then.
                         if (actor is None and not removing
-                                and api.get_active_count(owner['coalition']) == 0):
-                            subprocess.run(['/bin/launchctl', 'remove', label], capture_output=True, timeout=30)
-                            removing = True
+                                and (finished or stopping == signal.SIGKILL
+                                     or api.get_active_count(owner['coalition']) == 0)):
+                            request_job_removal()
                     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
                         if not reported:
                             print(f'ERROR: Could not control macOS task; retaining ownership: {error}',
@@ -345,7 +489,8 @@ def run_macos_owner_broker(control, specification):
                     actor.close()
                     actor = None
                 if owner is not None:
-                    ensure_macos_scope_reaped(api, owner['coalition'], label)
+                    ensure_macos_scope_reaped(api, owner['coalition'], label,
+                                              removal_confirmed=removing)
                     reaped = True
                 if not admitted:
                     try:
@@ -356,9 +501,9 @@ def run_macos_owner_broker(control, specification):
             finally:
                 if actor is not None:
                     actor.close()
-                if owner is None:
+                if owner is None and not submission_impossible:
                     # No worker was admitted before a private coalition was proven.
-                    subprocess.run(['/bin/launchctl', 'remove', label], capture_output=True, timeout=30)
+                    ensure_macos_unadmitted_job_removed(label)
                 if reaped and specification['stop_receipt'] is not None:
                     from subprocess_ownership import save_subprocess_stop_receipt
                     save_subprocess_stop_receipt(specification['stop_receipt'])
