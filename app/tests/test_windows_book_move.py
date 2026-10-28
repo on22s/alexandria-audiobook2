@@ -32,13 +32,18 @@ class FakeHandle:
 
 class WindowsBookMoveGuardTests(unittest.TestCase):
     def test_system_ancestor_access_denial_does_not_weaken_owned_root(self):
+        for code in (5, 32):
+            with self.subTest(winerror=code):
+                denied = OSError('synthetic unavailable rename authority')
+                denied.winerror = code
+                fallback = object()
+                with patch.object(windows, '_Handle',
+                                  side_effect=[denied, fallback]) as opened:
+                    self.assertIs(fallback, windows._open_rename_guard(
+                        object(), Path('system-ancestor'), required=False))
+                self.assertEqual({}, opened.call_args_list[1].kwargs)
         denied = OSError('synthetic access denial')
         denied.winerror = 5
-        fallback = object()
-        with patch.object(windows, '_Handle', side_effect=[denied, fallback]) as opened:
-            self.assertIs(fallback, windows._open_rename_guard(
-                object(), Path('system-ancestor'), required=False))
-        self.assertEqual({}, opened.call_args_list[1].kwargs)
         with patch.object(windows, '_Handle', side_effect=denied) as opened:
             with self.assertRaises(OSError):
                 windows._open_rename_guard(object(), Path('owned-root'), required=True)

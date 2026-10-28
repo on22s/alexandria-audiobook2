@@ -95,7 +95,10 @@ def _open_rename_guard(api, directory, *, required):
     try:
         return _Handle(api, directory, protect_rename=True)
     except OSError as error:
-        if required or getattr(error, 'winerror', None) != 5:
+        # Access denial means this token cannot rename the system ancestor; a
+        # sharing violation means another live handle already denies it.  Both
+        # are acceptable only outside the app-controlled root.
+        if required or getattr(error, 'winerror', None) not in (5, 32):
             raise
         return _Handle(api, directory)
 
