@@ -9461,6 +9461,7 @@
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_selected_book_remains_owned_between_forward_and_backward_passes"
   ],
   "test_saved_publication_source": [
+    "tests.test_saved_publication_source.SavedPublicationSourceTests.test_batch_review_companions_cannot_replace_active_metadata",
     "tests.test_saved_publication_source.SavedPublicationSourceTests.test_bound_saved_content_repair_keeps_book_loadable",
     "tests.test_saved_publication_source.SavedPublicationSourceTests.test_bound_script_save_load_round_trip_and_tamper_refusal",
     "tests.test_saved_publication_source.SavedPublicationSourceTests.test_cancelled_delivery_retry_preserves_script_and_binding",

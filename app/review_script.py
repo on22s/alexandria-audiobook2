@@ -1490,10 +1490,16 @@ def main():
                      'chunks.json.status.jsonl', 'annotated_script.selection_binding.json',
                      '.active_book_transaction.json')
     }
+    reserved_outputs.add(canonical_active)
     reserved_outputs.add(os.path.normcase(os.path.realpath(
         get_review_receipt_path(default_script))))
     reserved_outputs.update(os.path.normcase(os.path.realpath(path)) for path in (
         three_pass_checkpoint_path(default_script), three_pass_manifest_path(default_script)))
+    # Lock paths are authority too: replacing an inode while another process
+    # holds the old lock defeats serialization even though the protected JSON
+    # itself remains untouched.
+    reserved_outputs.update(os.path.normcase(os.path.realpath(path + '.lock'))
+                            for path in tuple(reserved_outputs))
     try:
         relative_output = os.path.relpath(canonical_output, canonical_data)
     except ValueError:
@@ -1502,6 +1508,21 @@ def main():
             or relative_output is not None and relative_output.split(os.sep, 1)[0].casefold().startswith(
                 '.book-switch-'))):
         raise ValueError('Review output cannot replace reserved active-book metadata')
+    sidecar_paths = [path for path in (args.alias_registry, args.remap_voice_config) if path]
+    sidecar_destinations = [os.path.normcase(os.path.realpath(os.path.abspath(path)))
+                            for path in sidecar_paths]
+    if (len(set(sidecar_destinations)) != len(sidecar_destinations)
+            or any(path in {canonical_output, os.path.normcase(os.path.realpath(script_path))}
+                   for path in sidecar_destinations)):
+        raise ValueError('Review companion paths must be distinct from the script and each other')
+    for path in sidecar_destinations:
+        try:
+            relative = os.path.relpath(path, canonical_data)
+        except ValueError:
+            relative = None
+        if (path in reserved_outputs or relative is not None
+                and relative.split(os.sep, 1)[0].casefold().startswith('.book-switch-')):
+            raise ValueError('Review companion cannot replace reserved active-book metadata')
     if (os.path.abspath(output_path) == os.path.abspath(default_script) and not active_review
             or os.path.abspath(os.path.dirname(output_path)) == os.path.abspath(saved_dir) and not saved_review):
         raise ValueError('Reviewing into an existing book requires that book as the input')

@@ -297,7 +297,9 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
             for name in ('state.json', 'voice_config.json', 'chunks.json',
                          'annotated_script.selection_binding.json',
                          'annotated_script.json.threepass_checkpoint.json',
-                         'annotated_script.json.threepass_manifest.json'):
+                         'annotated_script.json.threepass_manifest.json',
+                         'state.json.lock', 'voice_config.json.lock',
+                         'annotated_script.json.lock'):
                 destination = root/name
                 if not destination.exists():
                     destination.write_bytes(b'preserve')
@@ -311,6 +313,29 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
                         review.main()
                     load.assert_not_called()
                 self.assertEqual(before, destination.read_bytes())
+
+    def test_batch_review_companions_cannot_replace_active_metadata(self):
+        import review_script as review
+        with self.fixture() as (root, _client):
+            external = root / 'reports' / 'external.json'
+            external.parent.mkdir(exist_ok=True)
+            external.write_text('[{"speaker":"NARRATOR","text":"Line."}]')
+            for option, destination in (
+                    ('--alias-registry', root / 'state.json'),
+                    ('--remap-voice-config', root / 'voice_config.json'),
+                    ('--alias-registry', root / 'state.json.lock')):
+                before = destination.read_bytes() if destination.exists() else None
+                with self.subTest(option=option, destination=destination), \
+                        patch.object(review, 'get_runtime_data_dir', return_value=str(root)), \
+                        patch.object(review.sys, 'argv', [
+                            'review', '--input', str(external), '--output', str(external),
+                            '--dedupe-speakers', option, str(destination)]), \
+                        patch.object(review, 'load_app_config') as load:
+                    with self.assertRaisesRegex(ValueError, 'reserved active-book metadata'):
+                        review.main()
+                    load.assert_not_called()
+                if before is not None:
+                    self.assertEqual(before, destination.read_bytes())
 
     def test_review_cli_rejects_symlink_alias_into_transaction_workspace(self):
         import review_script as review

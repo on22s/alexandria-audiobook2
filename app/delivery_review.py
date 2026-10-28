@@ -183,8 +183,11 @@ def apply_delivery_retry(data_dir, snapshot, entries, cancel_check=None, retry_r
                 values[Path(checkpoint_path).relative_to(root).as_posix()] = checkpoint
                 removals.extend(Path(path).relative_to(root).as_posix()
                                 for path in get_generation_checkpoint_artifacts(checkpoint_path)[1:])
-        if cancel_check:
-            cancel_check()
+        def require_not_cancelled():
+            if cancel_check is not None and cancel_check():
+                raise RuntimeError("Delivery retry cancelled; results were not published.")
+
+        require_not_cancelled()
         replacements = {name: json.dumps(value, ensure_ascii=False, indent=2,
                                          allow_nan=False).encode("utf-8")
                         for name, value in values.items()}
@@ -194,7 +197,6 @@ def apply_delivery_retry(data_dir, snapshot, entries, cancel_check=None, retry_r
             replacements['annotated_script.json'])
         if binding is not None:
             replacements[BINDING_NAME] = binding
-        if cancel_check:
-            cancel_check()
+        require_not_cancelled()
         apply_book_state_locked(data_dir, replacements, list(dict.fromkeys(removals)))
     return get_delivery_review_info(entries)

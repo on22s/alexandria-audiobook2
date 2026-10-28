@@ -304,7 +304,7 @@ class DeliveryFallbackTests(unittest.TestCase):
                     chunks[0]["instruct"] = "Manual direction."
                     (root / changed).write_text(json.dumps(chunks))
                 before = {p.name: p.read_bytes() for p in root.glob("*.json")}
-                cancel = (lambda: (_ for _ in ()).throw(RuntimeError("cancelled"))) if changed == "cancel" else None
+                cancel = (lambda: True) if changed == "cancel" else None
                 with self.assertRaises((ValueError, RuntimeError)):
                     apply_delivery_retry(tmp, snapshot, after, cancel_check=cancel)
                 self.assertEqual(before, {p.name: p.read_bytes() for p in root.glob("*.json")})
