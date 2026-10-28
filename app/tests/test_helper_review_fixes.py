@@ -129,6 +129,28 @@ class HelperReviewTests(unittest.TestCase):
             other_book = [{"speaker": "B", "text": "Other book"}, first[1]]
             self.assertIsNone(review_script.load_checkpoint(path, 2, 1, 0, other_book))
 
+    def test_review_checkpoint_rejects_offset_past_original_source(self):
+        entries = [{"speaker": "A", "text": "Original"}]
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "book.json")
+            review_script.save_checkpoint(
+                path, 1, 1, 1, 0, [], {}, None, [0], [],
+                review_script._entries_fingerprint(entries), source_offsets=[2])
+            self.assertIsNone(review_script.load_checkpoint(path, 1, 1, 0, entries))
+
+    def test_review_checkpoint_accepts_source_offset_past_partial_output(self):
+        source = [{"speaker": "A", "text": str(index)} for index in range(3)]
+        partial_output = [{"speaker": "A", "text": "0 1 2"}]
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "book.json")
+            review_script.save_checkpoint(
+                path, 1, 1, 3, 0, partial_output, {}, partial_output, [1], [],
+                review_script._entries_fingerprint(source),
+                review_script._entries_fingerprint(partial_output),
+                source_offsets=[3])
+            self.assertIsNotNone(
+                review_script.load_checkpoint(path, 1, 3, 0, partial_output))
+
     def test_incomplete_review_defers_merge_until_successful_resume(self):
         entries = [{"speaker": "NARRATOR", "text": word, "instruct": "calm"}
                    for word in ("One.", "Two.", "Three.")]
