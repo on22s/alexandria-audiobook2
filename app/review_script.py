@@ -1511,6 +1511,10 @@ def main():
     sidecar_paths = [path for path in (args.alias_registry, args.remap_voice_config) if path]
     sidecar_destinations = [os.path.normcase(os.path.realpath(os.path.abspath(path)))
                             for path in sidecar_paths]
+    allowed_reserved_sidecars = set()
+    if active_review and args.remap_voice_config:
+        allowed_reserved_sidecars.add(os.path.normcase(os.path.realpath(
+            os.path.join(data_dir, 'voice_config.json'))))
     if (len(set(sidecar_destinations)) != len(sidecar_destinations)
             or any(path in {canonical_output, os.path.normcase(os.path.realpath(script_path))}
                    for path in sidecar_destinations)):
@@ -1520,7 +1524,7 @@ def main():
             relative = os.path.relpath(path, canonical_data)
         except ValueError:
             relative = None
-        if (path in reserved_outputs or relative is not None
+        if ((path in reserved_outputs and path not in allowed_reserved_sidecars) or relative is not None
                 and relative.split(os.sep, 1)[0].casefold().startswith('.book-switch-')):
             raise ValueError('Review companion cannot replace reserved active-book metadata')
     if (os.path.abspath(output_path) == os.path.abspath(default_script) and not active_review

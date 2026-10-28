@@ -89,8 +89,10 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
             (root/'state.json').write_text(json.dumps({
                 'active_book_id':'book', 'book_generation':'generation',
                 'input_file_path':str(saved)}))
-            response=client.post('/api/scripts/book/repair/speakers/apply',json=self.request(
-                root,[self.select(1,'Alice','NARRATOR')]))
+            request = self.request(root,[self.select(1,'Alice','NARRATOR')])
+            with patch.object(routes, 'get_repair_script_snapshot',
+                              side_effect=AssertionError('active saved book must be refused before parsing')):
+                response=client.post('/api/scripts/book/repair/speakers/apply',json=request)
             self.assertEqual(409,response.status_code,response.text)
             self.assertIn('switch books', response.json()['detail'])
             self.assertEqual(before, {path:path.read_bytes() for path in before})

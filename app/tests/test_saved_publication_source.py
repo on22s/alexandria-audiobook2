@@ -337,6 +337,19 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
                 if before is not None:
                     self.assertEqual(before, destination.read_bytes())
 
+            active = root / 'annotated_script.json'
+            active.write_text('[{"speaker":"Alias","text":"Line."}]')
+            voice = root / 'voice_config.json'
+            voice.write_text('{"Alias":{"voice":"a"}}')
+            with patch.object(review, 'get_runtime_data_dir', return_value=str(root)), \
+                    patch.object(review.sys, 'argv', [
+                        'review', '--input', str(active), '--output', str(active),
+                        '--dedupe-speakers', '--remap-voice-config', str(voice)]), \
+                    patch.object(review, 'load_app_config',
+                                 side_effect=RuntimeError('reached config after path validation')):
+                with self.assertRaisesRegex(RuntimeError, 'reached config'):
+                    review.main()
+
     def test_review_cli_rejects_symlink_alias_into_transaction_workspace(self):
         import review_script as review
         with self.fixture() as (root, client):

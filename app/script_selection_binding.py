@@ -390,6 +390,7 @@ def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, ne
         if os.path.abspath(voice_config_path) != os.path.abspath(voice) or not callable(remap_voice_config):
             raise ValueError('Saved review voice config must belong to this book')
     with reuse_book_state(data_dir), ensure_saved_book_state(data_dir, scripts_dir), contextlib.ExitStack() as locks:
+        locks.enter_context(file_lock(str(root / 'state.json')))
         for path in (script, binding, publication):
             locks.enter_context(file_lock(str(path)))
         if voice_mapping and voice_config_path:

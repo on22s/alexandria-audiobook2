@@ -701,11 +701,11 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
                     locks.enter_context(file_lock(companion))
                 if not os.path.exists(path):
                     raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
-                script_bytes, sha256, entries = get_repair_script_snapshot(path)
                 active_source = saved_script_is_active_source(DATA_DIR, path)
                 if active_source:
                     raise HTTPException(status_code=409, detail=(
                         'This saved book is currently loaded; switch books before repairing it.'))
+                script_bytes, sha256, entries = get_repair_script_snapshot(path)
                 if sha256 != request.expected_sha256:
                     raise HTTPException(status_code=409, detail="Script changed after preview; preview it again.")
                 try:
