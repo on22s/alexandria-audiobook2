@@ -9482,6 +9482,7 @@
     "tests.test_saved_publication_source.SavedPublicationSourceTests.test_review_cli_rejects_reserved_active_metadata_outputs_before_model_work",
     "tests.test_saved_publication_source.SavedPublicationSourceTests.test_review_cli_rejects_symlink_alias_into_transaction_workspace",
     "tests.test_saved_publication_source.SavedPublicationSourceTests.test_review_cli_rejects_unsupported_custom_companions_before_model_work",
+    "tests.test_saved_publication_source.SavedPublicationSourceTests.test_review_voice_mapping_refuses_a_disappeared_voice_config",
     "tests.test_saved_publication_source.SavedPublicationSourceTests.test_review_voice_mapping_requires_the_matching_voice_config",
     "tests.test_saved_publication_source.SavedPublicationSourceTests.test_review_voice_remap_is_atomic_with_bound_script_and_preserves_current_settings",
     "tests.test_saved_publication_source.SavedPublicationSourceTests.test_save_load_list_and_delete_keep_exact_origin_and_script_binding",
@@ -9725,6 +9726,7 @@
   "test_script_selection_binding": [
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_alias_registry_cannot_target_lock_or_transaction_metadata",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_alias_registry_rejects_windows_reserved_and_trailing_names",
+    "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_binding_rejects_deeply_nested_script_as_invalid",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_binding_rejects_nonfinite_and_ambiguous_script_json",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_capture_rejects_ambiguous_state",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_capture_rejects_oversized_state_without_reading_it_into_memory",
@@ -9738,6 +9740,7 @@
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_legacy_controlled_edit_still_validates_unbound_replacement_bytes",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_new_selection_or_source_cannot_rebind_old_script",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_publication_checks_capture_and_publishes_script_and_binding",
+    "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_publication_rejects_inconsistent_saved_generation_selection",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_publication_rejects_oversized_state_without_reading_it_into_memory",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_review_preflight_and_owned_worker_refuse_pending_selection",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_same_selection_requires_independent_edit_provenance",
@@ -11649,6 +11652,7 @@
     "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_captured_source_hash_matches_the_bytes_used_for_preparation",
     "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_default_shaped_preset_reaches_pass_2_only",
     "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_invalid_active_identity_fails_before_client_creation",
+    "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_literal_cli_rejects_fifo_without_unbounded_hash_read",
     "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_samples_and_full_run_receive_same_selected_controls_and_plan_votes",
     "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_selected_preset_texts_reach_samples_and_estimated_prompt"
   ],

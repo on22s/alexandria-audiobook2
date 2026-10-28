@@ -123,8 +123,11 @@ def _validated_script_entries(script_bytes, *, require_entries=True):
         raise ValueError('Invalid script publication bytes')
     def reject_constant(value):
         raise ValueError('Nonfinite value in script publication')
-    entries = json.loads(script_bytes, object_pairs_hook=_unique_pairs,
-                         parse_constant=reject_constant)
+    try:
+        entries = json.loads(script_bytes, object_pairs_hook=_unique_pairs,
+                             parse_constant=reject_constant)
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+        raise ValueError('Invalid script publication') from error
     if (not isinstance(entries, list) or require_entries and not entries
             or any(not isinstance(row, dict) for row in entries)):
         raise ValueError('Script publication must contain entries')
@@ -220,7 +223,7 @@ def _voice_remap_bytes(root, name, mapping, remap):
     from project_scope_files import capture_scope_file
     _, raw = capture_scope_file(root, name, limit=16 * 1024**2, include_bytes=True)
     if raw is None:
-        return None, 0
+        raise ValueError('Voice configuration disappeared during review; edits were preserved')
     def reject_constant(value):
         raise ValueError('Nonfinite value in voice configuration')
     try:
@@ -473,6 +476,12 @@ def publish_generated_script(data_dir, expected_token, expected_source_path,
             raise ValueError('Book selection changed during script generation')
         if state.get('script_generation_run_id') != expected_run_id:
             raise ValueError('Generation attempt is no longer current')
+        expected_selection = {'book_token': expected_token,
+                              'source_path': expected_source_path,
+                              'source_sha256': expected_source_sha256}
+        if ('script_generation_selection' in state
+                and state['script_generation_selection'] != expected_selection):
+            raise ValueError('Generation selection identity is inconsistent')
         if state.get('script_generation_cancel_requested_run_id') == expected_run_id:
             raise ValueError('Generation attempt was cancelled')
         if 'script_generation_base_sha256' not in state:
@@ -513,6 +522,10 @@ def publish_generated_script(data_dir, expected_token, expected_source_path,
             if not isinstance(manifest, dict) or manifest.get('status') != 'publishing':
                 raise ValueError('Generation is not awaiting publication')
             manifest['status'] = 'complete'
+            manifest['publication'] = {
+                'run_id': expected_run_id,
+                'script_sha256': hashlib.sha256(script_bytes).hexdigest(),
+            }
             replacements[manifest_path.name] = json.dumps(
                 manifest, ensure_ascii=False, indent=2, allow_nan=False).encode()
         apply_book_state_locked(data_dir, replacements, [chunks.name, journal.name])

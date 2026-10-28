@@ -39,6 +39,19 @@ class ThreePassCliSettingsTests(unittest.TestCase):
             text, _ = tp.get_prepared_source(str(source), expected_source_sha256=captured)
             self.assertEqual('Alice arrived.', text)
 
+    @unittest.skipUnless(hasattr(os, 'mkfifo') and hasattr(os, 'O_NONBLOCK'),
+                         'requires POSIX FIFO')
+    def test_literal_cli_rejects_fifo_without_unbounded_hash_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'source.txt'
+            os.mkfifo(source)
+            with patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
+                                               '--literal-source-preserving']), \
+                 patch.object(tp, 'make_run_client') as client:
+                with self.assertRaises(ValueError):
+                    tp.main()
+            client.assert_not_called()
+
     def test_active_cli_publishes_script_binding_and_manifest_as_one_book(self):
         from script_selection_binding import capture_generation_selection, BINDING_NAME
         config = {'llm_mode':'local', 'llm_local':{'model_name':'fixture', 'base_url':'http://fixture/v1'},

@@ -58,6 +58,12 @@ class ScriptSelectionBindingTests(unittest.TestCase):
                 make_script_selection_binding(self.token, self.source, raw,
                                               source_path='/source/a.txt')
 
+    def test_binding_rejects_deeply_nested_script_as_invalid(self):
+        raw = ('[' * 2000 + ']' * 2000).encode()
+        with self.assertRaisesRegex(ValueError, 'Invalid script publication'):
+            make_script_selection_binding(self.token, self.source, raw,
+                                          source_path='/source/a.txt')
+
     def test_capture_rejects_oversized_state_without_reading_it_into_memory(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -240,6 +246,25 @@ class ScriptSelectionBindingTests(unittest.TestCase):
             self.assertFalse((root / 'chunks.json').exists())
             self.assertFalse((root / 'chunks.json.status.jsonl').exists())
             self.assertEqual('complete', json.loads(manifest.read_text())['status'])
+            self.assertEqual({'run_id': 'f' * 32,
+                              'script_sha256': hashlib.sha256(self.script).hexdigest()},
+                             json.loads(manifest.read_text())['publication'])
+
+    def test_publication_rejects_inconsistent_saved_generation_selection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); source = root / 'source.txt'; source.write_bytes(b'source')
+            (root / 'state.json').write_text(json.dumps({
+                'active_book_id':'a', 'book_generation':'one',
+                'input_file_path':str(source), 'script_generation_run_id':'f' * 32,
+                'script_generation_base_sha256':None,
+                'script_generation_selection': {
+                    'book_token':'0' * 64, 'source_path':str(source),
+                    'source_sha256':hashlib.sha256(b'source').hexdigest()}}))
+            token = get_book_operation_token(tmp)
+            with self.assertRaisesRegex(ValueError, 'selection identity'):
+                publish_generated_script(tmp, token, str(source),
+                    hashlib.sha256(b'source').hexdigest(), self.script,
+                    expected_run_id='f' * 32)
 
     def test_late_generation_cannot_overwrite_a_newer_generation(self):
         with tempfile.TemporaryDirectory() as tmp:

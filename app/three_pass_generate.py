@@ -3817,13 +3817,16 @@ def main():
 
     input_source_sha256 = None
     if args.literal_source_preserving:
-        from generation_completion import get_file_sha256
-        input_source_sha256 = get_file_sha256(args.input_file)
+        from script_selection_binding import _read_source_snapshot
+        input_source_sha256, _ = _read_source_snapshot(args.input_file)
     try:
+        expected_source_sha256 = (args.active_source_sha256
+                                  if args.active_book_token is not None
+                                  else input_source_sha256)
         book, unicode_report = get_prepared_source(
             args.input_file, args.strip_front_matter, report=print,
-            **({'expected_source_sha256': args.active_source_sha256}
-               if args.active_book_token is not None else {}))
+            **({'expected_source_sha256': expected_source_sha256}
+               if expected_source_sha256 is not None else {}))
     except ValueError as exc:
         print(f"Error: {exc}")
         sys.exit(1)
@@ -4012,8 +4015,8 @@ def main():
         sys.exit(1)
     if args.literal_source_preserving:
         from literal_policy import bind_literal_policy
-        from generation_completion import get_file_sha256
-        if get_file_sha256(args.input_file) != input_source_sha256:
+        from script_selection_binding import _source_digest
+        if _source_digest(args.input_file) != input_source_sha256:
             raise ValueError("Source input changed during literal annotation; refusing publication")
         entries = bind_literal_policy(book, entries,
             input_sha256=input_source_sha256,

@@ -36,6 +36,33 @@ class SavedPublicationSourceTests(unittest.TestCase):
                                           saved.read_bytes(), saved.read_bytes(),
                                           voice_mapping={'Alias': 'Canonical'})
 
+    def test_review_voice_mapping_refuses_a_disappeared_voice_config(self):
+        from review_script import _remapped_voice_config
+        from script_selection_binding import (publish_controlled_script_edit,
+                                               publish_saved_script_edit)
+        with self.fixture() as (root, _client):
+            active = root / 'annotated_script.json'
+            script = b'[{"speaker":"Alias","text":"Line."}]'
+            active.write_bytes(script)
+            active_voice = root / 'voice_config.json'
+            active_voice.unlink(missing_ok=True)
+            with self.assertRaisesRegex(ValueError, 'disappeared'):
+                publish_controlled_script_edit(
+                    str(root), script, script, voice_config_path=str(active_voice),
+                    voice_mapping={'Alias':'Canonical'},
+                    remap_voice_config=_remapped_voice_config)
+            saved = root / 'scripts/book.json'
+            saved.write_bytes(script)
+            saved_voice = root / 'scripts/book.voice_config.json'
+            saved_voice.unlink(missing_ok=True)
+            with patch('publication_source.get_saved_publication_source_bytes', return_value=None), \
+                 self.assertRaisesRegex(ValueError, 'disappeared'):
+                publish_saved_script_edit(
+                    str(root), str(saved.parent), str(saved), saved.read_bytes(),
+                    saved.read_bytes(), voice_config_path=str(saved_voice),
+                    voice_mapping={'Alias':'Canonical'},
+                    remap_voice_config=_remapped_voice_config)
+
     @contextmanager
     def fixture(self):
         with fixtures.SavedBookPublicationTests().fixture() as (root, api), ExitStack() as stack:
