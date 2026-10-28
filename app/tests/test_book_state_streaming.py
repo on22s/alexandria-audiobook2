@@ -97,8 +97,11 @@ b._move(Path(sys.argv[2]),Path(sys.argv[3]),exclusive=True,anchor=Path(sys.argv[
                     descriptor = os.open(path, flags, mode, dir_fd=directory_fd)
                     with os.fdopen(descriptor, 'wb') as output:
                         on_open(os.fstat(output.fileno()))
-                        output.write(b'partial')
-                        raise OSError('staging failed')
+                        try:
+                            output.write(b'partial')
+                            raise OSError('staging failed')
+                        finally:
+                            on_open(os.fstat(output.fileno()))
                 return stage(path, source, mode, cancel_check, on_open=on_open,
                              directory_fd=directory_fd)
             with patch.object(books, '_stage_book_stream', side_effect=fail_after_open):
@@ -538,8 +541,10 @@ print(len(result['entries']))
             (directory / 'first').write_bytes(b'one')
             (directory / 'second').write_bytes(b'two')
             if os.name == 'nt':
+                remove = books._remove_windows_owned_tree
                 def interrupted(path, *_args, **_kwargs):
-                    self.assertEqual('old-1', Path(path).name)
+                    if Path(path).name != 'old-1':
+                        return remove(path, *_args, **_kwargs)
                     (Path(path) / 'first').unlink()
                     raise OSError('simulated interrupted cleanup')
                 cleanup = patch.object(books, '_remove_windows_owned_tree',

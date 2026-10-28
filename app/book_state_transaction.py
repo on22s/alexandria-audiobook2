@@ -170,27 +170,34 @@ def _stage_book_stream(path, source, mode, cancel_check, *, on_open=None, direct
     with os.fdopen(descriptor, 'wb') as output:
         if on_open is not None:
             on_open(os.fstat(output.fileno()))
-        if hasattr(os, 'fchmod'):
-            os.fchmod(output.fileno(), mode)
-        else:
-            os.chmod(path, mode)
-        while count < source.size:
+        try:
+            if hasattr(os, 'fchmod'):
+                os.fchmod(output.fileno(), mode)
+            else:
+                os.chmod(path, mode)
+            while count < source.size:
+                _check_stream_cancellation(cancel_check)
+                requested = min(1024 * 1024, source.size - count)
+                block = source.stream.read(requested)
+                if not isinstance(block, bytes) or not block or len(block) > requested:
+                    raise ValueError('Book stream ended early or returned invalid bytes')
+                output.write(block)
+                digest.update(block)
+                count += len(block)
             _check_stream_cancellation(cancel_check)
-            requested = min(1024 * 1024, source.size - count)
-            block = source.stream.read(requested)
-            if not isinstance(block, bytes) or not block or len(block) > requested:
-                raise ValueError('Book stream ended early or returned invalid bytes')
-            output.write(block)
-            digest.update(block)
-            count += len(block)
-        _check_stream_cancellation(cancel_check)
-        trailing = source.stream.read(1)
-        if not isinstance(trailing, bytes) or trailing:
-            raise ValueError('Book stream exceeds its declared size')
-        if digest.hexdigest() != source.sha256:
-            raise ValueError('Book stream differs from its declared identity')
-        output.flush()
-        os.fsync(output.fileno())
+            trailing = source.stream.read(1)
+            if not isinstance(trailing, bytes) or trailing:
+                raise ValueError('Book stream exceeds its declared size')
+            if digest.hexdigest() != source.sha256:
+                raise ValueError('Book stream differs from its declared identity')
+            output.flush()
+            os.fsync(output.fileno())
+        finally:
+            # Windows may not expose the stable named file identity until the
+            # first writes have completed. Refresh ownership while the same
+            # exclusive creation handle is still open, including on failure.
+            if on_open is not None:
+                on_open(os.fstat(output.fileno()))
     if directory_fd is not None:
         os.fsync(directory_fd)
     else:
