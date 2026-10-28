@@ -537,15 +537,26 @@ print(len(result['entries']))
             directory.mkdir()
             (directory / 'first').write_bytes(b'one')
             (directory / 'second').write_bytes(b'two')
-            def interrupted(parent_fd, name, *args, **kwargs):
-                self.assertEqual('old-1', name)
-                descriptor = os.open(name, os.O_RDONLY | os.O_DIRECTORY, dir_fd=parent_fd)
-                try:
-                    os.unlink('first', dir_fd=descriptor)
-                finally:
-                    os.close(descriptor)
-                raise OSError('simulated interrupted cleanup')
-            with patch.object(books, '_remove_owned_tree_at', side_effect=interrupted):
+            if os.name == 'nt':
+                def interrupted(path, *_args, **_kwargs):
+                    self.assertEqual('old-1', Path(path).name)
+                    (Path(path) / 'first').unlink()
+                    raise OSError('simulated interrupted cleanup')
+                cleanup = patch.object(books, '_remove_windows_owned_tree',
+                                       side_effect=interrupted)
+            else:
+                def interrupted(parent_fd, name, *_args, **_kwargs):
+                    self.assertEqual('old-1', name)
+                    descriptor = os.open(name, os.O_RDONLY | os.O_DIRECTORY,
+                                         dir_fd=parent_fd)
+                    try:
+                        os.unlink('first', dir_fd=descriptor)
+                    finally:
+                        os.close(descriptor)
+                    raise OSError('simulated interrupted cleanup')
+                cleanup = patch.object(books, '_remove_owned_tree_at',
+                                       side_effect=interrupted)
+            with cleanup:
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'audio.wav':stream(b'new audio')},
                                                   ['chapters'], stream_byte_limit=100)

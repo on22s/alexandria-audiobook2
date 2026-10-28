@@ -45,12 +45,17 @@ def _api():
 
 
 class _Handle:
-    def __init__(self, api, path, *, delete=False, create=False):
+    def __init__(self, api, path, *, delete=False, create=False, protect_rename=False):
         self.api = api
+        if type(protect_rename) is not bool or delete and protect_rename:
+            raise ValueError('Invalid Windows handle protection mode')
         # A deletion handle permits existing readers, but denies new writers
         # and renames while the object's final version is checked and removed.
+        # A rename guard requests DELETE access but keeps read/write sharing so
+        # the guarded directory's children can still be published normally.
         share_mode = 1 if delete else 3
-        self.handle = api.CreateFileW(str(path), 0x80 | (0x10000 if delete else 0),
+        delete_access = delete or protect_rename
+        self.handle = api.CreateFileW(str(path), 0x80 | (0x10000 if delete_access else 0),
                                       share_mode, None, 1 if create else 3,
                                       0x02000000 | 0x00200000, None)
         if self.handle == ctypes.c_void_p(-1).value:
@@ -105,7 +110,7 @@ class WindowsBookRoot:
         try:
             api = _api()
             for directory in (*reversed(self.path.parents), self.path):
-                handle = _Handle(api, directory)
+                handle = _Handle(api, directory, protect_rename=True)
                 self.stack.callback(handle.close)
                 info = handle.information()
                 if not info.attributes & 0x10 or info.attributes & 0x400:
@@ -168,7 +173,7 @@ def guard_windows_book_move_parents(root, source, destination):
     with ExitStack() as stack:
         guards = []
         for directory in ordered:
-            handle = _Handle(api, directory)
+            handle = _Handle(api, directory, protect_rename=True)
             stack.callback(handle.close)
             info = handle.information()
             if not info.attributes & 0x10 or info.attributes & 0x400:

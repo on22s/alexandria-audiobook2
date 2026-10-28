@@ -14,8 +14,9 @@ import book_state_transaction as books
 
 class FakeHandle:
     opened = []
-    def __init__(self, _api, path):
+    def __init__(self, _api, path, **options):
         self.path = Path(path)
+        self.options = options
         self.closed = False
         self.opened.append(self)
 
@@ -41,6 +42,8 @@ class WindowsBookMoveGuardTests(unittest.TestCase):
                 with windows.WindowsBookRoot(root, (identity.st_dev, identity.st_ino)) as guard:
                     guard.check()
                     self.assertEqual(root, FakeHandle.opened[-1].path)
+                    self.assertTrue(all(handle.options == {'protect_rename': True}
+                                        for handle in FakeHandle.opened))
                     self.assertTrue(all(not handle.closed for handle in FakeHandle.opened))
                 self.assertTrue(all(handle.closed for handle in FakeHandle.opened))
 
@@ -99,6 +102,8 @@ class WindowsBookMoveGuardTests(unittest.TestCase):
                     self.assertIn(root / 'source', paths)
                     self.assertIn(root / 'destination', paths)
                     self.assertEqual(len(paths), len(set(paths)))
+                    self.assertTrue(all(handle.options == {'protect_rename': True}
+                                        for handle in FakeHandle.opened))
                     self.assertTrue(all(not handle.closed for handle in FakeHandle.opened))
                 self.assertTrue(all(handle.closed for handle in FakeHandle.opened))
 

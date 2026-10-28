@@ -1308,6 +1308,9 @@ def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_
                     or (current.st_dev, current.st_ino) != staged_identities[name]):
                 raise ValueError('Book staging workspace changed; cleanup was refused')
             _unlink_owned_staging_file(workspace, name, directory_fd)
+        with os.scandir(directory_fd if anchored else workspace) as entries:
+            if next(entries, None) is not None:
+                raise ValueError('Book staging workspace contains unowned data; cleanup was refused')
         current = (os.stat(workspace.name, dir_fd=owned_parent_fd, follow_symlinks=False) if anchored
                    else workspace.lstat())
         if (not stat.S_ISDIR(current.st_mode) or
@@ -1322,7 +1325,12 @@ def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_
                 os.rmdir(workspace)
                 sync_adapter_directory(str(workspace.parent))
         except OSError as error:
-            if error.errno in (errno.ENOTEMPTY, errno.EEXIST):
+            try:
+                with os.scandir(directory_fd if anchored else workspace) as entries:
+                    populated = next(entries, None) is not None
+            except FileNotFoundError:
+                populated = False
+            if populated or error.errno in (errno.ENOTEMPTY, errno.EEXIST):
                 raise ValueError('Book staging workspace contains unowned data; cleanup was refused') from error
             raise
 
@@ -2109,26 +2117,36 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             target_versions.append(before_version)
             if value is not None:
                 mode = stat.S_IMODE(target.stat().st_mode) if existed else 0o600
+                staged_name = f'new-{index}'
+                staged_path = workspace / staged_name
+                def record_staged(info, staged_name=staged_name, staged_path=staged_path):
+                    # CPython's Windows fstat identity for a newly opened file
+                    # may differ from the stable named identity after close.
+                    # The admitted root and workspace names are pinned here,
+                    # so bind cleanup to what later lstat/scandir calls report.
+                    if os.name == 'nt':
+                        info = staged_path.lstat()
+                        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                                or getattr(info, 'st_file_attributes', 0)
+                                & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+                            raise ValueError('Unsafe Windows book staging file')
+                    staged_identities[staged_name] = (info.st_dev, info.st_ino)
                 if streams:
                     source = (value if isinstance(value, BookStateStream) else
                               BookStateStream(io.BytesIO(value), len(value), row['new_sha256']))
-                    def record_staged(info, staged_name=f'new-{index}'):
-                        staged_identities[staged_name] = (info.st_dev, info.st_ino)
-                    _stage_book_stream(f'new-{index}' if workspace_fd is not None else workspace / f'new-{index}',
+                    _stage_book_stream(staged_name if workspace_fd is not None else staged_path,
                                        source, mode, cancel_check, on_open=record_staged,
                                        directory_fd=workspace_fd)
                 else:
                     if workspace_fd is not None:
                         source = BookStateStream(io.BytesIO(value), len(value), row['new_sha256'])
-                        def record_staged(info, staged_name=f'new-{index}'):
-                            staged_identities[staged_name] = (info.st_dev, info.st_ino)
-                        _stage_book_stream(f'new-{index}', source, mode, None,
+                        _stage_book_stream(staged_name, source, mode, None,
                                            on_open=record_staged, directory_fd=workspace_fd)
                     else:
-                        save_adapter_publication_bytes(str(workspace / f'new-{index}'), value, mode)
-                        info = (workspace / f'new-{index}').lstat()
-                        staged_identities[f'new-{index}'] = (info.st_dev, info.st_ino)
-                row['new_file_identity'] = list(staged_identities[f'new-{index}'])
+                        save_adapter_publication_bytes(str(staged_path), value, mode)
+                        info = staged_path.lstat()
+                        staged_identities[staged_name] = (info.st_dev, info.st_ino)
+                row['new_file_identity'] = list(staged_identities[staged_name])
             rows.append(row)
         if streams:
             _check_stream_cancellation(cancel_check)
