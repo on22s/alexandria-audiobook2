@@ -22,15 +22,29 @@ class FakeHandle:
 
     def information(self):
         info = self.path.lstat()
-        return SimpleNamespace(attributes=0x400 if self.path.is_symlink() else 0x10,
+        attributes = 0x400 if self.path.is_symlink() else 0x10 if self.path.is_dir() else 0
+        return SimpleNamespace(attributes=attributes,
             volume=info.st_dev, index_high=info.st_ino >> 32,
-            index_low=info.st_ino & 0xffffffff)
+            index_low=info.st_ino & 0xffffffff, links=info.st_nlink)
 
     def close(self):
         self.closed = True
 
 
 class WindowsBookMoveGuardTests(unittest.TestCase):
+    def test_named_file_identity_uses_and_releases_native_handle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'staged'
+            path.write_bytes(b'owned')
+            info = path.lstat()
+            FakeHandle.opened = []
+            with patch.object(windows, '_api', return_value=object()), \
+                    patch.object(windows, '_Handle', FakeHandle):
+                self.assertEqual((info.st_dev, info.st_ino),
+                                 windows.windows_named_file_identity(path))
+            self.assertEqual([path], [handle.path for handle in FakeHandle.opened])
+            self.assertTrue(FakeHandle.opened[0].closed)
+
     def test_system_ancestor_access_denial_does_not_weaken_owned_root(self):
         for code in (5, 32):
             with self.subTest(winerror=code):

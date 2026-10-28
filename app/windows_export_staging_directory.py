@@ -85,6 +85,19 @@ def _identity(info):
     return info.volume, (info.index_high << 32) | info.index_low
 
 
+def windows_named_file_identity(path):
+    """Return one regular file's native identity through a live name handle."""
+    api = _api()
+    handle = _Handle(api, path)
+    try:
+        info = handle.information()
+        if info.attributes & (0x10 | 0x400) or info.links != 1:
+            raise StageDirectoryChanged('Unsafe Windows book staging file')
+        return _identity(info)
+    finally:
+        handle.close()
+
+
 def _open_rename_guard(api, directory, *, required):
     """Request rename authority where the app controls the directory tree.
 

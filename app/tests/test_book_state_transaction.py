@@ -12,6 +12,30 @@ import book_state_transaction as books
 
 
 class BookStateTransactionTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Requires native Windows file identities')
+    def test_byte_staging_failure_cleans_native_owned_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'first').write_bytes(b'old first')
+            (root / 'second').write_bytes(b'old second')
+            publish = books.save_adapter_publication_bytes
+            calls = []
+            def fail_second(path, value, mode):
+                calls.append(Path(path).name)
+                if len(calls) == 2:
+                    raise OSError('injected byte staging failure')
+                return publish(path, value, mode)
+            with patch.object(books, 'save_adapter_publication_bytes',
+                              side_effect=fail_second):
+                with books.ensure_book_state(root), \
+                        self.assertRaisesRegex(OSError, 'injected byte staging failure'):
+                    books.apply_book_state_locked(
+                        root, {'first':b'new first', 'second':b'new second'}, [])
+            self.assertEqual(b'old first', (root / 'first').read_bytes())
+            self.assertEqual(b'old second', (root / 'second').read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
+            self.assertFalse(list(root.glob('.book-switch-*')))
+
     @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
                          'POSIX directory descriptors required')
     def test_process_death_before_initial_journal_publication_never_exposes_partial_final(self):

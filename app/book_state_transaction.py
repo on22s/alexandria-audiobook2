@@ -1323,15 +1323,24 @@ def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_
             for entry in entries:
                 expected = staged_identities.get(entry.name)
                 current = entry.stat(follow_symlinks=False)
+                if os.name == 'nt':
+                    from windows_export_staging_directory import windows_named_file_identity
+                    current_identity = windows_named_file_identity(workspace / entry.name)
+                else:
+                    current_identity = (current.st_dev, current.st_ino)
                 if (expected is None or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1
-                        or (current.st_dev, current.st_ino) != expected):
+                        or current_identity != expected):
                     raise ValueError('Book staging workspace contains unowned data; cleanup was refused')
                 names.append(entry.name)
         for name in names:
             current = (os.stat(name, dir_fd=directory_fd, follow_symlinks=False) if anchored
                        else (workspace / name).lstat())
+            if os.name == 'nt':
+                current_identity = windows_named_file_identity(workspace / name)
+            else:
+                current_identity = (current.st_dev, current.st_ino)
             if (not stat.S_ISREG(current.st_mode) or current.st_nlink != 1
-                    or (current.st_dev, current.st_ino) != staged_identities[name]):
+                    or current_identity != staged_identities[name]):
                 raise ValueError('Book staging workspace changed; cleanup was refused')
             _unlink_owned_staging_file(workspace, name, directory_fd)
         with os.scandir(directory_fd if anchored else workspace) as entries:
@@ -2151,23 +2160,28 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 staged_name = f'new-{index}'
                 staged_path = workspace / staged_name
                 def record_staged(info, staged_name=staged_name, staged_path=staged_path):
-                    # CPython's Windows fstat identity for a newly opened file
-                    # may differ from the stable named identity after close.
-                    # The admitted root and workspace names are pinned here,
-                    # so bind cleanup to what later lstat/scandir calls report.
+                    # CPython's Windows inode for a newly opened file may
+                    # change after close. Bind failed-stage cleanup to the
+                    # native file ID, then bind publication to the stable
+                    # named identity only after staging succeeds below.
                     if os.name == 'nt':
-                        info = staged_path.lstat()
-                        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
-                                or getattr(info, 'st_file_attributes', 0)
-                                & stat.FILE_ATTRIBUTE_REPARSE_POINT):
-                            raise ValueError('Unsafe Windows book staging file')
-                    staged_identities[staged_name] = (info.st_dev, info.st_ino)
+                        from windows_export_staging_directory import windows_named_file_identity
+                        staged_identities[staged_name] = windows_named_file_identity(staged_path)
+                    else:
+                        staged_identities[staged_name] = (info.st_dev, info.st_ino)
                 if streams:
                     source = (value if isinstance(value, BookStateStream) else
                               BookStateStream(io.BytesIO(value), len(value), row['new_sha256']))
                     _stage_book_stream(staged_name if workspace_fd is not None else staged_path,
                                        source, mode, cancel_check, on_open=record_staged,
                                        directory_fd=workspace_fd)
+                    if os.name == 'nt':
+                        info = staged_path.lstat()
+                        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                                or getattr(info, 'st_file_attributes', 0)
+                                & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+                            raise ValueError('Unsafe Windows book staging file')
+                        row['new_file_identity'] = [info.st_dev, info.st_ino]
                 else:
                     if workspace_fd is not None:
                         source = BookStateStream(io.BytesIO(value), len(value), row['new_sha256'])
@@ -2176,8 +2190,14 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                     else:
                         save_adapter_publication_bytes(str(staged_path), value, mode)
                         info = staged_path.lstat()
-                        staged_identities[staged_name] = (info.st_dev, info.st_ino)
-                row['new_file_identity'] = list(staged_identities[staged_name])
+                        if os.name == 'nt':
+                            from windows_export_staging_directory import windows_named_file_identity
+                            staged_identities[staged_name] = windows_named_file_identity(staged_path)
+                            row['new_file_identity'] = [info.st_dev, info.st_ino]
+                        else:
+                            staged_identities[staged_name] = (info.st_dev, info.st_ino)
+                if 'new_file_identity' not in row:
+                    row['new_file_identity'] = list(staged_identities[staged_name])
             rows.append(row)
         if streams:
             _check_stream_cancellation(cancel_check)
