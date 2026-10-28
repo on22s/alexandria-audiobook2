@@ -32,11 +32,15 @@ what it measured.
 Readings, fixed before running (`get_reading`), checked in this order:
 
   any out-of-memory error               inconclusive; free memory and rerun
-  eager arm loaded any non-eager part   the probe did not test eager; fix it first
+  either arm has no matching backend    the probe did not establish the backend
+  a case is missing                     the comparison is incomplete
+  token lengths unavailable             the measurement instrument failed
+  invalid rate or output count          the model output contract failed
   a padded case's tokens are equal      padding was not exercised for that case
   any single line fails                 the cap alone is not enough; report it
-  sdpa padded fail, eager padded pass   cause confirmed; a later change may lift
-                                        the MPS one-line cap with eager loaded
+  equal-length control fails            the failure is not isolated to padding
+  sdpa failure has a different error    the observed failure was not the issue's
+  sdpa padded fail, eager padded pass   association observed; not proof of cause
   both padded fail                      padding/attention is not the whole story;
                                         keep the cap
   neither fails                         not reproduced on this run; keep the cap
@@ -50,7 +54,9 @@ diagnostic or model job, and never stop one to make room.
 import argparse
 import gc
 import math
+import numbers
 import os
+import re
 import sys
 import time
 
@@ -60,6 +66,7 @@ sys.path.insert(0, APP)
 
 MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 BACKENDS = ("sdpa", "eager")
+ATTENTION_CLASSES = frozenset({"Qwen3TTSTalkerAttention", "Qwen3TTSAttention"})
 # Synthetic lines from the issue's own test book; no third-party text.
 CASES = (
     ("padded_mixed", ["Are you ready?", "asked Mira."], ["Ryan", "Aiden"]),
@@ -83,6 +90,15 @@ def get_probe_cases():
     return cases
 
 
+def resolve_model_snapshot(download):
+    """Resolve one hub revision to use for both arms; reject an ambiguous path."""
+    path = os.fspath(download(repo_id=MODEL_ID))
+    revision = os.path.basename(os.path.normpath(path))
+    if not re.fullmatch(r"[0-9a-f]{40}", revision) or not os.path.isdir(path):
+        raise ValueError("model snapshot is not an identifiable hub revision")
+    return path, revision
+
+
 def is_finite_audio(wav):
     """True for a non-empty waveform whose every sample is a finite number."""
     try:
@@ -92,13 +108,22 @@ def is_finite_audio(wav):
     return bool(values) and all(math.isfinite(value) for value in values)
 
 
-def get_case_result(wavs, rate, error=None):
+def get_case_result(wavs, rate, error=None, expected_count=None):
     """-> one case's record. An exception or any non-finite output is a failure."""
     if error is not None:
         return {"ok": False, "error": f"{type(error).__name__}: {error}"[:500], "outputs": []}
-    outputs = [{"samples": len(wav), "finite": is_finite_audio(wav),
-                "seconds": round(len(wav) / rate, 3) if rate else None} for wav in wavs]
-    return {"ok": bool(outputs) and all(o["finite"] for o in outputs),
+    if (isinstance(rate, bool) or not isinstance(rate, numbers.Real)
+            or not math.isfinite(rate) or rate <= 0):
+        return {"ok": False, "error": "output contract: invalid sample rate", "outputs": []}
+    if (not isinstance(wavs, (list, tuple)) or len(wavs) == 0 or
+            (expected_count is not None and len(wavs) != expected_count)):
+        return {"ok": False, "error": "output contract: wrong waveform count", "outputs": []}
+    try:
+        outputs = [{"samples": len(wav), "finite": is_finite_audio(wav),
+                    "seconds": round(len(wav) / rate, 3)} for wav in wavs]
+    except (TypeError, ValueError, OverflowError):
+        return {"ok": False, "error": "output contract: malformed waveforms", "outputs": []}
+    return {"ok": all(o["finite"] for o in outputs),
             "error": None, "outputs": outputs}
 
 
@@ -109,14 +134,14 @@ def get_token_lengths(model, texts):
 
 
 def get_loaded_backends(model):
-    """-> {module name: attention implementation} for every configured sub-model."""
-    loaded, seen = {}, set()
+    """-> backend for each Qwen talker/code-predictor attention module."""
+    loaded = {}
     for name, module in model.model.named_modules():
-        config = getattr(module, "config", None)
-        if config is None or id(config) in seen:
+        cls = type(module).__name__
+        if cls not in ATTENTION_CLASSES:
             continue
-        seen.add(id(config))
-        loaded[name or "<root>"] = getattr(config, "_attn_implementation", None)
+        config = getattr(module, "config", None)
+        loaded[f"{cls}:{name}"] = getattr(config, "_attn_implementation", None)
     return loaded
 
 
@@ -130,16 +155,40 @@ def get_reading(results):
     every = [result for backend in BACKENDS for result in cases(backend).values()]
     if any("out of memory" in (result["error"] or "").lower() for result in every):
         return "inconclusive_memory"
-    if any(value not in (None, "eager") for value in results.get("eager", {}).get("loaded", {}).values()):
-        return "backend_not_applied"
+    for backend in BACKENDS:
+        loaded = results.get(backend, {}).get("loaded", {})
+        classes = {name.split(':', 1)[0] for name in loaded}
+        if classes != ATTENTION_CLASSES or any(value != backend for value in loaded.values()):
+            return "backend_not_applied"
+    expected = {name for name, _, _ in get_probe_cases()}
+    if any(set(cases(backend)) != expected for backend in BACKENDS):
+        return "incomplete_cases"
+    for backend in BACKENDS:
+        for name, texts, _ in get_probe_cases():
+            lengths = cases(backend)[name].get("token_lengths")
+            if (not isinstance(lengths, list) or len(lengths) != len(texts)
+                    or any(type(length) is not int or length <= 0 for length in lengths)):
+                return "instrument_failure"
+    if any((result.get("error") or "").startswith("output contract:") for result in every):
+        return "output_contract_failure"
     if any(name.startswith("padded") and len(set(result.get("token_lengths") or [0])) < 2
            for backend in BACKENDS for name, result in cases(backend).items()):
         return "padding_not_exercised"
     if failed("sdpa", "single") or failed("eager", "single"):
         return "single_line_failure"
+    if any(not cases(backend)["equal_control"]["ok"] or
+           len(cases(backend)["equal_control"].get("token_lengths") or []) != 2 or
+           len(set(cases(backend)["equal_control"].get("token_lengths") or [])) != 1
+           for backend in BACKENDS):
+        return "control_failure"
     sdpa, eager = failed("sdpa", "padded"), failed("eager", "padded")
     if sdpa and not eager:
-        return "cause_confirmed"
+        failures = [result for name, result in cases("sdpa").items()
+                    if name.startswith("padded") and not result["ok"]]
+        if any("probability tensor contains either" not in (result.get("error") or "").lower()
+               for result in failures):
+            return "unexpected_failure"
+        return "padding_backend_association"
     if sdpa and eager:
         return "padding_not_whole_story"
     if eager:
@@ -159,33 +208,38 @@ def main():
     if not (getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()):
         sys.exit("refusing: Apple MPS is not available on this machine")
     from qwen_tts import Qwen3TTSModel
+    from huggingface_hub import snapshot_download
     from experiments.provenance import provenance
     from utils import atomic_json_write
 
+    model_path, model_revision = resolve_model_snapshot(snapshot_download)
     results = {}
     versions = {"torch": torch.__version__, "transformers": __import__("transformers").__version__,
                 "qwen_tts": getattr(sys.modules.get("qwen_tts"), "__version__", None)}
     def write(status, reading=None):
         atomic_json_write({"status": status, "reading": reading, "results": results,
+                           "model_id": MODEL_ID, "model_revision": model_revision,
                            "versions": versions, "provenance": provenance(__file__, args)}, args.out)
     for backend in BACKENDS:
         print(f"\n== loading {MODEL_ID} on mps, float32, attention={backend}")
         model = Qwen3TTSModel.from_pretrained(
-            MODEL_ID, dtype=torch.float32, device_map="mps", attn_implementation=backend)
+            model_path, dtype=torch.float32, device_map="mps", attn_implementation=backend)
         results[backend] = {"loaded": get_loaded_backends(model), "cases": {}}
         print(f"  loaded attention: {sorted(set(results[backend]['loaded'].values()), key=str)}")
         for name, texts, speakers in get_probe_cases():
             torch.manual_seed(args.seed)
             started = time.time()
+            token_lengths = None
             try:
+                token_lengths = get_token_lengths(model, texts)
                 wavs, rate = model.generate_custom_voice(
                     text=texts, speaker=speakers, language=["English"] * len(texts),
                     non_streaming_mode=True, max_new_tokens=args.max_new_tokens)
-                record = get_case_result(wavs, rate)
+                record = get_case_result(wavs, rate, expected_count=len(texts))
             except Exception as error:   # recorded, not hidden: this is the measurement
                 record = get_case_result([], 0, error)
             record["texts"], record["speakers"] = texts, speakers
-            record["token_lengths"] = get_token_lengths(model, texts)
+            record["token_lengths"] = token_lengths
             record["elapsed_s"] = round(time.time() - started, 2)
             results[backend]["cases"][name] = record
             write("partial")

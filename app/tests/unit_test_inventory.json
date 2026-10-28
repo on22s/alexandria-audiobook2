@@ -6573,11 +6573,14 @@
   ],
   "test_mps_batch_padding_probe": [
     "tests.test_mps_batch_padding_probe.ProbeCaseTests.test_every_padded_line_is_also_rendered_alone_once",
+    "tests.test_mps_batch_padding_probe.ProbeCaseTests.test_model_revision_is_resolved_once_and_must_be_identifiable",
     "tests.test_mps_batch_padding_probe.ProbeCaseTests.test_padded_cases_differ_and_the_control_does_not",
     "tests.test_mps_batch_padding_probe.ProbeReadingTests.test_each_pre_registered_reading",
+    "tests.test_mps_batch_padding_probe.ProbeReadingTests.test_incomplete_or_misidentified_runs_cannot_claim_an_association",
     "tests.test_mps_batch_padding_probe.ProbeReadingTests.test_loaded_backends_are_read_from_every_configured_module_once",
     "tests.test_mps_batch_padding_probe.ProbeReadingTests.test_the_instrument_rejects_runs_that_did_not_test_the_hypothesis",
     "tests.test_mps_batch_padding_probe.ProbeReadingTests.test_token_lengths_use_the_same_prompt_qwen_tts_builds",
+    "tests.test_mps_batch_padding_probe.ProbeRecordTests.test_a_batch_must_return_every_requested_waveform_at_a_valid_rate",
     "tests.test_mps_batch_padding_probe.ProbeRecordTests.test_an_exception_is_recorded_with_its_text",
     "tests.test_mps_batch_padding_probe.ProbeRecordTests.test_non_finite_or_empty_audio_is_never_ok",
     "tests.test_mps_batch_padding_probe.ProbeRefusalTests.test_refuses_without_mps_before_loading_anything"

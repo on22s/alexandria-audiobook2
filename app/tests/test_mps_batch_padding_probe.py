@@ -1,16 +1,31 @@
 """The #1650 MPS probe's pure parts; its MPS run is not testable here."""
 import math
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from experiments import mps_batch_padding_probe as probe
 
 
-def result(ok, error='RuntimeError: nan', tokens=(9, 5)):
+def result(ok, error='RuntimeError: probability tensor contains either inf, nan or element < 0', tokens=(9, 5)):
     return {'ok': ok, 'error': None if ok else error, 'outputs': [], 'token_lengths': list(tokens)}
 
 
 class ProbeCaseTests(unittest.TestCase):
+    def test_model_revision_is_resolved_once_and_must_be_identifiable(self):
+        with tempfile.TemporaryDirectory() as temp:
+            snapshot = Path(temp) / ('a' * 40)
+            snapshot.mkdir()
+            calls = []
+            def download(**kwargs):
+                calls.append(kwargs)
+                return str(snapshot)
+            self.assertEqual((str(snapshot), 'a' * 40), probe.resolve_model_snapshot(download))
+            self.assertEqual([{'repo_id': probe.MODEL_ID}], calls)
+            with self.assertRaisesRegex(ValueError, 'identifiable hub revision'):
+                probe.resolve_model_snapshot(lambda **kwargs: temp)
+
     def test_padded_cases_differ_and_the_control_does_not(self):
         # Token lengths, not characters, decide padding; the probe records them
         # at run time. Here: every padded case differs, and one differs so much
@@ -48,19 +63,39 @@ class ProbeRecordTests(unittest.TestCase):
         self.assertFalse(record['ok'])
         self.assertIn('probability tensor', record['error'])
 
+    def test_a_batch_must_return_every_requested_waveform_at_a_valid_rate(self):
+        self.assertFalse(probe.get_case_result([[0.1]], 24000, expected_count=2)['ok'])
+        self.assertFalse(probe.get_case_result([[0.1], [0.2]], 0, expected_count=2)['ok'])
+        self.assertTrue(probe.get_case_result([[0.1], [0.2]], 24000, expected_count=2)['ok'])
+        for rate in ('24000', True, None, -1, math.nan):
+            with self.subTest(rate=rate):
+                self.assertEqual('output contract: invalid sample rate',
+                                 probe.get_case_result([[0.1]], rate)['error'])
+        self.assertEqual('output contract: wrong waveform count',
+                         probe.get_case_result(None, 24000, expected_count=2)['error'])
+        self.assertEqual('output contract: malformed waveforms',
+                         probe.get_case_result([None, None], 24000, expected_count=2)['error'])
+
 
 class ProbeReadingTests(unittest.TestCase):
     def results(self, sdpa_padded, eager_padded, singles=True, eager_loaded='eager',
-                tokens=(9, 5), error='RuntimeError: nan'):
+                tokens=(9, 5), error='RuntimeError: probability tensor contains either inf, nan or element < 0'):
         def backend(padded, loaded):
-            return {'loaded': {'<root>': loaded, 'talker': loaded},
-                    'cases': {'padded_mixed': result(padded, error, tokens),
-                              'equal_control': result(True, tokens=(7, 7)),
-                              'single_1': result(singles, tokens=(5,))}}
+            cases = {}
+            for name, _, _ in probe.get_probe_cases():
+                if name.startswith('padded'):
+                    cases[name] = result(padded, error, tokens)
+                elif name == 'equal_control':
+                    cases[name] = result(True, tokens=(7, 7))
+                else:
+                    cases[name] = result(singles, tokens=(5,))
+            return {'loaded': {'Qwen3TTSTalkerAttention:talker': loaded,
+                               'Qwen3TTSAttention:predictor': loaded},
+                    'cases': cases}
         return {'sdpa': backend(sdpa_padded, 'sdpa'), 'eager': backend(eager_padded, eager_loaded)}
 
     def test_each_pre_registered_reading(self):
-        self.assertEqual('cause_confirmed', probe.get_reading(self.results(False, True)))
+        self.assertEqual('padding_backend_association', probe.get_reading(self.results(False, True)))
         self.assertEqual('padding_not_whole_story', probe.get_reading(self.results(False, False)))
         self.assertEqual('not_reproduced', probe.get_reading(self.results(True, True)))
         self.assertEqual('suspect_probe', probe.get_reading(self.results(True, False)))
@@ -76,16 +111,45 @@ class ProbeReadingTests(unittest.TestCase):
         self.assertEqual('inconclusive_memory', probe.get_reading(
             self.results(False, True, error='RuntimeError: MPS backend out of memory')))
 
+    def test_incomplete_or_misidentified_runs_cannot_claim_an_association(self):
+        for loaded in ({}, {'Qwen3TTSTalkerAttention:talker': None},
+                       {'Qwen3TTSTalkerAttention:talker': 'sdpa',
+                        'Qwen3TTSAttention:predictor': None},
+                       {'Qwen3TTSTalkerAttention:talker': 'eager',
+                        'Qwen3TTSAttention:predictor': 'eager'}):
+            with self.subTest(loaded=loaded):
+                observed = self.results(False, True)
+                observed['sdpa']['loaded'] = loaded
+                self.assertEqual('backend_not_applied', probe.get_reading(observed))
+        observed = self.results(False, True)
+        del observed['eager']['cases']['padded_short']
+        self.assertEqual('incomplete_cases', probe.get_reading(observed))
+        self.assertEqual('unexpected_failure', probe.get_reading(
+            self.results(False, True, error='RuntimeError: unrelated error')))
+        broken = self.results(False, True)
+        broken['sdpa']['cases']['padded_mixed']['token_lengths'] = None
+        self.assertEqual('instrument_failure', probe.get_reading(broken))
+        broken = self.results(False, True)
+        broken['sdpa']['cases']['padded_mixed']['error'] = 'output contract: wrong waveform count'
+        self.assertEqual('output_contract_failure', probe.get_reading(broken))
+        for control in (result(False, tokens=(7, 7)), result(True, tokens=(7, 8))):
+            with self.subTest(control=control):
+                observed = self.results(False, True)
+                observed['sdpa']['cases']['equal_control'] = control
+                self.assertEqual('control_failure', probe.get_reading(observed))
+
     def test_loaded_backends_are_read_from_every_configured_module_once(self):
         from types import SimpleNamespace
-        shared = SimpleNamespace(_attn_implementation='eager')
-        modules = [('', SimpleNamespace(config=SimpleNamespace(_attn_implementation='eager'))),
-                   ('talker', SimpleNamespace(config=shared)),
-                   ('talker.layers.0', SimpleNamespace(config=shared)),
-                   ('talker.code_predictor', SimpleNamespace(config=SimpleNamespace(_attn_implementation='sdpa'))),
+        talker = type('Qwen3TTSTalkerAttention', (), {})
+        predictor = type('Qwen3TTSAttention', (), {})
+        first, second = talker(), predictor()
+        first.config = SimpleNamespace(_attn_implementation='eager')
+        second.config = SimpleNamespace(_attn_implementation='sdpa')
+        modules = [('talker.layer', first), ('talker.code_predictor', second),
                    ('codec', SimpleNamespace())]
         model = SimpleNamespace(model=SimpleNamespace(named_modules=lambda: iter(modules)))
-        self.assertEqual({'<root>': 'eager', 'talker': 'eager', 'talker.code_predictor': 'sdpa'},
+        self.assertEqual({'Qwen3TTSTalkerAttention:talker.layer': 'eager',
+                          'Qwen3TTSAttention:talker.code_predictor': 'sdpa'},
                          probe.get_loaded_backends(model))
 
     def test_token_lengths_use_the_same_prompt_qwen_tts_builds(self):
