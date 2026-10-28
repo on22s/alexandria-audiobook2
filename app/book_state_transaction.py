@@ -1326,9 +1326,14 @@ def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_
                 if os.name == 'nt':
                     from windows_export_staging_directory import windows_named_file_identity
                     current_identity = windows_named_file_identity(workspace / entry.name)
+                    # ``DirEntry.stat().st_nlink`` is documented as zero on
+                    # Windows.  The native helper has already
+                    # required BY_HANDLE_FILE_INFORMATION.nNumberOfLinks == 1.
+                    single_link = True
                 else:
                     current_identity = (current.st_dev, current.st_ino)
-                if (expected is None or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1
+                    single_link = current.st_nlink == 1
+                if (expected is None or not stat.S_ISREG(current.st_mode) or not single_link
                         or current_identity != expected):
                     raise ValueError(
                         'Book staging workspace contains unowned data; cleanup was refused '
@@ -1341,9 +1346,11 @@ def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_
                        else (workspace / name).lstat())
             if os.name == 'nt':
                 current_identity = windows_named_file_identity(workspace / name)
+                single_link = True
             else:
                 current_identity = (current.st_dev, current.st_ino)
-            if (not stat.S_ISREG(current.st_mode) or current.st_nlink != 1
+                single_link = current.st_nlink == 1
+            if (not stat.S_ISREG(current.st_mode) or not single_link
                     or current_identity != staged_identities[name]):
                 raise ValueError(
                     'Book staging workspace changed; cleanup was refused '

@@ -13280,6 +13280,7 @@
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_book_root_guard_uses_non_deleting_handles_and_checks_identity",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_guard_holds_all_ancestors_once_and_releases_them",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_move_guard_reuses_an_admitted_root_without_reopening_it",
+    "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_named_file_identity_rejects_native_multi_link_file",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_named_file_identity_uses_and_releases_native_handle",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_native_byte_and_stream_transactions_finish_cleanup",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_native_file_identity_survives_creation_handle_close",

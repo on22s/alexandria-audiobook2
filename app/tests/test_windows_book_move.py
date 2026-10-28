@@ -45,6 +45,23 @@ class WindowsBookMoveGuardTests(unittest.TestCase):
             self.assertEqual([path], [handle.path for handle in FakeHandle.opened])
             self.assertTrue(FakeHandle.opened[0].closed)
 
+    def test_named_file_identity_rejects_native_multi_link_file(self):
+        class MultiLinkHandle(FakeHandle):
+            def information(self):
+                info = super().information()
+                info.links = 2
+                return info
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'staged'
+            path.write_bytes(b'owned')
+            MultiLinkHandle.opened = []
+            with patch.object(windows, '_api', return_value=object()), \
+                    patch.object(windows, '_Handle', MultiLinkHandle):
+                with self.assertRaisesRegex(windows.StageDirectoryChanged,
+                                            'Unsafe Windows book staging file'):
+                    windows.windows_named_file_identity(path)
+            self.assertTrue(MultiLinkHandle.opened[0].closed)
+
     @unittest.skipUnless(os.name == 'nt', 'Requires native Windows file identities')
     def test_native_file_identity_survives_creation_handle_close(self):
         with tempfile.TemporaryDirectory() as tmp:
