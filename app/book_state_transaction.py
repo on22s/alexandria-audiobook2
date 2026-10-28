@@ -1330,7 +1330,11 @@ def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_
                     current_identity = (current.st_dev, current.st_ino)
                 if (expected is None or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1
                         or current_identity != expected):
-                    raise ValueError('Book staging workspace contains unowned data; cleanup was refused')
+                    raise ValueError(
+                        'Book staging workspace contains unowned data; cleanup was refused '
+                        f'(name={entry.name!r}, expected={expected!r}, '
+                        f'current={current_identity!r}, mode={current.st_mode!r}, '
+                        f'links={current.st_nlink!r})')
                 names.append(entry.name)
         for name in names:
             current = (os.stat(name, dir_fd=directory_fd, follow_symlinks=False) if anchored
@@ -1341,7 +1345,11 @@ def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_
                 current_identity = (current.st_dev, current.st_ino)
             if (not stat.S_ISREG(current.st_mode) or current.st_nlink != 1
                     or current_identity != staged_identities[name]):
-                raise ValueError('Book staging workspace changed; cleanup was refused')
+                raise ValueError(
+                    'Book staging workspace changed; cleanup was refused '
+                    f'(name={name!r}, expected={staged_identities[name]!r}, '
+                    f'current={current_identity!r}, mode={current.st_mode!r}, '
+                    f'links={current.st_nlink!r})')
             _unlink_owned_staging_file(workspace, name, directory_fd)
         with os.scandir(directory_fd if anchored else workspace) as entries:
             if next(entries, None) is not None:

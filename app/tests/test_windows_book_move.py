@@ -45,6 +45,26 @@ class WindowsBookMoveGuardTests(unittest.TestCase):
             self.assertEqual([path], [handle.path for handle in FakeHandle.opened])
             self.assertTrue(FakeHandle.opened[0].closed)
 
+    @unittest.skipUnless(os.name == 'nt', 'Requires native Windows file identities')
+    def test_native_file_identity_survives_creation_handle_close(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'staged'
+            with path.open('xb') as output:
+                created = windows.windows_named_file_identity(path)
+                output.write(b'owned')
+                output.flush()
+                os.fsync(output.fileno())
+                written = windows.windows_named_file_identity(path)
+                opened_stat = os.fstat(output.fileno())
+            closed = windows.windows_named_file_identity(path)
+            named_stat = path.lstat()
+            self.assertEqual(
+                (created, created),
+                (written, closed),
+                {'created':created, 'written':written, 'closed':closed,
+                 'opened_stat':(opened_stat.st_dev, opened_stat.st_ino, opened_stat.st_nlink),
+                 'named_stat':(named_stat.st_dev, named_stat.st_ino, named_stat.st_nlink)})
+
     def test_system_ancestor_access_denial_does_not_weaken_owned_root(self):
         for code in (5, 32):
             with self.subTest(winerror=code):

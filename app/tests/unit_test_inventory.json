@@ -13282,6 +13282,7 @@
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_move_guard_reuses_an_admitted_root_without_reopening_it",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_named_file_identity_uses_and_releases_native_handle",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_native_byte_and_stream_transactions_finish_cleanup",
+    "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_native_file_identity_survives_creation_handle_close",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_native_handles_deny_parent_rename_until_released",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_recovery_guard_blocks_metadata_unlink_and_directory_removal",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_reparse_ancestor_refuses_and_releases_prior_handles",
