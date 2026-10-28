@@ -4396,6 +4396,7 @@
     "tests.test_export_staging.ExportStagingTests.test_unknown_slot_preserves_payload_before_owner_retention",
     "tests.test_export_staging.ExportStagingTests.test_unlocked_nested_registry_with_payload_is_preserved",
     "tests.test_export_staging.ExportStagingTests.test_unrequested_replaced_root_releases_saved_iterator",
+    "tests.test_export_staging.ExportStagingTests.test_windows_recovery_marker_retirement_is_narrow_and_guarded",
     "tests.test_export_staging.ExportStagingTests.test_windows_recursion_preserves_nested_registry_before_metadata_access",
     "tests.test_export_staging.ExportStagingTests.test_windows_recursion_preserves_nested_stage_before_payload_access",
     "tests.test_export_staging.ExportStagingTests.test_zero_or_invalid_recovery_budget_never_removes_abandoned_payload"

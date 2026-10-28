@@ -306,6 +306,25 @@ class WindowsStageDirectory:
         self.check()
         if self.has_recovery_guard():
             raise StageDirectoryChanged('Staging recovery guard requires explicit recovery')
+        self._unlink_file(name)
+
+    def retire_marker_for_recovery(self, name):
+        """Retire only the public marker after preservation is durable.
+
+        Ordinary deletion remains forbidden once a recovery guard exists.  A
+        preserved stage must nevertheless lose its public marker so scanners
+        cannot mistake it for abandoned, reclaimable output.  A missing guard
+        fails closed, and a concurrent guard removal still leaves the missing
+        public marker as an independent preservation signal.
+        """
+        if name != '.export-staging.json':
+            raise ValueError('Invalid staging recovery marker')
+        self.check()
+        if not self.has_recovery_guard():
+            raise StageDirectoryChanged('Staging recovery guard is missing')
+        self._unlink_file(name)
+
+    def _unlink_file(self, name):
         child = _Handle(self.api, self.path / name, delete=True)
         try:
             info = child.information()

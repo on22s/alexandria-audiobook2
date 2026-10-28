@@ -190,7 +190,7 @@ class ExportStaging:
                             else:
                                 authority.create_recovery_guard(RECOVERY)
                                 try:
-                                    authority.unlink(MARKER)
+                                    authority.retire_marker_for_recovery(MARKER)
                                 except FileNotFoundError:
                                     pass
                         if remove:
