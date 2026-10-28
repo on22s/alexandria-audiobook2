@@ -86,11 +86,14 @@ def get_delivery_retry_chunks(before, after, chunks):
 
 def ensure_delivery_review_snapshot(data_dir):
     """Read a current book and hydrated editor snapshot under native guards."""
+    from pathlib import Path
     from book_state_transaction import ensure_book_state
     from project import ProjectManager
     from utils import file_lock
+    root = Path(data_dir)
     manager = ProjectManager(data_dir)
-    with ensure_book_state(data_dir), manager._chunks_lock, file_lock(manager.chunks_path):
+    with (ensure_book_state(data_dir), file_lock(str(root / 'state.json')),
+          manager._chunks_lock, file_lock(manager.chunks_path)):
         return _ensure_delivery_review_snapshot_locked(data_dir, manager)
 
 
@@ -146,7 +149,8 @@ def apply_delivery_retry(data_dir, snapshot, entries, cancel_check=None, retry_r
     from utils import file_lock
     root = Path(data_dir)
     manager = ProjectManager(data_dir)
-    with ensure_book_state(data_dir), manager._chunks_lock, file_lock(manager.chunks_path):
+    with (ensure_book_state(data_dir), file_lock(str(root / 'state.json')),
+          manager._chunks_lock, file_lock(manager.chunks_path)):
         current = _ensure_delivery_review_snapshot_locked(data_dir, manager)
         if current["token"] != snapshot["token"]:
             raise ValueError("Book or editor changed during delivery retry; results were not published.")
@@ -184,9 +188,10 @@ def apply_delivery_retry(data_dir, snapshot, entries, cancel_check=None, retry_r
         replacements = {name: json.dumps(value, ensure_ascii=False, indent=2,
                                          allow_nan=False).encode("utf-8")
                         for name, value in values.items()}
-        from script_selection_binding import BINDING_NAME, binding_for_controlled_edit
-        binding = binding_for_controlled_edit(data_dir, snapshot['artifacts']['annotated_script.json'],
-                                              replacements['annotated_script.json'])
+        from script_selection_binding import BINDING_NAME, _binding_for_controlled_edit_locked
+        binding = _binding_for_controlled_edit_locked(
+            data_dir, snapshot['artifacts']['annotated_script.json'],
+            replacements['annotated_script.json'])
         if binding is not None:
             replacements[BINDING_NAME] = binding
         if cancel_check:

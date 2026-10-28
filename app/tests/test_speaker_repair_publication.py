@@ -78,12 +78,12 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
             self.assertIs(False,response.json().get('voice_config_invalidated'))
             self.assertIsNone(response.json()['voice_config_backup'])
 
-    def test_active_saved_speaker_repair_updates_active_script_and_invalidates_active_voice(self):
+    def test_active_saved_speaker_repair_requires_switching_books(self):
         with self.fixture() as (root,api),TestClient(api) as client:
             saved = root/'scripts/book.json'; saved_voice = root/'scripts/book.voice_config.json'
             active = root/'annotated_script.json'; active_voice = root/'voice_config.json'
             active.write_bytes(saved.read_bytes()); active_voice.write_bytes(b'{"active":"new assignment"}')
-            active_voice_before = active_voice.read_bytes()
+            before = {path:path.read_bytes() for path in (saved, saved_voice, active, active_voice)}
             (root/'chunks.json').write_text('[{"speaker":"Alice","text":"stale"}]')
             (root/'chunks.json.status.jsonl').write_text('{"stale":true}\n')
             (root/'state.json').write_text(json.dumps({
@@ -91,14 +91,11 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
                 'input_file_path':str(saved)}))
             response=client.post('/api/scripts/book/repair/speakers/apply',json=self.request(
                 root,[self.select(1,'Alice','NARRATOR')]))
-            self.assertEqual(200,response.status_code,response.text)
-            self.assertEqual(saved.read_bytes(), active.read_bytes())
-            self.assertFalse(saved_voice.exists())
-            self.assertFalse(active_voice.exists())
-            self.assertFalse((root/'chunks.json').exists())
-            self.assertFalse((root/'chunks.json.status.jsonl').exists())
-            active_backup = root/response.json()['active_voice_config_backup']
-            self.assertEqual(active_voice_before, active_backup.read_bytes())
+            self.assertEqual(409,response.status_code,response.text)
+            self.assertIn('switch books', response.json()['detail'])
+            self.assertEqual(before, {path:path.read_bytes() for path in before})
+            self.assertTrue((root/'chunks.json').exists())
+            self.assertTrue((root/'chunks.json.status.jsonl').exists())
 
     def test_active_speaker_repair_refuses_missing_saved_binding_when_active_binding_exists(self):
         from script_selection_binding import BINDING_NAME

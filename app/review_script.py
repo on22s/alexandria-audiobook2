@@ -1472,6 +1472,7 @@ def main():
     canonical_output = os.path.normcase(os.path.realpath(output_path))
     canonical_active = os.path.normcase(os.path.realpath(default_script))
     canonical_saved = os.path.normcase(os.path.realpath(saved_dir))
+    canonical_data = os.path.normcase(os.path.realpath(data_dir))
     canonical_parent = os.path.normcase(os.path.dirname(os.path.realpath(output_path)))
     if (canonical_output == canonical_active and os.path.abspath(output_path) != os.path.abspath(default_script)
             or canonical_parent == canonical_saved
@@ -1490,7 +1491,7 @@ def main():
     reserved_outputs.add(os.path.normcase(os.path.realpath(
         get_review_receipt_path(default_script))))
     try:
-        relative_output = os.path.relpath(os.path.abspath(output_path), os.path.abspath(data_dir))
+        relative_output = os.path.relpath(canonical_output, canonical_data)
     except ValueError:
         relative_output = None
     if (not active_review and (canonical_output in reserved_outputs

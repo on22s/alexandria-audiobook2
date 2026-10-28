@@ -237,6 +237,19 @@ class BookRecoveryArchiveTests(unittest.TestCase):
                 archive.create_recovery_archive(root, ['state.json'], book_token=token, quota_bytes=100000)
             self.assertFalse(target.exists())
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX ownership and mode check')
+    def test_group_writable_archive_lock_is_rejected_before_publication(self):
+        with self.fixture() as (root, token):
+            storage = archive._archive_directory(root)
+            lock = storage / 'archive.lock'
+            lock.touch(mode=0o600)
+            lock.chmod(0o660)
+            with self.assertRaisesRegex(ValueError, 'unsafe ownership'):
+                archive.create_recovery_archive(
+                    root, ['state.json'], book_token=token, quota_bytes=100000)
+            self.assertEqual(0o660, lock.stat().st_mode & 0o777)
+
+
     @unittest.skipIf(os.name == 'nt', 'Windows symlink creation may require privileges')
     def test_aliased_root_is_refused_before_state_read(self):
         with self.fixture() as (root, token), tempfile.TemporaryDirectory() as parent:

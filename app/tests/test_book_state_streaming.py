@@ -20,6 +20,16 @@ def stream(data):
 
 
 class BookStateStreamingTests(unittest.TestCase):
+    def test_stream_transaction_rejects_nested_replacement_and_removal_targets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = stream(b'new audio')
+            with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'conflicting paths'):
+                books.apply_book_state_locked(root, {'chapter': source}, ['chapter/old.wav'],
+                                              stream_byte_limit=100)
+            self.assertEqual(0, source.stream.tell())
+            self.assertFalse((root / books.JOURNAL).exists())
+
     @unittest.skipIf(os.name == 'nt', 'directory descriptor semantics require POSIX qualification')
     def test_stream_staging_does_not_follow_replaced_workspace_name(self):
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside_tmp:

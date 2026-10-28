@@ -905,20 +905,46 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
                 info.st_ctime_ns, info.st_mode, info.st_nlink)
     if create:
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
+        created_version = None
         try:
             descriptor = os.open(JOURNAL if root_fd is not None else path, flags, 0o600,
                                  dir_fd=root_fd)
         except FileExistsError:
             raise ValueError('Book transaction journal is already occupied') from None
-        with os.fdopen(descriptor, 'wb') as output:
-            if output.write(payload) != len(payload):
-                raise OSError('Short active-book journal write')
-            output.flush(); os.fsync(output.fileno())
-        if root_fd is not None:
-            os.fsync(root_fd)
-        else:
-            sync_adapter_directory(str(root))
-        return observed_version()
+        try:
+            info = os.fstat(descriptor)
+            created_version = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
+                               info.st_ctime_ns, info.st_mode, info.st_nlink)
+            with os.fdopen(descriptor, 'wb') as output:
+                descriptor = None
+                if output.write(payload) != len(payload):
+                    raise OSError('Short active-book journal write')
+                output.flush(); os.fsync(output.fileno())
+            if root_fd is not None:
+                os.fsync(root_fd)
+            else:
+                sync_adapter_directory(str(root))
+            return observed_version()
+        except BaseException:
+            if descriptor is not None:
+                os.close(descriptor)
+            # The transaction has not started until its complete journal is
+            # durable. Remove only the exact file this call created; a swapped
+            # or otherwise changed path is preserved for inspection.
+            try:
+                current = observed_version()
+                if (created_version is not None
+                        and current[:2] == created_version[:2]
+                        and stat.S_ISREG(current[5]) and current[6] == 1):
+                    if root_fd is not None:
+                        os.unlink(JOURNAL, dir_fd=root_fd)
+                        os.fsync(root_fd)
+                    else:
+                        path.unlink()
+                        sync_adapter_directory(str(root))
+            except OSError:
+                pass
+            raise
     if expected_version is not None and observed_version() != expected_version:
         raise ValueError('Book transaction journal changed; update was refused')
     if root_fd is not None:

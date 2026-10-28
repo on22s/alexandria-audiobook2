@@ -102,6 +102,20 @@ class PublicationCancellationTests(unittest.TestCase):
             self.assertEqual('a' * 32, json.loads((root / 'state.json').read_text())['script_generation_run_id'])
             publish()
 
+    def test_failed_signal_keeps_durable_cancel_intent_and_blocks_publication(self):
+        with self.fixture() as (root, states, old, publish):
+            with patch.object(script, '_cancel_task', side_effect=HTTPException(
+                    status_code=400, detail='worker exited')):
+                with self.assertRaises(HTTPException) as refused:
+                    script._cancel_script_generation_sync()
+                self.assertEqual(400, refused.exception.status_code)
+            state = json.loads((root / 'state.json').read_text())
+            self.assertEqual('a' * 32, state['script_generation_run_id'])
+            self.assertEqual('a' * 32, state['script_generation_cancel_requested_run_id'])
+            with self.assertRaisesRegex(ValueError, 'cancelled'):
+                publish()
+            self.assertEqual(old, (root / 'annotated_script.json').read_bytes())
+
     def test_process_death_during_commit_recovers_before_cancel(self):
         worker = '''import os,sys
 from pathlib import Path

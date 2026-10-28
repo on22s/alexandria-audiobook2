@@ -66,7 +66,7 @@ def _archive_lock(directory, publication=None, *, parent_fd=None):
         with os.fdopen(lock_fd, 'a+b') as handle:
             info = os.fstat(handle.fileno())
             if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 4096
-                    or info.st_uid != os.getuid()):
+                    or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077):
                 raise ValueError('Recovery lock has unsafe ownership')
             with file_lock(str(directory / 'archive'), timeout=0, lock_handle=handle):
                 current = (os.stat(ARCHIVE_DIR, dir_fd=parent_fd, follow_symlinks=False)

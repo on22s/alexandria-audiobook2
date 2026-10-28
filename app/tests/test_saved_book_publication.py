@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import patch
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 import book_state_transaction as books
 import core
@@ -127,7 +127,7 @@ class SavedBookPublicationTests(unittest.TestCase):
             self.assertIn('currently loaded', response.json()['detail'])
             self.assertEqual(before, self.artifacts(root))
 
-    def test_active_saved_content_repair_updates_saved_and_active_copies_together(self):
+    def test_active_saved_content_repair_requires_switching_books(self):
         with self.fixture() as (root,api):
             saved = root / 'scripts/book.json'
             original = saved.read_bytes()
@@ -137,12 +137,16 @@ class SavedBookPublicationTests(unittest.TestCase):
                 'input_file_path':str(saved)}))
             (root/'chunks.json').write_text('[{"text":"stale"}]')
             (root/'chunks.json.status.jsonl').write_text('{"stale":true}\n')
+            before = self.artifacts(root)
             entries = [{'speaker':'Old', 'text':'Repaired book.'}]
-            backup = routes._publish_saved_repair(str(saved), entries)
-            self.assertEqual(saved.read_bytes(), (root/'annotated_script.json').read_bytes())
-            self.assertEqual(original, Path(backup).read_bytes())
-            self.assertFalse((root/'chunks.json').exists())
-            self.assertFalse((root/'chunks.json.status.jsonl').exists())
+            with self.assertRaises(HTTPException) as refused:
+                routes._publish_saved_repair(str(saved), entries)
+            self.assertEqual(409, refused.exception.status_code)
+            self.assertIn('switch books', refused.exception.detail)
+            self.assertEqual(before, self.artifacts(root))
+            self.assertEqual(original, saved.read_bytes())
+            self.assertTrue((root/'chunks.json').exists())
+            self.assertTrue((root/'chunks.json.status.jsonl').exists())
 
     def test_reserved_companion_names_are_rejected_before_writing(self):
         names=('book.voice_config','book.meta','book.review_checkpoint','book.generation_checkpoint',

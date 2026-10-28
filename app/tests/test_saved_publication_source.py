@@ -270,6 +270,26 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
                     load.assert_not_called()
                 self.assertEqual(before, destination.read_bytes())
 
+    def test_review_cli_rejects_symlink_alias_into_transaction_workspace(self):
+        import review_script as review
+        with self.fixture() as (root, client):
+            source = root/'scripts/book.json'
+            workspace = root/'.book-switch-private'; workspace.mkdir()
+            alias = root/'output-alias'
+            try:
+                alias.symlink_to(workspace, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest('Symbolic links unavailable on this host')
+            destination = alias/'reviewed.json'
+            with patch.object(review, 'get_runtime_data_dir', return_value=str(root)), \
+                    patch.object(review.sys, 'argv', [
+                        'review', '--input', str(source), '--output', str(destination)]), \
+                    patch.object(review, 'load_app_config') as load:
+                with self.assertRaisesRegex(ValueError, 'reserved active-book metadata'):
+                    review.main()
+                load.assert_not_called()
+            self.assertFalse((workspace/'reviewed.json').exists())
+
     def test_review_cli_rejects_unsupported_custom_companions_before_model_work(self):
         import review_script as review
         with self.fixture() as (root, client):

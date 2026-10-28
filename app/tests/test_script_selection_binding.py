@@ -112,6 +112,25 @@ class ScriptSelectionBindingTests(unittest.TestCase):
                 with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'collides'):
                     _staged_registry_path(root, staged)
 
+    def test_alias_registry_rejects_windows_reserved_and_trailing_names(self):
+        from script_selection_binding import _staged_registry_path
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ('CON', 'aliases.json.', 'aliases.json '):
+                staged = {'path':str(root / name), 'before':None, 'after':b'{}'}
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'portable'):
+                    _staged_registry_path(root, staged)
+
+    def test_legacy_controlled_edit_still_validates_unbound_replacement_bytes(self):
+        from script_selection_binding import publish_controlled_script_edit
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'state.json').write_text('{}')
+            (root / 'annotated_script.json').write_bytes(self.script)
+            with self.assertRaises((ValueError, json.JSONDecodeError)):
+                publish_controlled_script_edit(root, self.script, b'{not-json')
+            self.assertEqual(self.script, (root / 'annotated_script.json').read_bytes())
+
     def test_controlled_edit_rejects_inconsistent_entries_fingerprint(self):
         from script_selection_binding import publish_controlled_script_edit
         with tempfile.TemporaryDirectory() as temporary:

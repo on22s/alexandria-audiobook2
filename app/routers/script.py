@@ -1487,6 +1487,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                 state["script_generation_input_file"] = input_file
                 if original is not None:
                     state['script_generation_selection'] = original
+                    state.pop('script_generation_cancel_requested_run_id', None)
                     state['script_generation_run_id'] = claim_id
                     state['script_generation_base_sha256'] = base['sha256']
                 atomic_json_write(state, state_path)
@@ -1898,10 +1899,14 @@ def _cancel_script_generation_sync():
             if not owner_id or state.get('script_generation_run_id') != owner_id:
                 raise HTTPException(status_code=409, detail=(
                     'This task is not the current script generation; check its activity before cancelling.'))
-            state.pop('script_generation_run_id', None)
+            state['script_generation_cancel_requested_run_id'] = owner_id
             atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
-            return _cancel_task('script', 'No script generation is currently running.',
-                                'Script generation process already exited.')
+            stopped = _cancel_task('script', 'No script generation is currently running.',
+                                   'Script generation process already exited.')
+            state.pop('script_generation_run_id', None)
+            state.pop('script_generation_cancel_requested_run_id', None)
+            atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
+            return stopped
     except (OSError, ValueError, TimeoutError) as error:
         raise HTTPException(status_code=409, detail=(
             'Cancellation could not be safely recorded; check the task state before trying again.')) from error

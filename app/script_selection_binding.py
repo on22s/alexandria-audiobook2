@@ -118,17 +118,23 @@ def _path_digest(source_path):
     return hashlib.sha256(source_path.encode('utf-8')).hexdigest()
 
 
-def make_script_selection_binding(book_token, source_sha256, published_script, *, source_path):
-    """Build evidence from the captured run and the exact publication bytes."""
-    if not isinstance(published_script, bytes):
-        raise ValueError('Script publication must be bytes')
-    from completed_review_receipt import get_review_entries_fingerprint
+def _validated_script_entries(script_bytes, *, require_entries=True):
+    if not isinstance(script_bytes, bytes) or len(script_bytes) > 512 * 1024**2:
+        raise ValueError('Invalid script publication bytes')
     def reject_constant(value):
         raise ValueError('Nonfinite value in script publication')
-    entries = json.loads(published_script, object_pairs_hook=_unique_pairs,
+    entries = json.loads(script_bytes, object_pairs_hook=_unique_pairs,
                          parse_constant=reject_constant)
-    if not isinstance(entries, list) or not entries or any(not isinstance(row, dict) for row in entries):
+    if (not isinstance(entries, list) or require_entries and not entries
+            or any(not isinstance(row, dict) for row in entries)):
         raise ValueError('Script publication must contain entries')
+    return entries
+
+
+def make_script_selection_binding(book_token, source_sha256, published_script, *, source_path):
+    """Build evidence from the captured run and the exact publication bytes."""
+    from completed_review_receipt import get_review_entries_fingerprint
+    entries = _validated_script_entries(published_script)
     return {'version': 3, 'book_token': _digest(book_token),
             'source_sha256': _digest(source_sha256),
             'source_path_sha256': _path_digest(source_path),
@@ -166,22 +172,25 @@ def check_binding_source(raw, book_token, source_sha256, *, source_path):
     return binding['published_script_sha256']
 
 
-def binding_for_controlled_edit(data_dir, old_script, new_script):
-    """Build a replacement binding for an already-admitted, validated edit.
-
-    Caller holds book-state admission and publishes returned bytes atomically
-    with the edit. A missing legacy binding remains missing.
-    """
+def _binding_for_controlled_edit_locked(data_dir, old_script, new_script):
+    """Build an edit binding while book admission and the state lock are held."""
     from project_scope_files import capture_scope_file
-    require_published_selection(data_dir)
-    root = Path(data_dir)
-    _, raw = capture_scope_file(data_dir, BINDING_NAME, limit=MAX_BINDING_BYTES, include_bytes=True)
+    from book_state_transaction import get_book_operation_token
+
     state = _read_selection_state(data_dir, required=False)
+    if ('script_selection_pending' in state and state['script_selection_pending'] is not False):
+        raise ValueError('The selected source has no published script; previous book files were preserved.')
+    _, raw = capture_scope_file(data_dir, BINDING_NAME, limit=MAX_BINDING_BYTES, include_bytes=True)
+    _validated_script_entries(new_script)
     if raw is None:
         if state.get('script_binding_required') is True:
             raise ValueError('Required script binding is missing')
         return None
-    selected = capture_generation_selection(data_dir, state.get('input_file_path'))
+    source_path = state.get('input_file_path')
+    if not isinstance(source_path, str) or not source_path:
+        raise ValueError('Missing source path')
+    selected = {'book_token': get_book_operation_token(data_dir, state=state),
+                'source_path': source_path, 'source_sha256': _source_digest(source_path)}
     published = check_binding_source(raw, selected['book_token'], selected['source_sha256'],
                                      source_path=selected['source_path'])
     if hashlib.sha256(old_script).hexdigest() != published:
@@ -193,6 +202,18 @@ def binding_for_controlled_edit(data_dir, old_script, new_script):
     binding = make_script_selection_binding(selected['book_token'], selected['source_sha256'],
                                             new_script, source_path=selected['source_path'])
     return json.dumps(binding, sort_keys=True, separators=(',', ':')).encode()
+
+
+def binding_for_controlled_edit(data_dir, old_script, new_script):
+    """Build a replacement binding under the global state-before-artifact order.
+
+    Caller publishes returned bytes atomically with the edit. A missing legacy
+    binding remains missing, but the replacement script is still validated.
+    """
+    from book_state_transaction import reuse_book_state
+    from utils import file_lock
+    with reuse_book_state(data_dir), file_lock(str(Path(data_dir) / 'state.json')):
+        return _binding_for_controlled_edit_locked(data_dir, old_script, new_script)
 
 
 def _voice_remap_bytes(root, name, mapping, remap):
@@ -225,7 +246,10 @@ def _staged_registry_path(data_dir, staging):
     reserved = {'state.json', 'annotated_script.json', BINDING_NAME, 'voice_config.json',
                 'chunks.json', 'chunks.json.status.jsonl', 'annotated_script.json.threepass_manifest.json',
                 '.active_book_transaction.json'}
-    name = os.path.basename(path).casefold()
+    from book_recovery_archive import _relative_name, _validate_names
+    portable_name = _relative_name(os.path.basename(path))
+    _validate_names([portable_name])
+    name = portable_name.casefold()
     if (name in {item.casefold() for item in reserved} or name.endswith('.lock')
             or name.startswith('.book-switch-')):
         raise ValueError('Review alias registry collides with a book artifact')
@@ -275,7 +299,7 @@ def publish_controlled_script_edit(data_dir, old_script, new_script, *,
         if not callable(remap_voice_config):
             raise ValueError('Voice remap is unavailable')
     with (reuse_book_state(data_dir), contextlib.ExitStack() as locks):
-        for path in (script, chunks, root / BINDING_NAME):
+        for path in (root / 'state.json', script, chunks, root / BINDING_NAME):
             locks.enter_context(file_lock(str(path)))
         if voice_mapping and voice_config_path:
             locks.enter_context(file_lock(str(voice)))
@@ -284,7 +308,7 @@ def publish_controlled_script_edit(data_dir, old_script, new_script, *,
         _, current = capture_scope_file(data_dir, script.name, limit=512 * 1024**2, include_bytes=True)
         if current != old_script:
             raise ValueError('Active script changed during review; edits were preserved')
-        binding = binding_for_controlled_edit(data_dir, old_script, new_script)
+        binding = _binding_for_controlled_edit_locked(data_dir, old_script, new_script)
         replacements = {script.name: new_script}
         if binding is not None:
             replacements[BINDING_NAME] = binding
@@ -305,16 +329,8 @@ def publish_controlled_script_edit(data_dir, old_script, new_script, *,
 def updated_saved_binding(raw, old_script, new_script):
     """Advance a saved binding only from its exact, self-consistent input."""
     from completed_review_receipt import get_review_entries_fingerprint
-    if (not isinstance(old_script, bytes) or not isinstance(new_script, bytes)
-            or len(old_script) > 512 * 1024**2 or len(new_script) > 512 * 1024**2):
-        raise ValueError('Invalid saved script bytes')
-    def reject_constant(value):
-        raise ValueError('Nonfinite script value')
-    old_entries = json.loads(old_script, object_pairs_hook=_unique_pairs, parse_constant=reject_constant)
-    new_entries = json.loads(new_script, object_pairs_hook=_unique_pairs, parse_constant=reject_constant)
-    if (not isinstance(old_entries, list) or not isinstance(new_entries, list)
-            or any(not isinstance(row, dict) for row in old_entries + new_entries)):
-        raise ValueError('Invalid saved script entries')
+    old_entries = _validated_script_entries(old_script, require_entries=False)
+    new_entries = _validated_script_entries(new_script, require_entries=False)
     if raw is None:
         return None
     binding = parse_script_binding(raw)
@@ -453,6 +469,8 @@ def publish_generated_script(data_dir, expected_token, expected_source_path,
             raise ValueError('Book selection changed during script generation')
         if state.get('script_generation_run_id') != expected_run_id:
             raise ValueError('Generation attempt is no longer current')
+        if state.get('script_generation_cancel_requested_run_id') == expected_run_id:
+            raise ValueError('Generation attempt was cancelled')
         if 'script_generation_base_sha256' not in state:
             raise ValueError('Generation attempt lacks its starting script identity')
         base = state['script_generation_base_sha256']
@@ -476,6 +494,7 @@ def publish_generated_script(data_dir, expected_token, expected_source_path,
         }
         state.pop('script_selection_pending', None)
         state.pop('script_generation_run_id', None)
+        state.pop('script_generation_cancel_requested_run_id', None)
         state.pop('script_generation_base_sha256', None)
         state['script_generation_published_run_id'] = expected_run_id
         state['script_binding_required'] = True

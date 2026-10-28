@@ -229,6 +229,9 @@ def _saved_repair_binding(path, old_bytes, new_bytes):
 
 
 def _publish_saved_repair(path, entries):
+    if saved_script_is_active_source(DATA_DIR, path):
+        raise HTTPException(status_code=409, detail=(
+            'This saved book is currently loaded; switch books before repairing it.'))
     try:
         _, old = capture_scope_file(SCRIPTS_DIR, os.path.basename(path),
                                     limit=MAX_SCRIPT_BYTES, include_bytes=True)
@@ -245,25 +248,7 @@ def _publish_saved_repair(path, entries):
     replacements = {os.path.basename(path):new, os.path.basename(backup):old}
     if binding is not None:
         replacements[os.path.basename(os.path.splitext(path)[0] + '.selection_binding.json')] = binding
-    if saved_script_is_active_source(DATA_DIR, path):
-        active_chunks = os.path.join(DATA_DIR, os.path.basename(CHUNKS_PATH))
-        chunk_journal = get_chunk_status_journal_path(active_chunks)
-        for artifact in (active_chunks, chunk_journal):
-            if os.path.lexists(artifact) and (os.path.islink(artifact) or not os.path.isfile(artifact)):
-                raise HTTPException(status_code=409, detail=(
-                    'Active chunk metadata requires inspection; repair was not applied.'))
-        root_replacements = {
-            os.path.relpath(os.path.join(SCRIPTS_DIR, name), DATA_DIR): value
-            for name, value in replacements.items()
-        }
-        root_replacements[os.path.relpath(SCRIPT_PATH, DATA_DIR)] = new
-        if binding is not None:
-            root_replacements[BINDING_NAME] = binding
-        apply_book_state_locked(DATA_DIR, root_replacements,
-                                [os.path.relpath(active_chunks, DATA_DIR),
-                                 os.path.relpath(chunk_journal, DATA_DIR)])
-    else:
-        apply_book_state_locked(SCRIPTS_DIR, replacements, [])
+    apply_book_state_locked(SCRIPTS_DIR, replacements, [])
     return backup
 
 
@@ -710,7 +695,6 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
             raise HTTPException(status_code=400, detail="expected_sha256 from preview is required.")
         safe_name = _require_saved_book_name(name)
         path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
-        active_voice_backup = None
         try:
             with file_lock(path), contextlib.ExitStack() as locks:
                 for companion in _get_saved_book_companions(path):
@@ -720,10 +704,8 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
                 script_bytes, sha256, entries = get_repair_script_snapshot(path)
                 active_source = saved_script_is_active_source(DATA_DIR, path)
                 if active_source:
-                    active_chunks = os.path.join(DATA_DIR, os.path.basename(CHUNKS_PATH))
-                    chunk_journal = get_chunk_status_journal_path(active_chunks)
-                    for artifact in (SCRIPT_PATH, VOICE_CONFIG_PATH, active_chunks, chunk_journal):
-                        locks.enter_context(file_lock(artifact))
+                    raise HTTPException(status_code=409, detail=(
+                        'This saved book is currently loaded; switch books before repairing it.'))
                 if sha256 != request.expected_sha256:
                     raise HTTPException(status_code=409, detail="Script changed after preview; preview it again.")
                 try:
@@ -739,22 +721,6 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
                 for candidate in (backup, voice_backup):
                     if candidate and os.path.lexists(candidate):
                         raise HTTPException(status_code=409, detail="Repair backup already exists; retry the repair.")
-                active_voice_bytes = None
-                if active_source and os.path.lexists(VOICE_CONFIG_PATH):
-                    try:
-                        _, active_voice_bytes = capture_scope_file(
-                            DATA_DIR, os.path.relpath(VOICE_CONFIG_PATH, DATA_DIR),
-                            limit=MAX_SCRIPT_BYTES, include_bytes=True)
-                        if active_voice_bytes is None:
-                            raise ValueError('Active voices disappeared')
-                    except (OSError, ValueError) as error:
-                        raise HTTPException(status_code=409, detail=(
-                            'Active voices require inspection; repair was not applied.')) from error
-                    active_voice_backup = get_timestamped_backup_path(VOICE_CONFIG_PATH)
-                    locks.enter_context(file_lock(active_voice_backup))
-                    if os.path.lexists(active_voice_backup):
-                        raise HTTPException(status_code=409, detail=(
-                            'Active voice backup already exists; retry the repair.'))
                 replacements = {
                     os.path.basename(path): json.dumps(repair["entries"], ensure_ascii=False, indent=2).encode("utf-8"),
                     os.path.basename(backup): script_bytes,
@@ -782,40 +748,14 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
                                                  get_publication_source_path(path),
                                                  get_saved_sound_design_path(path),
                                                  get_saved_sound_renditions_path(path))]
-                if active_source:
-                    for artifact in (active_chunks, chunk_journal):
-                        if (os.path.lexists(artifact)
-                                and (os.path.islink(artifact) or not os.path.isfile(artifact))):
-                            raise HTTPException(status_code=409, detail=(
-                                'Active chunk metadata requires inspection; repair was not applied.'))
-                    root_replacements = {
-                        os.path.relpath(os.path.join(SCRIPTS_DIR, item), DATA_DIR): value
-                        for item, value in replacements.items()
-                    }
-                    root_replacements[os.path.relpath(SCRIPT_PATH, DATA_DIR)] = \
-                        replacements[os.path.basename(path)]
-                    if binding is not None:
-                        root_replacements[BINDING_NAME] = binding
-                    if active_voice_bytes is not None:
-                        root_replacements[os.path.relpath(active_voice_backup, DATA_DIR)] = \
-                            active_voice_bytes
-                    root_removals = [os.path.relpath(os.path.join(SCRIPTS_DIR, item), DATA_DIR)
-                                     for item in removals]
-                    root_removals.extend((
-                        os.path.relpath(VOICE_CONFIG_PATH, DATA_DIR),
-                        os.path.relpath(active_chunks, DATA_DIR),
-                        os.path.relpath(chunk_journal, DATA_DIR)))
-                    apply_book_state_locked(DATA_DIR, root_replacements, root_removals)
-                else:
-                    apply_book_state_locked(SCRIPTS_DIR, replacements, removals)
+                apply_book_state_locked(SCRIPTS_DIR, replacements, removals)
         except TimeoutError as exc:
             raise HTTPException(status_code=409, detail="Script is busy; preview it again.") from exc
         return {"status": "repaired", "backup": os.path.basename(backup),
                 "changes": repair["changes"],
-                "voice_config_invalidated": bool(voice_backup or active_voice_backup),
+                "voice_config_invalidated": bool(voice_backup),
                 "voice_config_backup": os.path.basename(voice_backup) if voice_backup else None,
-                "active_voice_config_backup": (os.path.basename(active_voice_backup)
-                                                if active_voice_backup else None),
+                "active_voice_config_backup": None,
                 "message": "Speaker assignments changed; assign and approve voices again before rendering."}
 
 

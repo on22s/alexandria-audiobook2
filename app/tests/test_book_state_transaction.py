@@ -14,6 +14,28 @@ import book_state_transaction as books
 class BookStateTransactionTests(unittest.TestCase):
     @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
                          'POSIX directory descriptors required')
+    def test_failed_initial_journal_fsync_removes_the_owned_partial_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+            actual_fsync = os.fsync
+            calls = 0
+            def fail_first_fsync(fd):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    raise OSError('injected journal fsync failure')
+                return actual_fsync(fd)
+            try:
+                with patch.object(books.os, 'fsync', side_effect=fail_first_fsync), \
+                        self.assertRaisesRegex(OSError, 'injected'):
+                    books._save_journal(root, {'version':3}, create=True, root_fd=descriptor)
+            finally:
+                os.close(descriptor)
+            self.assertFalse((root / books.JOURNAL).exists())
+
+    @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
+                         'POSIX directory descriptors required')
     def test_parent_identity_capture_refuses_substitution_and_missing_suffix_creation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); parent = root/'sub'; parent.mkdir()
