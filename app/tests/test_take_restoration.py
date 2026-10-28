@@ -6,9 +6,12 @@ from contextlib import contextmanager, ExitStack
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
+import signal
 import threading
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -163,6 +166,87 @@ class TakeRestorationTests(unittest.TestCase):
                 row=manager.load_chunks()[0]
                 for field in ('audio_path','audio_revision','take'):self.assertEqual(row[field],current[field])
                 self.assertEqual((root/row['audio_path']).read_bytes(),displaced)
+
+    @unittest.skipUnless(is_synthesis_workspace_supported() and hasattr(os, 'fork'),
+                         'Registered restore staging currently qualifies Linux')
+    def test_actual_process_death_during_restore_keeps_one_coherent_selection_and_retries(self):
+        # A forked child inherits the fixture's owner, engine and serving patches,
+        # restores, and dies with os._exit at one durable boundary; the parent then
+        # reads the book with a newly loaded manager, so no cache of the dead
+        # writer can act as proof, and retries the restore from that state.
+        import project
+        from project import ProjectManager
+        from take_retention import KEY as RETAINED
+        boundaries = (('displaced-hold', 81), ('slot-install', 82), ('selected-metadata', 83))
+        for journal in (False, True):
+            for boundary, code in boundaries:
+                with self.subTest(journal=journal, boundary=boundary), self.prepared(journal) as args:
+                    root, manager, engine, request, origin, original, current, displaced, saved = args
+                    expected = capture_restore_target(manager, 0, request)
+                    pid = os.fork()
+                    if pid == 0:
+                        try:
+                            update = manager._update_chunk_fields_by_uid
+                            def commit(*a, **kw):
+                                result = update(*a, **kw)
+                                if result is not None:
+                                    if boundary == 'displaced-hold' and (kw.get(RETAINED) or {}).get('archive'):
+                                        os._exit(81)
+                                    if boundary == 'selected-metadata' and kw.get(KEY) is not None:
+                                        os._exit(83)
+                                return result
+                            publish = project.publish_audio_output
+                            def install(source, target, *a, **kw):
+                                result = publish(source, target, *a, **kw)
+                                if boundary == 'slot-install' and '.slot-' in str(target):
+                                    os._exit(82)
+                                return result
+                            with patch.object(manager, '_update_chunk_fields_by_uid', side_effect=commit), \
+                                    patch('project.publish_audio_output', side_effect=install):
+                                restore_editor_take(manager, 0, request, expected)
+                            os._exit(97)  # completed without reaching the boundary
+                        except BaseException:
+                            os._exit(98)
+                    for _ in range(600):
+                        done, status = os.waitpid(pid, os.WNOHANG)
+                        if done:
+                            break
+                        time.sleep(.1)
+                    else:
+                        os.kill(pid, signal.SIGKILL)
+                        os.waitpid(pid, 0)
+                        self.fail(f'restore child hung before {boundary}')
+                    self.assertEqual(os.waitstatus_to_exitcode(status), code)
+                    recovered = ProjectManager(str(root))
+                    if journal:
+                        active = recovered._get_status_journal_locked()
+                        active.ensure_writable()
+                        recovered._active_journal_identity = copy.deepcopy(active.book_identity)
+                    row = recovered.load_chunks()[0]
+                    if boundary == 'selected-metadata':
+                        # Committed: the restored take and its proof, paired with its bytes.
+                        self.assertEqual((row['audio_revision'], row['take']), (origin['audio_revision'], origin['take']))
+                        self.assertEqual(row[KEY], origin[KEY])
+                        self.assertEqual((root/row['audio_path']).read_bytes(), original)
+                        continue
+                    # Not committed: the displaced take is still selected, with its own bytes.
+                    for field in ('audio_path', 'audio_revision', 'take'):
+                        self.assertEqual(row[field], current[field])
+                    self.assertEqual((root/row['audio_path']).read_bytes(), displaced)
+                    with AudioTakeHistory(root)._locked() as document:
+                        self.assertEqual(next(record for record in document['records']
+                            if record['version'] == saved['version']), saved)
+                    retry = SimpleNamespace(**vars(request))
+                    with patch.object(recovered, 'get_engine', return_value=engine):
+                        row = restore_editor_take(recovered, 0, retry, capture_restore_target(recovered, 0, retry))
+                    self.assertEqual((row['audio_revision'], row['take']), (origin['audio_revision'], origin['take']))
+                    self.assertEqual((root/row['audio_path']).read_bytes(), original)
+                    with AudioTakeHistory(root)._locked() as document:
+                        held = [record for record in document['records']
+                                if record['audio_revision'] == current['audio_revision']]
+                    self.assertEqual(len(held), 1)
+                    self.assertEqual((root/'take_history'/f"{held[0]['version']}{held[0]['suffix']}").read_bytes(),
+                                     displaced)
 
     @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
     def test_restore_request_matches_generation_with_delivery_cues_and_style(self):
