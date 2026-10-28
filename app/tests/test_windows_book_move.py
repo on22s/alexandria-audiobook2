@@ -126,6 +126,27 @@ class WindowsBookMoveGuardTests(unittest.TestCase):
                     self.assertTrue(all(not handle.closed for handle in FakeHandle.opened))
                 self.assertTrue(all(handle.closed for handle in FakeHandle.opened))
 
+    def test_move_guard_reuses_an_admitted_root_without_reopening_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'book'
+            parent = root / 'parent'
+            parent.mkdir(parents=True)
+            identity = root.lstat()
+            FakeHandle.opened = []
+            with patch.object(windows, '_api', return_value=object()), \
+                    patch.object(windows, '_Handle', FakeHandle):
+                with windows.WindowsBookRoot(
+                        root, (identity.st_dev, identity.st_ino)) as admitted:
+                    root_handles = [handle for handle in FakeHandle.opened
+                                    if handle.path == root]
+                    with windows.guard_windows_book_move_parents(
+                            root, parent / 'source', parent / 'destination',
+                            root_guard=admitted):
+                        self.assertEqual(root_handles, [handle for handle in FakeHandle.opened
+                                                       if handle.path == root])
+                        self.assertEqual(1, len([handle for handle in FakeHandle.opened
+                                                if handle.path == parent]))
+
     def test_untrusted_outside_target_is_refused_before_native_access(self):
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside:
             root = Path(tmp)

@@ -166,7 +166,7 @@ class WindowsBookRoot:
 
 
 @contextmanager
-def guard_windows_book_move_parents(root, source, destination):
+def guard_windows_book_move_parents(root, source, destination, *, root_guard=None):
     """Pin every parent without delete sharing while an admitted move runs.
 
     Reparse points and paths outside the book root are refused. The guard does
@@ -182,12 +182,23 @@ def guard_windows_book_move_parents(root, source, destination):
             raise ValueError('Book move escapes its admitted root') from error
         if not relative.parts:
             raise ValueError('Book move requires a child path')
+    if root_guard is not None:
+        if (not isinstance(root_guard, WindowsBookRoot)
+                or not root_guard.guards or root_guard.path != root
+                or root_guard.expected != root_guard.guards[-1][2]):
+            raise StageDirectoryChanged('Invalid admitted book root guard')
+        root_guard.check()
     paths = {}
     for path in (source.parent, destination.parent):
         for directory in (*path.parents, path):
             key = os.path.normcase(os.path.abspath(directory))
             paths[key] = directory
     ordered = sorted(paths.values(), key=lambda path: (len(path.parts), os.path.normcase(str(path))))
+    if root_guard is not None:
+        # The live root guard already pins the root and every ancestor. Opening
+        # them again with DELETE authority would conflict with that same guard.
+        ordered = [directory for directory in ordered
+                   if directory != root and directory.is_relative_to(root)]
     api = _api()
     with ExitStack() as stack:
         guards = []
@@ -210,6 +221,8 @@ def guard_windows_book_move_parents(root, source, destination):
             if (not info.attributes & 0x10 or info.attributes & 0x400
                     or _identity(info) != expected or (current.st_dev, current.st_ino) != expected):
                 raise StageDirectoryChanged('Book move ancestor changed')
+        if root_guard is not None:
+            root_guard.check()
 
 
 class WindowsStageDirectory:

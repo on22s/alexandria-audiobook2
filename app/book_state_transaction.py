@@ -1046,14 +1046,16 @@ def _read_book_journal(path):
         raise ValueError('Invalid active-book transaction') from error
 
 
-def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=None):
+def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=None,
+          root_guard=None):
     if exclusive:
         from source_upload_publication import move_source_upload_exclusively
         if anchor is None:
             move_source_upload_exclusively(source, destination)
         elif os.name == 'nt':
             from windows_export_staging_directory import guard_windows_book_move_parents
-            with guard_windows_book_move_parents(anchor, source, destination):
+            with guard_windows_book_move_parents(
+                    anchor, source, destination, root_guard=root_guard):
                 current_root = Path(anchor).lstat()
                 if (anchor_identity is not None and
                         (current_root.st_dev, current_root.st_ino) != anchor_identity):
@@ -2041,6 +2043,11 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
         initial_budget = _BookScanBudget(stream_byte_limit, MAX_FILES, cancel_check)
     workspace_fd = root_fd = None
     root_guard = None
+    def release_root_guard():
+        nonlocal root_guard
+        if root_guard is not None:
+            guard, root_guard = root_guard, None
+            guard.__exit__(None, None, None)
     workspace_name = '.book-switch-' + uuid.uuid4().hex
     workspace = root / workspace_name
     workspace_identity = None
@@ -2194,10 +2201,10 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 original = workspace / f'old-{index}'
                 if streams:
                     _move(target, original, exclusive=True, anchor=root,
-                          anchor_identity=root_identity)
+                          anchor_identity=root_identity, root_guard=root_guard)
                 else:
                     _move(target, original, exclusive=True, anchor=root,
-                          anchor_identity=root_identity)
+                          anchor_identity=root_identity, root_guard=root_guard)
                 if streams:
                     _validate_moved_stream_original(row, original, target_versions[index], moved_budget)
                 else:
@@ -2210,12 +2217,12 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 publication_started = True
                 if streams:
                     _move(staged, target, exclusive=True, anchor=root,
-                          anchor_identity=root_identity)
+                          anchor_identity=root_identity, root_guard=root_guard)
                 else:
                     # A writer may create the destination after its original
                     # was backed up. Never replace that new file silently.
                     _move(staged, target, exclusive=True, anchor=root,
-                          anchor_identity=root_identity)
+                          anchor_identity=root_identity, root_guard=root_guard)
             if parent_identities is not None:
                 _require_transaction_parent_identities(
                     root, names, parent_identities, root_fd=root_fd)
@@ -2249,6 +2256,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 _BookScanBudget(stream_byte_limit, MAX_FILES, None))
         else:
             _validate_committed_byte_backups(workspace, rows, targets)
+        release_root_guard()
         _finish_transaction(root, workspace,
                             journal_version=journal_version,
                             stream_data=data if streams else None,
@@ -2257,6 +2265,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     except BaseException as original_error:
         if published:
             if not publication_started:
+                release_root_guard()
                 if streams:
                     _finish_transaction(root, workspace, journal_version=journal_version,
                                         stream_data=data)
@@ -2270,6 +2279,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                         # do not replace the causal byte-publication error.
                         pass
             else:
+                release_root_guard()
                 recover_book_state_locked(data_dir)
         elif (root_fd is not None or os.path.lexists(workspace)):
             _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_identities,
@@ -2280,8 +2290,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             os.close(workspace_fd)
         if root_fd is not None:
             os.close(root_fd)
-        if root_guard is not None:
-            root_guard.__exit__(None, None, None)
+        release_root_guard()
 
 
 
