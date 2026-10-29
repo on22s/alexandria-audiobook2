@@ -160,50 +160,6 @@ class BookStateTransactionTests(unittest.TestCase):
                     self.fail('Aliased book root was admitted')
             self.assertEqual([], list(outside.iterdir()))
 
-    @unittest.skipUnless(os.name == 'nt', 'Requires native Windows file identities')
-    def test_byte_staging_failure_cleans_native_owned_files(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / 'first').write_bytes(b'old first')
-            (root / 'second').write_bytes(b'old second')
-            publish = books.save_adapter_publication_bytes
-            calls = []
-            def fail_second(path, value, mode):
-                calls.append(Path(path).name)
-                if len(calls) == 2:
-                    raise OSError('injected byte staging failure')
-                return publish(path, value, mode)
-            with patch.object(books, 'save_adapter_publication_bytes',
-                              side_effect=fail_second):
-                with books.ensure_book_state(root), \
-                        self.assertRaisesRegex(OSError, 'injected byte staging failure'):
-                    books.apply_book_state_locked(
-                        root, {'first':b'new first', 'second':b'new second'}, [])
-            self.assertEqual(b'old first', (root / 'first').read_bytes())
-            self.assertEqual(b'old second', (root / 'second').read_bytes())
-            self.assertFalse((root / books.JOURNAL).exists())
-            self.assertFalse(list(root.glob('.book-switch-*')))
-
-    @unittest.skipUnless(os.name == 'nt', 'Requires native Windows file identities')
-    def test_byte_staging_failure_preserves_changed_stage_on_windows(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            publish = books.save_adapter_publication_bytes
-            calls = []
-            def change_first_then_fail(path, value, mode):
-                calls.append(Path(path))
-                if len(calls) == 2:
-                    calls[0].write_bytes(b'foreign change')
-                    raise OSError('fixture staging error')
-                return publish(path, value, mode)
-            with patch.object(books, 'save_adapter_publication_bytes', side_effect=change_first_then_fail):
-                with books.ensure_book_state(root), self.assertRaises(ValueError) as raised:
-                    books.apply_book_state_locked(root, {'one': b'first', 'two': b'second'}, [])
-            self.assertIsInstance(raised.exception.__cause__, OSError)
-            self.assertIn('version_changed=True', str(raised.exception))
-            self.assertEqual(b'foreign change', calls[0].read_bytes())
-            self.assertFalse((root / books.JOURNAL).exists())
-
     @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
                          'POSIX directory descriptors required')
     def test_process_death_before_initial_journal_publication_never_exposes_partial_final(self):
@@ -929,84 +885,6 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             self.assertEqual(b'second', (workspace / 'new-1').read_bytes())
             self.assertEqual(b'original one', (root / 'one').read_bytes())
             self.assertEqual(b'original two', (root / 'two').read_bytes())
-            self.assertFalse((root / books.JOURNAL).exists())
-
-    @unittest.skipUnless(os.name == 'nt', 'Windows native staging handle')
-    def test_windows_stage_handle_failure_preserves_workspace(self):
-        import windows_export_staging_directory as native
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            real_handle = native._Handle
-            calls = []
-            def fail_final_open(api, path, **kwargs):
-                if Path(path).name == 'new-0':
-                    calls.append(1)
-                    if len(calls) == 3:
-                        raise OSError('fixture stage handle failure')
-                return real_handle(api, path, **kwargs)
-            source = books.BookStateStream(io.BytesIO(b'first'), 5, hashlib.sha256(b'first').hexdigest())
-            with patch.object(native, '_Handle', side_effect=fail_final_open):
-                with books.ensure_book_state(root), self.assertRaisesRegex(
-                        ValueError, 'version unavailable') as raised:
-                    books.apply_book_state_locked(root, {'one': source}, [], stream_byte_limit=1024)
-            self.assertEqual(3, len(calls))
-            self.assertIsInstance(raised.exception.__cause__, OSError)
-            staged = list(root.glob('.book-switch-*/new-0'))
-            self.assertEqual(1, len(staged))
-            self.assertEqual(b'first', staged[0].read_bytes())
-            self.assertFalse((root / books.JOURNAL).exists())
-
-    @unittest.skipUnless(os.name == 'nt', 'Windows native staging handle')
-    def test_windows_handle_failure_chains_short_read_and_preserves_stage(self):
-        import windows_export_staging_directory as native
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            real_handle = native._Handle
-            calls = []
-            def fail_final_open(api, path, **kwargs):
-                if Path(path).name == 'new-0':
-                    calls.append(1)
-                    if len(calls) == 3:
-                        raise OSError('fixture stage handle failure')
-                return real_handle(api, path, **kwargs)
-            source = books.BookStateStream(io.BytesIO(b'a'), 3, hashlib.sha256(b'abc').hexdigest())
-            with patch.object(native, '_Handle', side_effect=fail_final_open):
-                with books.ensure_book_state(root), self.assertRaisesRegex(
-                        ValueError, 'version unavailable') as raised:
-                    books.apply_book_state_locked(root, {'one': source}, [], stream_byte_limit=1024)
-            handle_error = raised.exception.__cause__
-            self.assertIsInstance(handle_error, OSError)
-            self.assertIsInstance(handle_error.__context__, ValueError)
-            self.assertIn('ended early', str(handle_error.__context__))
-            self.assertEqual(b'a', next(root.glob('.book-switch-*/new-0')).read_bytes())
-
-    @unittest.skipUnless(os.name == 'nt', 'Windows native staging handle')
-    def test_windows_replaced_stage_after_writer_close_is_preserved(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            real_close = os.close
-            swapped = []
-            def replace_after_close(descriptor):
-                try:
-                    info = os.fstat(descriptor)
-                    matches = [path for path in root.glob('.book-switch-*/new-0')
-                               if (path.stat().st_dev, path.stat().st_ino) == (info.st_dev, info.st_ino)]
-                except OSError:
-                    matches = []
-                real_close(descriptor)
-                if matches and not swapped:
-                    path = matches[0]
-                    path.rename(path.with_name('retained'))
-                    path.write_bytes(b'foreign change')
-                    swapped.append(True)
-            source = books.BookStateStream(io.BytesIO(b'first'), 5, hashlib.sha256(b'first').hexdigest())
-            with patch.object(books.os, 'close', side_effect=replace_after_close):
-                with books.ensure_book_state(root), self.assertRaises(ValueError):
-                    books.apply_book_state_locked(root, {'one': source}, [], stream_byte_limit=1024)
-            self.assertTrue(swapped)
-            workspace = next(root.glob('.book-switch-*'))
-            self.assertEqual(b'first', (workspace / 'retained').read_bytes())
-            self.assertEqual(b'foreign change', (workspace / 'new-0').read_bytes())
             self.assertFalse((root / books.JOURNAL).exists())
 
     def test_partial_stage_changed_after_write_is_preserved(self):

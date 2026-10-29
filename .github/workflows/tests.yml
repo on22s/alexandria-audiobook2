@@ -177,3 +177,12 @@ jobs:
         run: python -m unittest tests.test_export_staging -v
       - name: Verify native Windows book move ownership and recovery
         run: python -m unittest tests.test_windows_book_move tests.test_book_state_streaming -v
+      # Installed only after the startup check above, which must keep proving
+      # that startup needs no more than the CPU dependencies. These pins match
+      # app/requirements.txt; the cancellation checks import core and routers.
+      - name: Install script-router dependencies for native transaction checks
+        run: python -m pip install 'pydub==0.25.1' 'httpx2>=2.12.0,<3' 'openai==3.33.0' 'rapidfuzz==3.14.5' 'python-multipart==0.0.32'
+      - name: Verify native Windows transaction, archive and cancellation handles
+        env:
+          PYTHONPATH: .
+        run: python tests/native_windows_transaction_checks.py

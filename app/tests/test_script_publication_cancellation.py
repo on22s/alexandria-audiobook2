@@ -22,54 +22,6 @@ from script_selection_binding import capture_generation_selection, publish_gener
 
 
 class PublicationCancellationTests(unittest.TestCase):
-    @unittest.skipUnless(sys.platform == 'win32', 'Windows owned-job termination')
-    def test_published_cleanup_accepts_job_already_closed_after_confirmed_stop(self):
-        from windows_subprocess_job import WindowsJobClosedError
-        with self.fixture() as (root, states, old, publish):
-            publish()
-            process = SimpleNamespace(pid=123, _alexandria_windows_owner=object())
-            states['script'].update(process=process, pid=process.pid)
-            with patch.object(script, '_cancel_task', side_effect=HTTPException(400, 'Script generation process already exited.')), \
-                 patch.object(core, 'terminate_windows_process_tree', side_effect=WindowsJobClosedError('closed')):
-                self.assertEqual({'status': 'published_cleanup_stop', 'worker': 'already stopped'},
-                                 script._cancel_script_generation_sync())
-            self.assertNotEqual(old, (root / 'annotated_script.json').read_bytes())
-
-    @unittest.skipUnless(sys.platform == 'win32', 'Windows owned-job termination')
-    def test_published_cleanup_force_stop_failure_remains_unconfirmed(self):
-        for force_fails in (False, True):
-            with self.subTest(force_fails=force_fails), self.fixture() as (root, states, old, publish):
-                publish()
-                process = SimpleNamespace(pid=123, _alexandria_windows_owner=object())
-                states['script'].update(process=process, pid=process.pid)
-                with patch.object(script, '_cancel_task', side_effect=HTTPException(400, 'Script generation process already exited.')), \
-                     patch.object(core, 'terminate_windows_process_tree',
-                                  side_effect=OSError('force failed') if force_fails else None) as force:
-                    if force_fails:
-                        with self.assertRaises(HTTPException) as raised:
-                            script._cancel_script_generation_sync()
-                        self.assertEqual(409, raised.exception.status_code)
-                    else:
-                        self.assertEqual({'status': 'published_cleanup_stop_requested', 'worker': 'force stop requested'},
-                                         script._cancel_script_generation_sync())
-                    force.assert_called_once_with(process, force=True)
-                self.assertNotEqual(old, (root / 'annotated_script.json').read_bytes())
-
-    @unittest.skipUnless(sys.platform == 'win32', 'Windows owned-job termination')
-    def test_unrelated_cancel_refusal_does_not_force_stop(self):
-        with self.fixture() as (root, states, old, publish):
-            publish()
-            process = SimpleNamespace(pid=123, _alexandria_windows_owner=object())
-            states['script'].update(process=process, pid=process.pid)
-            for refusal in (HTTPException(409, 'ownership changed'), HTTPException(400, 'different reason')):
-                with self.subTest(detail=refusal.detail), \
-                     patch.object(script, '_cancel_task', side_effect=refusal), \
-                     patch.object(core, 'terminate_windows_process_tree') as force:
-                    with self.assertRaises(HTTPException) as raised:
-                        script._cancel_script_generation_sync()
-                    self.assertEqual(409, raised.exception.status_code)
-                    force.assert_not_called()
-            self.assertNotEqual(old, (root / 'annotated_script.json').read_bytes())
 
     @contextlib.contextmanager
     def fixture(self):

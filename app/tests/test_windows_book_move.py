@@ -62,26 +62,6 @@ class WindowsBookMoveGuardTests(unittest.TestCase):
                     windows.windows_named_file_identity(path)
             self.assertTrue(MultiLinkHandle.opened[0].closed)
 
-    @unittest.skipUnless(os.name == 'nt', 'Requires native Windows file identities')
-    def test_native_file_identity_survives_creation_handle_close(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / 'staged'
-            with path.open('xb') as output:
-                created = windows.windows_named_file_identity(path)
-                output.write(b'owned')
-                output.flush()
-                os.fsync(output.fileno())
-                written = windows.windows_named_file_identity(path)
-                opened_stat = os.fstat(output.fileno())
-            closed = windows.windows_named_file_identity(path)
-            named_stat = path.lstat()
-            self.assertEqual(
-                (created, created),
-                (written, closed),
-                {'created':created, 'written':written, 'closed':closed,
-                 'opened_stat':(opened_stat.st_dev, opened_stat.st_ino, opened_stat.st_nlink),
-                 'named_stat':(named_stat.st_dev, named_stat.st_ino, named_stat.st_nlink)})
-
     def test_system_ancestor_access_denial_does_not_weaken_owned_root(self):
         for code in (5, 32):
             with self.subTest(winerror=code):
@@ -114,45 +94,6 @@ class WindowsBookMoveGuardTests(unittest.TestCase):
                     self.assertEqual({'protect_rename': True}, FakeHandle.opened[-1].options)
                     self.assertTrue(all(not handle.closed for handle in FakeHandle.opened))
                 self.assertTrue(all(handle.closed for handle in FakeHandle.opened))
-
-    @unittest.skipUnless(os.name == 'nt', 'Requires native Windows cleanup handles')
-    def test_recovery_guard_blocks_metadata_unlink_and_directory_removal(self):
-        from export_staging_directory import OWNER_FILE
-        with tempfile.TemporaryDirectory() as tmp:
-            stage = Path(tmp)/'stage'; stage.mkdir()
-            (stage/OWNER_FILE).write_bytes(b'owner')
-            (stage/'.export-staging.json').write_bytes(b'{}')
-            info = stage.lstat()
-            with windows.WindowsStageDirectory(stage, (info.st_dev, info.st_ino)) as guarded:
-                guarded.create_recovery_guard('.export-staging-recovery')
-                for name in ('.export-staging-recovery', OWNER_FILE, '.export-staging.json'):
-                    with self.subTest(name=name), self.assertRaises(windows.StageDirectoryChanged):
-                        guarded.unlink(name)
-                    self.assertTrue((stage/name).exists())
-                with self.assertRaises(windows.StageDirectoryChanged):
-                    guarded.remove_empty_directory()
-
-    @unittest.skipUnless(os.name == 'nt', 'Requires native Windows cleanup handles')
-    def test_native_byte_and_stream_transactions_finish_cleanup(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            target = root / 'artifact.bin'
-            target.write_bytes(b'old')
-            with books.ensure_book_state(root):
-                books.apply_book_state_locked(root, {'artifact.bin': b'byte replacement'}, [])
-            self.assertEqual(b'byte replacement', target.read_bytes())
-            self.assertFalse((root / books.JOURNAL).exists())
-            self.assertFalse(list(root.glob('.book-switch-*')))
-
-            raw = b'stream replacement'
-            source = books.BookStateStream(io.BytesIO(raw), len(raw),
-                                           hashlib.sha256(raw).hexdigest())
-            with books.ensure_book_state(root):
-                books.apply_book_state_locked(root, {'artifact.bin': source}, [],
-                                              stream_byte_limit=1024)
-            self.assertEqual(raw, target.read_bytes())
-            self.assertFalse((root / books.JOURNAL).exists())
-            self.assertFalse(list(root.glob('.book-switch-*')))
 
     def test_guard_holds_all_ancestors_once_and_releases_them(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -220,15 +161,3 @@ class WindowsBookMoveGuardTests(unittest.TestCase):
                         self.fail('Reparse point was admitted')
             self.assertTrue(all(handle.closed for handle in FakeHandle.opened))
 
-    @unittest.skipUnless(os.name == 'nt', 'Requires native Windows sharing semantics')
-    def test_native_handles_deny_parent_rename_until_released(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / 'book'
-            root.mkdir()
-            parent = root / 'parent'
-            parent.mkdir()
-            with windows.guard_windows_book_move_parents(root, parent / 'source', parent / 'destination'):
-                with self.assertRaises(OSError):
-                    parent.rename(root / 'moved')
-            parent.rename(root / 'moved')
-            self.assertTrue((root / 'moved').is_dir())
