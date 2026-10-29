@@ -178,7 +178,7 @@ class OwnedSourceUploadStage:
             raise ValueError('Upload stage is closed')
         self._stream.flush()
         self._stream.seek(0)
-        raw = self._stream.read(self.byte_limit + 1)
+        raw = self._stream.read(self._size + 1)
         if len(raw) != self._size or len(raw) > self.byte_limit:
             raise ValueError('Upload stage extent changed')
         return raw

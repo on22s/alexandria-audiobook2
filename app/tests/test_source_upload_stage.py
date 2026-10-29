@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import tempfile
+import tracemalloc
 import sys
 import unittest
 from unittest.mock import patch
@@ -10,6 +11,17 @@ from source_upload_stage import OwnedSourceUploadStage
 
 
 class OwnedSourceUploadStageTests(unittest.TestCase):
+    def test_small_payload_capture_does_not_allocate_the_configured_maximum(self):
+        stage = self.stage(16 * 1024**2)
+        stage.write(b'x')
+        tracemalloc.start()
+        try:
+            self.assertEqual(b'x', stage.read_bytes())
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertLess(peak, 256 * 1024, 'Capturing a tiny payload allocated the stage limit')
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

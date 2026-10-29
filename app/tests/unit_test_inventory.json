@@ -10580,6 +10580,7 @@
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_writer_close_error_retains_unknown_publication_without_callback"
   ],
   "test_source_upload_stage": [
+    "tests.test_source_upload_stage.OwnedSourceUploadStageTests.test_small_payload_capture_does_not_allocate_the_configured_maximum",
     "tests.test_source_upload_stage.OwnedSourceUploadStageTests.test_bounded_write_and_abandoned_cleanup",
     "tests.test_source_upload_stage.OwnedSourceUploadStageTests.test_changed_storage_cannot_redirect_publication",
     "tests.test_source_upload_stage.OwnedSourceUploadStageTests.test_complete_publication_refuses_collision_and_preserves_foreign_bytes",
