@@ -3597,6 +3597,7 @@
     "tests.test_direct_path_admission.AdministratorAliasTests.test_alias_in_a_parent_owned_by_an_untrusted_user_is_refused",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_alias_owned_by_an_untrusted_user_is_refused",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_alias_target_is_checked_as_if_spelled_directly",
+    "tests.test_direct_path_admission.AdministratorAliasTests.test_anchored_move_and_cleanup_observation_work_under_an_admitted_alias",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_book_root_under_an_administrator_alias_is_admitted",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_dot_dot_resolves_from_the_physical_directory_behind_an_alias",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_final_component_alias_is_refused",

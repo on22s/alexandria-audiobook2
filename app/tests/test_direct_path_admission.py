@@ -116,6 +116,11 @@ class AdministratorAliasTests(unittest.TestCase):
         (self.target / 'up').mkdir()
         self.assertFalse(self.check(self.alias / 'up' / '..' / 'book'))
         self.assertTrue(self.check(self.target / 'up' / '..' / 'book'))
+        # A link that '..' currently cancels can still be retargeted.
+        (self.target / 'sym').symlink_to(self.target / 'up', target_is_directory=True)
+        self.assertFalse(self.check(self.target / 'sym' / '..' / 'book'))
+        (self.base / 'cancel').symlink_to(self.target / 'sym' / '..' / 'book', target_is_directory=True)
+        self.assertFalse(self.check(self.base / 'cancel' / 'file'))
 
     def test_administrator_alias_chain_is_followed(self):
         (self.base / 'chain').symlink_to(self.alias, target_is_directory=True)
@@ -159,6 +164,19 @@ class AdministratorAliasTests(unittest.TestCase):
         (self.fixture / 'user-root').symlink_to(self.target / 'book', target_is_directory=True)
         with first, second, self.assertRaisesRegex(ValueError, 'aliases'):
             audio_take_history._ensure_plain_path(self.target / 'book' / 'take.wav', self.fixture / 'user-root')
+
+    def test_anchored_move_and_cleanup_observation_work_under_an_admitted_alias(self):
+        import book_state_transaction as books
+        root = self.alias / 'book'
+        (root / 'a.txt').write_text('take')
+        first, second = self.trusted()
+        with first, second:
+            _, identity = books._direct_book_root(root)
+            books._move(root / 'a.txt', root / 'b.txt', exclusive=True, anchor=root, anchor_identity=identity)
+            observed = books.inspect_book_cleanup_workspace(root, byte_limit=1 << 20, entry_limit=100)
+        self.assertEqual('take', (self.target / 'book' / 'b.txt').read_text())
+        self.assertFalse((self.target / 'book' / 'a.txt').exists())
+        self.assertIsNotNone(observed)
 
     def test_paths_without_aliases_keep_the_existing_rule(self):
         self.assertTrue(self.check(self.target / 'book'))

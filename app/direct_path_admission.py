@@ -39,8 +39,20 @@ def _is_administrator_controlled(link, info):
 def _is_plain_posix_spelling(path, depth):
     """Check `path` as written; the kernel applies '..' after following aliases."""
     if '..' in path.parts:
-        # Lexical normalization would skip an alias before '..', so only a
-        # spelling that no symlink changes is admitted.
+        # Lexical normalization would skip a link before '..', so a spelling
+        # with '..' is admitted only when no component is a symlink at all.
+        prefix = Path(path.anchor)
+        for part in path.parts[1:]:
+            prefix = prefix / part
+            if part == '..':
+                continue
+            try:
+                if stat.S_ISLNK(prefix.lstat().st_mode):
+                    return False
+            except FileNotFoundError:
+                continue
+            except OSError:
+                return False
         return os.path.normcase(os.path.realpath(path)) == os.path.normcase(os.path.abspath(path))
     return _is_plain_posix_path(Path(os.path.abspath(path)), depth)
 
