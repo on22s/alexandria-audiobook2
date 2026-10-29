@@ -1654,6 +1654,7 @@
     "tests.test_book_state_transaction.BookStateTransactionTests.test_recovery_binds_cleanup_to_journal_identity_read",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_recovery_preserves_recreated_directory_backup",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_recovery_refuses_dangling_symlink_target_and_keeps_staged_bytes",
+    "tests.test_book_state_transaction.BookStateTransactionTests.test_relocated_move_parent_preserves_entries_and_fences_byte_and_stream_recovery",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_root_relocation_during_staging_cannot_publish_into_replacement_path",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_same_size_journal_edit_after_publication_is_preserved",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_scalar_journal_entry_is_rejected_without_mutation",

@@ -13,6 +13,63 @@ import book_state_transaction as books
 
 
 class BookStateTransactionTests(unittest.TestCase):
+    @unittest.skipIf(os.name == 'nt', 'POSIX pinned-parent relocation control')
+    def test_relocated_move_parent_preserves_entries_and_fences_byte_and_stream_recovery(self):
+        import source_upload_publication as publication
+        for streaming in (False, True):
+            for replacement in (False, True):
+                with self.subTest(streaming=streaming, replacement=replacement), \
+                     tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary).resolve()
+                    target = root / 'artifact'
+                    target.write_bytes(b'owned original')
+                    retained = root / 'retained-workspace'
+                    move = publication.move_source_upload_exclusively
+                    relocated = []
+                    def relocate_after_move(source, destination, **kwargs):
+                        move(source, destination, **kwargs)
+                        if str(source) == 'artifact' and str(destination) == 'old-0' and not relocated:
+                            workspace = next(root.glob('.book-switch-*'))
+                            if replacement:
+                                (workspace / 'old-0').rename(workspace / 'owned-retained')
+                                (workspace / 'old-0').write_bytes(b'foreign replacement')
+                            workspace.rename(retained)
+                            workspace.mkdir(mode=0o700)
+                            relocated.append(True)
+                    generated = b'generated'
+                    value = (books.BookStateStream(io.BytesIO(generated), len(generated),
+                             hashlib.sha256(generated).hexdigest()) if streaming else generated)
+                    options = {'stream_byte_limit':100} if streaming else {}
+                    with patch.object(publication, 'move_source_upload_exclusively', relocate_after_move):
+                        with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                            books.apply_book_state_locked(root, {'artifact':value}, [], **options)
+                    self.assertEqual([True], relocated)
+                    self.assertEqual(not replacement, target.exists())
+                    original = retained / 'owned-retained' if replacement else target
+                    self.assertEqual(b'owned original', original.read_bytes())
+                    if replacement:
+                        self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
+                    else:
+                        self.assertFalse((retained / 'old-0').exists())
+                    self.assertEqual(generated, (retained / 'new-0').read_bytes())
+                    journal = root / books.JOURNAL
+                    if not replacement:
+                        # The matching owned entry is still rolled back, so
+                        # ordinary recovery can finish and clear the journal.
+                        self.assertFalse(journal.exists())
+                        with books.ensure_book_state(root):
+                            self.assertEqual(b'owned original', target.read_bytes())
+                        continue
+                    frozen = journal.read_bytes()
+                    for _ in range(2):
+                        with self.assertRaises(ValueError):
+                            with books.ensure_book_state(root):
+                                self.fail('Relocated recovery workspace was admitted')
+                        self.assertEqual(frozen, journal.read_bytes())
+                        self.assertEqual(b'owned original', original.read_bytes())
+                        if replacement:
+                            self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
+
     def test_failed_journal_publication_preserves_edited_journal_and_workspace(self):
         import source_upload_publication as publication
         for streamed in (False, True):
