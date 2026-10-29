@@ -593,21 +593,68 @@ class NativeWindowsPublicationCancellationTests(unittest.TestCase):
             self.assertNotEqual(old, (root / 'annotated_script.json').read_bytes())
 
 
-NATIVE_TEST_COUNT = 23
+class NativeWindowsPathAdmissionTests(unittest.TestCase):
+    def test_unreadable_ancestor_is_refused_by_shared_admission(self):
+        from direct_path_admission import is_plain_path
+        from project_scope_files import capture_scope_file
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = Path.lstat
+            def denied(path, *args, **kwargs):
+                if path == root.parent:
+                    raise PermissionError('synthetic ancestor denial')
+                return original(path, *args, **kwargs)
+            with patch.object(Path, 'lstat', denied):
+                self.assertFalse(is_plain_path(root))
+                with self.assertRaisesRegex(ValueError, 'aliases'):
+                    capture_scope_file(root, 'state.json')
+
+    def test_short_names_agree_across_book_scope_take_and_recovery_admission(self):
+        import ctypes
+        from project_scope_files import capture_scope_file
+        from audio_take_history import _open_regular
+        from book_recovery_archive import _direct_root
+        from direct_path_admission import is_plain_path
+        with tempfile.TemporaryDirectory(prefix='aa2-long-short-name-regression-') as tmp:
+            root = Path(tmp)
+            (root / 'state.json').write_bytes(b'{}')
+            api = ctypes.WinDLL('kernel32', use_last_error=True).GetShortPathNameW
+            api.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
+            api.restype = ctypes.c_uint32
+            needed = api(str(root), None, 0)
+            if not needed:
+                raise ctypes.WinError(ctypes.get_last_error())
+            buffer = ctypes.create_unicode_buffer(needed)
+            if not api(str(root), buffer, needed):
+                raise ctypes.WinError(ctypes.get_last_error())
+            short = Path(buffer.value)
+            if os.path.normcase(str(short)) == os.path.normcase(str(root)):
+                self.fail('Native qualification requires a volume with distinct DOS short names')
+            self.assertTrue(os.path.samefile(root, short))
+            self.assertTrue(is_plain_path(short))
+            self.assertEqual(short, books._direct_book_root(short)[0])
+            self.assertEqual(short, _direct_root(short))
+            self.assertEqual(b'{}', capture_scope_file(short, 'state.json', include_bytes=True)[1])
+            stream, _ = _open_regular(short / 'state.json', short, 1024)
+            with stream:
+                self.assertEqual(b'{}', stream.read())
+
+
+NATIVE_TEST_COUNT = 25
 
 
 def main():
     if sys.platform != 'win32':
         print('Native Windows transaction checks require Windows; nothing was verified.', file=sys.stderr)
         return 2
-    # Hosted runners set TEMP through a DOS 8.3 short name (RUNNER~1). The
-    # project-scope and take-history guards refuse such aliases by design, so
-    # fixtures use the long form; these checks cover native handles, not
-    # 8.3 admission policy.
+    # Hosted runners set TEMP through a DOS 8.3 short name (RUNNER~1).
+    # General fixtures use the long form. The dedicated path-admission test
+    # obtains a distinct short spelling and checks it explicitly.
     tempfile.tempdir = os.path.realpath(tempfile.gettempdir())
     suite = unittest.TestSuite(
         unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (
-            NativeWindowsRecoveryQuotaTests, NativeWindowsBookStateTests, NativeWindowsBookMoveTests, NativeWindowsPublicationCancellationTests))
+            NativeWindowsRecoveryQuotaTests, NativeWindowsBookStateTests, NativeWindowsBookMoveTests, NativeWindowsPublicationCancellationTests,
+            NativeWindowsPathAdmissionTests))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if (result.wasSuccessful() and result.testsRun == NATIVE_TEST_COUNT
                  and not result.skipped) else 1

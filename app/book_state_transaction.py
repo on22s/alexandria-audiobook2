@@ -166,22 +166,9 @@ def _check_stream_cancellation(cancel_check):
 
 
 def _direct_book_root(data_dir):
+    from direct_path_admission import is_plain_path
     root = Path(os.path.abspath(data_dir))
-    if os.name == 'nt':
-        # realpath expands harmless DOS 8.3 components (for example
-        # RUNNER~1) as well as real aliases, so string equality is not a valid
-        # Windows junction test. Refuse the native reparse-point attribute on
-        # the root and every ancestor instead.
-        ancestor = root
-        while True:
-            if (getattr(ancestor.lstat(), 'st_file_attributes', 0)
-                    & stat.FILE_ATTRIBUTE_REPARSE_POINT):
-                raise ValueError('Book root must be a direct directory without aliased ancestors')
-            parent = ancestor.parent
-            if parent == ancestor:
-                break
-            ancestor = parent
-    elif os.path.normcase(os.path.realpath(root)) != os.path.normcase(str(root)):
+    if not is_plain_path(root):
         raise ValueError('Book root must be a direct directory without aliased ancestors')
     info = root.lstat()
     if not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode):
