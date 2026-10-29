@@ -21,6 +21,8 @@ from lora_evidence import get_file_sha256
 def execute_payload(payload):
     fixture = payload["fixture"]
     with tempfile.TemporaryDirectory(prefix="alexandria-export-") as root:
+        # Output paths are resolved, so chunk paths must be relative to the same form (#1659).
+        root = os.path.realpath(root)
         voicelines = get_benchmark_output_path(root, "voicelines")
         os.makedirs(voicelines)
         chunks = []

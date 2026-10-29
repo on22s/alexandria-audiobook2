@@ -17,6 +17,7 @@ from book_recovery_archive import (MAX_FILES, _direct_root, _relative_name,
                                    _validate_portable_inventory_names)
 from book_state_transaction import get_snapshot_digest
 from chunk_status_journal import ChunkStatusJournal
+from direct_path_admission import is_plain_path
 from project_scope_admission import is_scope_admitted
 from project_scope_exports import EXPORTS
 from project_scope_files import capture_scope_file
@@ -62,7 +63,7 @@ def _checkpoint_artifacts(root, cancel_check, root_identity):
     before_info = root.lstat()
     if (not stat.S_ISDIR(before_info.st_mode) or stat.S_ISLNK(before_info.st_mode)
             or (before_info.st_dev, before_info.st_ino) != root_identity
-            or os.path.normcase(os.path.realpath(root)) != os.path.normcase(str(root))):
+            or not is_plain_path(root)):
         raise ValueError('Recovery root changed during checkpoint discovery')
     before = list(_version(before_info))
     result, unrecognized = [], False
@@ -84,7 +85,7 @@ def _checkpoint_artifacts(root, cancel_check, root_identity):
     if (not stat.S_ISDIR(after.st_mode) or stat.S_ISLNK(after.st_mode)
             or (after.st_dev, after.st_ino) != root_identity
             or list(_version(after)) != before
-            or os.path.normcase(os.path.realpath(root)) != os.path.normcase(str(root))):
+            or not is_plain_path(root)):
         raise ValueError('Recovery root changed during checkpoint discovery')
     return sorted(result), before, unrecognized
 
@@ -464,7 +465,7 @@ def inspect_active_book_recovery_candidates(root, *, byte_limit, cancel_check=No
             raise ValueError('Recovery candidate appeared during inventory')
     for directory, name, proof in external_proofs:
         _check_cancelled(cancel_check)
-        if os.path.normcase(os.path.realpath(directory)) != os.path.normcase(str(directory)):
+        if not is_plain_path(directory):
             raise ValueError('Recovery source root changed during inventory')
         path = _ensure_plain_path(directory / name, directory)
         if not proof['exists']:
