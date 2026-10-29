@@ -313,6 +313,22 @@ class StartOverAdmissionTests(unittest.TestCase):
             self.assertNotIn('script', core._task_claims)
             self.assertIn('audio', core._task_claims)
 
+    def test_unverifiable_generation_selection_returns_conflict_and_keeps_progress(self):
+        from fastapi import BackgroundTasks
+        import script_selection_binding
+        with self.fixture() as (root, source, checkpoint, manifest, state):
+            before = {path: path.read_bytes() for path in (checkpoint, manifest, state)}
+            tasks = BackgroundTasks()
+            with patch.object(script_selection_binding, 'capture_generation_selection',
+                              side_effect=ValueError('selection changed')):
+                with self.assertRaises(HTTPException) as refused:
+                    script.start_script_generation(tasks, str(source),
+                        script.GenerateScriptRequest(start_over=True))
+            self.assertEqual(409, refused.exception.status_code)
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+            self.assertEqual([], tasks.tasks)
+            self.assertNotIn('script', core._task_claims)
+
     def test_admitted_start_over_registers_same_claim_and_removes_owned_progress(self):
         from fastapi import BackgroundTasks
         with self.fixture() as (root, source, checkpoint, manifest, state):

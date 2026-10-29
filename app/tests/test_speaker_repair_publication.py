@@ -87,7 +87,7 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
             (root/'chunks.json').write_text('[{"speaker":"Alice","text":"stale"}]')
             (root/'chunks.json.status.jsonl').write_text('{"stale":true}\n')
             (root/'state.json').write_text(json.dumps({
-                'active_book_id':'book', 'book_generation':'generation',
+                'active_book_id':'different-id', 'book_generation':'generation',
                 'input_file_path':str(saved)}))
             request = self.request(root,[self.select(1,'Alice','NARRATOR')])
             with patch.object(routes, 'get_repair_script_snapshot',
@@ -99,7 +99,7 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
             self.assertTrue((root/'chunks.json').exists())
             self.assertTrue((root/'chunks.json.status.jsonl').exists())
 
-    def test_active_speaker_repair_refuses_missing_saved_binding_when_active_binding_exists(self):
+    def test_active_speaker_repair_preserves_active_binding_when_saved_binding_missing(self):
         from script_selection_binding import BINDING_NAME
         with self.fixture() as (root,api), TestClient(api) as client:
             saved = root/'scripts/book.json'
@@ -114,6 +114,7 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
             response = client.post('/api/scripts/book/repair/speakers/apply',
                                    json=self.request(root,[self.select(1,'Alice','NARRATOR')]))
             self.assertEqual(409, response.status_code, response.text)
+            self.assertIn('switch books', response.json()['detail'])
             self.assertEqual(before, saved.read_bytes())
             self.assertEqual(before, active.read_bytes())
             self.assertEqual(b'active identity must remain', binding.read_bytes())
@@ -121,7 +122,12 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
     def test_dangling_voice_symlink_is_refused_before_script_publication(self):
         with self.fixture() as (root,api),TestClient(api) as client:
             voice=root/'scripts/book.voice_config.json';voice.unlink()
-            voice.symlink_to(root/'missing-voice.json')
+            try:
+                voice.symlink_to(root/'missing-voice.json')
+            except OSError as error:
+                if os.name == 'nt' and getattr(error, 'winerror', None) == 1314:
+                    self.skipTest('Windows symlink creation requires privilege or developer mode')
+                raise
             script=(root/'scripts/book.json').read_bytes()
             response=client.post('/api/scripts/book/repair/speakers/apply',json=self.request(root,[self.select(1,'Alice','NARRATOR')]))
             self.assertEqual(409,response.status_code,response.text)
@@ -164,6 +170,7 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
             self.assertEqual(409,response.status_code,response.text)
             self.assertEqual(before,self.snapshot(root))
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX flock fixture; Windows locking needs a native fixture')
     def test_current_voice_bytes_are_captured_after_a_competing_writer_releases_its_kernel_lock(self):
         import fcntl
         with self.fixture() as (root,api),TestClient(api) as client:

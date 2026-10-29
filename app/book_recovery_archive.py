@@ -78,7 +78,7 @@ def _archive_lock(directory, publication=None, *, parent_fd=None):
                     raise ValueError('Recovery storage changed during locking')
                 body_error = None
                 try:
-                    yield
+                    yield directory_fd
                 except BaseException as error:
                     body_error = error
                     raise
@@ -465,7 +465,7 @@ def _create_recovery_archive_pinned(root, paths, *, book_token, quota_bytes,
     _require_root_identity(root, _root_fd, _root_identity)
     directory = _archive_directory(root, root_fd=_root_fd, root_identity=_root_identity)
     publication = {}
-    with _archive_lock(directory, publication, parent_fd=_root_fd):
+    with _archive_lock(directory, publication, parent_fd=_root_fd) as locked_archive_fd:
         _require_root_identity(root, _root_fd, _root_identity)
         used = _used_bytes(directory, cancel_check=cancel_check)
         if used >= quota_bytes:
@@ -506,7 +506,7 @@ def _create_recovery_archive_pinned(root, paths, *, book_token, quota_bytes,
         stage = directory / stage_name
         descriptors = []
         try:
-            archive_fd = _open_directory(str(directory)); descriptors.append(archive_fd)
+            archive_fd = os.dup(locked_archive_fd); descriptors.append(archive_fd)
             archive_stat = os.fstat(archive_fd)
             current_archive = directory.lstat()
             if (archive_stat.st_dev, archive_stat.st_ino) != (current_archive.st_dev, current_archive.st_ino):
@@ -524,7 +524,10 @@ def _create_recovery_archive_pinned(root, paths, *, book_token, quota_bytes,
             for index, name in enumerate(names):
                 _check_stage(stage, directory, stage_id, payload_id)
                 _require_root_identity(root, _root_fd, _root_identity)
-                row = _copy_artifact(root, name, payload / str(index), quota_bytes - used - total,
+                # Bound each copy by its reserved size as well as the quota.
+                # Growth after inventory must not consume the remaining quota.
+                copy_limit = min(initial_rows[index]["size"], quota_bytes - used - total)
+                row = _copy_artifact(root, name, payload / str(index), copy_limit,
                                      cancel_check, payload_fd=payload_fd)
                 _require_root_identity(root, _root_fd, _root_identity)
                 if row['source_version'] != initial_versions[name]:

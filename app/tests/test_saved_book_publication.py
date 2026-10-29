@@ -32,6 +32,7 @@ class SavedBookPublicationTests(unittest.TestCase):
             active_before = {path: path.read_bytes() for path in active_paths}
             response = client.post('/api/scripts/save', json={'name': 'invalid'})
             self.assertEqual(422, response.status_code, response.text)
+            self.assertIn('Active script contains malformed JSON', response.json()['detail'])
             self.assertEqual(before, self.artifacts(root))
             self.assertEqual(active_before, {path: path.read_bytes() for path in active_paths})
 
@@ -133,7 +134,7 @@ class SavedBookPublicationTests(unittest.TestCase):
     def test_delete_refuses_the_saved_source_of_the_loaded_book(self):
         with self.fixture() as (root,api),TestClient(api) as client:
             saved = root / 'scripts/book.json'
-            state = {'active_book_id':'book', 'book_generation':'generation',
+            state = {'active_book_id':'different-id', 'book_generation':'generation',
                      'input_file_path':str(saved)}
             (root/'state.json').write_text(json.dumps(state))
             before = self.artifacts(root)
@@ -148,7 +149,7 @@ class SavedBookPublicationTests(unittest.TestCase):
             original = saved.read_bytes()
             (root/'annotated_script.json').write_bytes(original)
             (root/'state.json').write_text(json.dumps({
-                'active_book_id':'book', 'book_generation':'generation',
+                'active_book_id':'different-id', 'book_generation':'generation',
                 'input_file_path':str(saved)}))
             (root/'chunks.json').write_text('[{"text":"stale"}]')
             (root/'chunks.json.status.jsonl').write_text('{"stale":true}\n')

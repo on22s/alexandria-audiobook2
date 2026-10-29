@@ -53,6 +53,58 @@ class BookRecoveryArchiveTests(unittest.TestCase):
                 with ensure_scope_admission(root):
                     yield root, get_book_operation_token(root)
 
+    def test_archive_staging_refuses_swapped_storage_directory(self):
+        with self.fixture() as (root, token):
+            storage = root / archive.ARCHIVE_DIR
+            displaced = root / 'displaced-storage'
+            used_bytes = archive._used_bytes
+            swapped = []
+            def swap_after_usage(directory, **kwargs):
+                result = used_bytes(directory, **kwargs)
+                if not swapped:
+                    storage.rename(displaced)
+                    storage.mkdir(mode=0o700)
+                    (storage / 'foreign').write_bytes(b'preserve')
+                    swapped.append(True)
+                return result
+            with patch.object(archive, '_used_bytes', side_effect=swap_after_usage):
+                with self.assertRaisesRegex(ValueError, 'storage changed'):
+                    archive.create_recovery_archive(root, ['state.json'], book_token=token,
+                                                    quota_bytes=10 * 1024**2)
+            self.assertTrue(swapped)
+            self.assertEqual(['foreign'], sorted(p.name for p in storage.iterdir()))
+            self.assertEqual(b'preserve', (storage / 'foreign').read_bytes())
+            self.assertFalse(list(displaced.glob('.pending-*')))
+
+    def test_archive_accepts_empty_artifact_with_zero_reserved_bytes(self):
+        with self.fixture() as (root, token):
+            (root / 'empty.txt').write_bytes(b'')
+            receipt = archive.create_recovery_archive(root, ['empty.txt'], book_token=token,
+                                                      quota_bytes=10 * 1024**2)
+            verified = archive.verify_recovery_archive(root, receipt['id'],
+                expected_manifest_sha256=receipt['manifest_sha256'], quota_bytes=10 * 1024**2)
+            self.assertEqual(1, verified['files'])
+            self.assertEqual(b'', (root / archive.ARCHIVE_DIR / receipt['stage'] / 'payload' / '0').read_bytes())
+
+    def test_growth_after_reservation_cannot_consume_remaining_quota(self):
+        with self.fixture() as (root, token):
+            target = root / 'chunks.json'
+            original_size = target.stat().st_size
+            copy = archive._copy_artifact
+            limits = []
+            def grow_before_copy(directory, name, destination, remaining, cancel_check, **kwargs):
+                limits.append(remaining)
+                target.write_bytes(b'x' * 8192)
+                return copy(directory, name, destination, remaining, cancel_check, **kwargs)
+            with patch.object(archive, '_copy_artifact', side_effect=grow_before_copy):
+                with self.assertRaises(ValueError):
+                    archive.create_recovery_archive(root, ['chunks.json'], book_token=token,
+                                                    quota_bytes=10 * 1024**2)
+            self.assertEqual([original_size], limits)
+            pending = list((root / archive.ARCHIVE_DIR).glob('.pending-*/payload/*'))
+            self.assertTrue(all(p.stat().st_size <= original_size for p in pending))
+            self.assertEqual(b'x' * 8192, target.read_bytes())
+
     def test_streamed_archive_verifies_exact_files_and_detects_corruption(self):
         with self.fixture() as (root, token):
             names=['state.json','annotated_script.json','chunks.json','audio/line.wav']

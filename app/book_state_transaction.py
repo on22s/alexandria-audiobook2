@@ -24,6 +24,10 @@ MAX_LEGACY_CLEANUP_ENTRIES = 65536
 _held_books = ContextVar('held_book_state_scopes', default=())
 
 
+class BookJournalPublicationUncertain(ValueError):
+    """Journal replacement may have occurred; preserve transaction evidence."""
+
+
 def _get_book_scope_owner():
     try:
         task = asyncio.current_task()
@@ -985,7 +989,8 @@ def _journal_pairs(pairs):
     return result
 
 
-def _save_journal(root, data, *, expected_version=None, create=False, root_fd=None):
+def _save_journal(root, data, *, expected_version=None, create=False, root_fd=None,
+                  on_publish_attempt=None):
     payload = bytearray()
     for part in json.JSONEncoder(allow_nan=False).iterencode(data):
         raw = part.encode('utf-8')
@@ -999,13 +1004,28 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
         info = os.stat(JOURNAL, dir_fd=root_fd, follow_symlinks=False)
         return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
                 info.st_ctime_ns, info.st_mode, info.st_nlink)
+    def verify_published(result):
+        if (result[2] != len(payload) or not stat.S_ISREG(result[5]) or result[6] != 1):
+            raise ValueError('Book transaction journal changed during publication')
+        read_flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+        read_fd = os.open(JOURNAL if root_fd is not None else path, read_flags, dir_fd=root_fd)
+        with os.fdopen(read_fd, 'rb') as source:
+            if _book_info_version(os.fstat(source.fileno())) != result:
+                raise ValueError('Book transaction journal changed during publication')
+            actual = source.read(len(payload) + 1)
+            if _book_info_version(os.fstat(source.fileno())) != result or actual != payload:
+                raise ValueError('Book transaction journal changed during publication')
+        if observed_version() != result:
+            raise ValueError('Book transaction journal changed during publication')
+        return result
+
     if create:
         temporary = f'{JOURNAL}.new-{uuid.uuid4().hex}'
         temporary_path = root / temporary
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
         descriptor = None
         created_version = None
-        completed = False
+        publication_attempted = False
         try:
             descriptor = os.open(temporary if root_fd is not None else temporary_path, flags, 0o600,
                                  dir_fd=root_fd)
@@ -1024,62 +1044,45 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
                 if ((opened_root.st_dev, opened_root.st_ino) !=
                         (root_info.st_dev, root_info.st_ino)):
                     raise ValueError('Book root changed before journal publication')
+                publication_attempted = True
+                if on_publish_attempt is not None:
+                    on_publish_attempt()
                 move_source_upload_exclusively(
                     temporary, JOURNAL, source_dir_fd=root_fd, destination_dir_fd=root_fd)
                 os.fsync(root_fd)
             else:
+                publication_attempted = True
+                if on_publish_attempt is not None:
+                    on_publish_attempt()
                 move_source_upload_exclusively(temporary_path, path)
                 sync_adapter_directory(str(root))
             result = observed_version()
-            if (result[:2] != created_version[:2] or result[2] != len(payload)
-                    or not stat.S_ISREG(result[5]) or result[6] != 1):
+            if result[:2] != created_version[:2]:
                 raise ValueError('Book transaction journal changed during publication')
-            completed = True
-            return result
-        except OSError as error:
-            if error.errno in (errno.EEXIST, errno.ENOTEMPTY):
-                error = ValueError('Book transaction journal is already occupied')
-            raise error
+            return verify_published(result)
+        except (OSError, ValueError) as error:
+            if publication_attempted:
+                raise BookJournalPublicationUncertain(
+                    'Book transaction journal changed during publication or publication failed; '
+                    'evidence was preserved') from error
+            if isinstance(error, OSError) and error.errno in (errno.EEXIST, errno.ENOTEMPTY):
+                raise ValueError('Book transaction journal is already occupied') from error
+            raise
         finally:
             if descriptor is not None:
                 os.close(descriptor)
-            # The final name appears only after a complete, durable temporary
-            # file is atomically published. On publication failure, remove only
-            # this call's exact inode from either possible location.
-            removed = False
-            for name, candidate in (() if completed else
-                                    ((temporary, temporary_path), (JOURNAL, path))):
-                try:
-                    current = (_book_target_version(candidate) if root_fd is None else
-                               (lambda info: (info.st_dev, info.st_ino, info.st_size,
-                                  info.st_mtime_ns, info.st_ctime_ns, info.st_mode,
-                                  info.st_nlink))(os.stat(name, dir_fd=root_fd,
-                                                         follow_symlinks=False)))
-                    if (created_version is not None and current[:2] == created_version[:2]
-                            and stat.S_ISREG(current[5]) and current[6] == 1):
-                        if root_fd is not None:
-                            os.unlink(name, dir_fd=root_fd)
-                        else:
-                            candidate.unlink()
-                        removed = True
-                except FileNotFoundError:
-                    pass
-            if removed:
-                if root_fd is not None:
-                    os.fsync(root_fd)
-                else:
-                    sync_adapter_directory(str(root))
+            # A failure may follow a successful rename or a foreign edit to
+            # either name. Preserve both as evidence; an inode alone cannot
+            # prove the file still contains the data this call wrote.
     if expected_version is not None and observed_version() != expected_version:
         raise ValueError('Book transaction journal changed; update was refused')
     if root_fd is not None:
         temporary = f'{JOURNAL}.new-{uuid.uuid4().hex}'
         descriptor = None
-        created_version = None
         try:
             descriptor = os.open(temporary,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0),
                 0o600, dir_fd=root_fd)
-            created_version = _book_info_version(os.fstat(descriptor))
             with os.fdopen(descriptor, 'wb') as output:
                 descriptor = None
                 if output.write(payload) != len(payload):
@@ -1087,22 +1090,24 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
                 output.flush(); os.fsync(output.fileno())
             if observed_version() != expected_version:
                 raise ValueError('Book transaction journal changed; update was refused')
-            os.replace(temporary, JOURNAL, src_dir_fd=root_fd, dst_dir_fd=root_fd)
-            os.fsync(root_fd)
-            return observed_version()
+            try:
+                os.replace(temporary, JOURNAL, src_dir_fd=root_fd, dst_dir_fd=root_fd)
+                os.fsync(root_fd)
+                return verify_published(observed_version())
+            except (OSError, ValueError) as error:
+                raise BookJournalPublicationUncertain(
+                    'Book transaction journal update is uncertain; evidence was preserved') from error
         finally:
             if descriptor is not None:
                 os.close(descriptor)
-            try:
-                current = os.stat(temporary, dir_fd=root_fd, follow_symlinks=False)
-                version = _book_info_version(current)
-                if (created_version is not None and version[:2] == created_version[:2]
-                        and stat.S_ISREG(version[5]) and version[6] == 1):
-                    os.unlink(temporary, dir_fd=root_fd)
-            except FileNotFoundError:
-                pass
-    save_adapter_publication_bytes(str(path), bytes(payload))
-    return _book_target_version(path)
+            # The temporary name may have been edited or replaced while the
+            # update failed. An inode match is not enough to authorize deletion.
+    try:
+        save_adapter_publication_bytes(str(path), bytes(payload))
+        return verify_published(_book_target_version(path))
+    except (OSError, ValueError) as error:
+        raise BookJournalPublicationUncertain(
+            'Book transaction journal update is uncertain; evidence was preserved') from error
 
 
 def _read_book_journal(path):
@@ -1286,8 +1291,13 @@ def _capture_cleanup_tree_path(path, depth=0, prefix=(), rows=None):
             or getattr(before_info, 'st_file_attributes', 0)
             & stat.FILE_ATTRIBUTE_REPARSE_POINT):
         raise ValueError('Book cleanup tree contains an unsafe artifact')
+    children = []
     with os.scandir(path) as entries:
-        children = sorted((entry.name, Path(path) / entry.name) for entry in entries)
+        for entry in entries:
+            if len(rows) + len(children) >= MAX_LEGACY_CLEANUP_ENTRIES:
+                raise ValueError('Book cleanup entry count exceeds its limit')
+            children.append((entry.name, Path(path) / entry.name))
+    children.sort()
     for name, child in children:
         if len(rows) >= MAX_LEGACY_CLEANUP_ENTRIES:
             raise ValueError('Book cleanup entry count exceeds its limit')
@@ -1748,6 +1758,10 @@ def _cleanup_validated_stream_workspace(root, workspace, data, journal_version):
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     root_fd = os.open(root, flags)
     try:
+        current_root = root.lstat()
+        opened_root = os.fstat(root_fd)
+        if (opened_root.st_dev, opened_root.st_ino) != (current_root.st_dev, current_root.st_ino):
+            raise ValueError('Book root changed; cleanup was refused')
         workspace_fd = os.open(workspace.name, flags, dir_fd=root_fd)
         try:
             opened = os.fstat(workspace_fd)
@@ -2217,12 +2231,9 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                           else workspace.lstat())
         workspace_identity = (workspace_info.st_dev, workspace_info.st_ino)
     except BaseException:
-        if root_fd is not None and workspace_identity is None:
-            try:
-                info = os.stat(workspace_name, dir_fd=root_fd, follow_symlinks=False)
-                workspace_identity = (info.st_dev, info.st_ino)
-            except FileNotFoundError:
-                pass
+        # A name observed after a failed create/open is not evidence that this
+        # operation created it. Preserve it unless an opened workspace was
+        # successfully identified above.
         if workspace_identity is not None:
             _cleanup_unpublished_stream_workspace(workspace, workspace_identity, {},
                                                   parent_fd=root_fd)
@@ -2237,6 +2248,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     staged_versions = {}
     parent_identities = None
     rows, target_versions = [], []
+    journal_publication_attempted = []
     published = False
     publication_started = False
     try:
@@ -2339,7 +2351,9 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             data['target_parent_identities'] = parent_identities
         if root_guard is not None:
             root_guard.check()
-        journal_version = _save_journal(root, data, create=True, root_fd=root_fd)
+        journal_version = _save_journal(
+            root, data, create=True, root_fd=root_fd,
+            on_publish_attempt=lambda: journal_publication_attempted.append(True))
         published = True
         if streams:
             move_budget = _BookScanBudget(stream_byte_limit, MAX_FILES, cancel_check)
@@ -2431,6 +2445,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                             byte_data=data if not streams else None,
                             targets=targets if not streams else None)
     except BaseException as original_error:
+        if isinstance(original_error, BookJournalPublicationUncertain):
+            raise
         if published:
             if not publication_started:
                 release_root_guard()
@@ -2450,7 +2466,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             else:
                 release_root_guard()
                 recover_book_state_locked(data_dir)
-        elif (root_fd is not None or os.path.lexists(workspace)):
+        elif not journal_publication_attempted and (root_fd is not None or os.path.lexists(workspace)):
             try:
                 _cleanup_unpublished_stream_workspace(
                     workspace, workspace_identity, staged_identities,

@@ -13,6 +13,109 @@ import book_state_transaction as books
 
 
 class BookStateTransactionTests(unittest.TestCase):
+    def test_failed_journal_publication_preserves_edited_journal_and_workspace(self):
+        import source_upload_publication as publication
+        for streamed in (False, True):
+            with self.subTest(streamed=streamed), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                target = root / 'script.json'
+                target.write_bytes(b'original')
+                move = publication.move_source_upload_exclusively
+                def edit_after_move(*args, **kwargs):
+                    result = move(*args, **kwargs)
+                    with (root / books.JOURNAL).open('ab') as output:
+                        output.write(b'foreign edit')
+                    return result
+                value = b'new'
+                if streamed:
+                    value = books.BookStateStream(io.BytesIO(value), len(value),
+                                                  hashlib.sha256(value).hexdigest())
+                with patch.object(publication, 'move_source_upload_exclusively',
+                                  side_effect=edit_after_move):
+                    with books.ensure_book_state(root), self.assertRaisesRegex(
+                            books.BookJournalPublicationUncertain, 'journal changed during publication'):
+                        books.apply_book_state_locked(root, {'script.json': value}, [],
+                                                      stream_byte_limit=100)
+                self.assertTrue((root / books.JOURNAL).read_bytes().endswith(b'foreign edit'))
+                workspaces = list(root.glob('.book-switch-*'))
+                self.assertEqual(1, len(workspaces))
+                self.assertEqual(b'new', (workspaces[0] / 'new-0').read_bytes())
+                self.assertEqual(b'original', target.read_bytes())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX descriptor-relative journal update')
+    def test_failed_phase_update_preserves_edited_temporary_journal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            version = books._save_journal(root, {'phase': 'publishing'}, create=True)
+            root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+            names = []
+            def edit_then_fail(source, destination, **kwargs):
+                name = Path(source).name
+                (root / name).write_bytes(b'foreign change')
+                names.append(name)
+                raise OSError('fixture replacement failure')
+            try:
+                with patch.object(books.os, 'replace', side_effect=edit_then_fail):
+                    with self.assertRaises(books.BookJournalPublicationUncertain):
+                        books._save_journal(root, {'phase': 'committed'},
+                                            expected_version=version, root_fd=root_fd)
+            finally:
+                os.close(root_fd)
+            self.assertEqual(1, len(names))
+            self.assertEqual(b'foreign change', (root / names[0]).read_bytes())
+            self.assertEqual(version, books._book_target_version(root / books.JOURNAL))
+
+    def test_edited_phase_update_preserves_journal_and_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            replace = os.replace
+            changed = []
+            def edit_after_replace(source, destination, *args, **kwargs):
+                result = replace(source, destination, *args, **kwargs)
+                if Path(destination).name == books.JOURNAL:
+                    journal = root / books.JOURNAL
+                    before = journal.stat()
+                    with journal.open('r+b') as output:
+                        output.write(b'!')
+                    os.utime(journal, ns=(before.st_atime_ns, before.st_mtime_ns))
+                    changed.append(True)
+                return result
+            with patch.object(books.os, 'replace', side_effect=edit_after_replace):
+                with books.ensure_book_state(root), self.assertRaisesRegex(
+                        books.BookJournalPublicationUncertain, 'update is uncertain'):
+                    books.apply_book_state_locked(root, {'script.json': b'new'}, [])
+            self.assertEqual([True], changed)
+            self.assertTrue((root / books.JOURNAL).read_bytes().startswith(b'!'))
+            workspaces = list(root.glob('.book-switch-*'))
+            self.assertEqual(1, len(workspaces))
+            self.assertEqual(b'original', (workspaces[0] / 'old-0').read_bytes())
+            self.assertEqual(b'new', target.read_bytes())
+
+    def test_same_size_journal_edit_after_publication_is_preserved(self):
+        import source_upload_publication as publication
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            move = publication.move_source_upload_exclusively
+            def edit_after_move(*args, **kwargs):
+                result = move(*args, **kwargs)
+                journal = root / books.JOURNAL
+                before = journal.stat()
+                with journal.open('r+b') as output:
+                    output.write(b'!')
+                os.utime(journal, ns=(before.st_atime_ns, before.st_mtime_ns))
+                return result
+            with patch.object(publication, 'move_source_upload_exclusively',
+                              side_effect=edit_after_move):
+                with books.ensure_book_state(root), self.assertRaisesRegex(
+                        books.BookJournalPublicationUncertain, 'journal changed during publication'):
+                    books.apply_book_state_locked(root, {'script.json': b'new'}, [])
+            self.assertTrue((root / books.JOURNAL).read_bytes().startswith(b'!'))
+            workspaces = list(root.glob('.book-switch-*'))
+            self.assertEqual(1, len(workspaces))
+            self.assertEqual(b'new', (workspaces[0] / 'new-0').read_bytes())
+
     @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
     def test_aliased_book_root_is_rejected_before_creating_lock(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -89,7 +192,7 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
 
     @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
                          'POSIX directory descriptors required')
-    def test_failed_initial_journal_fsync_removes_the_owned_partial_file(self):
+    def test_failed_initial_journal_fsync_preserves_partial_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
@@ -108,6 +211,7 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             finally:
                 os.close(descriptor)
             self.assertFalse((root / books.JOURNAL).exists())
+            self.assertEqual(1, len(list(root.glob(books.JOURNAL + ".new-*"))))
 
     @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
                          'POSIX directory descriptors required')

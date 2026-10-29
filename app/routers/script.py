@@ -1431,7 +1431,12 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             if require_recovery and get_script_recovery_manifest() is None:
                 raise HTTPException(status_code=409, detail="Recovery checkpoint changed before start.")
             from script_selection_binding import capture_generation_selection
-            captured = capture_generation_selection(DATA_DIR, input_file)
+            try:
+                captured = capture_generation_selection(DATA_DIR, input_file)
+            except (OSError, ValueError) as error:
+                raise HTTPException(status_code=409, detail=(
+                    'The selected source or book could not be verified. '
+                    'Check the selection and try again; saved progress was preserved.')) from error
             if (not require_recovery and not (request is not None and request.start_over)
                     and os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))
                     and current_state.get('script_generation_selection') != captured):

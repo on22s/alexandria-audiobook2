@@ -20,6 +20,77 @@ def stream(data):
 
 
 class BookStateStreamingTests(unittest.TestCase):
+    @unittest.skipIf(os.name == 'nt', 'POSIX descriptor-relative cleanup')
+    def test_stream_cleanup_refuses_root_swap_after_open(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / 'book'
+            root.mkdir()
+            workspace = root / '.book-switch-fixture'
+            workspace.mkdir()
+            (workspace / 'old-0').write_bytes(b'protected')
+            original_open = os.open
+            supports = set(os.supports_dir_fd)
+            swapped = []
+            def open_then_swap(path, flags, *args, **kwargs):
+                descriptor = original_open(path, flags, *args, **kwargs)
+                if Path(path) == root and not swapped:
+                    root.rename(base / 'displaced')
+                    root.mkdir()
+                    swapped.append(True)
+                return descriptor
+            with patch.object(books, '_verify_stream_cleanup_targets'), \
+                 patch.object(books, '_require_book_journal_version'), \
+                 patch.object(books, '_validate_stream_workspace_for_cleanup', return_value={}), \
+                 patch.object(books.os, 'open', side_effect=open_then_swap) as mocked_open:
+                with patch.object(books.os, 'supports_dir_fd', supports | {mocked_open}):
+                    with self.assertRaisesRegex(ValueError, 'root changed'):
+                        books._cleanup_validated_stream_workspace(root, workspace, {}, None)
+            self.assertTrue(swapped)
+            self.assertEqual(b'protected', (base / 'displaced' / workspace.name / 'old-0').read_bytes())
+            self.assertEqual([], list(root.iterdir()))
+
+    def test_windows_cleanup_inventory_bounds_directory_enumeration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for index in range(8):
+                (root / str(index)).write_bytes(b'')
+            real_scandir = os.scandir
+            observed = []
+            class BoundedScan:
+                def __init__(self, path):
+                    self.scan = real_scandir(path)
+                def __enter__(self):
+                    return self
+                def __exit__(self, *args):
+                    self.scan.close()
+                def __iter__(self):
+                    for entry in self.scan:
+                        observed.append(entry.name)
+                        if len(observed) > 3:
+                            raise AssertionError('enumerated beyond limit plus one')
+                        yield entry
+            with patch.object(books, 'MAX_LEGACY_CLEANUP_ENTRIES', 2), \
+                 patch.object(books.os, 'scandir', side_effect=BoundedScan):
+                with self.assertRaisesRegex(ValueError, 'entry count'):
+                    books._capture_cleanup_tree_path(root)
+            self.assertEqual(3, len(observed))
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX descriptor-relative workspace creation')
+    def test_workspace_name_collision_preserves_existing_directory(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            existing = root / '.book-switch-fixture'
+            existing.mkdir()
+            with books.ensure_book_state(root), \
+                 patch.object(books.uuid, 'uuid4', return_value=SimpleNamespace(hex='fixture')):
+                with self.assertRaises(FileExistsError):
+                    books.apply_book_state_locked(root, {'file': stream(b'new')}, [], stream_byte_limit=100)
+            self.assertTrue(existing.is_dir())
+            self.assertEqual([], list(existing.iterdir()))
+            self.assertFalse((root / books.JOURNAL).exists())
+
     @unittest.skipIf(os.name == 'nt', 'POSIX parent identity evidence')
     def test_parent_identity_walk_honors_cancellation(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -290,14 +361,29 @@ class BookStateStreamingTests(unittest.TestCase):
                     books._capture_cleanup_tree_path(root)
 
     def test_stream_transaction_rejects_nested_replacement_and_removal_targets(self):
+        for replacement, removal in (('chapter', 'chapter/old.wav'), ('chapter/new.wav', 'chapter')):
+            with self.subTest(replacement=replacement), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = stream(b'new audio')
+                with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'conflicting paths'):
+                    books.apply_book_state_locked(root, {replacement: source}, [removal],
+                                                  stream_byte_limit=100)
+                self.assertEqual(0, source.stream.tell())
+                self.assertFalse((root / books.JOURNAL).exists())
+
+    def test_stream_recovery_rejects_journal_with_nested_targets(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            source = stream(b'new audio')
-            with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'conflicting paths'):
-                books.apply_book_state_locked(root, {'chapter': source}, ['chapter/old.wav'],
-                                              stream_byte_limit=100)
-            self.assertEqual(0, source.stream.tell())
-            self.assertFalse((root / books.JOURNAL).exists())
+            journal = root / books.JOURNAL
+            document = {'version': 2, 'phase': 'publishing', 'workspace': '.book-switch-fixture',
+                        'entries': [{'path': 'chapter/new.wav'}, {'path': 'chapter'}],
+                        'stream_limits': {'bytes': 100, 'entries': 10}}
+            journal.write_text(json.dumps(document), encoding='utf-8')
+            before = journal.read_bytes()
+            with self.assertRaisesRegex(ValueError, 'conflicting paths'):
+                with books.ensure_book_state(root):
+                    self.fail('Conflicting recovery targets were admitted')
+            self.assertEqual(before, journal.read_bytes())
 
     @unittest.skipIf(os.name == 'nt', 'directory descriptor semantics require POSIX qualification')
     def test_stream_staging_does_not_follow_replaced_workspace_name(self):
@@ -696,7 +782,7 @@ with b.ensure_book_state(root):
                 with self.assertRaises((ValueError, OSError)):
                     books.inspect_book_cleanup_workspace(root, byte_limit=1000, entry_limit=20)
             self.assertTrue(swapped[0])
-            self.assertNotIn('secret', visited)
+            self.assertFalse(any('secret' in Path(path).parts for path in visited))
             self.assertEqual(b'private', (other / 'secret').read_bytes())
 
     @unittest.skipUnless(os.scandir in os.supports_fd and os.open in os.supports_dir_fd,
@@ -724,7 +810,7 @@ with b.ensure_book_state(root):
                 with self.assertRaises((ValueError, OSError)):
                     books.inspect_book_cleanup_workspace(workspace, byte_limit=1000, entry_limit=20)
             self.assertTrue(swapped[0])
-            self.assertNotIn('secret', visited)
+            self.assertFalse(any('secret' in Path(path).parts for path in visited))
             self.assertEqual(b'private', (other / 'workspace' / 'secret').read_bytes())
 
     def test_cleanup_observation_rejects_duplicate_directory_names(self):
@@ -744,7 +830,10 @@ with b.ensure_book_state(root):
             with patch.object(books, '_cleanup_observation_open', wraps=books._cleanup_observation_open) as opened:
                 with self.assertRaisesRegex(ValueError, 'unsupported object'):
                     books.inspect_book_cleanup_workspace(workspace, byte_limit=1000, entry_limit=20)
-            self.assertFalse(any(call.args[0] == 'fifo' for call in opened.call_args_list))
+            names = [call.args[0] if call.args else call.kwargs.get('name')
+                     for call in opened.call_args_list]
+            self.assertFalse(any(name is not None and Path(os.fsdecode(name)).name == 'fifo'
+                                 for name in names))
             self.assertTrue(fifo.exists())
             fifo.unlink()
             (workspace / 'old-0').write_bytes(b'original')
