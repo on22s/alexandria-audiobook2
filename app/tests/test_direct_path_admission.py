@@ -104,6 +104,24 @@ class AdministratorAliasTests(unittest.TestCase):
         self.assertFalse(self.check(self.base / 'to-hop' / 'x'))
         self.assertFalse(self.check(self.base / 'through-hop' / 'x'))
 
+    def test_dot_dot_resolves_from_the_physical_directory_behind_an_alias(self):
+        # deep -> nest/inner, so deep/.. is nest physically, not base.
+        nest = self.target / 'nest'
+        (nest / 'inner').mkdir(parents=True)
+        os.chmod(nest, 0o777)
+        (nest / 'evil').symlink_to(self.target / 'book', target_is_directory=True)
+        (nest / 'inner' / 'link').symlink_to('../evil', target_is_directory=True)
+        (self.base / 'deep').symlink_to(nest / 'inner', target_is_directory=True)
+        self.assertFalse(self.check(self.base / 'deep' / 'link' / 'file'))
+        (self.target / 'up').mkdir()
+        self.assertFalse(self.check(self.alias / 'up' / '..' / 'book'))
+        self.assertTrue(self.check(self.target / 'up' / '..' / 'book'))
+
+    def test_administrator_alias_chain_is_followed(self):
+        (self.base / 'chain').symlink_to(self.alias, target_is_directory=True)
+        self.assertTrue(self.check(self.base / 'chain' / 'book'))
+        self.assertFalse(self.check(self.base / 'chain'))
+
     def test_non_directory_component_or_loop_under_an_alias_is_refused(self):
         (self.target / 'file').write_text('not a directory')
         (self.target / 'loop').symlink_to('loop')
@@ -137,6 +155,10 @@ class AdministratorAliasTests(unittest.TestCase):
                 self.alias / 'book' / 'take.wav', self.target / 'book'))
             with self.assertRaisesRegex(ValueError, 'inside the project'):
                 audio_take_history._ensure_plain_path(self.target / 'take.wav', self.alias / 'book')
+        # An unadmitted root cannot lend its resolved form to containment.
+        (self.fixture / 'user-root').symlink_to(self.target / 'book', target_is_directory=True)
+        with first, second, self.assertRaisesRegex(ValueError, 'aliases'):
+            audio_take_history._ensure_plain_path(self.target / 'book' / 'take.wav', self.fixture / 'user-root')
 
     def test_paths_without_aliases_keep_the_existing_rule(self):
         self.assertTrue(self.check(self.target / 'book'))

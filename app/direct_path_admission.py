@@ -36,6 +36,15 @@ def _is_administrator_controlled(link, info):
     return True
 
 
+def _is_plain_posix_spelling(path, depth):
+    """Check `path` as written; the kernel applies '..' after following aliases."""
+    if '..' in path.parts:
+        # Lexical normalization would skip an alias before '..', so only a
+        # spelling that no symlink changes is admitted.
+        return os.path.normcase(os.path.realpath(path)) == os.path.normcase(os.path.abspath(path))
+    return _is_plain_posix_path(Path(os.path.abspath(path)), depth)
+
+
 def _is_plain_posix_path(path, depth):
     """An admitted alias counts as its target spelled directly, so check that too."""
     if depth > MAX_ALIAS_DEPTH:
@@ -49,13 +58,16 @@ def _is_plain_posix_path(path, depth):
         except OSError:
             return False  # a file used as a directory, a loop or an unreadable entry
         if stat.S_ISLNK(info.st_mode):
-            if component == path or not _is_administrator_controlled(component, info):
+            # Only the requested path itself must not be a link; an alias
+            # target may be another administrator alias.
+            if (component == path and depth == 0) or not _is_administrator_controlled(component, info):
                 return False
             try:
-                target = Path(os.path.abspath(component.parent / os.readlink(component)))
+                # Relative targets resolve from the link's physical directory.
+                target = Path(os.path.realpath(component.parent)) / os.readlink(component)
             except OSError:
                 return False
-            if not _is_plain_posix_path(target, depth + 1):
+            if not _is_plain_posix_spelling(target, depth + 1):
                 return False
             admitted_alias = True
     if admitted_alias:
@@ -72,9 +84,9 @@ def is_plain_path(path):
     Missing trailing components are allowed for publication destinations.
     This is an admission observation, not protection against later swaps.
     """
-    path = Path(os.path.abspath(path))
     if os.name != 'nt':
-        return _is_plain_posix_path(path, 0)
+        return _is_plain_posix_spelling(Path(os.getcwd(), path), 0)
+    path = Path(os.path.abspath(path))
     for component in (*reversed(path.parents), path):
         try:
             info = component.lstat()

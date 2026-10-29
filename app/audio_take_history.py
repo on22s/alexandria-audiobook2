@@ -69,7 +69,7 @@ def _version(info):
 def _ensure_plain_path(path, root):
     from direct_path_admission import is_plain_path
     path = Path(os.path.abspath(path))
-    if not is_plain_path(path):
+    if not is_plain_path(path) or not is_plain_path(root):
         raise ValueError('Take history does not accept file or directory aliases.')
     # Admitted administrator aliases (#1659) resolve away; compare canonical forms.
     path = Path(os.path.realpath(path))
