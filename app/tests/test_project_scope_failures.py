@@ -64,13 +64,13 @@ def apply_operation(root, mode):
 def run_crash_child(root, mode, boundary):
     with admission(root):
         if boundary == 'committed':
-            transaction._finish_transaction = lambda *args:os._exit(73)
+            transaction._finish_transaction = lambda *args,**kwargs:os._exit(73)
         else:
             real = transaction._move
             count = 0
-            def crash_after_move(*args):
+            def crash_after_move(*args, **kwargs):
                 nonlocal count
-                result = real(*args); count += 1
+                result = real(*args, **kwargs); count += 1
                 if count == int(boundary):os._exit(73)
                 return result
             transaction._move = crash_after_move
@@ -87,7 +87,7 @@ class ScopeFailureTests(unittest.TestCase):
                     with admission(root):
                         if mode=='undo':apply_operation(root,'apply')
                         before=get_bytes(root)
-                        target='save_adapter_publication_bytes' if failure=='write' else '_move'
+                        target='_stage_book_stream' if failure=='write' else '_move'
                         original=getattr(transaction,target);count=0
                         def fail_once(*args,**kwargs):
                             nonlocal count

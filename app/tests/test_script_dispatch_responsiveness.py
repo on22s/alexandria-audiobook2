@@ -48,6 +48,9 @@ class ScriptDispatchResponsivenessTests(unittest.TestCase):
                     state=json.loads((root/'state.json').read_text());state['script_generation_input_file']=state['input_file_path']
                     state['script_generation_options']={'first_person_narrator':'ALEXIS'}
                     (root/'state.json').write_text(json.dumps(state))
+                    from script_selection_binding import capture_generation_selection
+                    state['script_generation_selection']=capture_generation_selection(str(root),state['input_file_path'])
+                    (root/'state.json').write_text(json.dumps(state))
                     Path(script.three_pass_manifest_path(script.SCRIPT_PATH)).write_text('{"status":"failed"}')
                 def slow(*args,**kwargs):
                     entered.set();release.wait(1);finished.set()

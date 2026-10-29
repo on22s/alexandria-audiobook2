@@ -12,6 +12,46 @@ from tests import test_script_recovery_transaction as transactions
 
 
 class ScriptRecoveryResponseTests(unittest.TestCase):
+    def test_legacy_retry_requires_current_explicit_confirmation_and_keeps_saved_options(self):
+        import core
+        with transactions.ScriptRecoveryTransactionTests().fixture() as (root, path):
+            source = root / 'source.txt'; source.write_text('Source for this book.')
+            (root / 'state.json').write_text(json.dumps({
+                'input_file_path': str(source), 'script_generation_input_file': str(source),
+                'script_generation_options': {'strip_front_matter': False}}))
+            api = FastAPI(); api.add_middleware(core.TaskClaimMiddleware); api.include_router(script.router)
+            calls = []
+            with TestClient(api) as client, patch.object(core, 'acquire_gpu_lock', return_value=None), \
+                    patch.object(script, 'build_generate_script_command', return_value=['stand-in']) as build, \
+                    patch.object(script, 'run_process', side_effect=lambda *args: calls.append(args)):
+                tokens = client.get('/api/generate_script/recovery').json()['legacy_confirmation']
+                self.assertEqual(409, client.post('/api/generate_script/retry', json={}).status_code)
+                checkpoint = Path(script.three_pass_checkpoint_path(path))
+                changed = json.loads(checkpoint.read_text()); changed['elapsed_s'] = {'segment': 1}
+                checkpoint.write_text(json.dumps(changed))
+                payload = {'legacy_checkpoint_token':tokens['checkpoint_token'],
+                           'legacy_book_token':tokens['book_token']}
+                self.assertEqual(409, client.post('/api/generate_script/retry', json=payload).status_code)
+                self.assertEqual([], calls)
+                tokens = client.get('/api/generate_script/recovery').json()['legacy_confirmation']
+                payload['legacy_checkpoint_token'] = tokens['checkpoint_token']
+                self.assertEqual(200, client.post('/api/generate_script/retry', json=payload).status_code)
+                self.assertFalse(build.call_args.kwargs['strip_front_matter'])
+                self.assertIn('--require-matching-checkpoint', calls[0][0])
+
+    def test_legacy_retry_confirmation_ui_requires_explicit_choice(self):
+        code = r"""
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const src=fs.readFileSync(process.argv[1],'utf8');let posts=[],confirm=false;
+const buttons={};for(const id of ['btn-gen-script','btn-retry-script','btn-cancel-script','btn-pause-script']) buttons[id]={disabled:false,style:{}};
+const ctx={window:{},document:{getElementById:id=>buttons[id]},API:{get:async()=>({legacy_confirmation:{checkpoint_token:'a'.repeat(64),book_token:'b'.repeat(64)}}),post:async(path,data)=>posts.push({path,data})},showConfirm:async()=>confirm,_resetPauseBtn:()=>{},pollScriptLogs:()=>{},refreshScriptRecovery:()=>{},showActionError:()=>{},scriptBatchPoller:null};vm.createContext(ctx);
+vm.runInContext(src.slice(src.indexOf('window.retryScriptGeneration ='),src.indexOf('// --- Script Batch Mode ---')),ctx);
+(async()=>{await ctx.window.retryScriptGeneration();assert.equal(posts.length,0);confirm=true;await ctx.window.retryScriptGeneration();assert.equal(posts.length,1);assert.equal(posts[0].data.legacy_checkpoint_token,'a'.repeat(64));assert.equal(posts[0].data.legacy_book_token,'b'.repeat(64));})().catch(e=>{console.error(e);process.exit(1)});
+"""
+        source = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
+        result = subprocess.run(['node', '-e', code, str(source)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_native_recovery_renderer_leads_with_choices_and_retains_diagnostics(self):
         code = r"""
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
@@ -105,8 +145,8 @@ ctx.renderScriptRecovery(null);assert.strictEqual(panel.innerHTML,'');assert.str
             entered, release, read = threading.Event(), threading.Event(), threading.Event()
             errors, responses = [], []
             actual_move = transactions.books._move
-            def move(source, destination):
-                result = actual_move(source, destination)
+            def move(source, destination, **kwargs):
+                result = actual_move(source, destination, **kwargs)
                 if str(destination) == script.three_pass_checkpoint_path(path):
                     entered.set()
                     if not release.wait(5):

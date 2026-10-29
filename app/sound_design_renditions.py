@@ -207,22 +207,27 @@ def validate_sound_rendition_consumers(document, registry):
             raise ValueError('Consuming cue asset differs from its rendition master')
 
 
-def capture_sound_design_companions(root, cue_relative, rendition_relative, *, expected_book_id=None):
+def capture_sound_design_companions(root, cue_relative, rendition_relative, *, expected_book_id=None,
+                                    cancel_check=None):
     """Capture both optional companions under one existing book admission.
 
     Unknown/malformed or incomplete provenance is refused before callers replace
     or clear either companion. Exact captured bytes are preserved across copies.
     """
     from book_state_transaction import is_book_state_admitted
+    from audio_take_history import _check_cancelled
     from project_scope_files import capture_scope_file
     from sound_design_registry import get_sound_design_registry, MAX_REGISTRY_BYTES
     if not is_book_state_admitted(root):
         raise ValueError('Book admission is required for sound-design companions')
+    _check_cancelled(cancel_check)
     _cue_proof, cue_raw = capture_scope_file(root, cue_relative,
-        limit=MAX_REGISTRY_BYTES, include_bytes=True)
+        limit=MAX_REGISTRY_BYTES, include_bytes=True, cancel_check=cancel_check)
     _ledger_proof, ledger_raw = capture_scope_file(root, rendition_relative,
-        limit=MAX_RENDITION_BYTES, include_bytes=True)
+        limit=MAX_RENDITION_BYTES, include_bytes=True, cancel_check=cancel_check)
+    _check_cancelled(cancel_check)
     cues = get_sound_design_registry(cue_raw) if cue_raw is not None else None
+    _check_cancelled(cancel_check)
     ledger = get_sound_rendition_ledger(ledger_raw) if ledger_raw is not None else None
     if expected_book_id is not None:
         if ((cues is not None and cues['book']['book_id'] != expected_book_id)
@@ -236,6 +241,7 @@ def capture_sound_design_companions(root, cue_relative, rendition_relative, *, e
             raise ValueError('Rendition history requires its retained cue source')
     else:
         validate_sound_rendition_consumers(ledger, cues)
+    _check_cancelled(cancel_check)
     return cue_raw, ledger_raw
 
 

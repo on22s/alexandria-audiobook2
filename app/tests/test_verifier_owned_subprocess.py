@@ -111,7 +111,13 @@ class OwnedNoticeContractTests(unittest.TestCase):
         from types import SimpleNamespace
         import subprocess_ownership as ownership
         import windows_subprocess_owner as windows
-        job = SimpleNamespace(handle=123, get_active_process_count=lambda: 2,
+        from windows_subprocess_job import WindowsJobClosedError
+
+        def count():
+            if job.handle is None:
+                raise WindowsJobClosedError('Windows job is already closed')
+            return 2
+        job = SimpleNamespace(handle=123, get_active_process_count=count,
                               request_termination=lambda pid, grace: requests.append((pid, grace)))
         requests = []
         process = SimpleNamespace(pid=9001, poll=lambda: 3)

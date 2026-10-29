@@ -12,6 +12,18 @@ import three_pass_generate as tp
 
 
 class InstructionDiagnosticResumeTests(unittest.TestCase):
+    def test_explicit_retry_without_matching_checkpoint_refuses_before_inference(self):
+        from tests.test_three_pass_checkpoint_recovery import delivery_client
+        with tempfile.TemporaryDirectory() as tmp:
+            output = str(Path(tmp) / 'active.json')
+            params = LLMGenParams(max_tokens=500, segmentation='llm')
+            with patch.object(tp, 'segment_chunk') as segment:
+                with self.assertRaisesRegex(RuntimeError, 'checkpoint does not match'):
+                    tp.run_three_pass(delivery_client(), 'fixture', 'First narration.', params,
+                                      3000, output_path=output, require_matching_checkpoint=True)
+            segment.assert_not_called()
+            self.assertFalse(Path(tp.three_pass_manifest_path(output)).exists())
+
     def test_legacy_record_only_and_marker_only_checkpoints_retry_the_failed_row(self):
         from tests.test_three_pass_checkpoint_recovery import delivery_client
         source = 'First narration. Second narration.'

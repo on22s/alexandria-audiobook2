@@ -1,5 +1,6 @@
 """Verify CLI sample/full execution policy and real planning prompt construction."""
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -18,6 +19,105 @@ if os.environ.get('THREE_PASS_CLI_SOURCE'):
 
 
 class ThreePassCliSettingsTests(unittest.TestCase):
+    def test_invalid_active_identity_fails_before_client_creation(self):
+        argv = ['three_pass_generate', 'book.txt', '--active-book-token', 'invalid',
+                '--active-source-sha256', 'a' * 64]
+        with patch.object(tp.sys, 'argv', argv), patch.object(tp, 'make_run_client') as client:
+            with self.assertRaises(SystemExit):
+                tp.main()
+            client.assert_not_called()
+
+    def test_captured_source_hash_matches_the_bytes_used_for_preparation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'source.txt'
+            source.write_bytes(b'Alice arrived.')
+            captured = hashlib.sha256(source.read_bytes()).hexdigest()
+            source.write_bytes(b'Alice left instead.')
+            with self.assertRaisesRegex(ValueError, 'changed before it was read'):
+                tp.get_prepared_source(str(source), expected_source_sha256=captured)
+            source.write_bytes(b'Alice arrived.')
+            text, _ = tp.get_prepared_source(str(source), expected_source_sha256=captured)
+            self.assertEqual('Alice arrived.', text)
+
+    @unittest.skipUnless(hasattr(os, 'mkfifo') and hasattr(os, 'O_NONBLOCK'),
+                         'requires POSIX FIFO')
+    def test_literal_cli_rejects_fifo_without_unbounded_hash_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'source.txt'
+            os.mkfifo(source)
+            with patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
+                                               '--literal-source-preserving']), \
+                 patch.object(tp, 'make_run_client') as client:
+                with self.assertRaises(ValueError):
+                    tp.main()
+            client.assert_not_called()
+
+    def test_active_cli_publishes_script_binding_and_manifest_as_one_book(self):
+        from script_selection_binding import capture_generation_selection, BINDING_NAME
+        config = {'llm_mode':'local', 'llm_local':{'model_name':'fixture', 'base_url':'http://fixture/v1'},
+                  'generation':{'max_tokens':4096}}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source.txt'
+            source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+            (root / 'state.json').write_text(json.dumps({'active_book_id':'a', 'book_generation':'one',
+                'input_file_path':str(source), 'script_selection_pending':True, 'script_generation_run_id':'f'*32}))
+            (root / 'annotated_script.json').write_text('[{"text":"old"}]')
+            state = json.loads((root / 'state.json').read_text()); state['script_generation_base_sha256'] = hashlib.sha256((root / 'annotated_script.json').read_bytes()).hexdigest()
+            (root / 'state.json').write_text(json.dumps(state))
+            (root / 'chunks.json').write_text('[{"text":"old chunk"}]')
+            selection = capture_generation_selection(tmp, str(source))
+            def run(client, model, text, params, chunk_size, **kwargs):
+                self.assertTrue(kwargs['defer_final_publication'])
+                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text('{"status":"publishing"}')
+                return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+            argv = ['three_pass_generate', str(source), '--active-book-token', selection['book_token'],
+                    '--active-source-sha256', selection['source_sha256'], '--active-run-id', 'f'*32]
+            with patch.object(tp.sys, 'argv', argv), patch.object(tp, 'get_runtime_data_dir', return_value=tmp), \
+                 patch.object(tp, 'load_app_config', return_value=config), \
+                 patch.object(tp, 'ensure_ideal_settings', return_value=(None, {'context_length':32768}, 'fixture')), \
+                 patch.object(tp, 'make_run_client', return_value=object()), \
+                 patch.object(tp, 'run_three_pass', side_effect=run):
+                tp.main()
+            self.assertEqual('complete', json.loads((root / 'annotated_script.json.threepass_manifest.json').read_text())['status'])
+            self.assertEqual('Alice stood beside the garden gate.', json.loads((root / 'annotated_script.json').read_text())[0]['text'])
+            self.assertTrue((root / BINDING_NAME).exists())
+            self.assertNotIn('script_selection_pending', json.loads((root / 'state.json').read_text()))
+            self.assertFalse((root / 'chunks.json').exists())
+
+    def test_active_cli_preserves_prior_script_if_source_changes_during_run(self):
+        from script_selection_binding import capture_generation_selection, BINDING_NAME
+        config = {'llm_mode':'local', 'llm_local':{'model_name':'fixture', 'base_url':'http://fixture/v1'},
+                  'generation':{'max_tokens':4096}}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); source = root / 'source.txt'
+            source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+            (root / 'state.json').write_text(json.dumps({'active_book_id':'a', 'book_generation':'one',
+                'input_file_path':str(source), 'script_selection_pending':True, 'script_generation_run_id':'f'*32}))
+            (root / 'annotated_script.json').write_text('[{"text":"old"}]')
+            state = json.loads((root / 'state.json').read_text()); state['script_generation_base_sha256'] = hashlib.sha256((root / 'annotated_script.json').read_bytes()).hexdigest()
+            (root / 'state.json').write_text(json.dumps(state))
+            (root / 'chunks.json').write_text('[{"text":"old chunk"}]')
+            selection = capture_generation_selection(tmp, str(source))
+            def run(client, model, text, params, chunk_size, **kwargs):
+                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text('{"status":"publishing"}')
+                source.write_text('A different source was selected.', encoding='utf-8')
+                return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+            argv = ['three_pass_generate', str(source), '--active-book-token', selection['book_token'],
+                    '--active-source-sha256', selection['source_sha256'], '--active-run-id', 'f'*32]
+            with patch.object(tp.sys, 'argv', argv), patch.object(tp, 'get_runtime_data_dir', return_value=tmp), \
+                 patch.object(tp, 'load_app_config', return_value=config), \
+                 patch.object(tp, 'ensure_ideal_settings', return_value=(None, {'context_length':32768}, 'fixture')), \
+                 patch.object(tp, 'make_run_client', return_value=object()), \
+                 patch.object(tp, 'run_three_pass', side_effect=run):
+                with self.assertRaisesRegex(ValueError, 'source changed'):
+                    tp.main()
+            self.assertEqual('[{"text":"old"}]', (root / 'annotated_script.json').read_text())
+            self.assertEqual('[{"text":"old chunk"}]', (root / 'chunks.json').read_text())
+            self.assertFalse((root / BINDING_NAME).exists())
+            self.assertTrue(json.loads((root / 'state.json').read_text())['script_selection_pending'])
+            self.assertEqual('publishing', json.loads((root / 'annotated_script.json.threepass_manifest.json').read_text())['status'])
+
     def run_cli(self, tmp, config, preflight, extra):
         source = Path(tmp) / 'source.txt'
         source.write_text('Alice stood. "Yes." Alice smiled. "No." Alice left. "Goodbye."', encoding='utf-8')

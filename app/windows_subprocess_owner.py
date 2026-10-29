@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 from json_metadata import get_unique_json_object
@@ -51,11 +52,19 @@ def read_windows_owner_message(path):
     return message
 
 
+def _serialize_owner_close(method):
+    def guarded(self):
+        with self._close_lock:
+            return method(self)
+    return guarded
+
+
 class WindowsOwnerControl:
     def __init__(self, job, process, directory, termination_grace=None):
         self.job = job
         self.process = process
         self.directory = directory
+        self._close_lock = threading.Lock()
         from subprocess_ownership import SUBPROCESS_TERMINATE_GRACE_SECONDS
         self.termination_grace = (SUBPROCESS_TERMINATE_GRACE_SECONDS if termination_grace is None
                                   else termination_grace)
@@ -68,6 +77,7 @@ class WindowsOwnerControl:
     def terminate(self):
         self.job.terminate()
 
+    @_serialize_owner_close
     def close(self):
         if self.job.handle is None:
             return

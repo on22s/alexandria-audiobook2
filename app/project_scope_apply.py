@@ -9,10 +9,12 @@ from project_scope_plan import get_scope_preview
 from project_scope_admission import is_scope_admitted
 from project_scope_assets import get_scope_asset_snapshot
 from project_scope_exports import get_scope_export_inventory
+from script_selection_binding import BINDING_NAME, binding_for_controlled_edit
 
 UNDO = '.project_scope_undo.json'
-FILES = ('state.json', 'annotated_script.json', 'voice_config.json', 'chunks.json',
-         'chunks.json.status.jsonl')
+LEGACY_FILES = ('state.json', 'annotated_script.json', 'voice_config.json', 'chunks.json',
+                'chunks.json.status.jsonl')
+FILES = (*LEGACY_FILES, BINDING_NAME)
 
 
 def _encode(value):
@@ -102,7 +104,9 @@ def apply_source_scope(root, start_entry, expected_revision):
     after = {'state.json': _encode(state), 'annotated_script.json': _encode(plan['selected_script']),
              'voice_config.json': _encode(plan['voices']['voices']),
              'chunks.json': _encode(plan['selected_chunks']), 'chunks.json.status.jsonl': None}
-    undo = {'version': 1, 'book_token': plan['book_token'], 'preview_revision': plan['revision'],
+    after[BINDING_NAME] = binding_for_controlled_edit(
+        root, before['annotated_script.json'], after['annotated_script.json'])
+    undo = {'version': 2, 'book_token': plan['book_token'], 'preview_revision': plan['revision'],
             'before': {name: base64.b64encode(raw).decode('ascii') if raw is not None else None
                        for name, raw in before.items()},
             'before_sha256': {name: _digest(raw) for name, raw in before.items()},
@@ -132,13 +136,19 @@ def _get_undo(root):
     undo = json.loads(raw)
     if (not isinstance(undo, dict) or set(undo) != {'version','book_token','preview_revision',
                 'before','before_sha256','after','guards','voice_artifacts','exports'}
-            or type(undo.get('version')) is not int or undo['version'] != 1
-            or not isinstance(undo.get('before'), dict) or set(undo['before']) != set(FILES)
-            or not isinstance(undo.get('before_sha256'), dict) or set(undo['before_sha256']) != set(FILES)
-            or not isinstance(undo.get('after'), dict) or set(undo['after']) != set(FILES)):
+            or type(undo.get('version')) is not int or undo['version'] not in (1, 2)):
         raise ValueError('Source-scope undo record needs inspection.')
+    record_files = LEGACY_FILES if undo['version'] == 1 else FILES
+    if (not isinstance(undo.get('before'), dict) or set(undo['before']) != set(record_files)
+            or not isinstance(undo.get('before_sha256'), dict) or set(undo['before_sha256']) != set(record_files)
+            or not isinstance(undo.get('after'), dict) or set(undo['after']) != set(record_files)):
+        raise ValueError('Source-scope undo record needs inspection.')
+    if undo['version'] == 1:
+        binding_proof, _ = capture_scope_file(root, BINDING_NAME)
+        if binding_proof['exists']:
+            raise ValueError('A newer script binding exists; legacy undo was preserved for inspection.')
     before = {}
-    for name in FILES:
+    for name in record_files:
         _current, current = capture_scope_file(root, name, include_bytes=True)
         if _digest(current) != undo['after'][name]:
             raise ValueError('Project changed after scope apply; exact undo was preserved for inspection.')
@@ -160,7 +170,7 @@ def _get_undo(root):
 def get_source_scope_undo_preview(root):
     """Bind the exact undo record after checking current metadata/artifacts."""
     proof, undo, _before = _get_undo(root)
-    return {'revision': proof['sha256'], 'book_token': undo['book_token'], 'restores': list(FILES)}
+    return {'revision': proof['sha256'], 'book_token': undo['book_token'], 'restores': list(_before)}
 
 
 def get_source_scope_undo_status(root):

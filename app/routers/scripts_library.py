@@ -1,3 +1,4 @@
+from book_state_transaction import ensure_saved_book_state
 from chunk_status_journal import get_chunk_status_journal_path
 from generation_checkpoint_shards import get_generation_checkpoint_artifacts
 import hashlib
@@ -41,6 +42,12 @@ from generate_script import get_generation_checkpoint_path, get_generation_quali
 from three_pass_generate import three_pass_checkpoint_path, three_pass_manifest_path
 from script_preflight import audit_script
 from script_repair import build_deterministic_repair
+from script_selection_binding import (BINDING_NAME, MAX_BINDING_BYTES,
+    capture_generation_selection, check_binding_source, parse_script_binding,
+    make_script_selection_binding, updated_saved_binding, _read_selection_state,
+    saved_script_is_active_source)
+from editor_poll_snapshot import get_snapshot_digest
+from completed_review_receipt import get_review_entries_fingerprint
 from speaker_repair import apply_speaker_selections, build_speaker_review
 from content_repair import apply_content_selections, build_content_review
 from utils import (atomic_json_write, backup_file_with_timestamp, file_lock,
@@ -55,6 +62,7 @@ from sound_design_renditions import (ACTIVE_RENDITIONS, get_saved_sound_renditio
 
 logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
+MAX_SCRIPT_BYTES = 512 * 1024**2
 
 
 def _get_saved_book_companions(path):
@@ -64,6 +72,7 @@ def _get_saved_book_companions(path):
         stem + ".voice_config.json", stem + ".meta.json",
         get_saved_sound_design_path(path), get_saved_sound_renditions_path(path),
         get_publication_source_path(path),
+        stem + '.selection_binding.json',
         get_review_receipt_path(path),
         *get_generation_checkpoint_artifacts(_checkpoint_path(path)),
         *get_generation_checkpoint_artifacts(get_generation_checkpoint_path(path)),
@@ -112,6 +121,19 @@ def _validate_sound_destination(root, relative, *, limit):
             'Sound-design destination requires inspection; existing book files were preserved.')) from None
 
 
+@contextlib.contextmanager
+def _saved_mutation_admission():
+    """Do not wait for a book lock while holding the task mutex."""
+    with contextlib.ExitStack() as admission:
+        try:
+            admission.enter_context(_gpu_lock)
+            admission.enter_context(ensure_book_state(DATA_DIR, timeout=0.25))
+            admission.enter_context(ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, timeout=0.25))
+        except TimeoutError as error:
+            raise HTTPException(status_code=409, detail='Book is busy; try again.') from error
+        yield
+
+
 def _require_saved_book_idle():
     busy = [name for name in ("script", "review", "persona", "nicknames",
                              "batch_script", "batch_review")
@@ -150,7 +172,7 @@ def _build_saved_scripts_list():
 
 def _list_saved_scripts_sync():
     try:
-        with ensure_book_state(SCRIPTS_DIR, recover=False):
+        with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, recover=False):
             return _build_saved_scripts_list()
     except (OSError, ValueError, TypeError) as error:
         raise HTTPException(status_code=409, detail=(
@@ -202,48 +224,189 @@ def validate_book_json_bytes(raw, expected_type, status_code, label):
         raise HTTPException(status_code=status_code, detail=f"{label} must contain {shape}.")
 
 
+def _saved_repair_binding(path, old_bytes, new_bytes):
+    """Carry an existing, verified saved binding across an admitted repair."""
+    companion = os.path.splitext(path)[0] + '.selection_binding.json'
+    try:
+        _, raw = capture_scope_file(SCRIPTS_DIR, os.path.basename(companion),
+                                    limit=MAX_BINDING_BYTES, include_bytes=True)
+        if raw is None and saved_script_is_active_source(DATA_DIR, path):
+            _, active_binding = capture_scope_file(DATA_DIR, BINDING_NAME,
+                                                    limit=MAX_BINDING_BYTES, include_bytes=True)
+            state = _read_selection_state(DATA_DIR, required=False)
+            if active_binding is not None or state.get('script_binding_required') is True:
+                raise ValueError('Active saved-script binding is missing')
+        return updated_saved_binding(raw, old_bytes, new_bytes)
+    except (OSError, ValueError, TypeError, RecursionError) as error:
+        raise HTTPException(status_code=409, detail='Saved script identity requires inspection; repair was not applied.') from error
+
+
+def _publish_saved_repair(path, entries):
+    if saved_script_is_active_source(DATA_DIR, path):
+        raise HTTPException(status_code=409, detail=(
+            'This saved book is currently loaded; switch books before repairing it.'))
+    try:
+        _, old = capture_scope_file(SCRIPTS_DIR, os.path.basename(path),
+                                    limit=MAX_SCRIPT_BYTES, include_bytes=True)
+        if old is None:
+            raise ValueError('Saved script disappeared')
+    except (OSError, ValueError) as error:
+        raise HTTPException(status_code=409, detail=(
+            'Saved script identity requires inspection; repair was not applied.')) from error
+    new = json.dumps(entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
+    binding = _saved_repair_binding(path, old, new)
+    backup = get_timestamped_backup_path(path)
+    if os.path.lexists(backup):
+        raise HTTPException(status_code=409, detail='Repair backup already exists; retry the repair.')
+    replacements = {os.path.basename(path):new, os.path.basename(backup):old}
+    if binding is not None:
+        replacements[os.path.basename(os.path.splitext(path)[0] + '.selection_binding.json')] = binding
+    apply_book_state_locked(SCRIPTS_DIR, replacements, [])
+    return backup
+
+
 def _save_script_sync(request):
     safe_name = _require_saved_book_name(request.name)
     dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
-    with ensure_saved_book_destination_available(dest), ensure_book_state(DATA_DIR), ensure_book_state(SCRIPTS_DIR), contextlib.ExitStack() as locks:
-        for path in (dest, SCRIPT_PATH, VOICE_CONFIG_PATH, *_get_saved_book_companions(dest)):
+    with ensure_saved_book_destination_available(dest), ensure_book_state(DATA_DIR), ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR), contextlib.ExitStack() as locks:
+        for path in (dest, SCRIPT_PATH, VOICE_CONFIG_PATH, os.path.join(DATA_DIR, BINDING_NAME),
+                     get_review_receipt_path(SCRIPT_PATH),
+                     *_get_saved_book_companions(dest)):
             locks.enter_context(file_lock(path))
         if not os.path.isfile(SCRIPT_PATH):
             raise HTTPException(status_code=404, detail="No annotated script to save. Generate a script first.")
-        script_bytes = Path(SCRIPT_PATH).read_bytes()
-        if request.expected_book_token is not None:
-            if get_book_operation_token(DATA_DIR) != request.expected_book_token:
-                raise HTTPException(status_code=409, detail="Active book changed; reopen Save Current before saving")
+        try:
+            _, script_bytes = capture_scope_file(DATA_DIR, os.path.relpath(SCRIPT_PATH, DATA_DIR),
+                                                 limit=MAX_SCRIPT_BYTES, include_bytes=True)
+            if script_bytes is None:
+                raise ValueError('Active script disappeared during save')
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=(
+                'Active script requires inspection; existing files were preserved.')) from error
         validate_book_json_bytes(script_bytes, list, 422, "Active script")
-        book_id = get_active_book_id() or safe_name
+        try:
+            active_state = _read_selection_state(DATA_DIR, required=False)
+        except (OSError, ValueError, TypeError, RecursionError) as error:
+            raise HTTPException(status_code=409, detail=(
+                'Book state requires inspection; existing files were preserved.')) from error
+        if request.expected_book_token is not None:
+            if get_book_operation_token(DATA_DIR, state=active_state) != request.expected_book_token:
+                raise HTTPException(status_code=409, detail="Active book changed; reopen Save Current before saving")
+        if (not isinstance(active_state, dict)
+                or ('script_selection_pending' in active_state
+                    and active_state['script_selection_pending'] is not False)):
+            raise HTTPException(status_code=409, detail=(
+                'The selected source does not yet have a published script. '
+                'Finish generation or load a saved script before saving.'))
+        try:
+            _, binding_raw = capture_scope_file(DATA_DIR, BINDING_NAME,
+                                               limit=MAX_BINDING_BYTES, include_bytes=True)
+            if ('script_binding_required' in active_state
+                    and type(active_state['script_binding_required']) is not bool):
+                raise ValueError('Invalid script binding requirement')
+            if binding_raw is None and active_state.get('script_binding_required') is True:
+                raise ValueError('Required script binding is missing')
+            if binding_raw is not None:
+                selected = capture_generation_selection(DATA_DIR, active_state.get('input_file_path'))
+                published_script_hash = check_binding_source(binding_raw, selected['book_token'],
+                    selected['source_sha256'], source_path=selected['source_path'])
+                if hashlib.sha256(script_bytes).hexdigest() != published_script_hash:
+                    raise ValueError('Changed script has no verified edit provenance')
+                if parse_script_binding(binding_raw)['published_entries_sha256'] != get_review_entries_fingerprint(json.loads(script_bytes)):
+                    raise ValueError('Script binding entry fingerprint is inconsistent')
+        except (OSError, ValueError, TypeError, RecursionError) as error:
+            raise HTTPException(status_code=409, detail=(
+                'The selected source or script identity changed; existing files were preserved.')) from error
+        book_id = get_active_book_id(state=active_state) or safe_name
         cue_bytes, rendition_bytes = _capture_sound_companions(DATA_DIR, ACTIVE_CUES, ACTIVE_RENDITIONS, book_id)
         _validate_sound_destination(SCRIPTS_DIR, os.path.basename(get_saved_sound_design_path(dest)), limit=MAX_REGISTRY_BYTES)
         _validate_sound_destination(SCRIPTS_DIR, os.path.basename(get_saved_sound_renditions_path(dest)), limit=MAX_RENDITION_BYTES)
         meta = {"book_id": book_id}
-        active_state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), default={})
         if isinstance(active_state, dict) and active_state.get(DATE_ORDER_KEY) in DATE_ORDER_CHOICES:
             meta[DATE_ORDER_KEY] = active_state[DATE_ORDER_KEY]
         replacements = {os.path.basename(dest): script_bytes,
             f"{safe_name}.meta.json": json.dumps(meta).encode("utf-8")}
+        if binding_raw is not None:
+            replacements[f'{safe_name}.selection_binding.json'] = binding_raw
         if cue_bytes is not None:
             replacements[os.path.basename(get_saved_sound_design_path(dest))] = cue_bytes
         if rendition_bytes is not None:
             replacements[os.path.basename(get_saved_sound_renditions_path(dest))] = rendition_bytes
-        source_state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), default={})
         try:
-            publication = get_saved_publication_source_bytes(source_state.get('input_file_path'), script_bytes)
+            publication = get_saved_publication_source_bytes(active_state.get('input_file_path'), script_bytes)
         except (OSError, ValueError) as error:
             raise HTTPException(status_code=409, detail=f'Publication provenance cannot be saved: {error}') from error
         if publication is not None:
             replacements[os.path.basename(get_publication_source_path(dest))] = publication
         voice_name = f"{safe_name}.voice_config.json"
-        if os.path.isfile(VOICE_CONFIG_PATH):
-            voice_bytes = Path(VOICE_CONFIG_PATH).read_bytes()
+        if os.path.lexists(VOICE_CONFIG_PATH):
+            try:
+                _, voice_bytes = capture_scope_file(
+                    DATA_DIR, os.path.relpath(VOICE_CONFIG_PATH, DATA_DIR),
+                    limit=MAX_SCRIPT_BYTES, include_bytes=True)
+                if voice_bytes is None:
+                    raise ValueError('Active voices disappeared')
+            except (OSError, ValueError) as error:
+                raise HTTPException(status_code=409, detail=(
+                    'Active voices require inspection; existing files were preserved.')) from error
             validate_book_json_bytes(voice_bytes, dict, 422, "Active voices")
             replacements[voice_name] = voice_bytes
         removals = [os.path.basename(path) for path in _get_saved_book_companions(dest)
                     if os.path.basename(path) not in replacements]
-        apply_book_state_locked(SCRIPTS_DIR, replacements, removals)
+        source_path = active_state.get('input_file_path')
+        saving_active_source = False
+        if binding_raw is not None and isinstance(source_path, str):
+            try:
+                saving_active_source = os.path.samefile(source_path, dest)
+                if saving_active_source:
+                    # A case-insensitive filesystem may accept two spellings
+                    # for one directory entry even when normcase is a no-op
+                    # (as on macOS). Multiple hard links may be different entries:
+                    # replacing one would leave the selected source unchanged.
+                    if (os.path.islink(source_path) or os.path.islink(dest)
+                            or os.stat(source_path).st_nlink != 1
+                            or os.stat(dest).st_nlink != 1):
+                        raise HTTPException(status_code=409, detail=(
+                            'Saved source has an ambiguous path alias; check the current state before retrying.'))
+            except FileNotFoundError as error:
+                # A new saved name cannot yet be the selected existing file.
+                if os.path.lexists(dest) or not os.path.isfile(source_path):
+                    raise HTTPException(status_code=409, detail=(
+                        'Could not verify the saved source identity; check the current state before retrying.')) from error
+                saving_active_source = False
+            except OSError as error:
+                raise HTTPException(status_code=409, detail=(
+                    'Could not verify the saved source identity; check the current state before retrying.')) from error
+        if saving_active_source:
+            # The selected source is the saved script itself. Update the active
+            # binding and saved family in one recoverable transaction, otherwise
+            # replacing the source leaves the active identity stale on next save.
+            # The saved binding describes the original source, not the loaded
+            # copy's self-reference. Advance it only from its verified old bytes.
+            try:
+                _, old_saved = capture_scope_file(SCRIPTS_DIR, os.path.basename(dest),
+                                                   limit=MAX_SCRIPT_BYTES, include_bytes=True)
+                _, old_saved_binding = capture_scope_file(
+                    SCRIPTS_DIR, f'{safe_name}.selection_binding.json',
+                    limit=MAX_BINDING_BYTES, include_bytes=True)
+                if old_saved is None or old_saved_binding is None:
+                    raise ValueError('Saved source or binding is missing')
+                saved_binding = updated_saved_binding(old_saved_binding, old_saved, script_bytes)
+            except (OSError, ValueError, TypeError, RecursionError) as error:
+                raise HTTPException(status_code=409, detail=(
+                    'Saved script identity requires inspection; existing files were preserved.')) from error
+            updated = make_script_selection_binding(get_book_operation_token(DATA_DIR, state=active_state),
+                hashlib.sha256(script_bytes).hexdigest(), script_bytes, source_path=source_path)
+            updated_raw = json.dumps(updated, sort_keys=True, separators=(',', ':')).encode()
+            replacements[f'{safe_name}.selection_binding.json'] = saved_binding
+            relative = lambda path: os.path.relpath(path, DATA_DIR).replace(os.sep, '/')
+            root_replacements = {relative(os.path.join(SCRIPTS_DIR, name)): value
+                                 for name, value in replacements.items()}
+            root_replacements[BINDING_NAME] = updated_raw
+            root_removals = [relative(os.path.join(SCRIPTS_DIR, name)) for name in removals]
+            apply_book_state_locked(DATA_DIR, root_replacements, root_removals)
+        else:
+            apply_book_state_locked(SCRIPTS_DIR, replacements, removals)
     logger.info(f"Script saved as '{safe_name}'")
     return {"status": "saved", "name": safe_name}
 
@@ -274,7 +437,11 @@ def _load_script_sync(request: ScriptLoadRequest):
 
     # The durable book transaction protects the entire switch, including old
     # exports and recovery sidecars, rather than publishing unrelated copies.
-    with ensure_book_switch_allowed(), ensure_book_state(DATA_DIR, timeout=0), ensure_book_state(SCRIPTS_DIR), file_lock(src), file_lock(SCRIPT_PATH), file_lock(VOICE_CONFIG_PATH), file_lock(CHUNKS_PATH):
+    with (ensure_book_switch_allowed(), ensure_book_state(DATA_DIR, timeout=0.25),
+          ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, timeout=0.25),
+          file_lock(src, timeout=0.25), file_lock(SCRIPT_PATH, timeout=0.25),
+          file_lock(VOICE_CONFIG_PATH, timeout=0.25), file_lock(CHUNKS_PATH, timeout=0.25),
+          file_lock(os.path.join(DATA_DIR, BINDING_NAME), timeout=0.25)):
         if not os.path.isfile(src):
             raise HTTPException(status_code=404, detail=f"Saved script '{request.name}' not found.")
         _require_saved_book_idle()
@@ -284,8 +451,30 @@ def _load_script_sync(request: ScriptLoadRequest):
         if busy:
             raise HTTPException(status_code=409,
                 detail=f"Cannot load a script while these tasks are running: {', '.join(busy)}.")
-        script_bytes = Path(src).read_bytes()
+        try:
+            _, script_bytes = capture_scope_file(SCRIPTS_DIR, os.path.basename(src),
+                                                 limit=MAX_SCRIPT_BYTES, include_bytes=True)
+            if script_bytes is None:
+                raise ValueError('Saved script disappeared')
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=(
+                'Saved script identity requires inspection; existing files were preserved.')) from error
         validate_book_json_bytes(script_bytes, list, 400, "Saved script")
+        saved_binding_path = os.path.splitext(src)[0] + '.selection_binding.json'
+        try:
+            _, saved_binding_raw = capture_scope_file(SCRIPTS_DIR, os.path.basename(saved_binding_path),
+                                                       limit=MAX_BINDING_BYTES, include_bytes=True)
+            if saved_binding_raw is not None:
+                saved_binding = parse_script_binding(saved_binding_raw)
+                if (saved_binding['published_script_sha256'] != hashlib.sha256(script_bytes).hexdigest()
+                        or saved_binding['published_entries_sha256'] != get_review_entries_fingerprint(json.loads(script_bytes))):
+                    raise ValueError('Saved script differs from its binding')
+        except (OSError, ValueError, TypeError, RecursionError) as error:
+            raise HTTPException(status_code=409, detail='Saved script identity requires inspection; existing files were preserved.') from error
+        try:
+            capture_scope_file(DATA_DIR, BINDING_NAME, limit=MAX_BINDING_BYTES)
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=409, detail='Active script identity requires inspection; existing files were preserved.') from error
         try:
             get_publication_source_capture(src)
         except (OSError, ValueError) as error:
@@ -301,6 +490,8 @@ def _load_script_sync(request: ScriptLoadRequest):
         _capture_sound_companions(DATA_DIR, ACTIVE_CUES, ACTIVE_RENDITIONS, state.get('active_book_id'))
         state.update(active_book_id=book_id, input_file_path=src,
                      book_generation=uuid.uuid4().hex)
+        state.pop('script_selection_pending', None)
+        state.pop('script_binding_required', None)
         state.pop('_source_scope', None)
         state.pop('_source_scope_exports', None)
         # The book's date order travels with it (#1546); absent means auto.
@@ -312,6 +503,13 @@ def _load_script_sync(request: ScriptLoadRequest):
             state.pop(DATE_ORDER_KEY, None)
         replacements = {os.path.relpath(SCRIPT_PATH, DATA_DIR): script_bytes,
                         "state.json": json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8")}
+        if saved_binding_raw is not None:
+            token = get_book_operation_token(DATA_DIR, state=state)
+            binding = make_script_selection_binding(token, hashlib.sha256(script_bytes).hexdigest(),
+                                                    script_bytes, source_path=src)
+            replacements[BINDING_NAME] = json.dumps(binding, sort_keys=True, separators=(',', ':')).encode()
+            state['script_binding_required'] = True
+            replacements['state.json'] = json.dumps(state, ensure_ascii=False, indent=2).encode('utf-8')
         if cue_bytes is not None:
             replacements[ACTIVE_CUES] = cue_bytes
         if rendition_bytes is not None:
@@ -324,13 +522,22 @@ def _load_script_sync(request: ScriptLoadRequest):
                     three_pass_manifest_path(SCRIPT_PATH),
                     *get_generation_checkpoint_artifacts(get_generation_checkpoint_path(SCRIPT_PATH)),
                     get_generation_quality_path(SCRIPT_PATH)]
+        if saved_binding_raw is None:
+            removals.append(os.path.join(DATA_DIR, BINDING_NAME))
         if cue_bytes is None:
             removals.append(os.path.join(DATA_DIR, ACTIVE_CUES))
         if rendition_bytes is None:
             removals.append(os.path.join(DATA_DIR, ACTIVE_RENDITIONS))
         companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
-        if os.path.exists(companion):
-            voice_bytes = Path(companion).read_bytes()
+        if os.path.lexists(companion):
+            try:
+                _, voice_bytes = capture_scope_file(SCRIPTS_DIR, os.path.basename(companion),
+                                                     limit=MAX_SCRIPT_BYTES, include_bytes=True)
+                if voice_bytes is None:
+                    raise ValueError('Saved voices disappeared')
+            except (OSError, ValueError) as error:
+                raise HTTPException(status_code=409, detail=(
+                    'Saved voices require inspection; existing files were preserved.')) from error
             validate_book_json_bytes(voice_bytes, dict, 400, "Saved voices")
             replacements[os.path.relpath(VOICE_CONFIG_PATH, DATA_DIR)] = voice_bytes
         else:
@@ -353,7 +560,7 @@ async def preflight_saved_script(name: str, request: ScriptPreflightRequest):
 
 
 def _preflight_saved_script_sync(name: str, request: ScriptPreflightRequest):
-    with ensure_book_state(SCRIPTS_DIR):
+    with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
         """Audit a saved script and optional uploaded source without changing either."""
         safe_name = _require_saved_book_name(name)
         script_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
@@ -418,8 +625,14 @@ class ContentRepairRequest(BaseModel):
 
 def get_repair_script_snapshot(path):
     """Parse and hash the same captured script bytes for preview and apply."""
-    with open(path, "rb") as script_file:
-        script_bytes = script_file.read()
+    try:
+        _, script_bytes = capture_scope_file(SCRIPTS_DIR, os.path.basename(path),
+                                             limit=MAX_SCRIPT_BYTES, include_bytes=True)
+        if script_bytes is None:
+            raise ValueError('Saved script disappeared')
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409,
+                            detail='Saved script identity requires inspection.') from exc
     try:
         entries = json.loads(script_bytes.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -442,11 +655,15 @@ def _load_repair_inputs(name, source_filename):
         raise HTTPException(status_code=404, detail=f"Uploaded source '{safe_source}' not found.")
     try:
         script_bytes, _script_sha256, entries = get_repair_script_snapshot(script_path)
-        with open(source_path, "rb") as source_file:
-            source_bytes = source_file.read()
+        _, source_bytes = capture_scope_file(UPLOADS_DIR, os.path.basename(source_path),
+                                             limit=MAX_SCRIPT_BYTES, include_bytes=True)
+        if source_bytes is None:
+            raise ValueError('Uploaded source disappeared')
         source_text = source_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise HTTPException(status_code=422, detail="Source file is not valid UTF-8.") from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail='Source file identity requires inspection.') from exc
     if not isinstance(entries, list):
         raise HTTPException(status_code=422, detail="Saved script must contain a JSON array.")
     combined_sha256 = hashlib.sha256(
@@ -462,7 +679,7 @@ async def preview_deterministic_repair(name: str, request: ScriptRepairRequest):
 
 
 def _preview_deterministic_repair_sync(name: str, request: ScriptRepairRequest):
-    with ensure_book_state(SCRIPTS_DIR):
+    with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
         """Preview only source-proven Unicode and adjacent-duplicate repairs."""
         _path, sha256, repair = _load_repair_inputs(name, request.source_filename)
         return {"sha256": sha256, "changes": repair["changes"], "unresolved": repair["unresolved"],
@@ -477,7 +694,7 @@ async def apply_deterministic_repair(name: str, request: ScriptRepairRequest):
 
 
 def _apply_deterministic_repair_sync(name: str, request: ScriptRepairRequest):
-    with _gpu_lock, ensure_book_state(SCRIPTS_DIR):
+    with _saved_mutation_admission():
         _require_saved_book_idle()
         """Apply an unchanged preview, preserving the original in a timestamped backup."""
         if not request.expected_sha256:
@@ -485,7 +702,7 @@ def _apply_deterministic_repair_sync(name: str, request: ScriptRepairRequest):
         safe_name = _require_saved_book_name(name)
         script_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
         try:
-            with file_lock(script_path):
+            with file_lock(script_path, timeout=0.25):
                 path, sha256, repair = _load_repair_inputs(name, request.source_filename)
                 if sha256 != request.expected_sha256:
                     raise HTTPException(status_code=409, detail="Script changed after preview; preview it again.")
@@ -494,8 +711,7 @@ def _apply_deterministic_repair_sync(name: str, request: ScriptRepairRequest):
                 if not repair["changes"]:
                     return {"status": "unchanged", "sha256": sha256, "changes": [],
                             "notes": repair.get("notes", [])}
-                backup = backup_file_with_timestamp(path)
-                atomic_json_write(repair["entries"], path)
+                backup = _publish_saved_repair(path, repair["entries"])
         except TimeoutError as exc:
             raise HTTPException(status_code=409, detail="Script is busy; retry the preview.") from exc
         return {"status": "repaired", "backup": os.path.basename(backup),
@@ -508,7 +724,7 @@ async def preview_speaker_repair(name: str):
 
 
 def _preview_speaker_repair_sync(name: str):
-    with ensure_book_state(SCRIPTS_DIR):
+    with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
         safe_name = _require_saved_book_name(name)
         path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
         if not os.path.exists(path):
@@ -523,18 +739,22 @@ async def apply_speaker_repair(name: str, request: SpeakerRepairRequest):
 
 
 def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
-    with _gpu_lock, ensure_book_state(SCRIPTS_DIR):
+    with _saved_mutation_admission():
         _require_saved_book_idle()
         if not request.expected_sha256:
             raise HTTPException(status_code=400, detail="expected_sha256 from preview is required.")
         safe_name = _require_saved_book_name(name)
         path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
         try:
-            with file_lock(path), contextlib.ExitStack() as locks:
+            with file_lock(path, timeout=0.25), contextlib.ExitStack() as locks:
                 for companion in _get_saved_book_companions(path):
-                    locks.enter_context(file_lock(companion))
+                    locks.enter_context(file_lock(companion, timeout=0.25))
                 if not os.path.exists(path):
                     raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
+                active_source = saved_script_is_active_source(DATA_DIR, path)
+                if active_source:
+                    raise HTTPException(status_code=409, detail=(
+                        'This saved book is currently loaded; switch books before repairing it.'))
                 script_bytes, sha256, entries = get_repair_script_snapshot(path)
                 if sha256 != request.expected_sha256:
                     raise HTTPException(status_code=409, detail="Script changed after preview; preview it again.")
@@ -555,15 +775,26 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
                     os.path.basename(path): json.dumps(repair["entries"], ensure_ascii=False, indent=2).encode("utf-8"),
                     os.path.basename(backup): script_bytes,
                 }
+                binding = _saved_repair_binding(path, script_bytes, replacements[os.path.basename(path)])
+                if binding is not None:
+                    replacements[os.path.basename(os.path.splitext(path)[0] + '.selection_binding.json')] = binding
                 if voice_backup:
-                    if not os.path.isfile(voice_path) or os.path.islink(voice_path):
-                        raise HTTPException(status_code=409, detail="Saved voices must be a regular file.")
-                    replacements[os.path.basename(voice_backup)] = Path(voice_path).read_bytes()
+                    try:
+                        _, voice_bytes = capture_scope_file(
+                            SCRIPTS_DIR, os.path.basename(voice_path),
+                            limit=MAX_SCRIPT_BYTES, include_bytes=True)
+                        if voice_bytes is None:
+                            raise ValueError('Saved voices disappeared')
+                    except (OSError, ValueError) as error:
+                        raise HTTPException(status_code=409,
+                                            detail="Saved voices must be a regular file.") from error
+                    replacements[os.path.basename(voice_backup)] = voice_bytes
                 # Entry-level reassignment cannot prove a voice identity rename.
                 # Preserve the exact assignments for recovery, then require a
                 # fresh cast instead of carrying obsolete approvals forward.
                 removals = [os.path.basename(companion) for companion in _get_saved_book_companions(path)
                             if companion not in (os.path.splitext(path)[0] + ".meta.json",
+                                                 os.path.splitext(path)[0] + '.selection_binding.json',
                                                  get_publication_source_path(path),
                                                  get_saved_sound_design_path(path),
                                                  get_saved_sound_renditions_path(path))]
@@ -571,8 +802,10 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
         except TimeoutError as exc:
             raise HTTPException(status_code=409, detail="Script is busy; preview it again.") from exc
         return {"status": "repaired", "backup": os.path.basename(backup),
-                "changes": repair["changes"], "voice_config_invalidated": bool(voice_backup),
+                "changes": repair["changes"],
+                "voice_config_invalidated": bool(voice_backup),
                 "voice_config_backup": os.path.basename(voice_backup) if voice_backup else None,
+                "active_voice_config_backup": None,
                 "message": "Speaker assignments changed; assign and approve voices again before rendering."}
 
 
@@ -582,7 +815,7 @@ async def preview_content_repair(name: str):
 
 
 def _preview_content_repair_sync(name: str):
-    with ensure_book_state(SCRIPTS_DIR):
+    with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
         safe_name = _require_saved_book_name(name)
         path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
         if not os.path.exists(path):
@@ -597,12 +830,12 @@ async def apply_content_repair(name: str, request: ContentRepairRequest):
 
 
 def _apply_content_repair_sync(name: str, request: ContentRepairRequest):
-    with _gpu_lock, ensure_book_state(SCRIPTS_DIR):
+    with _saved_mutation_admission():
         _require_saved_book_idle()
         safe_name = _require_saved_book_name(name)
         path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
         try:
-            with file_lock(path):
+            with file_lock(path, timeout=0.25):
                 if not os.path.exists(path):
                     raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
                 _script_bytes, sha256, entries = get_repair_script_snapshot(path)
@@ -616,8 +849,7 @@ def _apply_content_repair_sync(name: str, request: ContentRepairRequest):
                     raise HTTPException(status_code=409, detail=str(exc)) from exc
                 if not repair["changes"]:
                     return {"status": "unchanged", "changes": []}
-                backup = backup_file_with_timestamp(path)
-                atomic_json_write(repair["entries"], path)
+                backup = _publish_saved_repair(path, repair["entries"])
         except TimeoutError as exc:
             raise HTTPException(status_code=409, detail="Script is busy; preview it again.") from exc
         return {"status": "repaired", "backup": os.path.basename(backup),
@@ -627,12 +859,15 @@ def _delete_script_sync(name):
     safe_name = _require_saved_book_name(name)
     filepath = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     artifacts = [filepath, *_get_saved_book_companions(filepath)]
-    with _gpu_lock, ensure_book_state(SCRIPTS_DIR), contextlib.ExitStack() as locks:
+    with _saved_mutation_admission(), contextlib.ExitStack() as locks:
         _require_saved_book_idle()
         for path in artifacts:
-            locks.enter_context(file_lock(path))
+            locks.enter_context(file_lock(path, timeout=0.25))
         if not os.path.isfile(filepath):
             raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
+        if saved_script_is_active_source(DATA_DIR, filepath):
+            raise HTTPException(status_code=409,
+                                detail='This saved book is currently loaded; switch books before deleting it.')
         apply_book_state_locked(SCRIPTS_DIR, {}, [os.path.basename(path) for path in artifacts])
     logger.info(f"Script '{name}' deleted")
     return {"status": "deleted", "name": name}

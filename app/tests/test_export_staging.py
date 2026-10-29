@@ -9,7 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import export_staging
 
@@ -536,7 +536,8 @@ class ExportStagingTests(unittest.TestCase):
             payload = nested / 'keep.bin'
             payload.write_bytes(b'live nested payload')
             authority = WindowsStageDirectory.__new__(WindowsStageDirectory)
-            for marker in (MARKER, OWNER_LOCK + '.lock'):
+            authority.check = lambda: None
+            for marker in (MARKER, OWNER_LOCK + '.lock', export_staging.RECOVERY):
                 with self.subTest(marker=marker):
                     metadata = nested / marker
                     metadata.write_bytes(b'torn metadata is still a preservation signal')
@@ -546,6 +547,27 @@ class ExportStagingTests(unittest.TestCase):
                         authority._remove_children(nested, frozenset(), 1)
                     self.assertEqual(b'live nested payload', payload.read_bytes())
                     metadata.unlink()
+
+    def test_windows_recovery_marker_retirement_is_narrow_and_guarded(self):
+        from export_staging_directory import StageDirectoryChanged
+        from windows_export_staging_directory import WindowsStageDirectory
+        authority = WindowsStageDirectory.__new__(WindowsStageDirectory)
+        authority.path = Path('synthetic-stage')
+        authority.api = object()
+        authority.check = lambda: None
+        authority.has_recovery_guard = lambda: False
+        with self.assertRaisesRegex(ValueError, 'recovery marker'):
+            authority.retire_marker_for_recovery('payload.bin')
+        with self.assertRaisesRegex(StageDirectoryChanged, 'guard is missing'):
+            authority.retire_marker_for_recovery(MARKER)
+        authority.has_recovery_guard = lambda: True
+        child = Mock()
+        child.information.return_value.attributes = 0
+        with patch('windows_export_staging_directory._Handle', return_value=child) as opened:
+            authority.retire_marker_for_recovery(MARKER)
+        opened.assert_called_once_with(authority.api, authority.path / MARKER, delete=True)
+        child.delete.assert_called_once_with()
+        child.close.assert_called_once_with()
 
     @unittest.skipIf(os.name == 'nt', 'POSIX registry admission')
     def test_preservation_guard_survives_registry_admission_failure(self):

@@ -1,10 +1,7 @@
-import builtins
-from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
 import tempfile
-from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -38,25 +35,20 @@ class RepairSnapshotTests(unittest.TestCase):
                 second = json.dumps(replacement).encode()
                 script.write_bytes(first)
                 reads = []
-                @contextmanager
-                def replacing_open(path, mode='r', *args, **kwargs):
-                    with builtins.open(path, mode, *args, **kwargs) as handle:
-                        if os.fspath(path) == str(script) and mode == 'rb':
-                            def read(*read_args):
-                                captured = handle.read(*read_args)
-                                reads.append(captured)
-                                temp = root / 'replacement.tmp'
-                                temp.write_bytes(second)
-                                os.replace(temp, script)
-                                return captured
-                            yield SimpleNamespace(read=read)
-                        else:
-                            yield handle
+                capture = scripts_library.capture_scope_file
+                def replacing_capture(directory, name, *args, **kwargs):
+                    result = capture(directory, name, *args, **kwargs)
+                    if Path(directory) == root and name == script.name:
+                        reads.append(result[1])
+                        temp = root / 'replacement.tmp'
+                        temp.write_bytes(second)
+                        os.replace(temp, script)
+                    return result
                 with patch.object(scripts_library, 'SCRIPTS_DIR', str(root)), \
                      patch.object(scripts_library, 'UPLOADS_DIR', str(root)):
                     expected = self.request_preview(client, family)
                     self.assertEqual(200, expected.status_code, expected.text)
-                    with patch.object(scripts_library, 'open', side_effect=replacing_open, create=True):
+                    with patch.object(scripts_library, 'capture_scope_file', side_effect=replacing_capture):
                         actual = self.request_preview(client, family)
                     self.assertEqual(200, actual.status_code, actual.text)
                     self.assertEqual(expected.json(), actual.json())

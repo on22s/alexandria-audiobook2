@@ -92,11 +92,11 @@ class CharacterRosterApplyTests(unittest.TestCase):
                 preview=get_character_roster_preview(self.root,self.proposal)
                 if mode=='undo':apply_character_roster(self.root,self.proposal,preview['revision'])
                 before=self.files();original=transaction._move;count=0
-                def fail_once(*args):
+                def fail_once(*args, **kwargs):
                     nonlocal count
                     count+=1
                     if count==2:raise OSError('injected roster publication failure')
-                    return original(*args)
+                    return original(*args, **kwargs)
                 with patch.object(transaction,'_move',fail_once),self.assertRaises(OSError):
                     if mode=='approve':apply_character_roster(self.root,self.proposal,preview['revision'])
                     else:apply_character_roster_undo(self.root,get_character_roster_undo_status(self.root)['revision'])

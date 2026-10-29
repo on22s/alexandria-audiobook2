@@ -2580,6 +2580,43 @@ def _load_three_pass_checkpoint(output_path, fingerprint, chunk_count=None):
     return data
 
 
+def _refuse_checkpoint_replay_over_edited_publication(output_path):
+    """Preserve a later edit when a completed checkpoint is replayed."""
+    from project_scope_files import capture_scope_file
+    from script_selection_binding import _unique_pairs
+
+    output = Path(os.path.abspath(output_path))
+    manifest = Path(three_pass_manifest_path(str(output)))
+    try:
+        _, raw = capture_scope_file(output.parent, manifest.name, limit=16 * 1024**2,
+                                    include_bytes=True)
+    except (OSError, ValueError) as error:
+        raise RuntimeError('Generation manifest could not be inspected; saved progress was preserved.') from error
+    if raw is None:
+        return  # Older checkpoints have no publication receipt.
+    try:
+        value = json.loads(raw, object_pairs_hook=_unique_pairs,
+                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Invalid numeric constant')))
+    except (UnicodeDecodeError, ValueError, RecursionError) as error:
+        raise RuntimeError('Generation manifest is invalid; saved progress was preserved.') from error
+    if not isinstance(value, dict):
+        raise RuntimeError('Generation manifest is invalid; saved progress was preserved.')
+    receipt = value.get('publication')
+    if receipt is None:
+        return  # Existing incomplete and legacy checkpoints remain available.
+    if value.get('status') != 'complete':
+        raise RuntimeError('Generation publication receipt is inconsistent; saved progress was preserved.')
+    if (not isinstance(receipt, dict) or not isinstance(receipt.get('script_sha256'), str)
+            or not re.fullmatch(r'[0-9a-f]{64}', receipt['script_sha256'])):
+        raise RuntimeError('Generation publication receipt is invalid; saved progress was preserved.')
+    try:
+        current, _ = capture_scope_file(output.parent, output.name, limit=512 * 1024**2)
+    except (OSError, ValueError) as error:
+        raise RuntimeError('Published script could not be inspected; saved progress was preserved.') from error
+    if current['sha256'] != receipt['script_sha256']:
+        raise RuntimeError('The published script changed after this checkpoint; saved progress and edits were preserved. Use Start over in Generate to begin again.')
+
+
 def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
                                 chunks_done, named, annotated, resolutions=None,
                                 elapsed_s=None, diagnostic_failures=None,
@@ -2623,7 +2660,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    attribute_batch_size=BATCH_SIZE, attribute_context_chars=0,
                    attribute_prompt_variant="default", attribute_prompt_texts=None,
                    planned_calls=None, cast=None, keep_scope="line", speaker_traits=False,
-                   attribute_target_chars=0, instruct_target_chars=0, instruct_context_chars=0):
+                   attribute_target_chars=0, instruct_target_chars=0, instruct_context_chars=0,
+                   defer_final_publication=False, require_matching_checkpoint=False):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -2687,6 +2725,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     if initial_binding["failover_model"] is not None:
         fingerprint["model_binding"] = initial_binding
     state = _load_three_pass_checkpoint(output_path, fingerprint, len(chunks)) if output_path else None
+    if require_matching_checkpoint and state is None:
+        raise RuntimeError('The saved checkpoint does not match this source and settings; it was preserved.')
+    if state is not None:
+        _refuse_checkpoint_replay_over_edited_publication(output_path)
     if instruct_context_chars and not state and not collect_all_failures:
         from llm_provider import FailoverClient
         # A later pass may switch to a more permissive serving profile. Do not
@@ -3347,7 +3389,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         annotated = bind_literal_policy(source_text, annotated)
     save("done")
     emit_manifest("incomplete" if diagnostic_failures or unavailable_passes
-                  else "complete")
+                  else "publishing" if defer_final_publication else "complete")
     return [entry for entry in annotated if isinstance(entry, dict)]
 
 
@@ -3663,7 +3705,8 @@ def get_output_paths(data_dir, requested_output=None):
             os.path.join(data_dir, "chunks.json"))
 
 
-def get_prepared_source(path, strip_front_matter=True, report=lambda message: None):
+def get_prepared_source(path, strip_front_matter=True, report=lambda message: None,
+                        expected_source_sha256=None):
     """-> (text, unicode_report): the source exactly as generation sees it.
 
     One sequence for every caller that sends the book to a model - generation
@@ -3672,7 +3715,15 @@ def get_prepared_source(path, strip_front_matter=True, report=lambda message: No
     receives the same notices main() has always printed. Raises ValueError for
     a source the shared gate refuses.
     """
-    book, source_encoding = read_source_text(path)
+    if expected_source_sha256 is None:
+        book, source_encoding = read_source_text(path)
+    else:
+        from script_selection_binding import _read_source_snapshot, _digest
+        from source_encoding import get_decoded_source_text
+        digest, raw = _read_source_snapshot(path, include_bytes=True)
+        if digest != _digest(expected_source_sha256):
+            raise ValueError('Selected source changed before it was read for generation')
+        book, source_encoding = get_decoded_source_text(raw)
     book = get_normalized_source_newlines(book)
     if source_encoding != "utf-8":
         report(f"Read {path} as {source_encoding} (not valid UTF-8)")
@@ -3702,6 +3753,10 @@ def main():
     parser = argparse.ArgumentParser(description="Three-pass annotated script generation.")
     parser.add_argument("input_file")
     parser.add_argument("--output", default=None)
+    parser.add_argument("--active-book-token", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--active-source-sha256", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--active-run-id", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--require-matching-checkpoint", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--model", default=None, help="Generation model for this run; config.json is unchanged.")
     parser.add_argument("--chunk-size", type=int, default=None)
     parser.add_argument("--attribute-batch-size", type=int, default=None,
@@ -3781,6 +3836,19 @@ def main():
     app_dir = os.path.dirname(__file__)
     data_dir = get_runtime_data_dir(root)
     output_path, chunks_path = get_output_paths(data_dir, args.output)
+    if (len({args.active_book_token is None, args.active_source_sha256 is None, args.active_run_id is None}) != 1
+            or (args.active_book_token is not None and (args.output is not None or args.preflight))
+            or (args.require_matching_checkpoint and args.active_book_token is None)):
+        parser.error('Active generation identity requires both digests and the active output')
+    if args.active_book_token is not None:
+        from script_selection_binding import _digest
+        try:
+            _digest(args.active_book_token)
+            _digest(args.active_source_sha256)
+            if not re.fullmatch(r'[0-9a-f]{32}', args.active_run_id):
+                raise ValueError('Invalid generation attempt')
+        except ValueError:
+            parser.error('Invalid active generation identity')
     try:
         validate_generation_output_path(args.input_file, output_path)
     except ValueError as exc:
@@ -3788,11 +3856,16 @@ def main():
 
     input_source_sha256 = None
     if args.literal_source_preserving:
-        from generation_completion import get_file_sha256
-        input_source_sha256 = get_file_sha256(args.input_file)
+        from script_selection_binding import _read_source_snapshot
+        input_source_sha256, _ = _read_source_snapshot(args.input_file)
     try:
+        expected_source_sha256 = (args.active_source_sha256
+                                  if args.active_book_token is not None
+                                  else input_source_sha256)
         book, unicode_report = get_prepared_source(
-            args.input_file, args.strip_front_matter, report=print)
+            args.input_file, args.strip_front_matter, report=print,
+            **({'expected_source_sha256': expected_source_sha256}
+               if expected_source_sha256 is not None else {}))
     except ValueError as exc:
         print(f"Error: {exc}")
         sys.exit(1)
@@ -3962,7 +4035,12 @@ def main():
     try:
         entries = run_three_pass(client, model_name, book, params, chunk_size,
                                  output_path=output_path,
-                                 planned_calls=planned_calls, **run_options)
+                                 planned_calls=planned_calls,
+                                 **({'defer_final_publication': True}
+                                    if args.active_book_token is not None else {}),
+                                 **({'require_matching_checkpoint': True}
+                                    if args.require_matching_checkpoint else {}),
+                                 **run_options)
     except (RuntimeError, PassExhausted) as exc:
         print(f"Error: {exc}")
         sys.exit(1)
@@ -3976,17 +4054,24 @@ def main():
         sys.exit(1)
     if args.literal_source_preserving:
         from literal_policy import bind_literal_policy
-        from generation_completion import get_file_sha256
-        if get_file_sha256(args.input_file) != input_source_sha256:
+        from script_selection_binding import _source_digest
+        if _source_digest(args.input_file) != input_source_sha256:
             raise ValueError("Source input changed during literal annotation; refusing publication")
         entries = bind_literal_policy(book, entries,
             input_sha256=input_source_sha256,
             strip_front_matter=args.strip_front_matter)
     # Dialogue mapping already ran inside run_three_pass before the final
     # checkpoint and manifest were written.
-    atomic_json_write(entries, output_path)
+    if args.active_book_token is not None:
+        from script_selection_binding import publish_generated_script
+        script_bytes = json.dumps(entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
+        publish_generated_script(data_dir, args.active_book_token, args.input_file,
+                                 args.active_source_sha256, script_bytes, expected_run_id=args.active_run_id,
+                                 complete_manifest=True)
+    else:
+        atomic_json_write(entries, output_path)
     print(f"Wrote {len(entries)} entries to {output_path}")
-    if chunks_path is not None and remove_chunk_snapshot(chunks_path):
+    if args.active_book_token is None and chunks_path is not None and remove_chunk_snapshot(chunks_path):
         print("Cleared old chunks.json")
 
 

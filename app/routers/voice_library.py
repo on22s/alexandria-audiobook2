@@ -1,3 +1,4 @@
+from book_state_transaction import ensure_saved_book_state
 import asyncio
 import contextlib
 import copy
@@ -298,7 +299,7 @@ def _is_safe_saved_script_name(name):
 
 def _apply_cast_to_saved_book(name, cast_name, mapping):
     script_path = os.path.join(SCRIPTS_DIR, f"{name}.json")
-    with file_lock(VOICE_LIBRARY_PATH), ensure_book_state(SCRIPTS_DIR), file_lock(script_path):
+    with file_lock(VOICE_LIBRARY_PATH), ensure_saved_book_state(os.path.dirname(SCRIPT_PATH), SCRIPTS_DIR), file_lock(script_path):
         lib = _get_cast_library(cast_name)
         if not os.path.isfile(script_path):
             raise HTTPException(status_code=404, detail="Saved script not found")
@@ -555,7 +556,7 @@ def _build_bulk_cast_match_response(request: CastMatchBulkRequest):
         return counts
 
     # The complete response, including matching, runs in the route's worker.
-    with ensure_book_state(SCRIPTS_DIR):
+    with ensure_saved_book_state(os.path.dirname(SCRIPT_PATH), SCRIPTS_DIR):
         counts = _collect_counts()
 
     if not counts:

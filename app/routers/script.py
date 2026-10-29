@@ -1,3 +1,4 @@
+from book_state_transaction import ensure_saved_book_state
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
@@ -755,20 +756,20 @@ def _apply_upload_selection(path, before_publication=None):
             options = {'timeout': 0}
             if before_publication is not None:
                 options['before_publication'] = before_publication
-            apply_book_input_selection(DATA_DIR, path,
+            return apply_book_input_selection(DATA_DIR, path,
                 secure_filename(os.path.splitext(os.path.basename(path))[0]), **options)
         except ValueError:
             raise HTTPException(status_code=409, detail=(
                 'Book metadata requires inspection; existing book files were preserved.')) from None
 
 
-def _select_upload(filename: str) -> str:
+def _select_upload(filename: str, *, include_identity=False):
     safe_name = _require_safe_filename(filename, "Invalid upload filename")
     path = os.path.join(UPLOADS_DIR, safe_name)
     if not os.path.isfile(path) or os.path.splitext(path)[1].lower() not in {".txt", ".md"}:
         raise HTTPException(status_code=404, detail=f"Reusable upload '{filename}' not found.")
-    _apply_upload_selection(path)
-    return path
+    token = _apply_upload_selection(path)
+    return (path, token) if include_identity else path
 
 
 @router.get("/api/uploads")
@@ -782,8 +783,9 @@ class ExistingUploadRequest(BaseModel):
 
 @router.post("/api/uploads/select")
 async def select_existing_upload(request: ExistingUploadRequest):
-    path = await asyncio.to_thread(_select_upload, request.filename)
-    return {"status": "selected", "stored_filename": os.path.basename(path), "path": path}
+    path, token = await asyncio.to_thread(_select_upload, request.filename, include_identity=True)
+    return {"status": "selected", "stored_filename": os.path.basename(path), "path": path,
+            "book_identity_token": token}
 
 
 
@@ -914,13 +916,15 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                 companion_bytes=publication_update['new_bytes'] if publication_update else None))
             if cancelled is not None:
                 raise cancelled
+        selection_token = None
         if select_active:
-            _, cancelled = await await_upload_operation(asyncio.to_thread(
+            selection_token, cancelled = await await_upload_operation(asyncio.to_thread(
                 _apply_upload_selection, file_path, retain_selected_source))
             if cancelled is not None:
                 raise cancelled
         return {"filename": file.filename, "stored_filename": os.path.basename(file_path),
                 "path": file_path, "reused": reused,
+                "book_identity_token": selection_token,
                 "publication_status": publication['metadata_status'] if publication is not None else 'not_captured',
                 "publication_warnings": publication['warnings'] if publication is not None else []}
     except BaseException:
@@ -949,6 +953,10 @@ class GenerateScriptRequest(BaseModel):
     # stopped - by design (a crash or Cancel loses nothing), but there was no
     # way to ask for a fresh run short of changing a setting (#597).
     start_over: bool = False
+    # Explicit acknowledgment for a checkpoint predating selection identity.
+    # Both tokens must still match the checkpoint and selected book at retry.
+    legacy_checkpoint_token: Optional[str] = Field(default=None, pattern=r'^[0-9a-f]{64}$')
+    legacy_book_token: Optional[str] = Field(default=None, pattern=r'^[0-9a-f]{64}$')
 
 
 def get_book_preflight_result(job_id):
@@ -1152,7 +1160,8 @@ def build_generate_script_command(input_file: str, output_path: Optional[str] = 
                                   first_person_narrator: Optional[str] = None,
                                   reasoning_effort: Optional[str] = None,
                                   cast_file: Optional[str] = None,
-                                  literal_source_preserving: bool = False) -> List[str]:
+                                  literal_source_preserving: bool = False,
+                                  selection_binding: Optional[dict] = None) -> List[str]:
     """Build the one production command used by single and batch generation.
 
     `reasoning_effort` is passed explicitly so three_pass_generate records it
@@ -1175,6 +1184,17 @@ def build_generate_script_command(input_file: str, output_path: Optional[str] = 
         raise ValueError("literal_source_preserving must be a boolean")
     if literal_source_preserving:
         command.append("--literal-source-preserving")
+    if selection_binding is not None:
+        from script_selection_binding import _digest
+        if (not isinstance(selection_binding, dict)
+                or set(selection_binding) != {'book_token', 'source_path', 'source_sha256', 'run_id'}
+                or selection_binding['source_path'] != input_file or output_path is not None):
+            raise ValueError('Invalid active generation selection')
+        if not isinstance(selection_binding['run_id'], str) or not re.fullmatch(r'[0-9a-f]{32}', selection_binding['run_id']):
+            raise ValueError('Invalid generation attempt')
+        command.extend(['--active-book-token', _digest(selection_binding['book_token']),
+                        '--active-source-sha256', _digest(selection_binding['source_sha256']),
+                        '--active-run-id', selection_binding['run_id']])
     return command
 
 
@@ -1254,11 +1274,30 @@ def _snapshot_script_sync(request):
     companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
     metadata = _saved_book_meta_path(safe_name)
     with ensure_saved_book_destination_available(dest), ensure_book_state(DATA_DIR), \
-            ensure_book_state(SCRIPTS_DIR), contextlib.ExitStack() as locks:
+            ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR), contextlib.ExitStack() as locks:
         for path in (dest, VOICE_CONFIG_PATH, *_get_saved_book_companions(dest)):
             locks.enter_context(file_lock(path))
         if not process_state['script'].get('running'):
             raise HTTPException(status_code=409, detail='No script generation is running; use Save script instead.')
+        # A live process alone does not establish which source owns its
+        # checkpoint. Fence the snapshot to the durable run identity and the
+        # currently owned task before attaching any publication provenance.
+        import core
+        from script_selection_binding import capture_generation_selection
+        source_state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), default={})
+        try:
+            expected = source_state.get('script_generation_selection')
+            captured = capture_generation_selection(DATA_DIR, source_state.get('input_file_path'))
+            if not isinstance(expected, dict) or expected != captured:
+                raise ValueError('Generation source identity is missing or changed')
+            with core._gpu_lock:
+                owner = core._task_claims.get('script')
+                if (not owner or owner.get('phase') != 'started'
+                        or owner.get('id') != source_state.get('script_generation_run_id')
+                        or process_state['script'].get('cancel')):
+                    raise ValueError('Generation attempt is no longer current')
+        except (OSError, ValueError, TypeError, RecursionError) as error:
+            raise HTTPException(status_code=409, detail=f'Cannot snapshot this generation: {error}') from error
         checkpoint = get_current_generation_checkpoint()
         if not isinstance(checkpoint, dict):
             raise HTTPException(status_code=409, detail="The run has not written a checkpoint yet.")
@@ -1280,7 +1319,6 @@ def _snapshot_script_sync(request):
             voice_bytes = Path(VOICE_CONFIG_PATH).read_bytes()
             validate_book_json_bytes(voice_bytes, dict, 409, 'Active snapshot voices')
             replacements[os.path.basename(companion)] = voice_bytes
-        source_state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), default={})
         try:
             publication = get_saved_publication_source_bytes(source_state.get('input_file_path'), script_bytes)
         except (OSError, ValueError) as error:
@@ -1392,7 +1430,62 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                 raise HTTPException(status_code=409, detail="Selected source changed before generation started.")
             if require_recovery and get_script_recovery_manifest() is None:
                 raise HTTPException(status_code=409, detail="Recovery checkpoint changed before start.")
+            from script_selection_binding import capture_generation_selection
+            try:
+                captured = capture_generation_selection(DATA_DIR, input_file)
+            except (OSError, ValueError) as error:
+                raise HTTPException(status_code=409, detail=(
+                    'The selected source or book could not be verified. '
+                    'Check the selection and try again; saved progress was preserved.')) from error
+            if (not require_recovery and not (request is not None and request.start_over)
+                    and os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))
+                    and current_state.get('script_generation_selection') != captured):
+                raise HTTPException(status_code=409, detail=(
+                    'Existing generation progress belongs to another or unverified selection. '
+                    'The checkpoint was preserved; review it before starting over.'))
+            original = current_state.get('script_generation_selection') if require_recovery else captured
+            if require_recovery and original is None:
+                checkpoint = get_current_generation_checkpoint(locked=True)
+                if (request is None or not isinstance(checkpoint, dict)
+                        or request.legacy_checkpoint_token != get_script_recovery_token(checkpoint)
+                        or request.legacy_book_token != captured['book_token']):
+                    raise HTTPException(status_code=409, detail=(
+                        'This older checkpoint has no book-selection identity. '
+                        'Review the recovery details and explicitly confirm the current selection; '
+                        'the checkpoint was preserved.'))
+                # This is an explicit user choice, not a claim that the old
+                # checkpoint carried book identity. The child still refuses
+                # to resume if the source/settings fingerprint does not match.
+                original = captured
+            if original is not None and original != captured:
+                raise HTTPException(status_code=409, detail=(
+                    'The source or book selection changed since this generation started; '
+                    'the checkpoint was preserved.'))
+            if original is not None:
+                with file_lock(SCRIPT_PATH):
+                    base, _ = capture_scope_file(DATA_DIR, os.path.relpath(SCRIPT_PATH, DATA_DIR),
+                                                 limit=512 * 1024**2)
+                if (os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))
+                        and not (request is not None and request.start_over and not require_recovery)
+                        and 'script_generation_base_sha256' in current_state
+                        and current_state['script_generation_base_sha256'] != base['sha256']):
+                    raise HTTPException(status_code=409, detail=(
+                        'The script changed since this checkpoint was started. '
+                        'The edit and saved progress were preserved; use Start over in Generate to begin again.'))
+                if (os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))
+                        and not (request is not None and request.start_over and not require_recovery)):
+                    from three_pass_generate import _refuse_checkpoint_replay_over_edited_publication
+                    try:
+                        _refuse_checkpoint_replay_over_edited_publication(SCRIPT_PATH)
+                    except RuntimeError as error:
+                        raise HTTPException(status_code=409, detail=str(error)) from error
             claim_id = reserve_background_task("script")
+            if original is not None:
+                command.extend(['--active-book-token', original['book_token'],
+                                '--active-source-sha256', original['source_sha256'],
+                                '--active-run-id', claim_id])
+                if require_recovery:
+                    command.append('--require-matching-checkpoint')
             if request is not None and request.start_over and not require_recovery:
                 discard_script_progress(locked=True)
             if not require_recovery:
@@ -1412,6 +1505,11 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                 # changed checkbox would invalidate the resume fingerprint.
                 state["script_generation_options"] = options
                 state["script_generation_input_file"] = input_file
+                if original is not None:
+                    state['script_generation_selection'] = original
+                    state.pop('script_generation_cancel_requested_run_id', None)
+                    state['script_generation_run_id'] = claim_id
+                    state['script_generation_base_sha256'] = base['sha256']
                 atomic_json_write(state, state_path)
             register_claimed_background_task(background_tasks, "script", claim_id, run_process, command, "script")
     except BaseException:
@@ -1452,6 +1550,21 @@ def ensure_script_recovery_response(include_detail=False):
             "failed_chunk": manifest.get("failed_chunk"),
             "failure_count": len(failures),
         }
+        state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), {})
+        if isinstance(state, dict) and state.get('script_generation_selection') is None:
+            with file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+                try:
+                    checkpoint = get_current_generation_checkpoint(locked=True)
+                except HTTPException:
+                    # Metadata remains useful when the checkpoint is corrupt;
+                    # do not offer confirmation without a readable checkpoint.
+                    checkpoint = None
+                if isinstance(checkpoint, dict):
+                    from book_state_transaction import get_book_operation_token
+                    response['legacy_confirmation'] = {
+                        'checkpoint_token': get_script_recovery_token(checkpoint),
+                        'book_token': get_book_operation_token(DATA_DIR),
+                    }
         if include_detail:
             checkpoint = _load_failed_checkpoint()
             response["detail"] = ({"recoverable": True, **build_recovery_detail(checkpoint)}
@@ -1756,7 +1869,11 @@ async def retry_generate_script(background_tasks: BackgroundTasks,
     stored_options = state.get("script_generation_options") if isinstance(state, dict) else None
     if isinstance(stored_options, dict):
         try:
-            request = GenerateScriptRequest(**stored_options)
+            options = dict(stored_options)
+            if request is not None:
+                options['legacy_checkpoint_token'] = request.legacy_checkpoint_token
+                options['legacy_book_token'] = request.legacy_book_token
+            request = GenerateScriptRequest(**options)
         except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=409,
                                 detail="Saved recovery settings are invalid; start a new run.") from exc
@@ -1765,7 +1882,72 @@ async def retry_generate_script(background_tasks: BackgroundTasks,
 
 @router.post("/api/generate_script/cancel")
 async def generate_script_cancel():
-    return _cancel_task("script", "No script generation is currently running.", "Script generation process already exited.")
+    return await asyncio.to_thread(_cancel_script_generation_sync)
+
+
+def _cancel_script_generation_sync():
+    """Revoke this generation before signalling its worker, or report commit."""
+    import core
+    state_path = os.path.join(DATA_DIR, 'state.json')
+    try:
+        with ensure_book_state(DATA_DIR), file_lock(state_path), core._gpu_lock:
+            task = process_state['script']
+            if not task.get('running'):
+                raise HTTPException(status_code=400, detail='No script generation is currently running.')
+            owner = core._task_claims.get('script')
+            state = safe_load_json(state_path, default={})
+            if not isinstance(state, dict):
+                raise ValueError('Book state is invalid')
+            if owner is None and not state.get('script_generation_run_id'):
+                # Compatibility for a legacy in-memory task without a claim.
+                return _cancel_task('script', 'No script generation is currently running.',
+                                    'Script generation process already exited.')
+            owner_id = owner.get('id') if owner else None
+            if owner_id and state.get('script_generation_published_run_id') == owner_id:
+                # Publication won, but the child or its descendants may still
+                # be running. Stop their cleanup without calling the committed
+                # script cancelled in the task's final status.
+                task['_script_published_cleanup_stop'] = True
+                try:
+                    stopped = _cancel_task('script', 'No script generation is currently running.',
+                                           'Script generation process already exited.')
+                except HTTPException as error:
+                    process = task.get('process')
+                    if (error.status_code != 400 or error.detail != 'Script generation process already exited.'
+                            or sys.platform != 'win32' or process is None
+                            or getattr(process, '_alexandria_windows_owner', None) is None):
+                        raise HTTPException(status_code=409, detail=(
+                            'The script was already published, but stopping its worker was not confirmed. '
+                            'Check task activity.')) from error
+                    from windows_subprocess_job import WindowsJobClosedError
+                    try:
+                        core.terminate_windows_process_tree(process, force=True)
+                    except WindowsJobClosedError:
+                        # A published owner is exposed only after admission;
+                        # its normal close waits for zero job membership.
+                        return {'status': 'published_cleanup_stop', 'worker': 'already stopped'}
+                    except OSError as force_error:
+                        raise HTTPException(status_code=409, detail=(
+                            'The script was already published, but stopping its worker was not confirmed. '
+                            'Check task activity.')) from force_error
+                    # The owner retains the job until the kernel confirms exit.
+                    return {'status': 'published_cleanup_stop_requested',
+                            'worker': 'force stop requested'}
+                return {'status':'published_cleanup_stop', 'worker':stopped['status']}
+            if not owner_id or state.get('script_generation_run_id') != owner_id:
+                raise HTTPException(status_code=409, detail=(
+                    'This task is not the current script generation; check its activity before cancelling.'))
+            state['script_generation_cancel_requested_run_id'] = owner_id
+            atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
+            stopped = _cancel_task('script', 'No script generation is currently running.',
+                                   'Script generation process already exited.')
+            state.pop('script_generation_run_id', None)
+            state.pop('script_generation_cancel_requested_run_id', None)
+            atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
+            return stopped
+    except (OSError, ValueError, TimeoutError) as error:
+        raise HTTPException(status_code=409, detail=(
+            'Cancellation could not be safely recorded; check the task state before trying again.')) from error
 
 
 
@@ -1784,10 +1966,45 @@ async def generate_script_resume():
 @router.post("/api/review_script")
 async def review_script(background_tasks: BackgroundTasks, request: Optional[ReviewRequest] = None):
     """Review the current annotated script. Accepts empty POST or JSON body."""
+    return await asyncio.to_thread(_with_published_script, _start_review_script, background_tasks, request)
+
+
+def _with_published_script(callback, *args):
+    _require_published_script()
+    return callback(*args)
+
+
+def _require_published_script():
+    with ensure_book_state(DATA_DIR):
+        _require_published_selection()
+        if not os.path.exists(SCRIPT_PATH):
+            raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
+
+
+def _require_published_selection():
+    from script_selection_binding import require_published_selection
+    try:
+        require_published_selection(DATA_DIR)
+    except (OSError, ValueError, RecursionError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+def _run_published_script_process(command, task_name):
+    # Recheck after task ownership is claimed to close the admission race.
+    try:
+        _require_published_script()
+    except HTTPException as error:
+        state = process_state[task_name]
+        state['status'] = 'failed'
+        state['return_code'] = 1
+        state['logs'] = [f"Task {task_name} could not start: {error.detail}"]
+        return 1
+    return run_process(command, task_name)
+
+
+def _start_review_script(background_tasks, request):
     if request is None:
         request = ReviewRequest()  # Use defaults
-    if not os.path.exists(SCRIPT_PATH):
-        raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
 
     check_global_gpu_lock("review")
 
@@ -1796,13 +2013,15 @@ async def review_script(background_tasks: BackgroundTasks, request: Optional[Rev
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
-    schedule_claimed_background_task(background_tasks, "review", run_process, cmd, "review")
+    schedule_claimed_background_task(background_tasks, "review", _run_published_script_process, cmd, "review")
     return {"status": "started", "dedupe_speakers": request.dedupe_speakers}
 
 @router.post("/api/review_script_contextual")
 async def review_script_contextual(request: ContextualReviewRequest, background_tasks: BackgroundTasks):
-    if not os.path.exists(SCRIPT_PATH):
-        raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
+    return await asyncio.to_thread(_with_published_script, _start_contextual_review, request, background_tasks)
+
+
+def _start_contextual_review(request, background_tasks):
 
     check_global_gpu_lock("review")
 
@@ -1830,7 +2049,7 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
     schedule_claimed_background_task(background_tasks, "review",
-        run_process,
+        _run_published_script_process,
         cmd,
         "review"
     )
@@ -1866,13 +2085,15 @@ async def review_script_resume():
 @router.post("/api/find_nicknames")
 async def find_nicknames_endpoint(background_tasks: BackgroundTasks):
     """Scan the working script for character nicknames/aliases and write character_aliases.json."""
-    if not os.path.exists(SCRIPT_PATH):
-        raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
+    return await asyncio.to_thread(_with_published_script, _start_find_nicknames, background_tasks)
+
+
+def _start_find_nicknames(background_tasks):
     # nicknames runs the LLM, so it must claim the GPU lock (this also guards
     # against a duplicate start, replacing the old running-flag check).
     cmd = [sys.executable, "-u", "find_nicknames.py",
            "--aliases-file", CHARACTER_ALIASES_PATH, "--append"]
-    schedule_claimed_background_task(background_tasks, "nicknames", run_process, cmd, "nicknames")
+    schedule_claimed_background_task(background_tasks, "nicknames", _run_published_script_process, cmd, "nicknames")
     return {"status": "started"}
 
 
@@ -2027,7 +2248,7 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
     total = len(names)
 
     def _run():
-        with ensure_book_state(SCRIPTS_DIR):
+        with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
             pass
         state = process_state["batch_review"]
         prefix = "bidirectional " if bidirectional else ""
@@ -2063,6 +2284,23 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
             if not os.path.exists(script_path):
                 state["logs"].append(f"--- [{i+1}/{total}]{tag} Skipping — not found: {name} ---")
                 state["tasks"][i]["status"] = "failed"
+                return True
+
+            # Rewriting a saved script that is also the active source would
+            # invalidate the active book's identity and could discard edits.
+            # Refuse before discovery, checkpoints, or voice settings change;
+            # the child rechecks under the publication lock.
+            from script_selection_binding import saved_script_is_active_source
+            try:
+                with ensure_book_state(DATA_DIR):
+                    active_source = saved_script_is_active_source(DATA_DIR, script_path)
+            except (OSError, ValueError, TimeoutError):
+                state['logs'].append(f'[{i+1}]{tag} Cannot verify active book; {name} was not reviewed.')
+                state['tasks'][i]['status'] = 'failed'
+                return True
+            if active_source:
+                state['logs'].append(f'[{i+1}]{tag} {name} is currently loaded; switch books before reviewing it.')
+                state['tasks'][i]['status'] = 'failed'
                 return True
 
             state["logs"].append(f"--- [{i+1}/{total}]{tag} Reviewing '{name}' ---")
@@ -2190,11 +2428,10 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
             return True
 
         def _process_book(i: int, name: str, tag: str = "") -> bool:
-            safe_name = secure_filename(name)
-            if not safe_name:
-                return _process_book_unlocked(i, name, tag)
-            with file_lock(os.path.join(SCRIPTS_DIR, f"{safe_name}.json")):
-                return _process_book_unlocked(i, name, tag)
+            # The batch owns its destination for its entire lifetime. The
+            # child takes the short-lived saved-book and file locks at commit
+            # and refuses if its exact input changed during inference.
+            return _process_book_unlocked(i, name, tag)
 
         # Forward pass (reading order)
         state["current_pass"] = "fwd"
@@ -2685,7 +2922,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
     prepared_jobs = await asyncio.to_thread(get_prepared_batch_script_jobs, request)
 
     def _run():
-        with ensure_book_state(SCRIPTS_DIR):
+        with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
             pass
         state = process_state["batch_script"]
         _init_batch_state(state,
@@ -2790,7 +3027,12 @@ async def get_annotated_script():
     No SPA caller - intentionally kept as a programmatic/curl-accessible
     read endpoint (exercised by test_api.py's test_get_annotated_script).
     """
+    return await asyncio.to_thread(_get_annotated_script_sync)
+
+
+def _get_annotated_script_sync():
     with ensure_book_state(DATA_DIR):
+        _require_published_selection()
         if not os.path.exists(SCRIPT_PATH):
             raise HTTPException(status_code=404, detail="No annotated script found")
         with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
@@ -2804,6 +3046,7 @@ async def get_annotated_script_diff():
 def _ensure_annotated_script_diff():
     """Compare annotation with the same source policy as editor merge admission."""
     with ensure_book_state(DATA_DIR):
+        _require_published_selection()
         if not os.path.exists(SCRIPT_PATH):
             raise HTTPException(status_code=404, detail="No annotated script found")
         state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})

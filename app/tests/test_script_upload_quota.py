@@ -152,6 +152,8 @@ class ScriptUploadQuotaTests(unittest.IsolatedAsyncioTestCase):
                 async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app()), base_url='http://fixture') as client:
                     response = await client.post('/api/upload', files={'file': ('new.MD', b'123456')})
                     self.assertEqual(200, response.status_code, response.text)
+                    from book_state_transaction import get_book_operation_token
+                    self.assertEqual(get_book_operation_token(tmp), response.json()['book_identity_token'])
                     self.assertEqual(10, sum(path.stat().st_size for path in uploads.iterdir()))
                     response = await client.post('/api/upload', files={'file': ('one_more.txt', b'x')})
                     self.assertEqual(413, response.status_code)

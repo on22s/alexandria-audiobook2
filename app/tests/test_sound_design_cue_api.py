@@ -250,11 +250,11 @@ class SoundDesignCueApiTests(unittest.IsolatedAsyncioTestCase):
         original=(self.root/ACTIVE_CUES).read_bytes();payload=await self.request()
         payload['parent_version']=saved.json()['version'];payload['parameters']['mix']['gain_db']=-24
         move=books._move;failed=False
-        def fail_install(source,destination):
+        def fail_install(source,destination, **kwargs):
             nonlocal failed
             if not failed and Path(source).name.startswith('new-') and Path(destination).name==ACTIVE_CUES:
                 failed=True;raise OSError('synthetic install failure')
-            return move(source,destination)
+            return move(source,destination, **kwargs)
         with patch.object(books,'_move',side_effect=fail_install):
             response=await self.client.post(BASE+'/revise',json=payload)
         self.assertEqual(409,response.status_code,response.text);self.assertTrue(failed)

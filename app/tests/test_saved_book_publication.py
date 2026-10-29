@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import patch
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 import book_state_transaction as books
 import core
@@ -20,6 +20,237 @@ from routers import scripts_library as routes
 
 
 class SavedBookPublicationTests(unittest.TestCase):
+    def test_load_reports_busy_saved_file_as_conflict(self):
+        from utils import file_lock
+        with self.fixture() as (root, api), TestClient(api) as client:
+            ready, release = threading.Event(), threading.Event()
+            saved = root / 'scripts' / 'book.json'
+            def hold_saved_file():
+                with file_lock(saved):
+                    ready.set()
+                    release.wait(5)
+            owner = threading.Thread(target=hold_saved_file)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                response = client.post('/api/scripts/load', json={'name': 'book'})
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertIn('check the current state before retrying', response.json()['detail'])
+                self.assertTrue(saved.exists())
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+
+    def test_load_reports_busy_saved_book_as_conflict(self):
+        with self.fixture() as (root, api), TestClient(api) as client:
+            ready, release = threading.Event(), threading.Event()
+            def hold_saved():
+                with books.ensure_book_state(root / 'scripts'):
+                    ready.set()
+                    release.wait(5)
+            owner = threading.Thread(target=hold_saved)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                response = client.post('/api/scripts/load', json={'name': 'book'})
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertIn('check the current state before retrying', response.json()['detail'])
+                self.assertTrue((root / 'scripts' / 'book.json').exists())
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+
+    def test_load_reports_busy_book_as_conflict(self):
+        with self.fixture() as (root, api), TestClient(api) as client:
+            ready, release = threading.Event(), threading.Event()
+            def hold_book():
+                with books.ensure_book_state(root):
+                    ready.set()
+                    release.wait(5)
+            owner = threading.Thread(target=hold_book)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                response = client.post('/api/scripts/load', json={'name': 'book'})
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertIn('check the current state before retrying', response.json()['detail'])
+                self.assertTrue((root / 'scripts' / 'book.json').exists())
+            finally:
+                release.set()
+                owner.join(5)
+
+    def test_chunk_edit_timeout_does_not_claim_no_change(self):
+        from routers import editor
+        changed = []
+        def operation():
+            changed.append('published')
+            raise TimeoutError('late failure')
+        with patch.object(editor, 'check_global_gpu_lock'):
+            with self.assertRaises(HTTPException) as raised:
+                editor._apply_chunk_edit(operation)
+        self.assertEqual(['published'], changed)
+        self.assertEqual(409, raised.exception.status_code)
+        self.assertIn('check the line before retrying', raised.exception.detail)
+        self.assertFalse(core._gpu_lock.locked())
+
+    def test_chunk_edit_does_not_wait_indefinitely_for_book_under_task_mutex(self):
+        from routers import editor
+        with self.fixture() as (root, _api), \
+             patch.object(editor, 'SCRIPT_PATH', str(root / 'annotated_script.json')), \
+             patch.object(editor, 'check_global_gpu_lock'):
+            ready, release, finished = threading.Event(), threading.Event(), threading.Event()
+            outcomes = []
+            def hold_book():
+                with books.ensure_book_state(root):
+                    ready.set()
+                    release.wait(5)
+            def edit():
+                try:
+                    editor._apply_chunk_edit(editor.apply_chunk_update, 0, {}, 'token', 'uid')
+                except HTTPException as error:
+                    outcomes.append(error.status_code)
+                finally:
+                    finished.set()
+            owner = threading.Thread(target=hold_book)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                worker = threading.Thread(target=edit)
+                worker.start()
+                self.assertTrue(finished.wait(3), 'chunk edit waited for the held book lock')
+                self.assertEqual([409], outcomes)
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+                if 'worker' in locals():
+                    worker.join(5)
+
+    def test_delete_reports_busy_saved_file_without_holding_task_mutex(self):
+        from utils import file_lock
+        with self.fixture() as (root, api), TestClient(api) as client:
+            ready, release = threading.Event(), threading.Event()
+            saved = root / 'scripts' / 'book.json'
+            def hold_file():
+                with file_lock(saved):
+                    ready.set()
+                    release.wait(5)
+            owner = threading.Thread(target=hold_file)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                response = client.delete('/api/scripts/book')
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertTrue(saved.exists())
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+
+    def test_saved_mutations_do_not_wait_for_saved_book_lock(self):
+        with self.fixture() as (root, _api):
+            ready, release, finished = threading.Event(), threading.Event(), threading.Event()
+            outcomes = []
+            def hold_saved():
+                with books.ensure_book_state(root / 'scripts'):
+                    ready.set()
+                    release.wait(5)
+            def delete():
+                try:
+                    routes._delete_script_sync('book')
+                except HTTPException as error:
+                    outcomes.append(error.status_code)
+                finally:
+                    finished.set()
+            owner = threading.Thread(target=hold_saved)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                worker = threading.Thread(target=delete)
+                worker.start()
+                self.assertTrue(finished.wait(3), 'delete waited for the saved-book lock')
+                self.assertEqual([409], outcomes)
+                self.assertTrue((root / 'scripts' / 'book.json').exists())
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+                if 'worker' in locals():
+                    worker.join(5)
+
+    def test_saved_mutation_does_not_relabel_body_timeout_as_admission_error(self):
+        with self.fixture():
+            with self.assertRaisesRegex(TimeoutError, 'body timeout'):
+                with routes._saved_mutation_admission():
+                    raise TimeoutError('body timeout')
+
+    def test_saved_mutations_do_not_wait_for_book_while_holding_task_mutex(self):
+        with self.fixture() as (root, _api):
+            ready = threading.Event()
+            release = threading.Event()
+            finished = threading.Event()
+            outcomes = []
+            def hold_book():
+                with books.ensure_book_state(root):
+                    ready.set()
+                    release.wait(5)
+            def delete():
+                try:
+                    operations = (lambda: routes._delete_script_sync('book'),
+                                  lambda: routes._apply_deterministic_repair_sync('book', None),
+                                  lambda: routes._apply_speaker_repair_sync('book', None),
+                                  lambda: routes._apply_content_repair_sync('book', None))
+                    for operation in operations:
+                        try:
+                            operation()
+                        except HTTPException as error:
+                            outcomes.append(error.status_code)
+                finally:
+                    finished.set()
+            owner = threading.Thread(target=hold_book)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                worker = threading.Thread(target=delete)
+                worker.start()
+                self.assertTrue(finished.wait(3), 'delete waited for the held book lock')
+                self.assertEqual([409, 409, 409, 409], outcomes)
+                self.assertTrue((root / 'scripts' / 'book.json').exists())
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+                if 'worker' in locals():
+                    worker.join(5)
+
+    def test_invalid_active_script_is_422_before_binding_identity_parsing(self):
+        with self.fixture() as (root, api), TestClient(api) as client:
+            before = self.artifacts(root)
+            (root / 'annotated_script.json').write_bytes(b'not-json')
+            (root / routes.BINDING_NAME).write_bytes(b'not-a-binding')
+            state = json.loads((root / 'state.json').read_text())
+            state['script_binding_required'] = True
+            (root / 'state.json').write_text(json.dumps(state))
+            active_paths = [root / 'annotated_script.json', root / routes.BINDING_NAME, root / 'state.json']
+            active_before = {path: path.read_bytes() for path in active_paths}
+            response = client.post('/api/scripts/save', json={'name': 'invalid'})
+            self.assertEqual(422, response.status_code, response.text)
+            self.assertIn('Active script contains malformed JSON', response.json()['detail'])
+            self.assertEqual(before, self.artifacts(root))
+            self.assertEqual(active_before, {path: path.read_bytes() for path in active_paths})
+
+    def test_saved_listing_refuses_pending_parent_book_transaction(self):
+        with self.fixture() as (root, api), TestClient(api) as client:
+            journal = root / books.JOURNAL
+            journal.write_bytes(b'pending parent transaction')
+            response = client.get('/api/scripts')
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(b'pending parent transaction', journal.read_bytes())
+            journal.unlink()
+            self.assertEqual(200, client.get('/api/scripts').status_code)
+
     @contextlib.contextmanager
     def fixture(self, voices=True):
         with tempfile.TemporaryDirectory() as tmp,contextlib.ExitStack() as stack:
@@ -31,6 +262,8 @@ class SavedBookPublicationTests(unittest.TestCase):
             (uploads/'source.txt').write_text('Alice arrived.')
             (saved/'book.json').write_text('[{"speaker":"Old","text":"Old book."}]')
             for path in routes._get_saved_book_companions(str(saved/'book.json')):
+                if path.endswith('.selection_binding.json'):
+                    continue  # This fixture represents a pre-binding saved book.
                 Path(path).write_bytes(b'old companion bytes')
             for module in (routes,core):
                 for key,value in (('DATA_DIR',root),('SCRIPTS_DIR',saved),('SCRIPT_PATH',script),
@@ -77,14 +310,16 @@ class SavedBookPublicationTests(unittest.TestCase):
             self.assertNotIn('speech_date_order',json.loads((root/'state.json').read_text()))
 
     def test_real_metadata_publication_failure_restores_every_original_saved_artifact(self):
+        import source_upload_publication
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
-            before=self.artifacts(root);replace=os.replace;failed=False
+            before=self.artifacts(root);move=source_upload_publication.move_source_upload_exclusively;failed=False
             def fail_metadata(source,destination,*args,**kwargs):
                 nonlocal failed
-                if not failed and str(destination)==str(root/'scripts/book.meta.json'):
+                if (not failed and Path(destination).name == 'book.meta.json'
+                        and Path(source).name.startswith('new-')):
                     failed=True;raise OSError('fixture metadata publication disk full')
-                return replace(source,destination,*args,**kwargs)
-            with patch('os.replace',side_effect=fail_metadata):
+                return move(source,destination,*args,**kwargs)
+            with patch.object(source_upload_publication,'move_source_upload_exclusively',side_effect=fail_metadata):
                 response=client.post('/api/scripts/save',json={'name':'book'})
             self.assertTrue(failed)
             self.assertEqual(500,response.status_code)
@@ -100,6 +335,39 @@ class SavedBookPublicationTests(unittest.TestCase):
                     response=client.delete('/api/scripts/book')
                 self.assertEqual(409 if task else 200,response.status_code,response.text)
                 self.assertEqual(before if task else {},self.artifacts(root))
+
+    def test_delete_refuses_the_saved_source_of_the_loaded_book(self):
+        with self.fixture() as (root,api),TestClient(api) as client:
+            saved = root / 'scripts/book.json'
+            state = {'active_book_id':'different-id', 'book_generation':'generation',
+                     'input_file_path':str(saved)}
+            (root/'state.json').write_text(json.dumps(state))
+            before = self.artifacts(root)
+            response = client.delete('/api/scripts/book')
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertIn('currently loaded', response.json()['detail'])
+            self.assertEqual(before, self.artifacts(root))
+
+    def test_active_saved_content_repair_requires_switching_books(self):
+        with self.fixture() as (root,api):
+            saved = root / 'scripts/book.json'
+            original = saved.read_bytes()
+            (root/'annotated_script.json').write_bytes(original)
+            (root/'state.json').write_text(json.dumps({
+                'active_book_id':'different-id', 'book_generation':'generation',
+                'input_file_path':str(saved)}))
+            (root/'chunks.json').write_text('[{"text":"stale"}]')
+            (root/'chunks.json.status.jsonl').write_text('{"stale":true}\n')
+            before = self.artifacts(root)
+            entries = [{'speaker':'Old', 'text':'Repaired book.'}]
+            with self.assertRaises(HTTPException) as refused:
+                routes._publish_saved_repair(str(saved), entries)
+            self.assertEqual(409, refused.exception.status_code)
+            self.assertIn('switch books', refused.exception.detail)
+            self.assertEqual(before, self.artifacts(root))
+            self.assertEqual(original, saved.read_bytes())
+            self.assertTrue((root/'chunks.json').exists())
+            self.assertTrue((root/'chunks.json.status.jsonl').exists())
 
     def test_reserved_companion_names_are_rejected_before_writing(self):
         names=('book.voice_config','book.meta','book.review_checkpoint','book.generation_checkpoint',
@@ -140,11 +408,11 @@ class SavedBookPublicationTests(unittest.TestCase):
     def test_delete_move_failure_rolls_back_complete_family(self):
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
             before=self.artifacts(root);move=books._move;count=0
-            def fail_once(source,destination):
+            def fail_once(source,destination, **kwargs):
                 nonlocal count
                 count+=1
                 if count==3:raise OSError('fixture removal disk full')
-                return move(source,destination)
+                return move(source,destination, **kwargs)
             with patch.object(books,'_move',side_effect=fail_once):
                 response=client.delete('/api/scripts/book')
             self.assertEqual(500,response.status_code)
@@ -160,9 +428,9 @@ for module in (routes,core):
  module.DATA_DIR=str(root);module.SCRIPTS_DIR=str(root/'scripts')
  module.SCRIPT_PATH=str(root/'annotated_script.json');module.VOICE_CONFIG_PATH=str(root/'voice_config.json')
 move=books._move;count=0
-def die(source,destination):
+def die(source,destination, **kwargs):
  global count
- result=move(source,destination);count+=1
+ result=move(source,destination, **kwargs);count+=1
  if count==3:os._exit(77)
  return result
 books._move=die

@@ -202,6 +202,13 @@ class AudioTakeHistory:
                 raise ValueError('Take metadata changed while reading; it was preserved.')
         if _version(_ensure_plain_path(self.manifest, self.root).stat()) != _version(info):
             raise ValueError('Take metadata changed while reading; it was preserved.')
+        return self.parse_manifest_bytes(data)
+
+    def parse_manifest_bytes(self, data, *, cancel_check=None):
+        """Validate an already captured manifest without rereading its path."""
+        _check_cancelled(cancel_check)
+        if not isinstance(data, bytes) or len(data) > MAX_MANIFEST_BYTES:
+            raise ValueError('Take history manifest exceeds its size limit.')
         try:
             document = json.loads(data)
         except RecursionError as error:
@@ -211,7 +218,10 @@ class AudioTakeHistory:
                                        max_record_bytes=MAX_RECORD_BYTES,
                                        max_manifest_bytes=MAX_MANIFEST_BYTES,
                                        check_depth=_ensure_metadata_depth)
-        return self._validate(document)
+        for _ in self._iter_validated_record_bytes(document):
+            _check_cancelled(cancel_check)
+        _check_cancelled(cancel_check)
+        return document
 
     def _validate(self, document):
         for _ in self._iter_validated_record_bytes(document):

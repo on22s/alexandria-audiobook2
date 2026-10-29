@@ -29,7 +29,7 @@ class SavedDestinationOwnershipTests(unittest.TestCase):
             states = {'batch_review': {'running': False, 'cancel': False}}
             for module in (core, script, library):
                 stack.enter_context(patch.object(module, 'process_state', states))
-            for name, value in (('SCRIPTS_DIR', root / 'scripts'), ('ROOT_DIR', root),
+            for name, value in (('DATA_DIR', root), ('SCRIPTS_DIR', root / 'scripts'), ('ROOT_DIR', root),
                                 ('CHARACTER_ALIASES_PATH', root / 'aliases.json')):
                 stack.enter_context(patch.object(script, name, str(value)))
             stack.enter_context(patch.object(core, '_task_claims', {}))
@@ -129,6 +129,31 @@ class SavedDestinationOwnershipTests(unittest.TestCase):
             self.assertEqual(8, len(attempts))
             self.assertEqual({'fwd', 'bwd'}, {phase for phase, _ in attempts})
             self.assertEqual(200, client.post('/api/scripts/save', json={'name': 'book'}).status_code)
+
+    def test_loaded_saved_source_is_skipped_before_nickname_or_review_side_effects(self):
+        with self.fixture() as (root, client, states, helper):
+            loaded = root/'scripts/book.json'; second = root/'scripts/second.json'
+            second.write_text('[{"speaker":"Second","text":"Second book."}]')
+            state = json.loads((root/'state.json').read_text()); state['input_file_path'] = str(loaded)
+            (root/'state.json').write_text(json.dumps(state))
+            checkpoint = Path(_checkpoint_path(str(loaded))); checkpoint.write_bytes(b'old checkpoint')
+            registry = root/'aliases.json'; registry.write_bytes(b'{}')
+            before = loaded.read_bytes()
+            background = self.start(('book','second'), dedupe_speakers=True, find_nicknames=True)
+            calls = []
+            def stream(command, *_args, **_kwargs):
+                calls.append(command)
+                self.assertNotIn(str(loaded), command)
+                return 0, [] if any(str(arg).endswith('find_nicknames.py') for arg in command) else CLEAN
+            with patch.object(script, '_stream_subprocess_to_logs', side_effect=stream):
+                asyncio.run(background())
+            self.assertEqual('failed', states['batch_review']['tasks'][0]['status'])
+            self.assertEqual('done', states['batch_review']['tasks'][1]['status'])
+            self.assertTrue(any('currently loaded' in line for line in states['batch_review']['logs']))
+            self.assertEqual(before, loaded.read_bytes())
+            self.assertEqual(b'old checkpoint', checkpoint.read_bytes())
+            self.assertEqual(b'{}', registry.read_bytes())
+            self.assertEqual(2, len(calls))
 
     def test_running_flag_cannot_retire_a_started_claim_before_callback_cleanup(self):
         with self.fixture() as (root, client, states, helper):

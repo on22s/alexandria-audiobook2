@@ -78,10 +78,56 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
             self.assertIs(False,response.json().get('voice_config_invalidated'))
             self.assertIsNone(response.json()['voice_config_backup'])
 
+    def test_active_saved_speaker_repair_requires_switching_books(self):
+        with self.fixture() as (root,api),TestClient(api) as client:
+            saved = root/'scripts/book.json'; saved_voice = root/'scripts/book.voice_config.json'
+            active = root/'annotated_script.json'; active_voice = root/'voice_config.json'
+            active.write_bytes(saved.read_bytes()); active_voice.write_bytes(b'{"active":"new assignment"}')
+            before = {path:path.read_bytes() for path in (saved, saved_voice, active, active_voice)}
+            (root/'chunks.json').write_text('[{"speaker":"Alice","text":"stale"}]')
+            (root/'chunks.json.status.jsonl').write_text('{"stale":true}\n')
+            (root/'state.json').write_text(json.dumps({
+                'active_book_id':'different-id', 'book_generation':'generation',
+                'input_file_path':str(saved)}))
+            request = self.request(root,[self.select(1,'Alice','NARRATOR')])
+            with patch.object(routes, 'get_repair_script_snapshot',
+                              side_effect=AssertionError('active saved book must be refused before parsing')):
+                response=client.post('/api/scripts/book/repair/speakers/apply',json=request)
+            self.assertEqual(409,response.status_code,response.text)
+            self.assertIn('switch books', response.json()['detail'])
+            self.assertEqual(before, {path:path.read_bytes() for path in before})
+            self.assertTrue((root/'chunks.json').exists())
+            self.assertTrue((root/'chunks.json.status.jsonl').exists())
+
+    def test_active_speaker_repair_preserves_active_binding_when_saved_binding_missing(self):
+        from script_selection_binding import BINDING_NAME
+        with self.fixture() as (root,api), TestClient(api) as client:
+            saved = root/'scripts/book.json'
+            active = root/'annotated_script.json'
+            active.write_bytes(saved.read_bytes())
+            (root/'state.json').write_text(json.dumps({
+                'active_book_id':'book', 'book_generation':'generation',
+                'input_file_path':str(saved), 'script_binding_required': True}))
+            binding = root/BINDING_NAME
+            binding.write_bytes(b'active identity must remain')
+            before = saved.read_bytes()
+            response = client.post('/api/scripts/book/repair/speakers/apply',
+                                   json=self.request(root,[self.select(1,'Alice','NARRATOR')]))
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertIn('switch books', response.json()['detail'])
+            self.assertEqual(before, saved.read_bytes())
+            self.assertEqual(before, active.read_bytes())
+            self.assertEqual(b'active identity must remain', binding.read_bytes())
+
     def test_dangling_voice_symlink_is_refused_before_script_publication(self):
         with self.fixture() as (root,api),TestClient(api) as client:
             voice=root/'scripts/book.voice_config.json';voice.unlink()
-            voice.symlink_to(root/'missing-voice.json')
+            try:
+                voice.symlink_to(root/'missing-voice.json')
+            except OSError as error:
+                if os.name == 'nt' and getattr(error, 'winerror', None) == 1314:
+                    self.skipTest('Windows symlink creation requires privilege or developer mode')
+                raise
             script=(root/'scripts/book.json').read_bytes()
             response=client.post('/api/scripts/book/repair/speakers/apply',json=self.request(root,[self.select(1,'Alice','NARRATOR')]))
             self.assertEqual(409,response.status_code,response.text)
@@ -101,14 +147,15 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
 
     def test_voice_removal_failure_restores_script_voices_checkpoints_and_backup_ownership(self):
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
-            before=self.snapshot(root);replace=os.replace;failed=False
-            def fail_once(source,destination,*args,**kwargs):
+            from source_upload_publication import move_source_upload_exclusively
+            before=self.snapshot(root);failed=False
+            def fail_once(source,destination,**kwargs):
                 nonlocal failed
-                if str(source)==str(root/'scripts/book.voice_config.json') and not failed:
+                if Path(source).name=='book.voice_config.json' and not failed:
                     failed=True;raise OSError('fixture voice invalidation disk full')
-                return replace(source,destination,*args,**kwargs)
+                return move_source_upload_exclusively(source,destination,**kwargs)
             body=self.request(root,[self.select(1,'Alice','NARRATOR')])
-            with patch('os.replace',side_effect=fail_once):
+            with patch('source_upload_publication.move_source_upload_exclusively',side_effect=fail_once):
                 response=client.post('/api/scripts/book/repair/speakers/apply',json=body)
             self.assertTrue(failed);self.assertEqual(500,response.status_code)
             self.assertEqual(before,self.snapshot(root))
@@ -123,6 +170,7 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
             self.assertEqual(409,response.status_code,response.text)
             self.assertEqual(before,self.snapshot(root))
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX flock fixture; Windows locking needs a native fixture')
     def test_current_voice_bytes_are_captured_after_a_competing_writer_releases_its_kernel_lock(self):
         import fcntl
         with self.fixture() as (root,api),TestClient(api) as client:
@@ -152,9 +200,9 @@ import book_state_transaction as books
 from routers import scripts_library as routes
 root=Path(sys.argv[1]);routes.SCRIPTS_DIR=str(root/'scripts');routes.process_state={}
 move=books._move;count=0
-def die(source,destination):
+def die(source,destination, **kwargs):
  global count
- result=move(source,destination);count+=1
+ result=move(source,destination, **kwargs);count+=1
  if count==5:os._exit(77)
  return result
 books._move=die
