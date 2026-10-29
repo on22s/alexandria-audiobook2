@@ -757,6 +757,32 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     require_stage_versions=True)
             self.assertEqual(b'preserve', stage.read_bytes())
 
+    def test_missing_second_stage_version_preserves_all_stages_and_targets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'one').write_bytes(b'original one')
+            (root / 'two').write_bytes(b'original two')
+            stage = books._stage_book_stream
+            def fail_second(path, source, mode, cancel_check, **kwargs):
+                if Path(path).name == 'new-1':
+                    def unavailable(_info):
+                        raise OSError('fixture second stage observation failure')
+                    kwargs['on_finish'] = unavailable
+                return stage(path, source, mode, cancel_check, **kwargs)
+            first = books.BookStateStream(io.BytesIO(b'first'), 5, hashlib.sha256(b'first').hexdigest())
+            second = books.BookStateStream(io.BytesIO(b'second'), 6, hashlib.sha256(b'second').hexdigest())
+            with patch.object(books, '_stage_book_stream', side_effect=fail_second):
+                with books.ensure_book_state(root), self.assertRaisesRegex(
+                        ValueError, 'version unavailable') as raised:
+                    books.apply_book_state_locked(root, {'one': first, 'two': second}, [], stream_byte_limit=1024)
+            self.assertIsInstance(raised.exception.__cause__, OSError)
+            workspace = next(root.glob('.book-switch-*'))
+            self.assertEqual(b'first', (workspace / 'new-0').read_bytes())
+            self.assertEqual(b'second', (workspace / 'new-1').read_bytes())
+            self.assertEqual(b'original one', (root / 'one').read_bytes())
+            self.assertEqual(b'original two', (root / 'two').read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
+
     @unittest.skipUnless(os.name == 'nt', 'Windows native staging handle')
     def test_windows_stage_handle_failure_preserves_workspace(self):
         import windows_export_staging_directory as native
