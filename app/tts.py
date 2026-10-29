@@ -1141,8 +1141,8 @@ class TTSEngine:
         return succeeded
 
     def _resolve_device(self):
-        """Resolve 'auto' device to the best available."""
-        return device_utils.resolve_device(self._device)
+        """Resolve the TTS device; 'auto' prefers CPU over Apple MPS (#1650)."""
+        return device_utils.resolve_tts_device(self._device)
 
     def _enable_rocm_optimizations(self):
         """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU. See
