@@ -378,7 +378,12 @@ def _listing_parent(directory, relative, before, proofs, *, root_fd=None):
 def _listing_stat(directory, name, before, proofs, *, root_fd=None):
     relative = Path(name)
     with _listing_parent(directory, relative.parent, before, proofs, root_fd=root_fd) as parent_fd:
-        return os.stat(relative.name, dir_fd=parent_fd, follow_symlinks=False)
+        try:
+            return os.stat(relative.name, dir_fd=parent_fd, follow_symlinks=False)
+        except OSError as error:
+            if error.errno in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP):
+                raise ValueError('Recovery storage changed during inspection') from error
+            raise
 
 
 def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check=None,
@@ -386,6 +391,13 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
     """Measure locked storage through no-follow handles with bounded descriptors."""
     total, seen = 0, 0
     snapshot = _storage_version if observe_unsafe else _version
+    def scan_io(operation, *args, **kwargs):
+        try:
+            return operation(*args, **kwargs)
+        except OSError as error:
+            if observe_unsafe and error.errno in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP):
+                raise ValueError('Recovery storage changed during quota scan') from error
+            raise
     root_version = snapshot(os.fstat(directory_fd))
     proofs, unsafe_paths = [], set()
     # Each node shares its parent chain, bounding memory by the entry count.
@@ -399,13 +411,13 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
         while cursor is not None:
             chain.append(cursor)
             cursor = cursor[0]
-        current_fd = _open_directory('.', dir_fd=directory_fd)
+        current_fd = scan_io(_open_directory, '.', dir_fd=directory_fd)
         try:
             if snapshot(os.fstat(current_fd)) != root_version:
                 raise ValueError('Recovery storage changed during quota scan')
             for _parent, name, version, _depth in reversed(chain):
                 _check_cancelled(cancel_check)
-                next_fd = _open_directory(name, dir_fd=current_fd)
+                next_fd = scan_io(_open_directory, name, dir_fd=current_fd)
                 try:
                     if snapshot(os.fstat(next_fd)) != version:
                         raise ValueError('Recovery storage changed during quota scan')
@@ -423,7 +435,7 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
                     seen += 1
                     if seen > max_entries:
                         raise ValueError('Recovery storage has too many entries')
-                    info = os.stat(entry.name, dir_fd=current_fd, follow_symlinks=False)
+                    info = scan_io(os.stat, entry.name, dir_fd=current_fd, follow_symlinks=False)
                     version = snapshot(info)
                     relative = '/'.join([part[1] for part in reversed(chain)] + [entry.name])
                     if observe_unsafe:
@@ -436,7 +448,7 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
                         depth = 1 if node is None else node[3] + 1
                         if depth > MAX_QUOTA_DEPTH:
                             raise ValueError('Recovery storage exceeds its directory depth limit')
-                        child_fd = _open_directory(entry.name, dir_fd=current_fd)
+                        child_fd = scan_io(_open_directory, entry.name, dir_fd=current_fd)
                         try:
                             if snapshot(os.fstat(child_fd)) != version:
                                 raise ValueError('Recovery storage changed during quota scan')
@@ -447,7 +459,7 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
                         total += info.st_size
                     else:
                         raise ValueError('Recovery storage contains an unsafe artifact')
-                    if snapshot(os.stat(entry.name, dir_fd=current_fd, follow_symlinks=False)) != version:
+                    if snapshot(scan_io(os.stat, entry.name, dir_fd=current_fd, follow_symlinks=False)) != version:
                         raise ValueError('Recovery storage changed during quota scan')
             if snapshot(os.fstat(current_fd)) != before:
                 raise ValueError('Recovery storage changed during quota scan')

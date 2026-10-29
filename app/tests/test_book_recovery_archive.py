@@ -954,6 +954,54 @@ finally: os.close(fd)
                     archive.list_recovery_records(root, quota_bytes=10000)
             self.assertEqual(b'preserved', sentinel.read_bytes())
 
+    def test_listing_refuses_leaf_removed_after_parent_open(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            leaf = directory / 'leaf'
+            leaf.write_bytes(b'owned')
+            before = archive._version(directory.stat())
+            original = os.stat
+            removed = []
+            def disappear(name, *args, **kwargs):
+                if name == 'leaf' and kwargs.get('dir_fd') is not None:
+                    leaf.unlink()
+                    removed.append(True)
+                return original(name, *args, **kwargs)
+            with patch.object(archive.os, 'stat', disappear):
+                with self.assertRaisesRegex(ValueError, 'changed during inspection') as raised:
+                    archive._listing_stat(directory, 'leaf', before, {})
+            self.assertIsInstance(raised.exception.__cause__, FileNotFoundError)
+            self.assertEqual([True], removed)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX no-follow directory open required')
+    def test_listing_refuses_directory_replaced_before_pinned_open(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            storage = root / archive.ARCHIVE_DIR
+            storage.mkdir(mode=0o700)
+            child = storage / 'child'
+            child.mkdir(mode=0o700)
+            outside = root / 'outside'
+            outside.mkdir()
+            (outside / 'sentinel').write_bytes(b'foreign')
+            original = archive._open_directory
+            swapped = []
+            def replace(name, **kwargs):
+                if name == 'child' and kwargs.get('dir_fd') is not None and not swapped:
+                    child.rename(storage / 'parked')
+                    child.symlink_to(outside, target_is_directory=True)
+                    swapped.append(True)
+                return original(name, **kwargs)
+            try:
+                with patch.object(archive, '_open_directory', replace):
+                    with self.assertRaisesRegex(ValueError, 'changed during quota scan'):
+                        archive.list_recovery_records(root, quota_bytes=10000)
+                self.assertEqual([True], swapped)
+                self.assertEqual(b'foreign', (outside / 'sentinel').read_bytes())
+            finally:
+                if swapped:
+                    child.unlink()
+
     def test_inventory_counts_hardlink_logical_bytes_per_name(self):
         with self.fixture() as (root, token):
             storage = root / archive.ARCHIVE_DIR

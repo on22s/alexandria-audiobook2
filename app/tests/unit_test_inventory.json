@@ -1431,6 +1431,8 @@
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_inventory_unsafe_neighbor_keeps_pagination_revision_fence",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_listing_parent_preserves_io_and_cancellation_errors",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_listing_parent_swap_never_stats_the_external_child",
+    "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_listing_refuses_directory_replaced_before_pinned_open",
+    "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_listing_refuses_leaf_removed_after_parent_open",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_listing_refuses_missing_descriptor_capability_without_changes",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_lock_exit_failure_after_marker_reports_uncertain_publication",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_manifest_and_payload_changed_together_do_not_match_recorded_identity",
