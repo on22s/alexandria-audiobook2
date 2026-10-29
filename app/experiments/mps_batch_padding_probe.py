@@ -42,6 +42,8 @@ Readings, fixed before running (`get_reading`), checked in this order:
   no case padded in both arms          padding was not exercised; cases with
                                         equal tokens are excluded from the
                                         padding comparison
+  excluded equal-token case fails      control_failure; the failure remains
+                                        visible even without padding evidence
   any single line fails                 the cap alone is not enough; report it
   equal-length control fails            the failure is not isolated to padding
   sdpa failure has a different error    the observed failure was not the issue's
