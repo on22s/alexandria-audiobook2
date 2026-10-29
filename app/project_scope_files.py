@@ -2,6 +2,7 @@
 import hashlib
 import os
 from pathlib import Path, PureWindowsPath
+from direct_path_admission import is_plain_path
 from audio_take_history import _open_regular, _version, _ensure_plain_path, _hash, _check_cancelled
 
 MAX_SCOPE_METADATA_BYTES = 64 * 1024**2
@@ -21,7 +22,7 @@ def capture_scope_file(root, relative_path, *, limit=MAX_SCOPE_METADATA_BYTES,
             or type(include_bytes) is not bool):
         raise ValueError('Scope authority requires a confined filename and positive byte limit.')
     root = Path(os.path.abspath(root))
-    if os.path.normcase(os.path.realpath(root)) != os.path.normcase(str(root)):
+    if not is_plain_path(root):
         raise ValueError('Scope authority does not accept project directory aliases.')
     if not root.is_dir():
         raise ValueError('Scope authority requires an existing project directory.')
