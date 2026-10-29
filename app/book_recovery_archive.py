@@ -339,7 +339,11 @@ def _unsafe_storage_entry(info):
 @contextlib.contextmanager
 def _listing_parent(directory, relative, before, proofs, *, root_fd=None):
     """Open a listing parent without resolving any symlink component."""
-    absolute = Path(os.path.abspath(directory))
+    from direct_path_admission import get_canonical_plain_path
+    # The no-follow walk starts from the resolved form of the admitted root, so
+    # an administrator-owned ancestor alias (macOS /var) does not stop it.
+    absolute = (get_canonical_plain_path(directory) if root_fd is None
+                else Path(os.path.abspath(directory)))
     current = (_open_directory(absolute.anchor) if root_fd is None
                else _open_directory('.', dir_fd=root_fd))
     try:

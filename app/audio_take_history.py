@@ -69,12 +69,14 @@ def _version(info):
 def _ensure_plain_path(path, root):
     from direct_path_admission import is_plain_path
     path = Path(os.path.abspath(path))
-    try:
-        parts = path.relative_to(root).parts
-    except ValueError as error:
-        raise ValueError('Take audio must stay inside the project.') from error
     if not is_plain_path(path):
         raise ValueError('Take history does not accept file or directory aliases.')
+    # Admitted administrator aliases (#1659) resolve away; compare canonical forms.
+    path = Path(os.path.realpath(path))
+    try:
+        parts = path.relative_to(os.path.realpath(root)).parts
+    except ValueError as error:
+        raise ValueError('Take audio must stay inside the project.') from error
     return path
 
 

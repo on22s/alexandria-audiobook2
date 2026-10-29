@@ -389,9 +389,13 @@ def inspect_book_cleanup_workspace(workspace, *, byte_limit, entry_limit, cancel
     if (type(byte_limit) is not int or not 1 <= byte_limit < 2**63
             or type(entry_limit) is not int or not 1 <= entry_limit <= MAX_FILES):
         raise ValueError('Cleanup observation requires bounded positive limits')
-    root = Path(os.path.abspath(workspace))
-    if os.path.normcase(os.path.realpath(root)) != os.path.normcase(str(root)):
-        raise ValueError('Cleanup observation requires a direct workspace')
+    from direct_path_admission import get_canonical_plain_path
+    try:
+        # The no-follow walk below starts from the resolved form, so an
+        # administrator-owned ancestor alias (macOS /var) does not stop it.
+        root = get_canonical_plain_path(workspace)
+    except ValueError as error:
+        raise ValueError('Cleanup observation requires a direct workspace') from error
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     root_fd = os.open(root.anchor, flags)
     try:
@@ -982,12 +986,17 @@ def _verify_stream_cleanup_targets(root, data, *, cancel_check=None):
     check_parents()
 
 
+def _book_scope_key(root):
+    """One key per admitted root, however an admitted alias spelled it (#1659)."""
+    return os.path.normcase(os.path.realpath(root))
+
+
 def is_book_state_admitted(data_dir):
     try:
         root_path, identity = _direct_book_root(data_dir)
     except (OSError, ValueError):
         return False
-    root = os.path.normcase(str(root_path))
+    root = _book_scope_key(root_path)
     owner = _get_book_scope_owner()
     return any(scope.active and scope.root == root and scope.owner == owner
                and scope.identity == identity
@@ -1206,9 +1215,9 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                     or os.stat not in os.supports_follow_symlinks
                     or not hasattr(os, 'O_DIRECTORY') or not hasattr(os, 'O_NOFOLLOW')):
                 raise OSError(errno.ENOTSUP, 'Safe anchored book moves are unavailable')
+            from direct_path_admission import is_plain_path
             root = Path(os.path.abspath(anchor))
-            if (root.is_symlink() or os.path.normcase(os.path.realpath(root)) !=
-                    os.path.normcase(str(root))):
+            if not is_plain_path(root):  # also refuses a symlinked root itself
                 raise ValueError('Book move root changed; recovery evidence was preserved')
             source, destination = Path(os.path.abspath(source)), Path(os.path.abspath(destination))
             try:
@@ -2190,7 +2199,7 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
         admitted_root, admitted_identity = _direct_book_root(root)
         if admitted_identity != identity:
             raise ValueError('Book root changed during admission')
-        scope = _BookScope(os.path.normcase(str(admitted_root)),
+        scope = _BookScope(_book_scope_key(admitted_root),
                            _get_book_scope_owner(), admitted_identity)
         token = _held_books.set((*_held_books.get(), scope))
         try:

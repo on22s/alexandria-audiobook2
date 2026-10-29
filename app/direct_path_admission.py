@@ -3,18 +3,61 @@ import os
 from pathlib import Path
 import stat
 
+# POSIX owners whose symlinked ancestors are trusted. Only root can create or
+# retarget /var, /tmp or /etc on macOS, or an admin-made symlinked volume.
+TRUSTED_ALIAS_OWNERS = frozenset({0})
+
+
+def _stat_directory(path):
+    """Read a parent directory's owner and mode (a seam for tests without root)."""
+    return path.stat()
+
+
+def _is_administrator_controlled(link, info):
+    """True when no unprivileged user could have created or can swap `link`.
+
+    The link and every directory from / down to the one holding it must be
+    owned by a trusted owner and not group- or world-writable (so a sticky
+    shared directory does not qualify).
+    """
+    if info.st_uid not in TRUSTED_ALIAS_OWNERS:
+        return False
+    for directory in reversed(link.parents):
+        try:
+            # Earlier components were admitted already, so follow them here.
+            parent = _stat_directory(directory)
+        except OSError:
+            return False
+        if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid not in TRUSTED_ALIAS_OWNERS
+                or parent.st_mode & (stat.S_IWGRP | stat.S_IWOTH)):
+            return False
+    return True
+
 
 def is_plain_path(path):
-    """Accept DOS short spellings, but refuse existing reparse components.
+    """Refuse aliases an unprivileged user could create or swap.
 
+    Windows accepts DOS short spellings but refuses existing reparse
+    components. POSIX refuses symlinks, except an ancestor symlink that only an
+    administrator controls, such as macOS /var -> /private/var (#1659).
     Missing trailing components are allowed for publication destinations.
     This is an admission observation, not protection against later swaps.
-    POSIX retains the existing no-aliased-ancestors policy.
     """
     path = Path(os.path.abspath(path))
     if os.name != 'nt':
-        return (not any(component.is_symlink() for component in (*path.parents, path))
-                and os.path.normcase(os.path.realpath(path)) == os.path.normcase(str(path)))
+        admitted_alias = False
+        for component in (*reversed(path.parents), path):
+            try:
+                info = component.lstat()
+            except OSError:
+                continue  # missing or unreadable components are not symlinks here
+            if stat.S_ISLNK(info.st_mode):
+                if component == path or not _is_administrator_controlled(component, info):
+                    return False
+                admitted_alias = True
+        if admitted_alias:
+            return True
+        return os.path.normcase(os.path.realpath(path)) == os.path.normcase(str(path))
     for component in (*reversed(path.parents), path):
         try:
             info = component.lstat()
@@ -26,3 +69,14 @@ def is_plain_path(path):
                 getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
             return False
     return True
+
+
+def get_canonical_plain_path(path):
+    """Return the resolved form of an admitted path, for descriptor walks.
+
+    Walks that open each component with O_NOFOLLOW must start from the
+    canonical form; callers still compare identities with the admitted root.
+    """
+    if not is_plain_path(path):
+        raise ValueError('Path is not a direct path')
+    return Path(os.path.realpath(os.path.abspath(path)))
