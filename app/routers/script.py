@@ -765,6 +765,9 @@ def _apply_upload_selection(path, before_publication=None):
                 options['before_publication'] = before_publication
             return apply_book_input_selection(DATA_DIR, path,
                 secure_filename(os.path.splitext(os.path.basename(path))[0]), **options)
+        except TimeoutError:
+            raise HTTPException(status_code=409, detail=(
+                'Book metadata is busy; retry the selection shortly.')) from None
         except ValueError:
             raise HTTPException(status_code=409, detail=(
                 'Book metadata requires inspection; existing book files were preserved.')) from None
@@ -887,7 +890,12 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                     result = get_epub_publication_origin(archive_bytes, **options)
                     result['warnings'] = ['Publication suggestions unavailable: ' + str(error)[:2000]]
                     return result
-            publication, cancelled = await await_upload_operation(asyncio.to_thread(capture_publication))
+            try:
+                publication, cancelled = await await_upload_operation(
+                    asyncio.to_thread(capture_publication))
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=(
+                    'Invalid EPUB publication metadata: ' + redact_text(str(error)))) from error
             if cancelled is not None:
                 raise cancelled
             safe_name = os.path.splitext(safe_name)[0] + '.txt'

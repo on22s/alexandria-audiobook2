@@ -40,6 +40,18 @@ def epub(title='Fixture title', *, cover=None, metadata=True, text=TEXT):
 
 
 class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_invalid_epub_publication_filename_is_a_controlled_refusal(self):
+        async with self.environment() as (_, uploads, client):
+            upload = UploadFile(filename='book\x1f.epub', file=io.BytesIO(epub()))
+            try:
+                with self.assertRaises(script.HTTPException) as caught:
+                    await script.upload_file(upload, select_active=False)
+            finally:
+                await upload.close()
+            self.assertEqual(400, caught.exception.status_code)
+            self.assertIn('Invalid EPUB publication metadata', caught.exception.detail)
+            self.assertEqual([], list(uploads.iterdir()))
+
     async def test_invalid_new_candidate_cannot_corrupt_existing_provenance(self):
         async with self.environment() as (_, uploads, client):
             self.assertEqual(200, (await self.upload(client, epub())).status_code)

@@ -81,6 +81,32 @@ class SourceUploadPublicationTests(unittest.TestCase):
         self.assertEqual(str(self.root / 'book.txt'), self.stage.published_path)
         self.assertEqual(self.payload, (self.root / 'book.txt').read_bytes())
 
+    def test_windows_post_rename_metadata_failure_preserves_source_and_companion(self):
+        if os.name != 'nt':
+            return
+        companion = self.get_companion_bytes()
+        self.stage.seal()
+        original = os.fstat
+        stage_descriptor = self.stage._stream.fileno()
+        calls = 0
+        def fail_after_rename(descriptor):
+            nonlocal calls
+            if descriptor == stage_descriptor:
+                calls += 1
+                if calls == 4:
+                    raise OSError('controlled post-rename metadata failure')
+            return original(descriptor)
+        with patch.object(publication.os, 'fstat', side_effect=fail_after_rename):
+            with self.assertRaisesRegex(OSError, 'controlled post-rename metadata failure'):
+                publication.publish_completed_upload(
+                    self.stage, 'book.txt', lambda path: self.fail('unexpected callback'),
+                    limit=len(self.payload), companion_bytes=companion)
+        self.stage.close()
+        self.assertTrue(self.stage.publication_started)
+        self.assertEqual(str(self.root / 'book.txt'), self.stage.published_path)
+        self.assertEqual(self.payload, (self.root / 'book.txt').read_bytes())
+        self.assertEqual(companion, (self.root / 'book.txt.publication.json').read_bytes())
+
     def test_alias_refusal_retains_companion_evidence_and_skips_its_name(self):
         if os.name != 'nt':
             return

@@ -16,6 +16,20 @@ from source_upload_stage import OwnedSourceUploadStage
 
 
 class SourceUploadVisibilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_busy_book_selection_is_a_retryable_conflict(self):
+        async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (_, uploads, client):
+            (uploads / 'existing.txt').write_bytes(b'Existing reusable source.')
+            with patch.object(script, 'apply_book_input_selection',
+                              side_effect=TimeoutError('controlled busy lock')):
+                selected = await client.post('/api/uploads/select', json={'filename': 'existing.txt'})
+                uploaded = await client.post('/api/upload', params={'select_active': 'true'},
+                    files={'file': ('new.txt', b'New source.', 'text/plain')})
+            self.assertEqual(409, selected.status_code, selected.text)
+            self.assertEqual(409, uploaded.status_code, uploaded.text)
+            self.assertIn('busy', selected.json()['detail'].lower())
+            self.assertIn('busy', uploaded.json()['detail'].lower())
+            self.assertEqual(b'Existing reusable source.', (uploads / 'existing.txt').read_bytes())
+
     async def test_epub_stage_cleanup_leaves_event_loop_free_and_waits_on_cancel(self):
         async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (root, uploads, client):
             entered, release = threading.Event(), threading.Event()

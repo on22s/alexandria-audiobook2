@@ -232,6 +232,13 @@ class OwnedSourceUploadStage:
                 raise FileExistsError(error, 'Upload destination exists')
             raise ctypes.WinError(error)
 
+    def _delete_windows_link(self):
+        import msvcrt
+        delete = ctypes.c_ubyte(1)
+        handle = msvcrt.get_osfhandle(self._stream.fileno())
+        if not self._api.SetFileInformationByHandle(handle, 4, ctypes.byref(delete), 1):
+            raise ctypes.WinError(ctypes.get_last_error())
+
     def publish(self, name):
         name = _destination_name(name)
         if self._sealed is None:
@@ -248,8 +255,14 @@ class OwnedSourceUploadStage:
             self._rename_windows(destination)
             self._accounting_name = name
             self.publication_started = True
+            # A native rename makes the source visible. Record that outcome
+            # before any later metadata operation can fail so request cleanup
+            # never mistakes the published link for an unpublished stage.
+            self._published_path = str(destination)
             if os.fstat(self._stream.fileno()).st_nlink != 1:
-                self.close()  # exact handle deletes only its unaccepted link
+                self._delete_windows_link()  # remove only the unaccepted owned link
+                self._published_path = None
+                self.close()
                 raise ValueError('Upload stage acquired an alias during publication')
         elif sys.platform.startswith('linux'):
             os.link('/proc/self/fd/' + str(self._stream.fileno()), name,
@@ -288,12 +301,8 @@ class OwnedSourceUploadStage:
 
     def close(self):
         try:
-            if os.name == 'nt' and self._stream is not None and self._published_path is None:
-                import msvcrt
-                delete = ctypes.c_ubyte(1)
-                handle = msvcrt.get_osfhandle(self._stream.fileno())
-                if not self._api.SetFileInformationByHandle(handle, 4, ctypes.byref(delete), 1):
-                    raise ctypes.WinError(ctypes.get_last_error())
+            if os.name == 'nt' and self._stream is not None and not self.publication_started:
+                self._delete_windows_link()
         finally:
             try:
                 self._close_stream()
@@ -303,9 +312,11 @@ class OwnedSourceUploadStage:
                         descriptor, self._directory_fd = self._directory_fd, None
                         os.close(descriptor)
                 finally:
-                    if self._guard is not None:
-                        guard, self._guard = self._guard, None
-                        guard.__exit__(None, None, None)
-                    if self._stream is None:
-                        with _stages_lock:
-                            _stages.discard(self)
+                    try:
+                        if self._guard is not None:
+                            guard, self._guard = self._guard, None
+                            guard.__exit__(None, None, None)
+                    finally:
+                        if self._stream is None:
+                            with _stages_lock:
+                                _stages.discard(self)
