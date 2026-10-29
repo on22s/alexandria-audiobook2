@@ -59,8 +59,13 @@ class NativeWindowsRecoveryQuotaTests(unittest.TestCase):
                         self.assertEqual(b'foreign evidence', sentinel.read_bytes())
                         self.assertEqual((before.st_dev, before.st_ino),
                                          (unsafe.lstat().st_dev, unsafe.lstat().st_ino))
-                        with self.assertRaises(ValueError):
+                        refusal = ('does not accept file or directory aliases' if kind == 'junction'
+                                   else 'unsafe artifact')
+                        with self.assertRaisesRegex(ValueError, refusal):
                             archive._used_bytes(storage)
+                        self.assertEqual(b'foreign evidence', sentinel.read_bytes())
+                        self.assertEqual((before.st_dev, before.st_ino),
+                                         (unsafe.lstat().st_dev, unsafe.lstat().st_ino))
                     finally:
                         if kind == 'junction':
                             os.rmdir(unsafe)

@@ -1032,11 +1032,55 @@ finally: os.close(fd)
             self.assertEqual(first['revision'], second['revision'])
             self.assertNotEqual(first['records'][0]['id'], second['records'][0]['id'])
             self.assertIsNone(second['next_cursor'])
+            for page in (first, second):
+                self.assertFalse(page['storage_complete'])
+                self.assertEqual(1, page['unsafe_entries'])
+                self.assertIsNone(page['over_quota'])
             unsafe.unlink()
             unsafe.symlink_to(root / 'annotated_script.json')
             with self.assertRaisesRegex(ValueError, 'changed; start listing again'):
                 archive.list_recovery_records(root, quota_bytes=10000, limit=1,
                     cursor=first['next_cursor'], expected_revision=first['revision'])
+
+    def test_inventory_retains_owner_unusable_directory_and_looping_links(self):
+        with self.fixture() as (root, token):
+            storage = root / archive.ARCHIVE_DIR
+            storage.mkdir(mode=0o700)
+            child = storage / 'unreadable'
+            child.mkdir(mode=0o700)
+            (storage / 'dangling').symlink_to(root / 'missing')
+            (storage / 'loop').symlink_to('loop')
+            try:
+                for mode in (0o000, 0o100, 0o400, 0o600):
+                    child.chmod(mode)
+                    listing = archive.list_recovery_records(root, quota_bytes=100000)
+                    self.assertEqual(3, listing['unsafe_entries'])
+                    self.assertFalse(listing['storage_complete'])
+                    self.assertIsNone(listing['over_quota'])
+                    self.assertEqual('loop', os.readlink(storage / 'loop'))
+            finally:
+                child.chmod(0o700)
+
+    def test_inventory_rejects_new_top_level_name_when_root_timestamps_match(self):
+        with self.fixture() as (root, token):
+            storage = root / archive.ARCHIVE_DIR
+            storage.mkdir(mode=0o700)
+            original_scan, original_version = archive._used_bytes, archive._version
+            info = storage.stat()
+            identity, version = (info.st_dev, info.st_ino), original_version(info)
+            added = storage / ('prepared-' + 'a' * 32)
+            def scan_then_add(*args, **kwargs):
+                result = original_scan(*args, **kwargs)
+                added.write_bytes(b'concurrent record retained')
+                added.chmod(0o600)
+                return result
+            def coarse_root_version(info):
+                return version if (info.st_dev, info.st_ino) == identity else original_version(info)
+            with patch.object(archive, '_used_bytes', scan_then_add), \
+                 patch.object(archive, '_version', coarse_root_version):
+                with self.assertRaisesRegex(ValueError, 'changed; start listing again'):
+                    archive.list_recovery_records(root, quota_bytes=100000)
+            self.assertEqual(b'concurrent record retained', added.read_bytes())
 
     def test_unsafe_observation_requires_path_proofs(self):
         with tempfile.TemporaryDirectory() as temporary:

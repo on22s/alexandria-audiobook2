@@ -332,7 +332,8 @@ def _unsafe_storage_entry(info):
         or not (stat.S_ISDIR(info.st_mode)
                 or stat.S_ISREG(info.st_mode) and info.st_nlink == 1)
         or os.name != 'nt' and (info.st_uid != os.getuid()
-                               or stat.S_IMODE(info.st_mode) & 0o077))
+                               or stat.S_IMODE(info.st_mode) & 0o077
+                               or stat.S_ISDIR(info.st_mode) and info.st_mode & 0o500 != 0o500))
 
 
 @contextlib.contextmanager
@@ -437,8 +438,8 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
                         raise ValueError('Recovery storage has too many entries')
                     info = scan_io(os.stat, entry.name, dir_fd=current_fd, follow_symlinks=False)
                     version = snapshot(info)
-                    relative = '/'.join([part[1] for part in reversed(chain)] + [entry.name])
                     if observe_unsafe:
+                        relative = '/'.join([part[1] for part in reversed(chain)] + [entry.name])
                         proofs.append((relative, list(version)))
                     if observe_unsafe and _unsafe_storage_entry(info):
                         unsafe_paths.add(relative)
@@ -999,12 +1000,14 @@ def _list_recovery_records_guarded(directory, before, used, storage_proofs, *,
                     paths.append(directory / entry.name)
                     if len(paths) > MAX_FILES * 3 + 1:
                         raise ValueError('Recovery storage has too many top-level entries')
+    observed_names = set()
     for path in paths:
         _check_cancelled(cancel_check)
         entries += 1
         if entries > MAX_FILES * 3 + 1:
             raise ValueError('Recovery storage has too many top-level entries')
         name = path.name
+        observed_names.add(name)
         if name == 'archive.lock':
             info = (path.lstat() if os.name == 'nt'
                     else _listing_stat(directory, path.name, before, proof_map,
@@ -1039,6 +1042,8 @@ def _list_recovery_records_guarded(directory, before, used, storage_proofs, *,
             item['marker'] = True
         if len(by_id) > MAX_FILES:
             raise ValueError('Recovery storage has too many candidate records')
+    if observed_names != {name for name, _version in storage_proofs if '/' not in name}:
+        raise ValueError('Recovery inventory changed; start listing again')
     revision = hashlib.sha256(json.dumps({'root':before, 'entries':sorted(storage_proofs)},
         ensure_ascii=True, separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest()
     if expected_revision is not None and revision != expected_revision:
