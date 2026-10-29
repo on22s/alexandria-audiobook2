@@ -533,6 +533,11 @@ def main():
     if sys.platform != 'win32':
         print('Native Windows transaction checks require Windows; nothing was verified.', file=sys.stderr)
         return 2
+    # Hosted runners set TEMP through a DOS 8.3 short name (RUNNER~1). The
+    # project-scope and take-history guards refuse such aliases by design, so
+    # fixtures use the long form; these checks cover native handles, not
+    # 8.3 admission policy.
+    tempfile.tempdir = os.path.realpath(tempfile.gettempdir())
     suite = unittest.TestSuite(
         unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (
             NativeWindowsRecoveryQuotaTests, NativeWindowsBookStateTests, NativeWindowsBookMoveTests, NativeWindowsPublicationCancellationTests))
