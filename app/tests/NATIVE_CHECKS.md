@@ -3,7 +3,7 @@
 The Linux release suite covers its kernel ownership implementation and the
 controlled Win32 API boundary cases. It does not verify the Windows kernel.
 
-The required `windows-owner` CI job runs these eight checks on `windows-latest`,
+The required `windows-owner` CI job runs these nine checks on `windows-latest`,
 through both its base interpreter and a real virtual environment:
 
 ```text
@@ -14,7 +14,7 @@ python -m venv --system-site-packages .native-owner-venv
 ```
 
 Set `PYTHONPATH` to `.` when invoking the script. The script rejects a non-Windows
-host with exit 2 and accepts only eight successful tests with zero skips. It uses
+host with exit 2 and accepts only nine successful tests with zero skips. It uses
 Python's standard library; it does not load models or perform GPU inference.
 It verifies detached descendants with inherited and closed pipes, high-bit exit
 status, controller-death cleanup, preservation of an unrelated process, and
@@ -25,8 +25,12 @@ handle. Detached tests identify actual interpreter/redirector PIDs and retain
 process handles through shutdown, including any additional console-host members.
 The executable option configures the trusted supervisor; the worker command's
 first argument selects its interpreter. The native matrix exercises both base
-and current-venv workers with inherited/current/base supervisor choices, and
+and current-venv workers with inherited/current/base/alias supervisor choices, and
 checks that Python consumes the private launcher variable before worker work.
+Equivalent override paths are identity-checked and replaced by the trusted
+runtime path before launch. Venv bootstrapping captures the native inherited
+environment so hidden per-drive directory entries survive; a real child-process
+test includes a supplementary Unicode character in that inherited value.
 
 Before that native CI job succeeds, Windows kernel verification remains pending.
 The current macOS process-group fallback still lacks exclusive lifetime ownership

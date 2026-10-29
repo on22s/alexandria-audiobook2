@@ -48,6 +48,10 @@ class AdmissionJob:
 
 
 class WindowsOwnerAdmissionTests(unittest.TestCase):
+    def test_completed_owner_receipt_survives_transient_sharing_denial(self):
+        self.check_admission(owner_completed=True)
+        self.check_admission(owner_completed=True, locked_reads=2)
+
     def test_inherited_handles_are_validated_once_before_launch(self):
         self.check_admission(with_handles=True)
         for invalid in ((0,), (-1,), (False,), ('handle',), (1.5,), 0):
@@ -115,7 +119,8 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
         self.assertEqual(1, job.calls.count('close'))
 
     def check_admission(self, fail_assignment=False, fail_worker=False, *, locked_reads=0,
-                        expect_denied=False, invalid_receipt=None, owner_exited=False, with_handles=False):
+                        expect_denied=False, invalid_receipt=None, owner_exited=False, with_handles=False,
+                        owner_completed=False):
         job = AdmissionJob(fail_assignment)
         observed = []
         remaining = [locked_reads]
@@ -154,7 +159,7 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
                         owner.save_windows_owner_message(receipt,
                             {'error': 'worker executable missing', 'errno': 2} if fail_worker
                             else {'started': 9002})
-                return None
+                return 0 if owner_completed else None
         self_case = self
         process = Process()
         def spawn(argv, **kwargs):
@@ -184,7 +189,7 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
                         'assignment denied|worker executable missing|did not acknowledge worker admission|invalid admission receipt|exited before worker admission') as error:
                     owner.start_windows_owned_subprocess(['worker', 'argument'], cwd='fixture-cwd')
                 self.assertNotIn('private-sentinel',str(error.exception))
-                if owner_exited:
+                if owner_exited and not locked_reads:
                     sleep.assert_not_called()
                 self.assertIsNone(job.handle)
                 self.assertTrue(process.waited)

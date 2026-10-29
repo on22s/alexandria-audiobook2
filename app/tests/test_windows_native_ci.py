@@ -23,6 +23,7 @@ class NativeWindowsCiTests(unittest.TestCase):
         self.assertEqual({'test_inherited_pipe_retains_detached_child_ownership',
                           'test_closed_pipe_retains_detached_child_ownership',
                           'test_current_python_environment_override_and_explicit_handle_are_preserved',
+                          'test_inherited_hidden_drive_environment_survives_python_bootstrap',
                           'test_native_high_bit_worker_exit_status_is_preserved',
                           'test_parent_exit_closes_the_only_job_handle_and_stops_its_members'}, methods)
         retirement = next(node for node in tree.body if isinstance(node, ast.ClassDef)
@@ -32,7 +33,7 @@ class NativeWindowsCiTests(unittest.TestCase):
         self.assertEqual({'test_private_stage_finish_removes_stage_and_slot',
                           'test_hard_exit_recovery_removes_private_slot',
                           'test_live_owner_is_preserved'}, retirement_methods)
-        self.assertIn('result.testsRun == 8 and not result.skipped', source)
+        self.assertIn('result.testsRun == 9 and not result.skipped', source)
         workflow = (ROOT / '.github/workflows/tests.yml').read_text().split('  windows-owner:', 1)[1]
         self.assertIn('runs-on: windows-latest', workflow)
         self.assertIn('run: python tests/native_windows_owner_checks.py', workflow)
@@ -48,7 +49,7 @@ class NativeWindowsCiTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=10)
         if sys.platform == 'win32':
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertIn('Ran 8 tests', result.stderr)
+            self.assertIn('Ran 9 tests', result.stderr)
             self.assertIn('OK', result.stderr)
         else:
             self.assertEqual(2, result.returncode, result.stderr)

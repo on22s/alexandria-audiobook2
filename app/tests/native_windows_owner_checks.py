@@ -105,7 +105,8 @@ while not pathlib.Path(sys.argv[4]).exists():
         import msvcrt
         cases = ((worker, prefix, override)
                  for worker, prefix in ((sys.executable, sys.prefix), (sys._base_executable, sys.base_prefix))
-                 for override in (None, sys.executable, sys._base_executable))
+                 for override in (None, sys.executable, sys._base_executable,
+                                  os.path.join(os.path.dirname(sys.executable), '.', os.path.basename(sys.executable))))
         for worker, prefix, override in cases:
             with self.subTest(worker=worker, executable_override=override), tempfile.TemporaryDirectory() as temporary:
                 working = Path(temporary).resolve()
@@ -176,7 +177,12 @@ while not pathlib.Path(sys.argv[4]).exists():
         api.CloseHandle.argtypes = [ctypes.c_void_p]
         api.CloseHandle.restype = ctypes.c_int
         original = owner.read_windows_owner_message
-        denied = []
+        launch = owner._popen_owned_python
+        denied, spawned = [], []
+        def capture_supervisor(*args, **kwargs):
+            process = launch(*args, **kwargs)
+            spawned.append(process)
+            return process
         def read_with_sharing_denial(path):
             if denied or not path.exists():
                 return original(path)
@@ -186,19 +192,49 @@ while not pathlib.Path(sys.argv[4]).exists():
             try:
                 return original(path)
             except PermissionError:
+                deadline = time.monotonic() + 5
+                while spawned[0].poll() is None:
+                    if time.monotonic() >= deadline:
+                        self.fail('fast supervisor did not exit while its valid receipt was locked')
+                    time.sleep(.01)
                 denied.append(True)
                 raise
             finally:
                 self.assertTrue(api.CloseHandle(handle))
-        with patch.object(owner,'read_windows_owner_message',side_effect=read_with_sharing_denial):
+        with patch.object(owner,'read_windows_owner_message',side_effect=read_with_sharing_denial), \
+             patch.object(owner, '_popen_owned_python', side_effect=capture_supervisor):
             process = start_windows_owned_subprocess([sys.executable, '-c', command])
         try:
             self.assertEqual([True],denied)
+            self.assertEqual(0xc0000142, spawned[0].poll())
             self.assertEqual(0xc0000142, process.wait(timeout=10))
             self.assertEqual(0, process._alexandria_windows_owner.job.get_active_process_count())
         finally:
             process._alexandria_control.close()
             process.wait(timeout=10)
+
+    def test_inherited_hidden_drive_environment_survives_python_bootstrap(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve() / 'saved-drive-\u03a9-\U0001f642'
+            directory.mkdir()
+            runner = r'''import json,subprocess,sys
+from windows_subprocess_owner import start_windows_owned_subprocess
+child = "import json,sys;from windows_subprocess_owner import _inherited_windows_environment;print(json.dumps({'preserved':_inherited_windows_environment().get('=C:')==sys.argv[1],'prefix':sys.prefix}),flush=True)"
+process = start_windows_owned_subprocess([sys.executable,'-c',child,sys.argv[1]],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+try:
+ stdout,stderr = process.communicate(timeout=5)
+ assert process.returncode == 0,stderr
+ row=json.loads(stdout)
+ assert row == {'preserved':True,'prefix':sys.prefix},row
+finally:
+ process._alexandria_windows_owner.close()
+ process.wait(timeout=5)
+'''
+            environment = dict(os.environ)
+            environment['=C:'] = str(directory)
+            result = subprocess.run([sys.executable, '-c', runner, str(directory)],
+                env=environment, capture_output=True, text=True, timeout=15)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_parent_exit_closes_the_only_job_handle_and_stops_its_members(self):
         api = ctypes.WinDLL('kernel32', use_last_error=True)
@@ -316,7 +352,7 @@ def main():
         unittest.defaultTestLoader.loadTestsFromTestCase(NativeWindowsRetirementTests),
     ])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() and result.testsRun == 8 and not result.skipped else 1
+    return 0 if result.wasSuccessful() and result.testsRun == 9 and not result.skipped else 1
 
 
 if __name__ == '__main__':
