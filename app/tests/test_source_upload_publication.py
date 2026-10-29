@@ -248,6 +248,18 @@ class SourceUploadPublicationTests(unittest.TestCase):
                                                      limit=len(self.payload))
         self.assert_stage_retained()
 
+    def test_disappearing_companion_is_a_governed_publication_conflict(self):
+        companion = self.get_companion_bytes()
+        def remove_companion_then_collide(_name):
+            (self.root / 'book.txt.publication.json').unlink()
+            raise FileExistsError('controlled destination collision')
+        with patch.object(self.stage, 'publish', side_effect=remove_companion_then_collide):
+            with self.assertRaisesRegex(ValueError, 'provenance changed'):
+                publication.publish_completed_upload(
+                    self.stage, 'book.txt', lambda path: None,
+                    limit=len(self.payload), companion_bytes=companion)
+        self.assert_stage_retained()
+
     def test_companion_is_complete_before_source_becomes_visible(self):
         companion_bytes = self.get_companion_bytes()
         observed = []

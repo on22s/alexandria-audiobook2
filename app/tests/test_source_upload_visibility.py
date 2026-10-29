@@ -16,6 +16,16 @@ from source_upload_stage import OwnedSourceUploadStage
 
 
 class SourceUploadVisibilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_dedupe_storage_replacement_is_a_governed_conflict(self):
+        async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (_, uploads, client):
+            with patch.object(script, '_reuse_duplicate_upload',
+                              side_effect=ValueError('Upload storage changed during publication')):
+                response = await client.post('/api/upload', params={'select_active': 'false'},
+                    files={'file': ('new.txt', b'New source.', 'text/plain')})
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertIn('storage changed', response.json()['detail'].lower())
+            self.assertEqual([], list(uploads.iterdir()))
+
     async def test_busy_book_selection_is_a_retryable_conflict(self):
         async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (_, uploads, client):
             (uploads / 'existing.txt').write_bytes(b'Existing reusable source.')

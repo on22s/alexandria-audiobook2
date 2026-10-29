@@ -40,6 +40,15 @@ def epub(title='Fixture title', *, cover=None, metadata=True, text=TEXT):
 
 
 class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_epub_fallback_warning_redacts_credentials(self):
+        async with self.environment() as (_, _, client):
+            with patch.object(script, 'get_epub_publication_candidate',
+                              side_effect=ValueError('api_key=supersecret')):
+                response = await self.upload(client, epub())
+            self.assertEqual(200, response.status_code, response.text)
+            warning = response.json()['publication_warnings'][0]
+            self.assertNotIn('supersecret', warning)
+
     async def test_invalid_epub_publication_filename_is_a_controlled_refusal(self):
         async with self.environment() as (_, uploads, client):
             upload = UploadFile(filename='book\x1f.epub', file=io.BytesIO(epub()))

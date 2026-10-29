@@ -888,7 +888,8 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                     return get_epub_publication_candidate(archive_bytes, **options)
                 except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile, RuntimeError, ImportError) as error:
                     result = get_epub_publication_origin(archive_bytes, **options)
-                    result['warnings'] = ['Publication suggestions unavailable: ' + str(error)[:2000]]
+                    result['warnings'] = [
+                        'Publication suggestions unavailable: ' + redact_text(str(error))[:2000]]
                     return result
             try:
                 publication, cancelled = await await_upload_operation(
@@ -909,7 +910,11 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
             if cancelled is not None:
                 raise cancelled
             file_path = txt_path
-        result, cancelled = await await_upload_operation(asyncio.to_thread(_reuse_duplicate_upload, file_path))
+        try:
+            result, cancelled = await await_upload_operation(
+                asyncio.to_thread(_reuse_duplicate_upload, file_path))
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
         file_path, reused = result
         if cancelled is not None:
             raise cancelled

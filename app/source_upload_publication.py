@@ -125,15 +125,24 @@ def publish_completed_upload(stage, filename, on_visible, *, limit, companion_by
             continue
         finally:
             if companion_identity is not None and not published and not stage.publication_started:
-                facts = (os.stat(companion.name, dir_fd=stage._directory_fd, follow_symlinks=False)
-                         if stage._directory_fd is not None else companion.lstat())
+                try:
+                    facts = (os.stat(companion.name, dir_fd=stage._directory_fd,
+                                     follow_symlinks=False)
+                             if stage._directory_fd is not None else companion.lstat())
+                except FileNotFoundError as error:
+                    raise ValueError(
+                        'Source provenance changed during publication') from error
                 if ((facts.st_dev, facts.st_ino) != companion_identity
                         or not stat.S_ISREG(facts.st_mode) or facts.st_nlink != 1):
                     raise ValueError('Source provenance changed during publication')
-                if stage._directory_fd is not None:
-                    os.unlink(companion.name, dir_fd=stage._directory_fd)
-                else:
-                    companion.unlink()
+                try:
+                    if stage._directory_fd is not None:
+                        os.unlink(companion.name, dir_fd=stage._directory_fd)
+                    else:
+                        companion.unlink()
+                except FileNotFoundError as error:
+                    raise ValueError(
+                        'Source provenance changed during publication') from error
         try:
             on_visible(str(destination))
             stage.sync_directory()
