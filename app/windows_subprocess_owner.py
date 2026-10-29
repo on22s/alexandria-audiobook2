@@ -1,5 +1,6 @@
 """A trusted, gated Win32 job supervisor; no worker runs before admission."""
 import json
+import ctypes
 import logging
 import os
 from pathlib import Path
@@ -105,7 +106,89 @@ class WindowsOwnerControl:
             logging.exception('Could not remove Windows owner temporary files after job shutdown')
 
 
+def _inherited_windows_environment():
+    # os.environ omits hidden per-drive current-directory entries. Preserve
+    # the real inherited block when adding CPython's private bootstrap value.
+    api = ctypes.WinDLL('kernel32', use_last_error=True)
+    api.GetEnvironmentStringsW.argtypes = []
+    api.GetEnvironmentStringsW.restype = ctypes.c_void_p
+    api.FreeEnvironmentStringsW.argtypes = [ctypes.c_void_p]
+    api.FreeEnvironmentStringsW.restype = ctypes.c_int
+    block = api.GetEnvironmentStringsW()
+    if not block:
+        raise ctypes.WinError(ctypes.get_last_error())
+    environment = {}
+    try:
+        offset = 0
+        while True:
+            entry = ctypes.wstring_at(block + offset)
+            if not entry:
+                break
+            # Python characters and native UTF-16 code units differ for
+            # supplementary characters and may include lone surrogates.
+            offset += len(entry.encode('utf-16-le', 'surrogatepass')) + 2
+            split = entry.find('=', 1)
+            if split < 0:
+                raise OSError('Malformed native Windows environment entry')
+            environment.setdefault(entry[:split], entry[split + 1:])
+    finally:
+        if not api.FreeEnvironmentStringsW(block):
+            raise ctypes.WinError(ctypes.get_last_error())
+    return environment
+
+
+def _popen_owned_python(command, **kwargs):
+    # CPython's Windows multiprocessing bootstrap bypasses the venv redirector
+    # this way. The redirector can start Python before its own job assignment.
+    base = getattr(sys, '_base_executable', None)
+    if (sys.platform == 'win32' and base and command
+            and os.path.normcase(str(command[0])) == os.path.normcase(sys.executable)
+            and os.path.normcase(sys.executable) != os.path.normcase(base)):
+        command = [base, *command[1:]]
+        environment = (_inherited_windows_environment() if kwargs.get('env') is None
+                       else dict(kwargs['env']))
+        # Windows environment names are case-insensitive. Do not leave a
+        # second spelling competing with the private bootstrap value.
+        for name in tuple(environment):
+            if os.fsdecode(name).casefold() == '__pyvenv_launcher__':
+                del environment[name]
+        environment['__PYVENV_LAUNCHER__'] = sys.executable
+        kwargs = dict(kwargs, env=environment)
+        if (kwargs.get('executable') is not None
+                and os.path.normcase(str(kwargs['executable'])) == os.path.normcase(sys.executable)):
+            kwargs['executable'] = base
+    return subprocess.Popen(command, **kwargs)
+
+
+def _trusted_supervisor_executable(executable):
+    try:
+        executable = os.fsdecode(executable)
+    except TypeError as error:
+        raise ValueError('Windows owner requires its trusted Python supervisor executable') from error
+    for trusted in (sys.executable, getattr(sys, '_base_executable', None) or sys.executable):
+        if os.path.normcase(executable) == os.path.normcase(trusted):
+            return trusted
+        try:
+            if os.path.samefile(executable, trusted):
+                # Launch through the trusted runtime path, never through an
+                # alias that could change after this identity observation.
+                return trusted
+        except (OSError, ValueError):
+            pass
+    raise ValueError('Windows owner requires its trusted Python supervisor executable')
+
+
 def start_windows_owned_subprocess(command, *, exit_notice_path=None, termination_grace=None, inherited_handles=(), **kwargs):
+    # Popen options configure the trusted supervisor. The worker interpreter
+    # is selected by command[0], including an explicitly requested base Python.
+    try:
+        inherited_handles = tuple(() if inherited_handles is None else inherited_handles)
+    except TypeError as error:
+        raise ValueError('Expected positive Windows handles') from error
+    if any(type(value) is not int or value <= 0 for value in inherited_handles):
+        raise ValueError('Expected positive Windows handles')
+    if kwargs.get('executable') is not None:
+        kwargs = dict(kwargs, executable=_trusted_supervisor_executable(kwargs['executable']))
     job = WindowsSubprocessJob()
     try:
         directory = tempfile.TemporaryDirectory(prefix='alexandria-windows-owner-')
@@ -127,7 +210,7 @@ def start_windows_owned_subprocess(command, *, exit_notice_path=None, terminatio
             startup.lpAttributeList = {'handle_list': list(inherited_handles)}
             kwargs = dict(kwargs, startupinfo=startup, close_fds=True)
             handle_args = ['--inherit-handles', json.dumps(list(inherited_handles)), '--']
-        process = subprocess.Popen(
+        process = _popen_owned_python(
             [sys.executable, str(Path(__file__).resolve()), str(gate), str(admission), *notice_args, *handle_args, *command],
             **kwargs)
         control = WindowsOwnerControl(job, process, directory, termination_grace)
@@ -135,13 +218,19 @@ def start_windows_owned_subprocess(command, *, exit_notice_path=None, terminatio
         assigned = True
         gate.touch(exist_ok=False)
         deadline = time.monotonic() + 30
+        owner_exit_observed = False
         while True:
             try:
                 message = read_windows_owner_message(admission)
                 break
             except FileNotFoundError:
-                if process.poll() is not None:
+                if owner_exit_observed:
                     raise OSError('Windows subprocess owner exited before worker admission')
+                if process.poll() is not None:
+                    # Publication can race the first missing-file observation.
+                    # Make a final read after observing process exit.
+                    owner_exit_observed = True
+                    continue
             except PermissionError:
                 # A published Windows receipt can temporarily deny reads. Keep
                 # the same admitted job and worker until the original deadline;
@@ -187,19 +276,28 @@ def run_windows_owned_command(gate, admission, command, exit_notice_path=None, i
     if inherited_handles:
         startup = subprocess.STARTUPINFO()
         startup.lpAttributeList = {'handle_list': list(inherited_handles)}
-        process = subprocess.Popen(command, startupinfo=startup, close_fds=True)
+        process = _popen_owned_python(command, startupinfo=startup, close_fds=True)
     else:
-        process = subprocess.Popen(command)
+        process = _popen_owned_python(command)
     save_windows_owner_message(admission, {'started': process.pid})
     notified = False
+    query_reported = False
     while True:
         result = process.poll()
         if result is not None and not notified and exit_notice_path is not None:
             from subprocess_ownership import save_owned_exit_notice
             save_owned_exit_notice(exit_notice_path, result)
             notified = True
-        if result is not None and get_windows_job_active_process_count(api) == 1:
-            return result
+        if result is not None:
+            try:
+                active = get_windows_job_active_process_count(api)
+            except OSError:
+                if not query_reported:
+                    logging.exception('Could not query Windows job; retaining supervisor ownership')
+                    query_reported = True
+            else:
+                if active == 1:
+                    return result
         time.sleep(.05)
 
 
