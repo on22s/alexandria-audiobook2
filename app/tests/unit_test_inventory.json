@@ -9887,6 +9887,7 @@
     "tests.test_script_text_fidelity.SpeechBoundaryTest.test_quotes_reach_the_engine"
   ],
   "test_script_upload_quota": [
+    "tests.test_script_upload_quota.ScriptUploadQuotaTests.test_oversized_upload_cleanup_leaves_other_requests_responsive",
     "tests.test_script_upload_quota.ScriptUploadQuotaTests.test_exhausted_filename_collisions_refuse_without_changing_retained_files",
     "tests.test_script_upload_quota.ScriptUploadQuotaTests.test_cleanup_failure_preserves_original_upload_refusal",
     "tests.test_script_upload_quota.ScriptUploadQuotaTests.test_busy_storage_returns_retryable_status_then_admits_after_release",
