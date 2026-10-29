@@ -1892,9 +1892,22 @@ def _cancel_script_generation_sync():
                     stopped = _cancel_task('script', 'No script generation is currently running.',
                                            'Script generation process already exited.')
                 except HTTPException as error:
-                    raise HTTPException(status_code=409, detail=(
-                        'The script was already published, but stopping its worker was not confirmed. '
-                        'Check task activity.')) from error
+                    process = task.get('process')
+                    if (error.status_code != 400 or error.detail != 'Script generation process already exited.'
+                            or sys.platform != 'win32' or process is None
+                            or getattr(process, '_alexandria_windows_owner', None) is None):
+                        raise HTTPException(status_code=409, detail=(
+                            'The script was already published, but stopping its worker was not confirmed. '
+                            'Check task activity.')) from error
+                    try:
+                        core.terminate_windows_process_tree(process, force=True)
+                    except OSError as force_error:
+                        raise HTTPException(status_code=409, detail=(
+                            'The script was already published, but stopping its worker was not confirmed. '
+                            'Check task activity.')) from force_error
+                    # The owner retains the job until the kernel confirms exit.
+                    return {'status': 'published_cleanup_stop_requested',
+                            'worker': 'force stop requested'}
                 return {'status':'published_cleanup_stop', 'worker':stopped['status']}
             if not owner_id or state.get('script_generation_run_id') != owner_id:
                 raise HTTPException(status_code=409, detail=(

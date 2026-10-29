@@ -84,7 +84,11 @@ def send_subprocess_signal(proc_or_pid, sig, termination_grace=SUBPROCESS_TERMIN
 def is_subprocess_tree_running(process):
     windows_owner = getattr(process, '_alexandria_windows_owner', None)
     if windows_owner is not None:
-        return windows_owner.job.handle is not None and bool(windows_owner.job.get_active_process_count())
+        from windows_subprocess_job import WindowsJobClosedError
+        try:
+            return bool(windows_owner.job.get_active_process_count())
+        except WindowsJobClosedError:
+            return False
     if getattr(process, '_alexandria_control', None) is not None or os.name != 'posix':
         return process.poll() is None
     try:

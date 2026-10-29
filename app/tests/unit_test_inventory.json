@@ -9675,10 +9675,12 @@
     "tests.test_script_publication_cancellation.PublicationCancellationTests.test_later_cancelled_script_slot_task_does_not_inherit_completion",
     "tests.test_script_publication_cancellation.PublicationCancellationTests.test_process_death_after_commit_is_not_reported_as_cancelled",
     "tests.test_script_publication_cancellation.PublicationCancellationTests.test_process_death_during_commit_recovers_before_cancel",
+    "tests.test_script_publication_cancellation.PublicationCancellationTests.test_published_cleanup_force_stop_failure_remains_unconfirmed",
     "tests.test_script_publication_cancellation.PublicationCancellationTests.test_published_worker_and_descendant_stop_without_cancelling_the_script",
     "tests.test_script_publication_cancellation.PublicationCancellationTests.test_run_history_records_published_cleanup_stop_as_completed",
     "tests.test_script_publication_cancellation.PublicationCancellationTests.test_signal_failure_after_publication_is_not_reported_as_a_stopped_worker",
-    "tests.test_script_publication_cancellation.PublicationCancellationTests.test_ui_explains_that_published_script_was_kept"
+    "tests.test_script_publication_cancellation.PublicationCancellationTests.test_ui_explains_that_published_script_was_kept",
+    "tests.test_script_publication_cancellation.PublicationCancellationTests.test_unrelated_cancel_refusal_does_not_force_stop"
   ],
   "test_script_recovery": [
     "tests.test_script_recovery.BatchReportPublicationTests.test_failed_replacement_preserves_report_and_removes_staged_file",
@@ -9744,6 +9746,7 @@
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_interrupted_publication_preserves_script_and_binding",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_late_generation_cannot_overwrite_a_newer_generation",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_legacy_controlled_edit_still_validates_unbound_replacement_bytes",
+    "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_legacy_unbound_script_remains_readable_and_reviewable",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_new_selection_or_source_cannot_rebind_old_script",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_publication_checks_capture_and_publishes_script_and_binding",
     "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_publication_rejects_inconsistent_saved_generation_selection",
@@ -13316,6 +13319,7 @@
     "tests.test_windows_native_ci.NativeWindowsCiTests.test_wrong_host_is_refused_instead_of_printing_a_successful_skipped_suite"
   ],
   "test_windows_owner_lifecycle": [
+    "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_concurrent_owner_close_does_not_query_closed_job",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_failed_kernel_assignment_never_opens_worker_gate",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_failed_temporary_directory_does_not_leak_job_handle",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_failed_worker_admission_stops_the_entire_job_before_return",
@@ -13325,6 +13329,8 @@
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_worker_admission_occurs_after_kernel_assignment"
   ],
   "test_windows_subprocess_job": [
+    "tests.test_windows_subprocess_job.WindowsJobBoundaryTests.test_close_waits_for_an_inflight_job_query",
+    "tests.test_windows_subprocess_job.WindowsJobBoundaryTests.test_close_waits_for_inflight_termination_and_rejects_late_termination",
     "tests.test_windows_subprocess_job.WindowsJobBoundaryTests.test_failed_close_retains_the_live_handle_for_retry",
     "tests.test_windows_subprocess_job.WindowsJobBoundaryTests.test_failed_configuration_closes_unadmitted_job",
     "tests.test_windows_subprocess_job.WindowsJobBoundaryTests.test_failed_create_does_not_configure_or_close_invalid_handle",
@@ -13339,6 +13345,7 @@
     "tests.test_windows_subprocess_job.WindowsJobBoundaryTests.test_stopped_proof_waits_for_zero_membership"
   ],
   "test_windows_tree_dispatch": [
+    "tests.test_windows_tree_dispatch.WindowsTreeDispatchTests.test_closed_job_liveness_is_false_but_query_errors_are_preserved",
     "tests.test_windows_tree_dispatch.WindowsTreeDispatchTests.test_failed_taskkill_has_one_failure_policy_and_no_parent_only_fallback",
     "tests.test_windows_tree_dispatch.WindowsTreeDispatchTests.test_grace_and_force_dispatch_to_entire_owned_tree",
     "tests.test_windows_tree_dispatch.WindowsTreeDispatchTests.test_owned_windows_job_uses_existing_grace_and_force_dispatch"

@@ -2625,7 +2625,7 @@
                 onSuccess: (result) => {
                     if (scriptCancellationRequests.get(taskName) !== operation) { return; }
                     _resetPauseBtn(pauseId);
-                    hint.textContent = result?.status === 'published_cleanup_stop'
+                    hint.textContent = ['published_cleanup_stop', 'published_cleanup_stop_requested'].includes(result?.status)
                         ? 'The script was already published. Waiting for its worker to stop.'
                         : `Cancelling ${label}… Waiting for the worker to stop.`;
                 },

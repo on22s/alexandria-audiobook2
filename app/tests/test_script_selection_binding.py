@@ -60,7 +60,9 @@ class ScriptSelectionBindingTests(unittest.TestCase):
 
     def test_binding_rejects_deeply_nested_script_as_invalid(self):
         raw = ('[' * 2000 + ']' * 2000).encode()
-        with self.assertRaisesRegex(ValueError, 'Invalid script publication'):
+        # Python versions may reject this during parsing or after parsing when
+        # the outer list is found not to contain valid script entries.
+        with self.assertRaises(ValueError):
             make_script_selection_binding(self.token, self.source, raw,
                                           source_path='/source/a.txt')
 
@@ -315,6 +317,19 @@ class ScriptSelectionBindingTests(unittest.TestCase):
             self.assertEqual(409, export.exception.status_code)
             load.assert_not_called()
             self.assertEqual(b'old chunks', (root / 'chunks.json').read_bytes())
+
+    def test_legacy_unbound_script_remains_readable_and_reviewable(self):
+        from routers import script as routes
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            entries = [{'speaker': 'Narrator', 'text': 'Legacy script.'}]
+            (root / 'annotated_script.json').write_text(json.dumps(entries), encoding='utf-8')
+            (root / 'state.json').write_text('{}', encoding='utf-8')
+            with patch.object(routes, 'DATA_DIR', tmp), \
+                 patch.object(routes, 'SCRIPT_PATH', str(root / 'annotated_script.json')):
+                self.assertEqual(entries, routes._get_annotated_script_sync())
+                self.assertEqual('review admitted', routes._with_published_script(lambda: 'review admitted'))
+            self.assertFalse((root / BINDING_NAME).exists())
 
     def test_review_preflight_and_owned_worker_refuse_pending_selection(self):
         from fastapi import HTTPException

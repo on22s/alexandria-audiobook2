@@ -10,6 +10,7 @@ import sys
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -21,6 +22,42 @@ from script_selection_binding import capture_generation_selection, publish_gener
 
 
 class PublicationCancellationTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows owned-job termination')
+    def test_published_cleanup_force_stop_failure_remains_unconfirmed(self):
+        for force_fails in (False, True):
+            with self.subTest(force_fails=force_fails), self.fixture() as (root, states, old, publish):
+                publish()
+                process = SimpleNamespace(pid=123, _alexandria_windows_owner=object())
+                states['script'].update(process=process, pid=process.pid)
+                with patch.object(script, '_cancel_task', side_effect=HTTPException(400, 'Script generation process already exited.')), \
+                     patch.object(core, 'terminate_windows_process_tree',
+                                  side_effect=OSError('force failed') if force_fails else None) as force:
+                    if force_fails:
+                        with self.assertRaises(HTTPException) as raised:
+                            script._cancel_script_generation_sync()
+                        self.assertEqual(409, raised.exception.status_code)
+                    else:
+                        self.assertEqual({'status': 'published_cleanup_stop_requested', 'worker': 'force stop requested'},
+                                         script._cancel_script_generation_sync())
+                    force.assert_called_once_with(process, force=True)
+                self.assertNotEqual(old, (root / 'annotated_script.json').read_bytes())
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows owned-job termination')
+    def test_unrelated_cancel_refusal_does_not_force_stop(self):
+        with self.fixture() as (root, states, old, publish):
+            publish()
+            process = SimpleNamespace(pid=123, _alexandria_windows_owner=object())
+            states['script'].update(process=process, pid=process.pid)
+            for refusal in (HTTPException(409, 'ownership changed'), HTTPException(400, 'different reason')):
+                with self.subTest(detail=refusal.detail), \
+                     patch.object(script, '_cancel_task', side_effect=refusal), \
+                     patch.object(core, 'terminate_windows_process_tree') as force:
+                    with self.assertRaises(HTTPException) as raised:
+                        script._cancel_script_generation_sync()
+                    self.assertEqual(409, raised.exception.status_code)
+                    force.assert_not_called()
+            self.assertNotEqual(old, (root / 'annotated_script.json').read_bytes())
+
     @contextlib.contextmanager
     def fixture(self):
         with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
@@ -184,7 +221,8 @@ sys.exit(0)
                         if not thread.is_alive(): break
                         time.sleep(.02)
                     self.assertTrue((root / 'worker-ready').exists(), str(states['script']['logs']))
-                    self.assertEqual('published_cleanup_stop', script._cancel_script_generation_sync()['status'])
+                    self.assertIn(script._cancel_script_generation_sync()['status'],
+                                  ('published_cleanup_stop', 'published_cleanup_stop_requested'))
                     thread.join(12)
                     self.assertFalse(thread.is_alive(), 'published worker and descendant did not stop')
                     self.assertFalse(states['script']['running'])
@@ -223,10 +261,8 @@ sys.exit(0)
 
     def test_ui_explains_that_published_script_was_kept(self):
         code = r'''const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const source=fs.readFileSync(process.argv[1],'utf8'); const hint={hidden:true,textContent:''};const button={disabled:false};
-const c={document:{getElementById:id=>id==='script-cancellation-status'?hint:button},API:{post:async()=>({status:'published_cleanup_stop'})},_resetPauseBtn:()=>{},showToast:()=>{}};vm.createContext(c);
-vm.runInContext(source.slice(source.indexOf('async function cancelTask('),source.indexOf('// Same "unknown error" fallback')),c);
-(async()=>{assert(await c.requestScriptCancellation('script','/cancel','button','pause','script generation'));assert.match(hint.textContent,/already published/);assert.match(hint.textContent,/worker to stop/);})().catch(e=>{console.error(e);process.exit(1)});'''
+const source=fs.readFileSync(process.argv[1],'utf8');
+(async()=>{for(const status of ['published_cleanup_stop','published_cleanup_stop_requested']){const hint={hidden:true,textContent:''};const button={disabled:false};const c={document:{getElementById:id=>id==='script-cancellation-status'?hint:button},API:{post:async()=>({status})},_resetPauseBtn:()=>{},showToast:()=>{}};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('async function cancelTask('),source.indexOf('// Same "unknown error" fallback')),c);assert(await c.requestScriptCancellation('script','/cancel','button','pause','script generation'));assert.match(hint.textContent,/already published/);assert.match(hint.textContent,/worker to stop/);}})().catch(e=>{console.error(e);process.exit(1)});'''
         app_core = Path(__file__).resolve().parents[1] / 'static/js/app-core.js'
         result = subprocess.run(['node', '-e', code, str(app_core)], capture_output=True, text=True)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
