@@ -3,19 +3,26 @@
 The Linux release suite covers its kernel ownership implementation and the
 controlled Win32 API boundary cases. It does not verify the Windows kernel.
 
-The required `windows-owner` CI job runs these seven checks on `windows-latest`:
+The required `windows-owner` CI job runs these eight checks on `windows-latest`,
+through both its base interpreter and a real virtual environment:
 
 ```text
 cd app
 python tests/native_windows_owner_checks.py
+python -m venv --system-site-packages .native-owner-venv
+.native-owner-venv/Scripts/python.exe tests/native_windows_owner_checks.py
 ```
 
 Set `PYTHONPATH` to `.` when invoking the script. The script rejects a non-Windows
-host with exit 2 and accepts only seven successful tests with zero skips. It uses
+host with exit 2 and accepts only eight successful tests with zero skips. It uses
 Python's standard library; it does not load models or perform GPU inference.
 It verifies detached descendants with inherited and closed pipes, high-bit exit
 status, controller-death cleanup, preservation of an unrelated process, and
 private export-stage hard-exit, live-owner and finish behavior.
+The current-interpreter check also preserves the venv identity, explicit executable
+override, caller environment, cwd, Unicode arguments, stdin and declared inherited
+handle. Detached tests identify actual interpreter/redirector PIDs and retain
+process handles through shutdown, including any additional console-host members.
 
 Before that native CI job succeeds, Windows kernel verification remains pending.
 The current macOS process-group fallback still lacks exclusive lifetime ownership

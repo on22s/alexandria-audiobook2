@@ -1,5 +1,6 @@
 """Native Win32 containment checks, run explicitly by the Windows CI job."""
 import ctypes
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -18,35 +19,60 @@ from windows_export_staging_retirement import DIRECTORY, reclaim_windows_retired
 
 class NativeWindowsOwnerTests(unittest.TestCase):
     def check_detached_child(self, close_pipe):
+        api = ctypes.WinDLL('kernel32', use_last_error=True)
+        api.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+        api.OpenProcess.restype = ctypes.c_void_p
+        api.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        api.WaitForSingleObject.restype = ctypes.c_uint32
+        api.CloseHandle.argtypes = [ctypes.c_void_p]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             pid_path, ready = root / 'child.pid', root / 'child.ready'
-            wrapper = """import pathlib,subprocess,sys,time
-child_code='import pathlib,sys,time;pathlib.Path(sys.argv[1]).write_text("ready");time.sleep(60)'
+            release = root / 'release-wrapper'
+            wrapper = """import json,os,pathlib,subprocess,sys,time
+child_code='import json,os,pathlib,sys,time;pathlib.Path(sys.argv[1]).write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix}));time.sleep(60)'
 options={'creationflags':subprocess.DETACHED_PROCESS}
 if sys.argv[3]=='closed':options.update(stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 else:options.update(stdout=sys.stdout,stderr=sys.stderr)
 child=subprocess.Popen([sys.executable,'-c',child_code,sys.argv[2]],**options)
-pathlib.Path(sys.argv[1]).write_text(str(child.pid))
+pathlib.Path(sys.argv[1]).write_text(json.dumps({'wrapper':os.getpid(),'redirector':child.pid}))
 deadline=time.monotonic()+10
-while not pathlib.Path(sys.argv[2]).exists():
- if time.monotonic()>deadline:raise RuntimeError('child did not start')
+while not pathlib.Path(sys.argv[4]).exists():
+ if time.monotonic()>deadline:raise RuntimeError('wrapper was not released')
  time.sleep(.01)
 """
             process = start_windows_owned_subprocess(
                 [sys.executable, '-c', wrapper, str(pid_path), str(ready),
-                 'closed' if close_pipe else 'inherited'],
+                 'closed' if close_pipe else 'inherited', str(release)],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             control = process._alexandria_windows_owner
             sentinel = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(60)'])
+            handles = {}
             try:
                 deadline = time.monotonic() + 10
-                while (not ready.exists() or control.job.get_active_process_count() != 2):
+                while True:
+                    try:
+                        receipt = json.loads(pid_path.read_text())
+                        child = json.loads(ready.read_text())
+                        break
+                    except (FileNotFoundError, json.JSONDecodeError):
+                        pass
                     if time.monotonic() >= deadline:
-                        self.fail('native wrapper did not exit leaving owner and detached child')
+                        self.fail('native wrapper and actual detached interpreter did not report readiness')
                     time.sleep(.01)
-                pid = int(pid_path.read_text())
-                self.assertIn(pid, control.job.get_process_ids())
+                members = control.job.get_process_ids()
+                expected = {process.pid, receipt['wrapper'], receipt['redirector'], child['pid']}
+                self.assertTrue(expected.issubset(members), (expected, members))
+                self.assertEqual(sys.prefix, child['prefix'])
+                for pid in members:
+                    handle = api.OpenProcess(0x100000, False, pid)
+                    self.assertTrue(handle, ctypes.get_last_error())
+                    handles[pid] = handle
+                    self.assertEqual(0x102, api.WaitForSingleObject(handle, 0))
+                release.touch()
+                self.assertEqual(0, api.WaitForSingleObject(handles[receipt['wrapper']], 10000),
+                                 'wrapper did not exit after release')
+                self.assertIn(child['pid'], control.job.get_process_ids())
                 self.assertIsNone(process.poll(), 'owner exited over detached child')
                 time.sleep(.2)
                 self.assertIsNone(process.poll())
@@ -54,12 +80,16 @@ while not pathlib.Path(sys.argv[2]).exists():
                 control.terminate()
                 process.wait(timeout=10)
                 self.assertEqual(0, control.job.get_active_process_count())
+                for handle in handles.values():
+                    self.assertEqual(0, api.WaitForSingleObject(handle, 10000))
                 control.close()
                 self.assertIsNone(sentinel.poll(), 'job termination reached unrelated process')
                 stdout, stderr = process.communicate(timeout=2)
             finally:
                 control.close()
                 process.wait(timeout=10)
+                for handle in handles.values():
+                    api.CloseHandle(handle)
                 for stream in (process.stdout, process.stderr):
                     stream.close()
                 sentinel.terminate()
@@ -70,6 +100,65 @@ while not pathlib.Path(sys.argv[2]).exists():
 
     def test_closed_pipe_retains_detached_child_ownership(self):
         self.check_detached_child(True)
+
+    def test_current_python_environment_override_and_explicit_handle_are_preserved(self):
+        import msvcrt
+        for override in (False, True):
+            with self.subTest(executable_override=override), tempfile.TemporaryDirectory() as temporary:
+                working = Path(temporary).resolve()
+                ready = working / 'worker-ready.json'
+                environment = dict(os.environ, AA2_OWNER_ENV='bounded child environment')
+                if sys.executable != sys._base_executable:
+                    environment['__pyvenv_launcher__'] = sys._base_executable
+                original_environment = dict(environment)
+                reader, writer = os.pipe()
+                raw_handle = msvcrt.get_osfhandle(writer)
+                os.set_handle_inheritable(raw_handle, True)
+                process = None
+                try:
+                    child = ('import json,msvcrt,os,pathlib,sys; '
+                        'fd=msvcrt.open_osfhandle(int(sys.argv[1]),os.O_WRONLY); '
+                        'os.write(fd,b"bounded explicit handle payload");os.close(fd); '
+                        'pathlib.Path(sys.argv[2]).write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix,'
+                        '"executable":sys.executable,"cwd":os.getcwd(),"args":sys.argv[3:],'
+                        '"marker":os.environ.get("AA2_OWNER_ENV")})); '
+                        'print(json.dumps({"stdin":sys.stdin.read()}),flush=True)')
+                    options = {'executable':sys.executable} if override else {}
+                    process = start_windows_owned_subprocess(
+                        [sys.executable, '-c', child, str(raw_handle), str(ready), 'argument with spaces', 'Unicode-\u03a9'],
+                        inherited_handles=(raw_handle,), env=environment, cwd=str(working),
+                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        text=True, **options)
+                    os.close(writer)
+                    writer = None
+                    deadline = time.monotonic() + 10
+                    while True:
+                        try:
+                            row = json.loads(ready.read_text())
+                            break
+                        except (FileNotFoundError, json.JSONDecodeError):
+                            if time.monotonic() >= deadline:
+                                self.fail('worker did not report its actual environment')
+                            time.sleep(.01)
+                    self.assertIn(row['pid'], process._alexandria_windows_owner.job.get_process_ids())
+                    self.assertEqual(sys.prefix, row['prefix'])
+                    self.assertEqual(sys.executable, row['executable'])
+                    self.assertEqual(working, Path(row['cwd']))
+                    self.assertEqual(['argument with spaces', 'Unicode-\u03a9'], row['args'])
+                    self.assertEqual('bounded child environment', row['marker'])
+                    stdout, stderr = process.communicate(input='bounded stdin payload', timeout=10)
+                    self.assertEqual({'stdin':'bounded stdin payload'}, json.loads(stdout))
+                    self.assertEqual(b'bounded explicit handle payload', os.read(reader, 1024))
+                    self.assertEqual('', stderr)
+                    self.assertEqual(0, process.returncode)
+                    self.assertEqual(original_environment, environment)
+                finally:
+                    if process is not None:
+                        process._alexandria_windows_owner.close()
+                        process.wait(timeout=10)
+                    if writer is not None:
+                        os.close(writer)
+                    os.close(reader)
 
     def test_native_high_bit_worker_exit_status_is_preserved(self):
         command = 'import ctypes;ctypes.WinDLL("kernel32").ExitProcess(ctypes.c_uint32(0xc0000142))'
@@ -222,7 +311,7 @@ def main():
         unittest.defaultTestLoader.loadTestsFromTestCase(NativeWindowsRetirementTests),
     ])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() and result.testsRun == 7 and not result.skipped else 1
+    return 0 if result.wasSuccessful() and result.testsRun == 8 and not result.skipped else 1
 
 
 if __name__ == '__main__':

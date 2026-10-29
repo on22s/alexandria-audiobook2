@@ -105,7 +105,34 @@ class WindowsOwnerControl:
             logging.exception('Could not remove Windows owner temporary files after job shutdown')
 
 
+def _popen_owned_python(command, **kwargs):
+    # CPython's Windows multiprocessing bootstrap bypasses the venv redirector
+    # this way. The redirector can start Python before its own job assignment.
+    base = getattr(sys, '_base_executable', None)
+    if (sys.platform == 'win32' and base and command
+            and os.path.normcase(str(command[0])) == os.path.normcase(sys.executable)
+            and os.path.normcase(sys.executable) != os.path.normcase(base)):
+        command = [base, *command[1:]]
+        environment = dict(os.environ if kwargs.get('env') is None else kwargs['env'])
+        # Windows environment names are case-insensitive. Do not leave a
+        # second spelling competing with the private bootstrap value.
+        for name in tuple(environment):
+            if os.fsdecode(name).casefold() == '__pyvenv_launcher__':
+                del environment[name]
+        environment['__PYVENV_LAUNCHER__'] = sys.executable
+        kwargs = dict(kwargs, env=environment)
+        if (kwargs.get('executable') is not None
+                and os.path.normcase(str(kwargs['executable'])) == os.path.normcase(sys.executable)):
+            kwargs['executable'] = base
+    return subprocess.Popen(command, **kwargs)
+
+
 def start_windows_owned_subprocess(command, *, exit_notice_path=None, termination_grace=None, inherited_handles=(), **kwargs):
+    if kwargs.get('executable') is not None:
+        trusted = {os.path.normcase(sys.executable),
+                   os.path.normcase(getattr(sys, '_base_executable', None) or sys.executable)}
+        if os.path.normcase(str(kwargs['executable'])) not in trusted:
+            raise ValueError('Windows owner requires its trusted Python supervisor executable')
     job = WindowsSubprocessJob()
     try:
         directory = tempfile.TemporaryDirectory(prefix='alexandria-windows-owner-')
@@ -127,7 +154,7 @@ def start_windows_owned_subprocess(command, *, exit_notice_path=None, terminatio
             startup.lpAttributeList = {'handle_list': list(inherited_handles)}
             kwargs = dict(kwargs, startupinfo=startup, close_fds=True)
             handle_args = ['--inherit-handles', json.dumps(list(inherited_handles)), '--']
-        process = subprocess.Popen(
+        process = _popen_owned_python(
             [sys.executable, str(Path(__file__).resolve()), str(gate), str(admission), *notice_args, *handle_args, *command],
             **kwargs)
         control = WindowsOwnerControl(job, process, directory, termination_grace)
@@ -187,9 +214,9 @@ def run_windows_owned_command(gate, admission, command, exit_notice_path=None, i
     if inherited_handles:
         startup = subprocess.STARTUPINFO()
         startup.lpAttributeList = {'handle_list': list(inherited_handles)}
-        process = subprocess.Popen(command, startupinfo=startup, close_fds=True)
+        process = _popen_owned_python(command, startupinfo=startup, close_fds=True)
     else:
-        process = subprocess.Popen(command)
+        process = _popen_owned_python(command)
     save_windows_owner_message(admission, {'started': process.pid})
     notified = False
     while True:

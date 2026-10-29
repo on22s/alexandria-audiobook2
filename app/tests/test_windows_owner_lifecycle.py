@@ -48,6 +48,14 @@ class AdmissionJob:
 
 
 class WindowsOwnerAdmissionTests(unittest.TestCase):
+    def test_untrusted_supervisor_override_is_refused_before_launch_or_job_creation(self):
+        with patch.object(owner, 'WindowsSubprocessJob') as job, \
+             patch.object(owner.subprocess, 'Popen') as launch:
+            with self.assertRaisesRegex(ValueError, 'trusted Python supervisor'):
+                owner.start_windows_owned_subprocess(['worker'], executable='unrelated-program.exe')
+            job.assert_not_called()
+            launch.assert_not_called()
+
     def test_concurrent_owner_close_does_not_query_closed_job(self):
         entered, release = threading.Event(), threading.Event()
         job = AdmissionJob()

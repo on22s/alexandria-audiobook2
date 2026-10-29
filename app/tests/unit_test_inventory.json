@@ -13406,6 +13406,7 @@
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_helper_without_exclusive_membership_never_spawns_worker",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_native_closed_pipe_detached_child_outlives_wrapper_but_not_owner",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_shutdown_retains_ownership_across_kernel_query_failure",
+    "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_untrusted_supervisor_override_is_refused_before_launch_or_job_creation",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_worker_admission_occurs_after_kernel_assignment"
   ],
   "test_windows_subprocess_job": [

@@ -171,6 +171,12 @@ jobs:
         env:
           PYTHONPATH: .
         run: python tests/native_windows_owner_checks.py
+      - name: Verify native ownership through a real Python virtual environment
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m venv --system-site-packages .native-owner-venv
+          .native-owner-venv/Scripts/python.exe tests/native_windows_owner_checks.py
       - name: Verify native Windows resource admission and mutation locks
         run: python -m unittest tests.test_task_resources -v
       - name: Verify native Windows export staging ownership and cleanup
