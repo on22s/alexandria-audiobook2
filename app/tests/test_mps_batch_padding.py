@@ -31,6 +31,47 @@ def make_engine():
         return tts.TTSEngine({'tts': {'mode': 'local', 'device': 'cpu', 'language': 'English'}})
 
 
+class TtsAutoDeviceTests(unittest.TestCase):
+    """'auto' TTS uses CPU where it would otherwise pick MPS; explicit choices stand."""
+
+    def resolve(self, function, requested, available, note_printed=False):
+        with patch.object(device_utils, 'get_available_gpu_device', return_value=available), \
+                patch.object(device_utils, 'system_has_gpu', return_value=(False, None)), \
+                patch.object(device_utils, '_tts_cpu_note_printed', note_printed), \
+                contextlib.redirect_stdout(io.StringIO()) as printed:
+            return function(requested), printed.getvalue()
+
+    def test_auto_tts_uses_cpu_instead_of_mps_and_says_why_once(self):
+        # An unset or empty device is 'auto' too (normalize_device).
+        for requested in ('auto', None, ''):
+            with self.subTest(requested=requested):
+                device, printed = self.resolve(device_utils.resolve_tts_device, requested, 'mps')
+                self.assertEqual('cpu', device)
+                self.assertEqual(1, printed.count('#1650'))
+        device, printed = self.resolve(device_utils.resolve_tts_device, 'auto', 'mps', note_printed=True)
+        self.assertEqual('cpu', device)
+        self.assertNotIn('#1650', printed)
+
+    def test_other_auto_results_and_explicit_choices_are_unchanged(self):
+        for requested, available, expected in (('auto', 'cuda', 'cuda'), ('auto', None, 'cpu'),
+                                               ('mps', 'mps', 'mps'), ('cpu', 'mps', 'cpu'),
+                                               ('cuda', 'cuda', 'cuda')):
+            with self.subTest(requested=requested, available=available):
+                device, printed = self.resolve(device_utils.resolve_tts_device, requested, available)
+                self.assertEqual(expected, device)
+                self.assertNotIn('#1650', printed)
+
+    def test_training_device_order_is_not_changed(self):
+        device, _ = self.resolve(device_utils.resolve_device, 'auto', 'mps')
+        self.assertEqual('mps', device)
+
+    def test_engine_with_auto_device_resolves_to_cpu_when_mps_is_available(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            engine = tts.TTSEngine({'tts': {'mode': 'local', 'device': 'auto', 'language': 'English'}})
+        device, _ = self.resolve(lambda _requested: engine._resolve_device(), None, 'mps')
+        self.assertEqual('cpu', device)
+
+
 class MpsBatchSizeTests(unittest.TestCase):
     def test_mps_models_get_one_sequence_whatever_else_is_available(self):
         engine = make_engine()
