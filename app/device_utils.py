@@ -124,6 +124,31 @@ def resolve_device(device_str):
     return "cpu"
 
 
+_tts_cpu_note_printed = False
+
+
+def resolve_tts_device(device_str):
+    """Resolve the TTS device; 'auto' uses CPU rather than Apple MPS (#1650).
+
+    On an M4 (torch 2.7.0, float32) Qwen3-TTS on MPS crashed on every padded
+    batch under SDPA, transcribed exactly on about a quarter of lines under
+    eager attention, and rendered a 30-line chapter at 0.15x real time while
+    allocating more than the machine's 16 GB. CPU on the same machine had no
+    crashes, about nine in ten lines exact and 0.38x real time. An explicit
+    'mps' is still honoured. Training keeps resolve_device's own order.
+    """
+    global _tts_cpu_note_printed
+    device = resolve_device(device_str)
+    if normalize_device(device_str) == "auto" and is_mps_device(device):
+        if not _tts_cpu_note_printed:  # each model load resolves again
+            _tts_cpu_note_printed = True
+            print("TTS device 'auto' uses CPU on Apple Silicon: Qwen3-TTS on MPS was slower "
+                  "and less accurate (#1650). Set the TTS device to 'mps' to use it anyway.",
+                  flush=True)
+        return "cpu"
+    return device
+
+
 # gfx103x = RDNA2 APUs (Rembrandt/Van Gogh: Radeon 660M/680M, Steam Deck);
 # gfx1103 = RDNA3 APUs (Phoenix: 780M). Discrete RDNA2/3 (gfx1030/1100) and
 # RDNA4 (gfx1200/1201, the 9070 XT) are not in this list and keep bf16.

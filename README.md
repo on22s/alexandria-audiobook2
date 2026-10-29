@@ -76,7 +76,7 @@ numbers, the failures and the recipes are all in this repository.
 | **AMD discrete** | Linux | full | ROCm; tested daily on an RX 9070 XT (RDNA4, ROCm 7.0). llama-cpp-python and whisper.cpp are built with HIP for your `gfx` target during install |
 | **AMD APU / integrated** | Linux | full, slower | TTS runs in fp32 (bf16 is broken on the 660M/680M/780M class); everything else is the same |
 | **AMD** | Windows | CPU only | ROCm is not available on Windows; use Linux for GPU |
-| **Apple Silicon** | macOS | CPU only | Qwen3-TTS does not support MPS; whisper.cpp is built with Metal |
+| **Apple Silicon** | macOS | CPU only | The `auto` TTS device uses CPU. MPS can be selected explicitly, but on an M4 it was slower and less accurate (#1650); whisper.cpp is built with Metal |
 | **Intel** | macOS | CPU only | |
 
 > **More documentation:** the upstream project's [wiki](https://github.com/Finrandojin/alexandria-audiobook/wiki)
