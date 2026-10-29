@@ -3592,9 +3592,13 @@
   ],
   "test_direct_path_admission": [
     "tests.test_direct_path_admission.AdministratorAliasTests.test_administrator_controlled_ancestor_alias_is_admitted",
+    "tests.test_direct_path_admission.AdministratorAliasTests.test_admitted_alias_and_resolved_spellings_share_book_and_take_scope",
+    "tests.test_direct_path_admission.AdministratorAliasTests.test_alias_in_a_parent_owned_by_an_untrusted_user_is_refused",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_alias_owned_by_an_untrusted_user_is_refused",
+    "tests.test_direct_path_admission.AdministratorAliasTests.test_alias_target_is_checked_as_if_spelled_directly",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_book_root_under_an_administrator_alias_is_admitted",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_final_component_alias_is_refused",
+    "tests.test_direct_path_admission.AdministratorAliasTests.test_non_directory_component_or_loop_under_an_alias_is_refused",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_paths_without_aliases_keep_the_existing_rule",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_real_host_system_alias_is_admitted_without_substitution",
     "tests.test_direct_path_admission.AdministratorAliasTests.test_untrusted_alias_below_an_admitted_one_is_refused",

@@ -6,6 +6,8 @@ import stat
 # POSIX owners whose symlinked ancestors are trusted. Only root can create or
 # retarget /var, /tmp or /etc on macOS, or an admin-made symlinked volume.
 TRUSTED_ALIAS_OWNERS = frozenset({0})
+# Bounds chained aliases, like the kernel's own symlink-loop limit.
+MAX_ALIAS_DEPTH = 40
 
 
 def _stat_directory(path):
@@ -34,6 +36,33 @@ def _is_administrator_controlled(link, info):
     return True
 
 
+def _is_plain_posix_path(path, depth):
+    """An admitted alias counts as its target spelled directly, so check that too."""
+    if depth > MAX_ALIAS_DEPTH:
+        return False
+    admitted_alias = False
+    for component in (*reversed(path.parents), path):
+        try:
+            info = component.lstat()
+        except FileNotFoundError:
+            continue  # publication destinations may not exist yet
+        except OSError:
+            return False  # a file used as a directory, a loop or an unreadable entry
+        if stat.S_ISLNK(info.st_mode):
+            if component == path or not _is_administrator_controlled(component, info):
+                return False
+            try:
+                target = Path(os.path.abspath(component.parent / os.readlink(component)))
+            except OSError:
+                return False
+            if not _is_plain_posix_path(target, depth + 1):
+                return False
+            admitted_alias = True
+    if admitted_alias:
+        return True
+    return os.path.normcase(os.path.realpath(path)) == os.path.normcase(str(path))
+
+
 def is_plain_path(path):
     """Refuse aliases an unprivileged user could create or swap.
 
@@ -45,19 +74,7 @@ def is_plain_path(path):
     """
     path = Path(os.path.abspath(path))
     if os.name != 'nt':
-        admitted_alias = False
-        for component in (*reversed(path.parents), path):
-            try:
-                info = component.lstat()
-            except OSError:
-                continue  # missing or unreadable components are not symlinks here
-            if stat.S_ISLNK(info.st_mode):
-                if component == path or not _is_administrator_controlled(component, info):
-                    return False
-                admitted_alias = True
-        if admitted_alias:
-            return True
-        return os.path.normcase(os.path.realpath(path)) == os.path.normcase(str(path))
+        return _is_plain_posix_path(path, 0)
     for component in (*reversed(path.parents), path):
         try:
             info = component.lstat()

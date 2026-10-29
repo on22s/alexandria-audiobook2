@@ -16,6 +16,17 @@ from unittest.mock import patch
 import direct_path_admission as admission
 
 
+_real_lstat = Path.lstat
+
+
+def _root_owned(path, link):
+    """lstat, reporting `link` as root-owned as only an administrator could make it."""
+    info = _real_lstat(path)
+    if path != link:
+        return info
+    return SimpleNamespace(st_mode=info.st_mode, st_uid=0)
+
+
 @unittest.skipIf(os.name == 'nt', 'POSIX alias policy; Windows uses reparse attributes')
 class AdministratorAliasTests(unittest.TestCase):
     def setUp(self):
@@ -82,6 +93,50 @@ class AdministratorAliasTests(unittest.TestCase):
         os.chmod(self.target, 0o777)
         (self.target / 'inner').symlink_to(self.target / 'book', target_is_directory=True)
         self.assertFalse(self.check(self.alias / 'inner' / 'x'))
+
+    def test_alias_target_is_checked_as_if_spelled_directly(self):
+        # A user-swappable link behind the alias is not on the lexical path.
+        os.chmod(self.target, 0o777)
+        (self.target / 'hop').symlink_to(self.target / 'book', target_is_directory=True)
+        (self.base / 'to-hop').symlink_to(self.target / 'hop', target_is_directory=True)
+        (self.target / 'book' / 'sub').mkdir()
+        (self.base / 'through-hop').symlink_to(self.target / 'hop' / 'sub', target_is_directory=True)
+        self.assertFalse(self.check(self.base / 'to-hop' / 'x'))
+        self.assertFalse(self.check(self.base / 'through-hop' / 'x'))
+
+    def test_non_directory_component_or_loop_under_an_alias_is_refused(self):
+        (self.target / 'file').write_text('not a directory')
+        (self.target / 'loop').symlink_to('loop')
+        self.assertFalse(self.check(self.alias / 'file' / 'child'))
+        self.assertFalse(self.check(self.alias / 'loop' / 'child'))
+        (self.base / 'self').symlink_to(self.base / 'self' / 'x')
+        self.assertFalse(self.check(self.base / 'self' / 'y'))
+
+    def test_alias_in_a_parent_owned_by_an_untrusted_user_is_refused(self):
+        # The alias and every other directory are root's; only `base` varies.
+        for owner, admitted in ((os.getuid(), False), (0, True)):
+            def stat_directory(path):
+                uid = owner if path == self.base else 0
+                return SimpleNamespace(st_mode=stat.S_IFDIR | 0o755, st_uid=uid)
+            with self.subTest(base_owner=owner), \
+                 patch.object(admission, 'TRUSTED_ALIAS_OWNERS', frozenset({0})), \
+                 patch.object(admission, '_stat_directory', side_effect=stat_directory), \
+                 patch.object(Path, 'lstat', autospec=True,
+                              side_effect=lambda p: _root_owned(p, self.alias)):
+                self.assertEqual(admitted, admission.is_plain_path(self.alias / 'book'))
+
+    def test_admitted_alias_and_resolved_spellings_share_book_and_take_scope(self):
+        import audio_take_history
+        import book_state_transaction as books
+        first, second = self.trusted()
+        with first, second:
+            with books.ensure_book_state(self.alias / 'book', recover=False):
+                self.assertTrue(books.is_book_state_admitted(self.alias / 'book'))
+                self.assertTrue(books.is_book_state_admitted(self.target / 'book'))
+            self.assertEqual(self.target / 'book' / 'take.wav', audio_take_history._ensure_plain_path(
+                self.alias / 'book' / 'take.wav', self.target / 'book'))
+            with self.assertRaisesRegex(ValueError, 'inside the project'):
+                audio_take_history._ensure_plain_path(self.target / 'take.wav', self.alias / 'book')
 
     def test_paths_without_aliases_keep_the_existing_rule(self):
         self.assertTrue(self.check(self.target / 'book'))
