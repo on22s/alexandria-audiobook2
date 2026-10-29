@@ -57,7 +57,7 @@ class BookRecoveryArchiveTests(unittest.TestCase):
     @unittest.skipIf(os.name == 'nt', 'POSIX resource limits required')
     def test_pinned_quota_scan_deep_tree_uses_bounded_descriptors(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             current = root
             for _ in range(80):
                 current = current / 'd'
@@ -82,7 +82,7 @@ finally: os.close(fd)
 
     def test_pinned_quota_scan_rejects_links_and_bounds_entries(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             storage = root / 'storage'
             storage.mkdir()
             (storage / 'first').write_bytes(b'a')
@@ -103,7 +103,7 @@ finally: os.close(fd)
 
     def test_pinned_quota_scan_refuses_change_before_reopened_directory_scan(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             child = root / 'child'
             child.mkdir()
             identity = (child.stat().st_dev, child.stat().st_ino)
@@ -131,7 +131,7 @@ finally: os.close(fd)
 
     def test_pinned_quota_scan_ignores_substituted_archive_path(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             storage = root / 'storage'
             storage.mkdir()
             (storage / 'nested').mkdir()
@@ -349,7 +349,7 @@ finally: os.close(fd)
     @unittest.skipIf(os.name == 'nt', 'secure POSIX staging required')
     def test_project_root_replacement_cannot_redirect_archive_creation(self):
         with tempfile.TemporaryDirectory() as parent:
-            base = Path(parent); root = base/'book'; root.mkdir()
+            base = Path(parent).resolve(); root = base/'book'; root.mkdir()
             (root/'state.json').write_text(json.dumps({
                 'active_book_id':'book', 'book_generation':'generation'}))
             (root/'artifact').write_bytes(b'original')
