@@ -9,7 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'app/tests/native_windows_owner_checks.py'
 TRANSACTION_SCRIPT = ROOT / 'app/tests/native_windows_transaction_checks.py'
-TRANSACTION_CLASSES = {'NativeWindowsRecoveryQuotaTests': 9, 'NativeWindowsBookStateTests': 5,
+TRANSACTION_CLASSES = {'NativeWindowsRecoveryQuotaTests': 11, 'NativeWindowsBookStateTests': 5,
                        'NativeWindowsBookMoveTests': 4, 'NativeWindowsPublicationCancellationTests': 3,
                        'NativeWindowsPathAdmissionTests': 2}
 
