@@ -925,11 +925,14 @@ class TTSEngine:
             return np.concatenate(wav) if len(wav) > 1 else wav[0]
         return wav
 
+    def _get_model_device(self, model=None):
+        """Return the model's device, or the configured device before loading."""
+        device = getattr(model, "device", None)
+        return self._resolve_device() if device is None else device
+
     def get_memory_device(self, model=None):
         """Return the model's CUDA device, or the configured device before loading."""
-        device = getattr(model, "device", None)
-        if device is None:
-            device = self._resolve_device()
+        device = self._get_model_device(model)
         return device if str(device).startswith("cuda") else None
 
     def _vram_snapshot(self, label=""):
@@ -997,8 +1000,16 @@ class TTSEngine:
 
         Returns max batch size (>= 1). CPU use has no VRAM limit; an unreadable
         GPU model config conservatively allows one sequence.
+
+        Apple MPS always gets one sequence (#1650). qwen-tts left-pads batched
+        inputs, and on an M4 every padded two-line batch failed with
+        "probability tensor contains either inf, nan or element < 0" while the
+        same lines rendered one at a time. Until a native run shows padded
+        batches are sound there, MPS renders each line as its own request.
         """
         max_new_tokens = self._max_new_tokens
+        if device_utils.is_mps_device(self._get_model_device(model)):
+            return 1
         import torch
         if not torch.cuda.is_available():
             return 9999
@@ -1556,7 +1567,7 @@ class TTSEngine:
 
             print(f"Loading Qwen3-TTS CustomVoice model on {device} ({dtype})...")
             vram_before = self._vram_snapshot("pre-load")
-            load_kwargs = {"dtype": dtype}
+            load_kwargs = {"dtype": dtype, **device_utils.get_attention_load_kwargs(device)}
             if device != "cpu":
                 load_kwargs["device_map"] = device
             self._local_custom_model = self._load_model(
@@ -1593,7 +1604,7 @@ class TTSEngine:
             self._release_inactive_local_models("clone", device, dtype)
 
             print(f"Loading Qwen3-TTS Base model (voice cloning) on {device} ({dtype})...")
-            load_kwargs = {"dtype": dtype}
+            load_kwargs = {"dtype": dtype, **device_utils.get_attention_load_kwargs(device)}
             if device != "cpu":
                 load_kwargs["device_map"] = device
             self._local_clone_model = self._load_model(
@@ -1628,7 +1639,7 @@ class TTSEngine:
             self._release_inactive_local_models("design", device, dtype)
 
             print(f"Loading Qwen3-TTS VoiceDesign model on {device} ({dtype})...")
-            load_kwargs = {"dtype": dtype}
+            load_kwargs = {"dtype": dtype, **device_utils.get_attention_load_kwargs(device)}
             if device != "cpu":
                 load_kwargs["device_map"] = device
             self._local_design_model = self._load_model(
@@ -1684,7 +1695,7 @@ class TTSEngine:
             self._release_inactive_local_models("lora", device, dtype)
 
             print(f"Loading Qwen3-TTS Base model + LoRA adapter on {device} ({dtype})...")
-            load_kwargs = {"dtype": dtype}
+            load_kwargs = {"dtype": dtype, **device_utils.get_attention_load_kwargs(device)}
             if device != "cpu":
                 load_kwargs["device_map"] = device
 

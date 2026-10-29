@@ -157,6 +157,25 @@ def compute_dtype(device):
     return torch.bfloat16
 
 
+def is_mps_device(device):
+    """True for Apple MPS, however the device is spelled ("mps", "mps:0", torch.device)."""
+    return str(device).startswith("mps")
+
+
+def get_attention_load_kwargs(device):
+    """-> extra from_pretrained kwargs selecting the attention backend on `device`.
+
+    Eager attention on Apple MPS (#1650): qwen-tts left-pads batched inputs, so
+    padding positions attend to no key at all. A fully masked row can make the
+    default SDPA kernel emit NaN, which then reaches sampling as "probability
+    tensor contains either inf, nan or element < 0"; eager attention adds a
+    finite mask and cannot. That cause is inferred, not yet observed on MPS,
+    which is why batching on MPS also stays capped at one sequence. Other
+    devices keep the transformers default.
+    """
+    return {"attn_implementation": "eager"} if is_mps_device(device) else {}
+
+
 def enable_rocm_optimizations():
     """Apply ROCm-specific optimizations. No-op on NVIDIA/CPU.
 
