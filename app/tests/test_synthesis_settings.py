@@ -7,7 +7,7 @@ import unittest
 import unittest.mock
 from pydantic import ValidationError
 from config_settings import TTSConfig, load_app_config_result, _get_field_adapter
-from lora_evidence import get_tts_model_settings
+from lora_evidence import TTS_MODEL_DEFAULTS, get_tts_model_settings
 from synthesis_settings import (get_synthesis_budget_keys, get_synthesis_window_settings,
                                 get_enabled_synthesis_window_settings,
                                 get_synthesis_recovery_settings,
@@ -15,11 +15,8 @@ from synthesis_settings import (get_synthesis_budget_keys, get_synthesis_window_
 from tts import TTSEngine
 
 
-MODEL_SETTING_FIELDS = ('mode', 'device', 'compile_codec', 'max_new_tokens', 'language')
-
-
 def _tts_config_defaults():
-    return {name: TTSConfig.model_fields[name].default for name in MODEL_SETTING_FIELDS}
+    return {name: TTSConfig.model_fields[name].default for name in TTS_MODEL_DEFAULTS}
 
 
 class TTSModelDefaultTests(unittest.TestCase):
@@ -101,7 +98,8 @@ class SynthesisSettingsTests(unittest.TestCase):
         return dict(enabled=True, budgets={'local.custom': {'max_chars': 80}}, seams={'fade_ms': 5})
 
     def test_disabled_controls_omit_model_identity_and_preserve_legacy_shape(self):
-        legacy = _tts_config_defaults()
+        # Literal values: a changed default must fail here, not follow silently (#1671).
+        legacy = dict(mode='local', device='auto', compile_codec=False, max_new_tokens=2048, language='English')
         for value in (None, {}, {'enabled': False}, {**self.policy(), 'enabled': False}):
             with self.subTest(value=value):
                 config = {'tts': {'synthesis_windows': value}}
