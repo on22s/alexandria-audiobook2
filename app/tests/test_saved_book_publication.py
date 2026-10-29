@@ -28,9 +28,12 @@ class SavedBookPublicationTests(unittest.TestCase):
             state = json.loads((root / 'state.json').read_text())
             state['script_binding_required'] = True
             (root / 'state.json').write_text(json.dumps(state))
+            active_paths = [root / 'annotated_script.json', root / routes.BINDING_NAME, root / 'state.json']
+            active_before = {path: path.read_bytes() for path in active_paths}
             response = client.post('/api/scripts/save', json={'name': 'invalid'})
             self.assertEqual(422, response.status_code, response.text)
             self.assertEqual(before, self.artifacts(root))
+            self.assertEqual(active_before, {path: path.read_bytes() for path in active_paths})
 
     def test_saved_listing_refuses_pending_parent_book_transaction(self):
         with self.fixture() as (root, api), TestClient(api) as client:
