@@ -6823,7 +6823,11 @@
     "tests.test_mps_batch_padding.MpsBatchShapeTests.test_clone_and_lora_batches_on_mps_also_send_one_line_per_request",
     "tests.test_mps_batch_padding.MpsBatchShapeTests.test_custom_batch_on_mps_sends_one_line_per_request_and_keeps_failures_visible",
     "tests.test_mps_batch_padding.MpsBatchSizeTests.test_cpu_sizing_is_unchanged",
-    "tests.test_mps_batch_padding.MpsBatchSizeTests.test_mps_models_get_one_sequence_whatever_else_is_available"
+    "tests.test_mps_batch_padding.MpsBatchSizeTests.test_mps_models_get_one_sequence_whatever_else_is_available",
+    "tests.test_mps_batch_padding.TtsAutoDeviceTests.test_auto_tts_uses_cpu_instead_of_mps_and_says_why",
+    "tests.test_mps_batch_padding.TtsAutoDeviceTests.test_engine_with_auto_device_resolves_to_cpu_when_mps_is_available",
+    "tests.test_mps_batch_padding.TtsAutoDeviceTests.test_other_auto_results_and_explicit_choices_are_unchanged",
+    "tests.test_mps_batch_padding.TtsAutoDeviceTests.test_training_device_order_is_not_changed"
   ],
   "test_mps_batch_padding_probe": [
     "tests.test_mps_batch_padding_probe.ProbeCaseTests.test_every_padded_line_is_also_rendered_alone_once",
