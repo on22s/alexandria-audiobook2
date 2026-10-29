@@ -34,16 +34,23 @@ def make_engine():
 class TtsAutoDeviceTests(unittest.TestCase):
     """'auto' TTS uses CPU where it would otherwise pick MPS; explicit choices stand."""
 
-    def resolve(self, function, requested, available):
+    def resolve(self, function, requested, available, note_printed=False):
         with patch.object(device_utils, 'get_available_gpu_device', return_value=available), \
                 patch.object(device_utils, 'system_has_gpu', return_value=(False, None)), \
+                patch.object(device_utils, '_tts_cpu_note_printed', note_printed), \
                 contextlib.redirect_stdout(io.StringIO()) as printed:
             return function(requested), printed.getvalue()
 
-    def test_auto_tts_uses_cpu_instead_of_mps_and_says_why(self):
-        device, printed = self.resolve(device_utils.resolve_tts_device, 'auto', 'mps')
+    def test_auto_tts_uses_cpu_instead_of_mps_and_says_why_once(self):
+        # An unset or empty device is 'auto' too (normalize_device).
+        for requested in ('auto', None, ''):
+            with self.subTest(requested=requested):
+                device, printed = self.resolve(device_utils.resolve_tts_device, requested, 'mps')
+                self.assertEqual('cpu', device)
+                self.assertEqual(1, printed.count('#1650'))
+        device, printed = self.resolve(device_utils.resolve_tts_device, 'auto', 'mps', note_printed=True)
         self.assertEqual('cpu', device)
-        self.assertIn('#1650', printed)
+        self.assertNotIn('#1650', printed)
 
     def test_other_auto_results_and_explicit_choices_are_unchanged(self):
         for requested, available, expected in (('auto', 'cuda', 'cuda'), ('auto', None, 'cpu'),

@@ -124,6 +124,9 @@ def resolve_device(device_str):
     return "cpu"
 
 
+_tts_cpu_note_printed = False
+
+
 def resolve_tts_device(device_str):
     """Resolve the TTS device; 'auto' uses CPU rather than Apple MPS (#1650).
 
@@ -134,11 +137,14 @@ def resolve_tts_device(device_str):
     crashes, about nine in ten lines exact and 0.38x real time. An explicit
     'mps' is still honoured. Training keeps resolve_device's own order.
     """
+    global _tts_cpu_note_printed
     device = resolve_device(device_str)
     if normalize_device(device_str) == "auto" and is_mps_device(device):
-        print("TTS device 'auto' uses CPU on Apple Silicon: Qwen3-TTS on MPS was slower "
-              "and less accurate (#1650). Set the TTS device to 'mps' to use it anyway.",
-              flush=True)
+        if not _tts_cpu_note_printed:  # each model load resolves again
+            _tts_cpu_note_printed = True
+            print("TTS device 'auto' uses CPU on Apple Silicon: Qwen3-TTS on MPS was slower "
+                  "and less accurate (#1650). Set the TTS device to 'mps' to use it anyway.",
+                  flush=True)
         return "cpu"
     return device
 
