@@ -277,7 +277,7 @@ class StartOverAdmissionTests(unittest.TestCase):
     @contextlib.contextmanager
     def fixture(self):
         with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
-            root = Path(tmp); source = root / 'book.txt'; source.write_text('“Synthetic sentence.”')
+            root = Path(tmp); source = root / 'book.txt'; source.write_text('“Synthetic sentence.”', encoding='utf-8')
             output = root / 'annotated_script.json'; config = root / 'config.json'; config.write_text('{}')
             checkpoint = Path(script.three_pass_checkpoint_path(str(output))); checkpoint.write_text('{"accepted":"synthetic progress"}')
             manifest = Path(script.three_pass_manifest_path(str(output))); manifest.write_text('{"status":"failed"}')
