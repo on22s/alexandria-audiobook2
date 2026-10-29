@@ -26,6 +26,45 @@ from tests.test_script_publication_cancellation import PublicationCancellationTe
 
 
 class NativeWindowsRecoveryQuotaTests(unittest.TestCase):
+    def test_listing_retains_junction_and_hardlink_without_following_targets(self):
+        for kind in ('junction', 'hardlink'):
+            for candidate in (False, True):
+                with self.subTest(kind=kind, candidate=candidate), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    storage = root / archive.ARCHIVE_DIR
+                    storage.mkdir()
+                    outside = root / 'foreign'
+                    outside.mkdir()
+                    sentinel = outside / 'sentinel'
+                    sentinel.write_bytes(b'foreign evidence')
+                    name = ('.pending-' + 'a' * 32 + '-' + 'b' * 32
+                            if candidate else 'unknown')
+                    unsafe = storage / name
+                    if kind == 'junction':
+                        subprocess.run(['cmd', '/c', 'mklink', '/J', str(unsafe), str(outside)],
+                                       check=True, capture_output=True)
+                    else:
+                        os.link(sentinel, unsafe)
+                    before = unsafe.lstat()
+                    try:
+                        listing = archive.list_recovery_records(root, quota_bytes=100000)
+                        self.assertEqual(1, listing['unsafe_entries'])
+                        self.assertFalse(listing['storage_complete'])
+                        self.assertIsNone(listing['over_quota'])
+                        self.assertEqual(0 if candidate else 1, listing['unrecognized_entries'])
+                        if candidate:
+                            self.assertEqual('needs_inspection', listing['records'][0]['status'])
+                        else:
+                            self.assertEqual([], listing['records'])
+                        self.assertEqual(b'foreign evidence', sentinel.read_bytes())
+                        self.assertEqual((before.st_dev, before.st_ino),
+                                         (unsafe.lstat().st_dev, unsafe.lstat().st_ino))
+                        with self.assertRaises(ValueError):
+                            archive._used_bytes(storage)
+                    finally:
+                        if kind == 'junction':
+                            os.rmdir(unsafe)
+
     def test_listing_blocks_nested_parent_replacement_during_proof_recheck(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / 'project'
@@ -526,7 +565,7 @@ class NativeWindowsPublicationCancellationTests(unittest.TestCase):
             self.assertNotEqual(old, (root / 'annotated_script.json').read_bytes())
 
 
-NATIVE_TEST_COUNT = 21
+NATIVE_TEST_COUNT = 22
 
 
 def main():

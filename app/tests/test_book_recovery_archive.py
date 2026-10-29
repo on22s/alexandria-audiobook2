@@ -115,6 +115,9 @@ finally: os.close(fd)
                     observations.append(True)
                     if len(observations) == 2:
                         (child / 'new').write_bytes(b'foreign')
+                        # Force the injected directory-version change even on
+                        # a VM/filesystem whose clock has not advanced yet.
+                        os.utime(child, ns=(info.st_atime_ns, info.st_mtime_ns + 1_000_000_000))
                 return info
             try:
                 with patch.object(archive.os, 'fstat', side_effect=change_after_reopen):
@@ -742,6 +745,70 @@ finally: os.close(fd)
             self.assertEqual(committed['manifest_sha256'],item['manifest_sha256'])
             self.assertEqual(before,{str(p.relative_to(storage)):p.read_bytes() for p in storage.rglob('*') if p.is_file()})
             self.assertTrue(archive.list_recovery_records(root,quota_bytes=1)['over_quota'])
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink and FIFO fixtures required')
+    def test_inventory_retains_unsafe_neighbors_and_reports_valid_candidate(self):
+        for unsafe_kind in ('symlink', 'hardlink', 'fifo'):
+            with self.subTest(kind=unsafe_kind), self.fixture() as (root, token):
+                receipt = archive.create_recovery_archive(
+                    root, ['state.json'], book_token=token, quota_bytes=100000)
+                storage = root / archive.ARCHIVE_DIR
+                foreign = root / 'foreign-evidence'
+                foreign.write_bytes(b'foreign evidence must remain untouched')
+                unsafe = storage / 'unknown'
+                if unsafe_kind == 'symlink':
+                    unsafe.symlink_to(foreign)
+                elif unsafe_kind == 'hardlink':
+                    os.link(foreign, unsafe)
+                else:
+                    os.mkfifo(unsafe)
+                before = unsafe.lstat()
+                listing = archive.list_recovery_records(root, quota_bytes=100000)
+                self.assertEqual(1, listing['unrecognized_entries'])
+                self.assertEqual(1, listing['unsafe_entries'])
+                self.assertFalse(listing['storage_complete'])
+                self.assertIsNone(listing['over_quota'])
+                self.assertEqual([receipt['id']], [row['id'] for row in listing['records']])
+                self.assertEqual('committed_unverified', listing['records'][0]['status'])
+                self.assertEqual(b'foreign evidence must remain untouched', foreign.read_bytes())
+                after = unsafe.lstat()
+                self.assertEqual((before.st_dev, before.st_ino, before.st_mode),
+                                 (after.st_dev, after.st_ino, after.st_mode))
+                with self.assertRaises(ValueError):
+                    archive._used_bytes(storage)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture required')
+    def test_inventory_marks_nested_unsafe_candidate_as_needing_inspection(self):
+        with self.fixture() as (root, token):
+            receipt = archive.create_recovery_archive(
+                root, ['state.json'], book_token=token, quota_bytes=100000)
+            storage = root / archive.ARCHIVE_DIR
+            foreign = root / 'foreign-evidence'
+            foreign.write_bytes(b'untouched foreign bytes')
+            (storage / receipt['stage'] / 'payload' / 'foreign').symlink_to(foreign)
+            listing = archive.list_recovery_records(root, quota_bytes=100000)
+            self.assertEqual('needs_inspection', listing['records'][0]['status'])
+            self.assertEqual(1, listing['unsafe_entries'])
+            self.assertFalse(listing['storage_complete'])
+            self.assertEqual(b'untouched foreign bytes', foreign.read_bytes())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture required')
+    def test_inventory_rejects_unsafe_leaf_substitution_after_scan(self):
+        with self.fixture() as (root, token):
+            archive.create_recovery_archive(
+                root, ['state.json'], book_token=token, quota_bytes=100000)
+            storage = root / archive.ARCHIVE_DIR
+            unsafe = storage / 'unknown'
+            unsafe.symlink_to(root / 'state.json')
+            original = archive._list_recovery_records_guarded
+            def substitute(*args, **kwargs):
+                unsafe.unlink()
+                unsafe.write_bytes(b'replacement')
+                return original(*args, **kwargs)
+            with patch.object(archive, '_list_recovery_records_guarded', substitute):
+                with self.assertRaisesRegex(ValueError, 'changed during inspection'):
+                    archive.list_recovery_records(root, quota_bytes=100000)
+            self.assertEqual(b'replacement', unsafe.read_bytes())
 
     def test_empty_inventory_does_not_create_recovery_storage(self):
         with self.fixture() as (root,token):
