@@ -121,7 +121,7 @@ class ServingEvidenceTests(unittest.TestCase):
             adapter = Path(tmp) / 'voice';write_test_serving_adapter(adapter)
             result = self.evaluate(adapter)
             for name, value in (('language', 'Japanese'), ('max_new_tokens', 1024),
-                                ('device', 'cpu'), ('compile_codec', True), ('mode', 'local')):
+                                ('device', 'cpu'), ('compile_codec', True), ('mode', 'external')):
                 with self.subTest(name=name):
                     requested = {**result['synthesis_settings'], name: value}
                     self.assertFalse(evaluation.is_complete_evaluation(result, str(adapter), requested))

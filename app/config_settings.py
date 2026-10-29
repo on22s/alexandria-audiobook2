@@ -13,6 +13,7 @@ from types import UnionType
 
 from pydantic import AfterValidator, BaseModel, Field, JsonValue, TypeAdapter, ValidationError
 from export_limits import MAX_PAUSE_MS
+from lora_evidence import TTS_MODEL_DEFAULTS
 from synthesis_settings import get_synthesis_window_settings, get_synthesis_recovery_settings
 from speech_verification_settings import get_speech_verification_settings
 
@@ -78,14 +79,15 @@ class LLMConfig(BaseModel):
 
 
 class TTSConfig(BaseModel):
-    mode: Literal["local", "external"] = "local"
+    # Model-setting defaults come from the engine's own table (#1671).
+    mode: Literal["local", "external"] = TTS_MODEL_DEFAULTS["mode"]
     url: str = "http://127.0.0.1:7860"
     # External mode only: a pool of Gradio TTS servers. Empty means [url].
     # Batch rendering runs parallel_workers lines per endpoint concurrently.
     external_urls: List[str] = Field(default_factory=list)
     external_timeout_seconds: int = Field(default=300, ge=10, le=3600)
-    device: str = "auto"
-    language: str = "English"
+    device: str = TTS_MODEL_DEFAULTS["device"]
+    language: str = TTS_MODEL_DEFAULTS["language"]
     parallel_workers: int = Field(default=2, ge=1)
     batch_seed: Optional[int] = None
     # Opt-in: single-chunk renders derive their seed from text + take.
@@ -95,8 +97,8 @@ class TTSConfig(BaseModel):
     # Execution policy only; excluded from voice/acoustic identity.
     synthesis_recovery: Annotated[Dict[str, JsonValue], AfterValidator(get_synthesis_recovery_settings)] = Field(default_factory=get_synthesis_recovery_settings)
     speech_verification: Annotated[Dict[str, JsonValue], AfterValidator(get_speech_verification_settings)] = Field(default_factory=get_speech_verification_settings)
-    compile_codec: bool = False
-    max_new_tokens: int = Field(default=2048, ge=256, le=8192)
+    compile_codec: bool = TTS_MODEL_DEFAULTS["compile_codec"]
+    max_new_tokens: int = Field(default=TTS_MODEL_DEFAULTS["max_new_tokens"], ge=256, le=8192)
     sub_batch_enabled: bool = True
     sub_batch_min_size: int = Field(default=4, ge=1)
     sub_batch_ratio: float = Field(default=5.0, ge=1)

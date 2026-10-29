@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import unittest.mock
 from pydantic import ValidationError
 from config_settings import TTSConfig, load_app_config_result, _get_field_adapter
 from lora_evidence import get_tts_model_settings
@@ -12,6 +13,40 @@ from synthesis_settings import (get_synthesis_budget_keys, get_synthesis_window_
                                 get_synthesis_recovery_settings,
                                 get_enabled_synthesis_recovery_settings)
 from tts import TTSEngine
+
+
+MODEL_SETTING_FIELDS = ('mode', 'device', 'compile_codec', 'max_new_tokens', 'language')
+
+
+def _tts_config_defaults():
+    return {name: TTSConfig.model_fields[name].default for name in MODEL_SETTING_FIELDS}
+
+
+class TTSModelDefaultTests(unittest.TestCase):
+    """Setup and the engine must agree on settings a config.json omits (#1671)."""
+
+    def test_engine_defaults_are_the_config_model_defaults(self):
+        self.assertEqual(_tts_config_defaults(), get_tts_model_settings({}))
+        self.assertEqual(_tts_config_defaults(), TTSEngine({}).get_model_settings())
+
+    def test_fresh_install_engine_uses_the_mode_setup_reports(self):
+        import asyncio
+        import routers.system as system_module
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = str(Path(tmp, 'config.json'))
+            with unittest.mock.patch.object(system_module, 'CONFIG_PATH', missing):
+                shown = asyncio.run(system_module.get_config())['tts']['mode']
+            data = load_app_config_result(missing).data
+            self.assertEqual({}, data)
+            self.assertEqual(shown, get_tts_model_settings(data)['mode'])
+            self.assertEqual(shown, TTSEngine(data).get_model_settings()['mode'])
+            self.assertEqual('local', shown)
+
+    def test_a_stated_mode_is_kept(self):
+        for mode in ('local', 'external'):
+            with self.subTest(mode=mode):
+                self.assertEqual(mode, get_tts_model_settings({'tts': {'mode': mode}})['mode'])
+                self.assertEqual(mode, TTSEngine({'tts': {'mode': mode}}).get_model_settings()['mode'])
 
 
 class SynthesisRecoverySettingsTests(unittest.TestCase):
@@ -66,7 +101,7 @@ class SynthesisSettingsTests(unittest.TestCase):
         return dict(enabled=True, budgets={'local.custom': {'max_chars': 80}}, seams={'fade_ms': 5})
 
     def test_disabled_controls_omit_model_identity_and_preserve_legacy_shape(self):
-        legacy = dict(mode='external', device='auto', compile_codec=False, max_new_tokens=2048, language='English')
+        legacy = _tts_config_defaults()
         for value in (None, {}, {'enabled': False}, {**self.policy(), 'enabled': False}):
             with self.subTest(value=value):
                 config = {'tts': {'synthesis_windows': value}}
