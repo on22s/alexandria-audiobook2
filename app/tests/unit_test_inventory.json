@@ -11136,6 +11136,7 @@
     "tests.test_take_publication.TakePublicationTests.test_valid_output_outside_snapshot_limits_still_publishes_without_proof"
   ],
   "test_take_restoration": [
+    "tests.test_take_restoration.TakeRestorationTests.test_actual_process_death_during_restore_keeps_one_coherent_selection_and_retries",
     "tests.test_take_restoration.TakeRestorationTests.test_cancelled_or_replaced_owner_at_final_capture_cannot_select",
     "tests.test_take_restoration.TakeRestorationTests.test_capacity_refuses_before_loading_engine",
     "tests.test_take_restoration.TakeRestorationTests.test_changed_dependencies_and_corrupt_saved_bindings_never_replace_selected_audio",
