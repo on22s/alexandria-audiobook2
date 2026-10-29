@@ -11393,7 +11393,10 @@
     "tests.test_synthesis_settings.SynthesisSettingsTests.test_disabled_controls_omit_model_identity_and_preserve_legacy_shape",
     "tests.test_synthesis_settings.SynthesisSettingsTests.test_enabled_policy_is_canonical_copied_and_part_of_actual_engine_identity",
     "tests.test_synthesis_settings.SynthesisSettingsTests.test_invalid_policy_refuses_unknown_categories_shapes_and_unbounded_values",
-    "tests.test_synthesis_settings.SynthesisSettingsTests.test_schema_and_shape_safe_loader_share_the_same_validation"
+    "tests.test_synthesis_settings.SynthesisSettingsTests.test_schema_and_shape_safe_loader_share_the_same_validation",
+    "tests.test_synthesis_settings.TTSModelDefaultTests.test_a_stated_mode_is_kept",
+    "tests.test_synthesis_settings.TTSModelDefaultTests.test_engine_defaults_are_the_config_model_defaults",
+    "tests.test_synthesis_settings.TTSModelDefaultTests.test_fresh_install_engine_uses_the_mode_setup_reports"
   ],
   "test_synthesis_window_dispatch": [
     "tests.test_synthesis_window_dispatch.SynthesisWindowDispatchTests.test_all_builtin_voice_paths_split_canonical_occurrence_and_shared_words_once",
