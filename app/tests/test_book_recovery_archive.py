@@ -1,5 +1,6 @@
 """Bounded immutable archive primitives; these do not qualify book restore."""
 import contextlib
+import errno
 import hashlib
 import json
 import os
@@ -843,7 +844,10 @@ finally: os.close(fd)
                 return original_stat(name, *args, **kwargs)
             try:
                 with patch.object(archive.os, 'scandir', swap_after_enumeration), \
-                     patch.object(archive.os, 'stat', inspect):
+                     patch.object(archive.os, 'stat', inspect), \
+                     patch.object(archive.os, 'supports_fd', set(os.supports_fd) | {swap_after_enumeration}), \
+                     patch.object(archive.os, 'supports_dir_fd', set(os.supports_dir_fd) | {inspect}), \
+                     patch.object(archive.os, 'supports_follow_symlinks', set(os.supports_follow_symlinks) | {inspect}):
                     with self.assertRaisesRegex(ValueError, 'changed'):
                         archive.list_recovery_records(root, quota_bytes=10000)
                 self.assertEqual([True], swapped)
@@ -890,6 +894,65 @@ finally: os.close(fd)
                 with self.assertRaisesRegex(ValueError, 'changed during inspection'):
                     archive.list_recovery_records(root, quota_bytes=100000)
             self.assertEqual(payload.read_bytes(), foreign.read_bytes())
+
+    def test_listing_parent_preserves_io_and_cancellation_errors(self):
+        class CancelledIO(OSError):
+            pass
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            before = archive._version(directory.stat())
+            for error in (OSError(errno.EIO, 'synthetic read failure'),
+                          OSError(errno.EMFILE, 'synthetic descriptor exhaustion'),
+                          CancelledIO(errno.EINTR, 'synthetic cancellation')):
+                with self.subTest(errno=error.errno):
+                    with self.assertRaises(OSError) as raised:
+                        with archive._listing_parent(directory, '', before, {}):
+                            raise error
+                    self.assertIs(error, raised.exception)
+            error = OSError(errno.EIO, 'synthetic scanner failure')
+            with patch.object(archive, '_used_bytes_pinned', side_effect=error):
+                with self.assertRaises(OSError) as raised:
+                    archive._used_bytes(directory, with_proofs=True, observe_unsafe=True)
+            self.assertIs(error, raised.exception)
+
+    def test_inventory_reuses_pinned_root_during_proof_recheck(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            storage = root / archive.ARCHIVE_DIR
+            storage.mkdir(mode=0o700)
+            original = archive._open_directory
+            totals = []
+            for count in (20, 200):
+                for number in range(count):
+                    path = storage / str(number)
+                    path.write_bytes(b'known')
+                    path.chmod(0o600)
+                anchors = []
+                def opened(path, **kwargs):
+                    if str(path) == storage.anchor and kwargs.get('dir_fd') is None:
+                        anchors.append(True)
+                    return original(path, **kwargs)
+                with patch.object(archive, '_open_directory', opened):
+                    result = archive.list_recovery_records(root, quota_bytes=10000)
+                self.assertEqual(count, result['unrecognized_entries'])
+                self.assertTrue(result['storage_complete'])
+                self.assertEqual(0, result['unsafe_entries'])
+                self.assertFalse(result['over_quota'])
+                self.assertLessEqual(len(anchors), 5)
+                totals.append(len(anchors))
+            self.assertEqual(totals[0], totals[1])
+
+    def test_listing_refuses_missing_descriptor_capability_without_changes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            storage = root / archive.ARCHIVE_DIR
+            storage.mkdir(mode=0o700)
+            sentinel = storage / 'evidence'
+            sentinel.write_bytes(b'preserved')
+            with patch.object(archive.os, 'supports_fd', set(os.supports_fd) - {os.scandir}):
+                with self.assertRaisesRegex(ValueError, 'Secure recovery listing is unavailable'):
+                    archive.list_recovery_records(root, quota_bytes=10000)
+            self.assertEqual(b'preserved', sentinel.read_bytes())
 
     def test_inventory_counts_hardlink_logical_bytes_per_name(self):
         with self.fixture() as (root, token):
