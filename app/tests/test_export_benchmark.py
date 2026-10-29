@@ -107,7 +107,7 @@ class ExportBenchmarkSourceHashTests(unittest.TestCase):
                 snapshot=copy.deepcopy(payload)
                 before={p.name:p.read_bytes() for p in Path(tmp).iterdir()}
                 def copy_source(src,dst,*args,**kwargs):
-                    if mode=='during-copy' and Path(src)==source:
+                    if mode=='during-copy' and os.path.realpath(src)==os.path.realpath(source):
                         source.write_bytes(b'changed between validation and copying')
                     return original_copy(src,dst,*args,**kwargs)
                 with patch.object(export_benchmark.shutil,'copy2',side_effect=copy_source), \
