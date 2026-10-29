@@ -118,8 +118,8 @@ class ScriptUploadQuotaTests(unittest.IsolatedAsyncioTestCase):
             source = UploadFile(filename='cancelled.txt', file=io.BytesIO(b'cancelled content'))
             entered, release = threading.Event(), threading.Event()
             original = script.create_source_upload_stage
-            def paused_claim(directory):
-                path = original(directory)
+            def paused_claim(directory, **options):
+                path = original(directory, **options)
                 entered.set()
                 if not release.wait(2):
                     raise AssertionError('path-claim fixture was not released')

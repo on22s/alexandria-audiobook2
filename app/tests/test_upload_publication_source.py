@@ -139,6 +139,9 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(TEXT, existing.read_bytes())
 
     async def test_failure_after_publication_and_failed_selection_retain_visible_provenance(self):
+        # Reimport the identical archive: ZIP timestamps otherwise change its
+        # origin digest when these two requests cross a two-second boundary.
+        different_origin = epub('Different')
         async with self.environment() as (_, uploads, client):
             self.assertEqual(200, (await self.upload(client, epub())).status_code)
             before = {p.name: p.read_bytes() for p in uploads.iterdir()}
@@ -149,11 +152,11 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
                 visible.update({p.name: p.read_bytes() for p in uploads.iterdir()})
                 raise OSError('fixture after publication')
             with patch.object(script, 'apply_publication_source_update', side_effect=fail_after_replace):
-                self.assertEqual(500, (await self.upload(client, epub('Different'))).status_code)
+                self.assertEqual(500, (await self.upload(client, different_origin)).status_code)
             self.assertEqual(visible, {p.name: p.read_bytes() for p in uploads.iterdir()})
             with patch.object(script, 'ensure_book_switch_allowed', return_value=nullcontext()), \
                  patch.object(script, 'apply_book_input_selection', side_effect=ValueError('fixture selection refusal')):
-                response = await self.upload(client, epub('Different'), select=True)
+                response = await self.upload(client, different_origin, select=True)
                 self.assertEqual(409, response.status_code, response.text)
                 self.assertNotIn('fixture selection refusal', response.text)
             self.assertEqual(visible, {p.name: p.read_bytes() for p in uploads.iterdir()})
