@@ -32,6 +32,22 @@ class FakeHandle:
 
 
 class WindowsBookMoveGuardTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Windows ancestor admission required')
+    def test_unreadable_ancestor_is_refused_by_shared_admission(self):
+        from direct_path_admission import is_plain_path
+        from project_scope_files import capture_scope_file
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = Path.lstat
+            def denied(path, *args, **kwargs):
+                if path == root.parent:
+                    raise PermissionError('synthetic ancestor denial')
+                return original(path, *args, **kwargs)
+            with patch.object(Path, 'lstat', denied):
+                self.assertFalse(is_plain_path(root))
+                with self.assertRaisesRegex(ValueError, 'aliases'):
+                    capture_scope_file(root, 'state.json')
+
     @unittest.skipUnless(os.name == 'nt', 'Native DOS short names required')
     def test_short_names_agree_across_book_scope_take_and_recovery_admission(self):
         import ctypes

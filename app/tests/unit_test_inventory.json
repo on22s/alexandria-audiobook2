@@ -13367,6 +13367,7 @@
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_reparse_ancestor_refuses_and_releases_prior_handles",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_short_names_agree_across_book_scope_take_and_recovery_admission",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_system_ancestor_access_denial_does_not_weaken_owned_root",
+    "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_unreadable_ancestor_is_refused_by_shared_admission",
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_untrusted_outside_target_is_refused_before_native_access"
   ],
   "test_windows_export_qualification": [

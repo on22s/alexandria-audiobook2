@@ -13,12 +13,15 @@ def is_plain_path(path):
     """
     path = Path(os.path.abspath(path))
     if os.name != 'nt':
-        return os.path.normcase(os.path.realpath(path)) == os.path.normcase(str(path))
+        return (not any(component.is_symlink() for component in (*path.parents, path))
+                and os.path.normcase(os.path.realpath(path)) == os.path.normcase(str(path)))
     for component in (*reversed(path.parents), path):
         try:
             info = component.lstat()
         except FileNotFoundError:
             continue
+        except OSError:
+            return False
         if (stat.S_ISLNK(info.st_mode) or
                 getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
             return False

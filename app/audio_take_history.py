@@ -73,11 +73,8 @@ def _ensure_plain_path(path, root):
         parts = path.relative_to(root).parts
     except ValueError as error:
         raise ValueError('Take audio must stay inside the project.') from error
-    current = root
-    for part in parts:
-        current /= part
-        if not is_plain_path(current):
-            raise ValueError('Take history does not accept file or directory aliases.')
+    if not is_plain_path(path):
+        raise ValueError('Take history does not accept file or directory aliases.')
     return path
 
 
