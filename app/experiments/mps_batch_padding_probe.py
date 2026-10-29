@@ -163,12 +163,12 @@ def get_reading(results):
         return 'inconclusive_memory'
     if any(load_errors):
         return 'model_load_failure'
+    if any('out of memory' in (result.get('error') or '').lower() for result in every):
+        return 'inconclusive_memory'
     if any(results.get(backend, {}).get('instrument_error') for backend in BACKENDS):
         return 'instrument_failure'
     if any(result.get('instrument_error') for result in every):
         return 'instrument_failure'
-    if any("out of memory" in (result["error"] or "").lower() for result in every):
-        return "inconclusive_memory"
     for backend in BACKENDS:
         loaded = results.get(backend, {}).get("loaded", {})
         classes = {name.split(':', 1)[0] for name in loaded}
@@ -190,6 +190,10 @@ def get_reading(results):
                             for backend in BACKENDS)}
     if not padded_names:
         return "padding_not_exercised"
+    if any(not cases(backend)[name]['ok'] for name in expected
+           if name.startswith('padded') and name not in padded_names
+           for backend in BACKENDS):
+        return 'control_failure'
     if failed("sdpa", "single") or failed("eager", "single"):
         return "single_line_failure"
     if any(not cases(backend)["equal_control"]["ok"] or

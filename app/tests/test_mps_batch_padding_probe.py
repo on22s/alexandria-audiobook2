@@ -99,7 +99,7 @@ class ProbeReadingTests(unittest.TestCase):
         observed = self.results(True, True)
         observed['sdpa']['cases']['padded_short'] = result(False, tokens=(6, 6))
         observed['eager']['cases']['padded_short'] = result(True, tokens=(6, 6))
-        self.assertEqual('not_reproduced', probe.get_reading(observed))
+        self.assertEqual('control_failure', probe.get_reading(observed))
 
     def results(self, sdpa_padded, eager_padded, singles=True, eager_loaded='eager',
                 tokens=(9, 5), error='RuntimeError: probability tensor contains either inf, nan or element < 0'):
