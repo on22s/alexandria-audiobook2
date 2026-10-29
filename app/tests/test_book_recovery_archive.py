@@ -814,7 +814,7 @@ finally: os.close(fd)
     @unittest.skipIf(os.name == 'nt', 'POSIX directory descriptors required')
     def test_listing_parent_swap_never_stats_the_external_child(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             storage = root / archive.ARCHIVE_DIR
             storage.mkdir(mode=0o700)
             nested = storage / 'nested'
@@ -861,7 +861,7 @@ finally: os.close(fd)
     def test_inventory_reports_nonprivate_stage_and_lock_as_unsafe(self):
         for stage in (False, True):
             with self.subTest(stage=stage), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = Path(temporary).resolve()
                 storage = root / archive.ARCHIVE_DIR
                 storage.mkdir(mode=0o700)
                 name = '.pending-' + 'a' * 32 + '-' + 'b' * 32 if stage else 'archive.lock'
@@ -899,7 +899,7 @@ finally: os.close(fd)
         class CancelledIO(OSError):
             pass
         with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary)
+            directory = Path(temporary).resolve()
             before = archive._version(directory.stat())
             for error in (OSError(errno.EIO, 'synthetic read failure'),
                           OSError(errno.EMFILE, 'synthetic descriptor exhaustion'),
@@ -917,7 +917,7 @@ finally: os.close(fd)
 
     def test_inventory_reuses_pinned_root_during_proof_recheck(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             storage = root / archive.ARCHIVE_DIR
             storage.mkdir(mode=0o700)
             original = archive._open_directory
@@ -944,7 +944,7 @@ finally: os.close(fd)
 
     def test_listing_refuses_missing_descriptor_capability_without_changes(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             storage = root / archive.ARCHIVE_DIR
             storage.mkdir(mode=0o700)
             sentinel = storage / 'evidence'
@@ -956,7 +956,7 @@ finally: os.close(fd)
 
     def test_listing_refuses_leaf_removed_after_parent_open(self):
         with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary)
+            directory = Path(temporary).resolve()
             leaf = directory / 'leaf'
             leaf.write_bytes(b'owned')
             before = archive._version(directory.stat())
@@ -976,7 +976,7 @@ finally: os.close(fd)
     @unittest.skipIf(os.name == 'nt', 'POSIX no-follow directory open required')
     def test_listing_refuses_directory_replaced_before_pinned_open(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             storage = root / archive.ARCHIVE_DIR
             storage.mkdir(mode=0o700)
             child = storage / 'child'
@@ -1084,7 +1084,7 @@ finally: os.close(fd)
 
     def test_unsafe_observation_requires_path_proofs(self):
         with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary)
+            directory = Path(temporary).resolve()
             with self.assertRaisesRegex(ValueError, 'require listing proofs'):
                 archive._used_bytes(directory, observe_unsafe=True)
             descriptor = archive._open_directory(str(directory))
