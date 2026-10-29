@@ -14,6 +14,7 @@ import logging
 import os
 import posixpath
 import re
+import stat
 import sys
 import tempfile
 import threading
@@ -745,11 +746,13 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
 def _get_reusable_uploads() -> List[dict]:
     uploads = []
     for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name.casefold()):
-        if not entry.is_file() or os.path.splitext(entry.name)[1].lower() not in {".txt", ".md"}:
+        facts = os.lstat(entry.path)
+        if (not entry.is_file(follow_symlinks=False) or not stat.S_ISREG(facts.st_mode)
+                or facts.st_nlink != 1
+                or os.path.splitext(entry.name)[1].lower() not in {".txt", ".md"}):
             continue
-        stat = entry.stat()
         uploads.append({
-            "filename": entry.name, "size": stat.st_size, "modified": stat.st_mtime,
+            "filename": entry.name, "size": facts.st_size, "modified": facts.st_mtime,
             "sha256": _get_upload_hash(entry.path),
         })
     return uploads
@@ -776,7 +779,12 @@ def _apply_upload_selection(path, before_publication=None):
 def _select_upload(filename: str, *, include_identity=False):
     safe_name = _require_safe_filename(filename, "Invalid upload filename")
     path = os.path.join(UPLOADS_DIR, safe_name)
-    if not os.path.isfile(path) or os.path.splitext(path)[1].lower() not in {".txt", ".md"}:
+    try:
+        facts = os.lstat(path)
+    except OSError:
+        facts = None
+    if (facts is None or not stat.S_ISREG(facts.st_mode) or facts.st_nlink != 1
+            or os.path.splitext(path)[1].lower() not in {".txt", ".md"}):
         raise HTTPException(status_code=404, detail=f"Reusable upload '{filename}' not found.")
     token = _apply_upload_selection(path)
     return (path, token) if include_identity else path

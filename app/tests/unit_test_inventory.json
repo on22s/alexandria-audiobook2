@@ -10575,6 +10575,7 @@
   ],
   "test_source_upload_publication": [
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_disappearing_companion_is_a_governed_publication_conflict",
+    "tests.test_source_upload_publication.SourceUploadPublicationTests.test_disappearing_companion_does_not_mask_native_publication_error",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_alias_refusal_retains_companion_evidence_and_skips_its_name",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_collisions_preserve_existing_file_directory_and_orphan_provenance",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_companion_is_complete_before_source_becomes_visible",
@@ -10600,6 +10601,7 @@
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_windows_post_rename_metadata_failure_preserves_source_and_companion"
   ],
   "test_source_upload_stage": [
+    "tests.test_source_upload_stage.OwnedSourceUploadStageTests.test_posix_root_is_revalidated_after_native_stage_creation",
     "tests.test_source_upload_stage.OwnedSourceUploadStageTests.test_small_payload_capture_does_not_allocate_the_configured_maximum",
     "tests.test_source_upload_stage.OwnedSourceUploadStageTests.test_bounded_write_and_abandoned_cleanup",
     "tests.test_source_upload_stage.OwnedSourceUploadStageTests.test_changed_storage_cannot_redirect_publication",
@@ -10614,6 +10616,7 @@
   "test_source_upload_visibility": [
     "tests.test_source_upload_visibility.SourceUploadVisibilityTests.test_busy_book_selection_is_a_retryable_conflict",
     "tests.test_source_upload_visibility.SourceUploadVisibilityTests.test_dedupe_storage_replacement_is_a_governed_conflict",
+    "tests.test_source_upload_visibility.SourceUploadVisibilityTests.test_multiply_linked_upload_is_not_reusable_or_selectable",
     "tests.test_source_upload_visibility.SourceUploadVisibilityTests.test_epub_stage_cleanup_leaves_event_loop_free_and_waits_on_cancel",
     "tests.test_source_upload_visibility.SourceUploadVisibilityTests.test_foreign_selection_survives_original_upload_cancel_with_provenance",
     "tests.test_source_upload_visibility.SourceUploadVisibilityTests.test_partial_writer_is_private_until_success_and_cancel_removes_stage",

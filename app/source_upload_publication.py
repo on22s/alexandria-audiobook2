@@ -125,24 +125,34 @@ def publish_completed_upload(stage, filename, on_visible, *, limit, companion_by
             continue
         finally:
             if companion_identity is not None and not published and not stage.publication_started:
+                active_error = sys.exc_info()[1]
+                cleanup_error = None
                 try:
                     facts = (os.stat(companion.name, dir_fd=stage._directory_fd,
                                      follow_symlinks=False)
                              if stage._directory_fd is not None else companion.lstat())
                 except FileNotFoundError as error:
-                    raise ValueError(
-                        'Source provenance changed during publication') from error
-                if ((facts.st_dev, facts.st_ino) != companion_identity
-                        or not stat.S_ISREG(facts.st_mode) or facts.st_nlink != 1):
-                    raise ValueError('Source provenance changed during publication')
-                try:
-                    if stage._directory_fd is not None:
-                        os.unlink(companion.name, dir_fd=stage._directory_fd)
+                    cleanup_error = error
+                else:
+                    if ((facts.st_dev, facts.st_ino) != companion_identity
+                            or not stat.S_ISREG(facts.st_mode) or facts.st_nlink != 1):
+                        cleanup_error = ValueError(
+                            'Source provenance changed during publication')
                     else:
-                        companion.unlink()
-                except FileNotFoundError as error:
+                        try:
+                            if stage._directory_fd is not None:
+                                os.unlink(companion.name, dir_fd=stage._directory_fd)
+                            else:
+                                companion.unlink()
+                        except FileNotFoundError as error:
+                            cleanup_error = error
+                # A retryable collision becomes a governed conflict when its
+                # companion changed. Never replace a more informative native
+                # publication failure such as ENOSPC with the cleanup symptom.
+                if (cleanup_error is not None and
+                        (active_error is None or isinstance(active_error, FileExistsError))):
                     raise ValueError(
-                        'Source provenance changed during publication') from error
+                        'Source provenance changed during publication') from cleanup_error
         try:
             on_visible(str(destination))
             stage.sync_directory()

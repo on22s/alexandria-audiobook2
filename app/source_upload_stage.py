@@ -99,6 +99,10 @@ class OwnedSourceUploadStage:
                     self._stream = tempfile.TemporaryFile(dir=self.directory)
                 else:
                     raise OSError(errno.ENOTSUP, 'Descriptor upload publication is unavailable')
+                # The native anonymous extent was created through a pathname.
+                # Revalidate the pinned root before returning a writable stage,
+                # closing the admission/create race without exposing payload bytes.
+                self._check_root()
                 if os.fstat(self._stream.fileno()).st_nlink != 0:
                     raise ValueError('Upload staging must be unnamed')
             with _stages_lock:

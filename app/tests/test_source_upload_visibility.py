@@ -16,6 +16,17 @@ from source_upload_stage import OwnedSourceUploadStage
 
 
 class SourceUploadVisibilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_multiply_linked_upload_is_not_reusable_or_selectable(self):
+        async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (_, uploads, client):
+            source = uploads / 'linked.txt'
+            source.write_bytes(b'Externally aliased source.')
+            os.link(source, uploads / 'external-alias')
+            listed = await client.get('/api/uploads')
+            selected = await client.post('/api/uploads/select', json={'filename': 'linked.txt'})
+            self.assertEqual(200, listed.status_code, listed.text)
+            self.assertEqual([], listed.json())
+            self.assertEqual(404, selected.status_code, selected.text)
+
     async def test_dedupe_storage_replacement_is_a_governed_conflict(self):
         async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (_, uploads, client):
             with patch.object(script, '_reuse_duplicate_upload',

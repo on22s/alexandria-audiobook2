@@ -260,6 +260,19 @@ class SourceUploadPublicationTests(unittest.TestCase):
                     limit=len(self.payload), companion_bytes=companion)
         self.assert_stage_retained()
 
+    def test_disappearing_companion_does_not_mask_native_publication_error(self):
+        companion = self.get_companion_bytes()
+        def remove_companion_then_fail(_name):
+            (self.root / 'book.txt.publication.json').unlink()
+            raise OSError(errno.ENOSPC, 'controlled publication failure')
+        with patch.object(self.stage, 'publish', side_effect=remove_companion_then_fail):
+            with self.assertRaisesRegex(OSError, 'controlled publication failure') as caught:
+                publication.publish_completed_upload(
+                    self.stage, 'book.txt', lambda path: None,
+                    limit=len(self.payload), companion_bytes=companion)
+        self.assertEqual(errno.ENOSPC, caught.exception.errno)
+        self.assert_stage_retained()
+
     def test_companion_is_complete_before_source_becomes_visible(self):
         companion_bytes = self.get_companion_bytes()
         observed = []

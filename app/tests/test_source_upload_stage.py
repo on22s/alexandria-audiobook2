@@ -51,6 +51,15 @@ class OwnedSourceUploadStageTests(unittest.TestCase):
                 self.stage()
         self.assertEqual([], list(self.root.iterdir()))
 
+    def test_posix_root_is_revalidated_after_native_stage_creation(self):
+        if os.name == 'nt':
+            return
+        with patch.object(OwnedSourceUploadStage, '_check_root',
+                          side_effect=[None, ValueError('controlled root replacement')]):
+            with self.assertRaisesRegex(ValueError, 'controlled root replacement'):
+                self.stage()
+        self.assertEqual([], list(self.root.iterdir()))
+
     def test_complete_publication_refuses_collision_and_preserves_foreign_bytes(self):
         (self.root / 'book.txt').write_bytes(b'foreign')
         stage = self.stage()
