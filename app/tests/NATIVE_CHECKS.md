@@ -36,3 +36,22 @@ retargeting. POSIX-only retirement tests are explicitly skipped on Windows;
 their Linux results do not qualify Windows behavior. Private Windows creation/retirement now has hard-exit, finish, live-owner and
 recovery checks in this gate. Power-loss directory durability and the legacy
 public-stage finalization path remain unqualified.
+
+## Book transaction, recovery archive and cancellation handles
+
+Windows-only checks for these areas live in a script that unit discovery
+does not collect, so the Linux release shards (which fail on any skipped test)
+never see them:
+
+```text
+cd app
+python tests/native_windows_transaction_checks.py
+```
+
+Set `PYTHONPATH` to `.`. The `windows-owner` job runs it after installing the
+script-router dependencies it imports. It rejects a non-Windows host with exit 2
+and accepts only 21 successful tests with zero skips: recovery-archive directory
+guards (9), native staging identities and handles in the book transaction (5),
+book-move cleanup and sharing handles (4), and published-script cancellation
+through the owned job (3). Do not add `skipUnless` Windows guards to discovered
+`test_*.py` modules; put native-only checks here instead.

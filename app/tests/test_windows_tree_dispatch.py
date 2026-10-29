@@ -17,6 +17,18 @@ def is_live(pid):
 
 
 class WindowsTreeDispatchTests(unittest.TestCase):
+    def test_closed_job_liveness_is_false_but_query_errors_are_preserved(self):
+        from types import SimpleNamespace
+        from subprocess_ownership import is_subprocess_tree_running
+        from windows_subprocess_job import WindowsJobClosedError
+        job = SimpleNamespace(get_active_process_count=lambda: (_ for _ in ()).throw(
+            WindowsJobClosedError('closed')))
+        process = SimpleNamespace(_alexandria_windows_owner=SimpleNamespace(job=job))
+        self.assertFalse(is_subprocess_tree_running(process))
+        job.get_active_process_count = lambda: (_ for _ in ()).throw(OSError('query failed'))
+        with self.assertRaisesRegex(OSError, 'query failed'):
+            is_subprocess_tree_running(process)
+
     def test_owned_windows_job_uses_existing_grace_and_force_dispatch(self):
         from types import SimpleNamespace
         calls = []

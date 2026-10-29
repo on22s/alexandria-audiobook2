@@ -1,6 +1,8 @@
 """Win32 kernel ownership boundary for detached subprocess descendants."""
 import ctypes
+import functools
 import subprocess
+import threading
 import time
 
 
@@ -77,9 +79,25 @@ def get_windows_job_active_process_count(api, handle=None):
     return information.ActiveProcesses
 
 
+class WindowsJobClosedError(OSError):
+    """The owned job handle has already been released."""
+
+
+def _with_open_job(method):
+    """Keep the kernel handle open for an entire operation."""
+    @functools.wraps(method)
+    def guarded(self, *args, **kwargs):
+        with self._close_lock:
+            if self.handle is None:
+                raise WindowsJobClosedError('Windows job is already closed')
+            return method(self, *args, **kwargs)
+    return guarded
+
+
 class WindowsSubprocessJob:
     """Own one command tree without permitting ordinary CreateProcess breakaway."""
     def __init__(self):
+        self._close_lock = threading.RLock()
         self.api = get_windows_job_api()
         self.handle = self.api.CreateJobObjectW(None, None)
         if not self.handle:
@@ -95,14 +113,17 @@ class WindowsSubprocessJob:
             self.close()
             raise
 
+    @_with_open_job
     def apply_process_membership(self, process_handle):
         """Admit a trusted bootstrap before allowing it to launch any worker."""
         if not self.api.AssignProcessToJobObject(self.handle, process_handle):
             raise_windows_job_error('AssignProcessToJobObject')
 
+    @_with_open_job
     def get_active_process_count(self):
         return get_windows_job_active_process_count(self.api, self.handle)
 
+    @_with_open_job
     def get_process_ids(self):
         capacity = 16
         while True:
@@ -120,6 +141,7 @@ class WindowsSubprocessJob:
                 return list(information.ids[:information.returned])
             capacity = max(capacity * 2, information.assigned)
 
+    @_with_open_job
     def request_termination(self, owner_pid, timeout):
         """Request existing Windows graceful termination for exact job members."""
         deadline = time.monotonic() + timeout
@@ -150,6 +172,7 @@ class WindowsSubprocessJob:
                 if not self.api.CloseHandle(process_handle):
                     raise_windows_job_error('CloseHandle')
 
+    @_with_open_job
     def terminate(self, exit_code=1):
         """Force termination of all job members, including detached descendants."""
         if not self.api.TerminateJobObject(self.handle, exit_code):
@@ -162,7 +185,8 @@ class WindowsSubprocessJob:
 
     def close(self):
         """Close a job handle once; retain it if the kernel rejects close."""
-        if self.handle is not None:
-            if not self.api.CloseHandle(self.handle):
-                raise_windows_job_error('CloseHandle')
-            self.handle = None
+        with self._close_lock:
+            if self.handle is not None:
+                if not self.api.CloseHandle(self.handle):
+                    raise_windows_job_error('CloseHandle')
+                self.handle = None

@@ -73,12 +73,12 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
                     if p.is_file() and not p.name.endswith('.lock')}
             move=books._move
             failed_once=False
-            def fail(source,destination):
+            def fail(source,destination, **kwargs):
                 nonlocal failed_once
                 if str(destination)==checkpoint_path and not failed_once:
                     failed_once=True
                     raise OSError('delta recovery publication failed')
-                return move(source,destination)
+                return move(source,destination, **kwargs)
             with patch.object(books,'_move',side_effect=fail),self.assertRaises(OSError):
                 script.apply_manual_recovery(self.entries(),'manual')
             after={str(p):p.read_bytes() for p in root.rglob('*')
@@ -100,10 +100,32 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
             state['segmented']=[{'type':'NARRATOR','text':'Latest accepted row.'}]
             writer.save_checkpoint(state)
             script.process_state['script']['running']=True
+            source=root/'book.txt';source.write_text('Latest accepted row.')
+            from script_selection_binding import capture_generation_selection
+            book_state={'input_file_path':str(source)}
+            (root/'state.json').write_text(json.dumps(book_state))
+            with books.ensure_book_state(str(root)):
+                selection=capture_generation_selection(str(root),str(source))
+            book_state['script_generation_selection']=selection
+            book_state['script_generation_run_id']='a'*32
+            (root/'state.json').write_text(json.dumps(book_state))
+            core._task_claims['script']={'id':'a'*32,'phase':'started'}
             library=root/'scripts'
             with patch.object(script,'SCRIPTS_DIR',str(library)),\
                  patch.object(script,'VOICE_CONFIG_PATH',str(root/'missing-voices.json')),\
                  patch.object(script,'_saved_book_meta_path',side_effect=lambda name:str(library/(name+'.meta.json'))):
+                source.write_text('A different source.')
+                with self.assertRaises(HTTPException) as wrong:
+                    asyncio.run(script.snapshot_script(script.SnapshotRequest(name='wrong')))
+                self.assertEqual(409,wrong.exception.status_code)
+                self.assertFalse((library/'wrong.json').exists())
+                source.write_text('Latest accepted row.')
+                core._task_claims['script']['id']='b'*32
+                with self.assertRaises(HTTPException) as wrong_owner:
+                    asyncio.run(script.snapshot_script(script.SnapshotRequest(name='wrong-owner')))
+                self.assertEqual(409,wrong_owner.exception.status_code)
+                self.assertFalse((library/'wrong-owner.json').exists())
+                core._task_claims['script']['id']='a'*32
                 response=asyncio.run(script.snapshot_script(script.SnapshotRequest(name='latest')))
             self.assertEqual(response['entries'],1)
             self.assertEqual(json.loads((library/'latest.json').read_text()),state['annotated'])
@@ -115,11 +137,11 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
         for point in range(1,5):
             with self.subTest(move=point),self.fixture() as (_,path):
                 before=self.pair(path);move=books._move;count=0
-                def fail(source,destination):
+                def fail(source,destination, **kwargs):
                     nonlocal count
                     count+=1
                     if count==point:raise OSError('recovery disk failure')
-                    return move(source,destination)
+                    return move(source,destination, **kwargs)
                 with patch.object(books,'_move',side_effect=fail),self.assertRaisesRegex(OSError,'recovery disk failure'):
                     script.apply_manual_recovery(self.entries(),'manual')
                 self.assertEqual(before,self.pair(path))
@@ -130,8 +152,8 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
             app=FastAPI();app.include_router(script.router)
             entered=threading.Event();release=threading.Event();read=threading.Event();errors=[];responses=[]
             move=books._move
-            def paused(source,destination):
-                result=move(source,destination)
+            def paused(source,destination, **kwargs):
+                result=move(source,destination, **kwargs)
                 if str(destination)==script.three_pass_checkpoint_path(path):
                     entered.set()
                     if not release.wait(5):raise AssertionError('publication not released')
@@ -225,9 +247,15 @@ print(json.dumps(asyncio.run(script.generate_script_recovery())))
             source=root/'book.txt';source.write_text('A short source story.')
             script.atomic_json_write({'input_file_path':str(source),
                                       'script_generation_input_file':str(source)},root/'state.json')
+            from script_selection_binding import capture_generation_selection
+            with books.ensure_book_state(str(root)):
+                captured = capture_generation_selection(str(root), str(source))
+            book_state = json.loads((root/'state.json').read_text())
+            book_state['script_generation_selection'] = captured
+            script.atomic_json_write(book_state, root/'state.json')
             before=self.pair(path);move=books._move
-            def leave_pending(src,destination):
-                result=move(src,destination)
+            def leave_pending(src,destination, **kwargs):
+                result=move(src,destination, **kwargs)
                 if str(destination)==script.three_pass_checkpoint_path(path):raise SystemExit('interrupted recovery')
                 return result
             with patch.object(books,'_move',side_effect=leave_pending),patch.object(books,'recover_book_state_locked'),self.assertRaises(SystemExit):
@@ -249,7 +277,7 @@ class StartOverAdmissionTests(unittest.TestCase):
     @contextlib.contextmanager
     def fixture(self):
         with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
-            root = Path(tmp); source = root / 'book.txt'; source.write_text('“Synthetic sentence.”')
+            root = Path(tmp); source = root / 'book.txt'; source.write_text('“Synthetic sentence.”', encoding='utf-8')
             output = root / 'annotated_script.json'; config = root / 'config.json'; config.write_text('{}')
             checkpoint = Path(script.three_pass_checkpoint_path(str(output))); checkpoint.write_text('{"accepted":"synthetic progress"}')
             manifest = Path(script.three_pass_manifest_path(str(output))); manifest.write_text('{"status":"failed"}')
@@ -285,6 +313,22 @@ class StartOverAdmissionTests(unittest.TestCase):
             self.assertNotIn('script', core._task_claims)
             self.assertIn('audio', core._task_claims)
 
+    def test_unverifiable_generation_selection_returns_conflict_and_keeps_progress(self):
+        from fastapi import BackgroundTasks
+        import script_selection_binding
+        with self.fixture() as (root, source, checkpoint, manifest, state):
+            before = {path: path.read_bytes() for path in (checkpoint, manifest, state)}
+            tasks = BackgroundTasks()
+            with patch.object(script_selection_binding, 'capture_generation_selection',
+                              side_effect=ValueError('selection changed')):
+                with self.assertRaises(HTTPException) as refused:
+                    script.start_script_generation(tasks, str(source),
+                        script.GenerateScriptRequest(start_over=True))
+            self.assertEqual(409, refused.exception.status_code)
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+            self.assertEqual([], tasks.tasks)
+            self.assertNotIn('script', core._task_claims)
+
     def test_admitted_start_over_registers_same_claim_and_removes_owned_progress(self):
         from fastapi import BackgroundTasks
         with self.fixture() as (root, source, checkpoint, manifest, state):
@@ -296,6 +340,79 @@ class StartOverAdmissionTests(unittest.TestCase):
             self.assertEqual('pending', claim['phase'])
             self.assertEqual(claim['id'], tasks.tasks[0].args[1])
             self.assertEqual(str(source), json.loads(state.read_text())['script_generation_input_file'])
+            captured = json.loads(state.read_text())['script_generation_selection']
+            self.assertEqual(str(source), captured['source_path'])
+            command = tasks.tasks[0].args[2].args[0]
+            self.assertIn('--active-book-token', command)
+            self.assertIn('--active-source-sha256', command)
+
+    def test_retry_refuses_changed_source_without_removing_checkpoint(self):
+        from fastapi import BackgroundTasks
+        from script_selection_binding import capture_generation_selection
+        with self.fixture() as (root, source, checkpoint, manifest, state):
+            captured = capture_generation_selection(str(root), str(source))
+            data = json.loads(state.read_text())
+            data['script_generation_selection'] = captured
+            state.write_text(json.dumps(data))
+            source.write_text('Changed source after checkpoint.')
+            before = {path: path.read_bytes() for path in (checkpoint, manifest, state)}
+            tasks = BackgroundTasks()
+            with patch.object(script, 'ensure_script_recovery_manifest', return_value={'status':'failed'}), \
+                 patch.object(script, 'get_script_recovery_manifest', return_value={'status':'failed'}):
+                with self.assertRaises(HTTPException) as refused:
+                    script.start_script_generation(tasks, str(source), None, require_recovery=True)
+            self.assertEqual(409, refused.exception.status_code)
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+            self.assertEqual([], tasks.tasks)
+
+    def test_generate_does_not_resume_other_selection_checkpoint(self):
+        from fastapi import BackgroundTasks
+        from script_selection_binding import capture_generation_selection
+        from book_state_transaction import apply_book_input_selection
+        with self.fixture() as (root, source, checkpoint, manifest, state):
+            captured = capture_generation_selection(str(root), str(source))
+            data = json.loads(state.read_text())
+            data['script_generation_selection'] = captured
+            state.write_text(json.dumps(data))
+            apply_book_input_selection(str(root), str(source), 'same-source-new-selection')
+            before = {path: path.read_bytes() for path in (checkpoint, manifest, state)}
+            tasks = BackgroundTasks()
+            with self.assertRaises(HTTPException) as refused:
+                script.start_script_generation(tasks, str(source), None)
+            self.assertEqual(409, refused.exception.status_code)
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+            self.assertEqual([], tasks.tasks)
+
+    def test_explicit_legacy_retry_requests_fingerprint_validation_and_binding(self):
+        from fastapi import BackgroundTasks
+        with self.fixture() as (root, source, checkpoint, manifest, state):
+            data = json.loads(state.read_text())
+            data.pop('script_generation_selection', None)
+            state.write_text(json.dumps(data))
+            before = checkpoint.read_bytes()
+            tasks = BackgroundTasks()
+            with patch.object(script, 'ensure_script_recovery_manifest', return_value={'status':'failed'}), \
+                 patch.object(script, 'get_script_recovery_manifest', return_value={'status':'failed'}):
+                with self.assertRaises(HTTPException) as missing:
+                    script.start_script_generation(tasks, str(source), None, require_recovery=True)
+                self.assertEqual(409, missing.exception.status_code)
+                checkpoint_token = script.get_script_recovery_token(script.get_current_generation_checkpoint())
+                book_token = books.get_book_operation_token(str(root))
+                stale = script.GenerateScriptRequest(legacy_checkpoint_token='b'*64, legacy_book_token=book_token)
+                with self.assertRaises(HTTPException) as changed:
+                    script.start_script_generation(tasks, str(source), stale, require_recovery=True)
+                self.assertEqual(409, changed.exception.status_code)
+                self.assertEqual([], tasks.tasks)
+                confirmation = script.GenerateScriptRequest(legacy_checkpoint_token=checkpoint_token,
+                                                             legacy_book_token=book_token)
+                self.assertEqual({'status':'resuming'},
+                    script.start_script_generation(tasks, str(source), confirmation, require_recovery=True))
+            command = tasks.tasks[0].args[2].args[0]
+            self.assertIn('--require-matching-checkpoint', command)
+            self.assertIn('--active-book-token', command)
+            self.assertIn('--active-source-sha256', command)
+            self.assertIn('--active-run-id', command)
+            self.assertEqual(before, checkpoint.read_bytes())
 
     def test_setup_failure_releases_reservation_without_scheduling_worker(self):
         from fastapi import BackgroundTasks

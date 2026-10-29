@@ -7,6 +7,30 @@ SOURCE = Path(__file__).resolve().parent.parent/'static/js/app-core.js'
 
 
 class GuardedVoiceUiTests(unittest.TestCase):
+    def test_same_name_reselection_does_not_install_old_voice_snapshot(self):
+        code = r'''
+const assert=require('assert'),fs=require('fs'),vm=require('vm');const source=fs.readFileSync(process.argv[1],'utf8');
+const refresh=source.slice(source.indexOf('async function refreshVoiceMetadata()'),source.indexOf('let _voiceResourcesRefreshedAt'));
+const a={filename:'same.txt',token:'a'.repeat(64)},b={filename:'same.txt',token:'b'.repeat(64)};let resolve;
+const context={currentBookFilename:'same.txt',_voiceSaveSnapshot:{book_identity_token:'b'.repeat(64)},
+ window:{_selectedUploadIdentity:a,_voicesByName:{B:{config:{description:'new book'}}}},
+ flushVoiceSaves:async()=>{},voiceSaveQueue:{getRevision:()=>1,isDirty:()=>false},
+ API:{get:()=>new Promise(r=>{resolve=r})},ensureVoiceRosterCache(){},renderVoiceDrafts(){}};
+vm.createContext(context);vm.runInContext(refresh+';function snapshot(){return _voiceSaveSnapshot}',context);
+(async()=>{const pending=context.refreshVoiceMetadata({expectedSelection:a});await new Promise(setImmediate);
+ context.window._selectedUploadIdentity=b;resolve({book_identity_token:a.token,book_token:'a'.repeat(64),revision:'a'.repeat(64),voices:[{name:'A',config:{}}]});
+ await assert.rejects(pending,/book changed/);assert.strictEqual(context.snapshot().book_identity_token,b.token);
+ assert.strictEqual(context.window._voicesByName.B.config.description,'new book');
+ context.window._selectedUploadIdentity=a;context.window._bookSelectionEpoch=1;
+ const pending2=context.refreshVoiceMetadata({expectedSelection:a});await new Promise(setImmediate);
+ context.window._bookSelectionEpoch=2;context.window._existingUploadSelectionPending=Promise.resolve();
+ resolve({book_identity_token:a.token,book_token:'a'.repeat(64),revision:'a'.repeat(64),voices:[{name:'A',config:{}}]});
+ await assert.rejects(pending2,/book changed/);assert.strictEqual(context.snapshot().book_identity_token,b.token);
+ assert.strictEqual(context.window._voicesByName.B.config.description,'new book');})().catch(e=>{console.error(e);process.exitCode=1});
+'''
+        result = subprocess.run(['node', '-e', code, str(SOURCE)], capture_output=True, text=True, timeout=10)
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_acknowledgement_chain_conflict_discard_and_stale_refresh(self):
         code=r'''
 const assert=require('assert'),fs=require('fs'),vm=require('vm');const source=fs.readFileSync(process.argv[1],'utf8');

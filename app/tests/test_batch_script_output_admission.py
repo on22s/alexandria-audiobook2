@@ -15,10 +15,11 @@ class BatchScriptOutputAdmissionTests(unittest.TestCase):
     @contextlib.contextmanager
     def fixture(self, policy='cancel', other_outputs=()):
         with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
-            root=Path(tmp);source=root/'active.json';source.write_text('[{"text":"manual save"}]')
+            root=Path(tmp);data=root/'data';data.mkdir()
+            source=data/'active.json';source.write_text('[{"text":"manual save"}]')
             output=root/'book.json'
-            for name,value in (('SCRIPTS_DIR',tmp),('SCRIPT_PATH',str(source)),
-                               ('VOICE_CONFIG_PATH',str(root/'absent-voices.json'))):
+            for name,value in (('DATA_DIR',str(data)),('SCRIPTS_DIR',tmp),('SCRIPT_PATH',str(source)),
+                               ('VOICE_CONFIG_PATH',str(data/'absent-voices.json'))):
                 stack.enter_context(patch.object(scripts_library,name,value))
             stack.enter_context(patch.object(scripts_library,'get_active_book_id',return_value='book-id'))
             stack.enter_context(patch.object(scripts_library,'_saved_book_meta_path',side_effect=lambda name:str(root/f'{name}.meta.json')))

@@ -44,6 +44,60 @@ class SourceUploadPublicationTests(unittest.TestCase):
         self.assertEqual([Path(result)], list(self.root.iterdir()))
         self.assertEqual(1, Path(result).stat().st_nlink)
 
+    @unittest.skipIf(os.name == 'nt', 'Directory descriptor moves are not available on Windows')
+    def test_directory_anchored_move_refuses_overwrite_and_path_traversal(self):
+        source, destination = self.root / 'source', self.root / 'destination'
+        source.write_bytes(b'new')
+        destination.write_bytes(b'old')
+        descriptor = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            with self.assertRaises(FileExistsError):
+                publication.move_source_upload_exclusively('source', 'destination',
+                    source_dir_fd=descriptor, destination_dir_fd=descriptor)
+            with self.assertRaises(ValueError):
+                publication.move_source_upload_exclusively('../source', 'destination',
+                    source_dir_fd=descriptor, destination_dir_fd=descriptor)
+            for bad in ('..', b'..', 'name\\outside', 'name\0outside'):
+                with self.subTest(name=bad), self.assertRaises(ValueError):
+                    publication.move_source_upload_exclusively(bad, 'destination',
+                        source_dir_fd=descriptor, destination_dir_fd=descriptor)
+            self.assertEqual(b'new', source.read_bytes())
+            self.assertEqual(b'old', destination.read_bytes())
+            destination.unlink()
+            publication.move_source_upload_exclusively('source', 'destination',
+                source_dir_fd=descriptor, destination_dir_fd=descriptor)
+            self.assertEqual(b'new', destination.read_bytes())
+            self.assertFalse(source.exists())
+        finally:
+            os.close(descriptor)
+
+        # The production primitive also accepts descriptors for two different
+        # directories. A collision must leave both files intact in that case.
+        source_dir = self.root / 'source-directory'
+        destination_dir = self.root / 'destination-directory'
+        source_dir.mkdir()
+        destination_dir.mkdir()
+        (source_dir / 'source').write_bytes(b'new')
+        (destination_dir / 'destination').write_bytes(b'old')
+        source_fd = os.open(source_dir, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            destination_fd = os.open(destination_dir, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                with self.assertRaises(FileExistsError):
+                    publication.move_source_upload_exclusively('source', 'destination',
+                        source_dir_fd=source_fd, destination_dir_fd=destination_fd)
+                self.assertEqual(b'new', (source_dir / 'source').read_bytes())
+                self.assertEqual(b'old', (destination_dir / 'destination').read_bytes())
+                (destination_dir / 'destination').unlink()
+                publication.move_source_upload_exclusively('source', 'destination',
+                    source_dir_fd=source_fd, destination_dir_fd=destination_fd)
+                self.assertFalse((source_dir / 'source').exists())
+                self.assertEqual(b'new', (destination_dir / 'destination').read_bytes())
+            finally:
+                os.close(destination_fd)
+        finally:
+            os.close(source_fd)
+
     def test_collisions_preserve_existing_file_directory_and_orphan_provenance(self):
         (self.root / 'book.txt').write_bytes(b'Prior source')
         (self.root / 'book_2.txt').mkdir()

@@ -558,6 +558,33 @@ def test_epub_publication_roundtrip():
         assert_status(post('/api/uploads/select', json={'filename': original}))
 
 
+# Selecting an uploaded source fences the retained fixture script until a script
+# is published for that selection, so the later book sections would see 409.
+# Save the fixture book before the upload tests and load it back after them;
+# loading a saved book makes it the active, published selection again.
+FIXTURE_BOOK = f"{TEST_PREFIX}fixture_book"
+
+
+def test_preserve_fixture_book():
+    r = get("/api/annotated_script")
+    if r.status_code == 404:
+        raise TestFailure("SKIP: no fixture script to preserve")
+    assert_status(r, 200)
+    assert_status(post("/api/scripts/save", json={"name": FIXTURE_BOOK}), 200)
+    shared["fixture_book"] = r.json()
+
+
+def test_restore_fixture_book():
+    if "fixture_book" not in shared:
+        raise TestFailure("SKIP: no fixture script was preserved")
+    r = post("/api/scripts/load", json={"name": FIXTURE_BOOK})
+    assert_status(r, 200)
+    restored = get("/api/annotated_script")
+    assert_status(restored, 200)
+    if restored.json() != shared["fixture_book"]:
+        raise TestFailure("Restored fixture script differs from the preserved one")
+
+
 # ── Section 4: Annotated Script ─────────────────────────────
 
 def test_get_annotated_script():
@@ -609,6 +636,9 @@ def test_load_script():
 def test_delete_script():
     if not shared.get("has_script"):
         raise TestFailure("SKIP: no annotated script loaded")
+    # The loaded saved book cannot be deleted; switch back to the fixture book.
+    if "fixture_book" in shared:
+        assert_status(post("/api/scripts/load", json={"name": FIXTURE_BOOK}), 200)
     r = delete(f"/api/scripts/{TEST_PREFIX}script")
     assert_status(r, 200)
     data = r.json()
@@ -1815,9 +1845,11 @@ def run_all_tests():
     run_test("tts_diagnostics_inventory", test_tts_diagnostics_inventory)
 
     section("Upload")
+    run_test("preserve_fixture_book", test_preserve_fixture_book)
     run_test("upload_file", test_upload_file)
     run_test('m4b_publication_preview_contract', test_m4b_publication_preview_contract)
     run_test('epub_publication_roundtrip', test_epub_publication_roundtrip)
+    run_test("restore_fixture_book", test_restore_fixture_book)
 
     section("Annotated Script")
     run_test("get_annotated_script", test_get_annotated_script)

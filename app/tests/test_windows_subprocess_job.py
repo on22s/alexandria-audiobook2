@@ -1,5 +1,6 @@
 """Typed Win32 boundary contracts; these fixtures do not execute Windows APIs."""
 import ctypes
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -86,6 +87,67 @@ class WindowsJobBoundaryTests(unittest.TestCase):
         job.close()
         job.close()
         self.assertEqual(1, sum(call[0] == 'close' for call in self.api.calls))
+
+    def test_close_waits_for_inflight_termination_and_rejects_late_termination(self):
+        job = jobs.WindowsSubprocessJob()
+        entered = threading.Event()
+        release = threading.Event()
+        closed = threading.Event()
+        original = self.api.TerminateJobObject
+        def terminate(handle, code):
+            entered.set()
+            if not release.wait(5):
+                raise AssertionError('termination test timed out')
+            return original(handle, code)
+        self.api.TerminateJobObject = terminate
+        worker = threading.Thread(target=job.terminate)
+        closer = threading.Thread(target=lambda: (job.close(), closed.set()))
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(5))
+            closer.start()
+            self.assertFalse(closed.wait(.1))
+        finally:
+            release.set()
+            worker.join(5)
+            if closer.ident is not None:
+                closer.join(5)
+        self.assertFalse(worker.is_alive())
+        self.assertFalse(closer.is_alive())
+        self.assertTrue(closed.is_set())
+        with self.assertRaisesRegex(OSError, 'already closed'):
+            job.terminate()
+        with self.assertRaisesRegex(OSError, 'already closed'):
+            job.get_active_process_count()
+        with self.assertRaisesRegex(OSError, 'already closed'):
+            job.request_termination(1, 1)
+        self.assertEqual(1, sum(call[0] == 'terminate' for call in self.api.calls))
+
+    def test_close_waits_for_an_inflight_job_query(self):
+        job = jobs.WindowsSubprocessJob()
+        entered, release, closed = threading.Event(), threading.Event(), threading.Event()
+        original = self.api.QueryInformationJobObject
+        def query(*args):
+            entered.set()
+            if not release.wait(5):
+                raise AssertionError('query test timed out')
+            return original(*args)
+        self.api.QueryInformationJobObject = query
+        worker = threading.Thread(target=job.get_active_process_count)
+        closer = threading.Thread(target=lambda: (job.close(), closed.set()))
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(5))
+            closer.start()
+            self.assertFalse(closed.wait(.1))
+        finally:
+            release.set()
+            worker.join(5)
+            if closer.ident is not None:
+                closer.join(5)
+        self.assertFalse(worker.is_alive())
+        self.assertFalse(closer.is_alive())
+        self.assertTrue(closed.is_set())
 
     def test_failed_configuration_closes_unadmitted_job(self):
         self.api.fail = 'limits'

@@ -21,14 +21,25 @@ def create_source_upload_stage(directory):
     return path
 
 
-def move_source_upload_exclusively(source, destination):
+def move_source_upload_exclusively(source, destination, *, source_dir_fd=None, destination_dir_fd=None):
     """Atomic no-overwrite move, with no intermediate second hard link.
 
     Unlike link/unlink, process death cannot leave an alias that invalidates the
     existing single-link source admission rule. Unsupported OS/filesystem pairs
     fail closed; a normal Unix rename would silently overwrite another owner.
     """
-    if os.name == 'nt':
+    anchored = source_dir_fd is not None or destination_dir_fd is not None
+    if anchored:
+        if (type(source_dir_fd) is not int or source_dir_fd < 0
+                or type(destination_dir_fd) is not int or destination_dir_fd < 0
+                or type(source) is not str or type(destination) is not str
+                or os.path.basename(source) != source or os.path.basename(destination) != destination
+                or source in ('', '.', '..') or destination in ('', '.', '..')
+                or any(char in value for value in (source, destination) for char in ('\\', '\0'))):
+            raise ValueError('Exclusive directory-anchored move needs valid descriptors and names')
+        if os.name == 'nt':
+            raise OSError(errno.ENOTSUP, 'Directory-anchored exclusive moves are unavailable')
+    elif os.name == 'nt':
         os.rename(source, destination)
         return
     import ctypes
@@ -38,12 +49,18 @@ def move_source_upload_exclusively(source, destination):
         raise ValueError('Invalid source upload path')
     if sys.platform.startswith('linux'):
         operation = getattr(library, 'renameat2', None)
-        arguments = (-100, source, -100, destination, 1)  # AT_FDCWD, RENAME_NOREPLACE
+        arguments = (source_dir_fd if anchored else -100, source,
+                     destination_dir_fd if anchored else -100, destination, 1)  # RENAME_NOREPLACE
         types = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
     elif sys.platform == 'darwin':
-        operation = getattr(library, 'renamex_np', None)
-        arguments = (source, destination, 4)  # RENAME_EXCL, macOS 10.12+
-        types = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+        if anchored:
+            operation = getattr(library, 'renameatx_np', None)
+            arguments = (source_dir_fd, source, destination_dir_fd, destination, 4)
+            types = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+        else:
+            operation = getattr(library, 'renamex_np', None)
+            arguments = (source, destination, 4)  # RENAME_EXCL, macOS 10.12+
+            types = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
     else:
         operation = None
     if operation is None:

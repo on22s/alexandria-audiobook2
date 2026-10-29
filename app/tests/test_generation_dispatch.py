@@ -9,6 +9,20 @@ from three_pass_generate import get_output_paths, three_pass_manifest_path
 
 
 class GenerationDispatchTests(unittest.TestCase):
+    def test_active_selection_digests_are_passed_only_to_active_output(self):
+        selection = {'book_token': 'a' * 64, 'source_path': 'book.txt',
+                     'source_sha256': 'b' * 64, 'run_id': 'f' * 32}
+        command = build_generate_script_command('book.txt', selection_binding=selection)
+        self.assertEqual(['--active-book-token', 'a' * 64,
+                          '--active-source-sha256', 'b' * 64, '--active-run-id', 'f' * 32], command[-6:])
+        with self.assertRaises(ValueError):
+            build_generate_script_command('other.txt', selection_binding=selection)
+        with self.assertRaises(ValueError):
+            build_generate_script_command('book.txt', output_path='batch.json',
+                                          selection_binding=selection)
+        with self.assertRaises(ValueError):
+            build_generate_script_command('book.txt', selection_binding={**selection, 'book_token': 'bad'})
+
     def test_single_generation_uses_production_three_pass_recovery(self):
         command = build_generate_script_command("book.txt")
 

@@ -101,9 +101,9 @@ class SavedBookExportTests(unittest.TestCase):
         before = {str(path.relative_to(self.root)):path.read_bytes()
                   for path in [self.active,*self.exports[:3],self.exports[3]/'chapter.mp3',self.exports[3]/'manifest.json']}
         move = book_transaction._move
-        def moved(source,target):
+        def moved(source,target, **kwargs):
             if Path(source) == self.exports[1]:raise PermissionError("export is open")
-            return move(source,target)
+            return move(source,target, **kwargs)
         with patch.object(book_transaction,"_move",side_effect=moved),self.assertRaises(PermissionError):
             self.load()
         self.assertEqual(before,{name:(self.root/name).read_bytes() for name in before})
@@ -123,12 +123,12 @@ class SavedBookExportTests(unittest.TestCase):
                 mutex.release()
         lock = ObservedLock()
         move = book_transaction._move
-        def moved(source,target):
+        def moved(source,target, **kwargs):
             if Path(target) == self.active:
                 copying.set()
                 if not release_copy.wait(3):
                     raise RuntimeError("test did not release native publication")
-            return move(source,target)
+            return move(source,target, **kwargs)
         errors, observations = [], []
         def load():
             try:

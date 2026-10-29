@@ -304,7 +304,7 @@ class DeliveryFallbackTests(unittest.TestCase):
                     chunks[0]["instruct"] = "Manual direction."
                     (root / changed).write_text(json.dumps(chunks))
                 before = {p.name: p.read_bytes() for p in root.glob("*.json")}
-                cancel = (lambda: (_ for _ in ()).throw(RuntimeError("cancelled"))) if changed == "cancel" else None
+                cancel = (lambda: True) if changed == "cancel" else None
                 with self.assertRaises((ValueError, RuntimeError)):
                     apply_delivery_retry(tmp, snapshot, after, cancel_check=cancel)
                 self.assertEqual(before, {p.name: p.read_bytes() for p in root.glob("*.json")})
@@ -471,11 +471,11 @@ class DeliveryReviewApiTests(unittest.TestCase):
             original_move = transaction._move
             failures = []
 
-            def fail_one_publish(source, destination):
+            def fail_one_publish(source, destination, **kwargs):
                 if Path(destination) == manifest and Path(source).name.startswith('new-') and not failures:
                     failures.append('injected manifest publish failure')
                     raise OSError(failures[-1])
-                return original_move(source, destination)
+                return original_move(source, destination, **kwargs)
 
             with patch.object(transaction, '_move', side_effect=fail_one_publish):
                 with self.assertRaisesRegex(OSError, 'manifest publish failure'):

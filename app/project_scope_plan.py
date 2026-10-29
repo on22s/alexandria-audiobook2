@@ -45,8 +45,9 @@ def get_scope_preview(root, start_entry, *, cancel_check=None):
     root = Path(os.path.abspath(root))
     if not is_book_state_admitted(root):
         raise ValueError('Book admission is required to preview source scope.')
+    from script_selection_binding import BINDING_NAME
     names = ('state.json', 'annotated_script.json', 'voice_config.json',
-             'chunks.json', 'chunks.json.status.jsonl')
+             'chunks.json', 'chunks.json.status.jsonl', BINDING_NAME)
     snapshots, data = {}, {}
     for name in names:
         snapshots[name], data[name] = capture_scope_file(root, name, include_bytes=True,

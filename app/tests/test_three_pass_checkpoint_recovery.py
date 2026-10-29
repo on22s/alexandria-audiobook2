@@ -118,6 +118,40 @@ with patch.object(GenerationCheckpointDeltas,'save_checkpoint',save),patch.objec
 
 
 class CheckpointShapeTests(unittest.TestCase):
+    def test_completed_receipt_replay_guard_preserves_legacy_and_rejects_corrupt_receipts(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'book.json'
+            output.write_bytes(b'original')
+            manifest = Path(tp.three_pass_manifest_path(str(output)))
+            tp._refuse_checkpoint_replay_over_edited_publication(str(output))
+            manifest.write_text(json.dumps({'status': 'complete', 'publication': {
+                'script_sha256': hashlib.sha256(b'original').hexdigest()}}), encoding='utf-8')
+            tp._refuse_checkpoint_replay_over_edited_publication(str(output))
+            output.write_bytes(b'edited')
+            with self.assertRaisesRegex(RuntimeError, 'changed after this checkpoint'):
+                tp._refuse_checkpoint_replay_over_edited_publication(str(output))
+            for raw in ('{"status":"complete","publication":{"script_sha256":"bad"}}',
+                        '{"status":"complete","status":"complete"}'):
+                manifest.write_text(raw, encoding='utf-8')
+                with self.assertRaisesRegex(RuntimeError, 'invalid'):
+                    tp._refuse_checkpoint_replay_over_edited_publication(str(output))
+                self.assertEqual(raw, manifest.read_text(encoding='utf-8'))
+            self.assertEqual(b'edited', output.read_bytes())
+            with patch('project_scope_files.capture_scope_file', side_effect=ValueError('metadata too large')):
+                with self.assertRaisesRegex(RuntimeError, 'could not be inspected'):
+                    tp._refuse_checkpoint_replay_over_edited_publication(str(output))
+            valid = json.dumps({'status': 'complete', 'publication': {
+                'script_sha256': hashlib.sha256(b'original').hexdigest()}}).encode('utf-8')
+            with patch('project_scope_files.capture_scope_file', side_effect=[({}, valid), ValueError('script unavailable')]):
+                with self.assertRaisesRegex(RuntimeError, 'Published script could not be inspected'):
+                    tp._refuse_checkpoint_replay_over_edited_publication(str(output))
+            manifest.write_text(json.dumps({'status': 'failed', 'publication': {
+                'script_sha256': hashlib.sha256(b'original').hexdigest()}}), encoding='utf-8')
+            with self.assertRaisesRegex(RuntimeError, 'receipt is inconsistent'):
+                tp._refuse_checkpoint_replay_over_edited_publication(str(output))
+            self.assertEqual(b'edited', output.read_bytes())
+
     def test_emitted_attribute_incomplete_stage_can_resume(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = str(Path(tmp) / 'book.json')
@@ -178,7 +212,7 @@ class CheckpointShapeTests(unittest.TestCase):
             output = str(Path(tmp) / 'book.json'); path = Path(tp.three_pass_checkpoint_path(output))
             for raw in ('{bad', '[]', 'null'):
                 path.write_text(raw)
-                with self.assertRaisesRegex(RuntimeError, str(path)):
+                with self.assertRaisesRegex(RuntimeError, re.escape(str(path))):
                     tp._load_three_pass_checkpoint(output, {'settings':'wanted'})
                 self.assertEqual(raw, path.read_text())
             path.write_text(json.dumps({'fingerprint':{'settings':'different'}, 'segmented':-1}))

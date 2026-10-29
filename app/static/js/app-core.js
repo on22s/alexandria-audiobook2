@@ -1818,8 +1818,10 @@
         }
 
         let currentBookFilename = '';
+        window._bookSelectionEpoch = 0;
         function applyCurrentBookFilename(filename) {
             window.retirePlaybackSequence?.();
+            window._selectedUploadIdentity = null;
             currentBookFilename = typeof filename === 'string' ? filename : '';
             window.resetEditorReview?.();
             window.resetPronunciationBook?.();
@@ -2271,6 +2273,7 @@
             const filename = select.value;
             let book = currentBookFilename;
             const request = {};
+            window._bookSelectionEpoch++;
             window._existingUploadSelectionRequest = request;
             const isCurrent = () => window._existingUploadSelectionRequest === request
                 && select.value === filename && currentBookFilename === book;
@@ -2286,6 +2289,9 @@
                 if (!isCurrent()) { return; }
                 applyCurrentBookFilename(result.stored_filename);
                 book = currentBookFilename;
+                if (/^[0-9a-f]{64}$/.test(result.book_identity_token || '')) {
+                    window._selectedUploadIdentity = { filename: book, token: result.book_identity_token, request };
+                }
                 document.getElementById('file-upload').value = '';
                 statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Reusing: ${escapeHtml(result.stored_filename)}</span>`;
                 document.getElementById('cast-list-panel').style.display = 'none';
@@ -2309,6 +2315,7 @@
             if (fileInput.files[0] !== file) { return; }
 
             const request = {};
+            window._bookSelectionEpoch++;
             window._existingUploadSelectionRequest = request;
             const isCurrent = () => window._existingUploadSelectionRequest === request
                 && fileInput.files[0] === file;
@@ -2319,6 +2326,9 @@
                     const res = await API.upload(file);
                     if (!isCurrent()) { return; }
                     applyCurrentBookFilename(res.stored_filename);
+                    if (/^[0-9a-f]{64}$/.test(res.book_identity_token || '')) {
+                        window._selectedUploadIdentity = { filename: currentBookFilename, token: res.book_identity_token, request };
+                    }
                     document.getElementById('existing-upload-select').value = '';
                     const verb = res.reused ? 'Reused existing copy' : 'Loaded';
                     statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${verb}: ${escapeHtml(res.stored_filename)}</span>`;
@@ -2583,8 +2593,8 @@
             toastType = 'warning',
         } = {}) {
             try {
-                await API.post(url, {});
-                if (onSuccess) { onSuccess(); }
+                const result = await API.post(url, {});
+                if (onSuccess) { onSuccess(result); }
                 return true;
             } catch (e) {
                 showToast(errorMessage(e), toastType);
@@ -2612,10 +2622,12 @@
             hint.hidden = false;
             hint.textContent = `Requesting cancellation of ${label}…`;
             const accepted = await cancelTask(url, {
-                onSuccess: () => {
+                onSuccess: (result) => {
                     if (scriptCancellationRequests.get(taskName) !== operation) { return; }
                     _resetPauseBtn(pauseId);
-                    hint.textContent = `Cancelling ${label}… Waiting for the worker to stop.`;
+                    hint.textContent = ['published_cleanup_stop', 'published_cleanup_stop_requested'].includes(result?.status)
+                        ? 'The script was already published. Waiting for its worker to stop.'
+                        : `Cancelling ${label}… Waiting for the worker to stop.`;
                 },
             });
             if (!accepted && scriptCancellationRequests.get(taskName) === operation) {
@@ -2892,8 +2904,17 @@
             const pauseBtn = document.getElementById('btn-pause-script');
             retryBtn.disabled = true;
             try {
-                await API.post('/api/generate_script/retry', {
-                });
+                const recovery = await API.get('/api/generate_script/recovery');
+                const payload = {};
+                if (recovery.legacy_confirmation) {
+                    const confirmed = await showConfirm(
+                        'This older checkpoint does not record which book it belongs to. Resume only if you recognize it as progress for the currently selected book. The source and generation settings must still match.',
+                        {title: 'Confirm older checkpoint', actionLabel: 'Resume this checkpoint'});
+                    if (!confirmed) { return; }
+                    payload.legacy_checkpoint_token = recovery.legacy_confirmation.checkpoint_token;
+                    payload.legacy_book_token = recovery.legacy_confirmation.book_token;
+                }
+                await API.post('/api/generate_script/retry', payload);
                 retryBtn.style.display = 'none';
                 genBtn.disabled = true;
                 cancelBtn.style.display = 'inline-block';
@@ -4649,12 +4670,20 @@
         };
 
         async function refreshVoiceMetadata() {
+            const expectedSelection = arguments[0]?.expectedSelection || null;
+            const selectionEpoch = window._bookSelectionEpoch;
             await flushVoiceSaves();
             const localRevision = voiceSaveQueue.getRevision();
             const rosterFilename = currentBookFilename;
             const snapshot = await API.get('/api/voice_config/snapshot');
             if (voiceSaveQueue.isDirty() || localRevision !== voiceSaveQueue.getRevision() || rosterFilename !== currentBookFilename) {
                 throw new Error('Voice edits changed while refreshing. Your edits are still pending; try again.');
+            }
+            if (expectedSelection && (window._selectedUploadIdentity !== expectedSelection
+                    || window._bookSelectionEpoch !== selectionEpoch
+                    || window._existingUploadSelectionPending
+                    || snapshot.book_identity_token !== expectedSelection.token)) {
+                throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
             }
             if (!Array.isArray(snapshot.voices) || !/^[0-9a-f]{64}$/.test(snapshot.revision) || !/^[0-9a-f]{64}$/.test(snapshot.book_token)) {
                 throw new Error('Invalid voice snapshot; your voice settings were not replaced.');

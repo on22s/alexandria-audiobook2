@@ -48,6 +48,35 @@ class AdmissionJob:
 
 
 class WindowsOwnerAdmissionTests(unittest.TestCase):
+    def test_concurrent_owner_close_does_not_query_closed_job(self):
+        entered, release = threading.Event(), threading.Event()
+        job = AdmissionJob()
+        original_close = job.close
+        def close_job():
+            entered.set()
+            if not release.wait(5):
+                raise AssertionError('close test timed out')
+            original_close()
+        job.close = close_job
+        class Directory:
+            def cleanup(self):
+                pass
+        control = owner.WindowsOwnerControl(job, SimpleNamespace(pid=9001), Directory())
+        first = threading.Thread(target=control.close)
+        second = threading.Thread(target=control.close)
+        first.start()
+        try:
+            self.assertTrue(entered.wait(5))
+            second.start()
+        finally:
+            release.set()
+            first.join(5)
+            if second.ident is not None:
+                second.join(5)
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(1, job.calls.count('close'))
+
     def check_admission(self, fail_assignment=False, fail_worker=False, *, locked_reads=0,
                         expect_denied=False, invalid_receipt=None, owner_exited=False):
         job = AdmissionJob(fail_assignment)

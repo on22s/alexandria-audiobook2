@@ -1,5 +1,6 @@
 from chunk_status_journal import remove_chunk_snapshot
 import os
+import stat
 from core import llm_timeout_seconds, is_llm_on_this_gpu, get_review_accounting_warning
 import sys
 import json
@@ -19,7 +20,7 @@ from llm_provider import (make_llm_client, make_run_client, get_run_model_bindin
                           get_run_fingerprint_identity, resolve_api_key)
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, get_review_entries_fingerprint,
     get_review_sidecar_identity, get_completed_review_match,
-    save_completed_review_receipt, remove_completed_review_receipt)
+    get_review_receipt_path, save_completed_review_receipt, remove_completed_review_receipt)
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
@@ -46,6 +47,37 @@ from speaker_identity import (resolve_speaker_label, get_validated_alias_map,
 VRAM_WARN_THRESHOLD = 0.90  # pause once VRAM usage crosses this fraction
 VRAM_MAX_WAIT = 180         # seconds to wait for headroom before giving up
 VRAM_POLL_INTERVAL = 15     # seconds between checks while waiting
+MAX_REVIEW_SCRIPT_BYTES = 512 * 1024**2
+
+
+def _read_review_script_bytes(path):
+    """Read one exact regular file without following an alias or blocking FIFO."""
+    before = os.lstat(path)
+    version = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns,
+               before.st_ctime_ns, before.st_mode, before.st_nlink)
+    if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
+            or not 0 <= before.st_size <= MAX_REVIEW_SCRIPT_BYTES):
+        raise ValueError('Review input must be a bounded regular file without aliases')
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+                         | getattr(os, 'O_NONBLOCK', 0))
+    with os.fdopen(descriptor, 'rb') as handle:
+        opened = os.fstat(handle.fileno())
+        opened_version = (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns,
+                          opened.st_ctime_ns, opened.st_mode, opened.st_nlink)
+        if opened_version != version:
+            raise ValueError('Review input changed while opening')
+        raw = handle.read(before.st_size + 1)
+        after = os.fstat(handle.fileno())
+        after_version = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns,
+                         after.st_ctime_ns, after.st_mode, after.st_nlink)
+        if len(raw) != before.st_size or after_version != version:
+            raise ValueError('Review input changed while reading')
+    current = os.lstat(path)
+    current_version = (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns,
+                       current.st_ctime_ns, current.st_mode, current.st_nlink)
+    if current_version != version:
+        raise ValueError('Review input changed while reading')
+    return raw
 
 
 def get_vram_usage():
@@ -621,7 +653,8 @@ def _collect_speaker_samples(entries, max_per_speaker=4):
 
 
 def dedupe_speakers(client, model_name, entries, registry_path=None,
-                    max_tokens=2000, temperature=0.2, context_length=None, params=None):
+                    max_tokens=2000, temperature=0.2, context_length=None, params=None,
+                    registry_staging=None):
     """Ask the LLM to merge speaker labels that are the same character.
     Does not mutate `entries` - the caller applies the returned changes. If
     `registry_path` is given, the shared canonical names there are fed to the
@@ -735,7 +768,20 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         with file_lock(registry_path):
             current_registry = get_current_registry()
             updated_registry, clean_map = get_updated_registry(current_registry)
-            if updated_registry != current_registry:
+            if registry_staging is not None:
+                from project_scope_files import capture_scope_file
+                parent = os.path.dirname(os.path.abspath(registry_path))
+                _, raw = capture_scope_file(parent, os.path.basename(registry_path),
+                                             limit=4 * 1024**2, include_bytes=True)
+                # Tie the decisions above to the exact bytes that will be
+                # compared again under the publication lock.
+                captured = json.loads(raw) if raw is not None else {}
+                if captured != current_registry:
+                    raise ValueError('Alias registry changed during review')
+                registry_staging.update(path=os.path.abspath(registry_path), before=raw,
+                    after=(json.dumps(updated_registry, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
+                           if updated_registry != current_registry else None))
+            elif updated_registry != current_registry:
                 atomic_json_write(updated_registry, registry_path)
     else:
         _, clean_map = get_updated_registry({})
@@ -758,6 +804,28 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
     return clean_map, renamed, changes
 
 
+def _remapped_voice_config(cfg, mapping):
+    """Remap a parsed voice config in memory, returning the number moved."""
+    moved = 0
+    for variant, canonical in mapping.items():
+        if variant not in cfg:
+            continue
+        if canonical not in cfg:
+            cfg[canonical] = cfg[variant]
+        else:
+            existing = cfg[canonical]
+            variant_cfg = cfg[variant]
+            if isinstance(existing, dict) and isinstance(variant_cfg, dict):
+                for key, value in variant_cfg.items():
+                    if key not in existing:
+                        existing[key] = value
+            elif isinstance(variant_cfg, dict):
+                cfg[canonical] = variant_cfg
+        del cfg[variant]
+        moved += 1
+    return moved
+
+
 def _remap_voice_config(voice_config_path, mapping):
     """Rename keys in a voice_config.json so configured voices follow renamed speakers."""
     if not voice_config_path or not os.path.exists(voice_config_path) or not mapping:
@@ -770,32 +838,8 @@ def _remap_voice_config(voice_config_path, mapping):
             cfg = safe_load_json(voice_config_path)
             if cfg is None:
                 return 0
-            moved = 0
-            changed = False
-            for variant, canonical in mapping.items():
-                if variant in cfg:
-                    # If canonical doesn't exist yet, just move it
-                    if canonical not in cfg:
-                        cfg[canonical] = cfg[variant]
-                        moved += 1
-                    else:
-                        # Canonical already exists - merge variant's config into it
-                        # Preserve variant-specific settings by updating only missing keys
-                        existing = cfg[canonical]
-                        variant_cfg = cfg[variant]
-                        if isinstance(existing, dict) and isinstance(variant_cfg, dict):
-                            # Update existing with variant's values, preferring existing for conflicts
-                            for key, value in variant_cfg.items():
-                                if key not in existing:
-                                    existing[key] = value
-                        elif isinstance(variant_cfg, dict):
-                            # canonical's entry is corrupted/non-dict - variant's dict wins
-                            cfg[canonical] = variant_cfg
-                        # else: neither side is a usable dict - keep canonical's existing value
-                        moved += 1
-                    del cfg[variant]
-                    changed = True  # even a delete-only change must be persisted
-            if changed:
+            moved = _remapped_voice_config(cfg, mapping)
+            if moved:
                 try:
                     atomic_json_write(cfg, voice_config_path)
                 except OSError as e:
@@ -1424,12 +1468,90 @@ def main():
     default_script = os.path.join(data_dir, "annotated_script.json")
     script_path = args.input or default_script
     output_path = args.output or script_path
+    saved_dir = os.path.join(data_dir, 'scripts')
+    canonical_output = os.path.normcase(os.path.realpath(output_path))
+    canonical_active = os.path.normcase(os.path.realpath(default_script))
+    canonical_saved = os.path.normcase(os.path.realpath(saved_dir))
+    canonical_data = os.path.normcase(os.path.realpath(data_dir))
+    canonical_parent = os.path.normcase(os.path.dirname(os.path.realpath(output_path)))
+    if (canonical_output == canonical_active and os.path.abspath(output_path) != os.path.abspath(default_script)
+            or canonical_parent == canonical_saved
+            and os.path.abspath(os.path.dirname(output_path)) != os.path.abspath(saved_dir)):
+        raise ValueError('Review book destinations must use their direct path, not an alias')
+    active_review = (os.path.abspath(script_path) == os.path.abspath(default_script)
+                     and os.path.abspath(output_path) == os.path.abspath(default_script))
+    saved_review = (os.path.abspath(os.path.dirname(output_path)) == os.path.abspath(saved_dir)
+                    and os.path.abspath(script_path) == os.path.abspath(output_path))
+    from three_pass_generate import three_pass_checkpoint_path
+    from script_recovery_facts import three_pass_manifest_path
+    reserved_outputs = {
+        os.path.normcase(os.path.realpath(os.path.join(data_dir, name)))
+        for name in ('state.json', 'voice_config.json', 'chunks.json',
+                     'chunks.json.status.jsonl', 'annotated_script.selection_binding.json',
+                     '.active_book_transaction.json')
+    }
+    reserved_outputs.add(canonical_active)
+    reserved_outputs.add(os.path.normcase(os.path.realpath(
+        get_review_receipt_path(default_script))))
+    reserved_outputs.update(os.path.normcase(os.path.realpath(path)) for path in (
+        three_pass_checkpoint_path(default_script), three_pass_manifest_path(default_script)))
+    # Lock paths are authority too: replacing an inode while another process
+    # holds the old lock defeats serialization even though the protected JSON
+    # itself remains untouched.
+    reserved_outputs.update(os.path.normcase(os.path.realpath(path + '.lock'))
+                            for path in tuple(reserved_outputs))
+    try:
+        relative_output = os.path.relpath(canonical_output, canonical_data)
+    except ValueError:
+        relative_output = None
+    if (not active_review and (canonical_output in reserved_outputs
+            or relative_output is not None and relative_output.split(os.sep, 1)[0].casefold().startswith(
+                '.book-switch-'))):
+        raise ValueError('Review output cannot replace reserved active-book metadata')
+    sidecar_paths = [path for path in (args.alias_registry, args.remap_voice_config) if path]
+    sidecar_destinations = [os.path.normcase(os.path.realpath(os.path.abspath(path)))
+                            for path in sidecar_paths]
+    allowed_reserved_sidecars = set()
+    if active_review and args.remap_voice_config:
+        allowed_reserved_sidecars.add(os.path.normcase(os.path.realpath(
+            os.path.join(data_dir, 'voice_config.json'))))
+    if (len(set(sidecar_destinations)) != len(sidecar_destinations)
+            or any(path in {canonical_output, os.path.normcase(os.path.realpath(script_path))}
+                   for path in sidecar_destinations)):
+        raise ValueError('Review companion paths must be distinct from the script and each other')
+    for path in sidecar_destinations:
+        try:
+            relative = os.path.relpath(path, canonical_data)
+        except ValueError:
+            relative = None
+        if ((path in reserved_outputs and path not in allowed_reserved_sidecars) or relative is not None
+                and relative.split(os.sep, 1)[0].casefold().startswith('.book-switch-')):
+            raise ValueError('Review companion cannot replace reserved active-book metadata')
+    if (os.path.abspath(output_path) == os.path.abspath(default_script) and not active_review
+            or os.path.abspath(os.path.dirname(output_path)) == os.path.abspath(saved_dir) and not saved_review):
+        raise ValueError('Reviewing into an existing book requires that book as the input')
+    if (active_review or saved_review) and args.dedupe_speakers:
+        if args.alias_registry:
+            from script_selection_binding import _staged_registry_path
+            _staged_registry_path(data_dir, {'path':os.path.abspath(args.alias_registry),
+                                             'before':None, 'after':None})
+        if args.remap_voice_config:
+            expected_voice = (os.path.join(data_dir, 'voice_config.json') if active_review else
+                              os.path.splitext(output_path)[0] + '.voice_config.json')
+            if os.path.abspath(args.remap_voice_config) != os.path.abspath(expected_voice):
+                raise ValueError('Review voice config must belong to the selected book')
+    if saved_review:
+        from book_state_transaction import ensure_book_state
+        from script_selection_binding import saved_script_is_active_source
+        with ensure_book_state(data_dir):
+            if saved_script_is_active_source(data_dir, output_path):
+                raise ValueError('This saved book is currently loaded; switch books before reviewing it')
     if not os.path.exists(script_path):
         print(f"Error: script not found: {script_path}. Generate a script first.")
         sys.exit(1)
 
-    with open(script_path, "r", encoding="utf-8") as f:
-        entries = json.load(f)
+    original_script_bytes = _read_review_script_bytes(script_path)
+    entries = json.loads(original_script_bytes.decode('utf-8'))
     if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
         print("Error: script JSON must contain a list of entry objects.")
         sys.exit(1)
@@ -1909,21 +2031,26 @@ def main():
     # Speaker de-duplication: merge aliases that are the same character.
     # Skipped on a VRAM abort since this step makes additional LLM calls,
     # which is exactly what we're trying to avoid when VRAM is already low.
+    dedupe_map = {}
+    registry_staging = ({} if ((active_review or saved_review) and args.alias_registry
+                               and args.dedupe_speakers) else None)
     if args.dedupe_speakers and not review_complete:
         print("\nSkipping speaker alias resolution until review is complete.")
     elif args.dedupe_speakers:
         print("\nResolving character aliases (merging duplicate names)...")
         dedupe_map, speakers_merged, dedupe_changes = dedupe_speakers(
             client, model_name, all_corrected, registry_path=args.alias_registry,
-            context_length=lm_status.get("context_length"), params=gen_params
+            context_length=lm_status.get("context_length"), params=gen_params,
+            **({'registry_staging': registry_staging} if registry_staging is not None else {})
         )
         for idx, key, new_value in dedupe_changes:
             all_corrected[idx][key] = new_value
         if speakers_merged > 0:
             print(f"Merged {len(dedupe_map)} alias label(s), updating {speakers_merged} entries.")
-            moved = _remap_voice_config(args.remap_voice_config, dedupe_map)
-            if moved:
-                print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
+            if not active_review and not saved_review:
+                moved = _remap_voice_config(args.remap_voice_config, dedupe_map)
+                if moved:
+                    print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
         else:
             print("No duplicate character names found.")
 
@@ -1936,8 +2063,25 @@ def main():
                         batch_lengths, failed_batches, source_sha256,
                         _entries_fingerprint(output_entries), writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
 
-    # Write corrected script atomically so a crash mid-write doesn't corrupt the output
-    atomic_json_write(output_entries, output_path)
+    # Keep active script identity and old chunks in the same recoverable commit.
+    if active_review:
+        from script_selection_binding import publish_controlled_script_edit
+        moved = publish_controlled_script_edit(data_dir, original_script_bytes,
+            json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
+            voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
+            remap_voice_config=_remapped_voice_config, registry_staging=registry_staging)
+        if moved:
+            print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
+    elif saved_review:
+        from script_selection_binding import publish_saved_script_edit
+        moved = publish_saved_script_edit(data_dir, saved_dir, output_path, original_script_bytes,
+            json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
+            voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
+            remap_voice_config=_remapped_voice_config, registry_staging=registry_staging)
+        if moved:
+            print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
+    else:
+        atomic_json_write(output_entries, output_path)
 
     # Checkpoint is only needed while a run is incomplete; clear it once the
     # full review (and any post-processing) has finished successfully.
@@ -1949,7 +2093,7 @@ def main():
 
     # Delete chunks.json so editor regenerates — only when we reviewed the
     # working script (batch review of saved scripts must not touch it).
-    if os.path.abspath(output_path) == os.path.abspath(default_script):
+    if not active_review and os.path.abspath(output_path) == os.path.abspath(default_script):
         chunks_path = os.path.join(data_dir, "chunks.json")
         if remove_chunk_snapshot(chunks_path):
             print("Cleared old chunks.json")

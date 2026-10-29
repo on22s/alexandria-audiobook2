@@ -1,3 +1,4 @@
+from book_state_transaction import ensure_saved_book_state
 import asyncio
 import contextlib
 import copy
@@ -1216,7 +1217,7 @@ async def lora_delete_rollback_backup(adapter_id: str):
 def ensure_lora_reference_snapshot():
     """Hold book/library admissions and config locks through adapter deletion."""
     with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)), file_lock(VOICE_LIBRARY_PATH), \
-            ensure_book_state(SCRIPTS_DIR), contextlib.ExitStack() as locks:
+            ensure_saved_book_state(os.path.dirname(VOICE_CONFIG_PATH), SCRIPTS_DIR), contextlib.ExitStack() as locks:
         paths = [VOICE_LIBRARY_PATH, VOICE_CONFIG_PATH]
         paths.extend(os.path.join(SCRIPTS_DIR, name) for name in sorted(os.listdir(SCRIPTS_DIR))
                      if name.endswith('.voice_config.json'))
