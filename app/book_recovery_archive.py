@@ -39,6 +39,8 @@ class ArchivePublicationUncertain(OSError):
 
 def _require_secure_staging():
     if (os.name == 'nt' or os.open not in os.supports_dir_fd or os.mkdir not in os.supports_dir_fd
+            or os.stat not in os.supports_dir_fd or os.stat not in os.supports_follow_symlinks
+            or os.scandir not in os.supports_fd
             or not hasattr(os, 'O_DIRECTORY') or not hasattr(os, 'O_NOFOLLOW')):
         raise ValueError('Secure recovery staging is unavailable on this platform')
 
@@ -308,7 +310,74 @@ def _archive_directory(root, *, create=True, root_fd=None, root_identity=None):
     return directory
 
 
-def _used_bytes(directory, *, max_entries=MAX_FILES * 16, cancel_check=None, with_proofs=False):
+def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check=None):
+    """Measure locked storage through no-follow handles with bounded descriptors."""
+    total, seen = 0, 0
+    root_version = _version(os.fstat(directory_fd))
+    # Each node shares its parent chain, bounding memory by the entry count.
+    # Reopening a chain costs extra I/O but avoids one live descriptor per depth.
+    pending = [None]
+    while pending:
+        _check_cancelled(cancel_check)
+        node = pending.pop()
+        chain = []
+        cursor = node
+        while cursor is not None:
+            chain.append(cursor)
+            cursor = cursor[0]
+        current_fd = _open_directory('.', dir_fd=directory_fd)
+        try:
+            if _version(os.fstat(current_fd)) != root_version:
+                raise ValueError('Recovery storage changed during quota scan')
+            for _parent, name, version, _depth in reversed(chain):
+                _check_cancelled(cancel_check)
+                next_fd = _open_directory(name, dir_fd=current_fd)
+                try:
+                    if _version(os.fstat(next_fd)) != version:
+                        raise ValueError('Recovery storage changed during quota scan')
+                except BaseException:
+                    os.close(next_fd)
+                    raise
+                os.close(current_fd)
+                current_fd = next_fd
+            before = _version(os.fstat(current_fd))
+            with os.scandir(current_fd) as entries:
+                for entry in entries:
+                    _check_cancelled(cancel_check)
+                    seen += 1
+                    if seen > max_entries:
+                        raise ValueError('Recovery storage has too many entries')
+                    info = os.stat(entry.name, dir_fd=current_fd, follow_symlinks=False)
+                    version = _version(info)
+                    if stat.S_ISDIR(info.st_mode):
+                        depth = 1 if node is None else node[3] + 1
+                        if depth > 128:
+                            raise ValueError('Recovery storage exceeds its directory depth limit')
+                        child_fd = _open_directory(entry.name, dir_fd=current_fd)
+                        try:
+                            if _version(os.fstat(child_fd)) != version:
+                                raise ValueError('Recovery storage changed during quota scan')
+                        finally:
+                            os.close(child_fd)
+                        pending.append((node, entry.name, version, depth))
+                    elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+                        total += info.st_size
+                    else:
+                        raise ValueError('Recovery storage contains an unsafe artifact')
+                    if _version(os.stat(entry.name, dir_fd=current_fd, follow_symlinks=False)) != version:
+                        raise ValueError('Recovery storage changed during quota scan')
+            if _version(os.fstat(current_fd)) != before:
+                raise ValueError('Recovery storage changed during quota scan')
+        finally:
+            os.close(current_fd)
+    return total
+
+
+def _used_bytes(directory, *, max_entries=MAX_FILES * 16, cancel_check=None, with_proofs=False, directory_fd=None):
+    if directory_fd is not None:
+        if with_proofs:
+            raise ValueError('Pinned quota scan does not provide path proofs')
+        return _used_bytes_pinned(directory_fd, max_entries=max_entries, cancel_check=cancel_check)
     total = 0
     seen = 0
     proofs = []
@@ -467,7 +536,7 @@ def _create_recovery_archive_pinned(root, paths, *, book_token, quota_bytes,
     publication = {}
     with _archive_lock(directory, publication, parent_fd=_root_fd) as locked_archive_fd:
         _require_root_identity(root, _root_fd, _root_identity)
-        used = _used_bytes(directory, cancel_check=cancel_check)
+        used = _used_bytes(directory, cancel_check=cancel_check, directory_fd=locked_archive_fd)
         if used >= quota_bytes:
             raise ValueError('Recovery storage quota is exhausted')
         initial_versions, initial_rows, total_size = {}, [], 0
@@ -569,7 +638,7 @@ def _create_recovery_archive_pinned(root, paths, *, book_token, quota_bytes,
             if staged_manifest != raw:
                 raise ValueError('Recovery staging manifest changed before publication')
             digest = hashlib.sha256(raw).hexdigest()
-            if _used_bytes(directory, cancel_check=cancel_check) + 2 * len(_marker_bytes(recovery_id, stage_name, digest)) > quota_bytes:
+            if _used_bytes(directory, cancel_check=cancel_check, directory_fd=locked_archive_fd) + 2 * len(_marker_bytes(recovery_id, stage_name, digest)) > quota_bytes:
                 raise ValueError('Recovery storage exceeds its byte quota')
             for proof in staged_proofs:
                 info = _ensure_plain_path(stage / proof['path'], stage).lstat()
@@ -610,7 +679,7 @@ def _create_recovery_archive_pinned(root, paths, *, book_token, quota_bytes,
                     raise ValueError('Recovery artifact changed before publication')
             if _capture_book_token(root, cancel_check) != book_token:
                 raise ValueError('Active book changed before recovery publication')
-            if _used_bytes(directory, cancel_check=cancel_check) + len(_marker_bytes(recovery_id, stage_name, digest)) > quota_bytes:
+            if _used_bytes(directory, cancel_check=cancel_check, directory_fd=locked_archive_fd) + len(_marker_bytes(recovery_id, stage_name, digest)) > quota_bytes:
                 raise ValueError('Recovery storage exceeds its byte quota')
             _check_cancelled(cancel_check)
             if not is_scope_admitted(root):

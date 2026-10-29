@@ -1637,7 +1637,7 @@ def _apply_audio_cancel():
             with ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
                 if not idle:
                     raise HTTPException(status_code=409, detail="Another worker owns an active task; cancel it on its owning server")
-                with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
+                with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0):
                     for chunk in project_manager.load_chunks():
                         if chunk.get("status") == "generating":
                             updated = project_manager._update_chunk_fields_by_uid(

@@ -20,6 +20,82 @@ from routers import scripts_library as routes
 
 
 class SavedBookPublicationTests(unittest.TestCase):
+    def test_saved_mutations_do_not_wait_for_saved_book_lock(self):
+        with self.fixture() as (root, _api):
+            ready, release, finished = threading.Event(), threading.Event(), threading.Event()
+            outcomes = []
+            def hold_saved():
+                with books.ensure_book_state(root / 'scripts'):
+                    ready.set()
+                    release.wait(5)
+            def delete():
+                try:
+                    routes._delete_script_sync('book')
+                except HTTPException as error:
+                    outcomes.append(error.status_code)
+                finally:
+                    finished.set()
+            owner = threading.Thread(target=hold_saved)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                worker = threading.Thread(target=delete)
+                worker.start()
+                self.assertTrue(finished.wait(3), 'delete waited for the saved-book lock')
+                self.assertEqual([409], outcomes)
+                self.assertTrue((root / 'scripts' / 'book.json').exists())
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+                if 'worker' in locals():
+                    worker.join(5)
+
+    def test_saved_mutation_does_not_relabel_body_timeout_as_admission_error(self):
+        with self.fixture():
+            with self.assertRaisesRegex(TimeoutError, 'body timeout'):
+                with routes._saved_mutation_admission():
+                    raise TimeoutError('body timeout')
+
+    def test_saved_mutations_do_not_wait_for_book_while_holding_task_mutex(self):
+        with self.fixture() as (root, _api):
+            ready = threading.Event()
+            release = threading.Event()
+            finished = threading.Event()
+            outcomes = []
+            def hold_book():
+                with books.ensure_book_state(root):
+                    ready.set()
+                    release.wait(5)
+            def delete():
+                try:
+                    operations = (lambda: routes._delete_script_sync('book'),
+                                  lambda: routes._apply_deterministic_repair_sync('book', None),
+                                  lambda: routes._apply_speaker_repair_sync('book', None),
+                                  lambda: routes._apply_content_repair_sync('book', None))
+                    for operation in operations:
+                        try:
+                            operation()
+                        except HTTPException as error:
+                            outcomes.append(error.status_code)
+                finally:
+                    finished.set()
+            owner = threading.Thread(target=hold_book)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                worker = threading.Thread(target=delete)
+                worker.start()
+                self.assertTrue(finished.wait(3), 'delete waited for the held book lock')
+                self.assertEqual([409, 409, 409, 409], outcomes)
+                self.assertTrue((root / 'scripts' / 'book.json').exists())
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+                if 'worker' in locals():
+                    worker.join(5)
+
     def test_invalid_active_script_is_422_before_binding_identity_parsing(self):
         with self.fixture() as (root, api), TestClient(api) as client:
             before = self.artifacts(root)

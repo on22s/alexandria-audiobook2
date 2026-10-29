@@ -1060,7 +1060,7 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
             if result[:2] != created_version[:2]:
                 raise ValueError('Book transaction journal changed during publication')
             return verify_published(result)
-        except (OSError, ValueError) as error:
+        except Exception as error:
             if publication_attempted:
                 raise BookJournalPublicationUncertain(
                     'Book transaction journal changed during publication or publication failed; '
@@ -1094,7 +1094,7 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
                 os.replace(temporary, JOURNAL, src_dir_fd=root_fd, dst_dir_fd=root_fd)
                 os.fsync(root_fd)
                 return verify_published(observed_version())
-            except (OSError, ValueError) as error:
+            except Exception as error:
                 raise BookJournalPublicationUncertain(
                     'Book transaction journal update is uncertain; evidence was preserved') from error
         finally:
@@ -1105,7 +1105,7 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
     try:
         save_adapter_publication_bytes(str(path), bytes(payload))
         return verify_published(_book_target_version(path))
-    except (OSError, ValueError) as error:
+    except Exception as error:
         raise BookJournalPublicationUncertain(
             'Book transaction journal update is uncertain; evidence was preserved') from error
 

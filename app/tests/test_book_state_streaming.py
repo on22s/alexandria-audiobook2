@@ -634,8 +634,11 @@ with b.ensure_book_state(root):
             def __ne__(self, other):
                 return False
         raw = b'{"version":1,"workspace_identity":[1,2],"entries":[],"bytes":0}'
-        with self.assertRaises(ValueError):
-            books.decode_book_cleanup_observation(raw, Forged('x' * 64), byte_limit=100, entry_limit=10)
+        digest = hashlib.sha256(raw).hexdigest()
+        self.assertEqual([], books.decode_book_cleanup_observation(
+            raw, digest, byte_limit=100, entry_limit=10)['entries'])
+        with self.assertRaisesRegex(ValueError, 'bounds or identity'):
+            books.decode_book_cleanup_observation(raw, Forged(digest), byte_limit=100, entry_limit=10)
 
     @unittest.skipUnless(os.scandir in os.supports_fd and os.open in os.supports_dir_fd,
                          'descriptor-relative cleanup observation unavailable')

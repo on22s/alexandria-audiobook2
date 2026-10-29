@@ -53,6 +53,71 @@ class BookRecoveryArchiveTests(unittest.TestCase):
                 with ensure_scope_admission(root):
                     yield root, get_book_operation_token(root)
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX resource limits required')
+    def test_pinned_quota_scan_deep_tree_uses_bounded_descriptors(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            current = root
+            for _ in range(80):
+                current = current / 'd'
+                current.mkdir()
+            (current / 'file').write_bytes(b'x')
+            code = r"""import os,resource,sys
+from pathlib import Path
+import book_recovery_archive as archive
+root=Path(sys.argv[1]); fd=archive._open_directory(str(root))
+soft,hard=resource.getrlimit(resource.RLIMIT_NOFILE)
+limit=64 if hard == resource.RLIM_INFINITY else min(64, hard)
+resource.setrlimit(resource.RLIMIT_NOFILE,(limit,hard))
+try:
+ assert archive._used_bytes(root,directory_fd=fd)==1
+ assert archive._used_bytes(root,directory_fd=fd)==1
+finally: os.close(fd)
+"""
+            result = subprocess.run([sys.executable, '-c', code, str(root)],
+                                    cwd=Path(__file__).parent.parent, capture_output=True,
+                                    text=True, timeout=60)
+            self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_pinned_quota_scan_rejects_links_and_bounds_entries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            storage = root / 'storage'
+            storage.mkdir()
+            (storage / 'first').write_bytes(b'a')
+            (storage / 'second').write_bytes(b'b')
+            descriptor = archive._open_directory(str(storage))
+            try:
+                with self.assertRaisesRegex(ValueError, 'too many entries'):
+                    archive._used_bytes(storage, directory_fd=descriptor, max_entries=1)
+                (storage / 'second').unlink()
+                outside = root / 'outside'
+                outside.write_bytes(b'private')
+                (storage / 'link').symlink_to(outside)
+                with self.assertRaisesRegex(ValueError, 'unsafe artifact'):
+                    archive._used_bytes(storage, directory_fd=descriptor)
+                self.assertEqual(b'private', outside.read_bytes())
+            finally:
+                os.close(descriptor)
+
+    def test_pinned_quota_scan_ignores_substituted_archive_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            storage = root / 'storage'
+            storage.mkdir()
+            (storage / 'nested').mkdir()
+            (storage / 'nested' / 'owned').write_bytes(b'1234567')
+            descriptor = archive._open_directory(str(storage))
+            try:
+                storage.rename(root / 'displaced')
+                storage.mkdir()
+                (storage / 'foreign').write_bytes(b'1')
+                self.assertEqual(7, archive._used_bytes(storage, directory_fd=descriptor))
+                self.assertEqual(7, archive._used_bytes(storage, directory_fd=descriptor))
+                self.assertEqual(1, archive._used_bytes(storage))
+            finally:
+                os.close(descriptor)
+
     def test_archive_staging_refuses_swapped_storage_directory(self):
         with self.fixture() as (root, token):
             storage = root / archive.ARCHIVE_DIR

@@ -65,6 +65,37 @@ class BookStateTransactionTests(unittest.TestCase):
             self.assertEqual(b'foreign change', (root / names[0]).read_bytes())
             self.assertEqual(version, books._book_target_version(root / books.JOURNAL))
 
+    def test_phase_update_read_failure_preserves_journal_and_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            replace, real_open = os.replace, os.open
+            supports = set(os.supports_dir_fd)
+            changed = []
+            def after_replace(source, destination, *args, **kwargs):
+                result = replace(source, destination, *args, **kwargs)
+                if Path(destination).name == books.JOURNAL:
+                    changed.append(True)
+                return result
+            def fail_read(path, flags, *args, **kwargs):
+                if changed and Path(path).name == books.JOURNAL and not flags & os.O_WRONLY:
+                    raise MemoryError('fixture read allocation failure')
+                return real_open(path, flags, *args, **kwargs)
+            with patch.object(books.os, 'replace', side_effect=after_replace), \
+                 patch.object(books.os, 'open', side_effect=fail_read) as mocked_open:
+                with patch.object(books.os, 'supports_dir_fd', supports | {mocked_open}):
+                    with books.ensure_book_state(root), self.assertRaises(
+                            books.BookJournalPublicationUncertain) as raised:
+                        books.apply_book_state_locked(root, {'script.json': b'new'}, [])
+            self.assertIsInstance(raised.exception.__cause__, MemoryError)
+            self.assertEqual([True], changed)
+            self.assertTrue((root / books.JOURNAL).exists())
+            workspaces = list(root.glob('.book-switch-*'))
+            self.assertEqual(1, len(workspaces))
+            self.assertEqual(b'original', (workspaces[0] / 'old-0').read_bytes())
+            self.assertEqual(b'new', target.read_bytes())
+
     def test_edited_phase_update_preserves_journal_and_backup(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

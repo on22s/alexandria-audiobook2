@@ -121,6 +121,19 @@ def _validate_sound_destination(root, relative, *, limit):
             'Sound-design destination requires inspection; existing book files were preserved.')) from None
 
 
+@contextlib.contextmanager
+def _saved_mutation_admission():
+    """Do not wait for a book lock while holding the task mutex."""
+    with contextlib.ExitStack() as admission:
+        try:
+            admission.enter_context(_gpu_lock)
+            admission.enter_context(ensure_book_state(DATA_DIR, timeout=0))
+            admission.enter_context(ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, timeout=0))
+        except TimeoutError as error:
+            raise HTTPException(status_code=409, detail='Book is busy; try again.') from error
+        yield
+
+
 def _require_saved_book_idle():
     busy = [name for name in ("script", "review", "persona", "nicknames",
                              "batch_script", "batch_review")
@@ -659,7 +672,7 @@ async def apply_deterministic_repair(name: str, request: ScriptRepairRequest):
 
 
 def _apply_deterministic_repair_sync(name: str, request: ScriptRepairRequest):
-    with _gpu_lock, ensure_book_state(DATA_DIR), ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
+    with _saved_mutation_admission():
         _require_saved_book_idle()
         """Apply an unchanged preview, preserving the original in a timestamped backup."""
         if not request.expected_sha256:
@@ -704,7 +717,7 @@ async def apply_speaker_repair(name: str, request: SpeakerRepairRequest):
 
 
 def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
-    with _gpu_lock, ensure_book_state(DATA_DIR), ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
+    with _saved_mutation_admission():
         _require_saved_book_idle()
         if not request.expected_sha256:
             raise HTTPException(status_code=400, detail="expected_sha256 from preview is required.")
@@ -795,7 +808,7 @@ async def apply_content_repair(name: str, request: ContentRepairRequest):
 
 
 def _apply_content_repair_sync(name: str, request: ContentRepairRequest):
-    with _gpu_lock, ensure_book_state(DATA_DIR), ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
+    with _saved_mutation_admission():
         _require_saved_book_idle()
         safe_name = _require_saved_book_name(name)
         path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
@@ -824,8 +837,7 @@ def _delete_script_sync(name):
     safe_name = _require_saved_book_name(name)
     filepath = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
     artifacts = [filepath, *_get_saved_book_companions(filepath)]
-    with (_gpu_lock, ensure_book_state(DATA_DIR),
-          ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR), contextlib.ExitStack() as locks):
+    with _saved_mutation_admission(), contextlib.ExitStack() as locks:
         _require_saved_book_idle()
         for path in artifacts:
             locks.enter_context(file_lock(path))

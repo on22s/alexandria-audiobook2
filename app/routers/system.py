@@ -1098,7 +1098,7 @@ def apply_pronunciation_config_change(config, manager):
             return True
 
     with ensure_book_switch_allowed(operation="change synthesis window, recovery, speech verification or conditional pronunciation settings"):
-        with ensure_book_state(root, recover=False):
+        with ensure_book_state(root, timeout=0, recover=False):
             before = manager.get_pronunciation_preview_settings()["settings"]
             try:
                 with manager._chunks_lock, file_lock(manager.chunks_path), file_lock(CONFIG_PATH):
@@ -1143,7 +1143,7 @@ def _clear_synthesis_recovery_sync(expected_book_token):
     from synthesis_recovery_cache import CACHE_DIRECTORY, RecoveryCacheStorage, RecoveryCacheUnavailable
     root = project_manager.root_dir
     with ensure_book_switch_allowed(operation='clear retained synthesis recovery windows'):
-        with ensure_book_state(root):
+        with ensure_book_state(root, timeout=0):
             if get_snapshot_digest(get_book_operation_identity(root)) != expected_book_token:
                 raise HTTPException(status_code=409, detail='Active book changed; reload Editor before clearing recovery windows.')
             removed = 0
