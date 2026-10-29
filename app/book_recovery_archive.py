@@ -5,6 +5,7 @@ admission. This module does not decide what belongs to a book, change the
 active selection, restore a book, or certify audio content.
 """
 import contextlib
+import errno
 import hashlib
 import json
 import os
@@ -313,10 +314,93 @@ def _archive_directory(root, *, create=True, root_fd=None, root_identity=None):
     return directory
 
 
-def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check=None):
+def _storage_version(info):
+    return (*_version(info), info.st_mode, info.st_nlink, info.st_uid,
+            getattr(info, 'st_file_attributes', 0))
+
+
+def _require_pinned_listing():
+    if (os.open not in os.supports_dir_fd or os.stat not in os.supports_dir_fd
+            or os.stat not in os.supports_follow_symlinks or os.scandir not in os.supports_fd
+            or not hasattr(os, 'O_DIRECTORY') or not hasattr(os, 'O_NOFOLLOW')):
+        raise ValueError('Secure recovery listing is unavailable on this platform')
+
+
+def _unsafe_storage_entry(info):
+    return (stat.S_ISLNK(info.st_mode)
+        or getattr(info, 'st_file_attributes', 0) & 0x400
+        or not (stat.S_ISDIR(info.st_mode)
+                or stat.S_ISREG(info.st_mode) and info.st_nlink == 1)
+        or os.name != 'nt' and (info.st_uid != os.getuid()
+                               or stat.S_IMODE(info.st_mode) & 0o077
+                               or stat.S_ISDIR(info.st_mode) and info.st_mode & 0o500 != 0o500))
+
+
+@contextlib.contextmanager
+def _listing_parent(directory, relative, before, proofs, *, root_fd=None):
+    """Open a listing parent without resolving any symlink component."""
+    absolute = Path(os.path.abspath(directory))
+    current = (_open_directory(absolute.anchor) if root_fd is None
+               else _open_directory('.', dir_fd=root_fd))
+    try:
+        try:
+            if root_fd is None:
+                for component in absolute.parts[1:]:
+                    next_fd = _open_directory(component, dir_fd=current)
+                    os.close(current)
+                    current = next_fd
+            root_info = os.fstat(current)
+            if (_unsafe_storage_entry(root_info)
+                    or tuple(_version(root_info)) != tuple(before)):
+                raise ValueError('Recovery storage changed during inspection')
+            prefix = []
+            for component in Path(relative).parts:
+                prefix.append(component)
+                expected = proofs.get('/'.join(prefix))
+                if expected is None:
+                    raise ValueError('Recovery storage changed during inspection')
+                next_fd = _open_directory(component, dir_fd=current)
+                os.close(current)
+                current = next_fd
+                if tuple(_storage_version(os.fstat(current))) != tuple(expected):
+                    raise ValueError('Recovery storage changed during inspection')
+        except OSError as error:
+            if error.errno in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP):
+                raise ValueError('Recovery storage changed during inspection') from error
+            raise
+        opened_version = _storage_version(os.fstat(current))
+        yield current
+        if _storage_version(os.fstat(current)) != opened_version:
+            raise ValueError('Recovery storage changed during inspection')
+    finally:
+        os.close(current)
+
+
+def _listing_stat(directory, name, before, proofs, *, root_fd=None):
+    relative = Path(name)
+    with _listing_parent(directory, relative.parent, before, proofs, root_fd=root_fd) as parent_fd:
+        try:
+            return os.stat(relative.name, dir_fd=parent_fd, follow_symlinks=False)
+        except OSError as error:
+            if error.errno in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP):
+                raise ValueError('Recovery storage changed during inspection') from error
+            raise
+
+
+def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check=None,
+                       observe_unsafe=False):
     """Measure locked storage through no-follow handles with bounded descriptors."""
     total, seen = 0, 0
-    root_version = _version(os.fstat(directory_fd))
+    snapshot = _storage_version if observe_unsafe else _version
+    def scan_io(operation, *args, **kwargs):
+        try:
+            return operation(*args, **kwargs)
+        except OSError as error:
+            if observe_unsafe and error.errno in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP):
+                raise ValueError('Recovery storage changed during quota scan') from error
+            raise
+    root_version = snapshot(os.fstat(directory_fd))
+    proofs, unsafe_paths = [], set()
     # Each node shares its parent chain, bounding memory by the entry count.
     # Reopening a chain costs extra I/O but avoids one live descriptor per depth.
     pending = [None]
@@ -328,22 +412,22 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
         while cursor is not None:
             chain.append(cursor)
             cursor = cursor[0]
-        current_fd = _open_directory('.', dir_fd=directory_fd)
+        current_fd = scan_io(_open_directory, '.', dir_fd=directory_fd)
         try:
-            if _version(os.fstat(current_fd)) != root_version:
+            if snapshot(os.fstat(current_fd)) != root_version:
                 raise ValueError('Recovery storage changed during quota scan')
             for _parent, name, version, _depth in reversed(chain):
                 _check_cancelled(cancel_check)
-                next_fd = _open_directory(name, dir_fd=current_fd)
+                next_fd = scan_io(_open_directory, name, dir_fd=current_fd)
                 try:
-                    if _version(os.fstat(next_fd)) != version:
+                    if snapshot(os.fstat(next_fd)) != version:
                         raise ValueError('Recovery storage changed during quota scan')
                 except BaseException:
                     os.close(next_fd)
                     raise
                 os.close(current_fd)
                 current_fd = next_fd
-            before = _version(os.fstat(current_fd))
+            before = snapshot(os.fstat(current_fd))
             if before != (root_version if node is None else node[2]):
                 raise ValueError('Recovery storage changed during quota scan')
             with os.scandir(current_fd) as entries:
@@ -352,15 +436,22 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
                     seen += 1
                     if seen > max_entries:
                         raise ValueError('Recovery storage has too many entries')
-                    info = os.stat(entry.name, dir_fd=current_fd, follow_symlinks=False)
-                    version = _version(info)
-                    if stat.S_ISDIR(info.st_mode):
+                    info = scan_io(os.stat, entry.name, dir_fd=current_fd, follow_symlinks=False)
+                    version = snapshot(info)
+                    if observe_unsafe:
+                        relative = '/'.join([part[1] for part in reversed(chain)] + [entry.name])
+                        proofs.append((relative, list(version)))
+                    if observe_unsafe and _unsafe_storage_entry(info):
+                        unsafe_paths.add(relative)
+                        if stat.S_ISREG(info.st_mode):
+                            total += info.st_size
+                    elif stat.S_ISDIR(info.st_mode):
                         depth = 1 if node is None else node[3] + 1
                         if depth > MAX_QUOTA_DEPTH:
                             raise ValueError('Recovery storage exceeds its directory depth limit')
-                        child_fd = _open_directory(entry.name, dir_fd=current_fd)
+                        child_fd = scan_io(_open_directory, entry.name, dir_fd=current_fd)
                         try:
-                            if _version(os.fstat(child_fd)) != version:
+                            if snapshot(os.fstat(child_fd)) != version:
                                 raise ValueError('Recovery storage changed during quota scan')
                         finally:
                             os.close(child_fd)
@@ -369,24 +460,33 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
                         total += info.st_size
                     else:
                         raise ValueError('Recovery storage contains an unsafe artifact')
-                    if _version(os.stat(entry.name, dir_fd=current_fd, follow_symlinks=False)) != version:
+                    if snapshot(scan_io(os.stat, entry.name, dir_fd=current_fd, follow_symlinks=False)) != version:
                         raise ValueError('Recovery storage changed during quota scan')
-            if _version(os.fstat(current_fd)) != before:
+            if snapshot(os.fstat(current_fd)) != before:
                 raise ValueError('Recovery storage changed during quota scan')
         finally:
             os.close(current_fd)
-    return total
+    return (total, proofs, unsafe_paths) if observe_unsafe else total
 
 
 def _used_bytes(directory, *, max_entries=MAX_FILES * 16, cancel_check=None,
-                with_proofs=False, directory_fd=None, root_guard=None):
+                with_proofs=False, directory_fd=None, root_guard=None,
+                observe_unsafe=False, expected_root=None):
+    if observe_unsafe and (not with_proofs or directory_fd is not None):
+        raise ValueError('Unsafe observations require listing proofs')
     if directory_fd is not None:
         if with_proofs:
             raise ValueError('Pinned quota scan does not provide path proofs')
         return _used_bytes_pinned(directory_fd, max_entries=max_entries, cancel_check=cancel_check)
+    if observe_unsafe and os.name != 'nt':
+        before = expected_root if expected_root is not None else _version(directory.lstat())
+        with _listing_parent(directory, '', before, {}) as descriptor:
+            return _used_bytes_pinned(descriptor, max_entries=max_entries,
+                cancel_check=cancel_check, observe_unsafe=True)
     total = 0
     seen = 0
     proofs = []
+    unsafe_paths = set()
     pending = [(directory, _version(directory.lstat()), 0)]
     while pending:
         _check_cancelled(cancel_check)
@@ -414,13 +514,29 @@ def _used_bytes(directory, *, max_entries=MAX_FILES * 16, cancel_check=None,
                 seen += 1
                 if seen > max_entries:
                     raise ValueError('Recovery storage has too many entries')
-                _ensure_plain_path(path, directory)
+                if not observe_unsafe:
+                    _ensure_plain_path(path, directory)
                 info = path.lstat()
-                if getattr(info, 'st_file_attributes', 0) & 0x400:
+                unsafe = _unsafe_storage_entry(info) if observe_unsafe else (stat.S_ISLNK(info.st_mode)
+                    or getattr(info, 'st_file_attributes', 0) & 0x400
+                    or not (stat.S_ISDIR(info.st_mode)
+                            or stat.S_ISREG(info.st_mode) and info.st_nlink == 1))
+                if unsafe and not observe_unsafe:
                     raise ValueError('Recovery storage contains an unsafe artifact')
+                if not unsafe and observe_unsafe:
+                    _ensure_plain_path(path, directory)
+                    if _version(path.lstat()) != _version(info):
+                        raise ValueError('Recovery storage changed during quota scan')
                 if with_proofs:
-                    proofs.append((path.relative_to(directory).as_posix(), list(_version(info))))
-                if stat.S_ISDIR(info.st_mode):
+                    proofs.append((path.relative_to(directory).as_posix(),
+                        list(_storage_version(info) if observe_unsafe else _version(info))))
+                if unsafe:
+                    unsafe_paths.add(path.relative_to(directory).as_posix())
+                    # Count known logical file bytes conservatively. Never
+                    # traverse an alias or open a special file to measure it.
+                    if stat.S_ISREG(info.st_mode):
+                        total += info.st_size
+                elif stat.S_ISDIR(info.st_mode):
                     if depth + 1 > MAX_QUOTA_DEPTH:
                         raise ValueError('Recovery storage exceeds its directory depth limit')
                     pending.append((path, _version(info), depth + 1))
@@ -430,6 +546,8 @@ def _used_bytes(directory, *, max_entries=MAX_FILES * 16, cancel_check=None,
                     raise ValueError('Recovery storage contains an unsafe artifact')
             if _version(parent.lstat()) != expected_parent:
                 raise ValueError('Recovery storage changed during quota scan')
+    if observe_unsafe:
+        return total, proofs, unsafe_paths
     return (total, proofs) if with_proofs else total
 
 
@@ -799,6 +917,14 @@ def list_recovery_records(root, *, quota_bytes, cursor=None, limit=50,
     creates a lock, changes files, or reclaims storage. Quota is an
     observation, not permission to create or delete; writers must recheck
     under their own admission. Pass the revision when fetching later pages.
+    Unsafe entries are never traversed. With any such entry, storage_bytes is
+    a known logical-byte lower bound, storage_complete is false and over_quota
+    is unknown (None) unless the known bytes already exceed the quota.
+    Logical bytes count regular-file sizes per directory entry, including
+    hard links; this is not physical allocation or reclaimable storage.
+    Inventory conservatively admits private owned objects; needs_inspection
+    does not mean byte-integrity verification must fail. Neither observation
+    authorizes restoration or deletion.
     """
     if type(quota_bytes) is not int or quota_bytes < 1:
         raise ValueError('Recovery quota must be positive')
@@ -817,8 +943,11 @@ def list_recovery_records(root, *, quota_bytes, cursor=None, limit=50,
         if expected_revision is not None:
             raise ValueError('Recovery inventory changed; start listing again')
         return {'records':[], 'unrecognized_entries':0, 'storage_bytes':0,
+                'storage_complete':True, 'unsafe_entries':0,
                 'quota_bytes':quota_bytes, 'over_quota':False, 'next_cursor':None,
                 'revision':None, 'total_candidates':0}
+    if os.name != 'nt':
+        _require_pinned_listing()
     directory = _archive_directory(root, create=False)
     before = list(_version(directory.lstat()))
     if os.name == 'nt':
@@ -827,31 +956,65 @@ def list_recovery_records(root, *, quota_bytes, cursor=None, limit=50,
     else:
         guard = contextlib.nullcontext()
     with guard:
-        used, storage_proofs = _used_bytes(directory, cancel_check=cancel_check,
-            with_proofs=True, root_guard=guard if os.name == 'nt' else None)
-        if list(_version(directory.lstat())) != before:
-            raise ValueError('Recovery storage changed during inspection')
+        used, storage_proofs, unsafe_paths = _used_bytes(directory, cancel_check=cancel_check,
+            with_proofs=True, root_guard=guard if os.name == 'nt' else None,
+            observe_unsafe=True, expected_root=before)
+        if os.name == 'nt':
+            if list(_version(directory.lstat())) != before:
+                raise ValueError('Recovery storage changed during inspection')
+        else:
+            with _listing_parent(directory, '', before, {}):
+                pass
         return _list_recovery_records_guarded(directory, before, used, storage_proofs,
             quota_bytes=quota_bytes, cursor=cursor, limit=limit,
             expected_revision=expected_revision, cancel_check=cancel_check,
-            root_guard=guard if os.name == 'nt' else None)
+            root_guard=guard if os.name == 'nt' else None, unsafe_paths=unsafe_paths)
 
 
 def _list_recovery_records_guarded(directory, before, used, storage_proofs, *,
                                    quota_bytes, cursor, limit, expected_revision,
-                                   cancel_check, root_guard=None):
+                                   cancel_check, root_guard=None, unsafe_paths=frozenset(),
+                                   listing_root_fd=None):
+    if os.name != 'nt' and listing_root_fd is None:
+        with _listing_parent(directory, '', before, {}) as descriptor:
+            result = _list_recovery_records_guarded(directory, before, used, storage_proofs,
+                quota_bytes=quota_bytes, cursor=cursor, limit=limit,
+                expected_revision=expected_revision, cancel_check=cancel_check,
+                unsafe_paths=unsafe_paths, listing_root_fd=descriptor)
+        # Recheck the named root through no-follow components before returning.
+        with _listing_parent(directory, '', before, {}):
+            pass
+        return result
     from project_scope_files import capture_scope_file
     by_id, unrecognized, entries = {}, 0, 0
-    for path in directory.iterdir():
+    proof_map = dict(storage_proofs)
+    unsafe_roots = {name.split('/', 1)[0] for name in unsafe_paths}
+    if os.name == 'nt':
+        paths = directory.iterdir()
+    else:
+        paths = []
+        with _listing_parent(directory, '', before, {}, root_fd=listing_root_fd) as root_fd:
+            with os.scandir(root_fd) as observed:
+                for entry in observed:
+                    _check_cancelled(cancel_check)
+                    paths.append(directory / entry.name)
+                    if len(paths) > MAX_FILES * 3 + 1:
+                        raise ValueError('Recovery storage has too many top-level entries')
+    observed_names = set()
+    for path in paths:
         _check_cancelled(cancel_check)
         entries += 1
         if entries > MAX_FILES * 3 + 1:
             raise ValueError('Recovery storage has too many top-level entries')
         name = path.name
+        observed_names.add(name)
         if name == 'archive.lock':
-            info = path.lstat()
+            info = (path.lstat() if os.name == 'nt'
+                    else _listing_stat(directory, path.name, before, proof_map,
+                                       root_fd=listing_root_fd))
             if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 4096
-                    or os.name != 'nt' and info.st_uid != os.getuid()):
+                    or os.name != 'nt' and (info.st_uid != os.getuid()
+                                           or stat.S_IMODE(info.st_mode) & 0o077)):
                 unrecognized += 1
             continue
         stage = re.fullmatch(r'\.pending-([0-9a-f]{32})-([0-9a-f]{32})', name)
@@ -862,12 +1025,14 @@ def _list_recovery_records_guarded(directory, before, used, storage_proofs, *,
             unrecognized += 1
             continue
         item = by_id.setdefault(identity, {'stages':[], 'prepared':False, 'marker':False, 'invalid':False})
-        info = path.lstat()
+        info = (path.lstat() if os.name == 'nt'
+                else _listing_stat(directory, path.name, before, proof_map,
+                                   root_fd=listing_root_fd))
         safe_type = (stat.S_ISDIR(info.st_mode) if stage else
                      stat.S_ISREG(info.st_mode) and info.st_nlink == 1)
         if os.name != 'nt':
             safe_type = bool(safe_type and info.st_uid == os.getuid() and not stat.S_IMODE(info.st_mode) & 0o077)
-        if not safe_type:
+        if not safe_type or name in unsafe_roots:
             item['invalid'] = True
         if stage:
             item['stages'].append(name)
@@ -877,6 +1042,8 @@ def _list_recovery_records_guarded(directory, before, used, storage_proofs, *,
             item['marker'] = True
         if len(by_id) > MAX_FILES:
             raise ValueError('Recovery storage has too many candidate records')
+    if observed_names != {name for name, _version in storage_proofs if '/' not in name}:
+        raise ValueError('Recovery inventory changed; start listing again')
     revision = hashlib.sha256(json.dumps({'root':before, 'entries':sorted(storage_proofs)},
         ensure_ascii=True, separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest()
     if expected_revision is not None and revision != expected_revision:
@@ -917,7 +1084,10 @@ def _list_recovery_records_guarded(directory, before, used, storage_proofs, *,
         records.append(row)
     for proof in record_proofs:
         _check_cancelled(cancel_check)
-        current = _ensure_plain_path(directory / proof['path'], directory).lstat()
+        current = (_ensure_plain_path(directory / proof['path'], directory).lstat()
+                   if os.name == 'nt' else
+                   _listing_stat(directory, proof['path'], before, proof_map,
+                                 root_fd=listing_root_fd))
         if current.st_nlink != 1 or list(_version(current)) != proof['file_version']:
             raise ValueError('Recovery record changed during inspection')
     for name, version in storage_proofs:
@@ -930,13 +1100,26 @@ def _list_recovery_records_guarded(directory, before, used, storage_proofs, *,
         else:
             path_guard = contextlib.nullcontext()
         with path_guard:
-            current = _ensure_plain_path(path, directory).lstat()
-            if list(_version(current)) != version:
+            if os.name != 'nt':
+                current = _listing_stat(directory, name, before, proof_map,
+                                        root_fd=listing_root_fd)
+            elif name in unsafe_paths:
+                _ensure_plain_path(path.parent, directory)
+                current = path.lstat()
+            else:
+                current = _ensure_plain_path(path, directory).lstat()
+            if list(_storage_version(current)) != version:
                 raise ValueError('Recovery storage changed during inspection')
-    if list(_version(directory.lstat())) != before:
-        raise ValueError('Recovery storage changed during inspection')
+    if os.name == 'nt':
+        if list(_version(directory.lstat())) != before:
+            raise ValueError('Recovery storage changed during inspection')
+    else:
+        with _listing_parent(directory, '', before, {}, root_fd=listing_root_fd):
+            pass
     return {'records':records, 'unrecognized_entries':unrecognized,
-            'storage_bytes':used, 'quota_bytes':quota_bytes, 'over_quota':used > quota_bytes,
+            'storage_bytes':used, 'storage_complete':not unsafe_paths,
+            'unsafe_entries':len(unsafe_paths), 'quota_bytes':quota_bytes,
+            'over_quota':True if used > quota_bytes else None if unsafe_paths else False,
             'next_cursor':page[-1] if len(identities) > len(page) else None,
             'revision':revision, 'total_candidates':len(by_id)}
 
