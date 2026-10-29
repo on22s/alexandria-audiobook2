@@ -810,6 +810,87 @@ finally: os.close(fd)
                     archive.list_recovery_records(root, quota_bytes=100000)
             self.assertEqual(b'replacement', unsafe.read_bytes())
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX directory descriptors required')
+    def test_listing_parent_swap_never_stats_the_external_child(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            storage = root / archive.ARCHIVE_DIR
+            storage.mkdir(mode=0o700)
+            nested = storage / 'nested'
+            nested.mkdir(mode=0o700)
+            (nested / 'unsafe').symlink_to(root / 'missing')
+            outside = root / 'outside'
+            outside.mkdir()
+            (outside / 'unsafe').symlink_to(root / 'other-missing')
+            admitted = nested.stat()
+            expected = (admitted.st_dev, admitted.st_ino)
+            original_scan, original_stat = os.scandir, os.stat
+            swapped, parents = [], []
+            @contextlib.contextmanager
+            def swap_after_enumeration(directory):
+                with original_scan(directory) as entries:
+                    info = os.fstat(directory) if isinstance(directory, int) else None
+                    if info is not None and (info.st_dev, info.st_ino) == expected and not swapped:
+                        entries = list(entries)
+                        nested.rename(storage / 'parked')
+                        nested.symlink_to(outside, target_is_directory=True)
+                        swapped.append(True)
+                    yield entries
+            def inspect(name, *args, **kwargs):
+                if name == 'unsafe' and swapped and kwargs.get('dir_fd') is not None:
+                    info = os.fstat(kwargs['dir_fd'])
+                    parents.append((info.st_dev, info.st_ino))
+                return original_stat(name, *args, **kwargs)
+            try:
+                with patch.object(archive.os, 'scandir', swap_after_enumeration), \
+                     patch.object(archive.os, 'stat', inspect):
+                    with self.assertRaisesRegex(ValueError, 'changed'):
+                        archive.list_recovery_records(root, quota_bytes=10000)
+                self.assertEqual([True], swapped)
+                self.assertTrue(parents)
+                self.assertTrue(all(identity == expected for identity in parents))
+                self.assertEqual(str(root / 'other-missing'), os.readlink(outside / 'unsafe'))
+            finally:
+                if swapped:
+                    nested.unlink()
+
+    def test_inventory_reports_nonprivate_stage_and_lock_as_unsafe(self):
+        for stage in (False, True):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                storage = root / archive.ARCHIVE_DIR
+                storage.mkdir(mode=0o700)
+                name = '.pending-' + 'a' * 32 + '-' + 'b' * 32 if stage else 'archive.lock'
+                target = storage / name
+                if stage:
+                    target.mkdir(mode=0o700)
+                else:
+                    target.write_bytes(b'lock evidence')
+                os.chmod(target, 0o755 if stage else 0o660)
+                listing = archive.list_recovery_records(root, quota_bytes=10000)
+                self.assertEqual(1, listing['unsafe_entries'])
+                self.assertFalse(listing['storage_complete'])
+                if stage:
+                    self.assertEqual('needs_inspection', listing['records'][0]['status'])
+                else:
+                    self.assertEqual(1, listing['unrecognized_entries'])
+
+    def test_inventory_refuses_hardlink_added_after_scan(self):
+        with self.fixture() as (root, token):
+            receipt = archive.create_recovery_archive(
+                root, ['state.json'], book_token=token, quota_bytes=100000)
+            payload = root / archive.ARCHIVE_DIR / receipt['stage'] / 'payload' / '0'
+            foreign = root / 'foreign-link'
+            original = archive._used_bytes
+            def add_link(*args, **kwargs):
+                result = original(*args, **kwargs)
+                os.link(payload, foreign)
+                return result
+            with patch.object(archive, '_used_bytes', add_link):
+                with self.assertRaisesRegex(ValueError, 'changed during inspection'):
+                    archive.list_recovery_records(root, quota_bytes=100000)
+            self.assertEqual(payload.read_bytes(), foreign.read_bytes())
+
     def test_inventory_counts_hardlink_logical_bytes_per_name(self):
         with self.fixture() as (root, token):
             storage = root / archive.ARCHIVE_DIR
