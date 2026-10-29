@@ -11,6 +11,7 @@ import json
 from editor_poll_snapshot import get_snapshot_digest
 import os
 import stat
+import sys
 import tempfile
 import uuid
 from pathlib import Path
@@ -271,6 +272,60 @@ def _book_info_version(info):
 
 def _book_target_version(path):
     return _book_info_version(path.lstat())
+
+
+_FS_IOC_GETVERSION = 0x80087601  # _IOR('v', 1, long)
+_UNSUPPORTED_GENERATION_ERRORS = {errno.ENOTTY, errno.EOPNOTSUPP, errno.EINVAL, errno.ENOSYS}
+
+
+def get_book_file_generation(name, dir_fd=None):
+    """Return a Linux inode generation number, or None where unavailable.
+
+    ext4, btrfs and xfs change the generation when an inode number is reused,
+    which separates a recreated same-content file from the journaled one.
+    Filesystems without FS_IOC_GETVERSION (and other platforms) return None and
+    keep only the stat identity.
+    """
+    if not sys.platform.startswith('linux'):
+        return None
+    import fcntl
+    flags = (os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+             | getattr(os, 'O_CLOEXEC', 0))
+    descriptor = os.open(name, flags, dir_fd=dir_fd)
+    try:
+        buffer = bytearray(8)
+        try:
+            fcntl.ioctl(descriptor, _FS_IOC_GETVERSION, buffer)
+        except OSError as error:
+            if error.errno in _UNSUPPORTED_GENERATION_ERRORS:
+                return None
+            raise
+        return int.from_bytes(buffer[:4], sys.byteorder)
+    finally:
+        os.close(descriptor)
+
+
+def _is_book_file_generation_current(row, key, path):
+    """A journaled generation must still match; an unreadable one fails closed."""
+    if key not in row:
+        return True
+    return get_book_file_generation(path) == row[key]
+
+
+def _valid_book_file_generation(value):
+    return type(value) is int and 0 <= value < 2**32
+
+
+def _get_book_file_generation_keys(row, existed, new_sha256):
+    """Return the optional generation keys a journal row may carry."""
+    keys = set()
+    for key, allowed in (('old_file_generation', existed),
+                         ('new_file_generation', new_sha256 is not None)):
+        if key in row:
+            if not allowed or not _valid_book_file_generation(row[key]):
+                raise ValueError('Invalid active-book file generation')
+            keys.add(key)
+    return keys
 
 
 class _BookScanBudget:
@@ -807,6 +862,7 @@ def _validate_moved_byte_replacement(row, path):
             or [version[0], version[1]] != expected
             or not _valid_book_digest(row.get('new_sha256'))
             or _get_digest(path) != row['new_sha256']
+            or not _is_book_file_generation_current(row, 'new_file_generation', path)
             or _book_target_version(path) != version):
         raise ValueError('Book replacement changed during recovery; recovery evidence was preserved')
 
@@ -818,6 +874,7 @@ def _validate_byte_original(row, path):
     if (not isinstance(expected, list) or len(expected) != 6
             or [version[index] for index in stable_fields] != expected
             or _get_digest(path) != row.get('old_sha256')
+            or not _is_book_file_generation_current(row, 'old_file_generation', path)
             or _book_target_version(path) != version):
         raise ValueError('Active-book original artifact is missing or changed')
 
@@ -829,6 +886,7 @@ def _validate_byte_replacement(row, path):
             or [version[0], version[1]] != expected
             or not stat.S_ISREG(version[5]) or version[6] != 1
             or _get_digest(path) != row.get('new_sha256')
+            or not _is_book_file_generation_current(row, 'new_file_generation', path)
             or _book_target_version(path) != version):
         raise ValueError('Active-book replacement changed; refusing destructive recovery')
 
@@ -857,6 +915,7 @@ def _validate_stream_replacement(row, path, budget):
         raise ValueError('Active-book replacement ownership changed; refusing destructive recovery')
     if (row.get('new_sha256') is None
             or _bounded_book_digest(path, budget) != row['new_sha256']
+            or not _is_book_file_generation_current(row, 'new_file_generation', path)
             or _book_target_version(path) != version):
         raise ValueError('Active-book replacement changed; refusing destructive recovery')
 
@@ -871,6 +930,7 @@ def _validate_stream_original(row, path, budget):
     stable_fields = (0, 1, 2, 3, 5, 6)  # ctime changes when the original is renamed.
     if ([version[index] for index in stable_fields] != expected
             or _bounded_book_digest(path, budget) != row.get('old_sha256')
+            or not _is_book_file_generation_current(row, 'old_file_generation', path)
             or _book_target_version(path) != version):
         raise ValueError('Active-book original artifact is missing or changed')
 
@@ -1509,10 +1569,13 @@ def _validate_byte_workspace_for_cleanup(workspace, data):
     allowed = {}
     for index, row in enumerate(rows):
         if phase == 'committed' and row['existed']:
-            allowed[f'old-{index}'] = (row['old_sha256'], row.get('old_file_identity'))
+            allowed[f'old-{index}'] = (row['old_sha256'], row.get('old_file_identity'),
+                                       row, 'old_file_generation')
         elif phase == 'recovered' and row['new_sha256'] is not None:
-            allowed[f'discard-{index}'] = (row['new_sha256'], row.get('new_file_identity'))
-            allowed[f'new-{index}'] = (row['new_sha256'], row.get('new_file_identity'))
+            allowed[f'discard-{index}'] = (row['new_sha256'], row.get('new_file_identity'),
+                                           row, 'new_file_generation')
+            allowed[f'new-{index}'] = (row['new_sha256'], row.get('new_file_identity'),
+                                       row, 'new_file_generation')
     if not os.path.lexists(workspace):
         return {}
     info = workspace.lstat()
@@ -1524,7 +1587,7 @@ def _validate_byte_workspace_for_cleanup(workspace, data):
             if entry.name not in allowed or entry.name in seen:
                 raise ValueError('Book transaction workspace contains unowned data; cleanup was refused')
             version = _book_target_version(workspace / entry.name)
-            expected_digest, expected_identity = allowed[entry.name]
+            expected_digest, expected_identity, row, generation_key = allowed[entry.name]
             if expected_identity is not None:
                 observed_identity = ([version[0], version[1]] if len(expected_identity) == 2
                                      else [version[index] for index in (0, 1, 2, 3, 5, 6)])
@@ -1535,6 +1598,8 @@ def _validate_byte_workspace_for_cleanup(workspace, data):
                 raise ValueError('Book transaction workspace contains an unsafe artifact')
             if _get_digest(workspace / entry.name) != expected_digest:
                 raise ValueError('Book transaction workspace changed; cleanup was refused')
+            if not _is_book_file_generation_current(row, generation_key, workspace / entry.name):
+                raise ValueError('Book transaction workspace ownership changed; cleanup was refused')
             if _book_target_version(workspace / entry.name) != version:
                 raise ValueError('Book transaction workspace changed; cleanup was refused')
             seen[entry.name] = {
@@ -1960,6 +2025,7 @@ def recover_book_state_locked(data_dir, *, cancel_check=None):
                 if (not _valid_book_digest(new) or not isinstance(identity, list) or len(identity) != 2
                         or any(type(value) is not int or value < 0 for value in identity)):
                     raise ValueError('Invalid active-book byte replacement identity')
+            expected_keys |= _get_book_file_generation_keys(row, existed, new)
             if set(row) != expected_keys:
                 raise ValueError('Invalid active-book byte entry')
     if data['version'] == 2:
@@ -1988,6 +2054,7 @@ def recover_book_state_locked(data_dir, *, cancel_check=None):
                 if (not _valid_book_digest(new) or not isinstance(identity, list) or len(identity) != 2
                         or any(type(value) is not int or value < 0 for value in identity)):
                     raise ValueError('Invalid active-book replacement identity')
+            expected_keys |= _get_book_file_generation_keys(row, existed, new)
             if set(row) != expected_keys:
                 raise ValueError('Invalid active-book stream entry')
         original_budget = _BookScanBudget(limits['bytes'], limits['entries'], cancel_check)
@@ -2274,6 +2341,9 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                                  hashlib.sha256(value).hexdigest() if value is not None else None)}
             if existed:
                 row['old_file_identity'] = [before_version[item] for item in (0, 1, 2, 3, 5, 6)]
+                generation = get_book_file_generation(target)
+                if generation is not None:
+                    row['old_file_generation'] = generation
             if existed and _book_target_version(target) != before_version:
                 raise ValueError('Book artifact changed during staging')
             target_versions.append(before_version)
@@ -2326,6 +2396,10 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                             staged_identities[staged_name] = (info.st_dev, info.st_ino)
                 if 'new_file_identity' not in row:
                     row['new_file_identity'] = list(staged_identities[staged_name])
+                generation = (get_book_file_generation(staged_name, dir_fd=workspace_fd)
+                              if workspace_fd is not None else get_book_file_generation(staged_path))
+                if generation is not None:
+                    row['new_file_generation'] = generation
                 if workspace_fd is not None or streams:
                     named_version = (_book_info_version(os.stat(
                         staged_name, dir_fd=workspace_fd, follow_symlinks=False))

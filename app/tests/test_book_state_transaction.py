@@ -1289,6 +1289,92 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             self.assertFalse(target.exists())
             self.assertTrue((root / books.JOURNAL).exists())
 
+    def interrupt_with_generation(self, root, generation, interrupted_name):
+        """Leave a publishing journal whose rows carry a fixed generation."""
+        (root / 'script.json').write_bytes(b'original')
+        move = books._move
+        def interrupt(source, destination, **kwargs):
+            result = move(source, destination, **kwargs)
+            if Path(destination).name == interrupted_name:
+                raise OSError('fixture interruption')
+            return result
+        with books.ensure_book_state(root), \
+             patch.object(books, 'get_book_file_generation', return_value=generation), \
+             patch.object(books, '_move', side_effect=interrupt), \
+             patch.object(books, 'recover_book_state_locked', side_effect=SystemExit('fixture process exit')), \
+             self.assertRaises(SystemExit):
+            books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+        return json.loads((root / books.JOURNAL).read_text())
+
+    def test_changed_generation_refuses_backup_and_replacement_recovery(self):
+        # Only the file under test reports a changed generation, so each
+        # refusal comes from that role's own check.
+        for interrupted_name, key, checked_name in (
+                ('old-0', 'old_file_generation', 'old-0'),
+                ('script.json', 'new_file_generation', 'script.json')):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                journal = self.interrupt_with_generation(root, 7, interrupted_name)
+                self.assertEqual(7, journal['entries'][0][key])
+                for observed in (8, None):
+                    def generation(name, dir_fd=None, observed=observed):
+                        return observed if Path(name).name == checked_name else 7
+                    with patch.object(books, 'get_book_file_generation', side_effect=generation), \
+                         self.assertRaises(ValueError):
+                        with books.ensure_book_state(root):
+                            self.fail('Changed generation was admitted')
+                    self.assertEqual(journal, json.loads((root / books.JOURNAL).read_text()))
+                # The unchanged generation is the control: recovery restores the original.
+                with patch.object(books, 'get_book_file_generation', return_value=7):
+                    with books.ensure_book_state(root):
+                        pass
+                self.assertEqual(b'original', (root / 'script.json').read_bytes())
+                self.assertFalse((root / books.JOURNAL).exists())
+
+    def test_journal_without_generation_keeps_stat_identity_recovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            journal = self.interrupt_with_generation(root, None, 'old-0')
+            self.assertNotIn('old_file_generation', journal['entries'][0])
+            self.assertNotIn('new_file_generation', journal['entries'][0])
+            with patch.object(books, 'get_book_file_generation', return_value=9):
+                with books.ensure_book_state(root):
+                    pass
+            self.assertEqual(b'original', (root / 'script.json').read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
+
+    def test_invalid_journal_generation_is_refused_without_mutation(self):
+        for key, value in (('old_file_generation', -1), ('old_file_generation', '7'),
+                           ('old_file_generation', True), ('new_file_generation', 2**32)):
+            with self.subTest(key=key, value=value), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                journal = self.interrupt_with_generation(root, 7, 'old-0')
+                journal['entries'][0][key] = value
+                raw = json.dumps(journal)
+                (root / books.JOURNAL).write_text(raw)
+                # Report the stored values, so only schema validation can refuse.
+                reported = value if key == 'old_file_generation' else 7
+                with patch.object(books, 'get_book_file_generation', return_value=reported), \
+                     self.assertRaises(ValueError):
+                    with books.ensure_book_state(root):
+                        self.fail('Invalid generation was admitted')
+                self.assertEqual(raw, (root / books.JOURNAL).read_text())
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'Linux inode generation qualification')
+    def test_linux_generation_distinguishes_a_reused_inode_number(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'probe'
+            path.write_bytes(b'same')
+            first = books.get_book_file_generation(path)
+            if first is None:
+                self.skipTest('filesystem does not report inode generations')
+            inode = path.stat().st_ino
+            path.unlink()
+            path.write_bytes(b'same')
+            if path.stat().st_ino != inode:
+                self.skipTest('filesystem did not reuse the inode number')
+            self.assertNotEqual(first, books.get_book_file_generation(path))
+
     def test_oversized_or_duplicate_journal_is_refused_without_mutation(self):
         for raw in (b' ' * 65, b'{"version":1,"version":2}'):
             with self.subTest(size=len(raw)), tempfile.TemporaryDirectory() as tmp:

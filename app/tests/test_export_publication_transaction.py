@@ -130,9 +130,9 @@ class ObservedMutex:
   self.lock.acquire()
  def __exit__(self,*args):self.lock.release()
 @contextmanager
-def edit_book(path):
+def edit_book(path,**options):
  edit_book_entered.set()
- with ensure_book_state(path,timeout=.5):yield
+ with ensure_book_state(path,**options):yield
 with tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
  manager=ProjectManager(tmp);mutex=ObservedMutex();claim='a'*32
  states={key:{'running':False,'cancel':False,'logs':[]} for key in core.process_state};states['chapter_export']['running']=True

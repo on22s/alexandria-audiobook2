@@ -85,20 +85,19 @@ class RecoveryTests(unittest.TestCase):
             atomic_json_write({"input_file_path": os.path.join(tmp, "book.txt")}, os.path.join(tmp, "state.json"))
             with open(os.path.join(tmp, "book.txt"), "w", encoding="utf-8") as source:
                 source.write("Fixture source.")
-            held = False
+            held = set()
 
             @contextmanager
-            def tracking_lock(_path):
-                nonlocal held
-                held = True
+            def tracking_lock(path):
+                held.add(path)
                 try:
                     yield
                 finally:
-                    held = False
+                    held.discard(path)
 
             original_claim=core.claim_gpu_task
             def claim(task):
-                self.assertTrue(held)
+                self.assertIn(three_pass_checkpoint_path(script_path), held)
                 return original_claim(task)
             state=copy.deepcopy(core.process_state)
             for value in state.values():value['running']=False
