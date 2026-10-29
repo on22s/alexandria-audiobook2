@@ -1416,6 +1416,7 @@
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_invalid_archive_lock_directory_is_not_hidden_from_inventory",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_invalid_paths_symlinks_and_hardlinks_are_not_captured",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_inventory_bound_archive_copies_exact_proven_files",
+    "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_inventory_counts_hardlink_logical_bytes_per_name",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_inventory_does_not_classify_wrong_object_types_as_valid_stages",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_inventory_does_not_report_an_oversized_marker_as_missing",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_inventory_marks_nested_unsafe_candidate_as_needing_inspection",
@@ -1424,6 +1425,7 @@
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_inventory_rejects_unsafe_leaf_substitution_after_scan",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_inventory_reports_incomplete_marker_without_treating_it_as_committed",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_inventory_retains_unsafe_neighbors_and_reports_valid_candidate",
+    "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_inventory_unsafe_neighbor_keeps_pagination_revision_fence",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_lock_exit_failure_after_marker_reports_uncertain_publication",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_manifest_and_payload_changed_together_do_not_match_recorded_identity",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_missing_active_state_cannot_authorize_archive",
@@ -1448,6 +1450,7 @@
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_substituted_stage_is_never_deleted_on_failure",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_symlinked_archive_lock_does_not_open_its_target",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_unexpected_bundle_root_and_storage_quota_are_checked",
+    "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_unsafe_observation_requires_path_proofs",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_untrusted_manifest_paths_duplicates_and_extra_payloads_are_rejected",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_verifier_rechecks_earlier_payloads_after_later_reads",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_verifier_rechecks_payload_after_receipt_read"

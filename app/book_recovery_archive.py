@@ -821,6 +821,8 @@ def list_recovery_records(root, *, quota_bytes, cursor=None, limit=50,
     Unsafe entries are never traversed. With any such entry, storage_bytes is
     a known logical-byte lower bound, storage_complete is false and over_quota
     is unknown (None) unless the known bytes already exceed the quota.
+    Logical bytes count regular-file sizes per directory entry, including
+    hard links; this is not physical allocation or reclaimable storage.
     """
     if type(quota_bytes) is not int or quota_bytes < 1:
         raise ValueError('Recovery quota must be positive')

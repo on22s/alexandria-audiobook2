@@ -810,6 +810,55 @@ finally: os.close(fd)
                     archive.list_recovery_records(root, quota_bytes=100000)
             self.assertEqual(b'replacement', unsafe.read_bytes())
 
+    def test_inventory_counts_hardlink_logical_bytes_per_name(self):
+        with self.fixture() as (root, token):
+            storage = root / archive.ARCHIVE_DIR
+            storage.mkdir(mode=0o700)
+            foreign = root / 'foreign'
+            foreign.write_bytes(b'x' * 2048)
+            os.link(foreign, storage / 'one')
+            os.link(foreign, storage / 'two')
+            listing = archive.list_recovery_records(root, quota_bytes=100)
+            self.assertEqual(4096, listing['storage_bytes'])
+            self.assertEqual(2, listing['unsafe_entries'])
+            self.assertFalse(listing['storage_complete'])
+            self.assertTrue(listing['over_quota'])
+            self.assertEqual(b'x' * 2048, foreign.read_bytes())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture required')
+    def test_inventory_unsafe_neighbor_keeps_pagination_revision_fence(self):
+        with self.fixture() as (root, token):
+            storage = root / archive.ARCHIVE_DIR
+            storage.mkdir(mode=0o700)
+            for number in range(2):
+                (storage / ('.pending-' + f'{number:032x}' + '-' + 'f' * 32)).mkdir(mode=0o700)
+            unsafe = storage / 'unknown'
+            unsafe.symlink_to(root / 'state.json')
+            first = archive.list_recovery_records(root, quota_bytes=10000, limit=1)
+            second = archive.list_recovery_records(root, quota_bytes=10000, limit=1,
+                cursor=first['next_cursor'], expected_revision=first['revision'])
+            self.assertEqual(first['revision'], second['revision'])
+            self.assertNotEqual(first['records'][0]['id'], second['records'][0]['id'])
+            self.assertIsNone(second['next_cursor'])
+            unsafe.unlink()
+            unsafe.symlink_to(root / 'annotated_script.json')
+            with self.assertRaisesRegex(ValueError, 'changed; start listing again'):
+                archive.list_recovery_records(root, quota_bytes=10000, limit=1,
+                    cursor=first['next_cursor'], expected_revision=first['revision'])
+
+    def test_unsafe_observation_requires_path_proofs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            with self.assertRaisesRegex(ValueError, 'require listing proofs'):
+                archive._used_bytes(directory, observe_unsafe=True)
+            descriptor = archive._open_directory(str(directory))
+            try:
+                with self.assertRaisesRegex(ValueError, 'require listing proofs'):
+                    archive._used_bytes(directory, observe_unsafe=True, with_proofs=True,
+                                        directory_fd=descriptor)
+            finally:
+                os.close(descriptor)
+
     def test_empty_inventory_does_not_create_recovery_storage(self):
         with self.fixture() as (root,token):
             listing=archive.list_recovery_records(root,quota_bytes=100000)

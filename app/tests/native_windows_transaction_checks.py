@@ -65,6 +65,34 @@ class NativeWindowsRecoveryQuotaTests(unittest.TestCase):
                         if kind == 'junction':
                             os.rmdir(unsafe)
 
+    def test_listing_marks_nested_junction_candidate_as_needing_inspection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            storage = root / archive.ARCHIVE_DIR
+            identity = 'a' * 32
+            stage_name = '.pending-' + identity + '-' + 'b' * 32
+            payload = storage / stage_name / 'payload'
+            payload.mkdir(parents=True)
+            record = archive._marker_bytes(identity, stage_name, 'c' * 64)
+            (storage / identity).write_bytes(record)
+            (storage / ('prepared-' + identity)).write_bytes(record)
+            before = archive.list_recovery_records(root, quota_bytes=10000)
+            self.assertEqual('committed_unverified', before['records'][0]['status'])
+            outside = root / 'outside'
+            outside.mkdir()
+            (outside / 'sentinel').write_bytes(b'foreign evidence')
+            junction = payload / 'unknown'
+            subprocess.run(['cmd', '/c', 'mklink', '/J', str(junction), str(outside)],
+                           check=True, capture_output=True)
+            try:
+                listing = archive.list_recovery_records(root, quota_bytes=10000)
+                self.assertEqual('needs_inspection', listing['records'][0]['status'])
+                self.assertEqual(1, listing['unsafe_entries'])
+                self.assertFalse(listing['storage_complete'])
+                self.assertEqual(b'foreign evidence', (outside / 'sentinel').read_bytes())
+            finally:
+                os.rmdir(junction)
+
     def test_listing_blocks_nested_parent_replacement_during_proof_recheck(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / 'project'
@@ -565,7 +593,7 @@ class NativeWindowsPublicationCancellationTests(unittest.TestCase):
             self.assertNotEqual(old, (root / 'annotated_script.json').read_bytes())
 
 
-NATIVE_TEST_COUNT = 22
+NATIVE_TEST_COUNT = 23
 
 
 def main():
