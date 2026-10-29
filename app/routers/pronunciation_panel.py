@@ -357,7 +357,7 @@ async def get_occurrence_preview_endpoint(request: PronunciationOccurrenceEdit):
 
 def _save_occurrence_rules_admitted(request):
     with ensure_book_switch_allowed(operation='save occurrence rules'):
-        with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0):
+        with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
             settings = project_manager.get_pronunciation_preview_settings()
             voices = project_manager.get_voice_config_for_update()
             with project_manager._chunks_lock, file_lock(project_manager.chunks_path):

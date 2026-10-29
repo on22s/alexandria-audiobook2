@@ -563,6 +563,20 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
             original_binding = json.loads(saved_binding_path.read_bytes())
             self.assertEqual(200, client.post('/api/scripts/load', json={'name':'bound'}).status_code)
             current = (root / 'annotated_script.json').read_bytes()
+            if os.path.exists(str(root / 'scripts/bound.json').swapcase()):
+                # An existing selected path can have a different spelling on a
+                # case-insensitive volume while naming the same file.
+                from script_selection_binding import make_script_selection_binding
+                from book_state_transaction import get_book_operation_token
+                state_path = root / 'state.json'
+                state = json.loads(state_path.read_text())
+                state['input_file_path'] = state['input_file_path'].swapcase()
+                self.assertTrue(os.path.samefile(state['input_file_path'], root / 'scripts/bound.json'))
+                state_path.write_text(json.dumps(state))
+                token = get_book_operation_token(str(root), state=state)
+                binding = make_script_selection_binding(token, hashlib.sha256(current).hexdigest(),
+                                                        current, source_path=state['input_file_path'])
+                (root / BINDING_NAME).write_text(json.dumps(binding))
             edited = b'[{"speaker":"NARRATOR","text":"Shareable source paragraph.","instruct":"Calm."}]'
             publish_controlled_script_edit(str(root), current, edited)
             import book_state_transaction as transaction
@@ -593,6 +607,23 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
             for key in ('book_token', 'source_path_sha256', 'source_sha256'):
                 self.assertEqual(original_binding[key], saved_binding[key])
             self.assertEqual(hashlib.sha256(edited).hexdigest(), saved_binding['published_script_sha256'])
+            alias = root / 'scripts/alias.json'
+            os.link(root / 'scripts/bound.json', alias)
+            try:
+                current_binding = (root / BINDING_NAME).read_bytes()
+                response = client.post('/api/scripts/save', json={'name':'alias'})
+                self.assertEqual(409, response.status_code, response.text)
+                # Isolate the later alias fence from the earlier provenance
+                # hard-link rejection, which independently protects this case.
+                with patch.object(routes, 'get_saved_publication_source_bytes', return_value=None):
+                    response = client.post('/api/scripts/save', json={'name':'alias'})
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertIn('ambiguous path alias', response.json()['detail'])
+                self.assertEqual(edited, alias.read_bytes())
+                self.assertEqual(edited, (root / 'scripts/bound.json').read_bytes())
+                self.assertEqual(current_binding, (root / BINDING_NAME).read_bytes())
+            finally:
+                alias.unlink()
             response = client.post('/api/scripts/save', json={'name':'bound-copy'})
             self.assertEqual(200, response.status_code, response.text)
 

@@ -71,6 +71,33 @@ class SourceUploadPublicationTests(unittest.TestCase):
         finally:
             os.close(descriptor)
 
+        # The production primitive also accepts descriptors for two different
+        # directories. A collision must leave both files intact in that case.
+        source_dir = self.root / 'source-directory'
+        destination_dir = self.root / 'destination-directory'
+        source_dir.mkdir()
+        destination_dir.mkdir()
+        (source_dir / 'source').write_bytes(b'new')
+        (destination_dir / 'destination').write_bytes(b'old')
+        source_fd = os.open(source_dir, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            destination_fd = os.open(destination_dir, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                with self.assertRaises(FileExistsError):
+                    publication.move_source_upload_exclusively('source', 'destination',
+                        source_dir_fd=source_fd, destination_dir_fd=destination_fd)
+                self.assertEqual(b'new', (source_dir / 'source').read_bytes())
+                self.assertEqual(b'old', (destination_dir / 'destination').read_bytes())
+                (destination_dir / 'destination').unlink()
+                publication.move_source_upload_exclusively('source', 'destination',
+                    source_dir_fd=source_fd, destination_dir_fd=destination_fd)
+                self.assertFalse((source_dir / 'source').exists())
+                self.assertEqual(b'new', (destination_dir / 'destination').read_bytes())
+            finally:
+                os.close(destination_fd)
+        finally:
+            os.close(source_fd)
+
     def test_collisions_preserve_existing_file_directory_and_orphan_provenance(self):
         (self.root / 'book.txt').write_bytes(b'Prior source')
         (self.root / 'book_2.txt').mkdir()

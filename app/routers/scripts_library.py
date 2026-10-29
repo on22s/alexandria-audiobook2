@@ -127,8 +127,8 @@ def _saved_mutation_admission():
     with contextlib.ExitStack() as admission:
         try:
             admission.enter_context(_gpu_lock)
-            admission.enter_context(ensure_book_state(DATA_DIR, timeout=0))
-            admission.enter_context(ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, timeout=0))
+            admission.enter_context(ensure_book_state(DATA_DIR, timeout=0.25))
+            admission.enter_context(ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, timeout=0.25))
         except TimeoutError as error:
             raise HTTPException(status_code=409, detail='Book is busy; try again.') from error
         yield
@@ -354,8 +354,29 @@ def _save_script_sync(request):
         removals = [os.path.basename(path) for path in _get_saved_book_companions(dest)
                     if os.path.basename(path) not in replacements]
         source_path = active_state.get('input_file_path')
-        saving_active_source = (binding_raw is not None and isinstance(source_path, str)
-                                and os.path.abspath(source_path) == os.path.abspath(dest))
+        saving_active_source = False
+        if binding_raw is not None and isinstance(source_path, str):
+            try:
+                saving_active_source = os.path.samefile(source_path, dest)
+                if saving_active_source:
+                    # A case-insensitive filesystem may accept two spellings
+                    # for one directory entry even when normcase is a no-op
+                    # (as on macOS). Multiple hard links may be different entries:
+                    # replacing one would leave the selected source unchanged.
+                    if (os.path.islink(source_path) or os.path.islink(dest)
+                            or os.stat(source_path).st_nlink != 1
+                            or os.stat(dest).st_nlink != 1):
+                        raise HTTPException(status_code=409, detail=(
+                            'Saved source has an ambiguous path alias; check the current state before retrying.'))
+            except FileNotFoundError as error:
+                # A new saved name cannot yet be the selected existing file.
+                if os.path.lexists(dest) or not os.path.isfile(source_path):
+                    raise HTTPException(status_code=409, detail=(
+                        'Could not verify the saved source identity; check the current state before retrying.')) from error
+                saving_active_source = False
+            except OSError as error:
+                raise HTTPException(status_code=409, detail=(
+                    'Could not verify the saved source identity; check the current state before retrying.')) from error
         if saving_active_source:
             # The selected source is the saved script itself. Update the active
             # binding and saved family in one recoverable transaction, otherwise
@@ -416,10 +437,11 @@ def _load_script_sync(request: ScriptLoadRequest):
 
     # The durable book transaction protects the entire switch, including old
     # exports and recovery sidecars, rather than publishing unrelated copies.
-    with (ensure_book_switch_allowed(), ensure_book_state(DATA_DIR, timeout=0),
-          ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR), file_lock(src), file_lock(SCRIPT_PATH),
-          file_lock(VOICE_CONFIG_PATH), file_lock(CHUNKS_PATH),
-          file_lock(os.path.join(DATA_DIR, BINDING_NAME))):
+    with (ensure_book_switch_allowed(), ensure_book_state(DATA_DIR, timeout=0.25),
+          ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, timeout=0.25),
+          file_lock(src, timeout=0.25), file_lock(SCRIPT_PATH, timeout=0.25),
+          file_lock(VOICE_CONFIG_PATH, timeout=0.25), file_lock(CHUNKS_PATH, timeout=0.25),
+          file_lock(os.path.join(DATA_DIR, BINDING_NAME), timeout=0.25)):
         if not os.path.isfile(src):
             raise HTTPException(status_code=404, detail=f"Saved script '{request.name}' not found.")
         _require_saved_book_idle()
@@ -680,7 +702,7 @@ def _apply_deterministic_repair_sync(name: str, request: ScriptRepairRequest):
         safe_name = _require_saved_book_name(name)
         script_path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
         try:
-            with file_lock(script_path):
+            with file_lock(script_path, timeout=0.25):
                 path, sha256, repair = _load_repair_inputs(name, request.source_filename)
                 if sha256 != request.expected_sha256:
                     raise HTTPException(status_code=409, detail="Script changed after preview; preview it again.")
@@ -724,9 +746,9 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
         safe_name = _require_saved_book_name(name)
         path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
         try:
-            with file_lock(path), contextlib.ExitStack() as locks:
+            with file_lock(path, timeout=0.25), contextlib.ExitStack() as locks:
                 for companion in _get_saved_book_companions(path):
-                    locks.enter_context(file_lock(companion))
+                    locks.enter_context(file_lock(companion, timeout=0.25))
                 if not os.path.exists(path):
                     raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
                 active_source = saved_script_is_active_source(DATA_DIR, path)
@@ -813,7 +835,7 @@ def _apply_content_repair_sync(name: str, request: ContentRepairRequest):
         safe_name = _require_saved_book_name(name)
         path = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
         try:
-            with file_lock(path):
+            with file_lock(path, timeout=0.25):
                 if not os.path.exists(path):
                     raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
                 _script_bytes, sha256, entries = get_repair_script_snapshot(path)
@@ -840,7 +862,7 @@ def _delete_script_sync(name):
     with _saved_mutation_admission(), contextlib.ExitStack() as locks:
         _require_saved_book_idle()
         for path in artifacts:
-            locks.enter_context(file_lock(path))
+            locks.enter_context(file_lock(path, timeout=0.25))
         if not os.path.isfile(filepath):
             raise HTTPException(status_code=404, detail=f"Saved script '{name}' not found.")
         if saved_script_is_active_source(DATA_DIR, filepath):

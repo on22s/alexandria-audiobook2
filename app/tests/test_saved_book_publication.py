@@ -20,6 +20,135 @@ from routers import scripts_library as routes
 
 
 class SavedBookPublicationTests(unittest.TestCase):
+    def test_load_reports_busy_saved_file_as_conflict(self):
+        from utils import file_lock
+        with self.fixture() as (root, api), TestClient(api) as client:
+            ready, release = threading.Event(), threading.Event()
+            saved = root / 'scripts' / 'book.json'
+            def hold_saved_file():
+                with file_lock(saved):
+                    ready.set()
+                    release.wait(5)
+            owner = threading.Thread(target=hold_saved_file)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                response = client.post('/api/scripts/load', json={'name': 'book'})
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertIn('check the current state before retrying', response.json()['detail'])
+                self.assertTrue(saved.exists())
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+
+    def test_load_reports_busy_saved_book_as_conflict(self):
+        with self.fixture() as (root, api), TestClient(api) as client:
+            ready, release = threading.Event(), threading.Event()
+            def hold_saved():
+                with books.ensure_book_state(root / 'scripts'):
+                    ready.set()
+                    release.wait(5)
+            owner = threading.Thread(target=hold_saved)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                response = client.post('/api/scripts/load', json={'name': 'book'})
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertIn('check the current state before retrying', response.json()['detail'])
+                self.assertTrue((root / 'scripts' / 'book.json').exists())
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+
+    def test_load_reports_busy_book_as_conflict(self):
+        with self.fixture() as (root, api), TestClient(api) as client:
+            ready, release = threading.Event(), threading.Event()
+            def hold_book():
+                with books.ensure_book_state(root):
+                    ready.set()
+                    release.wait(5)
+            owner = threading.Thread(target=hold_book)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                response = client.post('/api/scripts/load', json={'name': 'book'})
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertIn('check the current state before retrying', response.json()['detail'])
+                self.assertTrue((root / 'scripts' / 'book.json').exists())
+            finally:
+                release.set()
+                owner.join(5)
+
+    def test_chunk_edit_timeout_does_not_claim_no_change(self):
+        from routers import editor
+        changed = []
+        def operation():
+            changed.append('published')
+            raise TimeoutError('late failure')
+        with patch.object(editor, 'check_global_gpu_lock'):
+            with self.assertRaises(HTTPException) as raised:
+                editor._apply_chunk_edit(operation)
+        self.assertEqual(['published'], changed)
+        self.assertEqual(409, raised.exception.status_code)
+        self.assertIn('check the line before retrying', raised.exception.detail)
+        self.assertFalse(core._gpu_lock.locked())
+
+    def test_chunk_edit_does_not_wait_indefinitely_for_book_under_task_mutex(self):
+        from routers import editor
+        with self.fixture() as (root, _api), \
+             patch.object(editor, 'SCRIPT_PATH', str(root / 'annotated_script.json')), \
+             patch.object(editor, 'check_global_gpu_lock'):
+            ready, release, finished = threading.Event(), threading.Event(), threading.Event()
+            outcomes = []
+            def hold_book():
+                with books.ensure_book_state(root):
+                    ready.set()
+                    release.wait(5)
+            def edit():
+                try:
+                    editor._apply_chunk_edit(editor.apply_chunk_update, 0, {}, 'token', 'uid')
+                except HTTPException as error:
+                    outcomes.append(error.status_code)
+                finally:
+                    finished.set()
+            owner = threading.Thread(target=hold_book)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                worker = threading.Thread(target=edit)
+                worker.start()
+                self.assertTrue(finished.wait(3), 'chunk edit waited for the held book lock')
+                self.assertEqual([409], outcomes)
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+                if 'worker' in locals():
+                    worker.join(5)
+
+    def test_delete_reports_busy_saved_file_without_holding_task_mutex(self):
+        from utils import file_lock
+        with self.fixture() as (root, api), TestClient(api) as client:
+            ready, release = threading.Event(), threading.Event()
+            saved = root / 'scripts' / 'book.json'
+            def hold_file():
+                with file_lock(saved):
+                    ready.set()
+                    release.wait(5)
+            owner = threading.Thread(target=hold_file)
+            owner.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                response = client.delete('/api/scripts/book')
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertTrue(saved.exists())
+                self.assertFalse(core._gpu_lock.locked())
+            finally:
+                release.set()
+                owner.join(5)
+
     def test_saved_mutations_do_not_wait_for_saved_book_lock(self):
         with self.fixture() as (root, _api):
             ready, release, finished = threading.Event(), threading.Event(), threading.Event()

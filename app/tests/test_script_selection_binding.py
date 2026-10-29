@@ -66,10 +66,28 @@ class ScriptSelectionBindingTests(unittest.TestCase):
     def test_binding_rejects_nonfinite_and_ambiguous_script_json(self):
         for raw in (b'[{"text":"line","pause_after":NaN}]',
                     b'[{"text":"line","pause_after":Infinity}]',
+                    b'[{"text":"line","pause_after":1e999}]',
+                    b'[{"text":"line","pause_after":-1e999}]',
                     b'[{"text":"first","text":"second"}]'):
             with self.subTest(raw=raw), self.assertRaises(ValueError):
                 make_script_selection_binding(self.token, self.source, raw,
                                               source_path='/source/a.txt')
+        from script_selection_binding import _read_selection_state, _voice_remap_bytes
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            state = root / 'state.json'
+            config = root / 'voice_config.json'
+            for value in ('NaN', 'Infinity', '1e999', '-1e999'):
+                with self.subTest(value=value):
+                    state.write_text('{"nested": [' + value + ']}')
+                    with self.assertRaises(ValueError):
+                        _read_selection_state(root, required=True)
+                    config.write_text('{"nested": [' + value + ']}')
+                    with self.assertRaises(ValueError):
+                        _voice_remap_bytes(root, config.name, {}, lambda *_: False)
+                    self.assertEqual('{"nested": [' + value + ']}', config.read_text())
+            state.write_text('{"small": 1e-999, "zero": -0.0}')
+            self.assertEqual(0.0, _read_selection_state(root, required=True)['small'])
 
     def test_binding_rejects_deeply_nested_script_as_invalid(self):
         raw = ('[' * 2000 + ']' * 2000).encode()
@@ -210,6 +228,8 @@ class ScriptSelectionBindingTests(unittest.TestCase):
                 capture_generation_selection(tmp, str(root / 'other.txt'))
             with self.assertRaises(ValueError):
                 publish_generated_script(tmp, token, str(source), source_hash, b'[{"value":NaN}]', expected_run_id='f' * 32)
+            with self.assertRaises(ValueError):
+                publish_generated_script(tmp, token, str(source), source_hash, b'[{"value":1e999}]', expected_run_id='f' * 32)
             source.write_bytes(b'Changed source')
             with self.assertRaises(ValueError):
                 publish_generated_script(tmp, token, str(source), source_hash, self.script, expected_run_id='f' * 32)

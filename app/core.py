@@ -738,7 +738,8 @@ def ensure_book_switch_allowed(*, operation="switch books", hold_task_mutex=True
                 task_mutex.close()
             yield
     except TimeoutError as exc:
-        raise HTTPException(status_code=409, detail="Book is busy; try switching again.") from exc
+        raise HTTPException(status_code=409, detail=(
+            f"Could not complete or confirm {operation}; check the current state before retrying.")) from exc
 
 
 def _reap_gpu_leases():

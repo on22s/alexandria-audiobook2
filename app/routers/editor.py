@@ -656,20 +656,20 @@ def ensure_audio_generation_requests(indices, expected_book_token=None, expected
 
 
 def apply_chunk_update(index, updates, expected_book_token, expected_uid):
-    with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
+    with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
         check_chunk_identity(index, expected_book_token, expected_uid)
         return project_manager.update_chunk(index, updates)
 
 
 def apply_chunk_insertion(index, expected_book_token=None, expected_uid=None):
-    with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
+    with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
         check_chunk_identity(index, expected_book_token, expected_uid)
         return project_manager.insert_chunk(index)
 
 
 def apply_chunk_deletion(index, expected_book_token=None, expected_uid=None):
     root = os.path.dirname(SCRIPT_PATH)
-    with ensure_book_state(root):
+    with ensure_book_state(root, timeout=0.25):
         check_chunk_identity(index, expected_book_token, expected_uid)
         result = project_manager.delete_chunk(index)
         if result is None:
@@ -689,7 +689,7 @@ def apply_chunk_deletion(index, expected_book_token=None, expected_uid=None):
 
 def apply_chunk_restore(request):
     root = os.path.dirname(SCRIPT_PATH)
-    with ensure_book_state(root):
+    with ensure_book_state(root, timeout=0.25):
         receipt = _deleted_chunk_receipts.get(request.undo_token)
         if (receipt is None or time.monotonic() - receipt['created'] > 60
                 or receipt['book'] != get_editor_book_identity(root)
@@ -712,6 +712,8 @@ def _apply_chunk_edit(operation, *args):
         check_global_gpu_lock("audio")
         try:
             return operation(*args)
+        except TimeoutError as error:
+            raise HTTPException(status_code=409, detail='The edit could not be confirmed. Refresh the Editor and check the line before retrying.') from error
         except (ValueError, OSError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
@@ -1637,7 +1639,7 @@ def _apply_audio_cancel():
             with ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
                 if not idle:
                     raise HTTPException(status_code=409, detail="Another worker owns an active task; cancel it on its owning server")
-                with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0):
+                with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
                     for chunk in project_manager.load_chunks():
                         if chunk.get("status") == "generating":
                             updated = project_manager._update_chunk_fields_by_uid(

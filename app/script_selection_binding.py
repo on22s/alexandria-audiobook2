@@ -6,6 +6,7 @@ not infer a binding from an existing unbound script.
 """
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -41,6 +42,13 @@ def _unique_pairs(pairs):
             raise ValueError('Duplicate script identity field')
         result[key] = value
     return result
+
+
+def _finite_float(value):
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError('Nonfinite value in JSON')
+    return number
 
 
 def _read_source_snapshot(path, *, include_bytes=False):
@@ -87,7 +95,7 @@ def _read_selection_state(data_dir, *, required):
             raise ValueError('Selected source state is missing')
         return {}
     try:
-        state = json.loads(raw, object_pairs_hook=_unique_pairs,
+        state = json.loads(raw, object_pairs_hook=_unique_pairs, parse_float=_finite_float,
             parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Invalid state number')))
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
         raise ValueError('Selected source state is invalid') from error
@@ -124,7 +132,7 @@ def _validated_script_entries(script_bytes, *, require_entries=True):
     def reject_constant(value):
         raise ValueError('Nonfinite value in script publication')
     try:
-        entries = json.loads(script_bytes, object_pairs_hook=_unique_pairs,
+        entries = json.loads(script_bytes, object_pairs_hook=_unique_pairs, parse_float=_finite_float,
                              parse_constant=reject_constant)
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
         raise ValueError('Invalid script publication') from error
@@ -227,7 +235,8 @@ def _voice_remap_bytes(root, name, mapping, remap):
     def reject_constant(value):
         raise ValueError('Nonfinite value in voice configuration')
     try:
-        config = json.loads(raw, object_pairs_hook=_unique_pairs, parse_constant=reject_constant)
+        config = json.loads(raw, object_pairs_hook=_unique_pairs, parse_float=_finite_float,
+                            parse_constant=reject_constant)
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
         raise ValueError('Invalid voice configuration; review was not published') from error
     if not isinstance(config, dict):
@@ -475,7 +484,7 @@ def publish_generated_script(data_dir, expected_token, expected_source_path,
     try:
         def reject_constant(value):
             raise ValueError('Nonfinite value in generated script')
-        entries = json.loads(script_bytes, parse_constant=reject_constant)
+        entries = json.loads(script_bytes, parse_float=_finite_float, parse_constant=reject_constant)
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
         raise ValueError('Invalid generated script') from error
     if not isinstance(entries, list) or not entries or any(not isinstance(row, dict) for row in entries):

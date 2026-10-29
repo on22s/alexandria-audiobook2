@@ -22,6 +22,7 @@ from utils import file_lock
 
 ARCHIVE_DIR = '.book_recovery'
 MAX_FILES = 8192
+MAX_QUOTA_DEPTH = 128
 MAX_LIST_RECORDS = 256
 MAX_MANIFEST_BYTES = 8 * 1024**2
 MAX_BOOK_STATE_BYTES = 64 * 1024**2
@@ -341,6 +342,8 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
                 os.close(current_fd)
                 current_fd = next_fd
             before = _version(os.fstat(current_fd))
+            if before != (root_version if node is None else node[2]):
+                raise ValueError('Recovery storage changed during quota scan')
             with os.scandir(current_fd) as entries:
                 for entry in entries:
                     _check_cancelled(cancel_check)
@@ -351,7 +354,7 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
                     version = _version(info)
                     if stat.S_ISDIR(info.st_mode):
                         depth = 1 if node is None else node[3] + 1
-                        if depth > 128:
+                        if depth > MAX_QUOTA_DEPTH:
                             raise ValueError('Recovery storage exceeds its directory depth limit')
                         child_fd = _open_directory(entry.name, dir_fd=current_fd)
                         try:
@@ -373,7 +376,8 @@ def _used_bytes_pinned(directory_fd, *, max_entries=MAX_FILES * 16, cancel_check
     return total
 
 
-def _used_bytes(directory, *, max_entries=MAX_FILES * 16, cancel_check=None, with_proofs=False, directory_fd=None):
+def _used_bytes(directory, *, max_entries=MAX_FILES * 16, cancel_check=None,
+                with_proofs=False, directory_fd=None, root_guard=None):
     if directory_fd is not None:
         if with_proofs:
             raise ValueError('Pinned quota scan does not provide path proofs')
@@ -381,25 +385,49 @@ def _used_bytes(directory, *, max_entries=MAX_FILES * 16, cancel_check=None, wit
     total = 0
     seen = 0
     proofs = []
-    pending = [directory]
+    pending = [(directory, _version(directory.lstat()), 0)]
     while pending:
         _check_cancelled(cancel_check)
-        parent = pending.pop()
-        for path in parent.iterdir():
-            _check_cancelled(cancel_check)
-            seen += 1
-            if seen > max_entries:
-                raise ValueError('Recovery storage has too many entries')
-            _ensure_plain_path(path, directory)
-            info = path.lstat()
-            if with_proofs:
-                proofs.append((path.relative_to(directory).as_posix(), list(_version(info))))
-            if stat.S_ISDIR(info.st_mode):
-                pending.append(path)
-            elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
-                total += info.st_size
+        parent, expected_parent, depth = pending.pop()
+        _ensure_plain_path(parent, directory)
+        parent_info = parent.lstat()
+        if (_version(parent_info) != expected_parent
+                or getattr(parent_info, 'st_file_attributes', 0) & 0x400):
+            raise ValueError('Recovery storage changed during quota scan')
+        if os.name == 'nt':
+            from windows_export_staging_directory import guard_windows_book_move_parents
+            placeholder = parent / '.recovery-quota-scan'
+            if root_guard is None:
+                guard = guard_windows_book_move_parents(directory, placeholder, placeholder)
             else:
-                raise ValueError('Recovery storage contains an unsafe artifact')
+                guard = guard_windows_book_move_parents(
+                    directory, placeholder, placeholder, root_guard=root_guard)
+        else:
+            guard = contextlib.nullcontext()
+        with guard:
+            if _version(parent.lstat()) != expected_parent:
+                raise ValueError('Recovery storage changed during quota scan')
+            for path in parent.iterdir():
+                _check_cancelled(cancel_check)
+                seen += 1
+                if seen > max_entries:
+                    raise ValueError('Recovery storage has too many entries')
+                _ensure_plain_path(path, directory)
+                info = path.lstat()
+                if getattr(info, 'st_file_attributes', 0) & 0x400:
+                    raise ValueError('Recovery storage contains an unsafe artifact')
+                if with_proofs:
+                    proofs.append((path.relative_to(directory).as_posix(), list(_version(info))))
+                if stat.S_ISDIR(info.st_mode):
+                    if depth + 1 > MAX_QUOTA_DEPTH:
+                        raise ValueError('Recovery storage exceeds its directory depth limit')
+                    pending.append((path, _version(info), depth + 1))
+                elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+                    total += info.st_size
+                else:
+                    raise ValueError('Recovery storage contains an unsafe artifact')
+            if _version(parent.lstat()) != expected_parent:
+                raise ValueError('Recovery storage changed during quota scan')
     return (total, proofs) if with_proofs else total
 
 
@@ -770,7 +798,6 @@ def list_recovery_records(root, *, quota_bytes, cursor=None, limit=50,
     observation, not permission to create or delete; writers must recheck
     under their own admission. Pass the revision when fetching later pages.
     """
-    from project_scope_files import capture_scope_file
     if type(quota_bytes) is not int or quota_bytes < 1:
         raise ValueError('Recovery quota must be positive')
     if type(limit) is not int or not 1 <= limit <= MAX_LIST_RECORDS:
@@ -792,7 +819,26 @@ def list_recovery_records(root, *, quota_bytes, cursor=None, limit=50,
                 'revision':None, 'total_candidates':0}
     directory = _archive_directory(root, create=False)
     before = list(_version(directory.lstat()))
-    used, storage_proofs = _used_bytes(directory, cancel_check=cancel_check, with_proofs=True)
+    if os.name == 'nt':
+        from windows_export_staging_directory import WindowsBookRoot
+        guard = WindowsBookRoot(directory, tuple(before[:2]))
+    else:
+        guard = contextlib.nullcontext()
+    with guard:
+        used, storage_proofs = _used_bytes(directory, cancel_check=cancel_check,
+            with_proofs=True, root_guard=guard if os.name == 'nt' else None)
+        if list(_version(directory.lstat())) != before:
+            raise ValueError('Recovery storage changed during inspection')
+        return _list_recovery_records_guarded(directory, before, used, storage_proofs,
+            quota_bytes=quota_bytes, cursor=cursor, limit=limit,
+            expected_revision=expected_revision, cancel_check=cancel_check,
+            root_guard=guard if os.name == 'nt' else None)
+
+
+def _list_recovery_records_guarded(directory, before, used, storage_proofs, *,
+                                   quota_bytes, cursor, limit, expected_revision,
+                                   cancel_check, root_guard=None):
+    from project_scope_files import capture_scope_file
     by_id, unrecognized, entries = {}, 0, 0
     for path in directory.iterdir():
         _check_cancelled(cancel_check)
@@ -874,9 +920,17 @@ def list_recovery_records(root, *, quota_bytes, cursor=None, limit=50,
             raise ValueError('Recovery record changed during inspection')
     for name, version in storage_proofs:
         _check_cancelled(cancel_check)
-        current = _ensure_plain_path(directory / name, directory).lstat()
-        if list(_version(current)) != version:
-            raise ValueError('Recovery storage changed during inspection')
+        path = directory / name
+        if os.name == 'nt':
+            from windows_export_staging_directory import guard_windows_book_move_parents
+            path_guard = guard_windows_book_move_parents(
+                directory, path, path, root_guard=root_guard)
+        else:
+            path_guard = contextlib.nullcontext()
+        with path_guard:
+            current = _ensure_plain_path(path, directory).lstat()
+            if list(_version(current)) != version:
+                raise ValueError('Recovery storage changed during inspection')
     if list(_version(directory.lstat())) != before:
         raise ValueError('Recovery storage changed during inspection')
     return {'records':records, 'unrecognized_entries':unrecognized,
@@ -894,7 +948,6 @@ def verify_recovery_archive(root, recovery_id, *, expected_manifest_sha256, quot
     checked individually, not as an atomic filesystem snapshot. A restore
     must independently copy and revalidate them under its own admission.
     """
-    from project_scope_files import capture_scope_file
     if not isinstance(recovery_id, str) or not _ID.fullmatch(recovery_id):
         raise ValueError('Invalid recovery archive identity')
     if not isinstance(expected_manifest_sha256, str) or not _DIGEST.fullmatch(expected_manifest_sha256):
@@ -907,8 +960,28 @@ def verify_recovery_archive(root, recovery_id, *, expected_manifest_sha256, quot
         raise ValueError('Recovery quota must be positive')
     _check_cancelled(cancel_check)
     directory = _archive_directory(root, create=False)
-    if _used_bytes(directory, cancel_check=cancel_check) > quota_bytes:
-        raise ValueError('Recovery storage exceeds its byte quota')
+    before = _version(directory.lstat())
+    if os.name == 'nt':
+        from windows_export_staging_directory import WindowsBookRoot
+        guard = WindowsBookRoot(directory, tuple(before[:2]))
+    else:
+        guard = contextlib.nullcontext()
+    with guard:
+        if _used_bytes(directory, cancel_check=cancel_check,
+                       root_guard=guard if os.name == 'nt' else None) > quota_bytes:
+            raise ValueError('Recovery storage exceeds its byte quota')
+        if _version(directory.lstat()) != before:
+            raise ValueError('Recovery storage changed during verification')
+        return _verify_recovery_archive_guarded(directory, recovery_id,
+            expected_manifest_sha256=expected_manifest_sha256, quota_bytes=quota_bytes,
+            expected_observation_revision=expected_observation_revision,
+            cancel_check=cancel_check, root_guard=guard if os.name == 'nt' else None)
+
+
+def _verify_recovery_archive_guarded(directory, recovery_id, *, expected_manifest_sha256,
+                                     quota_bytes, expected_observation_revision, cancel_check,
+                                     root_guard=None):
+    from project_scope_files import capture_scope_file
     prepared_proof, prepared_raw = capture_scope_file(directory, 'prepared-' + recovery_id,
                                                       limit=1024, include_bytes=True)
     if prepared_raw is None:
@@ -921,6 +994,28 @@ def verify_recovery_archive(root, recovery_id, *, expected_manifest_sha256, quot
     if marker != prepared or marker['manifest_sha256'] != expected_manifest_sha256:
         raise ValueError('Invalid recovery commit marker identity')
     stage_name = marker['stage']
+    if os.name == 'nt':
+        from windows_export_staging_directory import guard_windows_book_move_parents
+        payload_placeholder = directory / stage_name / 'payload' / '.recovery-verify-scan'
+        nested_guard = guard_windows_book_move_parents(
+            directory, payload_placeholder, payload_placeholder, root_guard=root_guard)
+    else:
+        nested_guard = contextlib.nullcontext()
+    with nested_guard:
+        result = _verify_recovery_bundle_guarded(directory, recovery_id,
+            expected_manifest_sha256=expected_manifest_sha256, quota_bytes=quota_bytes,
+            expected_observation_revision=expected_observation_revision,
+            cancel_check=cancel_check, prepared_proof=prepared_proof,
+            marker_proof=marker_proof, stage_name=stage_name)
+    if _used_bytes(directory, cancel_check=cancel_check, root_guard=root_guard) > quota_bytes:
+        raise ValueError('Recovery storage exceeds its byte quota')
+    return result
+
+
+def _verify_recovery_bundle_guarded(directory, recovery_id, *, expected_manifest_sha256,
+                                    quota_bytes, expected_observation_revision, cancel_check,
+                                    prepared_proof, marker_proof, stage_name):
+    from project_scope_files import capture_scope_file
     bundle = _ensure_plain_path(directory / stage_name, directory)
     name = stage_name + '/manifest.json'
     proof, raw = capture_scope_file(directory, name, limit=MAX_MANIFEST_BYTES, include_bytes=True)
