@@ -155,18 +155,17 @@ b._move(Path(sys.argv[2]),Path(sys.argv[3]),exclusive=True,anchor=Path(sys.argv[
             (root / 'audio.wav').write_bytes(b'old audio')
             (root / 'state.json').write_bytes(b'old state')
             stage = books._stage_book_stream
+            class FailingInput:
+                calls = 0
+                def read(self, size):
+                    self.calls += 1
+                    if self.calls == 1:
+                        return b'partial'
+                    raise OSError('staging failed')
             def fail_after_open(path, source, mode, cancel_check, *, on_open=None, on_finish=None,
                                 directory_fd=None):
                 if Path(path).name == 'new-1':
-                    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-                    descriptor = os.open(path, flags, mode, dir_fd=directory_fd)
-                    with os.fdopen(descriptor, 'wb') as output:
-                        on_open(os.fstat(output.fileno()))
-                        try:
-                            output.write(b'partial')
-                            raise OSError('staging failed')
-                        finally:
-                            on_open(os.fstat(output.fileno()))
+                    source = books.BookStateStream(FailingInput(), 10, hashlib.sha256(b'0123456789').hexdigest())
                 return stage(path, source, mode, cancel_check, on_open=on_open,
                              on_finish=on_finish, directory_fd=directory_fd)
             with patch.object(books, '_stage_book_stream', side_effect=fail_after_open):

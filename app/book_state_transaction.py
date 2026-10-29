@@ -169,11 +169,30 @@ def _stage_book_stream(path, source, mode, cancel_check, *, on_open=None, on_fin
     try:
         _write_staged_stream(descriptor, source, mode, cancel_check, on_open, path)
     finally:
-        try:
-            if on_finish is not None:
-                on_finish(os.fstat(descriptor))
-        finally:
-            os.close(descriptor)
+        if os.name == 'nt' and on_finish is not None:
+            # Pin the object through the write-handle close. Windows does not
+            # promise final write timestamps until that handle has closed.
+            from windows_export_staging_directory import _api, _Handle, _identity
+            guard = None
+            try:
+                guard = _Handle(_api(), path)
+            except BaseException:
+                os.close(descriptor)
+                raise
+            try:
+                os.close(descriptor)
+                info = Path(path).lstat()
+                if (info.st_dev, info.st_ino) != _identity(guard.information()):
+                    raise ValueError('Book staging file changed after writing')
+                on_finish(info)
+            finally:
+                guard.close()
+        else:
+            try:
+                if on_finish is not None:
+                    on_finish(os.fstat(descriptor))
+            finally:
+                os.close(descriptor)
     if directory_fd is not None:
         os.fsync(directory_fd)
     else:
@@ -1307,13 +1326,17 @@ def _validate_stream_workspace_for_cleanup(workspace, data):
     return validated
 
 def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_identities,
-                                          *, parent_fd=None, staged_versions=None):
+                                          *, parent_fd=None, staged_versions=None,
+                                          require_stage_versions=False):
     """Remove only checked staging files after a pre-journal error.
 
     A completed stage can be checked against its full post-write version as
     well as its identity. This catches many reused-inode replacements; it is
     not durable ownership proof after a crash or on a coarse-clock filesystem.
     """
+    if (require_stage_versions and (staged_versions is None
+            or not set(staged_identities).issubset(staged_versions))):
+        raise ValueError('Book staging version unavailable; cleanup was refused')
     anchored = (os.name != 'nt' and os.open in os.supports_dir_fd and os.stat in os.supports_dir_fd
                 and os.unlink in os.supports_dir_fd and os.rmdir in os.supports_dir_fd
                 and os.scandir in os.supports_fd and hasattr(os, 'O_DIRECTORY') and hasattr(os, 'O_NOFOLLOW'))
@@ -2212,6 +2235,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                     else:
                         staged_identities[staged_name] = (info.st_dev, info.st_ino)
                 def record_finished(info, staged_name=staged_name):
+                    if os.name == 'nt' and (info.st_dev, info.st_ino) != staged_identities.get(staged_name):
+                        raise ValueError('Book staging file changed after writing')
                     staged_versions[staged_name] = _book_info_version(info)
                 if streams:
                     source = (value if isinstance(value, BookStateStream) else
@@ -2371,7 +2396,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                     try:
                         _cleanup_unpublished_stream_workspace(
                             workspace, workspace_identity, staged_identities, parent_fd=root_fd,
-                            staged_versions=staged_versions)
+                            staged_versions=staged_versions, require_stage_versions=streams)
                         _unlink_owned_book_journal(root, journal_version, root_fd=root_fd)
                     except (OSError, ValueError):
                         # Preserve evidence when staged ownership changed, but
@@ -2384,7 +2409,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             try:
                 _cleanup_unpublished_stream_workspace(
                     workspace, workspace_identity, staged_identities,
-                    parent_fd=root_fd, staged_versions=staged_versions)
+                    parent_fd=root_fd, staged_versions=staged_versions,
+                    require_stage_versions=streams)
             except (OSError, ValueError) as cleanup_error:
                 # Keep the safety refusal as the primary error while making
                 # the staging failure explicit; the workspace is retained.

@@ -1,5 +1,6 @@
 """A clean hindsight pass must not erase earlier review failures."""
 import json
+import os
 import core
 from pathlib import Path
 import tempfile
@@ -75,7 +76,7 @@ class BatchReviewPassStatusTests(unittest.TestCase):
                         'find_nicknames':True,'bidirectional':bidirectional,'force_review':label == 'single_forced'})
                     self.assertEqual(200,response.status_code,response.text)
                     check.assert_called_once_with('batch_review')
-                    claim.assert_called_once_with('batch_review', resources=(str(book.resolve()),))
+                    claim.assert_called_once_with('batch_review', resources=(os.path.normcase(str(book.resolve())),))
                 current = state['batch_review']
                 self.assertFalse(current['running'])
                 self.assertEqual(expected,current['tasks'][0]['status'])
