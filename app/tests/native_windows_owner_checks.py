@@ -64,7 +64,10 @@ while not pathlib.Path(sys.argv[4]).exists():
                 expected = {process.pid, receipt['wrapper'], receipt['redirector'], child['pid']}
                 self.assertTrue(expected.issubset(members), (expected, members))
                 self.assertEqual(sys.prefix, child['prefix'])
-                for pid in members:
+                # Only these processes are held alive by the release gate.
+                # Incidental job members can exit after the PID snapshot;
+                # total membership is checked again after termination below.
+                for pid in expected:
                     handle = api.OpenProcess(0x100000, False, pid)
                     self.assertTrue(handle, ctypes.get_last_error())
                     handles[pid] = handle
