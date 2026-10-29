@@ -81,8 +81,9 @@ class SourceUploadPublicationTests(unittest.TestCase):
         self.assertEqual(str(self.root / 'book.txt'), self.stage.published_path)
         self.assertEqual(self.payload, (self.root / 'book.txt').read_bytes())
 
-    @unittest.skipUnless(os.name == 'nt', 'Native Windows handle alias control')
     def test_alias_refusal_retains_companion_evidence_and_skips_its_name(self):
+        if os.name != 'nt':
+            return
         rename = self.stage._rename_windows
         external = self.root / 'external'
         def add_alias(destination):

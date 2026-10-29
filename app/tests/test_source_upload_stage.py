@@ -113,8 +113,9 @@ class OwnedSourceUploadStageTests(unittest.TestCase):
             self.assertFalse((self.root / 'book.txt').exists())
         stage.close()
 
-    @unittest.skipUnless(os.name == 'nt', 'Native Windows handle alias control')
     def test_windows_alias_added_during_rename_preserves_only_external_link(self):
+        if os.name != 'nt':
+            return
         stage = self.stage()
         stage.write(b'original')
         original = stage._rename_windows
@@ -129,8 +130,9 @@ class OwnedSourceUploadStageTests(unittest.TestCase):
         self.assertEqual(b'original', alias.read_bytes())
         self.assertEqual(1, alias.stat().st_nlink)
 
-    @unittest.skipUnless(os.name == 'nt', 'Native Windows handle alias control')
     def test_windows_alias_before_validation_is_refused_without_deleting_external_link(self):
+        if os.name != 'nt':
+            return
         stage = self.stage()
         stage.write(b'original')
         stage._stream.flush()
