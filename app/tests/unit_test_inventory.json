@@ -1607,6 +1607,7 @@
     "tests.test_book_state_transaction.BookStateTransactionTests.test_byte_transaction_preserves_edit_made_during_original_move",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_byte_transaction_preserves_mode_change_during_original_move",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_byte_transaction_preserves_target_created_during_publication",
+    "tests.test_book_state_transaction.BookStateTransactionTests.test_changed_generation_after_original_move_preserves_evidence",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_changed_generation_refuses_backup_and_replacement_recovery",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_changed_replacement_refuses_recovery_before_deleting_any_artifact",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_changed_stage_after_journal_preserves_evidence",

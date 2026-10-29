@@ -839,6 +839,7 @@ def _validate_moved_stream_original(row, path, old_version, budget):
     stable_fields = (0, 1, 2, 3, 5, 6)
     if (any(moved_version[index] != old_version[index] for index in stable_fields)
             or _bounded_book_digest(path, budget) != row['old_sha256']
+            or not _is_book_file_generation_current(row, 'old_file_generation', path)
             or _book_target_version(path) != moved_version):
         raise ValueError('Book artifact changed during its move; recovery evidence was preserved')
 
@@ -849,6 +850,7 @@ def _validate_moved_byte_original(row, path, old_version):
     stable_fields = (0, 1, 2, 3, 5, 6)  # A rename may change ctime.
     if (any(version[index] != old_version[index] for index in stable_fields)
             or _get_digest(path) != row['old_sha256']
+            or not _is_book_file_generation_current(row, 'old_file_generation', path)
             or _book_target_version(path) != version):
         raise ValueError('Book original changed during publication; recovery evidence was preserved')
 

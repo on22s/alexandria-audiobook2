@@ -1331,6 +1331,22 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                 self.assertEqual(b'original', (root / 'script.json').read_bytes())
                 self.assertFalse((root / books.JOURNAL).exists())
 
+    def test_changed_generation_after_original_move_preserves_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'script.json').write_bytes(b'original')
+            # The original reports 7 when captured and 8 once it sits at old-0.
+            def generation(name, dir_fd=None):
+                return 8 if Path(name).name == 'old-0' else 7
+            with books.ensure_book_state(root), \
+                 patch.object(books, 'get_book_file_generation', side_effect=generation), \
+                 self.assertRaises(ValueError):
+                books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            journal = json.loads((root / books.JOURNAL).read_text())
+            self.assertEqual(7, journal['entries'][0]['old_file_generation'])
+            self.assertEqual(b'original', (root / journal['workspace'] / 'old-0').read_bytes())
+            self.assertFalse((root / 'script.json').exists())
+
     def test_journal_without_generation_keeps_stat_identity_recovery(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
