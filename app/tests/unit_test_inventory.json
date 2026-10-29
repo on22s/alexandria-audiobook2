@@ -13419,13 +13419,17 @@
     "tests.test_windows_native_ci.NativeWindowsCiTests.test_wrong_host_is_refused_instead_of_printing_a_successful_skipped_suite"
   ],
   "test_windows_owner_lifecycle": [
+    "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_completed_owner_receipt_survives_transient_sharing_denial",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_concurrent_owner_close_does_not_query_closed_job",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_failed_kernel_assignment_never_opens_worker_gate",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_failed_temporary_directory_does_not_leak_job_handle",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_failed_worker_admission_stops_the_entire_job_before_return",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_helper_without_exclusive_membership_never_spawns_worker",
+    "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_inherited_handles_are_validated_once_before_launch",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_native_closed_pipe_detached_child_outlives_wrapper_but_not_owner",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_shutdown_retains_ownership_across_kernel_query_failure",
+    "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_unknown_job_membership_retains_supervisor_until_descendants_exit",
+    "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_untrusted_supervisor_override_is_refused_before_launch_or_job_creation",
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_worker_admission_occurs_after_kernel_assignment"
   ],
   "test_windows_subprocess_job": [
