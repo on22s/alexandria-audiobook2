@@ -308,7 +308,12 @@ def capture_native_recovery_load(model_cls, model_id, local_path, load_kwargs):
         raise RecoveryIdentityUnavailable('unavailable_native_loader_contract') from error
     if model_cls is not expected:
         raise RecoveryIdentityUnavailable('unknown_native_loader')
-    if type(load_kwargs) is not dict or set(load_kwargs) - {'dtype', 'device_map'}:
+    if type(load_kwargs) is not dict or set(load_kwargs) - {'dtype', 'device_map', 'attn_implementation'}:
+        raise RecoveryIdentityUnavailable('unsupported_native_load_options')
+    # An explicit backend (eager on MPS, #1650) is part of what was loaded, so
+    # it joins the identity; only the two the serving check also admits.
+    attention = load_kwargs.get('attn_implementation')
+    if 'attn_implementation' in load_kwargs and attention not in ('eager', 'sdpa'):
         raise RecoveryIdentityUnavailable('unsupported_native_load_options')
     dtype_name = next((name for dtype, name in dtype_names if load_kwargs.get('dtype') is dtype), None)
     if dtype_name is None:
@@ -324,6 +329,8 @@ def capture_native_recovery_load(model_cls, model_id, local_path, load_kwargs):
     snapshot = capture_recovery_model_snapshot(str(guard.root), check_active=ensure_audio_generation_active)
     guard.bind(snapshot)
     options = (('device', device), ('dtype', dtype_name))
+    if attention is not None:
+        options += (('attention', attention),)
     return NativeRecoveryLoadProposal(snapshot, code_sha256, options, guard)
 
 
