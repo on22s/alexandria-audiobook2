@@ -10,14 +10,17 @@ GENERATION_FILES = ('adapter_config.json', 'adapter_model.safetensors',
                     'ref_sample.wav', 'training_meta.json')
 
 
+# The one source for model-setting defaults: config_settings.TTSConfig takes its
+# field defaults from here, so Setup and the engine agree when config.json omits
+# them (#1671). Kept here because this module must import without site packages.
+TTS_MODEL_DEFAULTS = {"mode": "local", "device": "auto", "compile_codec": False,
+                      "max_new_tokens": 2048, "language": "English"}
+
+
 def get_tts_model_settings(config):
     """Read model inputs without constructing an engine or importing its dependencies."""
     tts = config.get("tts", {})
-    settings = {"mode": tts.get("mode", "external"),
-            "device": tts.get("device", "auto"),
-            "compile_codec": tts.get("compile_codec", False),
-            "max_new_tokens": tts.get("max_new_tokens", 2048),
-            "language": tts.get("language", "English")}
+    settings = {name: tts.get(name, default) for name, default in TTS_MODEL_DEFAULTS.items()}
     windows = get_enabled_synthesis_window_settings(tts.get("synthesis_windows"))
     if windows is not None:
         settings["synthesis_windows"] = windows
