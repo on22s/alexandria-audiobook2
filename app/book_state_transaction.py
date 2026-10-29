@@ -1202,7 +1202,8 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                 move_source_upload_exclusively(source, destination)
             return
         else:
-            if (os.open not in os.supports_dir_fd
+            if (os.open not in os.supports_dir_fd or os.stat not in os.supports_dir_fd
+                    or os.stat not in os.supports_follow_symlinks
                     or not hasattr(os, 'O_DIRECTORY') or not hasattr(os, 'O_NOFOLLOW')):
                 raise OSError(errno.ENOTSUP, 'Safe anchored book moves are unavailable')
             root = Path(os.path.abspath(anchor))
@@ -1250,16 +1251,28 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                         if (first.st_dev, first.st_ino) != (second.st_dev, second.st_ino):
                             raise ValueError('Book move parent changed; recovery evidence was preserved')
                 require_named_parents()
+                def compensation_version(info):
+                    # Rename can change ctime; the other source fields must
+                    # still match before selecting its destination name again.
+                    return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+                            info.st_size, info.st_mtime_ns)
+                moved_entry = compensation_version(os.stat(source_rel.name,
+                    dir_fd=source_fd, follow_symlinks=False))
                 move_source_upload_exclusively(source_rel.name, destination_rel.name,
                     source_dir_fd=source_fd, destination_dir_fd=destination_fd)
                 try:
                     require_named_parents()
                 except BaseException as parent_error:
                     # A parent renamed after the pre-move check still leaves the
-                    # descriptor valid, but the destination is no longer inside
-                    # the admitted root. Move our exact entry back to its pinned
-                    # source directory before reporting the relocation.
+                    # descriptor valid. Preserve existing owned-entry rollback,
+                    # but refuse a destination that no longer matches its source.
+                    # This is an observation, not an inode-conditional POSIX
+                    # rename; the caller's journal/conflict fence remains needed.
                     try:
+                        current = os.stat(destination_rel.name, dir_fd=destination_fd,
+                                          follow_symlinks=False)
+                        if compensation_version(current) != moved_entry:
+                            raise ValueError('Book move compensation entry changed')
                         move_source_upload_exclusively(destination_rel.name,
                             source_rel.name, source_dir_fd=destination_fd,
                             destination_dir_fd=source_fd)
