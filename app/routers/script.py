@@ -839,6 +839,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
         # error arrives after a book-state rename. They remain quota-accounted.
         selection['publication_started'] = True
     publication = publication_update = publication_bytes = None
+    request_error = None
     try:
         available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
         if available <= 0:
@@ -871,7 +872,9 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
             text_bytes = text.encode('utf-8')
             # The captured archive bytes now own parsing/provenance input; do
             # not reserve both its stage and the extracted text simultaneously.
-            file_path.close()
+            _, cancelled = await await_upload_operation(asyncio.to_thread(file_path.close))
+            if cancelled is not None:
+                raise cancelled
             available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
             if len(text_bytes) > min(MAX_SCRIPT_UPLOAD_BYTES, available):
                 raise HTTPException(status_code=413, detail="Extracted EPUB text exceeds source upload storage limits.")
@@ -931,10 +934,13 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
             except ValueError as error:
                 raise HTTPException(status_code=409, detail=str(error)) from error
         if not reused:
-            file_path, cancelled = await await_upload_operation(asyncio.to_thread(
-                publish_completed_upload, file_path, safe_name, retain_selected_source,
-                limit=MAX_SCRIPT_UPLOAD_BYTES,
-                companion_bytes=publication_bytes))
+            try:
+                file_path, cancelled = await await_upload_operation(asyncio.to_thread(
+                    publish_completed_upload, file_path, safe_name, retain_selected_source,
+                    limit=MAX_SCRIPT_UPLOAD_BYTES,
+                    companion_bytes=publication_bytes))
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
             if cancelled is not None:
                 raise cancelled
         selection_token = None
@@ -948,7 +954,8 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                 "book_identity_token": selection_token,
                 "publication_status": publication['metadata_status'] if publication is not None else 'not_captured',
                 "publication_warnings": publication['warnings'] if publication is not None else []}
-    except BaseException:
+    except BaseException as error:
+        request_error = error
         if any(stage.publication_started for stage in owned_stages):
             retain_selected_source()
         if publication_update is not None and not selection['publication_started']:
@@ -956,8 +963,14 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
         raise
     finally:
         try:
-            _, cleanup_cancelled = await await_upload_operation(asyncio.to_thread(stage_cleanup.close))
-            if cleanup_cancelled is not None:
+            try:
+                _, cleanup_cancelled = await await_upload_operation(asyncio.to_thread(stage_cleanup.close))
+            except Exception as error:
+                if request_error is None:
+                    raise
+                logger.warning('Upload stage cleanup also failed: %s', type(error).__name__)
+                cleanup_cancelled = None
+            if cleanup_cancelled is not None and request_error is None:
                 raise cleanup_cancelled
         finally:
             storage_lock.__exit__(None, None, None)

@@ -81,6 +81,29 @@ class SourceUploadPublicationTests(unittest.TestCase):
         self.assertEqual(str(self.root / 'book.txt'), self.stage.published_path)
         self.assertEqual(self.payload, (self.root / 'book.txt').read_bytes())
 
+    @unittest.skipUnless(os.name == 'nt', 'Native Windows handle alias control')
+    def test_alias_refusal_retains_companion_evidence_and_skips_its_name(self):
+        rename = self.stage._rename_windows
+        external = self.root / 'external'
+        def add_alias(destination):
+            rename(destination)
+            os.link(destination, external)
+        companion = self.get_companion_bytes()
+        with patch.object(self.stage, '_rename_windows', side_effect=add_alias):
+            with self.assertRaisesRegex(ValueError, 'alias'):
+                publication.publish_completed_upload(self.stage, 'book.txt', lambda path: None,
+                    limit=len(self.payload), companion_bytes=companion)
+        self.assertFalse((self.root / 'book.txt').exists())
+        self.assertEqual(self.payload, external.read_bytes())
+        self.assertEqual(companion, (self.root / 'book.txt.publication.json').read_bytes())
+        retry = publication.create_source_upload_stage(self.root, limit=len(self.payload))
+        self.addCleanup(retry.close)
+        retry.write(self.payload)
+        result = publication.publish_completed_upload(retry, 'book.txt', lambda path: None,
+            limit=len(self.payload), companion_bytes=companion)
+        self.assertEqual('book_2.txt', Path(result).name)
+        self.assertEqual(companion, (self.root / 'book.txt.publication.json').read_bytes())
+
     def test_visibility_handoff_has_all_bytes_and_private_name_is_removed(self):
         observed = []
         result = self.publish(lambda path: observed.append(Path(path).read_bytes()))

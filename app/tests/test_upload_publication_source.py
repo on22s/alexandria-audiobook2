@@ -31,13 +31,29 @@ def epub(title='Fixture title', *, cover=None, metadata=True, text=TEXT):
     with zipfile.ZipFile(raw, 'w') as archive:
         for name, data in [('META-INF/container.xml', container), ('book.opf', package),
                            ('body.xhtml', '<html><body><p>' + text.decode() + '</p></body></html>')]:
-            archive.writestr(name, data)
+            # Equal fixture content must mean equal archive identity, including
+            # when requests cross a ZIP timestamp's two-second boundary.
+            archive.writestr(zipfile.ZipInfo(name), data)
         if cover:
-            archive.writestr('cover.png', cover)
+            archive.writestr(zipfile.ZipInfo('cover.png'), cover)
     return raw.getvalue()
 
 
 class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_invalid_new_candidate_cannot_corrupt_existing_provenance(self):
+        async with self.environment() as (_, uploads, client):
+            self.assertEqual(200, (await self.upload(client, epub())).status_code)
+            before = {path.name: path.read_bytes() for path in uploads.iterdir()}
+            capture = script.get_epub_publication_candidate
+            def malformed(*args, **options):
+                result = capture(*args, **options)
+                result['fields']['title'] = ['x' * 30000]
+                return result
+            with patch.object(script, 'get_epub_publication_candidate', side_effect=malformed):
+                response = await self.upload(client, epub('New origin'))
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(before, {path.name: path.read_bytes() for path in uploads.iterdir()})
+
     @asynccontextmanager
     async def environment(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -95,12 +111,15 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
             original = epub(); replacement = epub('Replacement title', text=b'Replacement source words.')
             extract = script.extract_epub_text
             def replaced(path, **kwargs):
-                Path(path).write_bytes(replacement)
+                # The parser receives a display label and captured bytes. A
+                # different file at that label must never select its input.
+                (uploads / path).write_bytes(replacement)
                 return extract(path, **kwargs)
             with patch.object(script, 'extract_epub_text', side_effect=replaced):
                 response = await self.upload(client, original)
             self.assertEqual(200, response.status_code, response.text)
             self.assertEqual(TEXT, (uploads / 'book.txt').read_bytes())
+            self.assertEqual(replacement, (uploads / 'book.epub').read_bytes())
             record = json.loads((uploads / 'book.txt.publication.json').read_bytes())
             self.assertEqual(hashlib.sha256(original).hexdigest(), record['candidates'][0]['origin']['sha256'])
             self.assertEqual(['Fixture title'], record['candidates'][0]['fields']['title'])

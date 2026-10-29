@@ -195,6 +195,7 @@ def get_upload_publication_update(input_path, candidate, remaining_bytes, *, sou
             raise PublicationSourceLimit('At most four distinct EPUB origins can share one text upload')
         document['candidates'].append(candidate)
         encoded = _get_publication_source_bytes(document)
+        get_publication_source_document(encoded)
     if encoded != raw and len(encoded) > remaining_bytes:
         # Reserve the whole staged replacement, not merely its final size delta.
         raise PublicationSourceLimit('Publication provenance exceeds available upload storage')

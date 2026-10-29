@@ -14,6 +14,10 @@ refusal deletes only the held handle's unaccepted link, preserving an external
 alias. These operations require filesystem support. Missing support fails the
 upload; there is no pathname copy or ordinary overwriting rename fallback.
 
+Windows alias refusal can follow brief source visibility. Its companion remains
+as evidence of that uncertain outcome even when the held source link was removed;
+later uploads skip the orphan's name and its bytes remain quota-accounted.
+
 Live owners contribute their authoritative written size to the upload quota.
 Their names, when present, are excluded from the named-file scan to avoid double
 counting or stale Windows directory-entry sizes. The request holds the upload

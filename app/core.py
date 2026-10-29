@@ -144,7 +144,10 @@ async def _save_upload_limited(file: UploadFile, path: str, max_bytes: int) -> N
                     raise HTTPException(status_code=413, detail="Uploaded file is too large.")
                 await asyncio.to_thread(path.write, chunk)
         except Exception:
-            path.close()
+            try:
+                path.close()
+            except Exception as error:
+                logger.warning('Upload stage cleanup also failed: %s', type(error).__name__)
             raise
         return
     written = 0

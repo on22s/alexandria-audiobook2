@@ -16,6 +16,37 @@ from source_upload_stage import OwnedSourceUploadStage
 
 
 class SourceUploadVisibilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_epub_stage_cleanup_leaves_event_loop_free_and_waits_on_cancel(self):
+        async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (root, uploads, client):
+            entered, release = threading.Event(), threading.Event()
+            original, loop_thread = OwnedSourceUploadStage.close, threading.get_ident()
+            worker_threads = []
+            def paused_close(stage):
+                if stage._stream is not None and stage.published_path is None and not entered.is_set():
+                    worker_threads.append(threading.get_ident())
+                    entered.set()
+                    if not release.wait(4):
+                        raise TimeoutError('archive close worker was not released')
+                return original(stage)
+            upload = UploadFile(filename='book.epub', file=io.BytesIO(epub()))
+            with patch.object(OwnedSourceUploadStage, 'close', paused_close):
+                task = asyncio.create_task(script.upload_file(upload, select_active=False))
+                try:
+                    self.assertTrue(await asyncio.to_thread(entered.wait, 3))
+                    self.assertNotEqual(loop_thread, worker_threads[0])
+                    self.assertEqual([], (await client.get('/api/uploads')).json())
+                    task.cancel()
+                    await asyncio.sleep(.02)
+                    self.assertFalse(task.done())
+                finally:
+                    release.set()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await asyncio.wait_for(task, 3)
+                    await upload.close()
+            self.assertEqual([], list(uploads.iterdir()))
+            with script.file_lock(str(uploads) + '.quota', timeout=.1):
+                pass
+
     async def test_writer_close_failure_retains_unknown_source_and_provenance(self):
         for name, data in (('book.txt', b'Complete synthetic text.'), ('book.epub', epub())):
             with self.subTest(name=name):
