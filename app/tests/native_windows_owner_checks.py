@@ -103,8 +103,11 @@ while not pathlib.Path(sys.argv[4]).exists():
 
     def test_current_python_environment_override_and_explicit_handle_are_preserved(self):
         import msvcrt
-        for override in (False, True):
-            with self.subTest(executable_override=override), tempfile.TemporaryDirectory() as temporary:
+        cases = ((worker, prefix, override)
+                 for worker, prefix in ((sys.executable, sys.prefix), (sys._base_executable, sys.base_prefix))
+                 for override in (None, sys.executable, sys._base_executable))
+        for worker, prefix, override in cases:
+            with self.subTest(worker=worker, executable_override=override), tempfile.TemporaryDirectory() as temporary:
                 working = Path(temporary).resolve()
                 ready = working / 'worker-ready.json'
                 environment = dict(os.environ, AA2_OWNER_ENV='bounded child environment')
@@ -112,20 +115,21 @@ while not pathlib.Path(sys.argv[4]).exists():
                     environment['__pyvenv_launcher__'] = sys._base_executable
                 original_environment = dict(environment)
                 reader, writer = os.pipe()
-                raw_handle = msvcrt.get_osfhandle(writer)
-                os.set_handle_inheritable(raw_handle, True)
                 process = None
                 try:
+                    raw_handle = msvcrt.get_osfhandle(writer)
+                    os.set_handle_inheritable(raw_handle, True)
                     child = ('import json,msvcrt,os,pathlib,sys; '
                         'fd=msvcrt.open_osfhandle(int(sys.argv[1]),os.O_WRONLY); '
                         'os.write(fd,b"bounded explicit handle payload");os.close(fd); '
                         'pathlib.Path(sys.argv[2]).write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix,'
                         '"executable":sys.executable,"cwd":os.getcwd(),"args":sys.argv[3:],'
-                        '"marker":os.environ.get("AA2_OWNER_ENV")})); '
+                        '"marker":os.environ.get("AA2_OWNER_ENV"),'
+                        '"launcher_keys":[k for k in os.environ if k.casefold()=="__pyvenv_launcher__"]})); '
                         'print(json.dumps({"stdin":sys.stdin.read()}),flush=True)')
-                    options = {'executable':sys.executable} if override else {}
+                    options = {'executable':override} if override is not None else {}
                     process = start_windows_owned_subprocess(
-                        [sys.executable, '-c', child, str(raw_handle), str(ready), 'argument with spaces', 'Unicode-\u03a9'],
+                        [worker, '-c', child, str(raw_handle), str(ready), 'argument with spaces', 'Unicode-\u03a9'],
                         inherited_handles=(raw_handle,), env=environment, cwd=str(working),
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                         text=True, **options)
@@ -141,8 +145,9 @@ while not pathlib.Path(sys.argv[4]).exists():
                                 self.fail('worker did not report its actual environment')
                             time.sleep(.01)
                     self.assertIn(row['pid'], process._alexandria_windows_owner.job.get_process_ids())
-                    self.assertEqual(sys.prefix, row['prefix'])
-                    self.assertEqual(sys.executable, row['executable'])
+                    self.assertEqual(prefix, row['prefix'])
+                    self.assertEqual(worker, row['executable'])
+                    self.assertEqual([], row['launcher_keys'])
                     self.assertEqual(working, Path(row['cwd']))
                     self.assertEqual(['argument with spaces', 'Unicode-\u03a9'], row['args'])
                     self.assertEqual('bounded child environment', row['marker'])

@@ -176,6 +176,7 @@ jobs:
           PYTHONPATH: .
         run: |
           python -m venv --system-site-packages .native-owner-venv
+          .native-owner-venv/Scripts/python.exe -c "import sys; assert sys.executable != sys._base_executable; assert sys.prefix != sys.base_prefix"
           .native-owner-venv/Scripts/python.exe tests/native_windows_owner_checks.py
       - name: Verify native Windows resource admission and mutation locks
         run: python -m unittest tests.test_task_resources -v

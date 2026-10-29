@@ -23,6 +23,10 @@ The current-interpreter check also preserves the venv identity, explicit executa
 override, caller environment, cwd, Unicode arguments, stdin and declared inherited
 handle. Detached tests identify actual interpreter/redirector PIDs and retain
 process handles through shutdown, including any additional console-host members.
+The executable option configures the trusted supervisor; the worker command's
+first argument selects its interpreter. The native matrix exercises both base
+and current-venv workers with inherited/current/base supervisor choices, and
+checks that Python consumes the private launcher variable before worker work.
 
 Before that native CI job succeeds, Windows kernel verification remains pending.
 The current macOS process-group fallback still lacks exclusive lifetime ownership

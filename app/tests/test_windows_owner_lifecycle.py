@@ -93,7 +93,7 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
         clock = [0]
         open_file = Path.open
         def open_receipt(path, *args, **kwargs):
-            if path.name == 'worker.json' and path.exists() and remaining[0]:
+            if path.name == 'worker.json' and (path.exists() or owner_exited) and remaining[0]:
                 self.assertEqual(1,job.active)
                 self.assertIsNotNone(job.handle)
                 self.assertNotIn('terminate',job.calls)
@@ -179,6 +179,7 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
         self.check_admission(fail_worker=True)
         self.check_admission(fail_worker=True,locked_reads=2)
         self.check_admission(owner_exited=True)
+        self.check_admission(owner_exited=True, locked_reads=2)
         for message in ({'started':9002},{'error':'missing executable','errno':2},
                 {'error':'Unicode startup path '+('\U0001f642'*10000),'errno':None}):
             with self.subTest(roundtrip=list(message)),tempfile.TemporaryDirectory() as tmp:

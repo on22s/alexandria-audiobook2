@@ -128,6 +128,8 @@ def _popen_owned_python(command, **kwargs):
 
 
 def start_windows_owned_subprocess(command, *, exit_notice_path=None, termination_grace=None, inherited_handles=(), **kwargs):
+    # Popen options configure the trusted supervisor. The worker interpreter
+    # is selected by command[0], including an explicitly requested base Python.
     if kwargs.get('executable') is not None:
         trusted = {os.path.normcase(sys.executable),
                    os.path.normcase(getattr(sys, '_base_executable', None) or sys.executable)}
@@ -173,7 +175,8 @@ def start_windows_owned_subprocess(command, *, exit_notice_path=None, terminatio
                 # A published Windows receipt can temporarily deny reads. Keep
                 # the same admitted job and worker until the original deadline;
                 # never respawn or release ownership while its receipt is blocked.
-                pass
+                if process.poll() is not None:
+                    raise OSError('Windows subprocess owner exited before worker admission')
             if time.monotonic() >= deadline:
                 raise OSError('Windows subprocess owner did not acknowledge worker admission')
             time.sleep(.01)

@@ -37,6 +37,7 @@ class NativeWindowsCiTests(unittest.TestCase):
         self.assertIn('runs-on: windows-latest', workflow)
         self.assertIn('run: python tests/native_windows_owner_checks.py', workflow)
         self.assertIn('python -m venv --system-site-packages .native-owner-venv', workflow)
+        self.assertIn('assert sys.executable != sys._base_executable', workflow)
         self.assertIn('.native-owner-venv/Scripts/python.exe tests/native_windows_owner_checks.py', workflow)
         self.assertIn('run: python -m unittest tests.test_export_staging -v', workflow)
         self.assertIn('PYTHONPATH: .', workflow)
