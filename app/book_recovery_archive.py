@@ -258,17 +258,19 @@ def _capture_book_token(root, cancel_check):
 
 
 def _direct_root(root):
+    from direct_path_admission import is_plain_path
     root = Path(os.path.abspath(root))
-    if (not root.is_dir() or os.path.normcase(os.path.realpath(root)) != os.path.normcase(str(root))):
+    if not root.is_dir() or not is_plain_path(root):
         raise ValueError('Recovery requires a direct project directory')
     return root
 
 
 def _require_root_identity(root, root_fd, expected):
+    from direct_path_admission import is_plain_path
     opened = os.fstat(root_fd)
     current = root.lstat()
     if (not stat.S_ISDIR(current.st_mode) or stat.S_ISLNK(current.st_mode)
-            or os.path.normcase(os.path.realpath(root)) != os.path.normcase(str(root))
+            or not is_plain_path(root)
             or (opened.st_dev, opened.st_ino) != expected
             or (current.st_dev, current.st_ino) != expected):
         raise ValueError('Recovery project root changed during capture')
