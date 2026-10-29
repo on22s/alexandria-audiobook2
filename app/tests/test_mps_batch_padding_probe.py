@@ -1,5 +1,8 @@
 """The #1650 MPS probe's pure parts; its MPS run is not testable here."""
 import math
+import json
+import sys
+from types import SimpleNamespace
 import tempfile
 import unittest
 from pathlib import Path
@@ -78,6 +81,26 @@ class ProbeRecordTests(unittest.TestCase):
 
 
 class ProbeReadingTests(unittest.TestCase):
+    def test_load_and_measurement_failures_cannot_claim_model_verdicts(self):
+        self.assertEqual('model_load_failure', probe.get_reading({
+            'sdpa': {'load_error': 'RuntimeError: failed to load', 'cases': {}}}))
+        self.assertEqual('inconclusive_memory', probe.get_reading({
+            'eager': {'load_error': 'RuntimeError: out of memory', 'cases': {}}}))
+        observed = self.results(False, False)
+        for backend in probe.BACKENDS:
+            observed[backend]['cases']['padded_mixed']['instrument_error'] = True
+        self.assertEqual('instrument_failure', probe.get_reading(observed))
+
+    def test_equal_tokens_in_one_case_do_not_discard_other_padding_evidence(self):
+        observed = self.results(False, True)
+        for backend in probe.BACKENDS:
+            observed[backend]['cases']['padded_short'] = result(True, tokens=(6, 6))
+        self.assertEqual('padding_backend_association', probe.get_reading(observed))
+        observed = self.results(True, True)
+        observed['sdpa']['cases']['padded_short'] = result(False, tokens=(6, 6))
+        observed['eager']['cases']['padded_short'] = result(True, tokens=(6, 6))
+        self.assertEqual('not_reproduced', probe.get_reading(observed))
+
     def results(self, sdpa_padded, eager_padded, singles=True, eager_loaded='eager',
                 tokens=(9, 5), error='RuntimeError: probability tensor contains either inf, nan or element < 0'):
         def backend(padded, loaded):
@@ -165,10 +188,51 @@ class ProbeReadingTests(unittest.TestCase):
 
 
 class ProbeRefusalTests(unittest.TestCase):
+    def test_load_failure_writes_final_artifact_for_either_arm(self):
+        for failing_backend in (*probe.BACKENDS, 'measurement'):
+            with self.subTest(backend=failing_backend), tempfile.TemporaryDirectory() as temp:
+                out = Path(temp) / 'result.json'
+                model = SimpleNamespace(generate_custom_voice=lambda **kwargs: ([[0.1]] * len(kwargs['text']), 24000))
+                def load(*args, **kwargs):
+                    if kwargs['attn_implementation'] == failing_backend:
+                        raise RuntimeError('model load broke')
+                    return model
+                torch = SimpleNamespace(__version__='test', float32='float32',
+                    backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: True)),
+                    manual_seed=lambda seed: None, mps=SimpleNamespace(empty_cache=lambda: None))
+                def write(value, path):
+                    Path(path).write_text(json.dumps(value))
+                modules = {'torch': torch, 'qwen_tts': SimpleNamespace(Qwen3TTSModel=SimpleNamespace(from_pretrained=load)),
+                    'huggingface_hub': SimpleNamespace(snapshot_download=lambda **kwargs: temp),
+                    'transformers': SimpleNamespace(__version__='test'),
+                    'experiments.provenance': SimpleNamespace(provenance=lambda *args: {}),
+                    'utils': SimpleNamespace(atomic_json_write=write)}
+                with patch.dict(sys.modules, modules), patch('sys.argv', ['probe', '--out', str(out)]), \
+                     patch.object(probe, 'resolve_model_snapshot', return_value=(temp, 'a' * 40)), \
+                     patch.object(probe, 'get_loaded_backends', side_effect=lambda model: {
+                         'Qwen3TTSTalkerAttention:talker': 'sdpa',
+                         'Qwen3TTSAttention:predictor': 'sdpa'}), \
+                     patch.object(probe, 'get_token_lengths',
+                         side_effect=RuntimeError('token measurement broke')
+                         if failing_backend == 'measurement' else None,
+                         return_value=[9, 5]):
+                    probe.main()
+                artifact = json.loads(out.read_text())
+                self.assertEqual('complete', artifact['status'])
+                if failing_backend == 'measurement':
+                    self.assertEqual('instrument_failure', artifact['reading'])
+                    for backend in probe.BACKENDS:
+                        records = artifact['results'][backend]['cases']
+                        self.assertEqual(len(probe.get_probe_cases()), len(records))
+                        self.assertTrue(all(record['instrument_error'] for record in records.values()))
+                else:
+                    self.assertEqual('model_load_failure', artifact['reading'])
+                    self.assertIn('model load broke', artifact['results'][failing_backend]['load_error'])
+
     def test_refuses_without_mps_before_loading_anything(self):
-        import torch
+        torch = SimpleNamespace(backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: False)))
         with patch('sys.argv', ['probe']), \
-                patch.object(torch.backends.mps, 'is_available', return_value=False), \
+                patch.dict(sys.modules, {'torch': torch}), \
                 self.assertRaisesRegex(SystemExit, 'MPS is not available'):
             probe.main()
 

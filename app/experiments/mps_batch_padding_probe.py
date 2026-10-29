@@ -36,7 +36,9 @@ Readings, fixed before running (`get_reading`), checked in this order:
   a case is missing                     the comparison is incomplete
   token lengths unavailable             the measurement instrument failed
   invalid rate or output count          the model output contract failed
-  a padded case's tokens are equal      padding was not exercised for that case
+  no case padded in both arms          padding was not exercised; cases with
+                                        equal tokens are excluded from the
+                                        padding comparison
   any single line fails                 the cap alone is not enough; report it
   equal-length control fails            the failure is not isolated to padding
   sdpa failure has a different error    the observed failure was not the issue's
@@ -153,6 +155,13 @@ def get_reading(results):
         return any(not result["ok"] for name, result in cases(backend).items()
                    if name.startswith(prefix))
     every = [result for backend in BACKENDS for result in cases(backend).values()]
+    load_errors = [results.get(backend, {}).get('load_error') for backend in BACKENDS]
+    if any('out of memory' in (error or '').lower() for error in load_errors):
+        return 'inconclusive_memory'
+    if any(load_errors):
+        return 'model_load_failure'
+    if any(result.get('instrument_error') for result in every):
+        return 'instrument_failure'
     if any("out of memory" in (result["error"] or "").lower() for result in every):
         return "inconclusive_memory"
     for backend in BACKENDS:
@@ -171,8 +180,10 @@ def get_reading(results):
                 return "instrument_failure"
     if any((result.get("error") or "").startswith("output contract:") for result in every):
         return "output_contract_failure"
-    if any(name.startswith("padded") and len(set(result.get("token_lengths") or [0])) < 2
-           for backend in BACKENDS for name, result in cases(backend).items()):
+    padded_names = {name for name in expected if name.startswith('padded')
+                    and all(len(set(cases(backend)[name]['token_lengths'])) > 1
+                            for backend in BACKENDS)}
+    if not padded_names:
         return "padding_not_exercised"
     if failed("sdpa", "single") or failed("eager", "single"):
         return "single_line_failure"
@@ -181,10 +192,11 @@ def get_reading(results):
            len(set(cases(backend)["equal_control"].get("token_lengths") or [])) != 1
            for backend in BACKENDS):
         return "control_failure"
-    sdpa, eager = failed("sdpa", "padded"), failed("eager", "padded")
+    sdpa, eager = (any(not cases(backend)[name]['ok'] for name in padded_names)
+                   for backend in BACKENDS)
     if sdpa and not eager:
         failures = [result for name, result in cases("sdpa").items()
-                    if name.startswith("padded") and not result["ok"]]
+                    if name in padded_names and not result["ok"]]
         if any("probability tensor contains either" not in (result.get("error") or "").lower()
                for result in failures):
             return "unexpected_failure"
@@ -222,22 +234,33 @@ def main():
                            "versions": versions, "provenance": provenance(__file__, args)}, args.out)
     for backend in BACKENDS:
         print(f"\n== loading {MODEL_ID} on mps, float32, attention={backend}")
-        model = Qwen3TTSModel.from_pretrained(
-            model_path, dtype=torch.float32, device_map="mps", attn_implementation=backend)
-        results[backend] = {"loaded": get_loaded_backends(model), "cases": {}}
+        results[backend] = {'loaded': {}, 'cases': {}}
+        try:
+            model = Qwen3TTSModel.from_pretrained(
+                model_path, dtype=torch.float32, device_map="mps", attn_implementation=backend)
+        except Exception as error:
+            results[backend]['load_error'] = f'{type(error).__name__}: {error}'[:500]
+            write('complete', get_reading(results))
+            return
+        results[backend]['loaded'] = get_loaded_backends(model)
         print(f"  loaded attention: {sorted(set(results[backend]['loaded'].values()), key=str)}")
         for name, texts, speakers in get_probe_cases():
             torch.manual_seed(args.seed)
             started = time.time()
             token_lengths = None
+            stage = 'measurement'
             try:
                 token_lengths = get_token_lengths(model, texts)
+                stage = 'generation'
                 wavs, rate = model.generate_custom_voice(
                     text=texts, speaker=speakers, language=["English"] * len(texts),
                     non_streaming_mode=True, max_new_tokens=args.max_new_tokens)
+                stage = 'measurement'
                 record = get_case_result(wavs, rate, expected_count=len(texts))
             except Exception as error:   # recorded, not hidden: this is the measurement
                 record = get_case_result([], 0, error)
+                if stage == 'measurement':
+                    record['instrument_error'] = True
             record["texts"], record["speakers"] = texts, speakers
             record["token_lengths"] = token_lengths
             record["elapsed_s"] = round(time.time() - started, 2)
