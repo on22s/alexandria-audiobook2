@@ -13,6 +13,19 @@ from book_state_transaction import ensure_book_state, get_book_operation_token
 
 
 class ScriptSelectionBindingTests(unittest.TestCase):
+    def test_staged_registry_refuses_existing_non_registry_content(self):
+        from script_selection_binding import _add_staged_registry
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            registry = root / 'custom-aliases.json'
+            original = b'not an alias registry'
+            registry.write_bytes(original)
+            replacements = {}
+            with self.assertRaises(ValueError):
+                _add_staged_registry(root, {'before': original, 'after': b'{}'}, registry, replacements)
+            self.assertEqual({}, replacements)
+            self.assertEqual(original, registry.read_bytes())
+
     def setUp(self):
         self.token = 'a' * 64
         self.source = 'b' * 64
@@ -115,7 +128,11 @@ class ScriptSelectionBindingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             for name in ('.active_book_transaction.json', '.active_book_transaction.json.lock',
-                         'state.json.lock', 'voice_config.json.lock'):
+                         'state.json.lock', 'voice_config.json.lock',
+                         'annotated_script.json.threepass_checkpoint.json',
+                         'annotated_script.json.threepass_checkpoint.json.parts-example',
+                         'cloned_audiobook.mp3', 'audiobook.m4b', 'voice_library.json', 'config.json',
+                         '.project_scope_undo.json'):
                 staged = {'path':str(root / name), 'before':None, 'after':b'{}'}
                 with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'collides'):
                     _staged_registry_path(root, staged)

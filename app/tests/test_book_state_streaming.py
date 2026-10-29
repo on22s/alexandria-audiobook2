@@ -20,6 +20,210 @@ def stream(data):
 
 
 class BookStateStreamingTests(unittest.TestCase):
+    @unittest.skipIf(os.name == 'nt', 'POSIX parent identity evidence')
+    def test_parent_identity_walk_honors_cancellation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            info = root.stat()
+            names = [f'file-{i}' for i in range(10)]
+            evidence = [[[info.st_dev, info.st_ino]] for _ in names]
+            checks = []
+            def cancel():
+                checks.append(True)
+                return len(checks) == 5
+            with self.assertRaises(AudioGenerationCancelled):
+                books._require_transaction_parent_identities(root, names, evidence, cancel_check=cancel)
+            self.assertEqual(5, len(checks))
+
+    def test_missing_workspace_recheck_honors_recovery_cancellation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'file'
+            target.write_bytes(b'generated')
+            info = target.stat()
+            data = {'version': 2, 'phase': 'committed', 'workspace': '.book-switch-missing',
+                    'stream_limits': {'bytes': 100, 'entries': 10},
+                    'entries': [{'path': 'file', 'existed': False, 'old_sha256': None,
+                                 'new_sha256': hashlib.sha256(b'generated').hexdigest(),
+                                 'new_file_identity': [info.st_dev, info.st_ino]}]}
+            books._save_journal(root, data)
+            verify = books._verify_committed_stream_targets
+            cancelled = []
+            def cancel_after_initial_validation(*args):
+                result = verify(*args)
+                cancelled.append(True)
+                return result
+            with patch.object(books, '_verify_committed_stream_targets', side_effect=cancel_after_initial_validation):
+                with self.assertRaises(AudioGenerationCancelled):
+                    with books.ensure_book_state(root, cancel_check=lambda: bool(cancelled)):
+                        self.fail('Cancelled recovery was admitted')
+            self.assertTrue(cancelled)
+            self.assertTrue((root / books.JOURNAL).exists())
+            self.assertEqual(b'generated', target.read_bytes())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX parent identity evidence')
+    def test_committed_removal_preserves_evidence_if_parent_is_removed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            parent = root / 'sub'
+            parent.mkdir()
+            (parent / 'old').write_bytes(b'original')
+            save = books._save_journal
+            removed = []
+            def remove_parent_after_commit(directory, document, **kwargs):
+                result = save(directory, document, **kwargs)
+                if document['phase'] == 'committed' and not removed:
+                    parent.rmdir()
+                    removed.append(True)
+                return result
+            with patch.object(books, '_save_journal', side_effect=remove_parent_after_commit):
+                with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'parent changed'):
+                    books.apply_book_state_locked(root, {'new': stream(b'generated')}, ['sub/old'],
+                                                  stream_byte_limit=100)
+            self.assertTrue(removed)
+            journal = json.loads((root / books.JOURNAL).read_text())
+            self.assertEqual(b'original', (root / journal['workspace'] / 'old-1').read_bytes())
+            self.assertEqual(b'generated', (root / 'new').read_bytes())
+            with self.assertRaisesRegex(ValueError, 'parent changed'):
+                with books.ensure_book_state(root):
+                    self.fail('Changed parent must be inspected before recovery')
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX parent identity evidence')
+    def test_missing_workspace_rechecks_parent_before_retiring_journal(self):
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as outside_dir:
+            root, outside = Path(temporary), Path(outside_dir)
+            parent = root / 'sub'
+            parent.mkdir()
+            target = parent / 'file'
+            target.write_bytes(b'generated')
+            info = target.stat()
+            descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                parents = [books._capture_target_parent_identities(descriptor, 'sub/file')]
+            finally:
+                os.close(descriptor)
+            data = {'version': 2, 'phase': 'committed', 'workspace': '.book-switch-missing',
+                    'target_parent_identities': parents, 'stream_limits': {'bytes': 100, 'entries': 10},
+                    'entries': [{'path': 'sub/file', 'existed': False, 'old_sha256': None,
+                                 'new_sha256': hashlib.sha256(b'generated').hexdigest(),
+                                 'new_file_identity': [info.st_dev, info.st_ino]}]}
+            books._save_journal(root, data)
+            verify = books._verify_committed_stream_targets
+            swapped = []
+            def swap_after_validation(*args):
+                result = verify(*args)
+                if not swapped:
+                    parent.rename(outside / 'moved')
+                    parent.symlink_to(outside / 'moved', target_is_directory=True)
+                    swapped.append(True)
+                return result
+            with patch.object(books, '_verify_committed_stream_targets', side_effect=swap_after_validation):
+                with self.assertRaises((OSError, ValueError)):
+                    with books.ensure_book_state(root):
+                        self.fail('Changed parent was admitted')
+            self.assertTrue(swapped)
+            self.assertTrue((root / books.JOURNAL).exists())
+            self.assertEqual(b'generated', (outside / 'moved' / 'file').read_bytes())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX parent identity evidence')
+    def test_root_level_parent_checks_use_the_same_pinned_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            info = root.stat()
+            expected = [[[info.st_dev, info.st_ino]], [[info.st_dev, info.st_ino]]]
+            with patch.object(books, '_capture_target_parent_identities',
+                              side_effect=AssertionError('root parent should not be reopened')):
+                books._require_transaction_parent_identities(root, ['one', 'two'], expected)
+                expected[1][0][1] += 1
+                with self.assertRaisesRegex(ValueError, 'parent changed'):
+                    books._require_transaction_parent_identities(root, ['one', 'two'], expected)
+            for name in ('..', '/', '//', ''):
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'Invalid book artifact path'):
+                    books._require_transaction_parent_identities(root, [name], [[[info.st_dev, info.st_ino]]])
+            with patch.object(books.os, 'name', 'nt'):
+                with self.assertRaisesRegex(OSError, 'Anchored parent capture is unavailable'):
+                    books._require_transaction_parent_identities(root, ['one'],
+                                                                  [[[info.st_dev, info.st_ino]]])
+
+    @unittest.skipUnless(hasattr(os, 'fchmod') and hasattr(os, 'O_DIRECTORY'), 'POSIX descriptor-relative staging')
+    def test_descriptor_relative_stage_without_fchmod_never_chmods_cwd(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                with patch.object(books.os, 'fchmod'), patch.object(books.os, 'chmod') as chmod:
+                    del books.os.fchmod
+                    with self.assertRaisesRegex(OSError, 'requires fchmod'):
+                        books._stage_book_stream('stage', stream(b'content'), 0o600, None,
+                                                 directory_fd=descriptor)
+                    chmod.assert_not_called()
+            finally:
+                os.close(descriptor)
+
+    @unittest.skipUnless(hasattr(os, 'fchmod') and hasattr(os, 'O_DIRECTORY'), 'POSIX descriptor-relative staging')
+    def test_missing_fchmod_cleans_failed_transaction_stage(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'file'
+            target.write_bytes(b'original')
+            with books.ensure_book_state(root), patch.object(books.os, 'fchmod'):
+                del books.os.fchmod
+                with self.assertRaisesRegex(OSError, 'requires fchmod'):
+                    books.apply_book_state_locked(root, {'file': stream(b'new')}, [], stream_byte_limit=100)
+            self.assertEqual(b'original', target.read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
+            self.assertFalse(list(root.glob('.book-switch-*')))
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX parent identity evidence')
+    def test_stream_cleanup_rechecks_parent_before_reading_target(self):
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as outside_dir:
+            root, outside = Path(temporary), Path(outside_dir)
+            parent = root / 'sub'
+            parent.mkdir()
+            (parent / 'file').write_bytes(b'generated')
+            descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                parents = [books._capture_target_parent_identities(descriptor, 'sub/file')]
+            finally:
+                os.close(descriptor)
+            data = {'phase': 'committed', 'entries': [{'path': 'sub/file'}],
+                    'target_parent_identities': parents, 'stream_limits': {'bytes': 100, 'entries': 10}}
+            get_path = books._get_path
+            def swap_after_lookup(*args):
+                target = get_path(*args)
+                parent.rename(outside / 'moved')
+                parent.symlink_to(outside / 'moved', target_is_directory=True)
+                return target
+            with patch.object(books, '_get_path', side_effect=swap_after_lookup), \
+                 patch.object(books, '_verify_committed_stream_targets') as verify:
+                with self.assertRaisesRegex(ValueError, 'parent changed'):
+                    books._verify_stream_cleanup_targets(root, data)
+                verify.assert_not_called()
+            self.assertEqual(b'generated', (outside / 'moved' / 'file').read_bytes())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX parent identity evidence')
+    def test_stream_cleanup_rechecks_parent_after_target_validation(self):
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as outside_dir:
+            root, outside = Path(temporary), Path(outside_dir)
+            parent = root / 'sub'
+            parent.mkdir()
+            (parent / 'file').write_bytes(b'generated')
+            descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                parents = [books._capture_target_parent_identities(descriptor, 'sub/file')]
+            finally:
+                os.close(descriptor)
+            data = {'phase': 'committed', 'entries': [{'path': 'sub/file'}],
+                    'target_parent_identities': parents, 'stream_limits': {'bytes': 100, 'entries': 10}}
+            def swap_during_validation(*args):
+                parent.rename(outside / 'moved')
+                parent.symlink_to(outside / 'moved', target_is_directory=True)
+            with patch.object(books, '_verify_committed_stream_targets', side_effect=swap_during_validation):
+                with self.assertRaisesRegex(ValueError, 'parent changed'):
+                    books._verify_stream_cleanup_targets(root, data)
+            self.assertEqual(b'generated', (outside / 'moved' / 'file').read_bytes())
+
     def test_stage_finish_observes_flushed_bytes_on_success_and_failure(self):
         class ShortInput(io.BytesIO):
             def read(self, size=-1):

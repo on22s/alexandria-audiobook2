@@ -2580,6 +2580,43 @@ def _load_three_pass_checkpoint(output_path, fingerprint, chunk_count=None):
     return data
 
 
+def _refuse_checkpoint_replay_over_edited_publication(output_path):
+    """Preserve a later edit when a completed checkpoint is replayed."""
+    from project_scope_files import capture_scope_file
+    from script_selection_binding import _unique_pairs
+
+    output = Path(os.path.abspath(output_path))
+    manifest = Path(three_pass_manifest_path(str(output)))
+    try:
+        _, raw = capture_scope_file(output.parent, manifest.name, limit=16 * 1024**2,
+                                    include_bytes=True)
+    except (OSError, ValueError) as error:
+        raise RuntimeError('Generation manifest could not be inspected; saved progress was preserved.') from error
+    if raw is None:
+        return  # Older checkpoints have no publication receipt.
+    try:
+        value = json.loads(raw, object_pairs_hook=_unique_pairs,
+                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Invalid numeric constant')))
+    except (UnicodeDecodeError, ValueError, RecursionError) as error:
+        raise RuntimeError('Generation manifest is invalid; saved progress was preserved.') from error
+    if not isinstance(value, dict):
+        raise RuntimeError('Generation manifest is invalid; saved progress was preserved.')
+    receipt = value.get('publication')
+    if receipt is None:
+        return  # Existing incomplete and legacy checkpoints remain available.
+    if value.get('status') != 'complete':
+        raise RuntimeError('Generation publication receipt is inconsistent; saved progress was preserved.')
+    if (not isinstance(receipt, dict) or not isinstance(receipt.get('script_sha256'), str)
+            or not re.fullmatch(r'[0-9a-f]{64}', receipt['script_sha256'])):
+        raise RuntimeError('Generation publication receipt is invalid; saved progress was preserved.')
+    try:
+        current, _ = capture_scope_file(output.parent, output.name, limit=512 * 1024**2)
+    except (OSError, ValueError) as error:
+        raise RuntimeError('Published script could not be inspected; saved progress was preserved.') from error
+    if current['sha256'] != receipt['script_sha256']:
+        raise RuntimeError('The published script changed after this checkpoint; saved progress and edits were preserved. Use Start over in Generate to begin again.')
+
+
 def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
                                 chunks_done, named, annotated, resolutions=None,
                                 elapsed_s=None, diagnostic_failures=None,
@@ -2690,6 +2727,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     state = _load_three_pass_checkpoint(output_path, fingerprint, len(chunks)) if output_path else None
     if require_matching_checkpoint and state is None:
         raise RuntimeError('The saved checkpoint does not match this source and settings; it was preserved.')
+    if state is not None:
+        _refuse_checkpoint_replay_over_edited_publication(output_path)
     if instruct_context_chars and not state and not collect_all_failures:
         from llm_provider import FailoverClient
         # A later pass may switch to a more permissive serving profile. Do not

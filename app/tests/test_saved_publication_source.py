@@ -768,6 +768,25 @@ routes._save_script_sync(routes.ScriptSaveRequest(name='bound'))
                 'expected_book_token':captured['book_token']})
             self.assertEqual(200, response.status_code, response.text)
             self.assertEqual(result, json.loads((root / 'scripts/legacy-replayed.json').read_text()))
+            tp._refuse_checkpoint_replay_over_edited_publication(output)
+            from book_state_transaction import ensure_book_state
+            from script_selection_binding import publish_controlled_script_edit
+            original = Path(output).read_bytes()
+            edited_entries = json.loads(original)
+            edited_entries[0]['instruct'] = 'Reviewed instruction.'
+            edited = json.dumps(edited_entries).encode('utf-8')
+            with ensure_book_state(root):
+                publish_controlled_script_edit(str(root), original, edited)
+            checkpoint_bytes = Path(tp.three_pass_checkpoint_path(output)).read_bytes()
+            manifest_bytes = Path(tp.three_pass_manifest_path(output)).read_bytes()
+            with patch.object(tp, 'segment_chunk') as segment, patch.object(tp, 'instruct_batch') as instruct:
+                with self.assertRaisesRegex(RuntimeError, 'changed after this checkpoint'):
+                    tp.run_three_pass(delivery_client(), 'fixture', text, params, 3000,
+                        output_path=output, require_matching_checkpoint=True, defer_final_publication=True)
+            segment.assert_not_called(); instruct.assert_not_called()
+            self.assertEqual(edited, Path(output).read_bytes())
+            self.assertEqual(checkpoint_bytes, Path(tp.three_pass_checkpoint_path(output)).read_bytes())
+            self.assertEqual(manifest_bytes, Path(tp.three_pass_manifest_path(output)).read_bytes())
 
     def test_corrupt_state_does_not_bypass_selection_guard(self):
         with self.fixture() as (root, client):

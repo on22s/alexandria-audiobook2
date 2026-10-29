@@ -1456,11 +1456,26 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                 raise HTTPException(status_code=409, detail=(
                     'The source or book selection changed since this generation started; '
                     'the checkpoint was preserved.'))
-            claim_id = reserve_background_task("script")
             if original is not None:
                 with file_lock(SCRIPT_PATH):
                     base, _ = capture_scope_file(DATA_DIR, os.path.relpath(SCRIPT_PATH, DATA_DIR),
                                                  limit=512 * 1024**2)
+                if (os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))
+                        and not (request is not None and request.start_over and not require_recovery)
+                        and 'script_generation_base_sha256' in current_state
+                        and current_state['script_generation_base_sha256'] != base['sha256']):
+                    raise HTTPException(status_code=409, detail=(
+                        'The script changed since this checkpoint was started. '
+                        'The edit and saved progress were preserved; use Start over in Generate to begin again.'))
+                if (os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))
+                        and not (request is not None and request.start_over and not require_recovery)):
+                    from three_pass_generate import _refuse_checkpoint_replay_over_edited_publication
+                    try:
+                        _refuse_checkpoint_replay_over_edited_publication(SCRIPT_PATH)
+                    except RuntimeError as error:
+                        raise HTTPException(status_code=409, detail=str(error)) from error
+            claim_id = reserve_background_task("script")
+            if original is not None:
                 command.extend(['--active-book-token', original['book_token'],
                                 '--active-source-sha256', original['source_sha256'],
                                 '--active-run-id', claim_id])
@@ -1899,8 +1914,13 @@ def _cancel_script_generation_sync():
                         raise HTTPException(status_code=409, detail=(
                             'The script was already published, but stopping its worker was not confirmed. '
                             'Check task activity.')) from error
+                    from windows_subprocess_job import WindowsJobClosedError
                     try:
                         core.terminate_windows_process_tree(process, force=True)
+                    except WindowsJobClosedError:
+                        # A published owner is exposed only after admission;
+                        # its normal close waits for zero job membership.
+                        return {'status': 'published_cleanup_stop', 'worker': 'already stopped'}
                     except OSError as force_error:
                         raise HTTPException(status_code=409, detail=(
                             'The script was already published, but stopping its worker was not confirmed. '

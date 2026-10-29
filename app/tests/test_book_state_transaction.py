@@ -13,6 +13,19 @@ import book_state_transaction as books
 
 
 class BookStateTransactionTests(unittest.TestCase):
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
+    def test_aliased_book_root_is_rejected_before_creating_lock(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            outside = root / 'outside'
+            outside.mkdir()
+            alias = root / 'alias'
+            alias.symlink_to(outside, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, 'direct'):
+                with books.ensure_book_state(alias):
+                    self.fail('Aliased book root was admitted')
+            self.assertEqual([], list(outside.iterdir()))
+
     @unittest.skipUnless(os.name == 'nt', 'Requires native Windows file identities')
     def test_byte_staging_failure_cleans_native_owned_files(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -86,11 +86,12 @@ def _require_target_parent_identities(root_fd, relative, expected):
         raise ValueError('Book artifact parent changed; recovery evidence was preserved')
 
 
-def _validate_target_parent_identity_evidence(names, evidence):
+def _validate_target_parent_identity_evidence(names, evidence, *, cancel_check=None):
     """Validate persisted no-follow parent chains before using them as evidence."""
     if not isinstance(evidence, list) or len(evidence) != len(names):
         raise ValueError('Invalid active-book parent identity evidence')
     for name, chain in zip(names, evidence):
+        _check_stream_cancellation(cancel_check)
         if not isinstance(chain, list) or len(chain) != len(Path(name).parts):
             raise ValueError('Invalid active-book parent identity evidence')
         missing = False
@@ -104,14 +105,35 @@ def _validate_target_parent_identity_evidence(names, evidence):
                 raise ValueError('Invalid active-book parent identity evidence')
 
 
-def _require_transaction_parent_identities(root, names, evidence, *, root_fd=None):
+def _require_transaction_parent_identities(root, names, evidence, *, root_fd=None, cancel_check=None):
     """Recheck every persisted parent chain through the admitted root handle."""
-    _validate_target_parent_identity_evidence(names, evidence)
+    if (os.name == 'nt' or os.open not in os.supports_dir_fd
+            or not hasattr(os, 'O_DIRECTORY') or not hasattr(os, 'O_NOFOLLOW')):
+        raise OSError(errno.ENOTSUP, 'Anchored parent capture is unavailable')
+    for name in names:
+        _check_stream_cancellation(cancel_check)
+        if not isinstance(name, str):
+            raise ValueError('Invalid book artifact path')
+        path = Path(name)
+        if (path.is_absolute() or not path.parts
+                or '..' in path.parts or len(path.parts) > 128):
+            raise ValueError('Invalid book artifact path')
+    _validate_target_parent_identity_evidence(names, evidence, cancel_check=cancel_check)
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     descriptor = os.dup(root_fd) if root_fd is not None else os.open(root, flags)
     try:
+        root_info = os.fstat(descriptor)
+        root_identity = [root_info.st_dev, root_info.st_ino]
         for name, expected in zip(names, evidence):
-            _require_target_parent_identities(descriptor, name, expected)
+            _check_stream_cancellation(cancel_check)
+            if len(Path(name).parts) == 1:
+                # Every root-level target shares this pinned directory. The
+                # evidence still needs checking, but reopening it per target
+                # cannot provide a different observation within this walk.
+                if expected != [root_identity]:
+                    raise ValueError('Book artifact parent changed; recovery evidence was preserved')
+            else:
+                _require_target_parent_identities(descriptor, name, expected)
     finally:
         os.close(descriptor)
 
@@ -167,7 +189,7 @@ def _stage_book_stream(path, source, mode, cancel_check, *, on_open=None, on_fin
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0),
                          mode, dir_fd=directory_fd)
     try:
-        _write_staged_stream(descriptor, source, mode, cancel_check, on_open, path)
+        _write_staged_stream(descriptor, source, mode, cancel_check, on_open, path, directory_fd)
     finally:
         if os.name == 'nt' and on_finish is not None:
             # Pin the object through the write-handle close. Windows does not
@@ -199,7 +221,7 @@ def _stage_book_stream(path, source, mode, cancel_check, *, on_open=None, on_fin
         sync_adapter_directory(str(path.parent))
 
 
-def _write_staged_stream(descriptor, source, mode, cancel_check, on_open, path):
+def _write_staged_stream(descriptor, source, mode, cancel_check, on_open, path, directory_fd):
     digest, count = hashlib.sha256(), 0
     # Keep the creation descriptor open until the buffered writer has closed
     # and flushed, so the final version comes from the original file.
@@ -209,6 +231,8 @@ def _write_staged_stream(descriptor, source, mode, cancel_check, on_open, path):
         try:
             if hasattr(os, 'fchmod'):
                 os.fchmod(output.fileno(), mode)
+            elif directory_fd is not None:
+                raise OSError(errno.ENOTSUP, 'Descriptor-relative staging requires fchmod')
             else:
                 os.chmod(path, mode)
             while count < source.size:
@@ -863,13 +887,22 @@ def _verify_committed_stream_targets(rows, targets, budget):
             _validate_stream_replacement(row, target, budget)
 
 
-def _verify_stream_cleanup_targets(root, data):
+def _verify_stream_cleanup_targets(root, data, *, cancel_check=None):
     rows = data['entries']
     targets = [_get_path(root, row['path']) for row in rows]
+    names = [row['path'] for row in rows]
+    parent_identities = data.get('target_parent_identities')
+    def check_parents():
+        _check_stream_cancellation(cancel_check)
+        if parent_identities is not None:
+            _require_transaction_parent_identities(root, names, parent_identities,
+                                                   cancel_check=cancel_check)
+    check_parents()
     limits = data['stream_limits']
-    budget = _BookScanBudget(limits['bytes'], limits['entries'], None)
+    budget = _BookScanBudget(limits['bytes'], limits['entries'], cancel_check)
     if data['phase'] == 'committed':
         _verify_committed_stream_targets(rows, targets, budget)
+        check_parents()
         return
     if data['phase'] == 'publishing':
         for row, target in zip(rows, targets):
@@ -882,6 +915,7 @@ def _verify_stream_cleanup_targets(root, data):
                     raise ValueError('occupied target')
             except ValueError as error:
                 raise ValueError('Book artifact changed during stream staging; cleanup was refused') from error
+        check_parents()
         return
     if data['phase'] != 'recovered':
         raise ValueError('Book transaction is not ready for cleanup')
@@ -892,6 +926,7 @@ def _verify_stream_cleanup_targets(root, data):
             _validate_stream_original(row, target, budget)
         elif os.path.lexists(target):
             raise ValueError('Recovered book target changed; cleanup was refused')
+    check_parents()
 
 
 def is_book_state_admitted(data_dir):
@@ -1780,7 +1815,7 @@ def _unlink_owned_book_journal(root, expected, *, root_fd=None):
 
 
 def _finish_transaction(root, workspace, *, journal_version, stream_data=None,
-                        byte_data=None, targets=None):
+                        byte_data=None, targets=None, cancel_check=None):
     _require_book_journal_version(root, journal_version)
     if byte_data is not None and targets is not None:
         _validate_byte_cleanup_targets(byte_data['entries'], targets, byte_data['phase'])
@@ -1794,6 +1829,10 @@ def _finish_transaction(root, workspace, *, journal_version, stream_data=None,
         else:
             raise ValueError('Book transaction cleanup requires ownership evidence')
         sync_adapter_directory(str(root))
+    elif stream_data is not None:
+        # A crash may leave only the journal. Validate the targets again
+        # before retiring that final recovery evidence.
+        _verify_stream_cleanup_targets(root, stream_data, cancel_check=cancel_check)
     _unlink_owned_book_journal(root, journal_version)
 
 
@@ -1967,7 +2006,8 @@ def recover_book_state_locked(data_dir, *, cancel_check=None):
                             journal_version=journal_version,
                             stream_data=data if limits is not None else None,
                             byte_data=data if limits is None else None,
-                            targets=targets if limits is None else None)
+                            targets=targets if limits is None else None,
+                            cancel_check=cancel_check)
         return True
     # Validate every original and owned replacement before restoring anything.
     for index, (row, target) in enumerate(zip(rows, targets)):
@@ -2041,15 +2081,20 @@ def recover_book_state_locked(data_dir, *, cancel_check=None):
                         journal_version=journal_version,
                         stream_data=data if limits is not None else None,
                         byte_data=data if limits is None else None,
-                        targets=targets if limits is None else None)
+                        targets=targets if limits is None else None,
+                        cancel_check=cancel_check)
     return True
 
 
 @contextlib.contextmanager
 def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
     """Serialize book operations and recover pending switches before use."""
-    with file_lock(str(Path(data_dir) / JOURNAL), timeout=timeout):
+    # Refuse an already-aliased root before opening a lock file through it.
+    initial_root, initial_identity = _direct_book_root(data_dir)
+    with file_lock(str(initial_root / JOURNAL), timeout=timeout):
         root, identity = _direct_book_root(data_dir)
+        if root != initial_root or identity != initial_identity:
+            raise ValueError('Book root changed during admission')
         if recover:
             if cancel_check is None:
                 recover_book_state_locked(root)

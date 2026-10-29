@@ -37,6 +37,7 @@ class ScopeLifecycleTests(unittest.TestCase):
                 (root/BINDING_NAME).write_text('newer binding')
                 refused = get_source_scope_undo_status(root)
                 self.assertFalse(refused['can_undo'])
+                self.assertIn('A newer script binding exists', refused['reason'])
                 self.assertTrue((root/UNDO).exists())
                 (root/BINDING_NAME).unlink()
                 status = get_source_scope_undo_status(root)

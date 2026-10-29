@@ -248,13 +248,25 @@ def _staged_registry_path(data_dir, staging):
         raise ValueError('Review alias registry must belong to the active data directory')
     reserved = {'state.json', 'annotated_script.json', BINDING_NAME, 'voice_config.json',
                 'chunks.json', 'chunks.json.status.jsonl', 'annotated_script.json.threepass_manifest.json',
+                'annotated_script.json.review_checkpoint.json',
+                'annotated_script.json.generation_checkpoint.json',
+                'annotated_script.json.threepass_checkpoint.json',
+                'annotated_script.json.review_completed.json',
+                'annotated_script.json.generation_quality.json',
+                'annotated_script.json.partial.json', 'script_preflight.json',
+                '.sound_design_cues.json', '.sound_design_renditions.json',
+                '.project_scope_undo.json', '.character_roster_undo.json',
+                'config.json', 'voice_library.json', 'cloned_audiobook.mp3', 'audiobook.m4b',
                 '.active_book_transaction.json'}
     from book_recovery_archive import _relative_name, _validate_names
     portable_name = _relative_name(os.path.basename(path))
     _validate_names([portable_name])
     name = portable_name.casefold()
     if (name in {item.casefold() for item in reserved} or name.endswith('.lock')
-            or name.startswith('.book-switch-')):
+            or name.startswith('.book-switch-')
+            or name.startswith(('annotated_script.json.review_checkpoint.json.parts-',
+                                'annotated_script.json.generation_checkpoint.json.parts-',
+                                'annotated_script.json.threepass_checkpoint.json.parts-'))):
         raise ValueError('Review alias registry collides with a book artifact')
     for key in ('before', 'after'):
         value = staging[key]
@@ -270,13 +282,16 @@ def _add_staged_registry(data_dir, staging, registry, replacements):
     _, raw = capture_scope_file(data_dir, registry.name, limit=4 * 1024**2, include_bytes=True)
     if raw != staging['before']:
         raise ValueError('Alias registry changed during review; edits were preserved')
-    if staging['after'] is not None:
-        from speaker_identity import get_validated_alias_graph
+    from speaker_identity import get_validated_alias_graph
+    for registry_bytes in (raw, staging['after']):
+        if registry_bytes is None:
+            continue
         try:
-            value = json.loads(staging['after'], object_pairs_hook=_unique_pairs)
+            value = json.loads(registry_bytes, object_pairs_hook=_unique_pairs)
             get_validated_alias_graph(value)
         except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
             raise ValueError('Invalid staged alias registry') from error
+    if staging['after'] is not None:
         replacements[registry.name] = staging['after']
 
 

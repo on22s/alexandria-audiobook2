@@ -23,6 +23,19 @@ from script_selection_binding import capture_generation_selection, publish_gener
 
 class PublicationCancellationTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == 'win32', 'Windows owned-job termination')
+    def test_published_cleanup_accepts_job_already_closed_after_confirmed_stop(self):
+        from windows_subprocess_job import WindowsJobClosedError
+        with self.fixture() as (root, states, old, publish):
+            publish()
+            process = SimpleNamespace(pid=123, _alexandria_windows_owner=object())
+            states['script'].update(process=process, pid=process.pid)
+            with patch.object(script, '_cancel_task', side_effect=HTTPException(400, 'Script generation process already exited.')), \
+                 patch.object(core, 'terminate_windows_process_tree', side_effect=WindowsJobClosedError('closed')):
+                self.assertEqual({'status': 'published_cleanup_stop', 'worker': 'already stopped'},
+                                 script._cancel_script_generation_sync())
+            self.assertNotEqual(old, (root / 'annotated_script.json').read_bytes())
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows owned-job termination')
     def test_published_cleanup_force_stop_failure_remains_unconfirmed(self):
         for force_fails in (False, True):
             with self.subTest(force_fails=force_fails), self.fixture() as (root, states, old, publish):

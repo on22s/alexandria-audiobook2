@@ -391,6 +391,84 @@ class OutputCeilingRefusalTests(OwnedScriptTestCase):
             finally:
                 state.clear(); state.update(original)
 
+    def test_completed_checkpoint_refusal_does_not_change_generation_state(self):
+        import hashlib
+        from script_selection_binding import capture_generation_selection
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'book.txt'
+            source.write_text('Source text.', encoding='utf-8')
+            state_path = root / 'state.json'
+            state_path.write_text(json.dumps({'input_file_path': str(source)}))
+            selection = capture_generation_selection(tmp, str(source))
+            script_path = root / 'annotated_script.json'
+            script_path.write_bytes(b'edited script')
+            checkpoint = Path(script.three_pass_checkpoint_path(str(script_path)))
+            checkpoint.write_text('{}', encoding='utf-8')
+            manifest = Path(script.three_pass_manifest_path(str(script_path)))
+            manifest.write_text(json.dumps({'status': 'complete', 'publication': {
+                'script_sha256': hashlib.sha256(b'original script').hexdigest()}}), encoding='utf-8')
+            state = {'input_file_path': str(source), 'script_generation_selection': selection}
+            state_path.write_text(json.dumps(state))
+            original_state, original_manifest = state_path.read_bytes(), manifest.read_bytes()
+            with patch.object(script, 'SCRIPT_PATH', str(script_path)), \
+                 patch.object(script, 'DATA_DIR', tmp), \
+                 patch.object(script, 'load_app_config', return_value={
+                     'llm': {'model_name': 'model'},
+                     'generation': {'three_pass_chunk_size': 3000, 'max_tokens': 4096},
+                     'prompts': {}}), \
+                 patch.object(script, 'check_global_gpu_lock'), \
+                 patch.object(script, 'build_generate_script_command', return_value=['x']):
+                tasks = script.BackgroundTasks()
+                with self.assertRaises(script.HTTPException) as refused:
+                    script.start_script_generation(tasks, str(source), script.GenerateScriptRequest())
+            self.assertEqual(409, refused.exception.status_code)
+            self.assertIn('changed after this checkpoint', refused.exception.detail)
+            self.assertEqual([], tasks.tasks)
+            self.assertEqual(original_state, state_path.read_bytes())
+            self.assertEqual(original_manifest, manifest.read_bytes())
+            self.assertEqual(b'edited script', script_path.read_bytes())
+            self.assertEqual('{}', checkpoint.read_text(encoding='utf-8'))
+
+    def test_resume_refuses_script_edited_since_checkpoint_started(self):
+        import hashlib
+        from script_selection_binding import capture_generation_selection
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'book.txt'
+            source.write_text('Source text.', encoding='utf-8')
+            state_path = root / 'state.json'
+            state_path.write_text(json.dumps({'input_file_path': str(source)}))
+            selection = capture_generation_selection(tmp, str(source))
+            script_path = root / 'annotated_script.json'
+            script_path.write_bytes(b'edited script')
+            checkpoint = Path(script.three_pass_checkpoint_path(str(script_path)))
+            checkpoint.write_text('{}', encoding='utf-8')
+            state = {'input_file_path': str(source), 'script_generation_selection': selection,
+                     'script_generation_base_sha256': hashlib.sha256(b'original script').hexdigest()}
+            state_path.write_text(json.dumps(state))
+            with patch.object(script, 'SCRIPT_PATH', str(script_path)), \
+                 patch.object(script, 'DATA_DIR', tmp), \
+                 patch.object(script, 'load_app_config', return_value={
+                     'llm': {'model_name': 'model'},
+                     'generation': {'three_pass_chunk_size': 3000, 'max_tokens': 4096},
+                     'prompts': {}}), \
+                 patch.object(script, 'check_global_gpu_lock'), \
+                 patch.object(script, 'build_generate_script_command', return_value=['x']), \
+                 patch.object(script, 'ensure_script_recovery_manifest', return_value={'status': 'failed'}), \
+                 patch.object(script, 'get_script_recovery_manifest', return_value={'status': 'failed'}):
+                for require_recovery in (False, True):
+                    with self.subTest(require_recovery=require_recovery):
+                        tasks = script.BackgroundTasks()
+                        with self.assertRaises(script.HTTPException) as refused:
+                            script.start_script_generation(tasks, str(source), script.GenerateScriptRequest(),
+                                                           require_recovery=require_recovery)
+                        self.assertEqual(409, refused.exception.status_code)
+                        self.assertIn('script changed', refused.exception.detail)
+                        self.assertEqual([], tasks.tasks)
+            self.assertEqual(b'edited script', script_path.read_bytes())
+            self.assertEqual('{}', checkpoint.read_text(encoding='utf-8'))
+
     def test_start_over_discards_the_checkpoint_and_plain_generate_keeps_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "book.txt")
