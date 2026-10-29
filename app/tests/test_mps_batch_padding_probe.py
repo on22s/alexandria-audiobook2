@@ -90,6 +90,8 @@ class ProbeReadingTests(unittest.TestCase):
         for backend in probe.BACKENDS:
             observed[backend]['cases']['padded_mixed']['instrument_error'] = True
         self.assertEqual('instrument_failure', probe.get_reading(observed))
+        observed['sdpa']['cases']['padded_mixed']['error'] = 'RuntimeError: out of memory'
+        self.assertEqual('inconclusive_memory', probe.get_reading(observed))
 
     def test_equal_tokens_in_one_case_do_not_discard_other_padding_evidence(self):
         observed = self.results(False, True)
