@@ -31,6 +31,9 @@ what it measured.
 
 Readings, fixed before running (`get_reading`), checked in this order:
 
+  model-load out-of-memory error        inconclusive; free memory and rerun
+  another model-load error              model_load_failure; no model verdict
+  probe measurement raises             instrument_failure; no model verdict
   any out-of-memory error               inconclusive; free memory and rerun
   either arm has no matching backend    the probe did not establish the backend
   a case is missing                     the comparison is incomplete

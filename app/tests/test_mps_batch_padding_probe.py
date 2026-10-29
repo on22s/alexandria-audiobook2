@@ -189,7 +189,7 @@ class ProbeReadingTests(unittest.TestCase):
 
 class ProbeRefusalTests(unittest.TestCase):
     def test_load_failure_writes_final_artifact_for_either_arm(self):
-        for failing_backend in (*probe.BACKENDS, 'measurement'):
+        for failing_backend in (*probe.BACKENDS, 'measurement', 'backend_inspection', 'seed'):
             with self.subTest(backend=failing_backend), tempfile.TemporaryDirectory() as temp:
                 out = Path(temp) / 'result.json'
                 model = SimpleNamespace(generate_custom_voice=lambda **kwargs: ([[0.1]] * len(kwargs['text']), 24000))
@@ -200,6 +200,10 @@ class ProbeRefusalTests(unittest.TestCase):
                 torch = SimpleNamespace(__version__='test', float32='float32',
                     backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: True)),
                     manual_seed=lambda seed: None, mps=SimpleNamespace(empty_cache=lambda: None))
+                if failing_backend == 'seed':
+                    def fail_seed(seed):
+                        raise RuntimeError('seed setup broke')
+                    torch.manual_seed = fail_seed
                 def write(value, path):
                     Path(path).write_text(json.dumps(value))
                 modules = {'torch': torch, 'qwen_tts': SimpleNamespace(Qwen3TTSModel=SimpleNamespace(from_pretrained=load)),
@@ -209,7 +213,9 @@ class ProbeRefusalTests(unittest.TestCase):
                     'utils': SimpleNamespace(atomic_json_write=write)}
                 with patch.dict(sys.modules, modules), patch('sys.argv', ['probe', '--out', str(out)]), \
                      patch.object(probe, 'resolve_model_snapshot', return_value=(temp, 'a' * 40)), \
-                     patch.object(probe, 'get_loaded_backends', side_effect=lambda model: {
+                     patch.object(probe, 'get_loaded_backends', side_effect=
+                         RuntimeError('backend inspection broke') if failing_backend == 'backend_inspection'
+                         else lambda model: {
                          'Qwen3TTSTalkerAttention:talker': 'sdpa',
                          'Qwen3TTSAttention:predictor': 'sdpa'}), \
                      patch.object(probe, 'get_token_lengths',
@@ -219,12 +225,15 @@ class ProbeRefusalTests(unittest.TestCase):
                     probe.main()
                 artifact = json.loads(out.read_text())
                 self.assertEqual('complete', artifact['status'])
-                if failing_backend == 'measurement':
+                if failing_backend in ('measurement', 'seed'):
                     self.assertEqual('instrument_failure', artifact['reading'])
                     for backend in probe.BACKENDS:
                         records = artifact['results'][backend]['cases']
                         self.assertEqual(len(probe.get_probe_cases()), len(records))
                         self.assertTrue(all(record['instrument_error'] for record in records.values()))
+                elif failing_backend == 'backend_inspection':
+                    self.assertEqual('instrument_failure', artifact['reading'])
+                    self.assertIn('backend inspection broke', artifact['results']['sdpa']['instrument_error'])
                 else:
                     self.assertEqual('model_load_failure', artifact['reading'])
                     self.assertIn('model load broke', artifact['results'][failing_backend]['load_error'])
