@@ -130,6 +130,12 @@ def _popen_owned_python(command, **kwargs):
 def start_windows_owned_subprocess(command, *, exit_notice_path=None, termination_grace=None, inherited_handles=(), **kwargs):
     # Popen options configure the trusted supervisor. The worker interpreter
     # is selected by command[0], including an explicitly requested base Python.
+    try:
+        inherited_handles = tuple(() if inherited_handles is None else inherited_handles)
+    except TypeError as error:
+        raise ValueError('Expected positive Windows handles') from error
+    if any(type(value) is not int or value <= 0 for value in inherited_handles):
+        raise ValueError('Expected positive Windows handles')
     if kwargs.get('executable') is not None:
         trusted = {os.path.normcase(sys.executable),
                    os.path.normcase(getattr(sys, '_base_executable', None) or sys.executable)}
@@ -222,14 +228,23 @@ def run_windows_owned_command(gate, admission, command, exit_notice_path=None, i
         process = _popen_owned_python(command)
     save_windows_owner_message(admission, {'started': process.pid})
     notified = False
+    query_reported = False
     while True:
         result = process.poll()
         if result is not None and not notified and exit_notice_path is not None:
             from subprocess_ownership import save_owned_exit_notice
             save_owned_exit_notice(exit_notice_path, result)
             notified = True
-        if result is not None and get_windows_job_active_process_count(api) == 1:
-            return result
+        if result is not None:
+            try:
+                active = get_windows_job_active_process_count(api)
+            except OSError:
+                if not query_reported:
+                    logging.exception('Could not query Windows job; retaining supervisor ownership')
+                    query_reported = True
+            else:
+                if active == 1:
+                    return result
         time.sleep(.05)
 
 

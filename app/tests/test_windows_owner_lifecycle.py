@@ -48,6 +48,35 @@ class AdmissionJob:
 
 
 class WindowsOwnerAdmissionTests(unittest.TestCase):
+    def test_inherited_handles_are_validated_once_before_launch(self):
+        self.check_admission(with_handles=True)
+        for invalid in ((0,), (-1,), (False,), ('handle',), (1.5,), 0):
+            with self.subTest(invalid=invalid), \
+                 patch.object(owner, 'WindowsSubprocessJob') as job, \
+                 patch.object(owner.subprocess, 'Popen') as launch:
+                with self.assertRaisesRegex(ValueError, 'positive Windows handles'):
+                    owner.start_windows_owned_subprocess(['worker'], inherited_handles=invalid)
+                job.assert_not_called()
+                launch.assert_not_called()
+
+    def test_unknown_job_membership_retains_supervisor_until_descendants_exit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, receipt = Path(temporary) / 'gate', Path(temporary) / 'receipt'
+            gate.touch()
+            process = SimpleNamespace(pid=9002, poll=lambda:7)
+            with patch.object(owner, 'get_windows_job_api', return_value=object()), \
+                 patch.object(owner, 'get_windows_job_active_process_count',
+                              side_effect=[1, OSError('query temporarily unavailable'), 2, 1]) as query, \
+                 patch.object(owner, '_popen_owned_python', return_value=process), \
+                 patch.object(owner, 'save_windows_owner_message') as admission, \
+                 patch.object(owner.logging, 'exception') as logged, \
+                 patch.object(owner.time, 'sleep') as sleep:
+                self.assertEqual(7, owner.run_windows_owned_command(gate, receipt, ['worker']))
+                self.assertEqual(4, query.call_count)
+                self.assertEqual(2, sleep.call_count)
+                logged.assert_called_once()
+                admission.assert_called_once_with(receipt, {'started':9002})
+
     def test_untrusted_supervisor_override_is_refused_before_launch_or_job_creation(self):
         with patch.object(owner, 'WindowsSubprocessJob') as job, \
              patch.object(owner.subprocess, 'Popen') as launch:
@@ -86,7 +115,7 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
         self.assertEqual(1, job.calls.count('close'))
 
     def check_admission(self, fail_assignment=False, fail_worker=False, *, locked_reads=0,
-                        expect_denied=False, invalid_receipt=None, owner_exited=False):
+                        expect_denied=False, invalid_receipt=None, owner_exited=False, with_handles=False):
         job = AdmissionJob(fail_assignment)
         observed = []
         remaining = [locked_reads]
@@ -133,10 +162,19 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
             self.assertFalse(gate.exists(), 'gate opened before process membership')
             self.assertEqual([], job.calls)
             observed.append((gate, receipt))
-            self.assertEqual(['worker', 'argument'], argv[4:])
+            tail = argv[4:]
+            if with_handles:
+                self.assertEqual('--inherit-handles', tail[0])
+                self.assertEqual([12, 34], json.loads(tail[1]))
+                self.assertEqual('--', tail[2])
+                self.assertEqual({'handle_list':[12, 34]}, kwargs['startupinfo'].lpAttributeList)
+                self.assertTrue(kwargs['close_fds'])
+                tail = tail[3:]
+            self.assertEqual(['worker', 'argument'], tail)
             self.assertEqual('fixture-cwd', kwargs['cwd'])
             return process
         with patch.object(owner, 'WindowsSubprocessJob', return_value=job), \
+             patch.object(owner.subprocess, 'STARTUPINFO', side_effect=SimpleNamespace, create=True), \
              patch.object(owner.subprocess, 'Popen', side_effect=spawn) as spawned, \
              patch.object(Path,'open',new=open_receipt), \
              patch.object(owner.time,'monotonic',side_effect=lambda:clock[0]), \
@@ -157,7 +195,8 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
                 else:
                     self.assertIn('stopped', job.calls)
             else:
-                result = owner.start_windows_owned_subprocess(['worker', 'argument'], cwd='fixture-cwd')
+                options = {'inherited_handles':(handle for handle in (12, 34))} if with_handles else {}
+                result = owner.start_windows_owned_subprocess(['worker', 'argument'], cwd='fixture-cwd', **options)
                 self.assertIs(result, process)
                 self.assertIs(result._alexandria_windows_owner, result._alexandria_control)
                 self.assertIsNotNone(job.handle)
