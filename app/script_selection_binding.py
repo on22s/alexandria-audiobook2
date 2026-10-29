@@ -405,7 +405,7 @@ def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, ne
         _, raw_binding = capture_scope_file(scripts_dir, binding.name, limit=MAX_BINDING_BYTES, include_bytes=True)
         binding_bytes = updated_saved_binding(raw_binding, old_script, new_script)
         publication_bytes = get_saved_publication_source_bytes(str(script), new_script)
-        relative = lambda path: os.path.relpath(path, data_dir)
+        relative = lambda path: os.path.relpath(path, data_dir).replace(os.sep, '/')
         replacements = {relative(script): new_script}
         _add_staged_registry(data_dir, registry_staging, registry, replacements)
         if binding_bytes is not None:

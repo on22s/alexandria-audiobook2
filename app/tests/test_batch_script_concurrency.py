@@ -53,6 +53,7 @@ class BatchScriptConcurrencyTests(OwnedScriptTestCase):
                 request = script.GenerateScriptRequest(first_person_narrator=name, start_over=True)
                 background = BackgroundTasks()
                 with patch.object(script, "DATA_DIR", tmp), \
+                     patch.object(script, "SCRIPT_PATH", str(Path(tmp, "annotated_script.json"))), \
                      patch.object(script, "check_global_gpu_lock"), \
                      patch.object(script, "load_app_config", return_value={}), \
                      patch.object(script, "build_generate_script_command", return_value=["fake command"]), \
@@ -342,6 +343,14 @@ class OutputCeilingRefusalTests(OwnedScriptTestCase):
         annotated = [{"speaker": "NARRATOR", "text": f"line {i}", "instruct": "calm"} for i in range(3)] + [None, None]
         with tempfile.TemporaryDirectory() as tmp:
             script_path = os.path.join(tmp, "annotated_script.json")
+            source = Path(tmp, 'book.txt'); source.write_text('Fixture source.', encoding='utf-8')
+            state_path = Path(tmp, 'state.json')
+            state_path.write_text(json.dumps({'input_file_path': str(source)}))
+            from script_selection_binding import capture_generation_selection
+            selection = capture_generation_selection(tmp, str(source))
+            run_id = 'a' * 32
+            state_path.write_text(json.dumps({'input_file_path': str(source),
+                'script_generation_selection': selection, 'script_generation_run_id': run_id}))
             Path(script.three_pass_checkpoint_path(script_path)).write_text(json.dumps(
                 {"stage": "instruct", "chunks_done": 2, "segmented": seg, "named": named, "annotated": annotated}),
                 encoding="utf-8")
@@ -350,7 +359,9 @@ class OutputCeilingRefusalTests(OwnedScriptTestCase):
             state = script.process_state["script"]; original = dict(state)
             try:
                 state.update({"running": True})
-                with patch.object(script, "SCRIPT_PATH", script_path), \
+                with patch.object(script, "DATA_DIR", tmp), \
+                     patch.object(core, '_task_claims', {'script': {'phase': 'started', 'id': run_id}}), \
+                     patch.object(script, "SCRIPT_PATH", script_path), \
                      patch.object(script, "VOICE_CONFIG_PATH", os.path.join(tmp, "voice_config.json")), \
                      patch.object(script, "SCRIPTS_DIR", scripts_dir), \
                      patch.object(script, "get_active_book_id", return_value="book"), \
@@ -388,6 +399,10 @@ class OutputCeilingRefusalTests(OwnedScriptTestCase):
             script_path = str(Path(tmp, "annotated_script.json"))
             ckpt = Path(script.three_pass_checkpoint_path(script_path))
             manifest = Path(script.three_pass_manifest_path(script_path))
+            from script_selection_binding import capture_generation_selection
+            selection = capture_generation_selection(tmp, str(path))
+            Path(tmp, 'state.json').write_text(json.dumps({'input_file_path': str(path),
+                'script_generation_selection': selection}))
             for start_over, kept in ((False, True), (True, False)):
                 ckpt.write_text("{}", encoding="utf-8")
                 manifest.write_text("{}", encoding="utf-8")

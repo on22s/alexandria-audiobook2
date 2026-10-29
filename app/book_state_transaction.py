@@ -162,12 +162,29 @@ def _direct_book_root(data_dir):
     return root, (info.st_dev, info.st_ino)
 
 
-def _stage_book_stream(path, source, mode, cancel_check, *, on_open=None, directory_fd=None):
+def _stage_book_stream(path, source, mode, cancel_check, *, on_open=None, on_finish=None, directory_fd=None):
     """Copy a declared extent without buffering it, and refuse mismatched bytes."""
-    digest, count = hashlib.sha256(), 0
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0),
                          mode, dir_fd=directory_fd)
-    with os.fdopen(descriptor, 'wb') as output:
+    try:
+        _write_staged_stream(descriptor, source, mode, cancel_check, on_open, path)
+    finally:
+        try:
+            if on_finish is not None:
+                on_finish(os.fstat(descriptor))
+        finally:
+            os.close(descriptor)
+    if directory_fd is not None:
+        os.fsync(directory_fd)
+    else:
+        sync_adapter_directory(str(path.parent))
+
+
+def _write_staged_stream(descriptor, source, mode, cancel_check, on_open, path):
+    digest, count = hashlib.sha256(), 0
+    # Keep the creation descriptor open until the buffered writer has closed
+    # and flushed, so the final version comes from the original file.
+    with os.fdopen(descriptor, 'wb', closefd=False) as output:
         if on_open is not None:
             on_open(os.fstat(output.fileno()))
         try:
@@ -198,10 +215,6 @@ def _stage_book_stream(path, source, mode, cancel_check, *, on_open=None, direct
             # exclusive creation handle is still open, including on failure.
             if on_open is not None:
                 on_open(os.fstat(output.fileno()))
-    if directory_fd is not None:
-        os.fsync(directory_fd)
-    else:
-        sync_adapter_directory(str(path.parent))
 
 
 def _book_info_version(info):
@@ -1294,8 +1307,13 @@ def _validate_stream_workspace_for_cleanup(workspace, data):
     return validated
 
 def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_identities,
-                                          *, parent_fd=None):
-    """Remove only checked staging files after a pre-journal error."""
+                                          *, parent_fd=None, staged_versions=None):
+    """Remove only checked staging files after a pre-journal error.
+
+    A completed stage can be checked against its full post-write version as
+    well as its identity. This catches many reused-inode replacements; it is
+    not durable ownership proof after a crash or on a coarse-clock filesystem.
+    """
     anchored = (os.name != 'nt' and os.open in os.supports_dir_fd and os.stat in os.supports_dir_fd
                 and os.unlink in os.supports_dir_fd and os.rmdir in os.supports_dir_fd
                 and os.scandir in os.supports_fd and hasattr(os, 'O_DIRECTORY') and hasattr(os, 'O_NOFOLLOW'))
@@ -1333,13 +1351,19 @@ def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_
                 else:
                     current_identity = (current.st_dev, current.st_ino)
                     single_link = current.st_nlink == 1
+                has_version = staged_versions is not None and entry.name in staged_versions
+                current_version = ((_book_target_version(workspace / entry.name)
+                                    if os.name == 'nt' else _book_info_version(current))
+                                   if has_version else None)
                 if (expected is None or not stat.S_ISREG(current.st_mode) or not single_link
-                        or current_identity != expected):
+                        or current_identity != expected
+                        or (has_version and current_version != staged_versions[entry.name])):
                     raise ValueError(
                         'Book staging workspace contains unowned data; cleanup was refused '
                         f'(name={entry.name!r}, expected={expected!r}, '
                         f'current={current_identity!r}, mode={current.st_mode!r}, '
-                        f'links={current.st_nlink!r})')
+                        f'links={current.st_nlink!r}, '
+                        f'version_changed={has_version and current_version != staged_versions[entry.name]!r})')
                 names.append(entry.name)
         for name in names:
             current = (os.stat(name, dir_fd=directory_fd, follow_symlinks=False) if anchored
@@ -1351,7 +1375,9 @@ def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_
                 current_identity = (current.st_dev, current.st_ino)
                 single_link = current.st_nlink == 1
             if (not stat.S_ISREG(current.st_mode) or not single_link
-                    or current_identity != staged_identities[name]):
+                    or current_identity != staged_identities[name]
+                    or (staged_versions is not None and name in staged_versions
+                        and _book_info_version(current) != staged_versions[name])):
                 raise ValueError(
                     'Book staging workspace changed; cleanup was refused '
                     f'(name={name!r}, expected={staged_identities[name]!r}, '
@@ -2140,6 +2166,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             root_guard.__exit__(None, None, None)
         raise
     staged_identities = {}
+    staged_versions = {}
     parent_identities = None
     rows, target_versions = [], []
     published = False
@@ -2184,11 +2211,14 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                         staged_identities[staged_name] = windows_named_file_identity(staged_path)
                     else:
                         staged_identities[staged_name] = (info.st_dev, info.st_ino)
+                def record_finished(info, staged_name=staged_name):
+                    staged_versions[staged_name] = _book_info_version(info)
                 if streams:
                     source = (value if isinstance(value, BookStateStream) else
                               BookStateStream(io.BytesIO(value), len(value), row['new_sha256']))
                     _stage_book_stream(staged_name if workspace_fd is not None else staged_path,
                                        source, mode, cancel_check, on_open=record_staged,
+                                       on_finish=record_finished,
                                        directory_fd=workspace_fd)
                     if os.name == 'nt':
                         info = staged_path.lstat()
@@ -2201,7 +2231,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                     if workspace_fd is not None:
                         source = BookStateStream(io.BytesIO(value), len(value), row['new_sha256'])
                         _stage_book_stream(staged_name, source, mode, None,
-                                           on_open=record_staged, directory_fd=workspace_fd)
+                                           on_open=record_staged, on_finish=record_finished,
+                                           directory_fd=workspace_fd)
                     else:
                         save_adapter_publication_bytes(str(staged_path), value, mode)
                         info = staged_path.lstat()
@@ -2213,6 +2244,14 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                             staged_identities[staged_name] = (info.st_dev, info.st_ino)
                 if 'new_file_identity' not in row:
                     row['new_file_identity'] = list(staged_identities[staged_name])
+                if workspace_fd is not None or streams:
+                    named_version = (_book_info_version(os.stat(
+                        staged_name, dir_fd=workspace_fd, follow_symlinks=False))
+                        if workspace_fd is not None else _book_target_version(staged_path))
+                    if named_version != staged_versions.get(staged_name):
+                        raise ValueError('Book staging file changed after writing')
+                else:
+                    staged_versions[staged_name] = _book_target_version(staged_path)
             rows.append(row)
         if streams:
             _check_stream_cancellation(cancel_check)
@@ -2331,7 +2370,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 else:
                     try:
                         _cleanup_unpublished_stream_workspace(
-                            workspace, workspace_identity, staged_identities, parent_fd=root_fd)
+                            workspace, workspace_identity, staged_identities, parent_fd=root_fd,
+                            staged_versions=staged_versions)
                         _unlink_owned_book_journal(root, journal_version, root_fd=root_fd)
                     except (OSError, ValueError):
                         # Preserve evidence when staged ownership changed, but
@@ -2341,8 +2381,14 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 release_root_guard()
                 recover_book_state_locked(data_dir)
         elif (root_fd is not None or os.path.lexists(workspace)):
-            _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_identities,
-                                                  parent_fd=root_fd)
+            try:
+                _cleanup_unpublished_stream_workspace(
+                    workspace, workspace_identity, staged_identities,
+                    parent_fd=root_fd, staged_versions=staged_versions)
+            except (OSError, ValueError) as cleanup_error:
+                # Keep the safety refusal as the primary error while making
+                # the staging failure explicit; the workspace is retained.
+                raise cleanup_error from original_error
         raise
     finally:
         if workspace_fd is not None:

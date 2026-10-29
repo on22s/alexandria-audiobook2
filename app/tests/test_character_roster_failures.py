@@ -50,12 +50,12 @@ def apply_operation(root, mode):
 def run_crash_child(root, mode, boundary):
     with admission(root):
         if boundary == 'committed':
-            transaction._finish_transaction = lambda *args: os._exit(73)
+            transaction._finish_transaction = lambda *args, **kwargs: os._exit(73)
         else:
             real = transaction._move; count = 0
-            def crash_after_move(*args):
+            def crash_after_move(*args, **kwargs):
                 nonlocal count
-                result = real(*args); count += 1
+                result = real(*args, **kwargs); count += 1
                 if count == int(boundary):
                     os._exit(73)
                 return result

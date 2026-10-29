@@ -513,6 +513,10 @@ class DeferredExportCancelTests(unittest.TestCase):
                 (output / "manifest.json").write_text('{"chapters": []}')
             else:
                 output.write_bytes(b"previous merged output")
+            # Admission creates persistent lock files; include them in both
+            # snapshots so the assertion still checks every payload byte.
+            from script_selection_binding import require_published_selection
+            require_published_selection(tmp)
             before = {str(path.relative_to(tmp)): path.read_bytes()
                       for path in Path(tmp).rglob("*") if path.is_file()}
             stack.enter_context(patch.object(core, "process_state", state))

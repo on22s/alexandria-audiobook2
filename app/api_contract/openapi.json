@@ -1526,6 +1526,30 @@
             ],
             "title": "First Person Narrator"
           },
+          "legacy_book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legacy Book Token"
+          },
+          "legacy_checkpoint_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legacy Checkpoint Token"
+          },
           "literal_source_preserving": {
             "default": false,
             "title": "Literal Source Preserving",

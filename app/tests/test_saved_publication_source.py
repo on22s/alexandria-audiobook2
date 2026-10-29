@@ -559,6 +559,8 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
             publish_generated_script(str(root), captured['book_token'], str(source),
                                      captured['source_sha256'], original, expected_run_id='f' * 32)
             self.assertEqual(200, client.post('/api/scripts/save', json={'name':'bound'}).status_code)
+            saved_binding_path = root / 'scripts/bound.selection_binding.json'
+            original_binding = json.loads(saved_binding_path.read_bytes())
             self.assertEqual(200, client.post('/api/scripts/load', json={'name':'bound'}).status_code)
             current = (root / 'annotated_script.json').read_bytes()
             edited = b'[{"speaker":"NARRATOR","text":"Shareable source paragraph.","instruct":"Calm."}]'
@@ -578,7 +580,19 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
             self.assertTrue(failed)
             self.assertEqual(old_saved, (root / 'scripts/bound.json').read_bytes())
             self.assertEqual(old_binding, (root / BINDING_NAME).read_bytes())
+            saved_binding_bytes = saved_binding_path.read_bytes()
+            saved_binding_path.write_bytes(b'{}')
+            response = client.post('/api/scripts/save', json={'name':'bound'})
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(old_saved, (root / 'scripts/bound.json').read_bytes())
+            self.assertEqual(old_binding, (root / BINDING_NAME).read_bytes())
+            self.assertEqual(b'{}', saved_binding_path.read_bytes())
+            saved_binding_path.write_bytes(saved_binding_bytes)
             self.assertEqual(200, client.post('/api/scripts/save', json={'name':'bound'}).status_code)
+            saved_binding = json.loads(saved_binding_path.read_bytes())
+            for key in ('book_token', 'source_path_sha256', 'source_sha256'):
+                self.assertEqual(original_binding[key], saved_binding[key])
+            self.assertEqual(hashlib.sha256(edited).hexdigest(), saved_binding['published_script_sha256'])
             response = client.post('/api/scripts/save', json={'name':'bound-copy'})
             self.assertEqual(200, response.status_code, response.text)
 

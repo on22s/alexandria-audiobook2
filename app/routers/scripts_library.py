@@ -347,14 +347,29 @@ def _save_script_sync(request):
             # The selected source is the saved script itself. Update the active
             # binding and saved family in one recoverable transaction, otherwise
             # replacing the source leaves the active identity stale on next save.
+            # The saved binding describes the original source, not the loaded
+            # copy's self-reference. Advance it only from its verified old bytes.
+            try:
+                _, old_saved = capture_scope_file(SCRIPTS_DIR, os.path.basename(dest),
+                                                   limit=MAX_SCRIPT_BYTES, include_bytes=True)
+                _, old_saved_binding = capture_scope_file(
+                    SCRIPTS_DIR, f'{safe_name}.selection_binding.json',
+                    limit=MAX_BINDING_BYTES, include_bytes=True)
+                if old_saved is None or old_saved_binding is None:
+                    raise ValueError('Saved source or binding is missing')
+                saved_binding = updated_saved_binding(old_saved_binding, old_saved, script_bytes)
+            except (OSError, ValueError, TypeError, RecursionError) as error:
+                raise HTTPException(status_code=409, detail=(
+                    'Saved script identity requires inspection; existing files were preserved.')) from error
             updated = make_script_selection_binding(get_book_operation_token(DATA_DIR, state=active_state),
                 hashlib.sha256(script_bytes).hexdigest(), script_bytes, source_path=source_path)
             updated_raw = json.dumps(updated, sort_keys=True, separators=(',', ':')).encode()
-            replacements[f'{safe_name}.selection_binding.json'] = updated_raw
-            root_replacements = {os.path.relpath(os.path.join(SCRIPTS_DIR, name), DATA_DIR): value
+            replacements[f'{safe_name}.selection_binding.json'] = saved_binding
+            relative = lambda path: os.path.relpath(path, DATA_DIR).replace(os.sep, '/')
+            root_replacements = {relative(os.path.join(SCRIPTS_DIR, name)): value
                                  for name, value in replacements.items()}
             root_replacements[BINDING_NAME] = updated_raw
-            root_removals = [os.path.relpath(os.path.join(SCRIPTS_DIR, name), DATA_DIR) for name in removals]
+            root_removals = [relative(os.path.join(SCRIPTS_DIR, name)) for name in removals]
             apply_book_state_locked(DATA_DIR, root_replacements, root_removals)
         else:
             apply_book_state_locked(SCRIPTS_DIR, replacements, removals)

@@ -3,6 +3,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -35,6 +36,26 @@ class BookStateTransactionTests(unittest.TestCase):
             self.assertEqual(b'old second', (root / 'second').read_bytes())
             self.assertFalse((root / books.JOURNAL).exists())
             self.assertFalse(list(root.glob('.book-switch-*')))
+
+    @unittest.skipUnless(os.name == 'nt', 'Requires native Windows file identities')
+    def test_byte_staging_failure_preserves_changed_stage_on_windows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            publish = books.save_adapter_publication_bytes
+            calls = []
+            def change_first_then_fail(path, value, mode):
+                calls.append(Path(path))
+                if len(calls) == 2:
+                    calls[0].write_bytes(b'foreign change')
+                    raise OSError('fixture staging error')
+                return publish(path, value, mode)
+            with patch.object(books, 'save_adapter_publication_bytes', side_effect=change_first_then_fail):
+                with books.ensure_book_state(root), self.assertRaises(ValueError) as raised:
+                    books.apply_book_state_locked(root, {'one': b'first', 'two': b'second'}, [])
+            self.assertIsInstance(raised.exception.__cause__, OSError)
+            self.assertIn('version_changed=True', str(raised.exception))
+            self.assertEqual(b'foreign change', calls[0].read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
 
     @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
                          'POSIX directory descriptors required')
@@ -162,6 +183,12 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             (root/'audio.wav').write_bytes(b'original')
             retained = base/'retained'
             with books.ensure_book_state(root):
+                if os.name == 'nt':
+                    # The native guard keeps the admitted root from moving.
+                    with self.assertRaises(PermissionError):
+                        root.rename(retained)
+                    self.assertEqual(b'original', (root/'audio.wav').read_bytes())
+                    return
                 root.rename(retained); root.mkdir()
                 (root/'foreign').write_bytes(b'preserve')
                 with self.assertRaisesRegex(ValueError, 'admission'):
@@ -220,7 +247,7 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     relocated.append(True)
                 return result
             with patch.object(books, '_stage_book_stream', side_effect=relocate_root):
-                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'root changed'):
                     books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
             self.assertEqual(b'do not modify', (root/'foreign').read_bytes())
             self.assertFalse((root/'script.json').exists())
@@ -637,6 +664,16 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
     def test_byte_prejournal_failure_preserves_unowned_workspace_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            if os.name == 'nt':
+                stage_bytes = books.save_adapter_publication_bytes
+                def stage_then_foreign_windows(path, value, mode):
+                    stage_bytes(path, value, mode)
+                    (Path(path).parent / 'foreign').write_bytes(b'user data')
+                    raise OSError('fixture staging failure')
+                hook = patch.object(books, 'save_adapter_publication_bytes',
+                                    side_effect=stage_then_foreign_windows)
+            else:
+                hook = None
             stage = books._stage_book_stream
             def stage_then_foreign(path, value, *args, **kwargs):
                 result = stage(path, value, *args, **kwargs)
@@ -648,13 +685,87 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                         output.write(b'user data')
                     raise OSError('fixture staging failure')
                 return result
-            with patch.object(books, '_stage_book_stream',
-                              side_effect=stage_then_foreign):
+            with (hook if hook else patch.object(books, '_stage_book_stream',
+                                                side_effect=stage_then_foreign)):
                 with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                     books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
             survivors = list(root.glob('.book-switch-*/foreign'))
             self.assertEqual(1, len(survivors))
             self.assertEqual(b'user data', survivors[0].read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX descriptor-relative byte staging fixture')
+    def test_prejournal_cleanup_refusal_preserves_original_staging_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stage = books._stage_book_stream
+            def change_first_then_fail(path, source, mode, cancel_check, **kwargs):
+                if Path(path).name == 'new-1':
+                    first = next(root.glob('.book-switch-*/new-0'))
+                    first.write_bytes(b'foreign change')
+                    raise OSError('fixture staging error')
+                return stage(path, source, mode, cancel_check, **kwargs)
+            with patch.object(books, '_stage_book_stream', side_effect=change_first_then_fail):
+                with books.ensure_book_state(root), self.assertRaises(ValueError) as raised:
+                    books.apply_book_state_locked(root, {'one': b'first', 'two': b'second'}, [])
+            self.assertIsInstance(raised.exception.__cause__, OSError)
+            self.assertIn('fixture staging error', str(raised.exception.__cause__))
+            self.assertEqual(b'foreign change', next(root.glob('.book-switch-*/new-0')).read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
+
+    def test_partial_stage_changed_after_write_is_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stage = books._stage_book_stream
+            def change_after_failure(*args, **kwargs):
+                try:
+                    return stage(*args, **kwargs)
+                except ValueError:
+                    next(root.glob('.book-switch-*/new-0')).write_bytes(b'foreign change')
+                    raise
+            source = books.BookStateStream(io.BytesIO(b'a'), 3, hashlib.sha256(b'abc').hexdigest())
+            with patch.object(books, '_stage_book_stream', side_effect=change_after_failure):
+                with books.ensure_book_state(root), self.assertRaises(ValueError) as raised:
+                    books.apply_book_state_locked(root, {'one': source}, [], stream_byte_limit=1024)
+            stages = list(root.glob('.book-switch-*/new-0'))
+            self.assertEqual(1, len(stages), 'Changed partial stage was removed')
+            self.assertEqual(b'foreign change', stages[0].read_bytes())
+            self.assertIsInstance(raised.exception.__cause__, ValueError)
+            self.assertIn('ended early', str(raised.exception.__cause__))
+            self.assertFalse((root / books.JOURNAL).exists())
+
+    def test_completed_stream_changed_before_version_check_is_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stage = books._stage_book_stream
+            def change_after_write(*args, **kwargs):
+                result = stage(*args, **kwargs)
+                next(root.glob('.book-switch-*/new-0')).write_bytes(b'foreign change')
+                return result
+            source = books.BookStateStream(io.BytesIO(b'first'), 5, hashlib.sha256(b'first').hexdigest())
+            with patch.object(books, '_stage_book_stream', side_effect=change_after_write):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {'one': source}, [], stream_byte_limit=1024)
+            stages = list(root.glob('.book-switch-*/new-0'))
+            self.assertEqual(1, len(stages))
+            self.assertEqual(b'foreign change', stages[0].read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX descriptor-relative staging fixture')
+    def test_completed_stage_changed_before_version_check_is_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stage = books._stage_book_stream
+            def change_after_write(*args, **kwargs):
+                result = stage(*args, **kwargs)
+                next(root.glob('.book-switch-*/new-0')).write_bytes(b'foreign change')
+                return result
+            with patch.object(books, '_stage_book_stream', side_effect=change_after_write):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {'one': b'first'}, [])
+            stages = list(root.glob('.book-switch-*/new-0'))
+            self.assertEqual(1, len(stages))
+            self.assertEqual(b'foreign change', stages[0].read_bytes())
             self.assertFalse((root / books.JOURNAL).exists())
 
     @unittest.skipIf(os.name == 'nt', 'symlink creation may require privileges')
@@ -771,6 +882,29 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     journal = json.loads((root / books.JOURNAL).read_text())
                     self.assertEqual(b'original', (root / journal['workspace'] / 'old-0').read_bytes())
 
+    def test_changed_stage_after_journal_preserves_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            save = books._save_journal
+            def change_after_journal(directory, data, **kwargs):
+                result = save(directory, data, **kwargs)
+                if kwargs.get('create'):
+                    (root / data['workspace'] / 'new-0').write_bytes(b'foreign change')
+                return result
+            with patch.object(books, '_save_journal', side_effect=change_after_journal):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                    books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            journal = json.loads((root / books.JOURNAL).read_text())
+            self.assertEqual(b'original', target.read_bytes())
+            self.assertEqual(b'foreign change', (root / journal['workspace'] / 'new-0').read_bytes())
+            with self.assertRaises(ValueError):
+                with books.ensure_book_state(root):
+                    self.fail('Changed stage was admitted')
+            self.assertEqual(b'foreign change', (root / journal['workspace'] / 'new-0').read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+
     def test_byte_recovery_preserves_same_content_foreign_target_after_publication(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -799,6 +933,64 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             self.assertEqual(b'generated', target.read_bytes())
             self.assertEqual(b'original',
                              (root / journal['workspace'] / 'old-0').read_bytes())
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    def test_byte_recovery_preserves_same_content_foreign_original_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            move = books._move
+            def interrupt_after_backup(source, destination, **kwargs):
+                result = move(source, destination, **kwargs)
+                if Path(destination).name == 'old-0':
+                    raise OSError('fixture backup interruption')
+                return result
+            with books.ensure_book_state(root), \
+                 patch.object(books, '_move', side_effect=interrupt_after_backup), \
+                 patch.object(books, 'recover_book_state_locked', side_effect=SystemExit('fixture process exit')), \
+                 self.assertRaises(SystemExit):
+                books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            journal = json.loads((root / books.JOURNAL).read_text())
+            backup = root / journal['workspace'] / 'old-0'
+            previous = backup.stat()
+            backup.unlink()
+            backup.write_bytes(b'original')
+            os.utime(backup, ns=(previous.st_atime_ns, previous.st_mtime_ns))
+            with self.assertRaises(ValueError):
+                with books.ensure_book_state(root):
+                    self.fail('Same-content foreign backup was admitted')
+            self.assertEqual(b'original', backup.read_bytes())
+            self.assertFalse(target.exists())
+            self.assertTrue((root / books.JOURNAL).exists())
+
+    def test_recovery_preserves_recreated_directory_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'old-directory'
+            target.mkdir()
+            move = books._move
+            def interrupt_after_backup(source, destination, **kwargs):
+                result = move(source, destination, **kwargs)
+                if Path(destination).name == 'old-0':
+                    raise OSError('fixture backup interruption')
+                return result
+            with books.ensure_book_state(root), \
+                 patch.object(books, '_move', side_effect=interrupt_after_backup), \
+                 patch.object(books, 'recover_book_state_locked', side_effect=SystemExit('fixture process exit')), \
+                 self.assertRaises(SystemExit):
+                books.apply_book_state_locked(root, {}, ['old-directory'])
+            journal = json.loads((root / books.JOURNAL).read_text())
+            backup = root / journal['workspace'] / 'old-0'
+            previous = backup.stat()
+            shutil.rmtree(backup)
+            backup.mkdir()
+            os.utime(backup, ns=(previous.st_atime_ns, previous.st_mtime_ns))
+            with self.assertRaises(ValueError):
+                with books.ensure_book_state(root):
+                    self.fail('Foreign directory backup was admitted')
+            self.assertTrue(backup.is_dir())
+            self.assertFalse(target.exists())
             self.assertTrue((root / books.JOURNAL).exists())
 
     def test_oversized_or_duplicate_journal_is_refused_without_mutation(self):
@@ -918,8 +1110,15 @@ with books.ensure_book_state(str(root)):
     def test_external_symlink_and_duplicate_targets_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp,tempfile.TemporaryDirectory() as outside:
             root=Path(tmp);other=Path(outside)/'protected';other.write_bytes(b'protected')
-            (root/'link').symlink_to(other)
-            for replacements,removals in [({'../protected':b'bad'},[]),({'link':b'bad'},[]),({'same':b'bad'},['same'])]:
+            cases = [({'../protected':b'bad'},[]),({'same':b'bad'},['same'])]
+            try:
+                (root/'link').symlink_to(other)
+            except OSError as error:
+                if os.name != 'nt' or getattr(error, 'winerror', None) != 1314:
+                    raise
+            else:
+                cases.append(({'link':b'bad'},[]))
+            for replacements,removals in cases:
                 with self.subTest(replacements=replacements),self.assertRaises(ValueError):
                     with books.ensure_book_state(tmp):books.apply_book_state_locked(tmp,replacements,removals)
             self.assertEqual(b'protected',other.read_bytes())

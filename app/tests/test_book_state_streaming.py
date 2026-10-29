@@ -20,6 +20,32 @@ def stream(data):
 
 
 class BookStateStreamingTests(unittest.TestCase):
+    def test_stage_finish_observes_flushed_bytes_on_success_and_failure(self):
+        class ShortInput(io.BytesIO):
+            def read(self, size=-1):
+                if self.tell():
+                    raise OSError('read failed')
+                return super().read(min(size, 3))
+
+        for fails in (False, True):
+            with self.subTest(fails=fails), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / 'new-0'
+                payload = b'abcdef'
+                source = (books.BookStateStream(ShortInput(payload), len(payload),
+                                               hashlib.sha256(payload).hexdigest())
+                          if fails else stream(payload))
+                versions = []
+                if fails:
+                    with self.assertRaisesRegex(OSError, 'read failed'):
+                        books._stage_book_stream(path, source, 0o600, None,
+                                                 on_finish=versions.append)
+                else:
+                    books._stage_book_stream(path, source, 0o600, None,
+                                             on_finish=versions.append)
+                self.assertEqual(1, len(versions))
+                self.assertEqual(3 if fails else len(payload), versions[0].st_size)
+                self.assertEqual(payload[:versions[0].st_size], path.read_bytes())
+
     def test_stream_replacement_rechecks_identity_after_digest(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'new-0'
@@ -129,7 +155,7 @@ b._move(Path(sys.argv[2]),Path(sys.argv[3]),exclusive=True,anchor=Path(sys.argv[
             (root / 'audio.wav').write_bytes(b'old audio')
             (root / 'state.json').write_bytes(b'old state')
             stage = books._stage_book_stream
-            def fail_after_open(path, source, mode, cancel_check, *, on_open=None,
+            def fail_after_open(path, source, mode, cancel_check, *, on_open=None, on_finish=None,
                                 directory_fd=None):
                 if Path(path).name == 'new-1':
                     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
@@ -142,7 +168,7 @@ b._move(Path(sys.argv[2]),Path(sys.argv[3]),exclusive=True,anchor=Path(sys.argv[
                         finally:
                             on_open(os.fstat(output.fileno()))
                 return stage(path, source, mode, cancel_check, on_open=on_open,
-                             directory_fd=directory_fd)
+                             on_finish=on_finish, directory_fd=directory_fd)
             with patch.object(books, '_stage_book_stream', side_effect=fail_after_open):
                 with books.ensure_book_state(root), self.assertRaisesRegex(OSError, 'staging failed'):
                     books.apply_book_state_locked(root, {'audio.wav':stream(b'new audio'),

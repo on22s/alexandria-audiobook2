@@ -12,7 +12,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import httpx
 import core
+import book_state_transaction as transactions
 from publication_source import get_publication_source_capture, get_publication_source_path
+from script_selection_binding import capture_generation_selection
 from routers import script
 from tests import test_saved_publication_source as fixtures
 from tests import test_saved_book_publication as saved
@@ -27,6 +29,13 @@ class SnapshotPublicationSourceTests(unittest.TestCase):
                 stack.enter_context(patch.object(script, key, str(value)))
             states = {'script': {'running': True, 'logs': ['generation still running']}}
             stack.enter_context(patch.object(script, 'process_state', states))
+            run_id = 'a' * 32
+            selected = capture_generation_selection(root, str(root / 'uploads/source.txt'))
+            state_path = root / 'state.json'
+            source_state = json.loads(state_path.read_text())
+            source_state.update(script_generation_selection=selected, script_generation_run_id=run_id)
+            state_path.write_text(json.dumps(source_state))
+            stack.enter_context(patch.object(core, '_task_claims', {'script': {'phase': 'started', 'id': run_id}}))
             entry = {'speaker': 'NARRATOR', 'text': 'Shareable source paragraph.', 'instruct': 'Neutral.'}
             checkpoint = {'stage': 'instruct', 'chunks_done': 1, 'segmented': [entry, entry],
                           'named': [entry, entry], 'annotated': [entry, None]}
@@ -58,14 +67,14 @@ class SnapshotPublicationSourceTests(unittest.TestCase):
 
     def test_provenance_publication_failure_restores_library_without_partial_snapshot(self):
         with self.fixture() as (root, api, states), TestClient(api, raise_server_exceptions=False) as client:
-            before = self.artifacts(root); replace = os.replace; failed = False
+            before = self.artifacts(root); move = transactions._move; failed = False
             def refuse(source, destination, *args, **kwargs):
                 nonlocal failed
                 if not failed and str(destination) == get_publication_source_path(root / 'scripts/snapshot.json'):
                     failed = True
                     raise OSError('fixture snapshot provenance failure')
-                return replace(source, destination, *args, **kwargs)
-            with patch('os.replace', side_effect=refuse):
+                return move(source, destination, *args, **kwargs)
+            with patch.object(transactions, '_move', side_effect=refuse):
                 self.assertEqual(500, client.post('/api/generate_script/snapshot', json={'name': 'snapshot'}).status_code)
             self.assertTrue(failed)
             self.assertEqual(before, self.artifacts(root))
