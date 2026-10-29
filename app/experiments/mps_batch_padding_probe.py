@@ -160,6 +160,8 @@ def get_reading(results):
         return 'inconclusive_memory'
     if any(load_errors):
         return 'model_load_failure'
+    if any(results.get(backend, {}).get('instrument_error') for backend in BACKENDS):
+        return 'instrument_failure'
     if any(result.get('instrument_error') for result in every):
         return 'instrument_failure'
     if any("out of memory" in (result["error"] or "").lower() for result in every):
@@ -242,14 +244,19 @@ def main():
             results[backend]['load_error'] = f'{type(error).__name__}: {error}'[:500]
             write('complete', get_reading(results))
             return
-        results[backend]['loaded'] = get_loaded_backends(model)
+        try:
+            results[backend]['loaded'] = get_loaded_backends(model)
+        except Exception as error:
+            results[backend]['instrument_error'] = f'{type(error).__name__}: {error}'[:500]
+            write('complete', get_reading(results))
+            return
         print(f"  loaded attention: {sorted(set(results[backend]['loaded'].values()), key=str)}")
         for name, texts, speakers in get_probe_cases():
-            torch.manual_seed(args.seed)
             started = time.time()
             token_lengths = None
             stage = 'measurement'
             try:
+                torch.manual_seed(args.seed)
                 token_lengths = get_token_lengths(model, texts)
                 stage = 'generation'
                 wavs, rate = model.generate_custom_voice(
