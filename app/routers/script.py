@@ -892,6 +892,12 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                     extract_epub_text, safe_name, archive_bytes=archive_bytes))
                 if cancelled is not None:
                     raise cancelled
+            except FileNotFoundError as error:
+                # Captured archive bytes are the parser's only input. A
+                # missing-path error here describes a malformed internal EPUB
+                # reference, not unavailable server storage.
+                raise HTTPException(status_code=400, detail=(
+                    'Failed to process EPUB: ' + redact_text(str(error)))) from error
             except (MemoryError, OSError) as error:
                 raise HTTPException(status_code=503, detail=(
                     'EPUB processing is temporarily unavailable: ' +

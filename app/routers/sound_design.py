@@ -46,7 +46,7 @@ async def import_sound_asset(request: Request, file: UploadFile = File(...)):
         result, cancellation = await await_upload_operation(asyncio.to_thread(
             import_sound_asset_upload, DATA_DIR, file.file,
             display_name=display_name, cancel_check=cancelled.is_set),
-            on_cancel=cancelled.set)
+            on_cancel=cancelled.set, prefer_cancellation=True)
         if cancellation is not None:
             raise cancellation
         return result
@@ -140,7 +140,7 @@ async def _dispatch_sound_metadata(request, operation):
     watcher = asyncio.create_task(watch_disconnect())
     try:
         response, cancellation = await await_upload_operation(asyncio.to_thread(
-            operation,check_active),on_cancel=cancelled.set)
+            operation,check_active),on_cancel=cancelled.set, prefer_cancellation=True)
         if cancellation is not None:
             raise cancellation
         return response
@@ -247,7 +247,7 @@ async def _dispatch_sound_candidate(request, operation, *, busy_conflicts=False)
     try:
         result, cancellation = await await_upload_operation(
             run_claimed_task_worker('audio',observed,cancelled.is_set,cpu_only=True),
-            on_cancel=cancelled.set)
+            on_cancel=cancelled.set, prefer_cancellation=True)
         if cancellation is not None:
             raise cancellation
         return result
