@@ -16,6 +16,19 @@ from source_upload_stage import OwnedSourceUploadStage
 
 
 class SourceUploadVisibilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_vanished_reusable_upload_is_skipped(self):
+        async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (_, uploads, client):
+            vanished = uploads / 'vanished.txt'
+            vanished.write_bytes(b'Transient source.')
+            original = script.os.lstat
+            with patch.object(script.os, 'lstat', side_effect=lambda path: (
+                    (_ for _ in ()).throw(FileNotFoundError(path))
+                    if os.path.normcase(str(path)) == os.path.normcase(str(vanished))
+                    else original(path))):
+                response = await client.get('/api/uploads')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual([], response.json())
+
     async def test_multiply_linked_upload_is_not_reusable_or_selectable(self):
         async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (_, uploads, client):
             source = uploads / 'linked.txt'

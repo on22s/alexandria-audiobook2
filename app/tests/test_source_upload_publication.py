@@ -211,6 +211,14 @@ class SourceUploadPublicationTests(unittest.TestCase):
         self.assertEqual([str(self.root / 'book.txt')], visible)
         self.assertEqual(self.payload, Path(visible[0]).read_bytes())
 
+    def test_close_error_does_not_mask_late_sync_error(self):
+        with patch.object(self.stage, 'sync_directory',
+                          side_effect=OSError('controlled sync failure')), \
+                patch.object(self.stage, 'close',
+                             side_effect=OSError('controlled close failure')):
+            with self.assertRaisesRegex(OSError, 'controlled sync failure'):
+                self.publish()
+
     def test_unsupported_move_never_copies_or_removes_recoverable_stage(self):
         visible = []
         with patch.object(self.stage, 'publish', side_effect=OSError(errno.EOPNOTSUPP, 'fixture')):

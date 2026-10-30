@@ -156,7 +156,13 @@ def publish_completed_upload(stage, filename, on_visible, *, limit, companion_by
         try:
             on_visible(str(destination))
             stage.sync_directory()
-        finally:
+        except BaseException:
+            try:
+                stage.close()
+            except BaseException:
+                pass
+            raise
+        else:
             stage.close()
         return str(destination)
     raise ValueError('Too many source upload filename collisions')

@@ -40,6 +40,38 @@ def epub(title='Fixture title', *, cover=None, metadata=True, text=TEXT):
 
 
 class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_epub_normalization_runs_off_event_loop(self):
+        async with self.environment() as (_, _, client):
+            loop_thread = threading.get_ident()
+            worker_threads = []
+            original = script._encode_epub_text
+            def observed(text):
+                worker_threads.append(threading.get_ident())
+                return original(text)
+            with patch.object(script, '_encode_epub_text', side_effect=observed):
+                response = await self.upload(client, epub())
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual(1, len(worker_threads))
+            self.assertNotEqual(loop_thread, worker_threads[0])
+
+    async def test_epub_storage_failure_is_not_reported_as_bad_input(self):
+        async with self.environment() as (_, _, client):
+            with patch.object(script, 'extract_epub_text',
+                              side_effect=OSError('controlled storage failure')):
+                response = await self.upload(client, epub())
+            self.assertEqual(503, response.status_code, response.text)
+
+    async def test_rollback_failure_does_not_mask_request_error(self):
+        async with self.environment() as (_, _, client):
+            self.assertEqual(200, (await self.upload(client, epub())).status_code)
+            original = script.HTTPException(status_code=418, detail='controlled request failure')
+            with patch.object(script, 'apply_publication_source_update', side_effect=original), \
+                    patch.object(script, 'restore_publication_source_update',
+                                 side_effect=ValueError('controlled rollback failure')):
+                response = await self.upload(client, epub())
+            self.assertEqual(418, response.status_code, response.text)
+            self.assertEqual('controlled request failure', response.json()['detail'])
+
     async def test_epub_fallback_warning_redacts_credentials(self):
         async with self.environment() as (_, _, client):
             with patch.object(script, 'get_epub_publication_candidate',

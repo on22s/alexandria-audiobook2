@@ -746,16 +746,24 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
 def _get_reusable_uploads() -> List[dict]:
     uploads = []
     for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name.casefold()):
-        facts = os.lstat(entry.path)
-        if (not entry.is_file(follow_symlinks=False) or not stat.S_ISREG(facts.st_mode)
-                or facts.st_nlink != 1
-                or os.path.splitext(entry.name)[1].lower() not in {".txt", ".md"}):
+        try:
+            facts = os.lstat(entry.path)
+            if (not entry.is_file(follow_symlinks=False) or not stat.S_ISREG(facts.st_mode)
+                    or facts.st_nlink != 1
+                    or os.path.splitext(entry.name)[1].lower() not in {".txt", ".md"}):
+                continue
+            uploads.append({
+                "filename": entry.name, "size": facts.st_size, "modified": facts.st_mtime,
+                "sha256": _get_upload_hash(entry.path),
+            })
+        except FileNotFoundError:
             continue
-        uploads.append({
-            "filename": entry.name, "size": facts.st_size, "modified": facts.st_mtime,
-            "sha256": _get_upload_hash(entry.path),
-        })
     return uploads
+
+
+def _encode_epub_text(text):
+    """Validate and encode potentially large extracted text off the event loop."""
+    return text.encode('utf-8') if text.strip() else None
 
 
 def _apply_upload_selection(path, before_publication=None):
@@ -876,11 +884,18 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                     extract_epub_text, safe_name, archive_bytes=archive_bytes))
                 if cancelled is not None:
                     raise cancelled
+            except (MemoryError, OSError) as error:
+                raise HTTPException(status_code=503, detail=(
+                    'EPUB processing is temporarily unavailable: ' +
+                    redact_text(str(error)))) from error
             except Exception as error:
                 raise HTTPException(status_code=400, detail=f"Failed to process EPUB: {redact_text(str(error))}") from error
-            if not text.strip():
+            text_bytes, cancelled = await await_upload_operation(
+                asyncio.to_thread(_encode_epub_text, text))
+            if cancelled is not None:
+                raise cancelled
+            if text_bytes is None:
                 raise HTTPException(status_code=400, detail="No readable text content found in EPUB.")
-            text_bytes = text.encode('utf-8')
             # The captured archive bytes now own parsing/provenance input; do
             # not reserve both its stage and the extracted text simultaneously.
             _, cancelled = await await_upload_operation(asyncio.to_thread(file_path.close))
@@ -980,7 +995,12 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
         if any(stage.publication_started for stage in owned_stages):
             retain_selected_source()
         if publication_update is not None and not selection['publication_started']:
-            await await_upload_operation(asyncio.to_thread(restore_publication_source_update, publication_update))
+            try:
+                await await_upload_operation(asyncio.to_thread(
+                    restore_publication_source_update, publication_update))
+            except BaseException as rollback_error:
+                logger.warning('Publication rollback also failed: %s',
+                               type(rollback_error).__name__)
         raise
     finally:
         try:
