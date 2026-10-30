@@ -168,6 +168,7 @@ class ConcurrentLockCreationTests(unittest.TestCase):
                     thread.start()
                 for thread in threads:
                     thread.join(timeout=10)
+                self.assertEqual(['owner.lock'], os.listdir(tmp))
         self.assertEqual([], errors)
 
     def test_simultaneous_descriptor_relative_creation_opens_one_file(self):

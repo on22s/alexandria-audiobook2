@@ -93,7 +93,9 @@ if [ -f "$REPO/GOALS.md" ]; then
     if [ -n "${line:-}" ]; then
         # -i.bak: GNU and BSD (macOS) sed both accept an attached suffix.
         sed -i.bak "30s/met goals begin at line [0-9]*/met goals begin at line $line/" \
-            "$REPO/GOALS.md" && rm -f "$REPO/GOALS.md.bak"
+            "$REPO/GOALS.md"
+        # Unconditional: a stray backup would leave the tree dirty for gpu_job.sh.
+        rm -f "$REPO/GOALS.md.bak"
         say "   GOALS.md line pointer"
     fi
 fi
