@@ -50,6 +50,9 @@ def build_self_verification_report(manifest_path):
     for source_case, content_case in zip(source_cases, content["cases"]):
         if source_case["id"] != content_case["id"]:
             raise EndpointScreenError("content report case order changed")
+        if source_case.get("language") != "en":
+            raise EndpointScreenError(
+                f"case {source_case['id']} needs an explicit English language assertion")
         expected = source_case["input"]["text"]
         if is_cjk(expected):
             raise EndpointScreenError(

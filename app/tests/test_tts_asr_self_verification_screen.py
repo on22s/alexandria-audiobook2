@@ -15,6 +15,7 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
         write_wav(root / "one.wav", [0] * 120)
         write_wav(root / "two.wav", [0] * 119 + [1])
         case = manifest_case()
+        case["language"] = "en"
         if first is not None:
             case["attempts"][0]["primary_transcript"] = first
         if second is not None:
@@ -43,6 +44,8 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
             self.assertIn("token-count dropout rule", report["limitations"][0])
             self.assertEqual(1, report["counts"]["recovered_by_second_attempt"])
             self.assertEqual(1, report["counts"]["catastrophic_attempts"])
+            self.assertEqual(0, report["counts"]["selected_attempt_1"])
+            self.assertEqual(1, report["counts"]["selected_attempt_2"])
 
     def test_tie_is_deterministically_first_and_threshold_is_strict(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -64,6 +67,35 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
             self.assertEqual(0.5, first["word_error_rate"])
             self.assertFalse(first["content_failure_observed"])
 
+    def test_dropout_rule_excludes_one_word_even_at_wer_boundary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest = self.make_manifest(root, "hello world", "hello")
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            case = document["cases"][0]
+            case["input"]["text"] = "hello world"
+            from tests.test_tts_endpoint_content_screen import digest
+            case["input_sha256"] = digest(case["input"])
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            report = screen.build_self_verification_report(manifest)
+            candidate = report["cases"][0]["candidates"][1]
+            self.assertEqual(0.5, candidate["word_error_rate"])
+            self.assertTrue(candidate["asr_dropout_observed"])
+            self.assertFalse(candidate["content_failure_observed"])
+            self.assertTrue(candidate["catastrophic_observed"])
+
+    def test_eligible_first_candidate_survives_catastrophic_second(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            exact = "It isn't step back before the cables snap."
+            report = screen.build_self_verification_report(
+                self.make_manifest(root, exact, "noise"))
+            case = report["cases"][0]
+            self.assertEqual(1, case["selected_attempt"])
+            self.assertFalse(case["first_attempt_catastrophic"])
+            self.assertFalse(case["all_attempts_catastrophic"])
+            self.assertFalse(case["recovered_by_second_attempt"])
+
     def test_all_catastrophic_candidates_yield_no_selection(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -80,8 +112,21 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
             manifest = self.make_manifest(root)
             document = json.loads(manifest.read_text(encoding="utf-8"))
             case = document["cases"][0]
-            case["input"]["text"] = "彼は静かに答えた。"
+            del case["language"]
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(screen.EndpointScreenError,
+                                        "explicit English language assertion"):
+                screen.build_self_verification_report(manifest)
+            case["language"] = "es"
+            case["input"]["text"] = "hola mundo"
             from tests.test_tts_endpoint_content_screen import digest
+            case["input_sha256"] = digest(case["input"])
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(screen.EndpointScreenError,
+                                        "explicit English language assertion"):
+                screen.build_self_verification_report(manifest)
+            case["language"] = "en"
+            case["input"]["text"] = "彼は静かに答えた。"
             case["input_sha256"] = digest(case["input"])
             manifest.write_text(json.dumps(document, ensure_ascii=False),
                                 encoding="utf-8")
@@ -140,6 +185,15 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
                              report["provenance"]["script"])
             serialized = json.dumps(report)
             self.assertNotIn("long strange inserted passage", serialized)
+            self.assertNotIn("It isn't step back before the cables snap.", serialized)
+            def keys(value):
+                if isinstance(value, dict):
+                    return set(value).union(*(keys(item) for item in value.values()))
+                if isinstance(value, list):
+                    return set().union(*(keys(item) for item in value))
+                return set()
+            self.assertNotIn("primary_transcript", keys(report))
+            self.assertNotIn("input.text", keys(report))
             before = output.read_bytes()
             second = subprocess.run(command, cwd=Path(__file__).resolve().parents[1],
                                     capture_output=True, text=True, timeout=15)
