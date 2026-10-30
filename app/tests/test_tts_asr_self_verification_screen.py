@@ -163,6 +163,21 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
                                            "candidate identity changed"):
                 screen.build_self_verification_report(manifest)
 
+    def test_non_integer_attempt_identity_is_cleanly_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest = self.make_manifest(root)
+            content = screen.build_content_report(manifest)
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            document["cases"][0]["attempts"][0]["attempt"] = True
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            content["manifest_sha256"] = screen.hashlib.sha256(
+                manifest.read_bytes()).hexdigest()
+            with patch.object(screen, "build_content_report", return_value=content), \
+                    self.assertRaisesRegex(screen.EndpointScreenError,
+                                           "candidate identity changed"):
+                screen.build_self_verification_report(manifest)
+
     def test_manifest_replacement_between_passes_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

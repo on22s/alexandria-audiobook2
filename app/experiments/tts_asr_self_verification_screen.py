@@ -85,7 +85,10 @@ def build_self_verification_report(manifest_path):
         content_identity = [(attempt.get("attempt"), attempt.get("take_id"),
                              attempt.get("seed"), attempt.get("audio"))
                             for attempt in content_attempts]
-        if source_identity != content_identity or [row[0] for row in source_identity] != [1, 2]:
+        attempt_numbers = [row[0] for row in source_identity]
+        if (source_identity != content_identity
+                or any(type(value) is not int for value in attempt_numbers)
+                or attempt_numbers != [1, 2]):
             raise EndpointScreenError(
                 f"case {source_case['id']} candidate identity changed")
         candidates = []
