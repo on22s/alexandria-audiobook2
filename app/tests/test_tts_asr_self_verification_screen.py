@@ -131,6 +131,13 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
             with self.assertRaisesRegex(screen.EndpointScreenError,
                                         "unsupported script characters"):
                 screen.build_self_verification_report(manifest)
+            case["input"]["text"] = "cafe\u0301 au lait"
+            case["input_sha256"] = digest(case["input"])
+            manifest.write_text(json.dumps(document, ensure_ascii=False),
+                                encoding="utf-8")
+            with self.assertRaisesRegex(screen.EndpointScreenError,
+                                        "unsupported script characters"):
+                screen.build_self_verification_report(manifest)
             case["input"]["text"] = "彼は静かに答えた。"
             case["input_sha256"] = digest(case["input"])
             manifest.write_text(json.dumps(document, ensure_ascii=False),

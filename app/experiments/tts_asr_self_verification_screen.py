@@ -13,6 +13,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import unicodedata
 
 from experiments.asr_backends import is_cjk, normalise, word_error_rate
 from experiments.provenance import provenance
@@ -31,8 +32,9 @@ def _word_count(text):
     return len(normalise(text, char_level=False).split())
 
 
-def _has_non_ascii_letters(text):
-    return any(character.isalpha() and not character.isascii()
+def _has_non_ascii_characters(text):
+    return any(not character.isascii()
+               and not unicodedata.category(character).startswith("P")
                for character in text)
 
 
@@ -63,7 +65,7 @@ def build_self_verification_report(manifest_path):
             raise EndpointScreenError(
                 f"case {source_case['id']} needs an explicit English language assertion")
         expected = source_case["input"]["text"]
-        if is_cjk(expected) or _has_non_ascii_letters(expected):
+        if is_cjk(expected) or _has_non_ascii_characters(expected):
             raise EndpointScreenError(
                 f"case {source_case['id']} has unsupported script characters")
         expected_words = _word_count(expected)
