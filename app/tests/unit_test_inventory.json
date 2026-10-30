@@ -12270,6 +12270,18 @@
     "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_mixed_external_batch_preserves_supported_rows_and_reports_unsupported_rows",
     "tests.test_tts_backend_capabilities.TTSBackendCapabilityTests.test_preview_http_returns_actionable_client_error_and_releases_its_claim"
   ],
+  "test_tts_asr_self_verification_screen": [
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_all_catastrophic_candidates_yield_no_selection",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_cli_refuses_unasserted_language_without_output_or_traceback",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_cli_writes_once_without_raw_transcripts",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_dropout_rule_excludes_one_word_even_at_wer_boundary",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_eligible_first_candidate_survives_catastrophic_second",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_manifest_replacement_between_passes_is_refused",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_mismatched_content_candidate_identity_is_refused",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_selects_lowest_wer_survivor_and_records_missing_codec_evidence",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_tie_is_deterministically_first_and_threshold_is_strict",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_unsupported_references_are_refused_instead_of_misscored"
+  ],
   "test_tts_batch_contracts": [
     "tests.test_tts_batch_contracts.BatchContractsTests.test_alias_members_dispatch_to_canonical_custom_clone_and_lora",
     "tests.test_tts_batch_contracts.BatchContractsTests.test_batch_seed_reaches_design_and_ensemble_after_version_selection",
@@ -12314,17 +12326,6 @@
   ],
   "test_tts_capability_guidance_js": [
     "tests.test_tts_capability_guidance_js.TtsCapabilityGuidanceJsTests.test_mode_changes_preserve_assignment_fields_and_warn_without_posting"
-  ],
-  "test_tts_asr_self_verification_screen": [
-    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_all_catastrophic_candidates_yield_no_selection",
-    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_cli_writes_once_without_raw_transcripts",
-    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_dropout_rule_excludes_one_word_even_at_wer_boundary",
-    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_eligible_first_candidate_survives_catastrophic_second",
-    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_manifest_replacement_between_passes_is_refused",
-    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_mismatched_content_candidate_identity_is_refused",
-    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_selects_lowest_wer_survivor_and_records_missing_codec_evidence",
-    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_tie_is_deterministically_first_and_threshold_is_strict",
-    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_unsupported_references_are_refused_instead_of_misscored"
   ],
   "test_tts_clip_view": [
     "tests.test_tts_clip_view.Rendering.test_the_page_contains_the_text_and_the_error_pairs",

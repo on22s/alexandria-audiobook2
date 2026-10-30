@@ -119,7 +119,7 @@ def build_self_verification_report(manifest_path):
         counts["first_attempt_catastrophic"] += int(first_failed)
         counts["all_attempts_catastrophic"] += int(all_failed)
         counts["recovered_by_second_attempt"] += int(recovered)
-        if selected:
+        if selected is not None:
             counts[f"selected_attempt_{selected['attempt']}"] += 1
         cases.append({
             "id": source_case["id"],

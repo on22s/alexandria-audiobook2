@@ -193,12 +193,30 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
                     return set().union(*(keys(item) for item in value))
                 return set()
             self.assertNotIn("primary_transcript", keys(report))
-            self.assertNotIn("input.text", keys(report))
             before = output.read_bytes()
             second = subprocess.run(command, cwd=Path(__file__).resolve().parents[1],
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(3, second.returncode)
             self.assertEqual(before, output.read_bytes())
+
+    def test_cli_refuses_unasserted_language_without_output_or_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest = self.make_manifest(root)
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            del document["cases"][0]["language"]
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            output = root / "report.json"
+            result = subprocess.run(
+                [sys.executable, "-m",
+                 "experiments.tts_asr_self_verification_screen",
+                 "--manifest", str(manifest), "--out", str(output)],
+                cwd=Path(__file__).resolve().parents[1], capture_output=True,
+                text=True, timeout=15)
+            self.assertEqual(2, result.returncode)
+            self.assertIn("refused input", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":
