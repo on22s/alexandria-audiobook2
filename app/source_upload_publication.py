@@ -101,6 +101,7 @@ def publish_completed_upload(stage, filename, on_visible, *, limit, companion_by
             continue
         companion = Path(str(destination) + '.publication.json')
         companion_identity = None
+        companion_version = None
         published = False
         try:
             if companion_bytes is not None:
@@ -117,6 +118,8 @@ def publish_completed_upload(stage, filename, on_visible, *, limit, companion_by
                         output.write(companion_bytes)
                         output.flush()
                         os.fsync(output.fileno())
+                    facts = os.fstat(descriptor)
+                    companion_version = (facts.st_size, facts.st_mtime_ns)
                 finally:
                     os.close(descriptor)
             stage.publish(name)
@@ -135,7 +138,9 @@ def publish_completed_upload(stage, filename, on_visible, *, limit, companion_by
                     cleanup_error = error
                 else:
                     if ((facts.st_dev, facts.st_ino) != companion_identity
-                            or not stat.S_ISREG(facts.st_mode) or facts.st_nlink != 1):
+                            or not stat.S_ISREG(facts.st_mode) or facts.st_nlink != 1
+                            or companion_version is not None
+                            and (facts.st_size, facts.st_mtime_ns) != companion_version):
                         cleanup_error = ValueError(
                             'Source provenance changed during publication')
                     else:

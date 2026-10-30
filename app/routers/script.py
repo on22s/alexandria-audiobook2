@@ -798,6 +798,14 @@ def _select_upload(filename: str, *, include_identity=False):
     return (path, token) if include_identity else path
 
 
+def _is_single_link_regular_file(path):
+    try:
+        facts = os.lstat(path)
+    except OSError:
+        return False
+    return stat.S_ISREG(facts.st_mode) and facts.st_nlink == 1
+
+
 @router.get("/api/uploads")
 async def list_reusable_uploads():
     return await asyncio.to_thread(_get_reusable_uploads)
@@ -890,8 +898,13 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                     redact_text(str(error)))) from error
             except Exception as error:
                 raise HTTPException(status_code=400, detail=f"Failed to process EPUB: {redact_text(str(error))}") from error
-            text_bytes, cancelled = await await_upload_operation(
-                asyncio.to_thread(_encode_epub_text, text))
+            try:
+                text_bytes, cancelled = await await_upload_operation(
+                    asyncio.to_thread(_encode_epub_text, text))
+            except (MemoryError, OSError) as error:
+                raise HTTPException(status_code=503, detail=(
+                    'EPUB processing is temporarily unavailable: ' +
+                    redact_text(str(error)))) from error
             if cancelled is not None:
                 raise cancelled
             if text_bytes is None:
@@ -2643,7 +2656,7 @@ def _resolve_batch_script_input(filename: str) -> str:
     input_path = os.path.join(UPLOADS_DIR, safe_filename)
     if not os.path.exists(input_path) and os.path.splitext(safe_filename)[1].lower() == ".epub":
         input_path = os.path.join(UPLOADS_DIR, os.path.splitext(safe_filename)[0] + ".txt")
-    if not os.path.isfile(input_path):
+    if not _is_single_link_regular_file(input_path):
         raise ValueError(f"Source is not a regular file: {filename}")
     return input_path
 

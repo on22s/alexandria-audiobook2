@@ -268,6 +268,23 @@ class SourceUploadPublicationTests(unittest.TestCase):
                     limit=len(self.payload), companion_bytes=companion)
         self.assert_stage_retained()
 
+    def test_modified_companion_is_preserved_as_changed_evidence(self):
+        companion = self.get_companion_bytes()
+        def modify_companion_then_collide(_name):
+            path = self.root / 'book.txt.publication.json'
+            path.write_bytes(b'changed provenance evidence')
+            os.utime(path, ns=(path.stat().st_atime_ns, path.stat().st_mtime_ns + 1_000_000))
+            raise FileExistsError('controlled destination collision')
+        with patch.object(self.stage, 'publish', side_effect=modify_companion_then_collide):
+            with self.assertRaisesRegex(ValueError, 'provenance changed'):
+                publication.publish_completed_upload(
+                    self.stage, 'book.txt', lambda path: None,
+                    limit=len(self.payload), companion_bytes=companion)
+        self.assertEqual(b'changed provenance evidence',
+                         (self.root / 'book.txt.publication.json').read_bytes())
+        self.assertIsNone(self.stage.published_path)
+        self.assertEqual(self.payload, self.stage.read_bytes())
+
     def test_disappearing_companion_does_not_mask_native_publication_error(self):
         companion = self.get_companion_bytes()
         def remove_companion_then_fail(_name):

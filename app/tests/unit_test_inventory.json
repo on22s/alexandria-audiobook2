@@ -10574,6 +10574,7 @@
     "tests.test_source_sweep_scope.SweepScopeInventoryTest.test_no_test_rglobs_python_files_by_hand"
   ],
   "test_source_upload_publication": [
+    "tests.test_source_upload_publication.SourceUploadPublicationTests.test_modified_companion_is_preserved_as_changed_evidence",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_close_error_does_not_mask_late_sync_error",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_companion_cleanup_error_preserves_publication_failure_precedence",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_disappearing_companion_is_a_governed_publication_conflict",
@@ -12653,6 +12654,7 @@
     "tests.test_upload_hash_cache.UploadHashCacheTests.test_native_versions_replace_historical_digest_for_the_same_path"
   ],
   "test_upload_publication_source": [
+    "tests.test_upload_publication_source.UploadPublicationSourceTests.test_epub_normalization_memory_failure_is_service_unavailable",
     "tests.test_upload_publication_source.UploadPublicationSourceTests.test_epub_normalization_runs_off_event_loop",
     "tests.test_upload_publication_source.UploadPublicationSourceTests.test_epub_storage_failure_is_not_reported_as_bad_input",
     "tests.test_upload_publication_source.UploadPublicationSourceTests.test_rollback_failure_does_not_mask_request_error",

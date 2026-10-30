@@ -61,6 +61,12 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
                 response = await self.upload(client, epub())
             self.assertEqual(503, response.status_code, response.text)
 
+    async def test_epub_normalization_memory_failure_is_service_unavailable(self):
+        async with self.environment() as (_, _, client):
+            with patch.object(script, '_encode_epub_text', side_effect=MemoryError()):
+                response = await self.upload(client, epub())
+            self.assertEqual(503, response.status_code, response.text)
+
     async def test_rollback_failure_does_not_mask_request_error(self):
         async with self.environment() as (_, _, client):
             self.assertEqual(200, (await self.upload(client, epub())).status_code)

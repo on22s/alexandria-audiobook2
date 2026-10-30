@@ -39,6 +39,8 @@ class SourceUploadVisibilityTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(200, listed.status_code, listed.text)
             self.assertEqual([], listed.json())
             self.assertEqual(404, selected.status_code, selected.text)
+            with self.assertRaisesRegex(ValueError, 'regular file'):
+                script._resolve_batch_script_input('linked.txt')
 
     async def test_dedupe_storage_replacement_is_a_governed_conflict(self):
         async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (_, uploads, client):
