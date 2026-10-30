@@ -17,8 +17,8 @@ async def await_upload_operation(operation, *, on_cancel=None):
             break
     try:
         result = task.result()
-    except BaseException:
+    except BaseException as error:
         if cancelled is not None:
-            raise cancelled
+            raise error from cancelled
         raise
     return result, cancelled

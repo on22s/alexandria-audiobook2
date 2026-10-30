@@ -266,7 +266,11 @@ class OwnedSourceUploadStage:
             if os.fstat(self._stream.fileno()).st_nlink != 1:
                 self._delete_windows_link()  # remove only the unaccepted owned link
                 self._published_path = None
-                self.close()
+                try:
+                    self.close()
+                except BaseException as error:
+                    raise ValueError(
+                        'Upload stage acquired an alias during publication') from error
                 raise ValueError('Upload stage acquired an alias during publication')
         elif sys.platform.startswith('linux'):
             os.link('/proc/self/fd/' + str(self._stream.fileno()), name,

@@ -131,6 +131,24 @@ class SourceUploadPublicationTests(unittest.TestCase):
         self.assertEqual('book_2.txt', Path(result).name)
         self.assertEqual(companion, (self.root / 'book.txt.publication.json').read_bytes())
 
+    def test_windows_alias_conflict_survives_close_failure(self):
+        if os.name != 'nt':
+            return
+        rename = self.stage._rename_windows
+        external = self.root / 'external-close-failure'
+        def add_alias(destination):
+            rename(destination)
+            os.link(destination, external)
+        original_close = self.stage.close
+        def close_then_fail():
+            original_close()
+            raise OSError('controlled close failure')
+        with patch.object(self.stage, '_rename_windows', side_effect=add_alias), \
+                patch.object(self.stage, 'close', side_effect=close_then_fail):
+            with self.assertRaisesRegex(ValueError, 'acquired an alias') as caught:
+                self.stage.publish('book.txt')
+        self.assertIsInstance(caught.exception.__cause__, OSError)
+
     def test_visibility_handoff_has_all_bytes_and_private_name_is_removed(self):
         observed = []
         result = self.publish(lambda path: observed.append(Path(path).read_bytes()))

@@ -118,10 +118,18 @@ def publish_completed_upload(stage, filename, on_visible, *, limit, companion_by
                         output.write(companion_bytes)
                         output.flush()
                         os.fsync(output.fileno())
-                    facts = os.fstat(descriptor)
-                    companion_version = (facts.st_size, facts.st_mtime_ns)
                 finally:
                     os.close(descriptor)
+                # Windows can finalize write timestamps only when the write
+                # handle closes. Capture the cleanup version afterward while
+                # still verifying that the reserved identity owns this name.
+                facts = (os.stat(companion.name, dir_fd=stage._directory_fd,
+                                 follow_symlinks=False)
+                         if stage._directory_fd is not None else companion.lstat())
+                if ((facts.st_dev, facts.st_ino) != companion_identity
+                        or not stat.S_ISREG(facts.st_mode) or facts.st_nlink != 1):
+                    raise ValueError('Source provenance changed during publication')
+                companion_version = (facts.st_size, facts.st_mtime_ns)
             stage.publish(name)
             published = True
         except FileExistsError:

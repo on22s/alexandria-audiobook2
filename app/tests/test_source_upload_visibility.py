@@ -16,6 +16,20 @@ from source_upload_stage import OwnedSourceUploadStage
 
 
 class SourceUploadVisibilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cancelled_wait_does_not_hide_late_operation_failure(self):
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def operation():
+            entered.set()
+            await release.wait()
+            raise OSError('controlled late cleanup failure')
+        task = asyncio.create_task(script.await_upload_operation(operation()))
+        await entered.wait()
+        task.cancel()
+        await asyncio.sleep(0)
+        release.set()
+        with self.assertRaisesRegex(OSError, 'controlled late cleanup failure'):
+            await task
+
     async def test_vanished_reusable_upload_is_skipped(self):
         async with selection_tests.SoundDesignUploadSelectionTests().fixture() as (_, uploads, client):
             vanished = uploads / 'vanished.txt'
