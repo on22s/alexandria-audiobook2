@@ -52,10 +52,18 @@ def send_macos_owner_descriptor(channel, descriptor):
         raise OSError('Incomplete macOS owner descriptor transfer')
 
 
+# macOS installs every descriptor in a message even when the receive buffer
+# truncates it, and reports only those that fit; the rest leak, holding any lock
+# they carry. Room for Linux's per-message maximum (SCM_MAX_FD) lets a malformed
+# packet from the parent be seen and closed in full.
+MAX_RECEIVED_DESCRIPTORS = 253
+
+
 def receive_macos_owner_descriptor(channel):
     received = []
     try:
-        data, messages, flags, _ = channel.recvmsg(1, socket.CMSG_SPACE(array.array('i').itemsize))
+        data, messages, flags, _ = channel.recvmsg(
+            1, socket.CMSG_SPACE(array.array('i').itemsize * MAX_RECEIVED_DESCRIPTORS))
         unexpected = False
         for level, kind, payload in messages:
             if level != socket.SOL_SOCKET or kind != socket.SCM_RIGHTS:
