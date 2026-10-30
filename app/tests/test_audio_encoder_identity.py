@@ -6,9 +6,13 @@ import unittest
 from unittest.mock import patch
 
 import audio_encoder_identity as identity
+from tests.test_support import use_resolved_tempdir
 
 
 class AudioEncoderIdentityTests(unittest.TestCase):
+    def setUp(self):
+        use_resolved_tempdir(self)
+
     def test_native_probe_is_finite_and_pure_and_exposes_only_a_digest(self):
         runtime=identity.get_ffmpeg_runtime_identity()
         self.assertEqual(64,len(identity.get_ffmpeg_runtime_digest(runtime)))

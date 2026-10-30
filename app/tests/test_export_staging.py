@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import export_staging
+from tests.test_support import use_resolved_tempdir
 
 from export_staging import (ExportStaging, create_export_staging, reclaim_export_staging,
                             MARKER, OWNER_LOCK, PREFIXES)
@@ -41,6 +42,9 @@ else:
 
 
 class ExportStagingTests(unittest.TestCase):
+    def setUp(self):
+        use_resolved_tempdir(self)
+
     @unittest.skipUnless(HAS_POSIX_FD_SCAN, 'POSIX descriptor-based legacy discovery')
     def test_saved_legacy_scan_identity_must_match_pinned_parent(self):
         with tempfile.TemporaryDirectory() as temporary:

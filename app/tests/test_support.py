@@ -21,6 +21,17 @@ def assume_ample_free_disk(testcase):
     testcase.addCleanup(probe.stop)
 
 
+def use_resolved_tempdir(testcase):
+    """Hand out temporary folders by their resolved path for this test.
+
+    macOS keeps them behind its /var -> /private/var link, while the code under
+    test reports resolved paths, so a test comparing the two failed only there.
+    """
+    resolved = patch.object(tempfile, 'tempdir', os.path.realpath(tempfile.gettempdir()))
+    resolved.start()
+    testcase.addCleanup(resolved.stop)
+
+
 @contextmanager
 def use_private_cpu_fixture_lock():
     """Select a real private lease for model-free CPU fixtures.
