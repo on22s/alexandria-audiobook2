@@ -13,10 +13,12 @@ from unittest.mock import patch
 
 from experiments import ljspeech_completion as completion
 from tests.hifitts_fixture import write_hifitts_fixture
+from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 
 
+@requires_linux_queue_tools
 class HiFiTTSCompletionTests(unittest.TestCase):
     def setUp(self):
         temp=tempfile.TemporaryDirectory(prefix='hifitts fixture ');self.addCleanup(temp.cleanup);self.root=Path(temp.name)

@@ -12,8 +12,10 @@ import time
 import unittest
 
 from tests.test_subprocess_finally import is_live
+from tests.test_support import requires_linux_queue_tools
 
 
+@requires_linux_queue_tools
 class DisconnectGraceTests(unittest.TestCase):
     def check_disconnect(self, grace):
         with tempfile.TemporaryDirectory() as tmp:

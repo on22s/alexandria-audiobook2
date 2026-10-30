@@ -7,8 +7,10 @@ import unittest
 from tests.test_gpu_job import REPO
 from tests.test_recheck_reporting import extract
 from tests import test_stage_gpu_reclamation as reclamation
+from tests.test_support import requires_linux_queue_tools
 
 
+@requires_linux_queue_tools
 class EverythingReclamationTests(unittest.TestCase):
     setUp = reclamation.StageGpuReclamationTests.setUp
     launch = reclamation.StageGpuReclamationTests.launch

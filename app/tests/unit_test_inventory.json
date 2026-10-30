@@ -4629,6 +4629,7 @@
     "tests.test_field_help.FieldHelpRenderTests.test_render_places_icons_once_and_initialises_one_delegated_tooltip"
   ],
   "test_file_lock_ownership": [
+    "tests.test_file_lock_ownership.ConcurrentLockCreationTests.test_simultaneous_descriptor_relative_creation_opens_one_file",
     "tests.test_file_lock_ownership.FileLockOwnershipTests.test_aged_live_holder_cannot_be_reaped_and_timeout_does_not_remove_lock",
     "tests.test_file_lock_ownership.FileLockOwnershipTests.test_exceptions_release_and_old_empty_markers_need_no_age_based_delete",
     "tests.test_file_lock_ownership.FileLockOwnershipTests.test_independent_preopened_handle_contends_with_ordinary_admission",

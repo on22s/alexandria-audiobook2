@@ -7,10 +7,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 
 
+@requires_linux_queue_tools
 class LibriQuoteStopGateTests(unittest.TestCase):
     def run_fixture(self,reader,cached,fresh,rc):
         temp=tempfile.TemporaryDirectory(prefix='libriquote gate ');self.addCleanup(temp.cleanup);root=Path(temp.name)

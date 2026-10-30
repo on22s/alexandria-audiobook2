@@ -5,12 +5,13 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-from utils import file_lock
+from utils import file_lock, open_or_create_file
 
 
 class FileLockOwnershipTests(unittest.TestCase):
@@ -141,3 +142,43 @@ with file_lock(sys.argv[1]):
                         raise ValueError("caller failed")
                 with file_lock(target, timeout=0):
                     pass
+
+
+class ConcurrentLockCreationTests(unittest.TestCase):
+    """Two first users of one lock name must both get it (#1682).
+
+    macOS failed one of two simultaneous descriptor-relative O_CREAT opens of a
+    new name with ENOENT, every time, so two concurrent M4B exports failed on
+    every Mac (test_project_export_staging is the end-to-end case).
+    """
+
+    def race(self, first_use):
+        errors = []
+        for _ in range(100):
+            with tempfile.TemporaryDirectory() as tmp:
+                gate = threading.Barrier(2)
+                def run():
+                    gate.wait(timeout=5)
+                    try:
+                        first_use(Path(tmp))
+                    except OSError as error:
+                        errors.append(error)
+                threads = [threading.Thread(target=run) for _ in range(2)]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join(timeout=10)
+        self.assertEqual([], errors)
+
+    def test_simultaneous_descriptor_relative_creation_opens_one_file(self):
+        if os.open in os.supports_dir_fd:
+            def first_use(root):
+                directory = os.open(root, os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0))
+                try:
+                    os.close(open_or_create_file('owner.lock', os.O_RDWR, 0o600, dir_fd=directory))
+                finally:
+                    os.close(directory)
+        else:
+            def first_use(root):
+                os.close(open_or_create_file(str(root / 'owner.lock'), os.O_RDWR, 0o600))
+        self.race(first_use)

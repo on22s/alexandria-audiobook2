@@ -12,11 +12,13 @@ import unittest
 
 from tests import test_llm_campaign_ownership as campaign
 from tests.test_subprocess_finally import is_live
+from tests.test_support import requires_linux_queue_tools
 
 CHAIN = 'pdnc_context_evidence.sh'
 REPO = Path(__file__).resolve().parents[2]
 
 
+@requires_linux_queue_tools
 class ContextCampaignOwnershipTests(unittest.TestCase):
     setUpFixture = campaign.LlmCampaignOwnershipTests.setUpFixture
     setUpCampaign = campaign.LlmCampaignOwnershipTests.setUp

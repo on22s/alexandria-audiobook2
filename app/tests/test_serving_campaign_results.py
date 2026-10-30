@@ -5,6 +5,7 @@ import unittest
 
 from experiments.serving_results import get_complete_serving_rows
 from tests import test_campaign_reporting as campaign
+from tests.test_support import requires_linux_queue_tools
 
 
 def get_document():
@@ -64,6 +65,7 @@ class ServingCacheTests(unittest.TestCase):
     def get_artifact(self):
         return self.root / 'ab_test_runtime/experiments/lora_serving_eval__unanswered-stratification-20260830.json'
 
+    @requires_linux_queue_tools
     def test_nonempty_interrupted_cache_is_regenerated(self):
         for cached in ('{"rows":', json.dumps({'rows': get_document()['rows']})):
             with self.subTest(cached=cached):

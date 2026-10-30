@@ -12,10 +12,12 @@ import sys
 import tempfile
 import time
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
+@requires_linux_queue_tools
 class LlamaLifecycleLockTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

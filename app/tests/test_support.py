@@ -1,8 +1,11 @@
 from contextlib import contextmanager
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
+import unittest
 from unittest.mock import patch
 
 
@@ -19,6 +22,31 @@ def assume_ample_free_disk(testcase):
     probe = patch.object(shutil, 'disk_usage', return_value=SimpleNamespace(total=2 * free, used=free, free=free))
     probe.start()
     testcase.addCleanup(probe.stop)
+
+
+def get_missing_linux_queue_tools():
+    """Name what this host lacks of the GPU queue's Linux tooling.
+
+    gpu_job.sh and run_chains/ rely on flock, bash 4 (declare -A, exec {fd})
+    and /proc; macOS has none of them. Linux CI has all three, and the release
+    verifier refuses skips, so these tests can only skip off Linux.
+    """
+    missing = [] if shutil.which('flock') else ['flock']
+    if not os.path.isdir('/proc/self'):
+        missing.append('/proc')
+    try:
+        newer = subprocess.run(['bash', '-c', '((BASH_VERSINFO[0] >= 4))'], timeout=10).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        newer = False
+    if not newer:
+        missing.append('bash 4')
+    return missing
+
+
+_MISSING_LINUX_QUEUE_TOOLS = get_missing_linux_queue_tools()
+requires_linux_queue_tools = unittest.skipIf(
+    bool(_MISSING_LINUX_QUEUE_TOOLS),
+    "needs the GPU queue's Linux tooling; missing " + ', '.join(_MISSING_LINUX_QUEUE_TOOLS))
 
 
 @contextmanager

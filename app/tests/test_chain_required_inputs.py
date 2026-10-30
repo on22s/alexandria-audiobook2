@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 PUBLIC=('TheGambler','TheSignOfTheFour','TheMysteriousAffairAtStyles','AHandfulOfDust')
@@ -89,6 +90,7 @@ if '--out' in args:
         self.assertNotEqual(0,result.returncode,result.stdout+result.stderr);self.assertEqual([],calls)
         self.assertEqual(original,(self.root/'ab_test_runtime/pdnc/data/TheGambler/novel_text.txt').read_bytes())
 
+    @requires_linux_queue_tools
     def test_valid_inputs_stage_exactly_seven_current_books(self):
         result,calls=self.run_chain('dialogue_map_5_3_20260826.sh')
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
@@ -100,6 +102,7 @@ if '--out' in args:
         for book in PRIVATE:
             self.assertEqual((self.root/'ab_test_runtime/tpvs_inputs'/(book+'.txt')).read_bytes(),(staged/(book+'.txt')).read_bytes())
 
+    @requires_linux_queue_tools
     def test_missing_longref_build_refuses_all_workers_and_preserves_stale_manifest(self):
         missing=self.root/'ab_test_runtime/kokoro_eval/build_longref.json';missing.unlink()
         stale=self.root/'ab_test_runtime/experiments/longref__ja_generate.json';before=stale.read_bytes()
@@ -107,6 +110,7 @@ if '--out' in args:
         self.assertNotEqual(0,result.returncode,result.stdout+result.stderr);self.assertEqual([],calls)
         self.assertIn(str(missing),result.stdout+result.stderr);self.assertEqual(before,stale.read_bytes())
 
+    @requires_linux_queue_tools
     def test_failed_longref_generation_cannot_score_old_manifest_or_return_success(self):
         self.env['FAIL_JA']='1'
         result,calls=self.run_chain('longref_arm_20260826.sh')
@@ -114,6 +118,7 @@ if '--out' in args:
         self.assertEqual(3,sum(Path(args[0]).name=='ljspeech_generate.py' for args in calls))
         self.assertFalse(any(Path(args[0]).name=='pitch_quality_probe.py' for args in calls))
 
+    @requires_linux_queue_tools
     def test_all_longref_generations_succeed_before_quality_reads_all_three(self):
         result,calls=self.run_chain('longref_arm_20260826.sh')
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)

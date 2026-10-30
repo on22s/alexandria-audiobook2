@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
+from tests.test_support import requires_linux_queue_tools
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -62,6 +63,7 @@ class OwnedServerCleanupRaceTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
 
+@requires_linux_queue_tools
 class OwnedServerLauncherTests(unittest.TestCase):
     def fixture(self, root, script_name, mode):
         (root/'run_chains/lib').mkdir(parents=True)

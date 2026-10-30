@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 
 REPO = Path(__file__).resolve().parent.parent.parent
@@ -11,6 +12,7 @@ LIB = REPO/'run_chains/lib/queue.sh'
 GATE = REPO/'gpu_job.sh'
 
 
+@requires_linux_queue_tools
 class QueueSourcePreflightTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix='queue source fixture '); self.addCleanup(self.tmp.cleanup)

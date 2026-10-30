@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(REPO, "gpu_pause.sh")
@@ -72,6 +73,7 @@ class TerminalMarkerTests(unittest.TestCase):
                 return line.split(":", 1)[1].strip()
         self.fail("no `running job:` line in:\n%s" % out)
 
+    @requires_linux_queue_tools
     def test_a_bare_start_reads_as_running(self):
         # Guards the fixture itself: if this said `none`, every other
         # assertion below would pass for the wrong reason.
@@ -82,11 +84,13 @@ class TerminalMarkerTests(unittest.TestCase):
             self.assertEqual(self._status(marker), "none", marker)
 
 
+    @requires_linux_queue_tools
     def test_markers_that_still_run_the_job_do_not_clear_it(self):
         for marker in NON_TERMINAL:
             self.assertEqual(self._status(marker), "jobA", marker)
 
 
+@requires_linux_queue_tools
 class SpacedJobNameTests(unittest.TestCase):
     def test_actual_status_retains_full_live_name_and_terminal_markers(self):
         import signal

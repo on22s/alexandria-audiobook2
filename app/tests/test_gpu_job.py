@@ -26,6 +26,7 @@ import textwrap
 import time
 import unittest
 from pathlib import Path
+from tests.test_support import requires_linux_queue_tools
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GPU_JOB = os.path.join(REPO, "gpu_job.sh")
@@ -204,6 +205,7 @@ class GpuJobTest(unittest.TestCase):
 
     # ---------------------------------------------------------------- basics
 
+    @requires_linux_queue_tools
     def test_a_successful_job_runs_and_logs_ok(self):
         marker = os.path.join(self.tmp.name, "ran")
         r = self.run_job("good", "touch", marker)
@@ -212,6 +214,7 @@ class GpuJobTest(unittest.TestCase):
         self.assertIn("START    good", self.log())
         self.assertIn("OK       good", self.log())
 
+    @requires_linux_queue_tools
     def test_queue_log_order_is_queued_then_ident_then_start_then_result(self):
         # IDENT sits between QUEUED and START on purpose: it must describe the
         # code that is ABOUT to run. Recorded after the fact it would be a
@@ -222,6 +225,7 @@ class GpuJobTest(unittest.TestCase):
 
     # ------------------------------------------------------- failure surfaces
 
+    @requires_linux_queue_tools
     def test_wrapped_failure_propagates_the_exit_code(self):
         """A chained job that fails quietly gets read as a result."""
         r = self.run_job("bad", "bash", "-c", "exit 37")
@@ -229,11 +233,13 @@ class GpuJobTest(unittest.TestCase):
         self.assertIn("FAILED   bad rc=37", self.log())
         self.assertNotIn("OK ", self.log())
 
+    @requires_linux_queue_tools
     def test_failure_is_announced_on_stderr(self):
         r = self.run_job("bad", "bash", "-c", "exit 1")
         self.assertIn("FAILED", r.stderr)
 
     @unittest.skipUnless(shutil.which("timeout"), "timeout command unavailable")
+    @requires_linux_queue_tools
     def test_timeout_kills_job_releases_lock_and_logs_failure(self):
         """A timed-out GPU job must not poison the queue behind it."""
         r = self.run_job("timed", "timeout", "0.2", "sleep", "10")
@@ -245,6 +251,7 @@ class GpuJobTest(unittest.TestCase):
 
     # ------------------------------------------------------------ the gate
 
+    @requires_linux_queue_tools
     def test_a_failed_flock_refuses_to_run_the_command(self):
         """THE DEFECT. An unchecked `flock` ran the command anyway."""
         marker = os.path.join(self.tmp.name, "must_not_exist")
@@ -268,6 +275,7 @@ class GpuJobTest(unittest.TestCase):
         self.assertNotIn("START", self.log())
         self.assertNotIn("OK", self.log())
 
+    @requires_linux_queue_tools
     def test_an_unopenable_lock_file_refuses_to_run(self):
         marker = os.path.join(self.tmp.name, "must_not_exist")
         bad = os.path.join(self.tmp.name, "no_such_dir", "gpu.lock")
@@ -278,6 +286,7 @@ class GpuJobTest(unittest.TestCase):
 
     # --------------------------------------------------------- serialisation
 
+    @requires_linux_queue_tools
     def test_two_jobs_do_not_overlap(self):
         """The whole point. Overlap cost 42 minutes of A6000 training once.
 
@@ -338,6 +347,7 @@ class GpuJobTest(unittest.TestCase):
         self.assertEqual(witness_lines(), ["in", "out", "in", "out"],
                          f"jobs overlapped: {witness_lines()}")
 
+    @requires_linux_queue_tools
     def test_the_second_job_waits_rather_than_failing(self):
         """Blocking is correct; a queued job must not be dropped."""
         env = isolated_env(self.tmp.name, GPU_LOCK=self.lock,
@@ -379,6 +389,7 @@ class GpuJobTest(unittest.TestCase):
         self.assertIn("OK       slow", self.log())
         self.assertIn("OK       waiter", self.log())
 
+    @requires_linux_queue_tools
     def test_interrupting_a_waiter_releases_nothing_and_logs_no_start(self):
         """A job killed while queued must not appear to have run."""
         env = isolated_env(self.tmp.name, GPU_LOCK=self.lock,
@@ -421,6 +432,7 @@ class GpuJobTest(unittest.TestCase):
     # -------------------------------------------------- deployment identity
 
 
+    @requires_linux_queue_tools
     def test_identity_carries_what_is_needed_to_tell_two_runs_apart(self):
         self.run_job("ident", "echo", "hello")
         line = [l for l in self.log().splitlines() if " IDENT " in l][0]
@@ -429,6 +441,7 @@ class GpuJobTest(unittest.TestCase):
             self.assertIn(field, line)
         self.assertIn("echo hello", line)
 
+    @requires_linux_queue_tools
     def test_the_script_hash_actually_identifies_the_script(self):
         """The field that would have caught the stale cloud copy."""
         self.run_job("ident", "true")
@@ -439,6 +452,7 @@ class GpuJobTest(unittest.TestCase):
             actual = hashlib.sha256(fh.read()).hexdigest()[:12]
         self.assertEqual(logged, actual)
 
+    @requires_linux_queue_tools
     def test_identity_degrades_rather_than_blocking_the_job(self):
         """Identity is evidence, not a gate.
 
@@ -530,6 +544,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         self._git("commit", "-qm", "artifact")
         return path
 
+    @requires_linux_queue_tools
     def test_rewriting_an_artifact_is_not_dirt(self):
         """replay_dirty_evidence rewrites artifacts; that is its JOB.
 
@@ -547,6 +562,7 @@ class DirtyTreeGateTest(unittest.TestCase):
                          f"a rewritten artifact refused the job: {result.stderr}")
         self.assertIn("tree=clean", self._log())
 
+    @requires_linux_queue_tools
     def test_modified_code_is_still_dirt(self):
         """The half that must NOT be lost: excluding outputs is not amnesty."""
         self._make_repo(dirty=True)
@@ -555,6 +571,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertEqual(5, result.returncode)
         self.assertIn("REFUSED", self._log())
 
+    @requires_linux_queue_tools
     def test_an_overridden_dirty_run_saves_the_diff_that_produced_it(self):
         """The override is where code state is LEAST recoverable.
 
@@ -580,6 +597,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertIn(f"patch={patches[0]}", self._log(),
                       "the queue log must name the patch it saved")
 
+    @requires_linux_queue_tools
     def test_the_saved_patch_includes_an_untracked_harness_script(self):
         """`git diff HEAD` cannot see a new file, and a new harness script
         being untracked while it runs is the case this gate exists for."""
@@ -596,6 +614,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertIn("brand_new_probe.py", body)
         self.assertIn("brand new, not yet committed", body)
 
+    @requires_linux_queue_tools
     def test_the_saved_patch_skips_untracked_files_under_the_runtime_tree(self):
         """ab_test_runtime/ is where runs WRITE; tree_state already excludes it,
         and the patch capture did not. On 2026-09-14 that walk covered 2,305
@@ -622,6 +641,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertFalse(os.path.isdir(os.path.join(
             self.root, "ab_test_runtime", "logs", "dirty_patches")))
 
+    @requires_linux_queue_tools
     def test_an_untracked_experiment_script_is_still_dirt(self):
         # The dangerous case the exclusion must not reach: a harness that
         # exists on one machine while producing a cited number.
@@ -630,6 +650,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         self._add_untracked("brand_new_probe.py")
         self.assertEqual(5, self._run().returncode)
 
+    @requires_linux_queue_tools
     def test_untracked_javascript_anywhere_in_repo_is_dirt_and_saved(self):
         self._make_repo(dirty=False)
         path = os.path.join(self.root, "tools", "new helper.js")
@@ -664,6 +685,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         with open(path, encoding="utf-8") as handle:
             return handle.read()
 
+    @requires_linux_queue_tools
     def test_a_dirty_tree_is_refused_and_the_command_never_runs(self):
         self._make_repo(dirty=True)
         result = self._run()
@@ -672,11 +694,13 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertIn("REFUSED", self._log())
         self.assertNotIn("START", self._log())
 
+    @requires_linux_queue_tools
     def test_the_refusal_names_what_is_uncommitted(self):
         # A gate that says only "no" gets overridden reflexively.
         self._make_repo(dirty=True)
         self.assertIn("gpu_job.sh", self._run().stderr)
 
+    @requires_linux_queue_tools
     def test_the_override_runs_but_leaves_a_mark(self):
         self._make_repo(dirty=True)
         result = self._run(allow_dirty="1")
@@ -688,12 +712,14 @@ class DirtyTreeGateTest(unittest.TestCase):
         # never mistaken for a clean one afterwards.
         self.assertIn("tree=dirty:", log)
 
+    @requires_linux_queue_tools
     def test_a_clean_tree_runs_untouched(self):
         self._make_repo(dirty=False)
         self.assertEqual(0, self._run().returncode)
         self.assertIn("tree=clean", self._log())
         self.assertNotIn("REFUSED", self._log())
 
+    @requires_linux_queue_tools
     def test_a_directory_that_is_not_a_repository_is_not_called_dirty(self):
         # "Cannot tell" must not be spelled "dirty": an exported tree or a
         # container without git has nothing to commit and must still run.
@@ -702,6 +728,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertIn("tree=unknown", self._log())
         self.assertNotIn("REFUSED", self._log())
 
+    @requires_linux_queue_tools
     def test_an_untracked_experiment_script_is_refused(self):
         """The case `git diff HEAD` cannot see.
 
@@ -716,6 +743,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertIn("REFUSED", self._log())
         self.assertNotIn("START", self._log())
 
+    @requires_linux_queue_tools
     def test_nonignored_notes_and_text_are_inputs(self):
         self._make_repo(dirty=False)
         self._add_untracked("NOTES.md")
@@ -724,6 +752,7 @@ class DirtyTreeGateTest(unittest.TestCase):
         self.assertEqual(5, self._run().returncode)
         self.assertIn("tree=dirty:", self._log())
 
+    @requires_linux_queue_tools
     def test_the_shell_gate_agrees_with_the_python_provenance(self):
         """Two implementations of one question WILL drift (Rule 15).
 
@@ -752,6 +781,7 @@ class DirtyTreeGateTest(unittest.TestCase):
             f"gpu_job.sh tree_state says {state!r}; the gate and the "
             "provenance stamp must not disagree about the same tree")
 
+    @requires_linux_queue_tools
     def test_both_readers_exclude_declared_generated_outputs(self):
         from experiments.manifest import _git_state
         self._make_repo(dirty=False)
@@ -775,6 +805,7 @@ class DirtyTreeGateTest(unittest.TestCase):
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+@requires_linux_queue_tools
 class LockInheritanceTest(unittest.TestCase):
     """An orphaned child must not be able to hold the GPU lock.
 
@@ -861,6 +892,7 @@ class LockInheritanceTest(unittest.TestCase):
                          "an orphaned child is still holding the GPU lock")
 
 
+@requires_linux_queue_tools
 class LlmPreflightGateTest(unittest.TestCase):
     """The lock cannot tell you there was no engine.
 
@@ -925,6 +957,7 @@ class LlmPreflightGateTest(unittest.TestCase):
 
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+@requires_linux_queue_tools
 class VramGateTest(unittest.TestCase):
     """The lock serialises jobs; it says nothing about memory.
 
@@ -1060,6 +1093,7 @@ class VramGateTest(unittest.TestCase):
 
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+@requires_linux_queue_tools
 class PauseAndProcessGroupTest(unittest.TestCase):
     """Holding the queue for other use, and taking children down with a job."""
 
@@ -1261,6 +1295,7 @@ GPU_PAUSE = os.path.join(REPO, "gpu_pause.sh")
 
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
+@requires_linux_queue_tools
 class TerminalMarkerTest(unittest.TestCase):
     """A job that STARTED must always end with a terminal line.
 
@@ -1370,6 +1405,7 @@ class PendingMarkerTest(unittest.TestCase):
         after = set(os.listdir(self.pending)) if os.path.isdir(self.pending) else set()
         self.assertEqual(before, after)
 
+    @requires_linux_queue_tools
     def test_a_waiting_job_is_visible_while_it_waits(self):
         """The whole point: something must be able to say what is queued."""
         env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
@@ -1431,6 +1467,7 @@ class PendingMarkerTest(unittest.TestCase):
         os.chmod(path, 0o755)
         return shadow
 
+    @requires_linux_queue_tools
     def test_repeated_jobs_do_not_produce_one_alert_each(self):
         """THE COMPLAINT. This fires per job, and a chain is many jobs.
 
@@ -1451,6 +1488,7 @@ class PendingMarkerTest(unittest.TestCase):
             alerts = []
         self.assertEqual(1, len(alerts), f"expected one alert, got {alerts}")
 
+    @requires_linux_queue_tools
     def test_the_cooldown_can_be_shortened_for_a_genuinely_new_event(self):
         record = os.path.join(self.tmp.name, "alerts")
         shadow = self._fake_pterm(record)
@@ -1472,6 +1510,7 @@ class PendingMarkerTest(unittest.TestCase):
                   PATH=shadow + os.pathsep + os.environ["PATH"])
         self.assertFalse(os.path.exists(record))
 
+    @requires_linux_queue_tools
     def test_a_job_runs_at_low_priority_so_the_desktop_wins(self):
         """Background work must lose to whatever the user is doing.
 
@@ -1494,6 +1533,7 @@ class PendingMarkerTest(unittest.TestCase):
         else:
             self.assertGreater(niceness[0], mine)
 
+    @requires_linux_queue_tools
     def test_the_priority_can_be_waived_for_a_run_that_should_compete(self):
         """Waived means "add nothing", not "reset to zero".
 
@@ -1509,6 +1549,7 @@ class PendingMarkerTest(unittest.TestCase):
         self.assertTrue(niceness, result.stdout)
         self.assertEqual(mine, niceness[0])
 
+    @requires_linux_queue_tools
     def test_a_notifier_that_is_absent_or_broken_cannot_change_the_exit_code(self):
         """Best-effort means best-effort: reporting must never fail the job.
 
@@ -1558,6 +1599,7 @@ class PauseStatusTest(unittest.TestCase):
         return subprocess.run(["bash", GPU_PAUSE, "status"], env=env,
                               capture_output=True, text=True, timeout=30).stdout
 
+    @requires_linux_queue_tools
     def test_a_start_with_no_result_and_no_process_is_not_called_running(self):
         """THE DEFECT, verbatim: e_row_e's log state, replayed."""
         self._write_log("QUEUED   e_row_e", "START    e_row_e",
@@ -1571,6 +1613,7 @@ class PauseStatusTest(unittest.TestCase):
         self._write_log("START    done_job", "OK       done_job")
         self.assertIn("running job: none", self._status())
 
+    @requires_linux_queue_tools
     def test_a_job_with_a_live_process_is_reported_as_running(self):
         """The other half: a real job must not be dismissed as stale."""
         env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,

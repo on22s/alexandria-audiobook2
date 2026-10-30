@@ -9,6 +9,7 @@ import time
 import unittest
 from unittest.mock import patch
 from tests import test_preparer_restart_lock as restart_fixtures
+from tests.test_support import requires_linux_queue_tools
 
 
 def is_live(pid):
@@ -40,6 +41,7 @@ while True:time.sleep(.1)
     return env
 
 
+@requires_linux_queue_tools
 class RestartSignalTreeTests(unittest.TestCase):
     def test_proc_exit_during_read_is_dead_but_unreadable_live_state_is_not_hidden(self):
         # Linux can return ESRCH after /proc/PID/stat was opened if that PID

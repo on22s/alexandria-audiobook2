@@ -10,6 +10,7 @@ import unittest
 
 from experiments.pdnc_results import get_pdnc_result, print_goal13_summary
 from tests import test_llm_campaign_ownership as campaign
+from tests.test_support import requires_linux_queue_tools
 
 
 class PdncResultTests(unittest.TestCase):
@@ -66,6 +67,7 @@ class PdncResultTests(unittest.TestCase):
         self.assertIn('DEV MINUS HELD-OUT (lora arm): -33.3 points', report.getvalue())
 
 
+@requires_linux_queue_tools
 class PdncChainResumeTests(unittest.TestCase):
     setUp = campaign.LlmCampaignOwnershipTests.setUp
     setUpFixture = campaign.LlmCampaignOwnershipTests.setUpFixture

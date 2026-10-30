@@ -11,8 +11,10 @@ import unittest
 
 from tests.test_gpu_job import REPO, GPU_JOB, isolated_env, copy_gpu_owner
 from tests.test_chain_failure_guards import prepare_artifact_commit_fixture
+from tests.test_support import requires_linux_queue_tools
 
 
+@requires_linux_queue_tools
 class ReplayLockScopeTests(unittest.TestCase):
     def execute(self, fail_first=False, real_wrapper=False):
         with tempfile.TemporaryDirectory(prefix='replay lock fixture ') as tmp:

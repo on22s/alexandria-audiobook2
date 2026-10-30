@@ -5,10 +5,12 @@ import shlex
 import subprocess
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 LIB=Path(os.environ.get('STAGE_LIB_SOURCE',str(Path(__file__).resolve().parents[2]/'run_chains/lib/stage.sh')))
 
 
+@requires_linux_queue_tools
 class ArtifactScopeTests(unittest.TestCase):
     def test_subdirectory_repo_argument_commits_only_selected_root_relative_artifact(self):
         with tempfile.TemporaryDirectory() as tmp:

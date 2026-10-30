@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -120,6 +121,7 @@ class CampaignReportingTests(unittest.TestCase):
                 self.assertNotIn("COMPLETE", result.stdout)
                 self.assertNotIn("no artifact to stratify", result.stdout)
 
+    @requires_linux_queue_tools
     def test_stratification_success_still_scores_fixture_rows(self):
         result = self._run("unanswered_stratification_20260830.sh")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -129,6 +131,7 @@ class CampaignReportingTests(unittest.TestCase):
         artifact = self.root / "ab_test_runtime/experiments/lora_serving_eval__unanswered-stratification-20260830.json"
         self.assertEqual(2, len(json.loads(artifact.read_text())["rows"]))
 
+    @requires_linux_queue_tools
     def test_overnight_failed_first_stage_is_counted_and_later_stages_run(self):
         self.environment["FIXTURE_JOB_RC"] = "7"
         result = self._run("overnight_20260901.sh")
@@ -138,6 +141,7 @@ class CampaignReportingTests(unittest.TestCase):
         self.assertNotIn("COMPLETE overnight_20260901", result.stdout)
         self.assertEqual(4, len((self.root / "dispatch.log").read_text().splitlines()))
 
+    @requires_linux_queue_tools
     def test_overnight_success_reports_all_four_stages(self):
         result = self._run("overnight_20260901.sh")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)

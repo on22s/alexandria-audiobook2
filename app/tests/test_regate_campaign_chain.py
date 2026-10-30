@@ -22,6 +22,7 @@ from tests.regate_campaign_fixture import (
 from tests.test_chain_failure_guards import prepare_artifact_commit_fixture
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
 from tests.test_morning_chain import write_captured_stderr
+from tests.test_support import requires_linux_queue_tools
 
 
 def get_cleanup_report(folder, error):
@@ -63,6 +64,7 @@ def chain_temporary_directory():
         raise AssertionError(get_cleanup_report(folder, error)) from error
 
 
+@requires_linux_queue_tools
 class RegateCampaignChainTests(unittest.TestCase):
     def prepare(self, root, rejected=False):
         gates = root / 'ab_test_runtime/experiments'
@@ -236,6 +238,7 @@ if name=='b':
 
 
 class RegateGitCaptureTests(unittest.TestCase):
+    @requires_linux_queue_tools
     def test_git_waits_for_redirected_writer_before_return(self):
         worker = '''import hashlib,json,os,subprocess,sys,zlib
 from pathlib import Path
@@ -342,6 +345,7 @@ assert zlib.decompress(blob.read_bytes())==b'blob 32\\0'+b'x'*32
 
 
 class ChainTemporaryDirectoryTests(unittest.TestCase):
+    @requires_linux_queue_tools
     def test_a_failed_cleanup_names_the_leftovers_and_the_live_process(self):
         with patch('shutil.rmtree', side_effect=OSError(39, 'Directory not empty')) as remove:
             with self.assertRaises(AssertionError) as caught:

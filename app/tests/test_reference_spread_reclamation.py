@@ -8,11 +8,13 @@ import time
 import unittest
 
 from tests import test_stage_gpu_reclamation as reclamation
+from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 SOURCE=Path(os.environ.get('REFERENCE_SPREAD_SOURCE',str(REPO/'run_chains/reference_spread_20260821.sh')))
 
 
+@requires_linux_queue_tools
 class ReferenceSpreadReclamationTests(unittest.TestCase):
     setUp=reclamation.StageGpuReclamationTests.setUp
     wait_marker=reclamation.StageGpuReclamationTests.wait_marker

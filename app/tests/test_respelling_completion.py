@@ -8,6 +8,7 @@ import unittest
 
 from experiments.respelling_completion import get_respelling_completion_error
 from tests import test_chain_measurement_scope as measurement
+from tests.test_support import requires_linux_queue_tools
 
 
 class RespellingCompletionTests(unittest.TestCase):
@@ -33,6 +34,7 @@ class RespellingCompletionTests(unittest.TestCase):
             path.unlink();self.assertIsNotNone(get_respelling_completion_error(path,2))
 
 
+@requires_linux_queue_tools
 class RequiredSeparatorStageTests(unittest.TestCase):
     setUp=measurement.ChainMeasurementScopeTests.setUp
     _write=measurement.ChainMeasurementScopeTests._write

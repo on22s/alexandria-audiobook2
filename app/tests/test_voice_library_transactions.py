@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 import core
 from routers import voice_library as routes
 from utils import atomic_json_write, file_lock, secure_filename
+from tests.test_support import requires_linux_queue_tools
 
 
 class VoiceLibraryTransactionTests(unittest.TestCase):
@@ -110,6 +111,7 @@ class VoiceLibraryTransactionTests(unittest.TestCase):
             self.assertEqual(1,valid.json()['book_count'])
             self.assertEqual(1,valid.json()['proposals'][0]['line_count'])
 
+    @requires_linux_queue_tools
     def test_bulk_keeps_library_kernel_lock_through_each_config_publication(self):
         with self.fixture() as (root,api),TestClient(api) as client:
             write=routes.atomic_json_write;seen=[]
@@ -125,6 +127,7 @@ class VoiceLibraryTransactionTests(unittest.TestCase):
             self.assertEqual(200,response.status_code,response.text)
             self.assertEqual([1,1],seen)
 
+    @requires_linux_queue_tools
     def test_save_keeps_voice_config_kernel_lock_through_library_publication(self):
         with self.fixture() as (root,api), TestClient(api) as client:
             write=routes.atomic_json_write;seen=[]

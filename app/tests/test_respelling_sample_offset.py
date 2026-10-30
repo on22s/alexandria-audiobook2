@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 from experiments import measure_respellings as current
 from experiments import generation
+from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 measure=current
@@ -26,6 +27,7 @@ if os.environ.get('RESPELLING_243_BASELINE'):
     CHAIN=Path('/tmp/queued_findings_before243.sh')
 
 
+@requires_linux_queue_tools
 class RespellingSampleOffsetTests(unittest.TestCase):
     def setUp(self):
         tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup);self.root=Path(tmp.name)

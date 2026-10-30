@@ -4,12 +4,14 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO = Path(__file__).resolve().parents[2]
 HELPER = Path(os.environ.get("QUEUE_ROTATION_HELPER", REPO / "run_chains/lib/gpu_queue_log.sh"))
 LIMIT = 8388608
 
 
+@requires_linux_queue_tools
 class QueueRotationTests(unittest.TestCase):
     def test_status_words_in_names_do_not_clear_start_but_terminal_fields_do(self):
         with tempfile.TemporaryDirectory() as tmp:

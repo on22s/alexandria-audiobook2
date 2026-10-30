@@ -14,11 +14,13 @@ from unittest.mock import patch
 import core
 from tests import test_gpu_owner_death
 from tests.test_subprocess_finally import is_live
+from tests.test_support import requires_linux_queue_tools
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 class AppGpuLeaseInheritanceTest(unittest.TestCase):
+    @requires_linux_queue_tools
     def test_explicit_descriptor_requires_a_held_matching_ancestor_lease(self):
         with tempfile.TemporaryDirectory() as tmp:
             lock = Path(tmp) / 'gpu.lock'
@@ -38,6 +40,7 @@ class AppGpuLeaseInheritanceTest(unittest.TestCase):
                         result = probe(bad)
                         self.assertNotEqual(0, result.returncode, result.stderr)
 
+    @requires_linux_queue_tools
     def test_app_owned_stream_and_nested_enricher_reuse_lease_through_model_close(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -99,6 +102,7 @@ class Llama:
             self.assertEqual({'KEEP':'value'}, original)
 
 
+@requires_linux_queue_tools
 class RetainedAppLeaseDeathTest(unittest.TestCase):
     setUp = test_gpu_owner_death.GpuOwnerDeathTests.setUp
 

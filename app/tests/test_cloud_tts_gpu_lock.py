@@ -6,12 +6,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT = ROOT / "run_chains/cloud_tts_qwen_compare_20260824.py"
 
 
+@requires_linux_queue_tools
 class CloudTtsGpuLockTests(unittest.TestCase):
     def test_model_load_waits_for_queue(self):
         with tempfile.TemporaryDirectory() as tmp:

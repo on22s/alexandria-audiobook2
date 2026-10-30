@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 SOURCE=Path(os.environ.get('REFERENCE_SPREAD_SOURCE',str(REPO/'run_chains/reference_spread_20260821.sh')))
@@ -56,12 +57,14 @@ runpy.run_path(os.environ['REAL_COMPARE'],run_name='__main__')
             if p.exists():p.unlink()
         return subprocess.run(['bash',str(self.root/'run_chains/chain.sh')],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=15)
 
+    @requires_linux_queue_tools
     def test_all_generation_precedes_cpu_scoring_and_each_admission_requests_supervised_four_gb(self):
         result=self.run_chain();self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual(['G0','G1','G2','G3','S0','S1','S2','S3'],(self.root/'events').read_text().splitlines())
         self.assertEqual(['1 4']*4,(self.root/'admission').read_text().splitlines());self.assertFalse((self.root/'unsafe_stop').exists())
         doc=json.loads((self.root/'ab_test_runtime/experiments/reference_spread__en_compare.json').read_text());self.assertEqual([0,1,2,3],[r['arm'] for r in doc['arms']])
 
+    @requires_linux_queue_tools
     def test_failed_generation_failed_scoring_and_invalid_numeric_output_are_excluded_from_comparison(self):
         for mode in ('gen1','score1','unusable1'):
             with self.subTest(mode=mode):

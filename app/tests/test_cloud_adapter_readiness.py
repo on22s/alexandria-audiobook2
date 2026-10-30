@@ -14,6 +14,7 @@ import unittest
 
 import llama_server_process as policy
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
+from tests.test_support import requires_linux_queue_tools
 
 REPO = Path(__file__).resolve().parents[2]
 CHAIN = REPO / 'run_chains/cloud_adapter_eval_remaining3_20260824.sh'
@@ -29,6 +30,7 @@ class HealthHandler(BaseHTTPRequestHandler):
         pass
 
 
+@requires_linux_queue_tools
 class CloudAdapterReadinessTests(unittest.TestCase):
     def run_chain(self, mode, source=None, chain=CHAIN):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 # Rebuild derived files and, if any moved, commit them. Shared by the
 # post-merge and post-rewrite hooks; the caller passes its own name for the
 # message so a reader can tell which path produced the commit.

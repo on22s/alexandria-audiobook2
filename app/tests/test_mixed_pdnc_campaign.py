@@ -7,11 +7,13 @@ import unittest
 from unittest.mock import patch
 
 from tests import test_llm_campaign_ownership as campaign
+from tests.test_support import requires_linux_queue_tools
 
 
 MIXED = 'goal_13_mixed_multin_20260912.sh'
 
 
+@requires_linux_queue_tools
 class MixedPdncCampaignTests(unittest.TestCase):
     setUpCampaign = campaign.LlmCampaignOwnershipTests.setUp
     setUpFixture = campaign.LlmCampaignOwnershipTests.setUpFixture

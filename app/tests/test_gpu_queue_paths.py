@@ -11,8 +11,10 @@ import time
 import unittest
 
 from tests.test_gpu_job import GPU_JOB, isolated_env, copy_gpu_owner
+from tests.test_support import requires_linux_queue_tools
 
 
+@requires_linux_queue_tools
 class QueuePathTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

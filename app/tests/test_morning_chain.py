@@ -14,6 +14,7 @@ import unittest
 from unittest.mock import patch
 
 from subprocess_ownership import run_owned_capture
+from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -127,6 +128,7 @@ print('fixture stdout');print('fixture stderr',file=sys.stderr)
         digest=self.git('hash-object',str(content))
         self.assertTrue((self.root/'.git/objects'/digest[:2]/digest[2:]).is_file())
 
+    @requires_linux_queue_tools
     def test_chain_capture_waits_for_redirected_late_git_writer(self):
         self.write_late_git_writer()
         try:
@@ -139,6 +141,7 @@ print('fixture stdout');print('fixture stderr',file=sys.stderr)
         finally:
             self.ensure_late_writer_stopped()
 
+    @requires_linux_queue_tools
     def test_git_capture_waits_for_redirected_late_git_writer(self):
         self.write_late_git_writer();diagnostic=io.StringIO()
         try:
@@ -196,6 +199,7 @@ print('fixture stdout');print('fixture stderr',file=sys.stderr)
         self.assertEqual((7,'explicit environment\n'+str(self.root.parent)+'\n','diagnostic\n'),
                          (result.returncode,result.stdout,result.stderr))
 
+    @requires_linux_queue_tools
     def test_git_and_chain_keep_fifteen_second_bound_and_retire_on_timeout(self):
         for name in ('git','chain'):
             with self.subTest(name=name):
@@ -221,6 +225,7 @@ print('fixture stdout');print('fixture stderr',file=sys.stderr)
                     self.ensure_late_writer_stopped()
                 (self.root/'late-writer.json').unlink()
 
+    @requires_linux_queue_tools
     def test_success_commits_only_each_generated_output_preserving_other_sessions_index_and_work(self):
         head=self.git('rev-parse','HEAD');index=self.git('diff','--cached');result=self.run_chain()
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
@@ -233,12 +238,14 @@ print('fixture stdout');print('fixture stderr',file=sys.stderr)
         self.assertIn('untracked-wip.json',self.git('ls-files','--others'))
         self.assertTrue((self.root/'unseen_called').exists())
 
+    @requires_linux_queue_tools
     def test_server_failure_prevents_dependent_launch_and_fails_summary(self):
         result=self.run_chain(FIXTURE_DEADLINE=str(int(time.time())+6000),FIXTURE_SERVER_RC='7')
         self.assertEqual(1,result.returncode,result.stdout+result.stderr)
         self.assertTrue((self.root/'server_called').exists());self.assertFalse((self.root/'unseen_called').exists())
         self.assertIn('server = failed:7',result.stdout);self.assertIn('unseen_books = skipped',result.stdout)
 
+    @requires_linux_queue_tools
     def test_failed_or_partial_generation_is_not_scored_and_independent_blocks_still_attempt(self):
         for mode in ('fail_full','partial','score_fail'):
             with self.subTest(mode=mode):
@@ -253,6 +260,7 @@ print('fixture stdout');print('fixture stderr',file=sys.stderr)
                 else:self.assertFalse((self.root/'scored').exists())
                 self.assertTrue((self.root/'unseen_called').exists())
 
+    @requires_linux_queue_tools
     def test_empty_partial_without_count_is_remeasured_instead_of_skipped(self):
         for n in (800,1200,1600):
             (self.folder/('respelling_e_row__ay_n'+str(n)+'.json')).write_text(json.dumps({'status':'partial','results':[]}))

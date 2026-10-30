@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 # Regenerate everything CI checks, then run the verifier. Use before committing.
 #
 # WHY THIS EXISTS. Four CI failures in two days, every one of them a generated

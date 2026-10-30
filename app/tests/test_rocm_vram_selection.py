@@ -6,8 +6,10 @@ import subprocess
 import unittest
 
 from tests import test_gpu_job as queue_tests
+from tests.test_support import requires_linux_queue_tools
 
 
+@requires_linux_queue_tools
 class RocmSelectionTests(unittest.TestCase):
     setUp = queue_tests.VramGateTest.setUp
     tearDown = queue_tests.VramGateTest.tearDown

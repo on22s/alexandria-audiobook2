@@ -15,6 +15,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CHAIN = os.path.join(REPO, "run_chains", "everything_20260818.sh")
@@ -111,6 +112,7 @@ class RecheckReportingTest(unittest.TestCase):
         self.assertIn("0 of 1 measured", result.stdout)
         self.assertIn("1 never ran", result.stdout)
 
+    @requires_linux_queue_tools
     def test_a_real_below_threshold_verdict_is_still_reported_as_one(self):
         """rc=3 means it DID measure. Losing that would be the opposite bug."""
         result = self._run([("beta", "0.0342")], {"beta": 3})
@@ -119,6 +121,7 @@ class RecheckReportingTest(unittest.TestCase):
         self.assertIn("1 of 1 measured", result.stdout)
         self.assertIn("1 below threshold", result.stdout)
 
+    @requires_linux_queue_tools
     def test_the_new_score_is_reported_not_the_old_one(self):
         result = self._run([("gamma", "0.0342")], {"gamma": 3})
         line = next(l for l in result.stdout.splitlines() if "gamma" in l)
@@ -143,6 +146,7 @@ class RecheckReportingTest(unittest.TestCase):
         self.assertIn("RETURN=1", result.stdout)
         self.assertIn("INCOMPLETE", result.stdout)
 
+    @requires_linux_queue_tools
     def test_the_stage_passes_when_every_adapter_was_measured(self):
         """Below-threshold on every adapter is a complete stage: it measured
         what it set out to measure."""
@@ -150,6 +154,7 @@ class RecheckReportingTest(unittest.TestCase):
         self.assertIn("RETURN=0", result.stdout)
         self.assertIn("2 of 2 measured", result.stdout)
 
+    @requires_linux_queue_tools
     def test_the_total_is_counted_not_hard_coded(self):
         """The tally said `of 8` regardless of how many rows it read."""
         result = self._run([("a", "0.1"), ("b", "0.2"), ("c", "0.3")],

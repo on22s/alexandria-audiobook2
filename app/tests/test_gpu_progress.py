@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import gpu_progress as progress
+from tests.test_support import requires_linux_queue_tools
 
 IDENTITY = {'run_id': 'new-run', 'owner_pid': '123', 'owner_token': 'boot:456', 'job': 'fixture'}
 
@@ -46,6 +47,7 @@ class GpuProgressTests(unittest.TestCase):
             with self.subTest(pairs=pairs), self.assertRaises(ValueError):
                 progress.get_gpu_progress_estimate(self.document(pairs), IDENTITY)
 
+    @requires_linux_queue_tools
     def test_actual_published_artifact_resets_phase_without_carrying_old_rate(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'progress.json'

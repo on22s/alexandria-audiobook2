@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 import llama_server_process as policy
+from tests.test_support import requires_linux_queue_tools
 
 SERVER = r"""
 import ctypes,errno,json,os,signal,socket,sys,time
@@ -41,6 +42,7 @@ server.serve_forever()
 """
 
 
+@requires_linux_queue_tools
 class LlamaServerProcessTest(unittest.TestCase):
     def setUp(self):
         self.processes = []

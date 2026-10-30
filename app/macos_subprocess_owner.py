@@ -409,7 +409,10 @@ def run_macos_owner_broker(control, specification):
                         if removing:
                             if root_result is not None:
                                 return root_result
-                            return 128 + stopping if stopping is not None else 1
+                            # Stopping the scope also ends the job that would have
+                            # reported the root's exit; the owner's own signal is
+                            # then the root's death, reported as Linux reports it.
+                            return -stopping if stopping is not None else 1
                         time.sleep(.05)
                         continue
                     channels = ([control] if connected else []) + ([actor] if actor is not None else [])
@@ -523,4 +526,5 @@ if __name__ == '__main__':
     else:
         with socket.socket(fileno=int(sys.argv[2])) as control:
             result = run_macos_owner_broker(control, json.loads(sys.argv[3]))
-        sys.exit(128 - result if result < 0 else result)
+        from subprocess_ownership import exit_with_owned_result
+        exit_with_owned_result(result)
