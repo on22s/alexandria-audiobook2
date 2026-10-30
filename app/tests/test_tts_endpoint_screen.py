@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 import struct
 import subprocess
@@ -37,6 +38,9 @@ class TTSEndpointScreenTests(unittest.TestCase):
             self.assertEqual({"5", "10", "20", "30"},
                              set(report["rows"][0]["tail_rms_dbfs"]))
             self.assertEqual("measured_not_production_qualified", report["status"])
+            expected = 20.0 * math.log10(8000 / 32768.0)
+            self.assertEqual(expected,
+                             report["rows"][0]["tail_rms_dbfs"]["5"])
 
     def test_labels_are_not_inferred_from_the_threshold(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -62,6 +66,8 @@ class TTSEndpointScreenTests(unittest.TestCase):
                 {"version": 1, "rows": [{"id": "x", "label": "clean", "audio": "a\u0000b.wav"}]},
                 {"version": 1, "rows": [{"id": "x", "label": "clean", "audio": "a\ud800b.wav"}]},
                 {"version": 1, "rows": [{"id": "x", "label": "clean", "audio": "../x.wav"}]},
+                {"version": 1, "rows": [{"id": "x", "label": "clean", "audio": "C:relative.wav"}]},
+                {"version": 1, "rows": [{"id": "x", "label": "clean", "audio": "\\rooted.wav"}]},
                 {"version": 1, "rows": []},
                 {"version": True, "rows": [{"id": "x", "label": "clean", "audio": "x.wav"}]},
                 {"version": 1.0, "rows": [{"id": "x", "label": "clean", "audio": "x.wav"}]},
@@ -78,11 +84,15 @@ class TTSEndpointScreenTests(unittest.TestCase):
             write_wav(audio, [0] * 120)
             raw = bytearray(audio.read_bytes())
             raw[40:44] = struct.pack("<I", 2000)
-            audio.write_bytes(raw[:-20])
-            with self.assertRaisesRegex(screen.EndpointScreenError, "RIFF length"):
+            truncated = raw[:-20]
+            truncated[4:8] = struct.pack("<I", len(truncated) - 8)
+            audio.write_bytes(truncated)
+            with self.assertRaisesRegex(screen.EndpointScreenError, "truncated WAV payload"):
                 screen.measure_wav_endpoint(audio)
-            audio.write_bytes(raw[:-21])
-            with self.assertRaisesRegex(screen.EndpointScreenError, "RIFF length"):
+            truncated = raw[:-21]
+            truncated[4:8] = struct.pack("<I", len(truncated) - 8)
+            audio.write_bytes(truncated)
+            with self.assertRaisesRegex(screen.EndpointScreenError, "truncated WAV payload"):
                 screen.measure_wav_endpoint(audio)
 
     def test_odd_declared_data_and_too_short_audio_are_refused(self):
@@ -93,7 +103,15 @@ class TTSEndpointScreenTests(unittest.TestCase):
             raw = bytearray(audio.read_bytes())
             raw[40:44] = struct.pack("<I", 1201)
             audio.write_bytes(raw)
-            with self.assertRaisesRegex(screen.EndpointScreenError, "aligned"):
+            with self.assertRaisesRegex(screen.EndpointScreenError,
+                                        "truncated|aligned"):
+                screen.measure_wav_endpoint(audio)
+            write_wav(audio, [0] * 120)
+            duplicate = bytearray(audio.read_bytes())
+            duplicate.extend(b"data" + struct.pack("<I", 2) + b"\0\0")
+            duplicate[4:8] = struct.pack("<I", len(duplicate) - 8)
+            audio.write_bytes(duplicate)
+            with self.assertRaisesRegex(screen.EndpointScreenError, "multiple data"):
                 screen.measure_wav_endpoint(audio)
             short = root / "short.wav"
             write_wav(short, [0] * 1, prefix=[])
@@ -165,6 +183,11 @@ class TTSEndpointScreenTests(unittest.TestCase):
             first = subprocess.run(command, cwd=Path(__file__).resolve().parents[1],
                                    capture_output=True, text=True, timeout=15)
             self.assertEqual(0, first.returncode, first.stderr)
+            written = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual("tts_endpoint_screen.py",
+                             written["provenance"]["script"])
+            self.assertEqual(-40.0,
+                             written["provenance"]["args"]["threshold_dbfs"])
             before = output.read_bytes()
             second = subprocess.run(command, cwd=Path(__file__).resolve().parents[1],
                                     capture_output=True, text=True, timeout=15)

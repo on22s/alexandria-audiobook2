@@ -14,12 +14,14 @@ import io
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import stat
 import struct
 import sys
 import tempfile
 import wave
+
+from experiments.provenance import provenance
 
 VERSION = 1
 MAX_MANIFEST_BYTES = 4 * 1024**2
@@ -34,13 +36,20 @@ class EndpointScreenError(ValueError):
     """The bounded endpoint screen refused malformed or unsafe input."""
 
 
+def _file_identity(facts):
+    return (facts.st_dev, facts.st_ino, facts.st_size,
+            facts.st_mtime_ns, facts.st_ctime_ns)
+
+
 def _resolve_audio(root, relative):
     if not isinstance(relative, str) or not relative:
         raise EndpointScreenError("audio path is missing")
     try:
         relative.encode(sys.getfilesystemencoding(), "strict")
         candidate = Path(relative)
-        if candidate.is_absolute() or ".." in candidate.parts:
+        windows_candidate = PureWindowsPath(relative)
+        if (candidate.is_absolute() or windows_candidate.drive
+                or windows_candidate.root or ".." in candidate.parts):
             raise EndpointScreenError("audio path escapes the manifest directory")
         current = root
         for part in candidate.parts:
@@ -73,6 +82,7 @@ def _wav_data_info(document):
     if struct.unpack_from("<I", document, 4)[0] != len(document) - 8:
         raise EndpointScreenError("WAV RIFF length does not match the file")
     offset = 12
+    data_info = None
     while offset + 8 <= len(document):
         name = document[offset:offset + 4]
         size = struct.unpack_from("<I", document, offset + 4)[0]
@@ -80,9 +90,17 @@ def _wav_data_info(document):
         if size > len(document) - start:
             raise EndpointScreenError("truncated WAV payload")
         if name == b"data":
-            return start, size
+            if data_info is not None:
+                raise EndpointScreenError("WAV contains multiple data chunks")
+            data_info = (start, size)
         offset = start + size + (size & 1)
-    raise EndpointScreenError("WAV data chunk is missing")
+        if offset > len(document):
+            raise EndpointScreenError("truncated WAV padding")
+    if offset != len(document):
+        raise EndpointScreenError("truncated WAV chunk header")
+    if data_info is None:
+        raise EndpointScreenError("WAV data chunk is missing")
+    return data_info
 
 
 def measure_wav_endpoint(path, expected_facts=None):
@@ -102,13 +120,13 @@ def measure_wav_endpoint(path, expected_facts=None):
             if facts.st_size > MAX_AUDIO_BYTES:
                 raise EndpointScreenError(
                     f"audio file exceeds {MAX_AUDIO_BYTES} bytes: {path.name}")
-            if expected_facts is not None and (
-                    facts.st_dev != expected_facts.st_dev
-                    or facts.st_ino != expected_facts.st_ino
-                    or facts.st_size != expected_facts.st_size):
+            if (expected_facts is not None
+                    and _file_identity(facts) != _file_identity(expected_facts)):
                 raise EndpointScreenError(f"audio file changed before read: {path.name}")
             document = handle.read(MAX_AUDIO_BYTES + 1)
-            if len(document) != facts.st_size:
+            final_facts = os.fstat(handle.fileno())
+            if (len(document) != facts.st_size
+                    or _file_identity(final_facts) != _file_identity(facts)):
                 raise EndpointScreenError(f"audio file changed during read: {path.name}")
             document_sha256 = hashlib.sha256(document).hexdigest()
             data_offset, data_size = _wav_data_info(document)
@@ -146,8 +164,8 @@ def measure_wav_endpoint(path, expected_facts=None):
         count = max(1, min(len(samples), math.ceil(rate * window_ms / 1000)))
         tail = samples[-count:]
         rms = math.sqrt(sum(float(value) ** 2 for value in tail) / count)
-        metrics[str(window_ms)] = round(
-            20.0 * math.log10(max(rms / 32768.0, 1e-12)), 6)
+        metrics[str(window_ms)] = 20.0 * math.log10(
+            max(rms / 32768.0, 1e-12))
     return {"audio_sha256": document_sha256,
             "sample_rate": rate, "frames": frames,
             "duration_seconds": round(frames / rate, 6),
@@ -161,6 +179,9 @@ def build_report(manifest_path, threshold_dbfs=-40.0):
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
     flags |= getattr(os, "O_NONBLOCK", 0)
     try:
+        manifest_path = manifest_path.parent.resolve() / manifest_path.name
+        if manifest_path.is_symlink():
+            raise EndpointScreenError("manifest must not be a symlink")
         descriptor = os.open(manifest_path, flags)
         with os.fdopen(descriptor, "rb") as handle:
             facts = os.fstat(handle.fileno())
@@ -169,7 +190,9 @@ def build_report(manifest_path, threshold_dbfs=-40.0):
             if facts.st_size > MAX_MANIFEST_BYTES:
                 raise EndpointScreenError("manifest is too large")
             raw = handle.read(MAX_MANIFEST_BYTES + 1)
-            if len(raw) != facts.st_size:
+            final_facts = os.fstat(handle.fileno())
+            if (len(raw) != facts.st_size
+                    or _file_identity(final_facts) != _file_identity(facts)):
                 raise EndpointScreenError("manifest changed during read")
     except EndpointScreenError:
         raise
@@ -186,7 +209,7 @@ def build_report(manifest_path, threshold_dbfs=-40.0):
             or manifest.get("version") != VERSION
             or not isinstance(rows, list) or not rows or len(rows) > 4096):
         raise EndpointScreenError("manifest must contain 1..4096 version-1 rows")
-    root, seen, results = manifest_path.parent.resolve(), set(), []
+    root, seen, results = manifest_path.parent, set(), []
     total_audio_bytes = 0
     counts = {"true_positive": 0, "false_positive": 0,
               "true_negative": 0, "false_negative": 0}
@@ -253,6 +276,12 @@ def write_new_report(path, report):
                     or (initial.st_dev, initial.st_ino)
                     != (current.st_dev, current.st_ino)):
                 raise EndpointScreenError("output path changed during publication")
+            if os.name != "nt":
+                directory = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
     except BaseException:
         if linked:
             try:
@@ -281,9 +310,16 @@ def main():
         message = str(error).encode("unicode_escape", "backslashreplace").decode("ascii")
         print(f"endpoint screen refused input: {message}", file=sys.stderr)
         return 2
+    safe_manifest = str(args.manifest).encode(
+        "utf-8", "backslashreplace").decode("utf-8")
+    safe_out = str(args.out).encode("utf-8", "backslashreplace").decode("utf-8")
+    report["provenance"] = provenance(
+        __file__, argparse.Namespace(
+            manifest=safe_manifest, out=safe_out,
+            threshold_dbfs=args.threshold_dbfs))
     try:
         write_new_report(args.out, report)
-    except (EndpointScreenError, FileExistsError, OSError) as error:
+    except (EndpointScreenError, FileExistsError, OSError, UnicodeError) as error:
         message = str(error).encode("unicode_escape", "backslashreplace").decode("ascii")
         print(f"endpoint screen could not publish report: {message}", file=sys.stderr)
         return 3
