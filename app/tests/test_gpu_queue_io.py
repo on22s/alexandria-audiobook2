@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from tests.test_gpu_job import GPU_JOB, isolated_env
+from tests.test_support import requires_linux_queue_tools
 
 
 class QueueIoFailureTest(unittest.TestCase):
@@ -57,17 +58,20 @@ class QueueIoFailureTest(unittest.TestCase):
                 self.env["GPU_QLOG"] = str(destination)
                 self.assert_refused(self.run_job())
 
+    @requires_linux_queue_tools
     def test_pending_directory_failure_never_launches_worker(self):
         self.pending.write_text("not a directory")
         result = self.run_job()
         self.assert_refused(result)
         self.assertIn("pending", result.stderr)
 
+    @requires_linux_queue_tools
     def test_pending_filename_failure_never_launches_worker(self):
         result = self.run_job(name="n" * 256)
         self.assert_refused(result)
         self.assertIn("pending", result.stderr)
 
+    @requires_linux_queue_tools
     def test_pending_write_failure_removes_partial_marker(self):
         self.pending.mkdir()
         result = self.run_job(prefix='ln -s /dev/full "$GPU_PENDING_DIR/$$.probe"; exec bash "$1" probe "${@:2}"')
@@ -79,6 +83,7 @@ class QueueIoFailureTest(unittest.TestCase):
         provider.write_text("#!/bin/sh\ncase \"$*\" in *showmeminfo*) rm -f \"$GPU_QLOG\"; mkdir \"$GPU_QLOG\";; esac\necho 'GPU[0]: VRAM Total Memory (B): 17179869184'\necho 'GPU[0]: VRAM Total Used Memory (B): 0'\n")
         self.assert_refused(self.run_job())
 
+    @requires_linux_queue_tools
     def test_terminal_record_failure_is_not_reported_as_success(self):
         worker = [sys.executable, "-c",
                   "import pathlib,sys; pathlib.Path(sys.argv[1]).write_text('ran'); p=pathlib.Path(sys.argv[2]); p.unlink(); p.symlink_to('/dev/full')",

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -66,6 +67,7 @@ r=pathlib.Path(os.environ['FIXTURE_ROOT']);(r/'scored').touch();a=sys.argv;pathl
     def run_chain(self,**env):
         return subprocess.run(['bash',str(self.root/'run_chains/prune_retrain_20260913.sh')],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=15)
 
+    @requires_linux_queue_tools
     def test_selected_checkout_manifest_and_whisper_paths_are_used(self):
         result=self.run_chain();self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual(str(self.root/'lora_models/manifest.json'),(self.root/'manifest_read').read_text().strip())
@@ -73,15 +75,18 @@ r=pathlib.Path(os.environ['FIXTURE_ROOT']);(r/'scored').touch();a=sys.argv;pathl
         for key,relative in (('--whisper-cpp-bin','whisper.cpp/build/bin/whisper-cli'),('--whisper-cpp-model','whisper.cpp/models/ggml-base.en.bin')):self.assertEqual(str(self.root/relative),args[args.index(key)+1])
         self.assertTrue((self.root/'trained').exists());self.assertTrue((self.root/'scored').exists())
 
+    @requires_linux_queue_tools
     def test_failed_prune_blocks_packaging_training_and_fidelity(self):
         result=self.run_chain(FIXTURE_FAIL='prune');self.assertEqual(1,result.returncode,result.stdout+result.stderr)
         self.assertFalse((self.work/'zips/source_pruned.zip').exists());self.assertFalse((self.root/'trained').exists());self.assertFalse((self.root/'scored').exists())
         self.assertIn('package_pruned = skipped',result.stdout)
 
+    @requires_linux_queue_tools
     def test_failed_training_does_not_score_even_with_new_partial_manifest(self):
         result=self.run_chain(FIXTURE_FAIL='train');self.assertEqual(1,result.returncode,result.stdout+result.stderr)
         self.assertTrue((self.work/'models/manifest.json').exists());self.assertFalse((self.root/'scored').exists());self.assertIn('fidelity = skipped',result.stdout)
 
+    @requires_linux_queue_tools
     def test_cached_report_without_metadata_fails_package_and_blocks_training(self):
         p=self.work/'pruned';p.mkdir(parents=True);(p/'prune_report.json').write_text('{}')
         result=self.run_chain();self.assertEqual(1,result.returncode,result.stdout+result.stderr)
@@ -91,6 +96,7 @@ r=pathlib.Path(os.environ['FIXTURE_ROOT']);(r/'scored').touch();a=sys.argv;pathl
         result=self.run_chain(PYTHON=str(self.root/'missing-python'));self.assertEqual(1,result.returncode,result.stdout+result.stderr)
         self.assertIn('configured PYTHON is not executable',result.stderr);self.assertFalse((self.root/'manifest_read').exists())
 
+    @requires_linux_queue_tools
     def test_repeat_preserves_existing_prune_and_package_caches(self):
         first=self.run_chain();self.assertEqual(0,first.returncode,first.stdout+first.stderr)
         paths=[self.root/'prune_args.json',self.work/'zips/source_control.zip',self.work/'zips/source_pruned.zip']
@@ -99,6 +105,7 @@ r=pathlib.Path(os.environ['FIXTURE_ROOT']);(r/'scored').touch();a=sys.argv;pathl
         self.assertIn('SKIP prune (cached report)',second.stdout)
         self.assertEqual(before,{p:(p.read_bytes(),p.stat().st_mtime_ns) for p in paths})
 
+    @requires_linux_queue_tools
     def test_control_copy_failure_blocks_training_even_when_pruned_package_succeeds(self):
         folder=self.root/'bin';folder.mkdir()
         self.write('bin/cp','#!/bin/sh\nexit 9\n')

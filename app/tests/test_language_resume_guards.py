@@ -18,6 +18,7 @@ import torch
 import alexandria_preparer_rocm_compatible as preparer
 
 from tests.hifitts_fixture import write_hifitts_fixture
+from tests.test_support import requires_linux_queue_tools
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -126,6 +127,7 @@ class EnglishASRGuardTests(unittest.TestCase):
                 run.assert_called_once()
 
 
+@requires_linux_queue_tools
 class StopGateChainTests(unittest.TestCase):
     def test_whole_chain_accepts_only_exact_passing_verdict_and_reruns_bad_cache_once(self):
         cases=(({'passed':True},True,0,0,True),({'passed':False},True,0,1,True),

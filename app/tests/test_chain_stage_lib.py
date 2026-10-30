@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import textwrap
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LIB = os.path.join(REPO, "run_chains", "lib", "stage.sh")
@@ -59,6 +60,7 @@ class StageRunnerTest(unittest.TestCase):
         return subprocess.run(["bash", script], capture_output=True, text=True,
                               timeout=60)
 
+    @requires_linux_queue_tools
     def test_a_failing_stage_makes_the_chain_exit_non_zero(self):
         """THE DEFECT: this used to exit 0 and be logged as OK."""
         r = self._chain('''
@@ -70,6 +72,7 @@ class StageRunnerTest(unittest.TestCase):
         self.assertIn("FAIL  bad rc=2", r.stdout)
         self.assertIn("bad = failed:2", r.stdout)
 
+    @requires_linux_queue_tools
     def test_all_stages_passing_exits_zero(self):
         r = self._chain('''
             run_stage a 10s -- true
@@ -79,6 +82,7 @@ class StageRunnerTest(unittest.TestCase):
         self.assertEqual(0, r.returncode, r.stdout)
         self.assertIn("2/2 stages ok", r.stdout)
 
+    @requires_linux_queue_tools
     def test_a_later_stage_still_runs_after_an_unrelated_failure(self):
         """Continue-on-failure is deliberate: one dead stage at 2am must not
         take the remaining ten hours with it. The chain still exits non-zero."""
@@ -90,6 +94,7 @@ class StageRunnerTest(unittest.TestCase):
         self.assertIn("OK    later", r.stdout)
         self.assertEqual(1, r.returncode)
 
+    @requires_linux_queue_tools
     def test_requires_ok_skips_a_stage_whose_predecessor_failed(self):
         """task-spooler's -W: run after it ends WELL, not merely ends.
 
@@ -104,6 +109,7 @@ class StageRunnerTest(unittest.TestCase):
         self.assertIn("SKIP  needs_server (requires server, which is failed:1)",
                       r.stdout)
 
+    @requires_linux_queue_tools
     def test_requires_ok_treats_a_stage_that_never_ran_as_unsatisfied(self):
         # Resumed chains are the normal case here; "I did not see it succeed"
         # must not be read as "it succeeded".
@@ -113,6 +119,7 @@ class StageRunnerTest(unittest.TestCase):
         ''')
         self.assertIn("which is missing", r.stdout)
 
+    @requires_linux_queue_tools
     def test_a_timeout_is_reported_as_a_timeout_not_a_generic_failure(self):
         """rc=124 means the cap was too small, which is a different problem
         from the job failing - and it is what truncated the n1200 block."""
@@ -123,6 +130,7 @@ class StageRunnerTest(unittest.TestCase):
         self.assertIn("TIMEOUT slow", r.stdout)
         self.assertEqual(1, r.returncode)
 
+    @requires_linux_queue_tools
     def test_each_stage_writes_its_own_log(self):
         self._chain('''
             run_stage talky 10s -- bash -c "echo hello from the stage"
@@ -133,6 +141,7 @@ class StageRunnerTest(unittest.TestCase):
         with open(log, encoding="utf-8") as fh:
             self.assertIn("hello from the stage", fh.read())
 
+    @requires_linux_queue_tools
     def test_artifact_commit_preserves_unrelated_staged_change(self):
         repo = os.path.join(self.tmp.name, "repo")
         os.makedirs(os.path.join(repo, "ab_test_runtime", "experiments"))
@@ -165,6 +174,7 @@ class StageRunnerTest(unittest.TestCase):
             capture_output=True, text=True, check=True).stdout.splitlines()
         self.assertEqual(["unrelated.txt"], staged)
 
+    @requires_linux_queue_tools
     def test_running_the_same_chain_twice_is_idempotent(self):
         """Best practice from every pipeline guide: prove it by running twice.
 
@@ -191,6 +201,7 @@ class StageRunnerTest(unittest.TestCase):
 
 
 
+@requires_linux_queue_tools
 class StageDependencyAccountingTests(unittest.TestCase):
     def test_missing_failed_and_skipped_dependencies_make_summary_incomplete(self):
         import shlex

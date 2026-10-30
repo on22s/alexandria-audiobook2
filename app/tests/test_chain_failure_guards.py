@@ -19,6 +19,7 @@ import tempfile
 import unittest
 
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
+from tests.test_support import requires_linux_queue_tools
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CHAINS = os.path.join(REPO, "run_chains")
@@ -234,6 +235,7 @@ class ChainFooterExitTests(unittest.TestCase):
                     self.assertIn(name,result.stdout)
 
 
+@requires_linux_queue_tools
 class RegateDiagnosticExitTests(unittest.TestCase):
     def test_unchanged_scores_are_success_and_worker_failure_stays_nonzero(self):
         import json
@@ -357,6 +359,7 @@ class ExitStatusGuardPatternTests(unittest.TestCase):
             self.assertIsNone(AGGREGATES.search(code))
 
 
+@requires_linux_queue_tools
 class QueueRepositoryInspectionTests(unittest.TestCase):
     def test_git_status_failure_refuses_instead_of_reporting_a_clean_tree(self):
         helper = pathlib.Path(REPO) / "run_chains/lib/queue.sh"
@@ -452,6 +455,7 @@ class ResumeArtifactShapeTests(unittest.TestCase):
                     self.assertIn("REFUSING: could not determine", result.stderr)
 
 
+@requires_linux_queue_tools
 class StageDependencyReclamationTests(unittest.TestCase):
     def test_skipped_dependencies_do_not_stop_a_server_or_dispatch_work(self):
         helper = pathlib.Path(REPO) / "run_chains/lib/stage.sh"
@@ -524,6 +528,7 @@ class KnownIdentityGateContractTests(unittest.TestCase):
                     self.assertIn("expected", result.stdout + result.stderr)
 
 
+@requires_linux_queue_tools
 class RegateQueueConstructionTests(unittest.TestCase):
     def test_failed_queue_construction_never_dispatches_partial_or_empty_queue(self):
         import json
@@ -573,6 +578,7 @@ class RegateQueueConstructionTests(unittest.TestCase):
                 self.assertEqual([], list(root.glob('regate_queue.*')))
 
 
+@requires_linux_queue_tools
 class AdapterRecheckRosterTests(unittest.TestCase):
     def test_roster_must_exist_and_select_adapters_before_stage_can_pass(self):
         import json
@@ -657,6 +663,7 @@ class AdapterRecheckRosterTests(unittest.TestCase):
                     self.assertEqual(before, roster.read_bytes())
 
 
+@requires_linux_queue_tools
 class CloudEvaluationProvenanceTests(unittest.TestCase):
     def test_gpu_probe_failure_refuses_evaluation_and_cleans_up_its_cpu_server(self):
         import json
@@ -821,6 +828,7 @@ class RemainingGoalGateStatusTests(unittest.TestCase):
                         self.assertEqual(content, path.read_bytes())
 
 
+@requires_linux_queue_tools
 class ReplayListFailureTests(unittest.TestCase):
     def test_replay_list_builder_must_succeed_before_remaining_dispatch(self):
         import json
@@ -899,6 +907,7 @@ class ReplayListFailureTests(unittest.TestCase):
                     self.assertEqual(data_before, (data / name).read_bytes())
 
 
+@requires_linux_queue_tools
 class RegressionChainExitTests(unittest.TestCase):
     def test_generator_status_survives_diagnostics_and_config_restore(self):
         import json
@@ -948,6 +957,7 @@ class RegressionChainExitTests(unittest.TestCase):
                     self.assertFalse(output.exists())
 
 
+@requires_linux_queue_tools
 class IndependentChainSummaryTests(unittest.TestCase):
     def test_all_attempts_run_and_failures_reach_summary(self):
         import shlex

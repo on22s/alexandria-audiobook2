@@ -6,8 +6,10 @@ import sys
 import unittest
 
 from tests import test_gpu_queue_io
+from tests.test_support import requires_linux_queue_tools
 
 
+@requires_linux_queue_tools
 class CommandProvenanceTest(unittest.TestCase):
     setUp = test_gpu_queue_io.QueueIoFailureTest.setUp
     run_job = test_gpu_queue_io.QueueIoFailureTest.run_job

@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from experiments.manifest import _git_state
 from tests import test_gpu_job as gpu_job_tests
+from tests.test_support import requires_linux_queue_tools
 
 
 class SourceIdentityTests(unittest.TestCase):
@@ -27,6 +28,7 @@ class SourceIdentityTests(unittest.TestCase):
         identity = [line for line in self._log().splitlines() if " IDENT " in line][-1]
         return re.search(r"tree=([^ ]+)", identity).group(1)
 
+    @requires_linux_queue_tools
     def test_every_nonignored_input_kind_is_refused_and_recorded(self):
         self.prepare()
         for name in ("kernel.cu", "config.toml", "Makefile", "fixture.json", "notebook.ipynb", "notes.md", "text input.txt", "executable"):
@@ -43,6 +45,7 @@ class SourceIdentityTests(unittest.TestCase):
                 finally:
                     path.unlink()
 
+    @requires_linux_queue_tools
     def test_same_count_inputs_hash_their_contents_and_names(self):
         self.prepare()
         path = Path(self.root, "new.py")
@@ -55,6 +58,7 @@ class SourceIdentityTests(unittest.TestCase):
         self.assertEqual(3, len({first, second, third}))
         self.assertEqual(third, self.state(), "unchanged inputs must keep the same identity")
 
+    @requires_linux_queue_tools
     def test_modified_tracked_contents_change_identity(self):
         self.prepare()
         path = Path(self.root, "app/experiments/kept.py")
@@ -63,6 +67,7 @@ class SourceIdentityTests(unittest.TestCase):
         path.write_text("TRACKED = 2\n")
         self.assertNotEqual(first, self.state())
 
+    @requires_linux_queue_tools
     def test_binary_untracked_and_odd_names_are_restorable_from_patch(self):
         self.prepare()
         names = ("binary fixture.json", "line\nbreak.toml", "-leading.cu")
@@ -80,6 +85,7 @@ class SourceIdentityTests(unittest.TestCase):
         for name in names:
             self.assertEqual(payload, Path(self.root, name).read_bytes())
 
+    @requires_linux_queue_tools
     def test_generated_runtime_files_remain_excluded(self):
         self.prepare()
         p = Path(self.root, "ab_test_runtime/views/probe.toml")
@@ -99,6 +105,7 @@ class SourceIdentityTests(unittest.TestCase):
         record.meta["git"] = state
         self.assertIn("tree source state could not be verified", record.validate({"require_clean_tree": True}))
 
+    @requires_linux_queue_tools
     def test_failed_untracked_query_refuses_instead_of_certifying_clean(self):
         self.prepare()
         real_git = shutil.which("git")

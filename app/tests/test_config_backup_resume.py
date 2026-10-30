@@ -9,11 +9,13 @@ import sys
 import tempfile
 import unittest
 from tests.unseen_fixture_support import COMPLETION_FIXTURE_CODE
+from tests.test_support import requires_linux_queue_tools
 
 ROOT=Path(__file__).resolve().parents[2]
 CHAINS=('overnight_2026_08_09c.sh','unseen_books.sh','unseen_books_20260819b.sh')
 
 
+@requires_linux_queue_tools
 class ConfigBackupResumeTests(unittest.TestCase):
     def fixture(self, root, name):
         chains=root/'run_chains';(chains/'lib').mkdir(parents=True)

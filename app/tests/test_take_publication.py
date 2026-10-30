@@ -28,6 +28,7 @@ from synthesis_recovery import RecoverySession
 from synthesis_recovery_identity import get_recovery_digest
 from synthesis_recovery_serving import NativeRecoveryServingIdentity
 from synthesis_render import render_synthesis_windows
+from synthesis_recovery_cache import is_recovery_storage_platform_supported
 from synthesis_settings import get_synthesis_window_settings
 from take_publication import (KEY, capture_take_publication_admission, get_take_publication_receipt,
                               validate_take_publication)
@@ -342,6 +343,7 @@ class TakePublicationTests(unittest.TestCase):
             self.assertEqual(row['status'],'done');self.assertIsNone(row.get(KEY))
             self.assertEqual((root/path).read_bytes(),pcm.read_bytes())
 
+    @unittest.skipUnless(is_recovery_storage_platform_supported(), 'Linux durability required')
     def test_owned_builtin_single_parallel_and_batch_transport_without_asr(self):
         # Only serving identity is declared here. Original engine dispatch,
         # windowing, observed inputs, encoding, book admission and store writes

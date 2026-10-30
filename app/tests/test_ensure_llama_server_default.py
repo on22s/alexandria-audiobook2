@@ -12,6 +12,7 @@ import sys
 import socket
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(REPO, "ensure_llama_server.sh")
@@ -82,6 +83,7 @@ class DefaultModelTest(unittest.TestCase):
         with open(SCRIPT, encoding="utf-8") as handle:
             self.assertIn("DEFAULT_MODEL=", handle.read())
 
+    @requires_linux_queue_tools
     def test_file_identity_changes_when_same_path_is_replaced(self):
         with tempfile.TemporaryDirectory() as root:
             target = os.path.join(root, "adapter.gguf")
@@ -100,6 +102,7 @@ class DefaultModelTest(unittest.TestCase):
 
 
 
+@requires_linux_queue_tools
 class ServerLogPreflightTests(unittest.TestCase):
     def test_real_launcher_creates_log_parent_and_refuses_unusable_targets_before_stop(self):
         from pathlib import Path

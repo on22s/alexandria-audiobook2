@@ -395,7 +395,7 @@ class MacOwnerFinishTests(unittest.TestCase):
         scope = FakeLaunchdScope(keep_alive=True, actor_mode='drop')
         result, timed_out, receipt = self.run_broker(scope)
         self.assertFalse(timed_out)
-        self.assertEqual((128 + signal.SIGKILL, True), (result, receipt))
+        self.assertEqual((-signal.SIGKILL, True), (result, receipt))
         self.assertEqual(0, scope.replacements)
 
     def test_without_restart_completion_is_unchanged(self):

@@ -5,12 +5,14 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CHAIN = ROOT / "run_chains/regate_reference_text.sh"
 
 
+@requires_linux_queue_tools
 class RegateGpuLockTests(unittest.TestCase):
     def test_identity_gate_runs_through_gpu_job(self):
         with tempfile.TemporaryDirectory() as tmp:

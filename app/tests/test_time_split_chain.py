@@ -13,7 +13,7 @@ from unittest.mock import patch
 import numpy as np
 import soundfile as sf
 from experiments import ljspeech_completion as completion
-from tests.test_support import write_test_adapter
+from tests.test_support import requires_linux_queue_tools, write_test_adapter
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -68,6 +68,7 @@ p=pathlib.Path(sys.argv[sys.argv.index('--out')+1]);p.write_text('{}')
                 self.assertEqual(1,result.returncode,result.stdout+result.stderr);self.assertEqual([],calls)
                 self.assertIn('REFUSING: configured',result.stderr)
 
+    @requires_linux_queue_tools
     def test_unset_environment_uses_checkout_defaults(self):
         import shlex
         interpreter=self.root/'app/env/bin/python';interpreter.parent.mkdir(parents=True)
@@ -76,11 +77,13 @@ p=pathlib.Path(sys.argv[sys.argv.index('--out')+1]);p.write_text('{}')
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual(['prosody_fidelity.py'],calls)
 
+    @requires_linux_queue_tools
     def test_valid_all_stage_caches_remain_unchanged_and_skip_to_prosody(self):
         paths=[self.build,self.gate,self.generated,self.work/'adapter/adapter_model.safetensors'];before={p:p.read_bytes() for p in paths}
         result,calls=self.run_chain();self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual(['prosody_fidelity.py'],calls);self.assertEqual(before,{p:p.read_bytes() for p in paths})
 
+    @requires_linux_queue_tools
     def test_partial_nonempty_caches_and_zero_exit_incomplete_outputs_do_not_reach_later_work(self):
         cases=((self.work/'adapter/adapter_model.safetensors',b'broken weights','train_lora.py'),(self.build,b'{}','library_eval_build.py'),(self.gate,b'{"passed":false}','verify_adapter_stops.py'),(self.generated,b'{}','ljspeech_generate.py'))
         for path,damage,worker in cases:

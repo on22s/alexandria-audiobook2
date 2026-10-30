@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -84,6 +85,7 @@ if '--out' in args:
                 self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertEqual([], calls)
 
+    @requires_linux_queue_tools
     def test_generation_batches_before_cpu_scoring(self):
         result, calls = self.run_chain()
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -95,11 +97,13 @@ if '--out' in args:
         self.assertLess(max(generation), min(scoring))
         self.assertIn('identity score 0.555', result.stdout)
 
+    @requires_linux_queue_tools
     def test_equal_scores_for_distinct_voices_are_valid(self):
         result, calls = self.run_chain('alpha|data/alpha|0.555\nbeta|data/beta|0.555\n')
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual(2, sum(Path(args[0]).name == 'ljspeech_generate.py' for args in calls))
 
+    @requires_linux_queue_tools
     def test_failed_generation_does_not_score_stale_output(self):
         self.env['FAIL_GENERATION'] = '1'
         self.write('ab_test_runtime/experiments/second_english__alpha_generate.json', '{"stale":true}')
@@ -110,6 +114,7 @@ if '--out' in args:
         self.assertEqual(2, sum(Path(args[0]).name == 'ljspeech_generate.py' for args in calls))
         self.assertFalse(any(Path(args[0]).name == 'prosody_fidelity.py' for args in calls))
 
+    @requires_linux_queue_tools
     def test_failed_build_is_in_failure_summary_and_blocks_dependent_work(self):
         self.env['FAIL_BUILD'] = '1'
         result, calls = self.run_chain()
@@ -131,6 +136,7 @@ if '--out' in args:
         self.assertNotEqual(0, result.returncode)
         self.assertEqual([], calls)
 
+    @requires_linux_queue_tools
     def test_original_eight_voice_selection_preserves_all_adapters(self):
         selection = (REPO / 'ab_test_runtime/second_english_voices.txt').read_text()
         result, calls = self.run_chain(selection.rstrip('\n'))
@@ -141,6 +147,7 @@ if '--out' in args:
         self.assertEqual([str(self.root / adapter) for adapter in expected], generated)
         self.assertEqual(8, len(generated))
 
+    @requires_linux_queue_tools
     def test_validated_snapshot_survives_input_replacement_during_generation(self):
         self.env['MUTATE_SELECTION'] = '1'
         result, calls = self.run_chain()

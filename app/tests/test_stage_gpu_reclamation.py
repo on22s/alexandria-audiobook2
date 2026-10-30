@@ -11,8 +11,10 @@ import time
 import unittest
 
 from tests.test_gpu_job import REPO, copy_gpu_owner, isolated_env
+from tests.test_support import requires_linux_queue_tools
 
 
+@requires_linux_queue_tools
 class StageGpuReclamationTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

@@ -410,6 +410,24 @@ def backup_file_with_timestamp(path):
     return backup
 
 
+def open_or_create_file(name, flags, mode=0o600, *, dir_fd=None):
+    """Open name, creating it if missing, safely against a concurrent creator.
+
+    macOS fails a descriptor-relative (dir_fd) O_CREAT open with ENOENT while
+    another thread or process creates the same new name: measured on an Apple
+    M4, one of two racers failed every time, while O_CREAT|O_EXCL never did and
+    path-based opens were unaffected (Linux: neither). So create exclusively,
+    and open the existing name if that loses. flags must not include O_CREAT,
+    O_EXCL or O_TRUNC.
+    """
+    if flags & (os.O_CREAT | os.O_EXCL | os.O_TRUNC):
+        raise ValueError('open_or_create_file decides creation; pass access flags only')
+    try:
+        return os.open(name, flags | os.O_CREAT | os.O_EXCL, mode, dir_fd=dir_fd)
+    except FileExistsError:
+        return os.open(name, flags, dir_fd=dir_fd)
+
+
 @contextlib.contextmanager
 def file_lock(target_path, timeout=10, stale_after=120, *, lock_handle=None):
     """Hold a kernel-owned advisory lock for a read-modify-write operation.

@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 # Regenerate every derived file in this repository. THE ONE COPY.
 #
 # WHY THIS FILE EXISTS AT ALL. The same list - which files are derived, which
@@ -91,8 +91,11 @@ say "   unit test inventory"
 if [ -f "$REPO/GOALS.md" ]; then
     line=$(grep -n '^# Part II' "$REPO/GOALS.md" | cut -d: -f1)
     if [ -n "${line:-}" ]; then
-        sed -i "30s/met goals begin at line [0-9]*/met goals begin at line $line/" \
+        # -i.bak: GNU and BSD (macOS) sed both accept an attached suffix.
+        sed -i.bak "30s/met goals begin at line [0-9]*/met goals begin at line $line/" \
             "$REPO/GOALS.md"
+        # Unconditional: a stray backup would leave the tree dirty for gpu_job.sh.
+        rm -f "$REPO/GOALS.md.bak"
         say "   GOALS.md line pointer"
     fi
 fi

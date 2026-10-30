@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = Path(os.environ.get('DECONTAMINATE_SOURCE', REPO/'run_chains/decontaminate_library.sh'))
@@ -66,6 +67,7 @@ Path(a.out).write_text(json.dumps({'complete':True,'results':[{'adapter':n,'new_
     def dispatched(self):
         return [json.loads(line) for line in self.calls.read_text().splitlines()] if self.calls.exists() else []
 
+    @requires_linux_queue_tools
     def test_failures_and_timeouts_attempt_every_batch_and_cannot_report_done(self):
         result = self.run_chain(FAIL_BATCH='all')
         self.assertEqual(1,result.returncode,result.stdout+result.stderr)

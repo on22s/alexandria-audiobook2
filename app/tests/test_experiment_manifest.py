@@ -11,6 +11,7 @@ import tempfile
 import unittest
 
 from experiments.manifest import ExperimentRecord, read_inputs
+from tests.test_support import requires_linux_queue_tools
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GOLD = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -357,6 +358,7 @@ class UntrackedHarnessTest(unittest.TestCase):
     candidate_id__qwen__qwen3-14b.json, whose commit predates its own harness.
     """
 
+    @requires_linux_queue_tools
     def test_an_untracked_harness_marks_the_tree_dirty(self):
         from experiments.manifest import _git_state
         probe = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

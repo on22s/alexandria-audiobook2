@@ -6,8 +6,10 @@ import threading
 import unittest
 
 from tests import test_llama_lifecycle_lock as lifecycle
+from tests.test_support import requires_linux_queue_tools
 
 
+@requires_linux_queue_tools
 class LlamaReadinessIdentityTest(unittest.TestCase):
     start = lifecycle.LlamaLifecycleLockTest.start
     finish = lifecycle.LlamaLifecycleLockTest.finish

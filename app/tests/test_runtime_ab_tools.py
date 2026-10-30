@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -107,6 +108,7 @@ class RuntimeAbRunnerTests(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertIn("llm_mode=local", result.stderr)
 
+    @requires_linux_queue_tools
     def test_failed_arm_is_counted_for_nonzero_final_status(self):
         with tempfile.TemporaryDirectory() as tmp:
             app = os.path.join(tmp, "app"); out = os.path.join(tmp, "out")

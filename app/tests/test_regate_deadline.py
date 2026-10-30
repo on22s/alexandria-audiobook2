@@ -10,6 +10,7 @@ import unittest
 from tests.test_chain_failure_guards import prepare_artifact_commit_fixture
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
 from tests.regate_campaign_fixture import copy_campaign_cli
+from tests.test_support import requires_linux_queue_tools
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -61,6 +62,7 @@ d=json.loads(out.read_text());d['measured']=True;out.write_text(json.dumps(d))
         prepare_artifact_commit_fixture(root)
         return script
 
+    @requires_linux_queue_tools
     def test_timer_reaps_worker_before_next_adapter_and_keeps_prior_artifact(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

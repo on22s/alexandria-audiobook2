@@ -1,3 +1,4 @@
+import errno
 import hashlib
 import io
 import json
@@ -324,7 +325,12 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             name = os.fsdecode(b'non-utf8-\xff')
-            (root / name).write_bytes(b'content')
+            try:
+                (root / name).write_bytes(b'content')
+            except OSError as error:
+                if error.errno != errno.EILSEQ:
+                    raise
+                self.skipTest('this filesystem refuses non-UTF-8 names (macOS APFS)')
             digest = books._bounded_book_digest(root, books._BookScanBudget(1024, 8, None))
             self.assertRegex(digest, r'^[0-9a-f]{64}$')
     def test_scalar_journal_entry_is_rejected_without_mutation(self):

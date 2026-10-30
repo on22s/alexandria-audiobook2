@@ -509,6 +509,19 @@ else:
     _LOADED_SPEECH_VERIFICATION_CODE_SHA256 = _get_loaded_verification_code()
 
 
+def exit_with_owned_result(result):
+    """End this owner process with the owned command's result.
+
+    A command killed by a signal kills the owner with the same signal, so the
+    caller sees -signal as the returncode on Linux and macOS alike.
+    """
+    if result < 0:
+        if -result != signal.SIGKILL:
+            signal.signal(-result, signal.SIG_DFL)
+        os.kill(os.getpid(), -result)
+    sys.exit(result)
+
+
 if __name__ == "__main__":
     command = sys.argv[3:]
     stop_receipt_path = None
@@ -553,8 +566,4 @@ if __name__ == "__main__":
         except (OSError, RuntimeError) as error:
             control.sendall(json.dumps({"error": str(error), "errno": getattr(error, "errno", None)}).encode() + b"\n")
             raise
-    if result < 0:
-        if -result != signal.SIGKILL:
-            signal.signal(-result, signal.SIG_DFL)
-        os.kill(os.getpid(), -result)
-    sys.exit(result)
+    exit_with_owned_result(result)

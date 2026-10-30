@@ -10,10 +10,12 @@ from unittest.mock import patch
 
 from tests import test_gpu_owner_death as wrapper_tests
 from tests.test_gpu_job import GPU_JOB, isolated_env
+from tests.test_support import requires_linux_queue_tools
 
 OWNER = Path(GPU_JOB).parent / "app/gpu_queue_owner.py"
 
 
+@requires_linux_queue_tools
 class QueueOwnerTests(unittest.TestCase):
     setUp = wrapper_tests.GpuOwnerDeathTests.setUp
 

@@ -7,11 +7,13 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = Path(os.environ.get('ARCHIVED_CORPUS_SOURCE', ROOT / 'run_chains/archive/run_random_corpus.sh'))
 
 
+@requires_linux_queue_tools
 class ArchivedCorpusFailureTests(unittest.TestCase):
     def run_case(self, codes):
         with tempfile.TemporaryDirectory() as tmp:

@@ -16,7 +16,7 @@ import stat
 import time
 
 from export_staging_directory import StageDirectoryChanged, identity, stage_directory, stage_owner_lock
-from utils import file_lock
+from utils import file_lock, open_or_create_file
 from audio_take_history import _version
 from export_staging_records import (decode_creation_receipt, decode_receipt,
                                     decode_record, receipt_owner_identity)
@@ -105,8 +105,9 @@ class PosixRetirement:
                 raise StageDirectoryChanged('Retirement registry changed before admission')
             self.check()
             try:
-                lock_fd = os.open(LOCK, os.O_RDWR | (os.O_CREAT if self.create else 0) | os.O_NOFOLLOW | os.O_NONBLOCK,
-                                  0o600, dir_fd=self.fd)
+                flags = os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK
+                lock_fd = (open_or_create_file(LOCK, flags, 0o600, dir_fd=self.fd) if self.create
+                           else os.open(LOCK, flags, dir_fd=self.fd))
             except FileNotFoundError as error:
                 if not self.create:
                     raise _MissingRetirementLock('Retirement lock is missing') from error

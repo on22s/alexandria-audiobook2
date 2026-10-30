@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from experiments import gpu_guard
 from subprocess_ownership import run_owned_capture
+from tests.test_support import requires_linux_queue_tools
 
 ROOT=Path(__file__).resolve().parents[2]
 GPU_JOB=ROOT/'gpu_job.sh'
@@ -74,6 +75,7 @@ def run_owned_cpu_chain(command, root, env=None, **kwargs):
 
 
 class KernelGpuLockOwnershipTests(unittest.TestCase):
+    @requires_linux_queue_tools
     def test_real_exclusive_owner_accepts_direct_nested_descendants_and_closed_fd9(self):
         for nested in ('no','yes'):
             with self.subTest(nested=nested),tempfile.TemporaryDirectory() as tmp:
@@ -86,6 +88,7 @@ class KernelGpuLockOwnershipTests(unittest.TestCase):
                 self.assertEqual(0,lines[1]['guard_rc'],lines[1]);self.assertIn('GUARD_ACCEPTED_FD9_CLOSED',lines[1]['stdout'])
                 self.assertEqual({'gpu.lock'},{path.name for path in Path(tmp).iterdir()})
 
+    @requires_linux_queue_tools
     def test_live_ancestor_with_unlocked_shared_or_wrong_file_fd9_is_rejected(self):
         for mode in ('unlocked','shared','wrong-file'):
             with self.subTest(mode=mode),tempfile.TemporaryDirectory() as tmp:
@@ -97,6 +100,7 @@ class KernelGpuLockOwnershipTests(unittest.TestCase):
                 self.assertIn('cannot verify inherited GPU lock',observed['stderr'])
                 if mode=='shared':self.assertIn('READ',observed['fdinfo'])
 
+    @requires_linux_queue_tools
     def test_missing_malformed_nonancestor_and_exited_owner_claims_refuse_without_queue_writes(self):
         with tempfile.TemporaryDirectory() as tmp:
             lock=Path(tmp,'gpu.lock');lock.touch()
@@ -168,6 +172,7 @@ class KernelGpuLockOwnershipTests(unittest.TestCase):
                     self.assertEqual(77,result.returncode,result.stdout+result.stderr)
                     self.assertEqual('QUEUED\n',(root/'queue.log').read_text());self.assertNotIn('GPU_BODY_REACHED',result.stdout)
 
+    @requires_linux_queue_tools
     def test_readonly_default_probe_does_not_create_runtime_directories(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);script=root/'gpu_job.sh';script.write_bytes(GPU_JOB.read_bytes())
@@ -177,6 +182,7 @@ class KernelGpuLockOwnershipTests(unittest.TestCase):
             self.assertNotEqual(0,result.returncode);self.assertIn('authoritative lock is unreadable',result.stderr)
             self.assertEqual({'gpu_job.sh','alexandria_file_lock.py'},{path.name for path in root.iterdir()})
 
+    @requires_linux_queue_tools
     def test_ancestor_waiting_for_exclusive_lock_is_not_accepted_as_owner(self):
         import signal,time
         source=r"""
@@ -218,6 +224,7 @@ os.waitpid(child,0)
                     process.wait(timeout=5)
 
 
+    @requires_linux_queue_tools
     def test_real_queue_accepts_its_cpu_child_after_closing_fd9(self):
         from tests.test_gpu_job import isolated_env
         code = """

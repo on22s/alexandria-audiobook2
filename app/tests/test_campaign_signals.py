@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -95,6 +96,7 @@ class CampaignSignalTests(unittest.TestCase):
                     except ProcessLookupError:
                         pass
 
+    @requires_linux_queue_tools
     def test_unseen_signals_restore_config_and_stop(self):
         for chain in ("unseen_books.sh", "unseen_books_20260819b.sh"):
             for sent_signal in (signal.SIGINT, signal.SIGTERM):
@@ -104,15 +106,18 @@ class CampaignSignalTests(unittest.TestCase):
     def test_unseen_normal_exit_still_restores_config(self):
         self._run("unseen_books_20260819b.sh", None)
 
+    @requires_linux_queue_tools
     def test_pdnc_signals_stop_and_cleanup_owned_server(self):
         for sent_signal in (signal.SIGINT, signal.SIGTERM):
             with self.subTest(signal=sent_signal):
                 self._run("pdnc_context_evidence.sh", sent_signal)
 
+    @requires_linux_queue_tools
     def test_pdnc_signals_clean_up_reused_configured_server(self):
         for sent_signal in (signal.SIGINT, signal.SIGTERM):
             with self.subTest(signal=sent_signal):
                 self._run("pdnc_context_evidence.sh", sent_signal, adopted=True)
 
+    @requires_linux_queue_tools
     def test_pdnc_normal_exit_cleans_up_owned_server(self):
         self._run("pdnc_context_evidence.sh", None)

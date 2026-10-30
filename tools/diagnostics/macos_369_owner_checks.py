@@ -158,7 +158,8 @@ def check_long_lived_owner(tmp, *, cancel):
                 assert MacApi().get_info(info['pid']) == info, 'worker exited before cancellation'
                 send_subprocess_signal(process, signal.SIGKILL)
             output, errors = process.communicate(timeout=30)
-            assert process.returncode == (128 + signal.SIGKILL if cancel else 0), (process.returncode, errors)
+            # The owner reports its own stop as the root's death, as Linux does (#1682).
+            assert process.returncode == (-signal.SIGKILL if cancel else 0), (process.returncode, errors)
             assert output == ''
             assert receipt.read_text() == 'stopped\n'
             assert is_macos_coalition_reaped(MacApi(), info['coalition'])

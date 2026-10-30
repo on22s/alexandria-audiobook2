@@ -153,8 +153,10 @@ class WhisperAssetVerificationTests(unittest.TestCase):
         self.model.unlink()
         with self.assertRaises(FileNotFoundError):self.verifier.verify_whisper_assets(self.root)
         helper=self.root/'tools/verify_whisper_assets.py';helper.parent.mkdir();shutil.copy2(ROOT/'tools/verify_whisper_assets.py',helper)
-        owner=self.root/'app/subprocess_ownership.py';owner.parent.mkdir()
-        shutil.copy2(ROOT/'app/subprocess_ownership.py',owner)
+        (self.root/'app').mkdir()
+        # The owner's platform modules load lazily; macOS needs these two as well.
+        for name in ('subprocess_ownership.py','macos_subprocess_owner.py','macos_subprocess_kernel.py'):
+            shutil.copy2(ROOT/'app'/name,self.root/'app'/name)
         self.model.write_bytes(self.content)
         result=subprocess.run([sys.executable,str(helper)],capture_output=True,text=True)
         self.assertEqual(0,result.returncode,result.stderr);self.assertEqual(self.assets['model_sha256'],json.loads(result.stdout)['model_sha256'])

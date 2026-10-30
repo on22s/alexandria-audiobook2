@@ -7,8 +7,10 @@ import unittest
 from unittest.mock import patch
 
 from tests import test_gpu_job as queue_tests
+from tests.test_support import requires_linux_queue_tools
 
 
+@requires_linux_queue_tools
 class DirtyPatchCaptureTests(unittest.TestCase):
     setUp = queue_tests.DirtyTreeGateTest.setUp
     tearDown = queue_tests.DirtyTreeGateTest.tearDown

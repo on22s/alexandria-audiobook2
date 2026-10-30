@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -31,6 +32,7 @@ HTTPServer(('127.0.0.1',port),Handler).serve_forever()
 '''
 
 
+@requires_linux_queue_tools
 class StartServerIdentityTests(unittest.TestCase):
     def fixture(self, root):
         (root/'app').mkdir()

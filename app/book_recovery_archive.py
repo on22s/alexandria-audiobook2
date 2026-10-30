@@ -19,7 +19,7 @@ import uuid
 from adapter_publication import sync_adapter_directory
 from audio_take_history import _ensure_plain_path, _open_regular, _version, _check_cancelled
 from project_scope_admission import is_scope_admitted
-from utils import file_lock
+from utils import file_lock, open_or_create_file
 
 ARCHIVE_DIR = '.book_recovery'
 MAX_FILES = 8192
@@ -65,8 +65,8 @@ def _archive_lock(directory, publication=None, *, parent_fd=None):
                 or current.st_uid != os.getuid() or stat.S_IMODE(current.st_mode) & 0o077 or
                 (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)):
             raise ValueError('Recovery storage changed before locking')
-        flags = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | getattr(os, 'O_NONBLOCK', 0)
-        lock_fd = os.open('archive.lock', flags, 0o600, dir_fd=directory_fd)
+        flags = os.O_RDWR | os.O_NOFOLLOW | getattr(os, 'O_NONBLOCK', 0)
+        lock_fd = open_or_create_file('archive.lock', flags, 0o600, dir_fd=directory_fd)
         with os.fdopen(lock_fd, 'a+b') as handle:
             info = os.fstat(handle.fileno())
             if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 4096

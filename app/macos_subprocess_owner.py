@@ -52,10 +52,18 @@ def send_macos_owner_descriptor(channel, descriptor):
         raise OSError('Incomplete macOS owner descriptor transfer')
 
 
+# macOS installs every descriptor in a message even when the receive buffer
+# truncates it, and reports only those that fit; the rest leak, holding any lock
+# they carry. Room for Linux's per-message maximum (SCM_MAX_FD) lets a malformed
+# packet from the parent be seen and closed in full.
+MAX_RECEIVED_DESCRIPTORS = 253
+
+
 def receive_macos_owner_descriptor(channel):
     received = []
     try:
-        data, messages, flags, _ = channel.recvmsg(1, socket.CMSG_SPACE(array.array('i').itemsize))
+        data, messages, flags, _ = channel.recvmsg(
+            1, socket.CMSG_SPACE(array.array('i').itemsize * MAX_RECEIVED_DESCRIPTORS))
         unexpected = False
         for level, kind, payload in messages:
             if level != socket.SOL_SOCKET or kind != socket.SCM_RIGHTS:
@@ -401,7 +409,10 @@ def run_macos_owner_broker(control, specification):
                         if removing:
                             if root_result is not None:
                                 return root_result
-                            return 128 + stopping if stopping is not None else 1
+                            # Stopping the scope also ends the job that would have
+                            # reported the root's exit; the owner's own signal is
+                            # then the root's death, reported as Linux reports it.
+                            return -stopping if stopping is not None else 1
                         time.sleep(.05)
                         continue
                     channels = ([control] if connected else []) + ([actor] if actor is not None else [])
@@ -515,4 +526,5 @@ if __name__ == '__main__':
     else:
         with socket.socket(fileno=int(sys.argv[2])) as control:
             result = run_macos_owner_broker(control, json.loads(sys.argv[3]))
-        sys.exit(128 - result if result < 0 else result)
+        from subprocess_ownership import exit_with_owned_result
+        exit_with_owned_result(result)

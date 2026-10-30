@@ -10,10 +10,12 @@ import time
 import unittest
 
 from tests.test_gpu_job import GPU_JOB, isolated_env
+from tests.test_support import requires_linux_queue_tools
 
 REPO = Path(__file__).resolve().parents[2]
 
 
+@requires_linux_queue_tools
 class QueueEtaNativeTests(unittest.TestCase):
     def test_owned_cpu_job_reports_this_runs_progress_and_rejects_stale_identity(self):
         with tempfile.TemporaryDirectory() as tmp:

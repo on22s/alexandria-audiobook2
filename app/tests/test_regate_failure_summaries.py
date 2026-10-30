@@ -7,11 +7,13 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
+@requires_linux_queue_tools
 class RegateFailureSummaryTests(unittest.TestCase):
     def write(self, root, name, text, executable=False):
         path = root / name

@@ -5,11 +5,13 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 CHAIN_PATH=REPO/'run_chains/overnight_2026_08_08.sh'
 
 
+@requires_linux_queue_tools
 class OvernightStageFailuresTests(unittest.TestCase):
     def run_chain(self, codes):
         with tempfile.TemporaryDirectory() as directory:

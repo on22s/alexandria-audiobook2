@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 # Resolve a merge whose only conflicts are in generated files, by regenerating.
 #
 # WHY. Five pull requests in one morning came back CONFLICTING, every one of
@@ -52,8 +52,8 @@ if printf '%s\n' "$real" | grep -qx "GOALS.md"; then
     right_normalized=$(printf '%s\n' "$right" \
         | sed -E 's/(met goals begin at line )[0-9]+/\1N/')
     if [ "$hunks" = "1" ] \
-            && [ "$(printf '%s\n' "$left" | wc -l)" = "1" ] \
-            && [ "$(printf '%s\n' "$right" | wc -l)" = "1" ] \
+            && [ "$(printf '%s\n' "$left" | wc -l)" -eq 1 ] \
+            && [ "$(printf '%s\n' "$right" | wc -l)" -eq 1 ] \
             && printf '%s\n' "$left" | grep -q 'met goals begin at line' \
             && [ "$left_normalized" = "$right_normalized" ]; then
         goals_only_pointer=1

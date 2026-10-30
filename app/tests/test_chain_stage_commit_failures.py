@@ -6,10 +6,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 LIB = Path(os.environ.get('STAGE_LIB_SOURCE',str(Path(__file__).resolve().parents[2]/'run_chains/lib/stage.sh')))
 
 
+@requires_linux_queue_tools
 class StageCommitFailureTests(unittest.TestCase):
     def git(self,repo,*args):
         return subprocess.run(['git','-C',str(repo),*args],capture_output=True,text=True,check=True).stdout.strip()

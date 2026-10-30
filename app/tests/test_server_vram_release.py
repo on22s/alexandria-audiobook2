@@ -10,11 +10,13 @@ import tempfile
 import unittest
 from tests.test_owned_server_cleanup import cleanup_fixture
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
+from tests.test_support import requires_linux_queue_tools
 
 ROOT=Path(__file__).resolve().parents[2]
 CHAIN='qwen_local_rightsclean_budget_20260917.sh'
 
 
+@requires_linux_queue_tools
 class ServerVramReleaseTests(unittest.TestCase):
     def fixture(self, root, policy, ignored=False, worker_rc=0):
         (root/'run_chains/lib').mkdir(parents=True)

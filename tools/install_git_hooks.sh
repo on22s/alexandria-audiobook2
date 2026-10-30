@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 # Turn on the derived-file hooks and the merge driver they depend on.
 #
 # Both settings are LOCAL git config: they are not cloned, and .gitattributes

@@ -6,6 +6,7 @@ import threading
 import time
 import unittest
 import uuid
+from tests.test_support import requires_linux_queue_tools
 
 
 LIB = Path(__file__).resolve().parent.parent.parent / 'run_chains/lib/queue.sh'
@@ -39,6 +40,7 @@ class QueueProcessTests(unittest.TestCase):
         return subprocess.run(['bash','-c','source "$1"; chain_running "$2"',
             'fixture',str(helper),self.name],capture_output=True,text=True,timeout=5)
 
+    @requires_linux_queue_tools
     def test_mentions_in_other_programs_command_strings_and_stale_suffixes_are_not_chains(self):
         self.start([os.sys.executable,'-c', 'import pathlib,sys;pathlib.Path(sys.argv[-1]).write_text("ready");input()',str(self.script)])
         self.start(['bash','-c','printf ready > "${@: -1}"; read -r finish','fixture',str(self.script)])
@@ -46,6 +48,7 @@ class QueueProcessTests(unittest.TestCase):
         self.start(['bash',str(stale)])
         self.assertEqual(1, self.check().returncode)
 
+    @requires_linux_queue_tools
     def test_actual_shell_script_with_options_and_spaces_is_detected_until_exit(self):
         self.root = self.root/'directory with spaces'; (self.root/'run_chains').mkdir(parents=True)
         self.script = self.root/'run_chains'/self.name; self.script.write_text('printf ready > "$1"\nread -r finish\n')
@@ -54,6 +57,7 @@ class QueueProcessTests(unittest.TestCase):
         child.communicate('finish\n',timeout=3)
         self.assertEqual(1,self.check().returncode)
 
+    @requires_linux_queue_tools
     def test_waiter_rechecks_actual_process_using_five_second_poll_contract(self):
         child = self.start(['bash',str(self.script)])
         polls = self.root/'polls'
@@ -79,6 +83,7 @@ class QueueProcessTests(unittest.TestCase):
         self.assertNotIn('continuing',result.stdout)
 
 
+@requires_linux_queue_tools
 class LegacyChainPredicateTests(unittest.TestCase):
     setUp = QueueProcessTests.setUp
     stop_children = QueueProcessTests.stop_children

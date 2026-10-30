@@ -12,6 +12,7 @@ import unittest
 
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
 from tests.test_owned_server_cleanup import ROOT, is_running, cleanup_fixture
+from tests.test_support import requires_linux_queue_tools
 
 
 class ManagedServerChainTests(unittest.TestCase):
@@ -74,17 +75,23 @@ http.server.HTTPServer(('127.0.0.1',int(sys.argv[1])),Handler).serve_forever()
             finally:
                 if pid is not None:cleanup_fixture(pid)
 
+    @requires_linux_queue_tools
     def test_healthy_owned_listener_admits_requests_then_stops_and_reaps(self):self.execute('healthy')
+    @requires_linux_queue_tools
     def test_early_exit_is_not_readiness_and_remains_reaped(self):self.execute('exit')
+    @requires_linux_queue_tools
     def test_never_ready_term_ignoring_child_is_killed_and_reaped(self):self.execute('ignore')
 
+    @requires_linux_queue_tools
     def test_slow_startup_still_ignores_term_before_cleanup(self):
         self.execute('ignore', startup_delay=2)
 
+    @requires_linux_queue_tools
     def test_signals_stop_and_reap_healthy_child_with_signal_status(self):
         for sent_signal in ('INT','TERM','HUP'):
             with self.subTest(signal=sent_signal):self.execute('healthy',sent_signal=sent_signal)
 
+    @requires_linux_queue_tools
     def test_duplicate_launch_is_refused_without_overwriting_owned_pid(self):
         self.execute('healthy',duplicate=True)
 
@@ -102,8 +109,10 @@ http.server.HTTPServer(('127.0.0.1',int(sys.argv[1])),Handler).serve_forever()
             self.assertFalse((root/'launched').exists())
             self.assertFalse((root/'log').exists())
 
+    @requires_linux_queue_tools
     def test_healthy_fixture_waits_for_delayed_http_start_without_relaxing_owner_checks(self):
         self.execute('healthy', startup_delay=2)
 
+    @requires_linux_queue_tools
     def test_healthy_fixture_waits_for_delayed_child_lease_check(self):
         self.execute('healthy', sent_signal='TERM', lease_delay=8)

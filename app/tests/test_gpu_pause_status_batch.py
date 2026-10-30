@@ -8,6 +8,7 @@ import tempfile
 import time
 import unittest
 from tests.test_gpu_job import isolated_env, GPU_JOB
+from tests.test_support import requires_linux_queue_tools
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = Path(os.environ.get('GPU_PAUSE_BASELINE_FILE', ROOT/'gpu_pause.sh'))
@@ -42,6 +43,7 @@ class PauseStatusBatchTests(unittest.TestCase):
         result=subprocess.run(['bash',str(SCRIPT),'status'],env=env,text=True,capture_output=True,timeout=10)
         self.assertEqual(0,result.returncode,result.stderr);return result.stdout
 
+    @requires_linux_queue_tools
     def test_start_survives_more_than_200_queued_records_but_terminal_still_clears(self):
         with self.fixture() as (root,env,child):
             with (root/'q.log').open('a') as out:
@@ -52,6 +54,7 @@ class PauseStatusBatchTests(unittest.TestCase):
             with (root/'q.log').open('a') as out:out.write('2026-10-01T00:00:02Z OK       long job\n')
             self.assertIn('running job: none\n',self.status(env))
 
+    @requires_linux_queue_tools
     def test_live_job_reports_explicit_unknown_eta_without_inventing_a_rate(self):
         with self.fixture() as (root, env, child):
             # A previous whole-job duration does not establish this run's unit rate.
@@ -79,6 +82,7 @@ class PauseStatusBatchTests(unittest.TestCase):
             p.write_text('#!/bin/sh\nprintf "999\\n"\nexit 1\n')
             self.assertIn('VRAM in use: unknown MiB',self.status(env))
 
+    @requires_linux_queue_tools
     def test_pending_native_start_token_rejects_reused_pid_and_legacy_marker(self):
         with self.fixture() as (root,env,child):
             pending=root/'pending';pending.mkdir();marker=pending/'waiting'
@@ -91,6 +95,7 @@ class PauseStatusBatchTests(unittest.TestCase):
             marker.write_text('\t'.join(fields[:3])+'\n')
             output=self.status(env);self.assertIn('STALE:',output);self.assertNotIn('waiting: waiting',output)
 
+    @requires_linux_queue_tools
     def test_idle_notification_counts_verified_markers_and_ignores_reused_pid(self):
         with self.fixture() as (root,env,child):
             pending=root/'pending';pending.mkdir();marker=pending/'waiting'
@@ -108,6 +113,7 @@ class PauseStatusBatchTests(unittest.TestCase):
             self.assertEqual(0,second.returncode,second.stderr)
             self.assertEqual('notified',(root/'notifications').read_text())
 
+    @requires_linux_queue_tools
     def test_actual_paused_wrapper_writes_its_kernel_identity_before_waiting(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);env=isolated_env(tmp,ALLOW_DIRTY_TREE='1',GPU_NOTIFY='0',REQUIRE_LLM='0')

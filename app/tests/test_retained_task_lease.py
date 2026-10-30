@@ -11,10 +11,12 @@ import unittest
 from task_ownership import acquire_task_lease, ensure_startup_recovery, TaskOwnershipBusy
 from tests import test_gpu_owner_death
 from tests.test_subprocess_finally import is_live
+from tests.test_support import requires_linux_queue_tools
 
 APP = Path(__file__).resolve().parents[1]
 
 
+@requires_linux_queue_tools
 class RetainedTaskLeaseTests(unittest.TestCase):
     setUp = test_gpu_owner_death.GpuOwnerDeathTests.setUp
 

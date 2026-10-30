@@ -19,7 +19,7 @@ import sys
 import uuid
 from types import MappingProxyType
 
-from utils import file_lock
+from utils import file_lock, open_or_create_file
 
 DIRECTORY = '.synthesis-workspaces-v1'
 INDEX = 'registry.json'
@@ -179,7 +179,9 @@ class SynthesisWorkspaceRegistry:
 
     def _open(self, name, flags):
         self._check_root()
-        fd = os.open(name, flags | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=self.fd)
+        flags |= os.O_NOFOLLOW | os.O_NONBLOCK
+        fd = (open_or_create_file(name, flags & ~os.O_CREAT, 0o600, dir_fd=self.fd) if flags & os.O_CREAT
+              else os.open(name, flags, 0o600, dir_fd=self.fd))
         try:
             info = os.fstat(fd)
             if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.geteuid()

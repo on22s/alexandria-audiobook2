@@ -9,6 +9,7 @@ from experiments import serving_environment as environment
 from experiments.manifest import EnvironmentCaptureError
 from tests import test_experiment_manifest as manifest_tests
 from tests import test_campaign_reporting as campaign
+from tests.test_support import requires_linux_queue_tools
 
 
 class ServingEnvironmentTests(unittest.TestCase):
@@ -49,6 +50,7 @@ class ServingEnvironmentTests(unittest.TestCase):
                     environment.get_serving_environment(self._serve(props), 'qwen3-14b')
 
 
+@requires_linux_queue_tools
 class ServingEnvironmentChainTests(unittest.TestCase):
     setUp = campaign.CampaignReportingTests.setUp
     _write = campaign.CampaignReportingTests._write

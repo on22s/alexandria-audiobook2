@@ -11,10 +11,12 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from tests.test_support import requires_linux_queue_tools
 
 SOURCE = Path(__file__).resolve().parents[1] / 'experiments/closed_set.py'
 
 
+@requires_linux_queue_tools
 class ClosedSetHarnessTests(unittest.TestCase):
     def test_actual_harness_starts_scores_all_arms_and_writes_verified_rows(self):
         import openai

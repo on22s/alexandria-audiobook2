@@ -19,6 +19,7 @@ from unittest.mock import patch
 
 from experiments.gpu_guard import (acquire_gpu_lock, gpu_is_busy,
                                    release_gpu_lock, require_free_gpu)
+from tests.test_support import requires_linux_queue_tools
 
 
 class GpuGuardTest(unittest.TestCase):
@@ -128,6 +129,7 @@ class GpuGuardTest(unittest.TestCase):
         message = str(caught.exception)
         self.assertIn("gpu_job.sh", message, "the refusal must say how to queue it")
 
+    @requires_linux_queue_tools
     def test_the_queued_job_itself_is_allowed_through(self):
         from tests.test_gpu_lock_owner import OWNER_WORKER, ROOT
         import json
@@ -390,6 +392,7 @@ class StaleSentinelTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "inherited GPU lock"):
             require_free_gpu("a shell that outlived its chain", self.lock)
 
+    @requires_linux_queue_tools
     def test_a_live_job_is_still_exempt(self):
         from tests.test_gpu_lock_owner import OWNER_WORKER, ROOT
         import json

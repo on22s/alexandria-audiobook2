@@ -11,11 +11,13 @@ import unittest
 
 from tests import test_llm_campaign_ownership as campaign
 from tests.test_subprocess_finally import is_live
+from tests.test_support import requires_linux_queue_tools
 
 REPO = Path(__file__).resolve().parents[2]
 CHAIN = 'overnight_2026_08_09c.sh'
 
 
+@requires_linux_queue_tools
 class OvernightLlmCampaignTests(unittest.TestCase):
     setUpFixture = campaign.LlmCampaignOwnershipTests.setUpFixture
     setUpCampaign = campaign.LlmCampaignOwnershipTests.setUp

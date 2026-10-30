@@ -8,10 +8,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 REPO = Path(__file__).resolve().parents[2]
 
 
+@requires_linux_queue_tools
 class ChainMeasurementScopeTests(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()

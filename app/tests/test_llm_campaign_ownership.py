@@ -13,12 +13,14 @@ import unittest
 from tests.test_gpu_job import REPO
 from tests import test_stage_gpu_reclamation as reclamation
 from tests.test_subprocess_finally import is_live
+from tests.test_support import requires_linux_queue_tools
 
 
 CHAINS = ('goal_13_confirmation_20260830.sh', 'unanswered_stratification_20260830.sh')
 STEMS = 'emma mansfieldpark northangerabbey persuasion senseandsensibility ahandfulofdust thegambler themysteriousaffairatstyles'.split()
 
 
+@requires_linux_queue_tools
 class LlmCampaignOwnershipTests(unittest.TestCase):
     setUpFixture = reclamation.StageGpuReclamationTests.setUp
     wait_marker = reclamation.StageGpuReclamationTests.wait_marker

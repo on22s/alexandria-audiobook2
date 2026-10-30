@@ -7,12 +7,14 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from tests.test_support import requires_linux_queue_tools
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CHAIN = ROOT / "run_chains/muse_local_reasoninglow_20260914.sh"
 
 
+@requires_linux_queue_tools
 class MuseGpuLockTests(unittest.TestCase):
     def run_recipe(self, name, expected_stages):
         with tempfile.TemporaryDirectory() as tmp:

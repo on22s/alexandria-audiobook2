@@ -12,6 +12,7 @@ import unittest
 
 from tests.test_gpu_job import isolated_env, copy_gpu_owner
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
+from tests.test_support import requires_linux_queue_tools
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -68,6 +69,7 @@ raise SystemExit(statuses[min(len(rows)-1,len(statuses)-1)])
         self.assertEqual(1, len({row['owner'] for row in rows}))
         return rows
 
+    @requires_linux_queue_tools
     def test_direct_entry_waits_for_real_lock_then_runs_under_verified_lease(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -103,6 +105,7 @@ raise SystemExit(statuses[min(len(rows)-1,len(statuses)-1)])
                             os.killpg(process.pid, signal.SIGKILL)
                             process.communicate(timeout=3)
 
+    @requires_linux_queue_tools
     def test_nested_owner_preserves_retry_resume_and_exit_classification(self):
         cases = [('137,0', [], 0, 2), ('139,0', ['--resume'], 0, 2),
                  ('130,0', [], 0, 2), ('7', [], 7, 1), ('137', [], 1, 3)]
