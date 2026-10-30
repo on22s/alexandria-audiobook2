@@ -17,3 +17,15 @@ Being a package also means test modules are imported as `tests.test_x`, so a
 module that imports a sibling test must say `from tests.test_support import ...`
 rather than `from test_support import ...`.
 """
+
+import os
+import tempfile
+
+# macOS hands out temporary folders under /var, a link to /private/var, while
+# the code under test reports or requires resolved paths. Give every test, and
+# every process a test starts, the resolved folder (#1681, #1682). Linux /tmp is
+# not a link, so this changes nothing there.
+_resolved = os.path.realpath(tempfile.gettempdir())
+if os.name != 'nt' and _resolved != tempfile.gettempdir():
+    os.environ['TMPDIR'] = _resolved
+    tempfile.tempdir = _resolved

@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 import windows_export_staging_directory as windows
 import book_state_transaction as books
-from tests.test_support import use_resolved_tempdir
 
 
 class FakeHandle:
@@ -33,9 +32,6 @@ class FakeHandle:
 
 
 class WindowsBookMoveGuardTests(unittest.TestCase):
-    def setUp(self):
-        use_resolved_tempdir(self)
-
     def test_named_file_identity_uses_and_releases_native_handle(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'staged'
