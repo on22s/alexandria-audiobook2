@@ -32,6 +32,13 @@ class FakeHandle:
 
 
 class WindowsBookMoveGuardTests(unittest.TestCase):
+    def setUp(self):
+        # macOS keeps temporary folders behind its /var -> /private/var link. The
+        # code under test reports resolved paths, so use the resolved spelling.
+        patcher = patch.object(tempfile, 'tempdir', os.path.realpath(tempfile.gettempdir()))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_named_file_identity_uses_and_releases_native_handle(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'staged'

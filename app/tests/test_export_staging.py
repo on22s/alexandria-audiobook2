@@ -41,6 +41,13 @@ else:
 
 
 class ExportStagingTests(unittest.TestCase):
+    def setUp(self):
+        # macOS keeps temporary folders behind its /var -> /private/var link. The
+        # code under test reports resolved paths, so use the resolved spelling.
+        patcher = patch.object(tempfile, 'tempdir', os.path.realpath(tempfile.gettempdir()))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     @unittest.skipUnless(HAS_POSIX_FD_SCAN, 'POSIX descriptor-based legacy discovery')
     def test_saved_legacy_scan_identity_must_match_pinned_parent(self):
         with tempfile.TemporaryDirectory() as temporary:
