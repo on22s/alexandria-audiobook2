@@ -8681,6 +8681,7 @@
     "tests.test_release_verifier.ReleaseVerifierTests.test_non_utf8_child_output_is_shown_not_fatal",
     "tests.test_release_verifier.ReleaseVerifierTests.test_python_compilation_includes_nonignored_untracked_files",
     "tests.test_release_verifier.ReleaseVerifierTests.test_stalled_git_fsmonitor_fails_with_bounded_owned_cleanup",
+    "tests.test_release_verifier.ReleaseVerifierTests.test_test_package_hands_out_a_linked_temp_folder_resolved",
     "tests.test_release_verifier.ReleaseVerifierTests.test_unittest_final_summary_supersedes_nested_fixture_summaries",
     "tests.test_release_verifier.ReleaseVerifierTests.test_unittest_nested_success_cannot_hide_an_invalid_final_summary",
     "tests.test_release_verifier.ReleaseVerifierTests.test_unittest_summary_rejects_a_suite_that_collapsed_to_nothing",

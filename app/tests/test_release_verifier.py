@@ -335,6 +335,32 @@ class ReleaseVerifierTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "ran only 12 tests"):
             verify_release.validate_unittest_output("Ran 12 tests in 0.1s\n\nOK\n")
 
+    @unittest.skipIf(os.name == "nt", "POSIX temporary folders")
+    def test_test_package_hands_out_a_linked_temp_folder_resolved(self):
+        """macOS hands out /var/folders, a link to /private/var (#1682).
+
+        Importing the test package must give this process, and the processes
+        it starts, the resolved folder. Linux CI never sees a linked /tmp, so
+        the link is built here.
+        """
+        probe = (
+            "import os, subprocess, sys, tempfile, tests\n"
+            "child = subprocess.run([sys.executable, '-c', 'import tempfile; print(tempfile.gettempdir())'],"
+            " capture_output=True, text=True, check=True).stdout.strip()\n"
+            "print(tempfile.gettempdir(), os.environ['TMPDIR'], child, sep='\\n')\n"
+        )
+        with tempfile.TemporaryDirectory() as root:
+            real = Path(root, "real")
+            real.mkdir()
+            link = Path(root, "link")
+            link.symlink_to(real, target_is_directory=True)
+            self.assertNotEqual(str(link), os.path.realpath(link))
+            output = subprocess.run(
+                [sys.executable, "-c", probe], cwd=Path(__file__).parent.parent,
+                env=dict(os.environ, TMPDIR=str(link)), capture_output=True, text=True, check=True,
+            ).stdout.split("\n")
+            self.assertEqual([os.path.realpath(link)] * 3, output[:3])
+
     def test_unittest_final_summary_supersedes_nested_fixture_summaries(self):
         for nested in ("Ran 1 test in 0.01s\n\nOK\n",
                        "Ran 1600 tests in 0.01s\n\nOK (skipped=2)\n",

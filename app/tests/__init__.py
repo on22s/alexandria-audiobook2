@@ -25,5 +25,7 @@ import tempfile
 # the code under test reports or requires resolved paths. Give every test, and
 # every process a test starts, the resolved folder (#1681, #1682). Linux /tmp is
 # not a link, so this changes nothing there.
-if os.name != 'nt' and os.path.realpath(tempfile.gettempdir()) != tempfile.gettempdir():
-    tempfile.tempdir = os.environ['TMPDIR'] = os.path.realpath(tempfile.gettempdir())
+_resolved = os.path.realpath(tempfile.gettempdir())
+if os.name != 'nt' and _resolved != tempfile.gettempdir():
+    os.environ['TMPDIR'] = _resolved
+    tempfile.tempdir = _resolved
