@@ -35,7 +35,8 @@ def get_missing_linux_queue_tools():
     if not os.path.isdir('/proc/self'):
         missing.append('/proc')
     try:
-        newer = subprocess.run(['bash', '-c', '((BASH_VERSINFO[0] >= 4))'], timeout=10).returncode == 0
+        newer = subprocess.run(['bash', '-c', '((BASH_VERSINFO[0] >= 4))'], capture_output=True,
+                               timeout=10).returncode == 0
     except (OSError, subprocess.SubprocessError):
         newer = False
     if not newer:

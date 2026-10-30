@@ -161,7 +161,7 @@ class ConcurrentLockCreationTests(unittest.TestCase):
                     gate.wait(timeout=5)
                     try:
                         first_use(Path(tmp))
-                    except OSError as error:
+                    except Exception as error:
                         errors.append(error)
                 threads = [threading.Thread(target=run) for _ in range(2)]
                 for thread in threads:

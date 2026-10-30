@@ -13,8 +13,7 @@ from unittest.mock import patch
 import numpy as np
 import soundfile as sf
 from experiments import ljspeech_completion as completion
-from tests.test_support import write_test_adapter
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, write_test_adapter
 
 REPO=Path(__file__).resolve().parents[2]
 

@@ -420,6 +420,8 @@ def open_or_create_file(name, flags, mode=0o600, *, dir_fd=None):
     and open the existing name if that loses. flags must not include O_CREAT,
     O_EXCL or O_TRUNC.
     """
+    if flags & (os.O_CREAT | os.O_EXCL | os.O_TRUNC):
+        raise ValueError('open_or_create_file decides creation; pass access flags only')
     try:
         return os.open(name, flags | os.O_CREAT | os.O_EXCL, mode, dir_fd=dir_fd)
     except FileExistsError:
