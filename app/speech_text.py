@@ -195,7 +195,7 @@ def get_speech_normalization(text):
     # A clause separator is an authored continuation cue. Adding a full stop
     # after it creates malformed TTS input (",." / ";." / ":.").
     appended_period = (bool(stripped) and not is_sentence_terminated(stripped)
-                       and not has_trailing_punctuation(stripped, ',;:'))
+                       and not has_trailing_punctuation(stripped, ',;:…'))
     bounded = stripped + "." if appended_period else stripped
     if bounded != normalized:
         transformations.append({"type": "normalized_sentence_boundary",

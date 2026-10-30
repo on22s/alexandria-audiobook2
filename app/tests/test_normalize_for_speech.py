@@ -125,6 +125,8 @@ class TestLeavesProseAlone(unittest.TestCase):
 
     def test_ellipsis_is_preserved(self):
         self.assertIn("…", normalize_for_speech("I guess… maybe."))
+        self.assertEqual("I thought…", normalize_for_speech("I thought…"))
+        self.assertEqual('“I thought…”', normalize_for_speech('“I thought…”'))
 
     def test_empty_and_none_are_safe(self):
         self.assertEqual(normalize_for_speech(""), "")
