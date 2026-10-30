@@ -15,10 +15,18 @@ class SourceUploadPublicationTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
-        self.stage = Path(publication.create_source_upload_stage(self.root))
+        self.root = Path(self.temporary.name).resolve()
         self.payload = b'Complete synthetic source.\n' * 1000
-        self.stage.write_bytes(self.payload)
+        self.stage = publication.create_source_upload_stage(self.root, limit=len(self.payload))
+        self.addCleanup(self.stage.close)
+        self.stage.write(self.payload)
+
+    def assert_stage_retained(self):
+        self.assertIsNone(self.stage.published_path)
+        self.assertEqual(self.payload, self.stage.read_bytes())
+        private = list(self.root.iterdir())
+        self.assertEqual(1 if os.name == 'nt' else 0, len(private))
+        self.assertTrue(all(path.name.startswith('.source-upload-') for path in private))
 
     def get_companion_bytes(self):
         # Synthetic valid provenance; EPUB parsing is exercised by route tests.
@@ -35,6 +43,111 @@ class SourceUploadPublicationTests(unittest.TestCase):
     def publish(self, callback=lambda path: None):
         return publication.publish_completed_upload(
             self.stage, 'book.txt', callback, limit=len(self.payload))
+
+    def test_pathname_cannot_replace_descriptor_owned_stage(self):
+        rogue = self.root / '.source-upload-unowned.part'
+        rogue.write_bytes(b'foreign')
+        with patch.object(Path, 'open', side_effect=AssertionError('Unowned stage reopened')):
+            with self.assertRaises(ValueError):
+                publication.publish_completed_upload(rogue, 'book.txt', lambda path: None,
+                    limit=len(self.payload))
+        self.assertEqual(b'foreign', rogue.read_bytes())
+        self.assertFalse((self.root / 'book.txt').exists())
+
+    def test_publication_never_reopens_a_private_stage_name(self):
+        original = Path.open
+        def refuse_private(path, *args, **options):
+            if path.name.startswith('.source-upload-'):
+                raise AssertionError('Private stage reopened by path')
+            return original(path, *args, **options)
+        observed = []
+        with patch.object(Path, 'open', refuse_private):
+            result = self.publish(lambda path: observed.append(Path(path).read_bytes()))
+        self.assertEqual([self.payload], observed)
+        self.assertEqual(1, Path(result).stat().st_nlink)
+
+    def test_writer_close_error_retains_unknown_publication_without_callback(self):
+        original = self.stage._close_stream
+        def close_then_fail():
+            original()
+            raise OSError('controlled writer close failure')
+        observed = []
+        with patch.object(self.stage, '_close_stream', side_effect=close_then_fail):
+            with self.assertRaisesRegex(OSError, 'controlled writer close failure'):
+                self.publish(observed.append)
+        self.stage.close()
+        self.assertEqual([], observed)
+        self.assertTrue(self.stage.publication_started)
+        self.assertEqual(str(self.root / 'book.txt'), self.stage.published_path)
+        self.assertEqual(self.payload, (self.root / 'book.txt').read_bytes())
+
+    def test_windows_post_rename_metadata_failure_preserves_source_and_companion(self):
+        if os.name != 'nt':
+            return
+        companion = self.get_companion_bytes()
+        self.stage.seal()
+        original = os.fstat
+        stage_descriptor = self.stage._stream.fileno()
+        calls = 0
+        def fail_after_rename(descriptor):
+            nonlocal calls
+            if descriptor == stage_descriptor:
+                calls += 1
+                if calls == 4:
+                    raise OSError('controlled post-rename metadata failure')
+            return original(descriptor)
+        with patch.object(publication.os, 'fstat', side_effect=fail_after_rename):
+            with self.assertRaisesRegex(OSError, 'controlled post-rename metadata failure'):
+                publication.publish_completed_upload(
+                    self.stage, 'book.txt', lambda path: self.fail('unexpected callback'),
+                    limit=len(self.payload), companion_bytes=companion)
+        self.stage.close()
+        self.assertTrue(self.stage.publication_started)
+        self.assertEqual(str(self.root / 'book.txt'), self.stage.published_path)
+        self.assertEqual(self.payload, (self.root / 'book.txt').read_bytes())
+        self.assertEqual(companion, (self.root / 'book.txt.publication.json').read_bytes())
+
+    def test_alias_refusal_retains_companion_evidence_and_skips_its_name(self):
+        if os.name != 'nt':
+            return
+        rename = self.stage._rename_windows
+        external = self.root / 'external'
+        def add_alias(destination):
+            rename(destination)
+            os.link(destination, external)
+        companion = self.get_companion_bytes()
+        with patch.object(self.stage, '_rename_windows', side_effect=add_alias):
+            with self.assertRaisesRegex(ValueError, 'alias'):
+                publication.publish_completed_upload(self.stage, 'book.txt', lambda path: None,
+                    limit=len(self.payload), companion_bytes=companion)
+        self.assertFalse((self.root / 'book.txt').exists())
+        self.assertEqual(self.payload, external.read_bytes())
+        self.assertEqual(companion, (self.root / 'book.txt.publication.json').read_bytes())
+        retry = publication.create_source_upload_stage(self.root, limit=len(self.payload))
+        self.addCleanup(retry.close)
+        retry.write(self.payload)
+        result = publication.publish_completed_upload(retry, 'book.txt', lambda path: None,
+            limit=len(self.payload), companion_bytes=companion)
+        self.assertEqual('book_2.txt', Path(result).name)
+        self.assertEqual(companion, (self.root / 'book.txt.publication.json').read_bytes())
+
+    def test_windows_alias_conflict_survives_close_failure(self):
+        if os.name != 'nt':
+            return
+        rename = self.stage._rename_windows
+        external = self.root / 'external-close-failure'
+        def add_alias(destination):
+            rename(destination)
+            os.link(destination, external)
+        original_close = self.stage.close
+        def close_then_fail():
+            original_close()
+            raise OSError('controlled close failure')
+        with patch.object(self.stage, '_rename_windows', side_effect=add_alias), \
+                patch.object(self.stage, 'close', side_effect=close_then_fail):
+            with self.assertRaisesRegex(ValueError, 'acquired an alias') as caught:
+                self.stage.publish('book.txt')
+        self.assertIsInstance(caught.exception.__cause__, OSError)
 
     def test_visibility_handoff_has_all_bytes_and_private_name_is_removed(self):
         observed = []
@@ -110,26 +223,34 @@ class SourceUploadPublicationTests(unittest.TestCase):
 
     def test_late_sync_error_preserves_complete_public_source_and_handoff(self):
         visible = []
-        with patch.object(publication, 'sync_adapter_directory', side_effect=OSError('sync fixture')):
+        with patch.object(self.stage, 'sync_directory', side_effect=OSError('sync fixture')):
             with self.assertRaises(OSError):
                 self.publish(visible.append)
         self.assertEqual([str(self.root / 'book.txt')], visible)
         self.assertEqual(self.payload, Path(visible[0]).read_bytes())
 
+    def test_close_error_does_not_mask_late_sync_error(self):
+        with patch.object(self.stage, 'sync_directory',
+                          side_effect=OSError('controlled sync failure')), \
+                patch.object(self.stage, 'close',
+                             side_effect=OSError('controlled close failure')):
+            with self.assertRaisesRegex(OSError, 'controlled sync failure'):
+                self.publish()
+
     def test_unsupported_move_never_copies_or_removes_recoverable_stage(self):
         visible = []
-        with patch.object(publication, 'move_source_upload_exclusively', side_effect=OSError(errno.EOPNOTSUPP, 'fixture')):
+        with patch.object(self.stage, 'publish', side_effect=OSError(errno.EOPNOTSUPP, 'fixture')):
             with self.assertRaises(OSError):
                 self.publish(visible.append)
         self.assertEqual([], visible)
-        self.assertEqual([self.stage], list(self.root.iterdir()))
+        self.assert_stage_retained()
         self.assertEqual(self.payload, self.stage.read_bytes())
 
     def test_size_limit_refuses_before_publication(self):
         with self.assertRaises(ValueError):
             publication.publish_completed_upload(self.stage, 'book.txt', lambda path: None,
                                                  limit=len(self.payload) - 1)
-        self.assertEqual([self.stage], list(self.root.iterdir()))
+        self.assert_stage_retained()
 
     def test_source_flush_has_write_access_without_changing_bytes(self):
         import stat
@@ -151,7 +272,75 @@ class SourceUploadPublicationTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 publication.publish_completed_upload(self.stage, name, lambda path: None,
                                                      limit=len(self.payload))
-        self.assertEqual([self.stage], list(self.root.iterdir()))
+        self.assert_stage_retained()
+
+    def test_disappearing_companion_is_a_governed_publication_conflict(self):
+        companion = self.get_companion_bytes()
+        def remove_companion_then_collide(_name):
+            (self.root / 'book.txt.publication.json').unlink()
+            raise FileExistsError('controlled destination collision')
+        with patch.object(self.stage, 'publish', side_effect=remove_companion_then_collide):
+            with self.assertRaisesRegex(ValueError, 'provenance changed'):
+                publication.publish_completed_upload(
+                    self.stage, 'book.txt', lambda path: None,
+                    limit=len(self.payload), companion_bytes=companion)
+        self.assert_stage_retained()
+
+    def test_modified_companion_is_preserved_as_changed_evidence(self):
+        companion = self.get_companion_bytes()
+        def modify_companion_then_collide(_name):
+            path = self.root / 'book.txt.publication.json'
+            path.write_bytes(b'changed provenance evidence')
+            os.utime(path, ns=(path.stat().st_atime_ns, path.stat().st_mtime_ns + 1_000_000))
+            raise FileExistsError('controlled destination collision')
+        with patch.object(self.stage, 'publish', side_effect=modify_companion_then_collide):
+            with self.assertRaisesRegex(ValueError, 'provenance changed'):
+                publication.publish_completed_upload(
+                    self.stage, 'book.txt', lambda path: None,
+                    limit=len(self.payload), companion_bytes=companion)
+        self.assertEqual(b'changed provenance evidence',
+                         (self.root / 'book.txt.publication.json').read_bytes())
+        self.assertIsNone(self.stage.published_path)
+        self.assertEqual(self.payload, self.stage.read_bytes())
+
+    def test_disappearing_companion_does_not_mask_native_publication_error(self):
+        companion = self.get_companion_bytes()
+        def remove_companion_then_fail(_name):
+            (self.root / 'book.txt.publication.json').unlink()
+            raise OSError(errno.ENOSPC, 'controlled publication failure')
+        with patch.object(self.stage, 'publish', side_effect=remove_companion_then_fail):
+            with self.assertRaisesRegex(OSError, 'controlled publication failure') as caught:
+                publication.publish_completed_upload(
+                    self.stage, 'book.txt', lambda path: None,
+                    limit=len(self.payload), companion_bytes=companion)
+        self.assertEqual(errno.ENOSPC, caught.exception.errno)
+        self.assert_stage_retained()
+
+    def test_companion_cleanup_error_preserves_publication_failure_precedence(self):
+        companion = self.get_companion_bytes()
+        for failure, expected in (
+                (FileExistsError('controlled collision'), ValueError),
+                (OSError(errno.ENOSPC, 'controlled native failure'), OSError)):
+            with self.subTest(failure=type(failure).__name__), tempfile.TemporaryDirectory() as name:
+                root = Path(name).resolve()
+                stage = publication.create_source_upload_stage(
+                    root, limit=len(self.payload))
+                try:
+                    stage.write(self.payload)
+                    with patch.object(stage, 'publish', side_effect=failure), \
+                            patch.object(publication.os, 'unlink',
+                                         side_effect=PermissionError('controlled cleanup failure')):
+                        with self.assertRaises(expected) as caught:
+                            publication.publish_completed_upload(
+                                stage, 'book.txt', lambda path: None,
+                                limit=len(self.payload), companion_bytes=companion)
+                    if isinstance(failure, OSError) and not isinstance(failure, FileExistsError):
+                        self.assertEqual(errno.ENOSPC, caught.exception.errno)
+                finally:
+                    stage.close()
+                companion_path = root / 'book.txt.publication.json'
+                if companion_path.exists():
+                    companion_path.unlink()
 
     def test_companion_is_complete_before_source_becomes_visible(self):
         companion_bytes = self.get_companion_bytes()
@@ -167,23 +356,24 @@ class SourceUploadPublicationTests(unittest.TestCase):
 
     def test_failed_source_install_removes_only_owned_companion_and_retains_stage(self):
         companion_bytes = self.get_companion_bytes()
-        with patch.object(publication, 'move_source_upload_exclusively', side_effect=OSError('install fixture')):
+        with patch.object(self.stage, 'publish', side_effect=OSError('install fixture')):
             with self.assertRaises(OSError):
                 publication.publish_completed_upload(
                     self.stage, 'book.txt', lambda path: self.fail('unexpected publication'),
                     limit=len(self.payload), companion_bytes=companion_bytes)
-        self.assertEqual([self.stage], list(self.root.iterdir()))
+        self.assert_stage_retained()
         self.assertEqual(self.payload, self.stage.read_bytes())
 
     def test_destination_created_during_install_is_never_overwritten(self):
-        original = publication.move_source_upload_exclusively
+        original = self.stage.publish
         calls = []
-        def collide(source, destination, **options):
-            calls.append(Path(destination).name)
+        def collide(name):
+            destination = self.root / name
+            calls.append(name)
             if len(calls) == 1:
                 Path(destination).write_bytes(b'Other owner source')
-            return original(source, destination, **options)
-        with patch.object(publication, 'move_source_upload_exclusively', side_effect=collide):
+            return original(name)
+        with patch.object(self.stage, 'publish', side_effect=collide):
             result = self.publish()
         self.assertEqual(['book.txt', 'book_2.txt'], calls)
         self.assertEqual(b'Other owner source', (self.root / 'book.txt').read_bytes())
@@ -194,7 +384,7 @@ class SourceUploadPublicationTests(unittest.TestCase):
             publication.publish_completed_upload(
                 self.stage, 'book.txt', lambda path: self.fail('unexpected publication'),
                 limit=len(self.payload), companion_bytes=b'{}')
-        self.assertEqual([self.stage], list(self.root.iterdir()))
+        self.assert_stage_retained()
 
     def test_process_death_after_install_leaves_single_link_complete_source(self):
         import subprocess
@@ -203,10 +393,10 @@ class SourceUploadPublicationTests(unittest.TestCase):
 from pathlib import Path
 import source_upload_publication as publication
 root = Path(sys.argv[1])
-stage = Path(publication.create_source_upload_stage(root))
-stage.write_bytes(b'Complete synthetic source.')
+stage = publication.create_source_upload_stage(root, limit=1024)
+stage.write(b'Complete synthetic source.')
 if sys.argv[2] == 'sync':
-    publication.sync_adapter_directory = lambda path: os._exit(71)
+    stage.sync_directory = lambda: os._exit(71)
 publication.publish_completed_upload(stage, 'book.txt',
     lambda path: os._exit(71) if sys.argv[2] == 'visible' else None, limit=1024)
 """
@@ -274,7 +464,7 @@ publication.publish_completed_upload(stage, 'book.txt',
             with self.assertRaises(OSError) as closed:
                 os.fstat(descriptors[0])
             self.assertEqual(errno.EBADF, closed.exception.errno)
-            self.assertEqual([self.stage], list(self.root.iterdir()))
+            self.assert_stage_retained()
             self.assertEqual(self.payload, self.stage.read_bytes())
         finally:
             # Bound resources even when this test rejects an older implementation.
@@ -291,12 +481,12 @@ publication.publish_completed_upload(stage, 'book.txt',
 from pathlib import Path
 import source_upload_publication as publication
 root = Path(sys.argv[1])
-stage = Path(publication.create_source_upload_stage(root))
-stage.write_bytes(b'Complete synthetic source.\\n' * 1000)
+stage = publication.create_source_upload_stage(root, limit=1024 * 1024)
+stage.write(b'Complete synthetic source.\\n' * 1000)
 if sys.argv[2] == 'companion_created':
     publication.os.fdopen = lambda *args, **kwargs: os._exit(72)
 else:
-    publication.move_source_upload_exclusively = lambda *args: os._exit(72)
+    stage.publish = lambda *args: os._exit(72)
 publication.publish_completed_upload(stage, 'book.txt', lambda path: None,
     limit=1024 * 1024, companion_bytes=sys.argv[3].encode())
 """
@@ -309,12 +499,16 @@ publication.publish_completed_upload(stage, 'book.txt', lambda path: None,
                 root = Path(directory)
                 self.assertFalse((root / 'book.txt').exists())
                 retained = {path.name: path.read_bytes() for path in root.iterdir()}
-                self.assertEqual(2, len(retained))
+                # Before publication POSIX owns an anonymous request extent;
+                # the kernel releases it on death. Orphan provenance survives
+                # on all platforms and must never be paired with a retry.
+                self.assertEqual(2 if os.name == 'nt' else 1, len(retained))
                 self.assertEqual(b'' if boundary == 'companion_created' else self.get_companion_bytes(),
                                  retained['book.txt.publication.json'])
                 self.assertTrue(all(Path(name).suffix not in ('.txt', '.md') for name in retained))
-                stage = Path(publication.create_source_upload_stage(root))
-                stage.write_bytes(b'New complete retry source.')
+                stage = publication.create_source_upload_stage(root, limit=1024)
+                self.addCleanup(stage.close)
+                stage.write(b'New complete retry source.')
                 installed = publication.publish_completed_upload(
                     stage, 'book.txt', lambda path: None, limit=1024)
                 self.assertEqual('book_2.txt', Path(installed).name)

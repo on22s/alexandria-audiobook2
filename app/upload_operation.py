@@ -2,7 +2,7 @@
 import asyncio
 
 
-async def await_upload_operation(operation, *, on_cancel=None):
+async def await_upload_operation(operation, *, on_cancel=None, prefer_cancellation=False):
     """Finish admitted I/O before reporting cancellation to its owner."""
     task = asyncio.create_task(operation)
     cancelled = None
@@ -17,8 +17,10 @@ async def await_upload_operation(operation, *, on_cancel=None):
             break
     try:
         result = task.result()
-    except BaseException:
+    except BaseException as error:
         if cancelled is not None:
-            raise cancelled
+            if prefer_cancellation:
+                raise cancelled
+            raise error from cancelled
         raise
     return result, cancelled

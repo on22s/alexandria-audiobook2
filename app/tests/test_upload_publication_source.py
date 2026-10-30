@@ -31,13 +31,88 @@ def epub(title='Fixture title', *, cover=None, metadata=True, text=TEXT):
     with zipfile.ZipFile(raw, 'w') as archive:
         for name, data in [('META-INF/container.xml', container), ('book.opf', package),
                            ('body.xhtml', '<html><body><p>' + text.decode() + '</p></body></html>')]:
-            archive.writestr(name, data)
+            # Equal fixture content must mean equal archive identity, including
+            # when requests cross a ZIP timestamp's two-second boundary.
+            archive.writestr(zipfile.ZipInfo(name), data)
         if cover:
-            archive.writestr('cover.png', cover)
+            archive.writestr(zipfile.ZipInfo('cover.png'), cover)
     return raw.getvalue()
 
 
 class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_epub_normalization_runs_off_event_loop(self):
+        async with self.environment() as (_, _, client):
+            loop_thread = threading.get_ident()
+            worker_threads = []
+            original = script._encode_epub_text
+            def observed(text):
+                worker_threads.append(threading.get_ident())
+                return original(text)
+            with patch.object(script, '_encode_epub_text', side_effect=observed):
+                response = await self.upload(client, epub())
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual(1, len(worker_threads))
+            self.assertNotEqual(loop_thread, worker_threads[0])
+
+    async def test_epub_storage_failure_is_not_reported_as_bad_input(self):
+        async with self.environment() as (_, _, client):
+            with patch.object(script, 'extract_epub_text',
+                              side_effect=OSError('controlled storage failure')):
+                response = await self.upload(client, epub())
+            self.assertEqual(503, response.status_code, response.text)
+
+    async def test_epub_normalization_memory_failure_is_service_unavailable(self):
+        async with self.environment() as (_, _, client):
+            with patch.object(script, '_encode_epub_text', side_effect=MemoryError()):
+                response = await self.upload(client, epub())
+            self.assertEqual(503, response.status_code, response.text)
+
+    async def test_rollback_failure_does_not_mask_request_error(self):
+        async with self.environment() as (_, _, client):
+            self.assertEqual(200, (await self.upload(client, epub())).status_code)
+            original = script.HTTPException(status_code=418, detail='controlled request failure')
+            with patch.object(script, 'apply_publication_source_update', side_effect=original), \
+                    patch.object(script, 'restore_publication_source_update',
+                                 side_effect=ValueError('controlled rollback failure')):
+                response = await self.upload(client, epub())
+            self.assertEqual(418, response.status_code, response.text)
+            self.assertEqual('controlled request failure', response.json()['detail'])
+
+    async def test_epub_fallback_warning_redacts_credentials(self):
+        async with self.environment() as (_, _, client):
+            with patch.object(script, 'get_epub_publication_candidate',
+                              side_effect=ValueError('api_key=supersecret')):
+                response = await self.upload(client, epub())
+            self.assertEqual(200, response.status_code, response.text)
+            warning = response.json()['publication_warnings'][0]
+            self.assertNotIn('supersecret', warning)
+
+    async def test_invalid_epub_publication_filename_is_a_controlled_refusal(self):
+        async with self.environment() as (_, uploads, client):
+            upload = UploadFile(filename='book\x1f.epub', file=io.BytesIO(epub()))
+            try:
+                with self.assertRaises(script.HTTPException) as caught:
+                    await script.upload_file(upload, select_active=False)
+            finally:
+                await upload.close()
+            self.assertEqual(400, caught.exception.status_code)
+            self.assertIn('Invalid EPUB publication metadata', caught.exception.detail)
+            self.assertEqual([], list(uploads.iterdir()))
+
+    async def test_invalid_new_candidate_cannot_corrupt_existing_provenance(self):
+        async with self.environment() as (_, uploads, client):
+            self.assertEqual(200, (await self.upload(client, epub())).status_code)
+            before = {path.name: path.read_bytes() for path in uploads.iterdir()}
+            capture = script.get_epub_publication_candidate
+            def malformed(*args, **options):
+                result = capture(*args, **options)
+                result['fields']['title'] = ['x' * 30000]
+                return result
+            with patch.object(script, 'get_epub_publication_candidate', side_effect=malformed):
+                response = await self.upload(client, epub('New origin'))
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(before, {path.name: path.read_bytes() for path in uploads.iterdir()})
+
     @asynccontextmanager
     async def environment(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -95,12 +170,15 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
             original = epub(); replacement = epub('Replacement title', text=b'Replacement source words.')
             extract = script.extract_epub_text
             def replaced(path, **kwargs):
-                Path(path).write_bytes(replacement)
+                # The parser receives a display label and captured bytes. A
+                # different file at that label must never select its input.
+                (uploads / path).write_bytes(replacement)
                 return extract(path, **kwargs)
             with patch.object(script, 'extract_epub_text', side_effect=replaced):
                 response = await self.upload(client, original)
             self.assertEqual(200, response.status_code, response.text)
             self.assertEqual(TEXT, (uploads / 'book.txt').read_bytes())
+            self.assertEqual(replacement, (uploads / 'book.epub').read_bytes())
             record = json.loads((uploads / 'book.txt.publication.json').read_bytes())
             self.assertEqual(hashlib.sha256(original).hexdigest(), record['candidates'][0]['origin']['sha256'])
             self.assertEqual(['Fixture title'], record['candidates'][0]['fields']['title'])
@@ -139,6 +217,9 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(TEXT, existing.read_bytes())
 
     async def test_failure_after_publication_and_failed_selection_retain_visible_provenance(self):
+        # Reimport the identical archive: ZIP timestamps otherwise change its
+        # origin digest when these two requests cross a two-second boundary.
+        different_origin = epub('Different')
         async with self.environment() as (_, uploads, client):
             self.assertEqual(200, (await self.upload(client, epub())).status_code)
             before = {p.name: p.read_bytes() for p in uploads.iterdir()}
@@ -149,11 +230,11 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
                 visible.update({p.name: p.read_bytes() for p in uploads.iterdir()})
                 raise OSError('fixture after publication')
             with patch.object(script, 'apply_publication_source_update', side_effect=fail_after_replace):
-                self.assertEqual(500, (await self.upload(client, epub('Different'))).status_code)
+                self.assertEqual(500, (await self.upload(client, different_origin)).status_code)
             self.assertEqual(visible, {p.name: p.read_bytes() for p in uploads.iterdir()})
             with patch.object(script, 'ensure_book_switch_allowed', return_value=nullcontext()), \
                  patch.object(script, 'apply_book_input_selection', side_effect=ValueError('fixture selection refusal')):
-                response = await self.upload(client, epub('Different'), select=True)
+                response = await self.upload(client, different_origin, select=True)
                 self.assertEqual(409, response.status_code, response.text)
                 self.assertNotIn('fixture selection refusal', response.text)
             self.assertEqual(visible, {p.name: p.read_bytes() for p in uploads.iterdir()})

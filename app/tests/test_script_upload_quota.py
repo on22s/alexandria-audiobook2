@@ -7,12 +7,91 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, HTTPException, UploadFile
 import httpx
 from routers import script
 
 
 class ScriptUploadQuotaTests(unittest.IsolatedAsyncioTestCase):
+    async def test_oversized_upload_cleanup_leaves_other_requests_responsive(self):
+        from source_upload_stage import OwnedSourceUploadStage
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = Path(tmp) / 'uploads'
+            uploads.mkdir()
+            entered, release = threading.Event(), threading.Event()
+            original, loop_thread = OwnedSourceUploadStage.close, threading.get_ident()
+            worker_threads = []
+            def paused_close(stage):
+                if stage._stream is not None and not entered.is_set():
+                    worker_threads.append(threading.get_ident())
+                    entered.set()
+                    if not release.wait(4):
+                        raise TimeoutError('failure cleanup worker was not released')
+                return original(stage)
+            with patch.object(script, 'UPLOADS_DIR', str(uploads)), patch.object(script, 'DATA_DIR', tmp), \
+                 patch.object(script, 'MAX_SCRIPT_UPLOAD_BYTES', 4), \
+                 patch.object(OwnedSourceUploadStage, 'close', paused_close):
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app()), base_url='http://fixture') as client:
+                    task = asyncio.create_task(client.post('/api/upload', files={'file': ('book.txt', b'12345')}))
+                    try:
+                        self.assertTrue(await asyncio.to_thread(entered.wait, 3))
+                        self.assertNotEqual(loop_thread, worker_threads[0])
+                        self.assertFalse(task.done())
+                        self.assertEqual({'ok': True}, (await client.get('/fixture/ping')).json())
+                    finally:
+                        release.set()
+                        response = await asyncio.wait_for(task, 3)
+                    self.assertEqual(413, response.status_code, response.text)
+            self.assertEqual([], list(uploads.iterdir()))
+            with script.file_lock(str(uploads) + '.quota', timeout=.1):
+                pass
+
+    async def test_exhausted_filename_collisions_refuse_without_changing_retained_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = Path(tmp) / 'uploads'
+            uploads.mkdir()
+            names = ['book.txt'] + [f'book_{number}.txt' for number in range(2, 1002)]
+            retained = {name + '.publication.json': b'retained evidence' for name in names}
+            for name, data in retained.items():
+                (uploads / name).write_bytes(data)
+            with patch.object(script, 'UPLOADS_DIR', str(uploads)), patch.object(script, 'DATA_DIR', tmp):
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app()), base_url='http://fixture') as client:
+                    response = await client.post('/api/upload', files={'file': ('book.txt', b'new source')})
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertIn('filename collisions', response.json()['detail'])
+            self.assertEqual(retained, {path.name: path.read_bytes() for path in uploads.iterdir()})
+
+    async def test_cleanup_failure_preserves_original_upload_refusal(self):
+        from source_upload_stage import OwnedSourceUploadStage
+        for status in (413, 409):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp:
+                uploads = Path(tmp) / 'uploads'
+                uploads.mkdir()
+                close = OwnedSourceUploadStage.close
+                def close_then_fail(stage):
+                    close(stage)
+                    raise OSError('controlled secondary cleanup error')
+                async def refuse(file, stage, limit):
+                    stage.write(b'part')
+                    raise HTTPException(status_code=409, detail='controlled provenance refusal')
+                with patch.object(script, 'UPLOADS_DIR', str(uploads)), \
+                     patch.object(script, 'DATA_DIR', tmp), \
+                     patch.object(script, 'MAX_SCRIPT_UPLOAD_BYTES', 4), \
+                     patch.object(OwnedSourceUploadStage, 'close', close_then_fail), \
+                     self.assertLogs('AlexandriaUI', level='WARNING'):
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app()), base_url='http://fixture') as client:
+                        if status == 409:
+                            with patch.object(script, '_save_upload_limited', side_effect=refuse):
+                                response = await client.post('/api/upload', files={'file': ('book.txt', b'12345')})
+                        else:
+                            response = await client.post('/api/upload', files={'file': ('book.txt', b'12345')})
+                    self.assertEqual(status, response.status_code, response.text)
+                    self.assertEqual('Uploaded file is too large.' if status == 413 else
+                                     'controlled provenance refusal', response.json()['detail'])
+                self.assertEqual([], list(uploads.iterdir()))
+                with script.file_lock(str(uploads) + '.quota', timeout=.1):
+                    pass
+
     def app(self):
         app = FastAPI()
         app.include_router(script.router)
@@ -118,8 +197,8 @@ class ScriptUploadQuotaTests(unittest.IsolatedAsyncioTestCase):
             source = UploadFile(filename='cancelled.txt', file=io.BytesIO(b'cancelled content'))
             entered, release = threading.Event(), threading.Event()
             original = script.create_source_upload_stage
-            def paused_claim(directory):
-                path = original(directory)
+            def paused_claim(directory, **options):
+                path = original(directory, **options)
                 entered.set()
                 if not release.wait(2):
                     raise AssertionError('path-claim fixture was not released')

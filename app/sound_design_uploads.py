@@ -2,15 +2,23 @@
 import os
 from pathlib import Path
 import stat
+import tempfile
 
 from audio_take_history import _ensure_plain_path, _check_cancelled
 from sound_design_assets import (SoundDesignAssetStore, MAX_SOURCE_BYTES,
                                  validate_sound_asset_display_name, ensure_sound_asset_lease)
-from source_upload_publication import create_source_upload_stage
 
 MAX_STAGING_BYTES = MAX_SOURCE_BYTES
 MAX_STAGES = 16
 STAGING_DIRECTORY = '.sound_design_uploads'
+
+
+def _create_sound_upload_stage(directory):
+    # The sound decoder accepts a pathname. Keep its existing private named
+    # staging protocol separate from descriptor-published text uploads.
+    descriptor, name = tempfile.mkstemp(prefix='.source-upload-', suffix='.part', dir=directory)
+    os.close(descriptor)
+    return Path(name)
 
 
 def import_sound_asset_upload(root, source, *, display_name='Sound asset', cancel_check=None):
@@ -40,7 +48,7 @@ def import_sound_asset_upload(root, source, *, display_name='Sound asset', cance
         available = min(MAX_SOURCE_BYTES, MAX_STAGING_BYTES - charged)
         if available <= 0 or count >= MAX_STAGES:
             raise ValueError('Sound upload staging is full; retained uploads require inspection')
-        stage = Path(create_source_upload_stage(directory))
+        stage = _create_sound_upload_stage(directory)
         try:
             written = 0
             with stage.open('wb') as output:

@@ -133,6 +133,22 @@ def check_disk_space(path, required_gb):
 
 async def _save_upload_limited(file: UploadFile, path: str, max_bytes: int) -> None:
     """Stream an upload to disk and remove it if it exceeds max_bytes."""
+    from source_upload_stage import OwnedSourceUploadStage
+    if isinstance(path, OwnedSourceUploadStage):
+        written = 0
+        try:
+            while chunk := await file.read(1024 * 1024):
+                written += len(chunk)
+                if written > max_bytes:
+                    raise HTTPException(status_code=413, detail="Uploaded file is too large.")
+                await asyncio.to_thread(path.write, chunk)
+        except Exception:
+            try:
+                await asyncio.to_thread(path.close)
+            except Exception as error:
+                logger.warning('Upload stage cleanup also failed: %s', type(error).__name__)
+            raise
+        return
     written = 0
     try:
         async with aiofiles.open(path, "wb") as out_file:

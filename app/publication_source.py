@@ -145,6 +145,21 @@ def get_saved_publication_source_bytes(input_path, script_bytes):
     return _get_publication_source_bytes(document)
 
 
+def get_new_upload_publication_bytes(text_sha256, candidate, remaining_bytes):
+    """Bind provenance to a descriptor-owned source before any public name exists."""
+    if (not _is_digest(text_sha256) or type(remaining_bytes) is not int or remaining_bytes < 0
+            or not isinstance(candidate, dict)
+            or not isinstance(candidate.get('origin'), dict)
+            or candidate['origin'].get('text_sha256') != text_sha256):
+        raise ValueError('Invalid new-source publication binding')
+    encoded = _get_publication_source_bytes({'version': 1,
+        'binding': {'kind': 'text', 'sha256': text_sha256}, 'candidates': [candidate]})
+    get_publication_source_document(encoded)
+    if len(encoded) > remaining_bytes:
+        raise PublicationSourceLimit('Publication provenance exceeds available upload storage')
+    return encoded
+
+
 def get_upload_publication_update(input_path, candidate, remaining_bytes, *, source_limit):
     """Prepare an immutable update; no source/companion is created or changed."""
     source = Path(input_path)
@@ -180,6 +195,7 @@ def get_upload_publication_update(input_path, candidate, remaining_bytes, *, sou
             raise PublicationSourceLimit('At most four distinct EPUB origins can share one text upload')
         document['candidates'].append(candidate)
         encoded = _get_publication_source_bytes(document)
+        get_publication_source_document(encoded)
     if encoded != raw and len(encoded) > remaining_bytes:
         # Reserve the whole staged replacement, not merely its final size delta.
         raise PublicationSourceLimit('Publication provenance exceeds available upload storage')
