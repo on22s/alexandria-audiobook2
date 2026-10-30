@@ -27,6 +27,15 @@ MAX_DROPOUT_WORDS = 1
 METHOD_URL = "https://arxiv.org/abs/2606.18323"
 
 
+def _word_count(text):
+    return len(normalise(text, char_level=False).split())
+
+
+def _has_non_ascii_letters(text):
+    return any(character.isalpha() and not character.isascii()
+               for character in text)
+
+
 def build_self_verification_report(manifest_path):
     content = build_content_report(manifest_path)
     _, raw, manifest = _read_manifest(manifest_path)
@@ -54,10 +63,10 @@ def build_self_verification_report(manifest_path):
             raise EndpointScreenError(
                 f"case {source_case['id']} needs an explicit English language assertion")
         expected = source_case["input"]["text"]
-        if is_cjk(expected):
+        if is_cjk(expected) or _has_non_ascii_letters(expected):
             raise EndpointScreenError(
-                f"case {source_case['id']} is outside this English WER screen")
-        expected_words = len(normalise(expected, char_level=False).split())
+                f"case {source_case['id']} has unsupported script characters")
+        expected_words = _word_count(expected)
         if expected_words <= MAX_DROPOUT_WORDS:
             raise EndpointScreenError(
                 f"case {source_case['id']} is too short for the dropout rule")
@@ -85,7 +94,7 @@ def build_self_verification_report(manifest_path):
             if wer is None:
                 raise EndpointScreenError(
                     f"case {source_case['id']} has no WER reference words")
-            asr_words = len(normalise(transcript, char_level=False).split())
+            asr_words = _word_count(transcript)
             asr_dropout = asr_words <= MAX_DROPOUT_WORDS
             content_failure = wer > CONTENT_FAILURE_WER
             catastrophic = asr_dropout or content_failure

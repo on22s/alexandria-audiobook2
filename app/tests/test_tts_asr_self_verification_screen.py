@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from experiments import tts_asr_self_verification_screen as screen
-from tests.test_tts_endpoint_content_screen import manifest_case, write_wav
+from tests.test_tts_endpoint_content_screen import digest, manifest_case, write_wav
 
 
 class TTSASRSelfVerificationScreenTests(unittest.TestCase):
@@ -74,7 +74,6 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
             document = json.loads(manifest.read_text(encoding="utf-8"))
             case = document["cases"][0]
             case["input"]["text"] = "hello world"
-            from tests.test_tts_endpoint_content_screen import digest
             case["input_sha256"] = digest(case["input"])
             manifest.write_text(json.dumps(document), encoding="utf-8")
             report = screen.build_self_verification_report(manifest)
@@ -119,19 +118,25 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
                 screen.build_self_verification_report(manifest)
             case["language"] = "es"
             case["input"]["text"] = "hola mundo"
-            from tests.test_tts_endpoint_content_screen import digest
             case["input_sha256"] = digest(case["input"])
             manifest.write_text(json.dumps(document), encoding="utf-8")
             with self.assertRaisesRegex(screen.EndpointScreenError,
                                         "explicit English language assertion"):
                 screen.build_self_verification_report(manifest)
             case["language"] = "en"
+            case["input"]["text"] = "привет мир"
+            case["input_sha256"] = digest(case["input"])
+            manifest.write_text(json.dumps(document, ensure_ascii=False),
+                                encoding="utf-8")
+            with self.assertRaisesRegex(screen.EndpointScreenError,
+                                        "unsupported script characters"):
+                screen.build_self_verification_report(manifest)
             case["input"]["text"] = "彼は静かに答えた。"
             case["input_sha256"] = digest(case["input"])
             manifest.write_text(json.dumps(document, ensure_ascii=False),
                                 encoding="utf-8")
             with self.assertRaisesRegex(screen.EndpointScreenError,
-                                        "outside this English WER screen"):
+                                        "unsupported script characters"):
                 screen.build_self_verification_report(manifest)
             case["input"]["text"] = "Hello."
             case["input_sha256"] = digest(case["input"])
