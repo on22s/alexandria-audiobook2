@@ -1,21 +1,17 @@
 """Executable identity and version probing must fail closed before encoding."""
 import copy
-import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
 import audio_encoder_identity as identity
+from tests.test_support import use_resolved_tempdir
 
 
 class AudioEncoderIdentityTests(unittest.TestCase):
     def setUp(self):
-        # macOS keeps temporary folders behind its /var -> /private/var link. The
-        # code under test reports resolved paths, so use the resolved spelling.
-        patcher = patch.object(tempfile, 'tempdir', os.path.realpath(tempfile.gettempdir()))
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        use_resolved_tempdir(self)
 
     def test_native_probe_is_finite_and_pure_and_exposes_only_a_digest(self):
         runtime=identity.get_ffmpeg_runtime_identity()

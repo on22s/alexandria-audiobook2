@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import windows_export_staging_directory as windows
 import book_state_transaction as books
+from tests.test_support import use_resolved_tempdir
 
 
 class FakeHandle:
@@ -33,11 +34,7 @@ class FakeHandle:
 
 class WindowsBookMoveGuardTests(unittest.TestCase):
     def setUp(self):
-        # macOS keeps temporary folders behind its /var -> /private/var link. The
-        # code under test reports resolved paths, so use the resolved spelling.
-        patcher = patch.object(tempfile, 'tempdir', os.path.realpath(tempfile.gettempdir()))
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        use_resolved_tempdir(self)
 
     def test_named_file_identity_uses_and_releases_native_handle(self):
         with tempfile.TemporaryDirectory() as tmp:
