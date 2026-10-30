@@ -12322,6 +12322,14 @@
     "tests.test_tts_clip_view.RowsOf.test_the_asked_text_comes_from_source",
     "tests.test_tts_clip_view.RowsOf.test_wer_is_errors_over_words"
   ],
+  "test_tts_asr_self_verification_screen": [
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_all_catastrophic_candidates_yield_no_selection",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_cli_writes_once_without_raw_transcripts",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_manifest_replacement_between_passes_is_refused",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_non_english_reference_is_refused_instead_of_misscored",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_selects_lowest_wer_survivor_and_records_missing_codec_evidence",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_tie_is_deterministically_first_and_threshold_is_strict"
+  ],
   "test_tts_diagnostics": [
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_batch_counts_and_record_bounds_do_not_retain_failed_text",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_endpoint_reads_no_observations_without_loading_engine",
