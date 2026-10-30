@@ -12335,6 +12335,17 @@
   "test_tts_diagnostics_js": [
     "tests.test_tts_diagnostics_js.TtsDiagnosticsJsTests.test_out_of_order_reads_and_failure_invalidate_the_download"
   ],
+  "test_tts_endpoint_screen": [
+    "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_aggregate_audio_work_is_bounded",
+    "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_cli_writes_once_and_preserves_existing_output",
+    "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_labeled_screen_reports_confusion_matrix_and_all_windows",
+    "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_labels_are_not_inferred_from_the_threshold",
+    "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_malformed_and_escaping_inputs_are_refused",
+    "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_manifest_and_audio_limits_are_checked_before_full_use",
+    "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_odd_declared_data_and_too_short_audio_are_refused",
+    "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_relative_path_and_bad_riff_length",
+    "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_truncated_pcm_payload_is_refused"
+  ],
   "test_tts_external_pool": [
     "tests.test_tts_external_pool.ExternalPoolTests.test_a_hung_endpoint_is_reported_as_a_timeout_not_waited_for",
     "tests.test_tts_external_pool.ExternalPoolTests.test_bad_external_audio_is_rejected_and_prior_output_is_preserved",
