@@ -12234,6 +12234,19 @@
     "tests.test_trim_edge_silence.TrimTests.test_short_edges_are_kept_not_extended",
     "tests.test_trim_edge_silence.TrimTests.test_the_configured_pause_is_now_the_gap_the_listener_hears"
   ],
+  "test_tts_asr_self_verification_screen": [
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_all_catastrophic_candidates_yield_no_selection",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_cli_refuses_unasserted_language_without_output_or_traceback",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_cli_writes_once_without_raw_transcripts",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_dropout_rule_excludes_one_word_even_at_wer_boundary",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_eligible_first_candidate_survives_catastrophic_second",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_manifest_replacement_between_passes_is_refused",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_mismatched_content_candidate_identity_is_refused",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_non_integer_attempt_identity_is_cleanly_refused",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_selects_lowest_wer_survivor_and_records_missing_codec_evidence",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_tie_is_deterministically_first_and_threshold_is_strict",
+    "tests.test_tts_asr_self_verification_screen.TTSASRSelfVerificationScreenTests.test_unsupported_references_are_refused_instead_of_misscored"
+  ],
   "test_tts_asset_boundary": [
     "tests.test_tts_asset_boundary.TtsAssetBoundaryTests.test_explicit_staging_root_works_and_fixture_root_fields_cannot_override_default",
     "tests.test_tts_asset_boundary.TtsAssetBoundaryTests.test_outside_adapter_and_artifact_refuse_before_snapshot",
