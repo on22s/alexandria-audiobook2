@@ -12335,6 +12335,12 @@
   "test_tts_diagnostics_js": [
     "tests.test_tts_diagnostics_js.TtsDiagnosticsJsTests.test_out_of_order_reads_and_failure_invalidate_the_download"
   ],
+  "test_tts_endpoint_retry_screen": [
+    "tests.test_tts_endpoint_retry_screen.TTSEndpointRetryScreenTests.test_cli_writes_provenance_once",
+    "tests.test_tts_endpoint_retry_screen.TTSEndpointRetryScreenTests.test_labels_remain_independent_of_threshold_decisions",
+    "tests.test_tts_endpoint_retry_screen.TTSEndpointRetryScreenTests.test_malformed_identity_attempts_and_paths_are_refused",
+    "tests.test_tts_endpoint_retry_screen.TTSEndpointRetryScreenTests.test_policy_reports_first_retry_and_exhausted_outcomes"
+  ],
   "test_tts_endpoint_screen": [
     "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_aggregate_audio_work_is_bounded",
     "tests.test_tts_endpoint_screen.TTSEndpointScreenTests.test_cli_writes_once_and_preserves_existing_output",
