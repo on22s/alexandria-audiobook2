@@ -74,7 +74,7 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
             self.assertTrue(case["all_attempts_catastrophic"])
             self.assertEqual(1, report["counts"]["all_attempts_catastrophic"])
 
-    def test_non_english_reference_is_refused_instead_of_misscored(self):
+    def test_unsupported_references_are_refused_instead_of_misscored(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             manifest = self.make_manifest(root)
@@ -87,6 +87,23 @@ class TTSASRSelfVerificationScreenTests(unittest.TestCase):
                                 encoding="utf-8")
             with self.assertRaisesRegex(screen.EndpointScreenError,
                                         "outside this English WER screen"):
+                screen.build_self_verification_report(manifest)
+            case["input"]["text"] = "Hello."
+            case["input_sha256"] = digest(case["input"])
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(screen.EndpointScreenError,
+                                        "too short for the dropout rule"):
+                screen.build_self_verification_report(manifest)
+
+    def test_mismatched_content_candidate_identity_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest = self.make_manifest(root)
+            content = screen.build_content_report(manifest)
+            content["cases"][0]["attempts"][1]["take_id"] = "replacement"
+            with patch.object(screen, "build_content_report", return_value=content), \
+                    self.assertRaisesRegex(screen.EndpointScreenError,
+                                           "candidate identity changed"):
                 screen.build_self_verification_report(manifest)
 
     def test_manifest_replacement_between_passes_is_refused(self):

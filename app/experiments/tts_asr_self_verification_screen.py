@@ -54,9 +54,29 @@ def build_self_verification_report(manifest_path):
         if is_cjk(expected):
             raise EndpointScreenError(
                 f"case {source_case['id']} is outside this English WER screen")
+        expected_words = len(normalise(expected, char_level=False).split())
+        if expected_words <= MAX_DROPOUT_WORDS:
+            raise EndpointScreenError(
+                f"case {source_case['id']} is too short for the dropout rule")
+        source_attempts = source_case.get("attempts")
+        content_attempts = content_case.get("attempts")
+        if (not isinstance(source_attempts, list)
+                or not isinstance(content_attempts, list)
+                or len(source_attempts) != 2 or len(content_attempts) != 2):
+            raise EndpointScreenError(
+                f"case {source_case['id']} does not contain two candidates")
+        source_identity = [(attempt.get("attempt"), attempt.get("take_id"),
+                            attempt.get("seed"), attempt.get("audio"))
+                           for attempt in source_attempts]
+        content_identity = [(attempt.get("attempt"), attempt.get("take_id"),
+                             attempt.get("seed"), attempt.get("audio"))
+                            for attempt in content_attempts]
+        if source_identity != content_identity or [row[0] for row in source_identity] != [1, 2]:
+            raise EndpointScreenError(
+                f"case {source_case['id']} candidate identity changed")
         candidates = []
         for source_attempt, content_attempt in zip(
-                source_case["attempts"], content_case["attempts"]):
+                source_attempts, content_attempts):
             transcript = source_attempt["primary_transcript"]
             wer = word_error_rate(expected, transcript, char_level=False)
             if wer is None:
