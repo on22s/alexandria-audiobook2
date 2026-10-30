@@ -12335,6 +12335,15 @@
   "test_tts_diagnostics_js": [
     "tests.test_tts_diagnostics_js.TtsDiagnosticsJsTests.test_out_of_order_reads_and_failure_invalidate_the_download"
   ],
+  "test_tts_endpoint_content_screen": [
+    "tests.test_tts_endpoint_content_screen.TTSEndpointContentScreenTests.test_cli_help_survives_optimized_docstring_stripping",
+    "tests.test_tts_endpoint_content_screen.TTSEndpointContentScreenTests.test_cli_writes_once_and_keeps_raw_transcripts_out_of_report",
+    "tests.test_tts_endpoint_content_screen.TTSEndpointContentScreenTests.test_empty_transcript_is_missing_evidence_not_wrong_terminal",
+    "tests.test_tts_endpoint_content_screen.TTSEndpointContentScreenTests.test_exact_shared_extra_region_is_reported_as_corroborated",
+    "tests.test_tts_endpoint_content_screen.TTSEndpointContentScreenTests.test_loud_endpoint_and_threshold_validation_are_reported",
+    "tests.test_tts_endpoint_content_screen.TTSEndpointContentScreenTests.test_reports_acoustic_terminal_and_bounded_comparison_separately",
+    "tests.test_tts_endpoint_content_screen.TTSEndpointContentScreenTests.test_transcripts_and_frozen_attempt_identity_are_bounded"
+  ],
   "test_tts_endpoint_retry_screen": [
     "tests.test_tts_endpoint_retry_screen.TTSEndpointRetryScreenTests.test_cli_writes_provenance_once",
     "tests.test_tts_endpoint_retry_screen.TTSEndpointRetryScreenTests.test_labels_remain_independent_of_threshold_decisions",
