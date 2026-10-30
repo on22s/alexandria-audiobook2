@@ -10574,6 +10574,7 @@
     "tests.test_source_sweep_scope.SweepScopeInventoryTest.test_no_test_rglobs_python_files_by_hand"
   ],
   "test_source_upload_publication": [
+    "tests.test_source_upload_publication.SourceUploadPublicationTests.test_companion_cleanup_error_preserves_publication_failure_precedence",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_disappearing_companion_is_a_governed_publication_conflict",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_disappearing_companion_does_not_mask_native_publication_error",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_alias_refusal_retains_companion_evidence_and_skips_its_name",

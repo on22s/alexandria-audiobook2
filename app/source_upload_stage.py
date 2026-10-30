@@ -219,8 +219,8 @@ class OwnedSourceUploadStage:
         if (not stat.S_ISREG(info.st_mode) or info.st_size != self._size
                 or info.st_size > self.byte_limit or info.st_nlink != (1 if os.name == 'nt' else 0)):
             raise ValueError('Upload stage changed before publication')
-        self._sealed = self._version(info)
         self._check_root()
+        self._sealed = self._version(info)
 
     def _rename_windows(self, destination):
         import msvcrt
@@ -282,8 +282,9 @@ class OwnedSourceUploadStage:
             if clone(self._stream.fileno(), self._directory_fd, os.fsencode(name), 0) != 0:
                 raise OSError(ctypes.get_errno(), 'Descriptor upload cloning failed')
             self.publication_started = True
-        self._accounting_name = name
-        self._published_path = str(destination)
+        if os.name != 'nt':
+            self._accounting_name = name
+            self._published_path = str(destination)
         self._close_stream()
         return self._published_path
 

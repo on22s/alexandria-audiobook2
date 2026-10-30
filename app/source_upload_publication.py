@@ -131,7 +131,7 @@ def publish_completed_upload(stage, filename, on_visible, *, limit, companion_by
                     facts = (os.stat(companion.name, dir_fd=stage._directory_fd,
                                      follow_symlinks=False)
                              if stage._directory_fd is not None else companion.lstat())
-                except FileNotFoundError as error:
+                except OSError as error:
                     cleanup_error = error
                 else:
                     if ((facts.st_dev, facts.st_ino) != companion_identity
@@ -144,7 +144,7 @@ def publish_completed_upload(stage, filename, on_visible, *, limit, companion_by
                                 os.unlink(companion.name, dir_fd=stage._directory_fd)
                             else:
                                 companion.unlink()
-                        except FileNotFoundError as error:
+                        except OSError as error:
                             cleanup_error = error
                 # A retryable collision becomes a governed conflict when its
                 # companion changed. Never replace a more informative native

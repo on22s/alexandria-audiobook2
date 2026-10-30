@@ -273,6 +273,32 @@ class SourceUploadPublicationTests(unittest.TestCase):
         self.assertEqual(errno.ENOSPC, caught.exception.errno)
         self.assert_stage_retained()
 
+    def test_companion_cleanup_error_preserves_publication_failure_precedence(self):
+        companion = self.get_companion_bytes()
+        for failure, expected in (
+                (FileExistsError('controlled collision'), ValueError),
+                (OSError(errno.ENOSPC, 'controlled native failure'), OSError)):
+            with self.subTest(failure=type(failure).__name__), tempfile.TemporaryDirectory() as name:
+                root = Path(name).resolve()
+                stage = publication.create_source_upload_stage(
+                    root, limit=len(self.payload))
+                try:
+                    stage.write(self.payload)
+                    with patch.object(stage, 'publish', side_effect=failure), \
+                            patch.object(publication.os, 'unlink',
+                                         side_effect=PermissionError('controlled cleanup failure')):
+                        with self.assertRaises(expected) as caught:
+                            publication.publish_completed_upload(
+                                stage, 'book.txt', lambda path: None,
+                                limit=len(self.payload), companion_bytes=companion)
+                    if isinstance(failure, OSError) and not isinstance(failure, FileExistsError):
+                        self.assertEqual(errno.ENOSPC, caught.exception.errno)
+                finally:
+                    stage.close()
+                companion_path = root / 'book.txt.publication.json'
+                if companion_path.exists():
+                    companion_path.unlink()
+
     def test_companion_is_complete_before_source_becomes_visible(self):
         companion_bytes = self.get_companion_bytes()
         observed = []
