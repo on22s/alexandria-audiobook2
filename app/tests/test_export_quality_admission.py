@@ -95,5 +95,51 @@ class ExportQualityAdmissionTests(unittest.TestCase):
                 scan.assert_not_called()
 
 
+    def test_aggregate_envelope_rejects_underreported_reuse_and_revalidates(self):
+        '''Bounded excerpts prove necessary bounds, not the exact aggregate.'''
+        from tests.test_export_quality import ExportQualityTests
+        with tempfile.TemporaryDirectory() as tmp:
+            path = ExportQualityTests().write_long_source(tmp)
+            plan = quality.get_export_quality_plan(600 * 24000, 24000, 1, format_name='wav',
+                options={'max_unexpected_silence_seconds': .5})
+            report = quality.validate_finished_export(path, plan)
+            self.assertEqual(200, report['unexpected_silence_count'])
+            self.assertAlmostEqual(200, report['unexpected_silence_seconds'], delta=.1)
+            ranges = report['unexpected_silence_ranges']
+            retained = sum(region['end_seconds'] - region['start_seconds'] for region in ranges)
+            minimum = 200 * (.5 - 1e-6)
+            shortened = copy.deepcopy(report)
+            shortened.update(unexpected_silence_count=16, diagnostics_abbreviated=False,
+                unexpected_silence_seconds=8)
+            short_region = copy.deepcopy(report)
+            short_region.update(unexpected_silence_count=1, diagnostics_abbreviated=False,
+                unexpected_silence_ranges=[dict(start_seconds=0., end_seconds=.1)],
+                longest_unexpected_silence=dict(start_seconds=0., end_seconds=.1),
+                unexpected_silence_seconds=.999999)
+            cases = [('retained_only', {**report, 'unexpected_silence_seconds': retained}, False),
+                ('real_aggregate', report, True),
+                ('epsilon_boundary', {**report, 'unexpected_silence_seconds': minimum}, True),
+                ('below_epsilon', {**report, 'unexpected_silence_seconds': minimum - 2e-6}, False),
+                ('sum_of_ranges_bound', shortened, False),
+                ('duration_upper_bound', {**report, 'unexpected_silence_seconds': 601.}, False),
+                ('per_region_threshold', short_region, False)]
+            for name, candidate, reusable in cases:
+                with self.subTest(case=name):
+                    before = copy.deepcopy(candidate)
+                    admitted = quality._get_reusable_export_report(candidate, plan)
+                    self.assertEqual(reusable, admitted is not None)
+                    with patch.object(quality, 'validate_finished_export',
+                            wraps=quality.validate_finished_export) as scan:
+                        result = quality.get_admitted_export_report(path, plan, candidate)
+                        if reusable:
+                            scan.assert_not_called()
+                            self.assertEqual(candidate['unexpected_silence_seconds'],
+                                result['unexpected_silence_seconds'])
+                        else:
+                            scan.assert_called_once()
+                            self.assertAlmostEqual(200, result['unexpected_silence_seconds'], delta=.1)
+                    self.assertEqual(before, candidate)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -245,6 +245,8 @@ def _get_reusable_export_report(report, plan):
             lengths = [region['end_seconds'] - region['start_seconds'] for region in ranges]
             longest_length = longest['end_seconds'] - longest['start_seconds']
             if (max(lengths) > longest_length + 1e-6
+                    or count * (plan['options']['max_unexpected_silence_seconds'] - 1e-6) >
+                    report['unexpected_silence_seconds'] + 1e-6
                     or max(sum(lengths), longest_length) > report['unexpected_silence_seconds'] + 1e-6):
                 return None
         if plan['chapters'] is not None:
