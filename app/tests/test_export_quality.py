@@ -528,6 +528,7 @@ print('private open checks complete')
             original_stop = media_process.stop_owned_subprocess
             original_signal = subprocess_ownership.send_subprocess_signal
             original_run = subprocess.run
+            original_popen_init = subprocess.Popen.__init__
 
             def record_start(command, *args, **kwargs):
                 process = original_start(command, *args, **kwargs)
@@ -544,10 +545,24 @@ print('private open checks complete')
                                     control=getattr(process, '_alexandria_control', None)))
                 return original_signal(process, *args, **kwargs)
 
-            def reject_name_scan(command, *args, **kwargs):
-                self.assertFalse(any(str(value).upper() == '/IM' for value in command),
+            def ensure_owned_command(command, options):
+                self.assertIsInstance(command, (list, tuple),
+                                      'cancellation subprocess commands must use explicit argv')
+                self.assertFalse(options.get('shell', False),
+                                 'cancellation subprocess commands must not use a shell')
+                self.assertFalse(any(os.fsdecode(value).upper() == '/IM' for value in command),
                                  'cancellation must never terminate by executable name')
+
+            def reject_name_scan(command, *args, **kwargs):
+                ensure_owned_command(command, kwargs)
                 return original_run(command, *args, **kwargs)
+
+            def reject_name_scan_spawn(process, command, *args, **kwargs):
+                ensure_owned_command(command, kwargs)
+                return original_popen_init(process, command, *args, **kwargs)
+
+            def reject_shell(command):
+                self.fail('cancellation must not dispatch shell commands')
 
             def record_evidence(parser, line):
                 original_consume(parser, line)
@@ -575,56 +590,60 @@ print('private open checks complete')
                         patch.object(quality._DecodeEvidence, 'consume', record_evidence), \
                         patch.object(media_process, 'stop_owned_subprocess', side_effect=record_stop), \
                         patch.object(subprocess_ownership, 'send_subprocess_signal', side_effect=record_signal), \
-                        patch.object(subprocess, 'run', side_effect=reject_name_scan):
+                        patch.object(subprocess, 'run', side_effect=reject_name_scan), \
+                        patch.object(subprocess.Popen, '__init__', reject_name_scan_spawn), \
+                        patch.object(os, 'system', side_effect=reject_shell):
                     try:
                         returned = quality.validate_finished_export(source, plan, cancel)
                     except BaseException as caught:
                         error = caught
             finally:
                 snapshot = []
-                for item in starts:
-                    process = item['process']
-                    control = getattr(process, '_alexandria_control', None)
-                    if control is None:
-                        released = 'missing'
-                    elif hasattr(control, 'fileno'):
-                        released = control.fileno() == -1
-                    elif getattr(control, 'job', None) is not None:
-                        released = control.job.handle is None
-                    else:
-                        released = 'unknown'
-                    snapshot.append(dict(
-                        command=item['command'], options=item['options'],
-                        returncode=process.returncode, poll=process.poll(),
-                        tree_running=subprocess_ownership.is_subprocess_tree_running(process),
-                        stdout_none=process.stdout is None,
-                        stdout_closed=process.stdout.closed if process.stdout is not None else None,
-                        stderr_closed=process.stderr.closed if process.stderr is not None else None,
-                        control_released=released,
-                        frames=parsers[0].frames if parsers else 'missing'))
-                cleanup_errors = []
-                for item in starts:
-                    process = item['process']
-                    try:
-                        if process.poll() is None or subprocess_ownership.is_subprocess_tree_running(process):
-                            subprocess_ownership.stop_owned_subprocess(process, timeout=5, force_after_grace=True)
-                    except BaseException as caught:
-                        cleanup_errors.append(caught)
-                    finally:
-                        for pipe in (process.stdout, process.stderr):
-                            try:
-                                if pipe is not None and not pipe.closed:
-                                    pipe.close()
-                            except BaseException as caught:
-                                cleanup_errors.append(caught)
+                try:
+                    for item in starts:
+                        process = item['process']
+                        control = getattr(process, '_alexandria_control', None)
+                        if control is None:
+                            released = 'missing'
+                        elif hasattr(control, 'fileno'):
+                            released = control.fileno() == -1
+                        elif getattr(control, 'job', None) is not None:
+                            released = control.job.handle is None
+                        else:
+                            released = 'unknown'
+                        snapshot.append(dict(
+                            command=item['command'], options=item['options'],
+                            returncode=process.returncode, poll=process.poll(),
+                            tree_running=subprocess_ownership.is_subprocess_tree_running(process),
+                            stdout_none=process.stdout is None,
+                            stdout_closed=process.stdout.closed if process.stdout is not None else None,
+                            stderr_closed=process.stderr.closed if process.stderr is not None else None,
+                            control_released=released,
+                            frames=parsers[0].frames if parsers else 'missing'))
+                finally:
+                    cleanup_errors = []
+                    for item in starts:
+                        process = item['process']
                         try:
-                            control = getattr(process, '_alexandria_control', None)
-                            if control is not None:
-                                control.close()
+                            if process.poll() is None or subprocess_ownership.is_subprocess_tree_running(process):
+                                subprocess_ownership.stop_owned_subprocess(process, timeout=5, force_after_grace=True)
                         except BaseException as caught:
                             cleanup_errors.append(caught)
-                if cleanup_errors:
-                    raise cleanup_errors[0]
+                        finally:
+                            for pipe in (process.stdout, process.stderr):
+                                try:
+                                    if pipe is not None and not pipe.closed:
+                                        pipe.close()
+                                except BaseException as caught:
+                                    cleanup_errors.append(caught)
+                            try:
+                                control = getattr(process, '_alexandria_control', None)
+                                if control is not None:
+                                    control.close()
+                            except BaseException as caught:
+                                cleanup_errors.append(caught)
+                    if cleanup_errors:
+                        raise cleanup_errors[0]
 
             self.assertTrue(decision, 'cancellation must observe real decoded silence before completion')
             self.assertIn('poll', decision, 'a live-decode decision snapshot is required')
@@ -632,6 +651,8 @@ print('private open checks complete')
             self.assertIsNone(decision['frames'])
             self.assertTrue(decision['silence_start'] is not None or decision['silence_count'])
             self.assertIsNone(returned)
+            if error is not None and not isinstance(error, ExportCancelled):
+                raise error
             self.assertIsInstance(error, ExportCancelled)
             self.assertNotIsInstance(error, quality.ExportQualityError)
             self.assertIsNone(getattr(error, 'report', None))
