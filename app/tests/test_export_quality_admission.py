@@ -115,12 +115,12 @@ class ExportQualityAdmissionTests(unittest.TestCase):
             short_region.update(unexpected_silence_count=1, diagnostics_abbreviated=False,
                 unexpected_silence_ranges=[dict(start_seconds=0., end_seconds=.1)],
                 longest_unexpected_silence=dict(start_seconds=0., end_seconds=.1),
-                unexpected_silence_seconds=.1)
+                unexpected_silence_seconds=.999999)
             cases = [('retained_only', {**report, 'unexpected_silence_seconds': retained}, False),
                 ('real_aggregate', report, True),
                 ('epsilon_boundary', {**report, 'unexpected_silence_seconds': minimum}, True),
                 ('below_epsilon', {**report, 'unexpected_silence_seconds': minimum - 2e-6}, False),
-                ('retained_range_bound', shortened, False),
+                ('sum_of_ranges_bound', shortened, False),
                 ('duration_upper_bound', {**report, 'unexpected_silence_seconds': 601.}, False),
                 ('per_region_threshold', short_region, False)]
             for name, candidate, reusable in cases:
@@ -139,7 +139,6 @@ class ExportQualityAdmissionTests(unittest.TestCase):
                             scan.assert_called_once()
                             self.assertAlmostEqual(200, result['unexpected_silence_seconds'], delta=.1)
                     self.assertEqual(before, candidate)
-
 
 
 if __name__ == '__main__':
