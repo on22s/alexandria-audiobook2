@@ -2,6 +2,7 @@
 import multiprocessing
 from pathlib import Path
 import signal
+import sys
 import tempfile
 import unittest
 
@@ -67,7 +68,8 @@ class TaskOwnershipLeaseTests(unittest.TestCase):
         inode = path.stat().st_ino
         process.kill()
         process.join(5)
-        self.assertEqual(-signal.SIGKILL, process.exitcode)
+        hard_kill_exit = -signal.SIGTERM if sys.platform == 'win32' else -signal.SIGKILL
+        self.assertEqual(hard_kill_exit, process.exitcode)
         with ensure_startup_recovery(self.root) as allowed:
             self.assertTrue(allowed)
         lease = acquire_task_lease(self.root, 'audio', set())
