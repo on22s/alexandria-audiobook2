@@ -77,7 +77,7 @@ class SoundDesignUploadOwnershipTests(unittest.IsolatedAsyncioTestCase):
     @asynccontextmanager
     async def fixture(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             source = io.BytesIO()
             sf.write(source, np.zeros(24001), 24000, format='WAV', subtype='PCM_16')
             raw = source.getvalue()
@@ -176,7 +176,7 @@ class SoundDesignUploadOwnershipTests(unittest.IsolatedAsyncioTestCase):
 class SoundDesignUploadQuotaTests(unittest.TestCase):
     def test_crash_stages_count_toward_budget_and_failed_copy_preserves_them(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); staging = root/uploads.STAGING_DIRECTORY; staging.mkdir()
+            root = Path(directory).resolve(); staging = root/uploads.STAGING_DIRECTORY; staging.mkdir()
             retained = staging/'.source-upload-retained.part'; retained.write_bytes(b'x'*32)
             with patch.object(uploads, 'MAX_STAGING_BYTES', 64), patch.object(SoundDesignAssetStore, 'import_owned_source') as admit:
                 with self.assertRaisesRegex(ValueError, 'allowance'):
@@ -189,7 +189,7 @@ class SoundDesignUploadQuotaTests(unittest.TestCase):
     def test_full_or_count_exhausted_staging_refuses_before_reading_upload(self):
         for kind in ('bytes', 'count'):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory); staging = root/uploads.STAGING_DIRECTORY; staging.mkdir()
+                root = Path(directory).resolve(); staging = root/uploads.STAGING_DIRECTORY; staging.mkdir()
                 (staging/'.source-upload-retained.part').write_bytes(b'x'*64)
                 stream = io.BytesIO(b'new')
                 with patch.object(uploads, 'MAX_STAGING_BYTES', 64 if kind == 'bytes' else 128), \

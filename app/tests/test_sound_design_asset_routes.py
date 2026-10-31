@@ -20,7 +20,7 @@ class SoundDesignAssetRoutesTests(unittest.TestCase):
     @contextmanager
     def fixture(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             samples = np.tile(np.array([-1200, 0, 1200], dtype=np.int16), 100001)
             sf.write(root/'source.wav', samples, 24000, subtype='PCM_16')
             store = SoundDesignAssetStore(root)
