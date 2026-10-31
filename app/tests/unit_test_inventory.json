@@ -4358,6 +4358,7 @@
     "tests.test_export_quality.ExportQualityTests.test_valid_pcm_bytes_cannot_be_certified_as_requested_mp3"
   ],
   "test_export_quality_admission": [
+    "tests.test_export_quality_admission.ExportQualityAdmissionTests.test_aggregate_envelope_rejects_underreported_reuse_and_revalidates",
     "tests.test_export_quality_admission.ExportQualityAdmissionTests.test_cancelled_receipt_admission_stops_before_hash_or_decoder",
     "tests.test_export_quality_admission.ExportQualityAdmissionTests.test_changed_options_and_chapter_expectation_cannot_reuse_prior_receipt",
     "tests.test_export_quality_admission.ExportQualityAdmissionTests.test_missing_stale_or_incomplete_receipt_runs_real_validation",
