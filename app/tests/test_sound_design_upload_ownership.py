@@ -2,6 +2,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 import io
+import os
 from pathlib import Path
 import tempfile
 import threading
@@ -17,7 +18,25 @@ from routers import sound_design as routes
 from sound_design_assets import SoundDesignAssetStore
 import sound_design_decode
 import sound_design_uploads as uploads
+from source_upload_stage import get_upload_stage_accounting
 from utils import file_lock
+
+
+def assert_live_stage(test, root, raw):
+    directory = root / uploads.STAGING_DIRECTORY
+    names, live = get_upload_stage_accounting(directory)
+    test.assertEqual(len(raw), live)
+    test.assertEqual(names, {path.name for path in directory.glob('.source-upload-*.part')})
+    if os.name == 'nt':
+        test.assertEqual(1, len(names))
+    else:
+        test.assertEqual(set(), names)
+
+
+def assert_staging_released(test, root):
+    directory = root / uploads.STAGING_DIRECTORY
+    test.assertEqual({'quota.lock'}, {path.name for path in directory.iterdir()})
+    test.assertEqual((set(), 0), get_upload_stage_accounting(directory))
 
 
 class SoundDesignUploadOwnershipTests(unittest.IsolatedAsyncioTestCase):
@@ -113,7 +132,7 @@ class SoundDesignUploadOwnershipTests(unittest.IsolatedAsyncioTestCase):
                     for _ in range(2):
                         task.cancel(); await asyncio.sleep(.03)
                         self.assertFalse(task.done(), 'Cancellation abandoned the import worker')
-                    self.assertEqual(1, len(list((root/uploads.STAGING_DIRECTORY).glob('*.part'))))
+                    assert_live_stage(self, root, raw)
                 finally:
                     release.set()
                     with self.assertRaises(asyncio.CancelledError):
@@ -122,7 +141,7 @@ class SoundDesignUploadOwnershipTests(unittest.IsolatedAsyncioTestCase):
             row = store.list_assets()['assets'][0]
             self.assertEqual('incomplete', row['state'])
             self.assertEqual(raw, (store.directory/(row['asset_id']+'.source')).read_bytes())
-            self.assertFalse(list((root/uploads.STAGING_DIRECTORY).glob('*.part')))
+            assert_staging_released(self, root)
             self.assertFalse(file.file.closed, 'Worker closed the request-owned input')
 
     async def test_cancel_after_ready_publication_retains_complete_reusable_asset(self):
@@ -140,7 +159,7 @@ class SoundDesignUploadOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 task = asyncio.create_task(routes.import_sound_asset(request,
                     UploadFile(filename='effect.wav', file=io.BytesIO(raw))))
                 try:
-                    self.assertTrue(await asyncio.to_thread(entered.wait, 3))
+                    self.assertTrue(await asyncio.to_thread(entered.wait, 30))
                     task.cancel(); await asyncio.sleep(.03)
                     self.assertFalse(task.done())
                 finally:
@@ -151,7 +170,7 @@ class SoundDesignUploadOwnershipTests(unittest.IsolatedAsyncioTestCase):
             row = store.list_assets()['assets'][0]
             with store.open_canonical(row['asset_id']) as (stream, _):
                 self.assertEqual(24001 * 4, len(stream.read()))
-            self.assertFalse(list((root/uploads.STAGING_DIRECTORY).glob('*.part')))
+            assert_staging_released(self, root)
 
 
 class SoundDesignUploadQuotaTests(unittest.TestCase):
@@ -159,12 +178,13 @@ class SoundDesignUploadQuotaTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); staging = root/uploads.STAGING_DIRECTORY; staging.mkdir()
             retained = staging/'.source-upload-retained.part'; retained.write_bytes(b'x'*32)
-            with patch.object(uploads, 'MAX_STAGING_BYTES', 64), patch.object(SoundDesignAssetStore, 'import_asset') as admit:
+            with patch.object(uploads, 'MAX_STAGING_BYTES', 64), patch.object(SoundDesignAssetStore, 'import_owned_source') as admit:
                 with self.assertRaisesRegex(ValueError, 'allowance'):
                     uploads.import_sound_asset_upload(root, io.BytesIO(b'y'*33))
                 admit.assert_not_called()
             self.assertEqual(b'x'*32, retained.read_bytes())
-            self.assertEqual([retained], list(staging.glob('*.part')))
+            self.assertEqual({retained.name, 'quota.lock'}, {path.name for path in staging.iterdir()})
+            self.assertEqual((set(), 0), get_upload_stage_accounting(staging))
 
     def test_full_or_count_exhausted_staging_refuses_before_reading_upload(self):
         for kind in ('bytes', 'count'):

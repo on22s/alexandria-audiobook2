@@ -253,67 +253,123 @@ class SoundDesignAssetStore:
                     limit_bytes=self.total_limit)
 
     def import_asset(self, source_name, *, display_name='Sound asset', cancel_check=None):
-        from sound_design_decode import decode_sound_design_asset, CONVERSION
         validate_sound_asset_display_name(display_name)
         with self._locked(cancel_check) as document:
             before, _ = capture_scope_file(self.root, source_name, limit=self.source_limit,
                                            cancel_check=cancel_check)
             if not before['exists'] or not before['size']:
                 raise ValueError('Sound asset source is missing or empty')
-            source_facts = dict(sha256=before['sha256'], bytes=before['size'])
-            for row in document['assets']:
-                if (row['state'] == 'ready' and row['source'] == source_facts
-                        and row['canonical']['conversion'] == CONVERSION):
-                    with self.open_canonical(row['asset_id'], cancel_check=cancel_check) as (_, descriptor):
-                        return descriptor
-            if (len(document['assets']) >= MAX_ASSETS or get_sound_asset_storage_bytes(document)
-                    + before['size'] + self.pcm_limit > self.total_limit):
-                raise ValueError('Sound asset storage cannot reserve this import')
-            row = dict(asset_id=uuid.uuid4().hex, state='incomplete', source=source_facts,
-                       reserved_pcm_bytes=self.pcm_limit, canonical=None, display_name=display_name)
-            source_copy = self._path(row['asset_id'], '.source')
-            pcm_path = self._path(row['asset_id'], '.pcm')
-            if os.path.lexists(source_copy) or os.path.lexists(pcm_path):
-                raise ValueError('Sound asset identity collision')
-            document['assets'].append(row)
+            facts = dict(sha256=before['sha256'], bytes=before['size'])
+            return self._import_source(
+                document, facts,
+                lambda output: self._copy_original(source_name, before, output, cancel_check),
+                display_name, cancel_check)
+
+    def import_owned_source(self, source, *, display_name='Sound asset', cancel_check=None):
+        """Import a descriptor-owned payload; no pathname selects these bytes.
+
+        The caller retains the source lifetime and cleanup. The payload is read
+        through the sealed stream surface: size and iter_blocks().
+        """
+        validate_sound_asset_display_name(display_name)
+        with self._locked(cancel_check) as document:
             _check_cancelled(cancel_check)
-            self._save(document)  # Charge before creating any media bytes.
-            source_path = self.root / source_name
-            source, info = _open_regular(source_path, self.root, self.source_limit)
-            with source, source_copy.open('xb') as output:
-                if list(_version(info)) != before['file_version']:
-                    raise ValueError('Original sound source changed before copying')
-                digest, size = hashlib.sha256(), 0
-                while block := source.read(65536):
-                    _check_cancelled(cancel_check)
-                    size += len(block)
-                    if size > before['size']:
-                        raise ValueError('Original sound source grew during copying')
-                    if output.write(block) != len(block):
-                        raise OSError('Incomplete sound source copy')
-                    digest.update(block)
-                output.flush()
-                os.fsync(output.fileno())
-                if (size != before['size'] or digest.hexdigest() != before['sha256']
-                        or _version(os.fstat(source.fileno())) != _version(info)
-                        or _version(_ensure_plain_path(source_path, self.root).lstat()) != _version(info)):
-                    raise ValueError('Original sound source changed during copying')
-            result = decode_sound_design_asset(self.root, source_copy.relative_to(self.root).as_posix(),
-                pcm_path.relative_to(self.root).as_posix(), source_limit=self.source_limit,
-                pcm_limit=self.pcm_limit, cancel_check=cancel_check)
-            if (result['source']['sha256'], result['source']['size']) != (before['sha256'], before['size']):
-                raise ValueError('Copied sound source changed before decoding')
-            proof, _ = capture_scope_file(self.root, pcm_path.relative_to(self.root).as_posix(),
-                                          limit=self.pcm_limit, cancel_check=cancel_check)
-            if (proof['sha256'], proof['size']) != (result['sha256'], result['bytes']):
-                raise ValueError('Canonical sound bytes changed before publication')
-            row['canonical'] = {key: result[key] for key in ('sha256', 'bytes', 'frames',
-                'frame_rate', 'channels', 'sample_width', 'conversion', 'codec', 'format')}
-            row['state'] = 'ready'
+            if not source.size:
+                raise ValueError('Sound asset source is missing or empty')
+            if type(source.size) is not int or not 0 < source.size <= self.source_limit:
+                raise ValueError('Owned sound source exceeds its storage allowance')
+            digest, size = hashlib.sha256(), 0
+            for block in source.iter_blocks():
+                _check_cancelled(cancel_check)
+                size += len(block)
+                if size > source.size:
+                    raise ValueError('Owned sound source grew during hashing')
+                digest.update(block)
             _check_cancelled(cancel_check)
-            self._save(document)  # A late failure retains a possibly ready asset.
-            return {'asset_id': row['asset_id'], **{key: row['canonical'][key] for key in
-                ('sha256', 'frames', 'frame_rate', 'channels', 'sample_width')}}
+            if size != source.size:
+                raise ValueError('Owned sound source changed during hashing')
+            facts = dict(sha256=digest.hexdigest(), bytes=size)
+            return self._import_source(
+                document, facts,
+                lambda output: self._copy_owned_blocks(source, output, facts['sha256'], cancel_check),
+                display_name, cancel_check)
+
+    def _import_source(self, document, facts, copy_into, display_name, cancel_check):
+        from sound_design_decode import decode_sound_design_asset, CONVERSION
+        for row in document['assets']:
+            if (row['state'] == 'ready' and row['source'] == facts
+                    and row['canonical']['conversion'] == CONVERSION):
+                with self.open_canonical(row['asset_id'], cancel_check=cancel_check) as (_, descriptor):
+                    return descriptor
+        if (len(document['assets']) >= MAX_ASSETS or get_sound_asset_storage_bytes(document)
+                + facts['bytes'] + self.pcm_limit > self.total_limit):
+            raise ValueError('Sound asset storage cannot reserve this import')
+        row = dict(asset_id=uuid.uuid4().hex, state='incomplete', source=facts,
+                   reserved_pcm_bytes=self.pcm_limit, canonical=None, display_name=display_name)
+        source_copy = self._path(row['asset_id'], '.source')
+        pcm_path = self._path(row['asset_id'], '.pcm')
+        if os.path.lexists(source_copy) or os.path.lexists(pcm_path):
+            raise ValueError('Sound asset identity collision')
+        document['assets'].append(row)
+        _check_cancelled(cancel_check)
+        self._save(document)  # Charge before creating any media bytes.
+        with source_copy.open('xb') as output:
+            copy_into(output)
+        result = decode_sound_design_asset(self.root, source_copy.relative_to(self.root).as_posix(),
+            pcm_path.relative_to(self.root).as_posix(), source_limit=self.source_limit,
+            pcm_limit=self.pcm_limit, cancel_check=cancel_check)
+        if (result['source']['sha256'], result['source']['size']) != (facts['sha256'], facts['bytes']):
+            raise ValueError('Copied sound source changed before decoding')
+        proof, _ = capture_scope_file(self.root, pcm_path.relative_to(self.root).as_posix(),
+                                      limit=self.pcm_limit, cancel_check=cancel_check)
+        if (proof['sha256'], proof['size']) != (result['sha256'], result['bytes']):
+            raise ValueError('Canonical sound bytes changed before publication')
+        row['canonical'] = {key: result[key] for key in ('sha256', 'bytes', 'frames',
+            'frame_rate', 'channels', 'sample_width', 'conversion', 'codec', 'format')}
+        row['state'] = 'ready'
+        _check_cancelled(cancel_check)
+        self._save(document)  # A late failure retains a possibly ready asset.
+        return {'asset_id': row['asset_id'], **{key: row['canonical'][key] for key in
+            ('sha256', 'frames', 'frame_rate', 'channels', 'sample_width')}}
+
+    def _copy_original(self, source_name, before, output, cancel_check):
+        source_path = self.root / source_name
+        source, info = _open_regular(source_path, self.root, self.source_limit)
+        with source:
+            if list(_version(info)) != before['file_version']:
+                raise ValueError('Original sound source changed before copying')
+            digest, size = hashlib.sha256(), 0
+            while block := source.read(65536):
+                _check_cancelled(cancel_check)
+                size += len(block)
+                if size > before['size']:
+                    raise ValueError('Original sound source grew during copying')
+                if output.write(block) != len(block):
+                    raise OSError('Incomplete sound source copy')
+                digest.update(block)
+            output.flush()
+            os.fsync(output.fileno())
+            if (size != before['size'] or digest.hexdigest() != before['sha256']
+                    or _version(os.fstat(source.fileno())) != _version(info)
+                    or _version(_ensure_plain_path(source_path, self.root).lstat()) != _version(info)):
+                raise ValueError('Original sound source changed during copying')
+        return digest.hexdigest(), size
+
+    def _copy_owned_blocks(self, source, output, expected_digest, cancel_check):
+        digest, size = hashlib.sha256(), 0
+        for block in source.iter_blocks():
+            _check_cancelled(cancel_check)
+            size += len(block)
+            if size > source.size:
+                raise ValueError('Owned sound source grew during copying')
+            if output.write(block) != len(block):
+                raise OSError('Incomplete sound source copy')
+            digest.update(block)
+        output.flush()
+        os.fsync(output.fileno())
+        if size != source.size or digest.hexdigest() != expected_digest:
+            raise ValueError('Owned sound source changed during copying')
+        return digest.hexdigest(), size
 
     def purge_incomplete(self, asset_id, *, cancel_check=None):
         """Explicit recovery; the import lease fences live producers and readers."""

@@ -16,6 +16,14 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import numpy as np
+import soundfile as sf
+
+from sound_design_assets import SoundDesignAssetStore
+import sound_design_uploads as uploads
+from source_upload_stage import (OwnedSourceUploadStage, get_upload_stage_accounting,
+                                 get_upload_stage_inventory)
+
 from fastapi import HTTPException
 import book_recovery_archive as archive
 import book_state_transaction as books
@@ -645,7 +653,85 @@ class NativeWindowsPathAdmissionTests(unittest.TestCase):
                 self.assertEqual(b'{}', stream.read())
 
 
-NATIVE_TEST_COUNT = 25
+class NativeWindowsUploadStageTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve()
+        self.frames = 24001
+        source = io.BytesIO()
+        samples = np.sin(np.linspace(0, 8 * np.pi, self.frames)) * .25
+        sf.write(source, samples, 24000, format='WAV', subtype='PCM_16')
+        self.raw = source.getvalue()
+        self.staging = self.root / uploads.STAGING_DIRECTORY
+        self.staging.mkdir()
+
+    def stage(self, limit=64):
+        result = OwnedSourceUploadStage(self.staging, byte_limit=limit)
+        self.addCleanup(result.close)
+        return result
+
+    def test_windows_block_iteration_rejects_an_alias_added_after_sealing(self):
+        for after_last_block in (False, True):
+            with self.subTest(after_last_block=after_last_block):
+                stage = self.stage(256)
+                stage.write(b'a' * 128)
+                stage.seal()
+                private = next(self.staging.glob('.source-upload-*.part'))
+                alias = self.staging / 'external'
+                blocks = stage.iter_blocks(64)
+                if after_last_block:
+                    self.assertEqual(b'a' * 64, next(blocks))
+                    self.assertEqual(b'a' * 64, next(blocks))
+                os.link(private, alias)
+                try:
+                    with self.assertRaisesRegex(ValueError, 'changed while reading'):
+                        next(blocks)
+                finally:
+                    stage.close()
+                self.assertFalse(private.exists())
+                self.assertEqual(b'a' * 128, alias.read_bytes())
+                self.assertEqual(1, alias.stat().st_nlink)
+                alias.unlink()
+
+    def test_windows_live_stage_contention_is_a_governed_refusal(self):
+        stage = OwnedSourceUploadStage(self.staging, byte_limit=64)
+        try:
+            stage.write(b'preserve')
+            inventory = get_upload_stage_inventory(self.staging)
+            stream = io.BytesIO(self.raw)
+            with self.assertRaisesRegex(ValueError, 'active owner') as raised:
+                uploads.import_sound_asset_upload(self.root, stream)
+            self.assertEqual(32, raised.exception.__cause__.winerror)
+            self.assertEqual(0, stream.tell())
+            self.assertEqual(b'preserve', stage.read_bytes())
+            self.assertEqual(inventory, get_upload_stage_inventory(self.staging))
+        finally:
+            stage.close()
+
+    def test_windows_delete_failure_closes_handle_and_retains_charged_stage(self):
+        with patch.object(OwnedSourceUploadStage, '_delete_windows_link',
+                          side_effect=OSError('Synthetic native delete failure')):
+            with self.assertRaisesRegex(OSError, 'Synthetic native delete failure'):
+                uploads.import_sound_asset_upload(self.root, io.BytesIO(self.raw))
+        retained = list(self.staging.glob('.source-upload-*.part'))
+        self.assertEqual(1, len(retained))
+        self.assertEqual(self.raw, retained[0].read_bytes())
+        self.assertEqual((set(), 0), get_upload_stage_accounting(self.staging))
+        store = SoundDesignAssetStore(self.root)
+        row = store.list_assets()['assets'][0]
+        self.assertEqual('ready', row['state'])
+        with store.open_canonical(row['asset_id']) as (stream, _):
+            self.assertEqual(self.frames * 4, len(stream.read()))
+        source = io.BytesIO(self.raw)
+        with patch.object(uploads, 'MAX_STAGING_BYTES', len(self.raw)):
+            with self.assertRaisesRegex(ValueError, 'staging is full'):
+                uploads.import_sound_asset_upload(self.root, source)
+        self.assertEqual(0, source.tell())
+        self.assertEqual(self.raw, retained[0].read_bytes())
+
+
+NATIVE_TEST_COUNT = 28
 
 
 def main():
@@ -659,7 +745,7 @@ def main():
     suite = unittest.TestSuite(
         unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (
             NativeWindowsRecoveryQuotaTests, NativeWindowsBookStateTests, NativeWindowsBookMoveTests, NativeWindowsPublicationCancellationTests,
-            NativeWindowsPathAdmissionTests))
+            NativeWindowsPathAdmissionTests, NativeWindowsUploadStageTests))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if (result.wasSuccessful() and result.testsRun == NATIVE_TEST_COUNT
                  and not result.skipped) else 1

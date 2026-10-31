@@ -153,3 +153,77 @@ class OwnedSourceUploadStageTests(unittest.TestCase):
         stage.close()
         self.assertFalse(private.exists())
         self.assertEqual(b'original', alias.read_bytes())
+
+    def test_block_iteration_yields_the_sealed_extent_without_closing(self):
+        stage = self.stage(256)
+        payload = b'0123456789' * 16
+        stage.write(payload)
+        blocks = list(stage.iter_blocks(64))
+        self.assertEqual([64, 64, 32], [len(block) for block in blocks])
+        self.assertEqual(payload, b''.join(blocks))
+        self.assertFalse(stage._stream.closed)
+        self.assertEqual(payload, stage.read_bytes())
+        self.assertEqual([payload], list(stage.iter_blocks(1024)))
+
+    def test_block_iteration_arguments_are_bounded(self):
+        stage = self.stage()
+        stage.write(b'payload')
+        for value in (True, False, 63, 1024**2 + 1, 0, -1, 1.5, '64', None):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'block size'):
+                list(stage.iter_blocks(value))
+        self.assertEqual([b'payload'], list(stage.iter_blocks(1024**2)))
+        stage.close()
+        with self.assertRaisesRegex(ValueError, 'closed'):
+            list(stage.iter_blocks())
+
+    def test_block_iteration_detects_a_changed_extent(self):
+        stage = self.stage(256)
+        stage.write(b'a' * 128)
+        stage.seal()
+        stage._stream.seek(0)
+        stage._stream.write(b'b' * 128)
+        stage._stream.flush()
+        with self.assertRaisesRegex(ValueError, 'changed while reading'):
+            list(stage.iter_blocks(64))
+        stage.close()
+        stage = self.stage(256)
+        stage.write(b'a' * 192)
+        stage.seal()
+        blocks = stage.iter_blocks(64)
+        self.assertEqual(b'a' * 64, next(blocks))
+        self.assertEqual(b'a' * 64, next(blocks))
+        self.assertEqual(b'a' * 64, next(blocks))
+        stage._stream.seek(184)
+        stage._stream.write(b'b' * 8)
+        stage._stream.flush()
+        with self.assertRaisesRegex(ValueError, 'changed while reading'):
+            next(blocks)
+
+    def test_block_iteration_rechecks_root_after_the_final_block(self):
+        stage = self.stage(256)
+        stage.write(b'payload')
+        stage.seal()
+        with patch.object(stage, '_check_root',
+                          side_effect=[None, ValueError('Synthetic late root change')]) as check:
+            blocks = stage.iter_blocks(64)
+            self.assertEqual(b'payload', next(blocks))
+            with self.assertRaisesRegex(ValueError, 'Synthetic late root change'):
+                next(blocks)
+        self.assertEqual(2, check.call_count)
+
+    def test_block_iteration_checks_root_after_sealing(self):
+        stage = self.stage(256)
+        stage.write(b'payload')
+        stage.seal()
+        retained = self.root.with_name(self.root.name + '-retained')
+        if os.name == 'nt':
+            with self.assertRaises(PermissionError):
+                self.root.rename(retained)
+            self.assertEqual(b'payload', b''.join(stage.iter_blocks()))
+        else:
+            self.root.rename(retained)
+            try:
+                with self.assertRaises((ValueError, FileNotFoundError)):
+                    list(stage.iter_blocks())
+            finally:
+                retained.rename(self.root)
