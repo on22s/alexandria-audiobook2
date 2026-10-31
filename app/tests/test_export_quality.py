@@ -490,7 +490,7 @@ print('private open checks complete')
             self.assertEqual(0, options.get('output_limit', 0))
 
     def test_long_decode_cancellation_stops_live_owned_decoder_and_releases_control(self):
-        """Cancel a real 600 s decode while its owned child is still alive.
+        """Request cancellation of a live real decoder and verify owned cleanup.
 
         Measured here: the public validator starts exactly one real ffprobe and
         one real ffmpeg through the production `media_process.start_owned_subprocess`
@@ -500,18 +500,20 @@ print('private open checks complete')
         cancel callback shows a live owned root with no terminal astats summary;
         the call raises `ExportCancelled` with no report and no returned dict;
         and after the call unwinds the root is reaped, the owned tree is
-        not running, the diagnostic pipe is closed and the owned control object
-        is released. Both snapshots are taken before any harness cleanup, so a
+        not running, both children have closed diagnostic pipes and released
+        controls, and the owned stop starts while the decoder is live and signals
+        its recorded control. Both snapshots precede harness cleanup, so a
         mutant quiesced by that cleanup cannot make them pass.
 
         Limits: the runner consults the callback at its own polling cadence, so
         cancellation lands after the first parsed gap rather than at it. Where
         the production stop pre-empts the live decoder the root is reaped with a
-        non-zero status and the terminal sample count stays below the plan; on a
-        platform whose graceful stop cannot interrupt the console child inside
-        the production grace window the decoder instead completes, and then the
-        terminal count must equal the plan exactly with a zero root status. This
-        proves decode-time cancellation with owned termination and cleanup only;
+        non-zero status and the terminal sample count stays below the plan. The
+        POSIX arm requires this pre-emption. A Windows decoder may instead finish
+        inside the existing one-second grace period; its terminal count must then
+        equal the plan, but this does not prove Windows pre-emption. A race after
+        terminal statistics may yield either root status. This test qualifies
+        a live cancellation request, owned stop dispatch and terminal cleanup;
         it measures no peak RSS, no whole-buffer fallback and no listening
         quality.
         """
@@ -519,15 +521,33 @@ print('private open checks complete')
             source = self.write_long_source(root)
             plan = quality.get_export_quality_plan(600 * 24000, 24000, 1, format_name='wav',
                                                    options={'max_unexpected_silence_seconds': .5})
-            starts, parsers, decision = [], [], {}
+            starts, parsers, decision, stops, signals = [], [], {}, [], []
             first_gap = threading.Event()
             original_start = media_process.start_owned_subprocess
             original_consume = quality._DecodeEvidence.consume
+            original_stop = media_process.stop_owned_subprocess
+            original_signal = subprocess_ownership.send_subprocess_signal
+            original_run = subprocess.run
 
             def record_start(command, *args, **kwargs):
                 process = original_start(command, *args, **kwargs)
                 starts.append(dict(command=list(command), process=process, options=dict(kwargs)))
                 return process
+
+            def record_stop(process, *args, **kwargs):
+                stops.append(dict(process=process, poll=process.poll(),
+                                  control=getattr(process, '_alexandria_control', None)))
+                return original_stop(process, *args, **kwargs)
+
+            def record_signal(process, *args, **kwargs):
+                signals.append(dict(process=process,
+                                    control=getattr(process, '_alexandria_control', None)))
+                return original_signal(process, *args, **kwargs)
+
+            def reject_name_scan(command, *args, **kwargs):
+                self.assertFalse(any(str(value).upper() == '/IM' for value in command),
+                                 'cancellation must never terminate by executable name')
+                return original_run(command, *args, **kwargs)
 
             def record_evidence(parser, line):
                 original_consume(parser, line)
@@ -542,8 +562,7 @@ print('private open checks complete')
                 decoder = next((item for item in starts if item['command'][0] == 'ffmpeg'), None)
                 if decoder is None:
                     return False
-                if not first_gap.wait(30):
-                    decision['missed'] = 'no decoded silence evidence before the bounded wait'
+                if not first_gap.wait(.1):
                     return False
                 parser = parsers[0]
                 decision.update(poll=decoder['process'].poll(), frames=parser.frames,
@@ -553,7 +572,10 @@ print('private open checks complete')
             returned, error, snapshot = None, None, None
             try:
                 with patch.object(media_process, 'start_owned_subprocess', side_effect=record_start), \
-                        patch.object(quality._DecodeEvidence, 'consume', record_evidence):
+                        patch.object(quality._DecodeEvidence, 'consume', record_evidence), \
+                        patch.object(media_process, 'stop_owned_subprocess', side_effect=record_stop), \
+                        patch.object(subprocess_ownership, 'send_subprocess_signal', side_effect=record_signal), \
+                        patch.object(subprocess, 'run', side_effect=reject_name_scan):
                     try:
                         returned = quality.validate_finished_export(source, plan, cancel)
                     except BaseException as caught:
@@ -576,23 +598,36 @@ print('private open checks complete')
                         returncode=process.returncode, poll=process.poll(),
                         tree_running=subprocess_ownership.is_subprocess_tree_running(process),
                         stdout_none=process.stdout is None,
+                        stdout_closed=process.stdout.closed if process.stdout is not None else None,
                         stderr_closed=process.stderr.closed if process.stderr is not None else None,
                         control_released=released,
                         frames=parsers[0].frames if parsers else 'missing'))
+                cleanup_errors = []
                 for item in starts:
                     process = item['process']
-                    if process.poll() is None or subprocess_ownership.is_subprocess_tree_running(process):
-                        subprocess_ownership.stop_owned_subprocess(process, timeout=5, force_after_grace=True)
-                for item in starts:
-                    for pipe in (item['process'].stdout, item['process'].stderr):
-                        if pipe is not None and not pipe.closed:
-                            pipe.close()
-                for item in starts:
-                    control = getattr(item['process'], '_alexandria_control', None)
-                    if control is not None:
-                        control.close()
+                    try:
+                        if process.poll() is None or subprocess_ownership.is_subprocess_tree_running(process):
+                            subprocess_ownership.stop_owned_subprocess(process, timeout=5, force_after_grace=True)
+                    except BaseException as caught:
+                        cleanup_errors.append(caught)
+                    finally:
+                        for pipe in (process.stdout, process.stderr):
+                            try:
+                                if pipe is not None and not pipe.closed:
+                                    pipe.close()
+                            except BaseException as caught:
+                                cleanup_errors.append(caught)
+                        try:
+                            control = getattr(process, '_alexandria_control', None)
+                            if control is not None:
+                                control.close()
+                        except BaseException as caught:
+                            cleanup_errors.append(caught)
+                if cleanup_errors:
+                    raise cleanup_errors[0]
 
-            self.assertNotIn('missed', decision)
+            self.assertTrue(decision, 'cancellation must observe real decoded silence before completion')
+            self.assertIn('poll', decision, 'a live-decode decision snapshot is required')
             self.assertIsNone(decision['poll'])
             self.assertIsNone(decision['frames'])
             self.assertTrue(decision['silence_start'] is not None or decision['silence_count'])
@@ -621,6 +656,16 @@ print('private open checks complete')
                                   if str(name).upper() == 'FFREPORT'])
             self.assertEqual(0, snapshot[0]['returncode'])
             self.assertIs(subprocess.PIPE, snapshot[0]['options']['stdout'])
+            self.assertTrue(snapshot[0]['stdout_closed'])
+            self.assertTrue(snapshot[0]['stderr_closed'])
+            self.assertIs(True, snapshot[0]['control_released'])
+            self.assertEqual(1, len(stops), 'exactly one production owned stop must be requested')
+            self.assertIs(starts[1]['process'], stops[0]['process'])
+            self.assertIsNone(stops[0]['poll'], 'owned stop must begin before decoder completion')
+            self.assertIsNotNone(stops[0]['control'])
+            self.assertTrue(signals, 'cancellation must dispatch through the recorded owned control')
+            self.assertIs(starts[1]['process'], signals[0]['process'])
+            self.assertIs(stops[0]['control'], signals[0]['control'])
             final = snapshot[1]
             self.assertIsNotNone(final['returncode'])
             self.assertEqual(final['returncode'], final['poll'])
@@ -633,4 +678,7 @@ print('private open checks complete')
                 self.assertNotEqual(0, final['returncode'])
             else:
                 self.assertEqual(plan['frames'], final['frames'])
-                self.assertEqual(0, final['returncode'])
+            if sys.platform != 'win32':
+                self.assertNotEqual(0, final['returncode'])
+                self.assertTrue(final['frames'] is None or final['frames'] < plan['frames'],
+                                'POSIX cancellation must pre-empt the unfinished decoder')

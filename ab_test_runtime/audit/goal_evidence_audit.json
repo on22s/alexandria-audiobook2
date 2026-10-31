@@ -1034,10 +1034,10 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-10-31T10:18:38",
+  "written": "2026-10-31T11:36:07",
   "host": "rentamac-macmini-m4-6c5bd4d2-3ec4-43b9-849a-6ac467763a3b",
   "git": {
-   "commit": "408fe836a5917e088532ec35f1866b5432b51351",
+   "commit": "44e60d6db2c0e532479fd36e09ba69949537cb10",
    "branch": "HEAD",
    "dirty": null,
    "source_state": "unknown",
