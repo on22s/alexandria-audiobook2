@@ -518,8 +518,9 @@ print('private open checks complete')
         quality.
         """
         with tempfile.TemporaryDirectory() as root:
-            source = self.write_long_source(root)
-            plan = quality.get_export_quality_plan(600 * 24000, 24000, 1, format_name='wav',
+            seconds = 7200
+            source = self.write_long_source(root, seconds=seconds)
+            plan = quality.get_export_quality_plan(seconds * 24000, 24000, 1, format_name='wav',
                                                    options={'max_unexpected_silence_seconds': .5})
             starts, parsers, decision, stops, signals = [], [], {}, [], []
             first_gap = threading.Event()
