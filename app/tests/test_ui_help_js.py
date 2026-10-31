@@ -57,9 +57,11 @@ function mutation(record){observers[0].callback([record]);}
 
 
 def run_help_js(body):
-    return subprocess.run(['node', '-e', DOM_FIXTURE + body,
-                           str(STATIC / 'js' / 'app-help.js')],
-                          capture_output=True, text=True, timeout=15)
+    return subprocess.run(
+        ['node', '-e', "eval(require('fs').readFileSync(0,'utf8'));",
+         str(STATIC / 'js' / 'app-help.js')],
+        input=DOM_FIXTURE + body, capture_output=True, text=True,
+        encoding='utf-8', timeout=15)
 
 
 class InteractiveInventory(HTMLParser):

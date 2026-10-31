@@ -20,17 +20,17 @@ load();
 
 class TaskGuideTests(unittest.TestCase):
     def run_js(self, code):
-        result=subprocess.run(['node','-e',DOM_FIXTURE+SETUP+code,str(STATIC/'js/app-guides.js')],capture_output=True,text=True,timeout=15)
+        result=subprocess.run(['node','-e',DOM_FIXTURE+SETUP+code,str(STATIC/'js/app-guides.js')],capture_output=True,text=True,encoding='utf-8',timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         return result.stdout
 
     def test_every_guide_target_and_illustration_is_bundled(self):
         output=self.run_js("console.log(JSON.stringify(vm.runInContext('TASK_GUIDES',context)));")
-        html=(STATIC/'index.html').read_text();guides=json.loads(output)
+        html=(STATIC/'index.html').read_text(encoding='utf-8');guides=json.loads(output)
         self.assertEqual(4,len(guides))
         for guide in guides:
             image=STATIC/'guides'/f"{guide['image']}.svg"
-            self.assertTrue(image.is_file());self.assertNotIn('http',image.read_text().replace('http://www.w3.org/2000/svg',''))
+            self.assertTrue(image.is_file());self.assertNotIn('http',image.read_text(encoding='utf-8').replace('http://www.w3.org/2000/svg',''))
             for _,tab,target,*_rest in guide['steps']:
                 self.assertRegex(html,r'id="'+re.escape(tab+'-tab')+'"')
                 self.assertRegex(html,r'id="'+re.escape(target)+'"')

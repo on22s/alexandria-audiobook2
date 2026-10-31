@@ -52,7 +52,7 @@ def load_field_help():
             "vm.runInContext(src.slice(0,src.indexOf('/** The tooltip text'))+';this.H=FIELD_HELP;',c);"
             "process.stdout.write(JSON.stringify(c.H));")
     out = subprocess.run(["node", "-e", code, str(STATIC / "js" / "app-help.js")],
-                         capture_output=True, text=True, timeout=15)
+                         capture_output=True, text=True, encoding="utf-8", timeout=15)
     if out.returncode:
         raise AssertionError(out.stderr)
     return json.loads(out.stdout)
