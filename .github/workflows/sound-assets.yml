@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-24.04, windows-latest, macos-latest]
     defaults:
       run:
         working-directory: app
@@ -78,7 +78,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/apt-archives
-          key: apt-ffmpeg-${{ runner.os }}-v1
+          key: apt-ffmpeg-ubuntu-24.04-v1
       - name: Install FFmpeg on Linux
         if: runner.os == 'Linux'
         run: |

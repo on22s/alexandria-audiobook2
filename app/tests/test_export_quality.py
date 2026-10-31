@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -16,6 +17,8 @@ import numpy as np
 import soundfile as sf
 
 import export_quality as quality
+import media_process
+import subprocess_ownership
 from tts import ExportCancelled
 
 
@@ -486,3 +489,218 @@ print('private open checks complete')
             self.assertEqual(0, result['silence_intervals'])
             self.assertEqual(0, options.get('output_limit', 0))
 
+    def test_long_decode_cancellation_stops_live_owned_decoder_and_releases_control(self):
+        """Request cancellation of a live real decoder and verify owned cleanup.
+
+        Measured here: the public validator starts exactly one real ffprobe and
+        one real ffmpeg through the production `media_process.start_owned_subprocess`
+        with the production decode argv, DEVNULL stdout and PIPE stderr; the
+        production `_DecodeEvidence.consume` parses real silencedetect output
+        from the authored gap at 1 s; the decision snapshot taken inside the
+        cancel callback shows a live owned root with no terminal astats summary;
+        the call raises `ExportCancelled` with no report and no returned dict;
+        and after the call unwinds the root is reaped, the owned tree is
+        not running, both children have closed diagnostic pipes and released
+        controls, and the owned stop starts while the decoder is live and signals
+        its recorded control. Both snapshots precede harness cleanup, so a
+        mutant quiesced by that cleanup cannot make them pass.
+
+        Limits: the runner consults the callback at its own polling cadence, so
+        cancellation lands after the first parsed gap rather than at it. Where
+        the production stop pre-empts the live decoder the root is reaped with a
+        non-zero status and the terminal sample count stays below the plan. The
+        POSIX arm requires this pre-emption. A Windows decoder may instead finish
+        inside the existing one-second grace period; its terminal count must then
+        equal the plan, but this does not prove Windows pre-emption. A race after
+        terminal statistics may yield either root status. This test qualifies
+        a live cancellation request, owned stop dispatch and terminal cleanup;
+        it measures no peak RSS, no whole-buffer fallback and no listening
+        quality.
+        """
+        with tempfile.TemporaryDirectory() as root:
+            seconds = 7200
+            source = self.write_long_source(root, seconds=seconds)
+            plan = quality.get_export_quality_plan(seconds * 24000, 24000, 1, format_name='wav',
+                                                   options={'max_unexpected_silence_seconds': .5})
+            starts, parsers, decision, stops, signals = [], [], {}, [], []
+            first_gap = threading.Event()
+            original_start = media_process.start_owned_subprocess
+            original_consume = quality._DecodeEvidence.consume
+            original_stop = media_process.stop_owned_subprocess
+            original_signal = subprocess_ownership.send_subprocess_signal
+            original_run = subprocess.run
+            original_popen_init = subprocess.Popen.__init__
+
+            def record_start(command, *args, **kwargs):
+                process = original_start(command, *args, **kwargs)
+                starts.append(dict(command=list(command), process=process, options=dict(kwargs)))
+                return process
+
+            def record_stop(process, *args, **kwargs):
+                stops.append(dict(process=process, poll=process.poll(),
+                                  control=getattr(process, '_alexandria_control', None)))
+                return original_stop(process, *args, **kwargs)
+
+            def record_signal(process, *args, **kwargs):
+                signals.append(dict(process=process,
+                                    control=getattr(process, '_alexandria_control', None)))
+                return original_signal(process, *args, **kwargs)
+
+            def ensure_owned_command(command, options):
+                self.assertIsInstance(command, (list, tuple),
+                                      'cancellation subprocess commands must use explicit argv')
+                self.assertFalse(options.get('shell', False),
+                                 'cancellation subprocess commands must not use a shell')
+                self.assertFalse(any(os.fsdecode(value).upper() == '/IM' for value in command),
+                                 'cancellation must never terminate by executable name')
+
+            def reject_name_scan(command, *args, **kwargs):
+                ensure_owned_command(command, kwargs)
+                return original_run(command, *args, **kwargs)
+
+            def reject_name_scan_spawn(process, command, *args, **kwargs):
+                ensure_owned_command(command, kwargs)
+                return original_popen_init(process, command, *args, **kwargs)
+
+            def reject_shell(command):
+                self.fail('cancellation must not dispatch shell commands')
+
+            def record_evidence(parser, line):
+                original_consume(parser, line)
+                if not parsers:
+                    parsers.append(parser)
+                if parser.silence_start is not None or parser.silence_count:
+                    first_gap.set()
+
+            def cancel():
+                if decision:
+                    return False
+                decoder = next((item for item in starts if item['command'][0] == 'ffmpeg'), None)
+                if decoder is None:
+                    return False
+                if not first_gap.wait(.1):
+                    return False
+                parser = parsers[0]
+                decision.update(poll=decoder['process'].poll(), frames=parser.frames,
+                                silence_start=parser.silence_start, silence_count=parser.silence_count)
+                return decision['poll'] is None
+
+            returned, error, snapshot = None, None, None
+            try:
+                with patch.object(media_process, 'start_owned_subprocess', side_effect=record_start), \
+                        patch.object(quality._DecodeEvidence, 'consume', record_evidence), \
+                        patch.object(media_process, 'stop_owned_subprocess', side_effect=record_stop), \
+                        patch.object(subprocess_ownership, 'send_subprocess_signal', side_effect=record_signal), \
+                        patch.object(subprocess, 'run', side_effect=reject_name_scan), \
+                        patch.object(subprocess.Popen, '__init__', reject_name_scan_spawn), \
+                        patch.object(os, 'system', side_effect=reject_shell):
+                    try:
+                        returned = quality.validate_finished_export(source, plan, cancel)
+                    except BaseException as caught:
+                        error = caught
+            finally:
+                snapshot = []
+                try:
+                    for item in starts:
+                        process = item['process']
+                        control = getattr(process, '_alexandria_control', None)
+                        if control is None:
+                            released = 'missing'
+                        elif hasattr(control, 'fileno'):
+                            released = control.fileno() == -1
+                        elif getattr(control, 'job', None) is not None:
+                            released = control.job.handle is None
+                        else:
+                            released = 'unknown'
+                        snapshot.append(dict(
+                            command=item['command'], options=item['options'],
+                            returncode=process.returncode, poll=process.poll(),
+                            tree_running=subprocess_ownership.is_subprocess_tree_running(process),
+                            stdout_none=process.stdout is None,
+                            stdout_closed=process.stdout.closed if process.stdout is not None else None,
+                            stderr_closed=process.stderr.closed if process.stderr is not None else None,
+                            control_released=released,
+                            frames=parsers[0].frames if parsers else 'missing'))
+                finally:
+                    cleanup_errors = []
+                    for item in starts:
+                        process = item['process']
+                        try:
+                            if process.poll() is None or subprocess_ownership.is_subprocess_tree_running(process):
+                                subprocess_ownership.stop_owned_subprocess(process, timeout=5, force_after_grace=True)
+                        except BaseException as caught:
+                            cleanup_errors.append(caught)
+                        finally:
+                            for pipe in (process.stdout, process.stderr):
+                                try:
+                                    if pipe is not None and not pipe.closed:
+                                        pipe.close()
+                                except BaseException as caught:
+                                    cleanup_errors.append(caught)
+                            try:
+                                control = getattr(process, '_alexandria_control', None)
+                                if control is not None:
+                                    control.close()
+                            except BaseException as caught:
+                                cleanup_errors.append(caught)
+                    if cleanup_errors:
+                        raise cleanup_errors[0]
+
+            self.assertTrue(decision, 'cancellation must observe real decoded silence before completion')
+            self.assertIn('poll', decision, 'a live-decode decision snapshot is required')
+            self.assertIsNone(decision['poll'])
+            self.assertIsNone(decision['frames'])
+            self.assertTrue(decision['silence_start'] is not None or decision['silence_count'])
+            self.assertIsNone(returned)
+            if error is not None and not isinstance(error, ExportCancelled):
+                raise error
+            self.assertIsInstance(error, ExportCancelled)
+            self.assertNotIsInstance(error, quality.ExportQualityError)
+            self.assertIsNone(getattr(error, 'report', None))
+            self.assertEqual('Export cancelled', str(error))
+            self.assertEqual(2, len(starts))
+            self.assertEqual('ffprobe', snapshot[0]['command'][0])
+            self.assertEqual('ffmpeg', snapshot[1]['command'][0])
+            settings = plan['options']
+            filters = ('aformat=sample_fmts=fltp,astats=metadata=0:reset=0:measure_perchannel=none:'
+                       f"measure_overall=Number_of_samples+Number_of_NaNs+Number_of_Infs,"
+                       f"silencedetect=noise={settings['silence_dbfs']}dB:d={settings['max_unexpected_silence_seconds']}")
+            self.assertEqual(['ffmpeg', '-nostdin', '-hide_banner', '-nostats', '-xerror',
+                              '-threads', '1', '-filter_threads', '1', '-i', str(source), '-map', '0:a:0',
+                              '-vn', '-sn', '-dn', '-af', filters, '-f', 'null', '-'],
+                             snapshot[1]['command'])
+            decode_options = snapshot[1]['options']
+            self.assertIs(subprocess.DEVNULL, decode_options['stdout'])
+            self.assertIs(subprocess.PIPE, decode_options['stderr'])
+            self.assertIsNone(decode_options['stdin'])
+            self.assertIs(True, decode_options['start_new_session'])
+            self.assertEqual([], [name for name in decode_options['env']
+                                  if str(name).upper() == 'FFREPORT'])
+            self.assertEqual(0, snapshot[0]['returncode'])
+            self.assertIs(subprocess.PIPE, snapshot[0]['options']['stdout'])
+            self.assertTrue(snapshot[0]['stdout_closed'])
+            self.assertTrue(snapshot[0]['stderr_closed'])
+            self.assertIs(True, snapshot[0]['control_released'])
+            self.assertEqual(1, len(stops), 'exactly one production owned stop must be requested')
+            self.assertIs(starts[1]['process'], stops[0]['process'])
+            self.assertIsNone(stops[0]['poll'], 'owned stop must begin before decoder completion')
+            self.assertIsNotNone(stops[0]['control'])
+            self.assertTrue(signals, 'cancellation must dispatch through the recorded owned control')
+            self.assertIs(starts[1]['process'], signals[0]['process'])
+            self.assertIs(stops[0]['control'], signals[0]['control'])
+            final = snapshot[1]
+            self.assertIsNotNone(final['returncode'])
+            self.assertEqual(final['returncode'], final['poll'])
+            self.assertFalse(final['tree_running'])
+            self.assertTrue(final['stdout_none'])
+            self.assertTrue(final['stderr_closed'])
+            self.assertIs(True, final['control_released'])
+            self.assertNotEqual('missing', final['frames'])
+            if final['frames'] is None or final['frames'] < plan['frames']:
+                self.assertNotEqual(0, final['returncode'])
+            else:
+                self.assertEqual(plan['frames'], final['frames'])
+            if sys.platform != 'win32':
+                self.assertNotEqual(0, final['returncode'])
+                self.assertTrue(final['frames'] is None or final['frames'] < plan['frames'],
+                                'POSIX cancellation must pre-empt the unfinished decoder')
