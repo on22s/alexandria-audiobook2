@@ -49,6 +49,24 @@ const status=document.getElementById('export-quality-status').textContent;for(co
 const card=context.renderExportQualityReport({file:'tracks.zip',status:'verified',verification_scope:'audacity_structure_and_frames',tracks_checked:20,members_checked:22,track_summaries_abbreviated:true,track_summaries:[{file:'voice.wav',frames:24000,sample_rate:24000,channels:1}]},false);assert(card.children.some(node=>node.textContent.includes('Inactive-speaker silence is intentional')));assert(card.children.some(node=>node.textContent.includes('Track details are abbreviated')));
 ''')
 
+    def test_validation_time_is_shown_for_completed_and_rejected_checks_without_coercion(self):
+        self.run_js(r'''
+report.seconds=12.34567;rejection.seconds=.125;await context.loadExportQualityReports();
+const cards=document.getElementById('export-quality-reports').children;
+assert(cards[0].children.some(node=>node.textContent==='Validation time: 12.346 seconds.'));
+assert(cards[1].children.some(node=>node.textContent==='Validation time: 0.125 seconds.'));
+for(const rejected of [false,true]){
+ for(const [seconds,expected] of [[0,'0.000'],[.0049,'0.005'],[1.23456,'1.235']]){
+  const card=context.renderExportQualityReport({file:'fixture.wav',status:'verified',seconds},rejected);
+  assert.deepEqual(card.children.filter(node=>node.textContent.startsWith('Validation time:')).map(node=>node.textContent),[`Validation time: ${expected} seconds.`]);
+ }
+ for(const seconds of [undefined,null,NaN,Infinity,-Infinity,-1,'1.25',true,false,{},'<img src=x onerror=alert(1)>']){
+  const card=context.renderExportQualityReport({file:'fixture.wav',status:'verified',seconds},rejected);
+  assert(!card.children.some(node=>node.textContent.startsWith('Validation time:')));
+ }
+}
+''')
+
     def test_missing_or_mismatched_editor_snapshot_shows_a_refresh_instruction(self):
         self.run_js(r'''
 let reads=0;context.API.get=async()=>{reads++;return result;};
