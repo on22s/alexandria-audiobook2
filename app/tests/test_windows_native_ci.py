@@ -11,7 +11,7 @@ SCRIPT = ROOT / 'app/tests/native_windows_owner_checks.py'
 TRANSACTION_SCRIPT = ROOT / 'app/tests/native_windows_transaction_checks.py'
 TRANSACTION_CLASSES = {'NativeWindowsRecoveryQuotaTests': 11, 'NativeWindowsBookStateTests': 5,
                        'NativeWindowsBookMoveTests': 4, 'NativeWindowsPublicationCancellationTests': 3,
-                       'NativeWindowsPathAdmissionTests': 2}
+                       'NativeWindowsPathAdmissionTests': 2, 'NativeWindowsUploadStageTests': 3}
 
 
 class NativeWindowsCiTests(unittest.TestCase):
@@ -69,6 +69,14 @@ class NativeWindowsCiTests(unittest.TestCase):
         self.assertNotIn('skipUnless', source)
         workflow = (ROOT / '.github/workflows/tests.yml').read_text().split('  windows-owner:', 1)[1]
         self.assertIn('run: python tests/native_windows_transaction_checks.py', workflow)
+        install = workflow.index('run: choco install ffmpeg --no-progress -y')
+        verify = workflow.index('name: Verify native Windows transaction codec executables')
+        transaction = workflow.index('run: python tests/native_windows_transaction_checks.py')
+        self.assertLess(workflow.index('windows_import_checks.py'), install)
+        self.assertLess(install, verify)
+        self.assertLess(verify, transaction)
+        self.assertIn("subprocess.run(['ffmpeg', '-version'], check=True)", workflow)
+        self.assertIn("subprocess.run(['ffprobe', '-version'], check=True)", workflow)
         # Discovered modules must not reintroduce Windows-only skips: Linux
         # release shards fail on any skipped test.
         for path in (ROOT / 'app/tests').glob('test_*.py'):

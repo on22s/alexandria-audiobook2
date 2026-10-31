@@ -71,8 +71,7 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
             def render(text,instruct,speaker,config,path,endpoint=None,cancelled=None):
                 index=int(text)
                 try:
-                    if index==0:release.wait(2)
-                    else:time.sleep(.24)
+                    release.wait(2)
                     sf.write(path,np.full(240,.1),24000,format='WAV')
                     return True
                 finally:done[index].set()
@@ -81,14 +80,19 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
                 started=time.monotonic()
                 try:result=engine._external_batch(chunks,{'A':{'voice':'Ryan'}},str(root),'custom')
                 finally:
-                    elapsed=time.monotonic()-started;release.set()
+                    elapsed=time.monotonic()-started
+                    outstanding=[not event.is_set() for event in done]
+                    release.set()
                     self.assertTrue(all(event.wait(2) for event in done))
             # Let worker finally cleanup finish after its completion signal.
             limit=time.monotonic()+1
             while list(root.glob('*.pending.*')) and time.monotonic()<limit:time.sleep(.01)
             self.assertEqual([],result['completed'])
             self.assertEqual([0,1],[index for index,_ in result['failed']])
-            self.assertLess(elapsed,.23)
+            self.assertGreaterEqual(elapsed,engine._external_timeout)
+            self.assertEqual([True,True],outstanding)
+            for failed_index,message in result['failed']:
+                self.assertIn('timed out',message)
             for index in (0,1):self.assertEqual(old,(root/f'temp_batch_{index}.wav').read_bytes())
             self.assertEqual([],list(root.glob('*.pending.*')))
 
@@ -96,12 +100,18 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);engine=self.engine();engine._external_timeout=.15
             clock=[0.0]
+            timeouts=[]
+            class RecordedFuture(concurrent.futures.Future):
+                def result(self, timeout=None):
+                    timeouts.append(timeout)
+                    return super().result(timeout=timeout)
             class EarlierTimeout(concurrent.futures.Future):
                 def result(self, timeout=None):
+                    timeouts.append(timeout)
                     clock[0]=.2
                     raise concurrent.futures.TimeoutError()
             earlier=EarlierTimeout()
-            later=concurrent.futures.Future()
+            later=RecordedFuture()
             def render(text,instruct,speaker,config,path,endpoint=None,cancelled=None):
                 sf.write(path,np.full(240,.1),24000,format='WAV')
                 return True
@@ -120,6 +130,7 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
                     patch('time.monotonic',side_effect=lambda:clock[0]):
                 result=engine._external_batch(chunks,{'A':{'voice':'Ryan'}},str(root),'custom')
             self.assertGreater(clock[0],engine._external_timeout)
+            self.assertEqual([engine._external_timeout-.05,0],timeouts)
             self.assertTrue(earlier.cancelled())
             self.assertLess(later.result()[1],engine._external_timeout)
             self.assertEqual([1],result['completed'],result);self.assertEqual([0],[i for i,_ in result['failed']])
@@ -130,12 +141,14 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
             root=Path(tmp);engine=self.engine();engine._external_timeout=.15
             clock=[0.0]
             def render(text,instruct,speaker,config,path,endpoint=None,cancelled=None):
-                sf.write(path,np.full(240,.1),24000,format='WAV');return True
+                sf.write(path,np.full(240,.1),24000,format='WAV')
+                if text=='1':clock[0]=.26
+                return True
             def submit(callback,chunk,*args):
                 future=concurrent.futures.Future()
                 # Both futures are done before publication, but the second
                 # completion is recorded after its submission deadline.
-                clock[0]=.05 if chunk['index']==0 else .26
+                clock[0]=.05
                 future.set_result(callback(chunk,*args))
                 return future
             executor=SimpleNamespace(submit=submit,shutdown=lambda **kwargs:None)
@@ -144,6 +157,7 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
                     patch('time.monotonic',side_effect=lambda:clock[0]):
                 result=engine._external_batch([{'index':i,'speaker':'A','text':str(i)} for i in (0,1)],{'A':{'voice':'Ryan'}},str(root),'custom')
             self.assertEqual([0],result['completed']);self.assertEqual([1],[i for i,_ in result['failed']])
+            self.assertIn('timed out',result['failed'][0][1])
             self.assertTrue((root/'temp_batch_0.wav').exists());self.assertFalse((root/'temp_batch_1.wav').exists())
             self.assertEqual([],list(root.glob('*.pending.*')))
 

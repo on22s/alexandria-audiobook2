@@ -17,12 +17,19 @@ _stages_lock = threading.RLock()
 
 def get_upload_stage_accounting(directory):
     """Return names to exclude and authoritative bytes owned by live streams."""
+    inventory = get_upload_stage_inventory(directory)
+    return inventory['names'], inventory['bytes']
+
+
+def get_upload_stage_inventory(directory):
+    """Return a single live-stage snapshot including anonymous stage count."""
     root = Path(directory).resolve()
     with _stages_lock:
         active = [stage for stage in _stages
                   if stage.directory == root and stage._stream is not None]
-        return ({stage._accounting_name for stage in active if stage._accounting_name is not None},
-                sum(stage.size for stage in active))
+        return dict(names={stage._accounting_name for stage in active
+                           if stage._accounting_name is not None},
+                    bytes=sum(stage.size for stage in active), count=len(active))
 
 
 class _RenameInfo(ctypes.Structure):
@@ -186,6 +193,39 @@ class OwnedSourceUploadStage:
         if len(raw) != self._size or len(raw) > self.byte_limit:
             raise ValueError('Upload stage extent changed')
         return raw
+
+    def iter_blocks(self, block_size=65536):
+        """Yield the sealed extent in bounded blocks without closing the stage.
+
+        The caller retains close(). The extent is validated before the first
+        block and after normal exhaustion, and no block extends past the
+        recorded size. A changed extent raises instead of yielding it.
+        """
+        if type(block_size) is not int or not 64 <= block_size <= 1024**2:
+            raise ValueError('Invalid upload stage block size')
+        if self._stream is None:
+            raise ValueError('Upload stage is closed')
+        if self._sealed is None:
+            self.seal()
+        self._check_root()
+        info = os.fstat(self._stream.fileno())
+        if (self._version(info) != self._sealed
+                or info.st_nlink != (1 if os.name == 'nt' else 0)):
+            raise ValueError('Upload stage changed while reading')
+        self._stream.seek(0)
+        total = 0
+        while total < self._size:
+            block = self._stream.read(min(block_size, self._size - total))
+            if not block:
+                raise ValueError('Upload stage changed while reading')
+            total += len(block)
+            yield block
+        self._check_root()
+        info = os.fstat(self._stream.fileno())
+        if (total != self._size
+                or self._version(info) != self._sealed
+                or info.st_nlink != (1 if os.name == 'nt' else 0)):
+            raise ValueError('Upload stage changed while reading')
 
     def sha256(self):
         if self._digest is not None:

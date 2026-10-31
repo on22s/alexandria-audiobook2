@@ -238,12 +238,22 @@ callers in #1540. Asset import already uses independent bounded FFmpeg decoding.
 
 `POST /api/sound_design/assets/import` accepts an audio file. Its worker holds a
 separate upload lease through copying and import. Private application stages in
-`.sound_design_uploads` share a 256 MiB budget and a 16-file cap, including files
-retained after process death. Those retained stages require inspection; they are
-not silently expired. These limits apply to application staging, separately from
+`.sound_design_uploads` share a 256 MiB budget and a 16-stage cap, including live
+unnamed stages and files retained after process death. Those retained stages
+require inspection; they are not silently expired. These limits apply to
+application staging, separately from
 the HTTP server's multipart parsing. Cancellation waits for owned work before
 releasing its stage; a late or lost response can leave a complete ready asset,
 which remains visible in the library. Refresh before retrying an uncertain import.
+
+Upload staging retains its descriptor through writing, sealing and copying into
+the asset store. It does not reopen or unlink a mutable stage pathname. Linux
+and macOS use unnamed temporary storage; Windows keeps an owned handle with
+handle-based deletion. Unsupported unnamed-file directories are refused rather
+than falling back to named staging. Live stage bytes count against the upload
+budget, and the upload lease serializes imports in the same staging directory.
+The decoder still opens the store-owned source pathname: its existing identity
+checks detect changes but do not provide an atomic descriptor-to-decoder handoff.
 
 `GET /api/sound_design/assets` lists retained records and storage charges.
 `POST /api/sound_design/assets/{asset_id}/purge_incomplete` performs explicit
