@@ -1,5 +1,8 @@
 """Real finished media, deliberate corruption and owned validation failures."""
+from contextlib import contextmanager
+import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -14,6 +17,18 @@ import soundfile as sf
 
 import export_quality as quality
 from tts import ExportCancelled
+
+
+class _BoundedReadRecorder:
+    def __init__(self, source):
+        self._source = source
+        self.read_sizes = []
+
+    def read(self, size=-1):
+        if size is None or size < 0 or size > 1024 * 1024:
+            raise AssertionError(f'unbounded or oversized read request: {size!r}')
+        self.read_sizes.append(size)
+        return self._source.read(size)
 
 
 class ExportQualityTests(unittest.TestCase):
@@ -31,6 +46,15 @@ class ExportQualityTests(unittest.TestCase):
         command = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(source), *extra]
         command += (['-c:a', 'aac', '-f', 'mp4'] if suffix == 'm4b' else []) + [str(path)]
         subprocess.run(command, check=True, capture_output=True, timeout=10)
+        return path
+
+    def write_long_source(self, root, *, seconds=600, sample_rate=24000):
+        path = Path(root) / 'long.wav'
+        tone = .2 * np.sin(np.arange(sample_rate) * .1)
+        gap = np.zeros(sample_rate)
+        with sf.SoundFile(path, 'w', samplerate=sample_rate, channels=1, subtype='PCM_16') as stream:
+            for second in range(seconds):
+                stream.write(gap if second % 3 == 1 else tone)
         return path
 
     def test_real_wav_mp3_aac_and_opposite_phase_stereo_match_independent_frame_plan(self):
@@ -303,3 +327,161 @@ print('private open checks complete')
             with self.assertRaises(ValueError):
                 quality.validate_finished_export('unused', plan)
             run.assert_not_called()
+
+    def test_quiet_content_near_threshold_warns_by_default_and_refuses_on_opt_in(self):
+        with tempfile.TemporaryDirectory() as root:
+            tone = .2 * np.sin(np.arange(72000) * .1)
+            for peak, detected in ((-53, True), (-47, False)):
+                with self.subTest(peak_dbfs=peak):
+                    quiet = 10 ** (peak / 20) * np.sin(np.arange(144000) * .1)
+                    source, plan = self.source(root, values=np.concatenate([tone, quiet, tone]))
+                    refused = quality.get_export_quality_plan(288000, 24000, 1, format_name='wav',
+                                                              options={'reject_unexpected_silence': True})
+                    result = quality.validate_finished_export(source, plan)
+                    if detected:
+                        self.assertEqual('review', result['status'])
+                        self.assertEqual(1, result['unexpected_silence_count'])
+                        self.assertAlmostEqual(3., result['unexpected_silence_ranges'][0]['start_seconds'], delta=.001)
+                        self.assertAlmostEqual(9., result['unexpected_silence_ranges'][0]['end_seconds'], delta=.001)
+                        with self.assertRaises(quality.ExportQualityError) as caught:
+                            quality.validate_finished_export(source, refused)
+                        self.assertEqual(1, caught.exception.report['unexpected_silence_count'])
+                    else:
+                        self.assertEqual('verified', result['status'])
+                        self.assertEqual(0, result['unexpected_silence_count'])
+                        self.assertEqual(0, result['silence_intervals'])
+                        self.assertEqual('verified', quality.validate_finished_export(source, refused)['status'])
+
+    def test_silence_threshold_option_changes_classification_of_the_same_quiet_signal(self):
+        with tempfile.TemporaryDirectory() as root:
+            tone = .2 * np.sin(np.arange(72000) * .1)
+            quiet = 10 ** (-53 / 20) * np.sin(np.arange(144000) * .1)
+            source, default = self.source(root, values=np.concatenate([tone, quiet, tone]))
+            quieter = quality.get_export_quality_plan(288000, 24000, 1, format_name='wav',
+                                                      options={'silence_dbfs': -60})
+            self.assertEqual(1, quality.validate_finished_export(source, default)['unexpected_silence_count'])
+            result = quality.validate_finished_export(source, quieter)
+            self.assertEqual('verified', result['status'])
+            self.assertEqual(0, result['unexpected_silence_count'])
+            self.assertEqual(0, result['silence_intervals'])
+
+    def test_fragmented_subthreshold_quiet_is_not_counted(self):
+        '''Names a limitation: four 2 s -53 dBFS runs separated by .3 s of tone stay below the
+        5 s detector duration, so this level-plus-duration classifier accepts them silently
+        and does not recognize intended quiet content.'''
+        with tempfile.TemporaryDirectory() as root:
+            quiet = 10 ** (-53 / 20) * np.sin(np.arange(48000) * .1)
+            interlude = .2 * np.sin(np.arange(7200) * .1)
+            source, plan = self.source(root, values=np.concatenate(
+                [quiet, interlude, quiet, interlude, quiet, interlude, quiet]))
+            result = quality.validate_finished_export(source, plan)
+            self.assertEqual('verified', result['status'])
+            self.assertEqual(0, result['unexpected_silence_count'])
+            self.assertEqual(0, result['silence_intervals'])
+            source, plan = self.source(root, values=10 ** (-53 / 20) * np.sin(np.arange(144000) * .1))
+            self.assertEqual(1, quality.validate_finished_export(source, plan)['unexpected_silence_count'])
+
+    def test_long_finished_validation_bounds_diagnostic_excerpts(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = self.write_long_source(root)
+            frames = 600 * 24000
+            plan = quality.get_export_quality_plan(frames, 24000, 1, format_name='wav',
+                                                   options={'max_unexpected_silence_seconds': .5})
+            result = quality.validate_finished_export(source, plan)
+            self.assertEqual('complete', result['stage'])
+            self.assertEqual('review', result['status'])
+            self.assertEqual(200, result['unexpected_silence_count'])
+            self.assertEqual(200, result['silence_intervals'])
+            self.assertEqual(16, quality.MAX_DIAGNOSTICS)
+            self.assertEqual(quality.MAX_DIAGNOSTICS, len(result['unexpected_silence_ranges']))
+            self.assertTrue(result['diagnostics_abbreviated'])
+            self.assertTrue(math.isfinite(result['unexpected_silence_seconds']))
+            self.assertGreater(result['unexpected_silence_seconds'], 0)
+            self.assertTrue(math.isfinite(result['seconds']))
+            self.assertGreaterEqual(result['seconds'], 0)
+            refused = quality.get_export_quality_plan(frames, 24000, 1, format_name='wav', options={
+                'max_unexpected_silence_seconds': .5, 'reject_unexpected_silence': True})
+            with self.assertRaises(quality.ExportQualityError) as caught:
+                quality.validate_finished_export(source, refused)
+            self.assertEqual(200, caught.exception.report['unexpected_silence_count'])
+            self.assertEqual(quality.MAX_DIAGNOSTICS, len(caught.exception.report['unexpected_silence_ranges']))
+            self.assertTrue(caught.exception.report['diagnostics_abbreviated'])
+
+    def test_long_finished_validation_cancels_without_completion_report(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = self.write_long_source(root)
+            plan = quality.get_export_quality_plan(600 * 24000, 24000, 1, format_name='wav',
+                                                   options={'max_unexpected_silence_seconds': .5})
+            calls = []
+            def cancel_on_second_block():
+                calls.append(len(calls))
+                return len(calls) == 2
+            with patch.object(quality, '_run_owned_check') as run:
+                with self.assertRaises(ExportCancelled) as caught:
+                    quality.validate_finished_export(source, plan, cancel_on_second_block)
+            run.assert_not_called()
+            self.assertEqual(2, len(calls))
+            self.assertNotIsInstance(caught.exception, quality.ExportQualityError)
+
+    def test_identity_hash_reads_only_bounded_blocks_through_real_file(self):
+        with tempfile.TemporaryDirectory() as root:
+            source, plan = self.source(root)
+            recorders = []
+            original_ensure = quality.ensure_export_file
+            @contextmanager
+            def recording_ensure(path):
+                with original_ensure(path) as (stream, version):
+                    recorder = _BoundedReadRecorder(stream)
+                    recorders.append(recorder)
+                    yield recorder, version
+            with patch.object(quality, 'ensure_export_file', recording_ensure):
+                result = quality.validate_finished_export(source, plan)
+            self.assertEqual('verified', result['status'])
+            self.assertEqual(2, len(recorders))
+            for recorder in recorders:
+                self.assertTrue(recorder.read_sizes)
+                self.assertTrue(all(size == 1024 * 1024 for size in recorder.read_sizes))
+            expected = hashlib.sha256()
+            with source.open('rb') as stream:
+                for block in iter(lambda: stream.read(1024 * 1024), b''):
+                    expected.update(block)
+            self.assertEqual(expected.hexdigest(), result['sha256'])
+            self.assertEqual(source.stat().st_size, result['output_bytes'])
+            with self.assertRaises(AssertionError):
+                recorders[-1].read()
+            with self.assertRaises(AssertionError):
+                recorders[-1].read(1024 * 1024 + 1)
+
+    def test_decode_contract_is_streaming_and_probe_output_bounded(self):
+        with tempfile.TemporaryDirectory() as root:
+            source, plan = self.source(root)
+            calls = []
+            original = quality._run_owned_check
+            def record(command, *args, **kwargs):
+                result = original(command, *args, **kwargs)
+                calls.append((list(command), dict(kwargs)))
+                return result
+            with patch.object(quality, '_run_owned_check', side_effect=record):
+                result = quality.validate_finished_export(source, plan)
+            self.assertEqual('verified', result['status'])
+            self.assertEqual(2, len(calls))
+            probe, decode = calls
+            self.assertEqual('ffprobe', probe[0][0])
+            self.assertEqual(quality.MAX_PROBE_BYTES, probe[1]['output_limit'])
+            self.assertIsNone(probe[1].get('consume_line'))
+            command, options = decode
+            self.assertEqual('ffmpeg', command[0])
+            self.assertEqual('1', command[command.index('-threads') + 1])
+            self.assertEqual('1', command[command.index('-filter_threads') + 1])
+            self.assertEqual('null', command[command.index('-f') + 1])
+            self.assertEqual('-', command[-1])
+            settings = plan['options']
+            wanted = 'silencedetect=noise={}dB:d={}'.format(
+                settings['silence_dbfs'], settings['max_unexpected_silence_seconds'])
+            self.assertIn(wanted, command[command.index('-af') + 1])
+            consume = options['consume_line']
+            self.assertIsInstance(consume.__self__, quality._DecodeEvidence)
+            self.assertEqual(plan['frames'], result['decoded_frames'])
+            self.assertEqual(0, result['silence_intervals'])
+            self.assertEqual(0, options.get('output_limit', 0))
+

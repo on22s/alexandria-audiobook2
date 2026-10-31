@@ -1033,6 +1033,23 @@
   }
  ],
  "provenance": {
-  "error": "No module named 'experiments'"
+  "script": "goal_evidence_audit.py",
+  "written": "2026-10-31T06:28:34",
+  "host": "rentamac-macmini-m4-6c5bd4d2-3ec4-43b9-849a-6ac467763a3b",
+  "git": {
+   "commit": "6ca578aecbb5d893a3d65dce3a655824c95fd817",
+   "branch": "codex/export-validation-contracts-20261031",
+   "dirty": null,
+   "source_state": "unknown",
+   "modified_tracked_files": null,
+   "untracked_harness_files": null,
+   "harness_sha256": "8068473a7cc7e6eb939a5200cceafd2c6e73325de25f3f0732122d4516e513a9"
+  },
+  "args": {
+   "goals": "GOALS.md",
+   "audit": "ab_test_runtime/audit/artifact_structural_audit.json",
+   "out": "ab_test_runtime/audit/goal_evidence_audit.json",
+   "check": false
+  }
  }
 }
