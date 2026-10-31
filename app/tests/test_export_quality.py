@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -16,6 +17,8 @@ import numpy as np
 import soundfile as sf
 
 import export_quality as quality
+import media_process
+import subprocess_ownership
 from tts import ExportCancelled
 
 
@@ -486,3 +489,148 @@ print('private open checks complete')
             self.assertEqual(0, result['silence_intervals'])
             self.assertEqual(0, options.get('output_limit', 0))
 
+    def test_long_decode_cancellation_stops_live_owned_decoder_and_releases_control(self):
+        """Cancel a real 600 s decode while its owned child is still alive.
+
+        Measured here: the public validator starts exactly one real ffprobe and
+        one real ffmpeg through the production `media_process.start_owned_subprocess`
+        with the production decode argv, DEVNULL stdout and PIPE stderr; the
+        production `_DecodeEvidence.consume` parses real silencedetect output
+        from the authored gap at 1 s; the decision snapshot taken inside the
+        cancel callback shows a live owned root with no terminal astats summary;
+        the call raises `ExportCancelled` with no report and no returned dict;
+        and after the call unwinds the root is reaped, the owned tree is
+        not running, the diagnostic pipe is closed and the owned control object
+        is released. Both snapshots are taken before any harness cleanup, so a
+        mutant quiesced by that cleanup cannot make them pass.
+
+        Limits: the runner consults the callback at its own polling cadence, so
+        cancellation lands after the first parsed gap rather than at it. Where
+        the production stop pre-empts the live decoder the root is reaped with a
+        non-zero status and the terminal sample count stays below the plan; on a
+        platform whose graceful stop cannot interrupt the console child inside
+        the production grace window the decoder instead completes, and then the
+        terminal count must equal the plan exactly with a zero root status. This
+        proves decode-time cancellation with owned termination and cleanup only;
+        it measures no peak RSS, no whole-buffer fallback and no listening
+        quality.
+        """
+        with tempfile.TemporaryDirectory() as root:
+            source = self.write_long_source(root)
+            plan = quality.get_export_quality_plan(600 * 24000, 24000, 1, format_name='wav',
+                                                   options={'max_unexpected_silence_seconds': .5})
+            starts, parsers, decision = [], [], {}
+            first_gap = threading.Event()
+            original_start = media_process.start_owned_subprocess
+            original_consume = quality._DecodeEvidence.consume
+
+            def record_start(command, *args, **kwargs):
+                process = original_start(command, *args, **kwargs)
+                starts.append(dict(command=list(command), process=process, options=dict(kwargs)))
+                return process
+
+            def record_evidence(parser, line):
+                original_consume(parser, line)
+                if not parsers:
+                    parsers.append(parser)
+                if parser.silence_start is not None or parser.silence_count:
+                    first_gap.set()
+
+            def cancel():
+                if decision:
+                    return False
+                decoder = next((item for item in starts if item['command'][0] == 'ffmpeg'), None)
+                if decoder is None:
+                    return False
+                if not first_gap.wait(30):
+                    decision['missed'] = 'no decoded silence evidence before the bounded wait'
+                    return False
+                parser = parsers[0]
+                decision.update(poll=decoder['process'].poll(), frames=parser.frames,
+                                silence_start=parser.silence_start, silence_count=parser.silence_count)
+                return decision['poll'] is None
+
+            returned, error, snapshot = None, None, None
+            try:
+                with patch.object(media_process, 'start_owned_subprocess', side_effect=record_start), \
+                        patch.object(quality._DecodeEvidence, 'consume', record_evidence):
+                    try:
+                        returned = quality.validate_finished_export(source, plan, cancel)
+                    except BaseException as caught:
+                        error = caught
+            finally:
+                snapshot = []
+                for item in starts:
+                    process = item['process']
+                    control = getattr(process, '_alexandria_control', None)
+                    if control is None:
+                        released = 'missing'
+                    elif hasattr(control, 'fileno'):
+                        released = control.fileno() == -1
+                    elif getattr(control, 'job', None) is not None:
+                        released = control.job.handle is None
+                    else:
+                        released = 'unknown'
+                    snapshot.append(dict(
+                        command=item['command'], options=item['options'],
+                        returncode=process.returncode, poll=process.poll(),
+                        tree_running=subprocess_ownership.is_subprocess_tree_running(process),
+                        stdout_none=process.stdout is None,
+                        stderr_closed=process.stderr.closed if process.stderr is not None else None,
+                        control_released=released,
+                        frames=parsers[0].frames if parsers else 'missing'))
+                for item in starts:
+                    process = item['process']
+                    if process.poll() is None or subprocess_ownership.is_subprocess_tree_running(process):
+                        subprocess_ownership.stop_owned_subprocess(process, timeout=5, force_after_grace=True)
+                for item in starts:
+                    for pipe in (item['process'].stdout, item['process'].stderr):
+                        if pipe is not None and not pipe.closed:
+                            pipe.close()
+                for item in starts:
+                    control = getattr(item['process'], '_alexandria_control', None)
+                    if control is not None:
+                        control.close()
+
+            self.assertNotIn('missed', decision)
+            self.assertIsNone(decision['poll'])
+            self.assertIsNone(decision['frames'])
+            self.assertTrue(decision['silence_start'] is not None or decision['silence_count'])
+            self.assertIsNone(returned)
+            self.assertIsInstance(error, ExportCancelled)
+            self.assertNotIsInstance(error, quality.ExportQualityError)
+            self.assertIsNone(getattr(error, 'report', None))
+            self.assertEqual('Export cancelled', str(error))
+            self.assertEqual(2, len(starts))
+            self.assertEqual('ffprobe', snapshot[0]['command'][0])
+            self.assertEqual('ffmpeg', snapshot[1]['command'][0])
+            settings = plan['options']
+            filters = ('aformat=sample_fmts=fltp,astats=metadata=0:reset=0:measure_perchannel=none:'
+                       f"measure_overall=Number_of_samples+Number_of_NaNs+Number_of_Infs,"
+                       f"silencedetect=noise={settings['silence_dbfs']}dB:d={settings['max_unexpected_silence_seconds']}")
+            self.assertEqual(['ffmpeg', '-nostdin', '-hide_banner', '-nostats', '-xerror',
+                              '-threads', '1', '-filter_threads', '1', '-i', str(source), '-map', '0:a:0',
+                              '-vn', '-sn', '-dn', '-af', filters, '-f', 'null', '-'],
+                             snapshot[1]['command'])
+            decode_options = snapshot[1]['options']
+            self.assertIs(subprocess.DEVNULL, decode_options['stdout'])
+            self.assertIs(subprocess.PIPE, decode_options['stderr'])
+            self.assertIsNone(decode_options['stdin'])
+            self.assertIs(True, decode_options['start_new_session'])
+            self.assertEqual([], [name for name in decode_options['env']
+                                  if str(name).upper() == 'FFREPORT'])
+            self.assertEqual(0, snapshot[0]['returncode'])
+            self.assertIs(subprocess.PIPE, snapshot[0]['options']['stdout'])
+            final = snapshot[1]
+            self.assertIsNotNone(final['returncode'])
+            self.assertEqual(final['returncode'], final['poll'])
+            self.assertFalse(final['tree_running'])
+            self.assertTrue(final['stdout_none'])
+            self.assertTrue(final['stderr_closed'])
+            self.assertIs(True, final['control_released'])
+            self.assertNotEqual('missing', final['frames'])
+            if final['frames'] is None or final['frames'] < plan['frames']:
+                self.assertNotEqual(0, final['returncode'])
+            else:
+                self.assertEqual(plan['frames'], final['frames'])
+                self.assertEqual(0, final['returncode'])

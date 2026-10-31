@@ -4343,6 +4343,7 @@
     "tests.test_export_quality.ExportQualityTests.test_inserted_gap_warns_by_default_and_explicit_policy_refuses_it",
     "tests.test_export_quality.ExportQualityTests.test_largest_late_gap_survives_excerpt_limit_and_malformed_event_is_refused",
     "tests.test_export_quality.ExportQualityTests.test_late_bytes_with_restored_mtime_invalidate_the_measured_stage",
+    "tests.test_export_quality.ExportQualityTests.test_long_decode_cancellation_stops_live_owned_decoder_and_releases_control",
     "tests.test_export_quality.ExportQualityTests.test_long_finished_validation_bounds_diagnostic_excerpts",
     "tests.test_export_quality.ExportQualityTests.test_long_finished_validation_cancels_without_completion_report",
     "tests.test_export_quality.ExportQualityTests.test_mp4_implicit_chapter_ends_preserve_intentional_interchapter_pauses",
