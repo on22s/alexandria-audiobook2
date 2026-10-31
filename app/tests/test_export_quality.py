@@ -396,7 +396,7 @@ print('private open checks complete')
             self.assertEqual(quality.MAX_DIAGNOSTICS, len(result['unexpected_silence_ranges']))
             self.assertTrue(result['diagnostics_abbreviated'])
             self.assertTrue(math.isfinite(result['unexpected_silence_seconds']))
-            self.assertGreater(result['unexpected_silence_seconds'], 0)
+            self.assertAlmostEqual(200, result['unexpected_silence_seconds'], delta=.1)
             self.assertTrue(math.isfinite(result['seconds']))
             self.assertGreaterEqual(result['seconds'], 0)
             refused = quality.get_export_quality_plan(frames, 24000, 1, format_name='wav', options={
@@ -404,6 +404,7 @@ print('private open checks complete')
             with self.assertRaises(quality.ExportQualityError) as caught:
                 quality.validate_finished_export(source, refused)
             self.assertEqual(200, caught.exception.report['unexpected_silence_count'])
+            self.assertAlmostEqual(200, caught.exception.report['unexpected_silence_seconds'], delta=.1)
             self.assertEqual(quality.MAX_DIAGNOSTICS, len(caught.exception.report['unexpected_silence_ranges']))
             self.assertTrue(caught.exception.report['diagnostics_abbreviated'])
 

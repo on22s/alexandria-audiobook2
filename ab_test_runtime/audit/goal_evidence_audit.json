@@ -1034,10 +1034,10 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-10-31T06:28:34",
+  "written": "2026-10-31T06:56:35",
   "host": "rentamac-macmini-m4-6c5bd4d2-3ec4-43b9-849a-6ac467763a3b",
   "git": {
-   "commit": "6ca578aecbb5d893a3d65dce3a655824c95fd817",
+   "commit": "b9491627c7610d7bc1b3a2965fbfd6cb8fe4cea2",
    "branch": "codex/export-validation-contracts-20261031",
    "dirty": null,
    "source_state": "unknown",
