@@ -4379,7 +4379,8 @@
     "tests.test_export_quality_js.ExportQualityJsTests.test_missing_or_mismatched_editor_snapshot_shows_a_refresh_instruction",
     "tests.test_export_quality_js.ExportQualityJsTests.test_options_reach_actual_export_request_and_bad_values_never_post",
     "tests.test_export_quality_js.ExportQualityJsTests.test_reports_are_safe_text_with_separate_failure_and_explicit_scope",
-    "tests.test_export_quality_js.ExportQualityJsTests.test_stale_async_book_settings_and_terminal_reconnect_cannot_restore_old_cards"
+    "tests.test_export_quality_js.ExportQualityJsTests.test_stale_async_book_settings_and_terminal_reconnect_cannot_restore_old_cards",
+    "tests.test_export_quality_js.ExportQualityJsTests.test_validation_time_is_shown_for_completed_and_rejected_checks_without_coercion"
   ],
   "test_export_readiness_shapes": [
     "tests.test_export_readiness_shapes.ExportReadinessShapeTests.test_both_routes_refuse_unusable_json_before_any_task",

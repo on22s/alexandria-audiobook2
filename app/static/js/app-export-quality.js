@@ -21,6 +21,9 @@ function renderExportQualityReport(report, rejected) {
     const name = report.file || report.member || report.task;
     add(`${rejected ? 'Rejected attempt' : 'Completed check'}: ${name} — ${report.status}.`);
     if (report.reason) { add(`Stage: ${report.stage || 'export'}. ${report.reason}`); }
+    if (Number.isFinite(report.seconds) && report.seconds >= 0) {
+        add(`Validation time: ${report.seconds.toFixed(3)} seconds.`);
+    }
     if (report.verification_scope === 'audacity_structure_and_frames') {
         add(`Audacity archive: ${report.tracks_checked} tracks, ${report.members_checked} members checked for structure and PCM frames. Inactive-speaker silence is intentional.`);
         for (const track of report.track_summaries || []) {
