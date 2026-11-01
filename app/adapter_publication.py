@@ -88,7 +88,7 @@ def sync_adapter_tree(path):
         for name in files:
             filename = os.path.join(directory, name)
             if not os.path.islink(filename):
-                with open(filename, "rb") as handle:
+                with open(filename, "r+b" if os.name == "nt" else "rb") as handle:
                     os.fsync(handle.fileno())
         sync_adapter_directory(directory)
 

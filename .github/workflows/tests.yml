@@ -186,6 +186,8 @@ jobs:
         run: python -m unittest tests.test_task_resources -v
       - name: Verify native Windows export staging ownership and cleanup
         run: python -m unittest tests.test_export_staging -v
+      - name: Verify native Windows adapter publication file flushing
+        run: python -m unittest tests.test_adapter_publication_sync -v
       - name: Verify native Windows book move ownership and recovery
         run: python -m unittest tests.test_windows_book_move tests.test_book_state_streaming -v
       # Installed only after the startup check above, which must keep proving

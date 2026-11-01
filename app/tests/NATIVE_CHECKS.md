@@ -52,6 +52,21 @@ their Linux results do not qualify Windows behavior. Private Windows creation/re
 recovery checks in this gate. Power-loss directory durability and the legacy
 public-stage finalization path remain unqualified.
 
+## Adapter publication file flushing
+
+The `windows-owner` job runs the adapter tree sync regression tests:
+
+```text
+python -m unittest tests.test_adapter_publication_sync -v
+```
+
+These five tests cover native file flushing without truncation, handle closure,
+platform-specific access modes, and propagation of open, file-flush, and
+directory-flush failures. Windows file flushing requires writable payload files;
+read-only attributes or denied write access still abort publication. POSIX keeps
+read-only access. Windows directory-entry and power-loss rename durability remain
+unqualified; this gate verifies file flushing, not those guarantees.
+
 ## Book transaction, recovery archive and cancellation handles
 
 Windows-only checks for these areas live in a script that unit discovery
