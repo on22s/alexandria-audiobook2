@@ -149,6 +149,7 @@ class _BookScope:
     owner: tuple
     identity: tuple
     active: bool = True
+    spelling: str | None = None
 
 
 @dataclass(frozen=True)
@@ -166,14 +167,29 @@ def _check_stream_cancellation(cancel_check):
 
 
 def _direct_book_root(data_dir):
-    from direct_path_admission import is_plain_path
-    root = Path(os.path.abspath(data_dir))
-    if not is_plain_path(root):
-        raise ValueError('Book root must be a direct directory without aliased ancestors')
-    info = root.lstat()
-    if not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode):
-        raise ValueError('Book root must be a real directory')
-    return root, (info.st_dev, info.st_ino)
+    """Resolve one admitted book root, refusing a rebound alias spelling."""
+    from direct_path_admission import get_direct_directory_root
+    root, identity = get_direct_directory_root(data_dir)
+    spelling = os.path.normcase(os.path.abspath(data_dir))
+    for scope in _held_books.get():
+        if (scope.active and scope.owner == _get_book_scope_owner()
+                and scope.spelling == spelling
+                and (scope.root != _book_scope_key(root) or scope.identity != identity)):
+            raise ValueError('Book root changed during admission; alias scope no longer matches')
+    return root, identity
+
+
+def _book_operation_root(data_dir):
+    """Resolve a book mutation and require this context's live admission for aliases.
+
+    An admitted ancestor alias must not turn a caller's lock on one root into
+    authority over whatever that spelling resolves to now.
+    """
+    root, identity = _direct_book_root(data_dir)
+    if (os.name != 'nt' and Path(os.path.abspath(data_dir)) != root
+            and not is_book_state_admitted(root)):
+        raise ValueError('Book admission is required for a direct directory reached through an ancestor alias')
+    return root, identity
 
 
 def _stage_book_stream(path, source, mode, cancel_check, *, on_open=None, on_finish=None, directory_fd=None):
@@ -1006,13 +1022,14 @@ def is_book_state_admitted(data_dir):
 @contextlib.contextmanager
 def reuse_book_state(data_dir, timeout=10):
     """Reuse only this live task/thread/process's actual kernel admission."""
-    if is_book_state_admitted(data_dir):
-        if os.path.lexists(Path(data_dir) / JOURNAL):
+    root, _identity = _direct_book_root(data_dir)
+    if is_book_state_admitted(root):
+        if os.path.lexists(root / JOURNAL):
             raise ValueError('Book transaction must finish before reusing its state.')
-        yield
+        yield root
     else:
-        with ensure_book_state(data_dir, timeout=timeout):
-            yield
+        with ensure_book_state(data_dir, timeout=timeout) as root:
+            yield root
 
 
 def _get_path(root, relative):
@@ -2200,10 +2217,11 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
         if admitted_identity != identity:
             raise ValueError('Book root changed during admission')
         scope = _BookScope(_book_scope_key(admitted_root),
-                           _get_book_scope_owner(), admitted_identity)
+                           _get_book_scope_owner(), admitted_identity,
+                           spelling=os.path.normcase(os.path.abspath(data_dir)))
         token = _held_books.set((*_held_books.get(), scope))
         try:
-            yield
+            yield admitted_root
         finally:
             scope.active = False
             _held_books.reset(token)
@@ -2233,7 +2251,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     are checked during staging. The byte limit also bounds each aggregate scan
     of existing targets; no stream authorizes a book restore by itself.
     """
-    root, root_identity = _direct_book_root(data_dir)
+    root, root_identity = _book_operation_root(data_dir)
     if os.path.lexists(root / JOURNAL):
         raise ValueError('Recover the pending book transaction first')
     operations = list(replacements.items()) + [(name, None) for name in removals]
@@ -2550,7 +2568,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                         pass
             else:
                 release_root_guard()
-                recover_book_state_locked(data_dir)
+                recover_book_state_locked(root)
         elif not journal_publication_attempted and (root_fd is not None or os.path.lexists(workspace)):
             try:
                 _cleanup_unpublished_stream_workspace(
@@ -2573,13 +2591,13 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
 
 def get_book_operation_identity(data_dir, *, state=None):
     """Read the selected book generation independently of edits within the book."""
-    root = Path(data_dir)
+    root, _identity = _direct_book_root(data_dir)
     if state is None:
         state_path = root / "state.json"
         state = json.loads(state_path.read_bytes()) if state_path.exists() else {}
     if not isinstance(state, dict):
         raise ValueError("Invalid book identity")
-    return [os.path.abspath(data_dir), state.get("active_book_id"), state.get("book_generation")]
+    return [str(root), state.get("active_book_id"), state.get("book_generation")]
 
 
 def get_book_operation_token(data_dir, *, state=None):
@@ -2622,7 +2640,8 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
     from utils import safe_load_json
     from sound_design_registry import ACTIVE_CUES
     from sound_design_renditions import ACTIVE_RENDITIONS, capture_sound_design_companions
-    with ensure_book_state(data_dir, timeout=timeout):
+    with ensure_book_state(data_dir, timeout=timeout) as root:
+        data_dir = root
         state_path = Path(data_dir) / "state.json"
         with file_lock(str(state_path)):
             state = safe_load_json(str(state_path), default={})

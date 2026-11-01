@@ -1050,20 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-01T08:11:17",
+  "written": "2026-11-01T09:18:14",
   "host": "RealMitch",
   "git": {
-   "commit": "7e1d153f1964fc0ae125807c14cfd76d65fa585f",
-   "branch": "codex/1446-1672-cspr-integration-20261031",
+   "commit": "d091825c518eac688d4c4c848d0010da110f0218",
+   "branch": "codex/book-root-admission-20261101",
    "dirty": true,
-   "source_state": "dirty:83671c9c86c0",
+   "source_state": "dirty:b5f4d0a6ffc5",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  .github/workflows/tests.yml",
-    "M  app/adapter_publication.py",
+    "M  app/core.py",
     "M  app/tests/NATIVE_CHECKS.md",
-    "A  app/tests/test_adapter_publication_sync.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/tests/test_direct_path_admission.py",
+    "M  app/utils.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "d42207ae008f4c600c25252281f3ec301b8352ce1a40cfcc0787693319c8eaa0",

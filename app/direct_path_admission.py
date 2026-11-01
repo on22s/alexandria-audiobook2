@@ -112,6 +112,47 @@ def is_plain_path(path):
     return True
 
 
+def get_direct_directory_root(path):
+    """Return an admitted directory's canonical spelling and observed identity.
+
+    Ancestor aliases are admitted only while the shared trust policy accepts
+    them, and the final component must never be an alias, so resolving the
+    spelling cannot launder a root that is itself a link. The identity is an
+    observation: callers must still pin it for live operations.
+    """
+    named = Path(os.path.abspath(path))
+    if not is_plain_path(named):
+        raise ValueError('Book root must be a direct directory without aliased ancestors')
+    before = named.lstat()
+    if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+        raise ValueError('Book root must be a real directory')
+    root = named if os.name == 'nt' else Path(os.path.realpath(named))
+    identity = (before.st_dev, before.st_ino)
+    current = root.lstat()
+    after = named.lstat()
+    if (not stat.S_ISDIR(current.st_mode) or stat.S_ISLNK(current.st_mode)
+            or stat.S_ISLNK(after.st_mode)
+            or (current.st_dev, current.st_ino) != identity
+            or (after.st_dev, after.st_ino) != identity
+            or (os.name != 'nt' and Path(os.path.realpath(named)) != root)):
+        raise ValueError('Book root changed during admission')
+    return root, identity
+
+
+def get_direct_spelling(path):
+    """Return the admitted spelling of a path whose ancestors may be aliased.
+
+    Ancestor aliases are captured once so stored paths and worker environments
+    keep one root identity. A spelling the trust policy refuses is returned as
+    written, so admission still reports it instead of following the alias into
+    a target no policy admitted.
+    """
+    named = Path(os.path.abspath(path))
+    if os.name == 'nt' or not is_plain_path(named):
+        return str(named)
+    return os.path.join(os.path.realpath(named.parent), named.name)
+
+
 def get_canonical_plain_path(path):
     """Return the resolved form of an admitted path, for descriptor walks.
 

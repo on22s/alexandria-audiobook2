@@ -39,16 +39,35 @@ def get_unique_id(prefix: str) -> str:
 
 
 def get_runtime_data_dir(root_dir: str) -> str:
-    """Return the single mutable-data root for this application instance."""
+    """Return the single mutable-data root for this application instance.
+
+    The root is captured in one admitted spelling so later paths and workers
+    do not resolve an ancestor alias again; a spelling the trust policy
+    refuses is left as written for book-root admission to report rather than
+    silently following it.
+    """
+    from direct_path_admission import get_direct_spelling
     configured = os.environ.get("ALEXANDRIA_DATA_DIR", "").strip()
-    return os.path.abspath(configured or root_dir)
+    return get_direct_spelling(configured or root_dir)
+
+
+def get_app_storage_path(data_dir: str, root_dir: str, app_dir: str, name: str) -> str:
+    """Keep legacy app-local storage while isolating configured runtimes.
+
+    A captured data root spells the repo root differently when an admitted
+    ancestor alias is involved, so equality is decided on normalized paths and
+    the legacy location keeps its canonical spelling.
+    """
+    normalize = os.path.abspath if os.name == 'nt' else os.path.realpath
+    if normalize(data_dir) == normalize(root_dir):
+        return os.path.join(normalize(app_dir), name)
+    return os.path.join(data_dir, name)
 
 
 def get_app_config_path(data_dir: str, root_dir: str, app_dir: str) -> str:
     """Keep legacy local config placement while isolating configured runtimes."""
-    if os.path.abspath(data_dir) == os.path.abspath(root_dir):
-        return os.path.join(app_dir, "config.json")
-    return os.path.join(data_dir, "config.json")
+    return get_app_storage_path(data_dir, root_dir, app_dir, "config.json")
+
 
 # --- GPU stats (rocm-smi) ---
 # Canonical implementation lives in gpu_stats.py at the repo root, shared

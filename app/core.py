@@ -31,7 +31,7 @@ from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationC
                                     ensure_audio_generation_owner)
 from project import ProjectManager
 from config_settings import load_app_config
-from utils import (atomic_json_write, get_app_config_path, get_runtime_data_dir,
+from utils import (atomic_json_write, get_app_config_path, get_app_storage_path, get_runtime_data_dir,
                    is_generic_speaker, is_path_inside, safe_load_json,
                    secure_filename)
 from lmstudio_settings import (get_active_llm_config, get_current_status, get_effective_max_tokens,
@@ -172,7 +172,7 @@ VOICE_CONFIG_PATH = os.path.join(DATA_DIR, "voice_config.json")
 SCRIPT_PATH = os.path.join(DATA_DIR, "annotated_script.json")
 AUDIOBOOK_PATH = os.path.join(DATA_DIR, "cloned_audiobook.mp3")
 M4B_PATH = os.path.join(DATA_DIR, "audiobook.m4b")
-UPLOADS_DIR = os.path.join(DATA_DIR, "uploads") if DATA_DIR != ROOT_DIR else os.path.join(BASE_DIR, "uploads")
+UPLOADS_DIR = get_app_storage_path(DATA_DIR, ROOT_DIR, BASE_DIR, "uploads")
 SCRIPTS_DIR = os.path.join(DATA_DIR, "scripts")
 CHUNKS_PATH = os.path.join(DATA_DIR, "chunks.json")
 VOICE_LIBRARY_PATH = os.path.join(DATA_DIR, "voice_library.json")
@@ -1408,8 +1408,16 @@ def ensure_failed_subprocess_stopped(process, state):
 
 
 def get_gpu_task_environment(state: dict, env: dict = None) -> dict:
-    """Copy subprocess settings and describe this task's held kernel lease."""
+    """Copy subprocess settings and describe this task's held kernel lease.
+
+    A worker inherits this runtime's admitted data root instead of resolving
+    an ancestor alias again; an explicitly isolated root that differs from
+    this process's own setting keeps the caller's meaning.
+    """
     environment = dict(os.environ if env is None else env)
+    configured = os.environ.get('ALEXANDRIA_DATA_DIR')
+    if configured and environment.get('ALEXANDRIA_DATA_DIR') == configured:
+        environment['ALEXANDRIA_DATA_DIR'] = DATA_DIR
     with _gpu_lock:
         for task_name, task_state in process_state.items():
             handle = _gpu_leases.get(task_name)
