@@ -653,6 +653,18 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(utils.get_runtime_data_dir("/expected/root"),
                              "/expected/root")
 
+    def test_gpu_worker_environment_pins_the_admitted_data_root(self):
+        spelled = os.path.join('spelled', 'data')
+        admitted = os.path.join('admitted', 'data')
+        with patch.dict(os.environ, {'ALEXANDRIA_DATA_DIR': spelled}), \
+                patch.object(core_module, 'DATA_DIR', admitted):
+            self.assertEqual(admitted, core_module.get_gpu_task_environment(
+                {}, {'ALEXANDRIA_DATA_DIR': spelled})['ALEXANDRIA_DATA_DIR'])
+            self.assertEqual('isolated', core_module.get_gpu_task_environment(
+                {}, {'ALEXANDRIA_DATA_DIR': 'isolated'})['ALEXANDRIA_DATA_DIR'])
+            self.assertNotIn('ALEXANDRIA_DATA_DIR',
+                             core_module.get_gpu_task_environment({}, {'KEEP': 'value'}))
+
     def test_voice_design_claims_gpu_before_engine_initialization(self):
         core_module.process_state["audio"]["running"] = True
         try:

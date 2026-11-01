@@ -67,6 +67,23 @@ read-only attributes or denied write access still abort publication. POSIX keeps
 read-only access. Windows directory-entry and power-loss rename durability remain
 unqualified; this gate verifies file flushing, not those guarantees.
 
+## POSIX book roots through trusted ancestor aliases
+
+Book admission captures the canonical root of a directory reached through an
+administrator-controlled ancestor alias. Config and uploads retain the legacy
+`app/` location when the runtime data root is the repository itself; an isolated
+data root keeps both inside that data directory. Final-component aliases and
+untrusted ancestor aliases remain refused.
+
+Canonical root spelling changes path-derived book tokens once for existing
+alias-spelled installations. Existing script bindings, retained-take receipts,
+undo records and recovery publication tokens may fail their identity checks
+after upgrading. This change does not rewrite or discard those historical
+records, and does not automatically certify them against the new token. Keep
+the original records and backups; historical take listings and archive inspection
+remain available, but fresh selection/binding is required for current authoring.
+Neither Windows alias rebinding nor power-loss durability is newly qualified.
+
 ## Book transaction, recovery archive and cancellation handles
 
 Windows-only checks for these areas live in a script that unit discovery

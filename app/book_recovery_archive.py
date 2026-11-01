@@ -259,11 +259,14 @@ def _capture_book_token(root, cancel_check):
 
 
 def _direct_root(root):
-    from direct_path_admission import is_plain_path
+    from direct_path_admission import get_direct_directory_root
     root = Path(os.path.abspath(root))
-    if not root.is_dir() or not is_plain_path(root):
+    if not root.is_dir():
         raise ValueError('Recovery requires a direct project directory')
-    return root
+    try:
+        return get_direct_directory_root(root)[0]
+    except ValueError as error:
+        raise ValueError('Recovery requires a direct project directory') from error
 
 
 def _require_root_identity(root, root_fd, expected):

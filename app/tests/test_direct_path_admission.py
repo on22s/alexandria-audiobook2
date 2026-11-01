@@ -5,6 +5,7 @@ swap it. Fixtures cannot create root-owned links, so the trusted owners include
 the test user and the system directories above each fixture are reported as
 root-owned 0755; the fixture's own directories and links are real.
 """
+import json
 import os
 from pathlib import Path
 import stat
@@ -192,6 +193,140 @@ class AdministratorAliasTests(unittest.TestCase):
         first, second = self.trusted(frozenset({0}))
         with first, second, self.assertRaisesRegex(ValueError, 'aliased ancestors'):
             books._direct_book_root(self.alias / 'book')
+
+    def test_book_root_alias_and_direct_spellings_resolve_to_one_canonical_root(self):
+        import book_state_transaction as books
+        import book_recovery_archive as archives
+        first, second = self.trusted()
+        with first, second:
+            aliased, alias_identity = books._direct_book_root(self.alias / 'book')
+            direct, direct_identity = books._direct_book_root(self.target / 'book')
+            identity = books.get_book_operation_identity(self.alias / 'book')
+            self.assertEqual(direct, archives._direct_root(self.alias / 'book'))
+        self.assertEqual(self.target / 'book', aliased)
+        self.assertEqual(direct, aliased)
+        self.assertEqual(direct_identity, alias_identity)
+        self.assertEqual([str(self.target / 'book'), None, None], identity)
+
+    def test_alias_spelled_book_mutation_requires_live_admission(self):
+        import book_state_transaction as books
+        named, direct = self.alias / 'book', self.target / 'book'
+        first, second = self.trusted()
+        with first, second:
+            with self.assertRaisesRegex(ValueError, 'admission is required'):
+                books.apply_book_state_locked(named, {'artifact': b'wrong'}, [])
+            self.assertFalse((direct / 'artifact').exists())
+            self.assertFalse((direct / books.JOURNAL).exists())
+            with books.ensure_book_state(named):
+                self.assertEqual(books.get_book_operation_token(named),
+                                 books.get_book_operation_token(direct))
+                books.apply_book_state_locked(named, {'artifact': b'first'}, [])
+                self.assertEqual(b'first', (direct / 'artifact').read_bytes())
+
+    def test_rebound_alias_cannot_open_a_second_scope_over_the_admitted_one(self):
+        import book_state_transaction as books
+        first_root, second_root = self.fixture / 'first', self.fixture / 'second'
+        for base in (first_root, second_root):
+            (base / 'book').mkdir(parents=True)
+        redirect = self.base / 'redirect'
+        redirect.symlink_to(first_root, target_is_directory=True)
+        named = redirect / 'book'
+        first, second = self.trusted()
+        with first, second:
+            with books.ensure_book_state(named):
+                redirect.unlink()
+                redirect.symlink_to(second_root, target_is_directory=True)
+                self.assertFalse(books.is_book_state_admitted(named))
+                with self.assertRaisesRegex(ValueError, 'alias scope'):
+                    with books.ensure_book_state(named):
+                        self.fail('A rebound alias opened a second admission')
+                with self.assertRaisesRegex(ValueError, 'alias scope'):
+                    books.apply_book_state_locked(named, {'artifact': b'wrong'}, [])
+                self.assertTrue(books.is_book_state_admitted(first_root / 'book'))
+            self.assertEqual([], list((second_root / 'book').iterdir()))
+
+    def test_runtime_data_dir_captures_only_admitted_ancestor_aliases(self):
+        import utils
+        data = self.target / 'data'
+        data.mkdir()
+        named = self.alias / 'data'
+        with patch.dict(os.environ, {'ALEXANDRIA_DATA_DIR': str(named)}):
+            self.assertEqual(str(named), utils.get_runtime_data_dir('/unused/root'))
+            first, second = self.trusted()
+            with first, second:
+                self.assertEqual(str(data), utils.get_runtime_data_dir('/unused/root'))
+        root_alias = self.fixture / 'data-link'
+        root_alias.symlink_to(data, target_is_directory=True)
+        with patch.dict(os.environ, {'ALEXANDRIA_DATA_DIR': str(root_alias)}):
+            first, second = self.trusted()
+            with first, second:
+                self.assertEqual(str(root_alias), utils.get_runtime_data_dir('/unused/root'))
+
+    def test_captured_data_root_keeps_the_legacy_config_location(self):
+        import utils
+        repo = self.target / 'repo'
+        (repo / 'app').mkdir(parents=True)
+        elsewhere = self.target / 'elsewhere'
+        elsewhere.mkdir()
+        named = self.alias / 'repo'
+        first, second = self.trusted()
+        with first, second, patch.dict(os.environ, {'ALEXANDRIA_DATA_DIR': str(named)}):
+            data_dir = utils.get_runtime_data_dir(named)
+            self.assertEqual(str(repo), data_dir)
+            self.assertEqual(os.path.join(str(repo / 'app'), 'config.json'),
+                             utils.get_app_config_path(data_dir, str(named), str(named / 'app')))
+            self.assertEqual(os.path.join(str(elsewhere), 'config.json'),
+                             utils.get_app_config_path(str(elsewhere), str(named), str(named / 'app')))
+            self.assertEqual(os.path.join(str(repo / 'app'), 'uploads'),
+                             utils.get_app_storage_path(data_dir, str(named), str(named / 'app'), 'uploads'))
+            self.assertEqual(os.path.join(str(elsewhere), 'uploads'),
+                             utils.get_app_storage_path(str(elsewhere), str(named), str(named / 'app'), 'uploads'))
+
+    def test_input_selection_keeps_admitted_root_after_alias_rebinding(self):
+        import book_state_transaction as books
+        original = self.target / 'book'
+        other_parent = self.fixture / 'other'
+        other = other_parent / 'book'
+        other.mkdir(parents=True)
+        original_state = original / 'state.json'
+        original_state.write_text(json.dumps({'active_book_id': 'original'}), encoding='utf-8')
+        other_state = other / 'state.json'
+        other_state.write_text(json.dumps({'active_book_id': 'other'}), encoding='utf-8')
+        before = other_state.read_bytes()
+        def rebind():
+            self.alias.unlink()
+            self.alias.symlink_to(other_parent, target_is_directory=True)
+        first, second = self.trusted()
+        with first, second:
+            token = books.apply_book_input_selection(self.alias / 'book', '/fixture/source.txt',
+                                                     'selected', before_publication=rebind)
+            self.assertEqual(books.get_book_operation_token(original), token)
+        self.assertEqual('selected', json.loads(original_state.read_bytes())['active_book_id'])
+        self.assertEqual(before, other_state.read_bytes())
+
+    def test_directory_root_refuses_alias_rebound_during_observation(self):
+        original = self.target / 'book'
+        other = self.fixture / 'other'
+        other.mkdir()
+        with patch.object(admission, 'is_plain_path', return_value=True), \
+             patch.object(admission.os.path, 'realpath', side_effect=[str(original), str(other)]):
+            with self.assertRaisesRegex(ValueError, 'changed during admission'):
+                admission.get_direct_directory_root(self.alias / 'book')
+
+    def test_untrusted_ancestor_alias_is_not_canonicalized_into_admission(self):
+        import book_state_transaction as books
+        first, second = self.trusted(frozenset({0}))
+        with first, second:
+            with self.assertRaisesRegex(ValueError, 'aliased ancestors'):
+                books._direct_book_root(self.alias / 'book')
+            with self.assertRaisesRegex(ValueError, 'aliased ancestors'):
+                with books.ensure_book_state(self.alias / 'book'):
+                    self.fail('An untrusted ancestor alias was admitted')
+        root_alias = self.fixture / 'book-link'
+        root_alias.symlink_to(self.target / 'book', target_is_directory=True)
+        first, second = self.trusted()
+        with first, second, self.assertRaisesRegex(ValueError, 'direct directory'):
+            books._direct_book_root(root_alias)
 
     def test_real_host_system_alias_is_admitted_without_substitution(self):
         # macOS: /var, /tmp and /etc link into /private; Ubuntu: usr-merge /lib, /bin.
