@@ -4,7 +4,9 @@ All three embedded WAV fixtures were constructed from one public LibriVox record
 
 - Source: https://www.archive.org/download/short_poetry_001_librivox/abou_hunt_py_64kb.mp3
 - Source MP3 SHA-256: `ad060a5cbd1ea90024967af226f6bc8e5d0d9905660a5a506720604f13a1d759`
-- License scope: the official LibriVox catalog records public-domain status in the USA. No worldwide-rights claim is made. The recording is not private voice material.
+- License scope: "Official LibriVox catalog records public-domain status in USA; no global-rights claim. No private voice material."
+
+Only one of eight constructed source items is embedded here, as three variants; the other seven are not included in this directory. These are the same fixture WAV bytes validated by the instrument checks. No private voice, audio, labels, notes or exports are included. Each fixture records `productRecording: false`.
 
 Fixture WAV hashes (the bytes embedded in `listening-lab.html`, which `verify-lab.cjs` re-checks):
 

@@ -4,6 +4,8 @@ A self-contained browser page for measuring a short WAV excerpt and recording wh
 
 Three built-in public-domain clips are embedded in the page. You can also load your own PCM WAV (PCM16/24/32 or Float32, up to 60 s and 20 MiB, one or two channels). Files stay local; nothing is uploaded.
 
+The code uses the repository's MIT license. Embedded audio has the separate, USA-scoped public-domain provenance described below.
+
 ## Use
 
 1. Choose a built-in sample or load a local WAV.

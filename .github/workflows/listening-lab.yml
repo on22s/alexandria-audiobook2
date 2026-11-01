@@ -13,6 +13,8 @@ jobs:
   verifiers:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
+    env:
+      PYTHON: python
     strategy:
       fail-fast: false
       matrix:
