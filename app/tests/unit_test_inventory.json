@@ -6894,7 +6894,9 @@
   "test_model_residency": [
     "tests.test_model_residency.ModelResidencyTests.test_active_nested_exceptional_scopes_refuse_reentrant_release",
     "tests.test_model_residency.ModelResidencyTests.test_busy_read_and_release_do_not_wait_for_active_worker",
+    "tests.test_model_residency.ModelResidencyTests.test_cuda_family_switch_never_touches_mps",
     "tests.test_model_residency.ModelResidencyTests.test_loaded_device_idle_release_and_reload",
+    "tests.test_model_residency.ModelResidencyTests.test_mps_family_switch_empties_the_mps_cache_after_dropping",
     "tests.test_model_residency.ModelResidencyTests.test_sync_failure_retains_models_and_cache_then_releases_locks",
     "tests.test_model_residency.ModelResidencyTests.test_unknown_device_refuses_and_mps_uses_its_own_sync_and_cache"
   ],

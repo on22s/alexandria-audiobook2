@@ -1539,10 +1539,18 @@ class TTSEngine:
                     return
             except Exception as exc:
                 print(f"Cannot size local model capacity: {exc}; releasing inactive families.")
+        on_mps = any(self._local_model_devices.get(name) == "mps" for name in inactive)
+        if on_mps:
+            torch.mps.synchronize()
         for name in inactive:
             print(f"Releasing inactive local {name} model before loading {family}...")
             self._release_local_model_family(name)
         self._clear_gpu_cache()
+        if on_mps:
+            # _clear_gpu_cache empties only CUDA. Without this, the released
+            # family's blocks stay in the MPS allocator while the next one
+            # loads: 8.4 GB -> 16.2 GB driver memory on a 16 GB M4 (#1440).
+            torch.mps.empty_cache()
 
     @ensure_local_tts_serialized
     @measure_tts_stage("model_preparation")
