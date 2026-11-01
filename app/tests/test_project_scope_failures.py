@@ -1,5 +1,5 @@
 """Real durable scope rollback and abrupt process death over audio/history/journal."""
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 import json
 import os
 from pathlib import Path
@@ -19,6 +19,10 @@ from project_scope_apply import (apply_source_scope, apply_source_scope_undo,
                                  get_source_scope_undo_preview, FILES, UNDO)
 from project_scope_plan import get_scope_preview
 from take_retention import get_captured_take
+
+
+class InjectedScopeFault(OSError):
+    pass
 
 
 def get_fixture(root):
@@ -87,15 +91,33 @@ class ScopeFailureTests(unittest.TestCase):
                     with admission(root):
                         if mode=='undo':apply_operation(root,'apply')
                         before=get_bytes(root)
-                        target='_stage_book_stream' if failure=='write' else '_move'
-                        original=getattr(transaction,target);count=0
-                        def fail_once(*args,**kwargs):
-                            nonlocal count
-                            count+=1
-                            if count==(1 if failure=='write' else failure):raise OSError('injected scope fault')
-                            return original(*args,**kwargs)
-                        with patch.object(transaction,target,fail_once),self.assertRaises(OSError):
-                            apply_operation(root,mode)
+                        reached=[]
+                        with ExitStack() as faults:
+                            if failure=='write':
+                                def staging_fault(name):
+                                    original=getattr(transaction,name);calls=[]
+                                    def fail_write(*args,**kwargs):
+                                        calls.append(name)
+                                        if len(calls)==1:
+                                            reached.append(name)
+                                            raise InjectedScopeFault('injected scope fault')
+                                        return original(*args,**kwargs)
+                                    return fail_write
+                                for name in ('_stage_book_stream','save_adapter_publication_bytes'):
+                                    faults.enter_context(patch.object(transaction,name,staging_fault(name)))
+                                expected=InjectedScopeFault
+                            else:
+                                original=getattr(transaction,'_move');count=0
+                                def fail_move(*args,**kwargs):
+                                    nonlocal count
+                                    count+=1
+                                    if count==failure:raise OSError('injected scope fault')
+                                    return original(*args,**kwargs)
+                                faults.enter_context(patch.object(transaction,'_move',fail_move))
+                                expected=OSError
+                            with self.assertRaises(expected):
+                                apply_operation(root,mode)
+                        if failure=='write':self.assertEqual(1,len(reached))
                         self.assertEqual(before,get_bytes(root))
                         self.assertEqual([],list(root.glob('.book-switch-*')))
 
