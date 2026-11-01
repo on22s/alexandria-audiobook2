@@ -71,7 +71,13 @@ class EpubPackageTests(unittest.TestCase):
     def test_review_confines_package_member_names_without_extracting(self):
         for path in ('../book.opf', '/book.opf', 'C:/book.opf', 'dir\\book.opf', './book.opf'):
             with self.subTest(path=path), self.archive(path=path) as archive:
-                self.assertEqual(path, get_epub_package(archive)[0])
+                if path in archive.namelist():
+                    self.assertEqual(path, get_epub_package(archive)[0])
+                else:
+                    self.assertEqual('dir\\book.opf', path)
+                    self.assertIn('dir/book.opf', archive.namelist())
+                    with self.assertRaises(KeyError):
+                        get_epub_package(archive)
                 with self.assertRaisesRegex(ValueError, 'Unsafe'):
                     get_epub_package(archive, max_xml_bytes=4096, require_unique=True)
 

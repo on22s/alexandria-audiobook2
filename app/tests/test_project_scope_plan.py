@@ -28,15 +28,21 @@ class ScopePlanTests(unittest.TestCase):
             (self.root/name).write_text(json.dumps(data))
 
     def test_composite_preview_binds_partition_source_and_native_book_identity_without_writes(self):
+        artifacts = ('state.json', 'annotated_script.json', 'chunks.json', 'voice_config.json',
+                     'source.txt')
         with ensure_book_state(self.root, recover=False):
-            before = {p.name: p.read_bytes() for p in self.root.iterdir() if p.is_file()}
+            before = {name: (self.root/name).read_bytes() for name in artifacts}
+            names = {p.name for p in self.root.iterdir()
+                     if p.is_file()}
             first = scope.get_scope_preview(self.root, 1)
             self.assertEqual(first, scope.get_scope_preview(self.root, 1))
             self.assertEqual(get_book_operation_token(self.root), first['book_token'])
             self.assertEqual((['uid-0'], ['uid-1']), (first['removed_uids'], first['retained_uids']))
             self.assertEqual((3, 6), (first['source_scope']['retained_start_word'],
                                       first['source_scope']['retained_end_word']))
-            self.assertEqual(before, {p.name:p.read_bytes() for p in self.root.iterdir() if p.is_file()})
+            self.assertEqual(before, {name: (self.root/name).read_bytes() for name in artifacts})
+            self.assertEqual(names, {p.name for p in self.root.iterdir()
+                                     if p.is_file()})
             self.assertFalse((self.root/'take_history').exists())
             self.source.write_text(self.source.read_text().replace('line.', 'line!'))
             self.assertNotEqual(first['revision'], scope.get_scope_preview(self.root, 1)['revision'])

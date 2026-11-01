@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-01T13:01:38",
+  "written": "2026-11-01T13:22:47",
   "host": "RealMitch",
   "git": {
-   "commit": "96f7f14be0df7231741a8f613552b61b804636b6",
-   "branch": "codex/verifier-binary-identity-20261101",
+   "commit": "41e6a2c2d4fe3a3b64cd34c7215752198cc2ac55",
+   "branch": "codex/windows-fixture-contracts-20261101",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,

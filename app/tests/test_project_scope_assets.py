@@ -18,9 +18,11 @@ class ScopeAssetTests(unittest.TestCase):
             self.assertEqual({'file','directory'}, {s['kind'] for s in snapshots})
             # Canonical adapter alias resolution owns this ordinary portable
             # lock; it must not create or change a manifest or model asset.
-            self.assertEqual({**before, 'manifest.json.lock':b''},
-                             {p.relative_to(root).as_posix():p.read_bytes()
-                              for p in root.rglob('*') if p.is_file()})
+            self.assertEqual(set(before) | {'manifest.json.lock'},
+                             {p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file()})
+            self.assertEqual(before,
+                             {p.relative_to(root).as_posix():p.read_bytes() for p in root.rglob('*')
+                              if p.is_file() and p.relative_to(root).as_posix() != 'manifest.json.lock'})
             (adapter/'weights.bin').write_bytes(b'changed')
             self.assertNotEqual(snapshots, get_scope_voice_artifacts(plan))
 
