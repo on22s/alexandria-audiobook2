@@ -4,6 +4,7 @@ venv
 env
 app/env/
 preparer_env/
+mlx_env/
 .env
 .*
 # `.*` above hides EVERY dotfile, .gitattributes included. That is not a

@@ -1,0 +1,10 @@
+# Apple Silicon MLX TTS worker (#1442). Installed into its own mlx_env, never
+# app/env: mlx-audio needs transformers 5.x and app/env pins 4.57.x.
+# Versions are the ones qualified natively on an Apple M4 (2026-11-01).
+mlx-audio==0.6.1
+mlx==0.32.4
+mlx-metal==0.32.4
+transformers==5.21.0
+soundfile==0.14.0
+numpy==2.4.6
+huggingface-hub==2.4.0

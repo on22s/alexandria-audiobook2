@@ -33,7 +33,7 @@ function setSynthesisWindowControls(settings, modes) {
         const key = `${mode}.${category}`;
         const row = document.createElement('tr');
         row.dataset.budgetKey = key;
-        const label = `${mode === 'local' ? 'Local' : mode === 'external' ? 'External' : mode} / ${names[category] || category}`;
+        const label = `${mode === 'local' ? 'Local' : mode === 'external' ? 'External' : mode === 'mlx' ? 'Apple MLX' : mode} / ${names[category] || category}`;
         const heading = document.createElement('th');
         heading.scope = 'row'; heading.textContent = label; row.appendChild(heading);
         for (const [name, maximum] of [['max_chars', 1000000], ['max_words', 100000]]) {

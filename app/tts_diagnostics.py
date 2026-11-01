@@ -23,7 +23,7 @@ class _Observation:
         self.owner = owner
         self.operation = operation
         mode = getattr(owner, 'mode', 'unknown')
-        self.backend = mode if mode in ('local', 'external') else 'unknown'
+        self.backend = mode if mode in ('local', 'external', 'mlx') else 'unknown'
         self.lock = threading.Lock()
         self.closed = False
         self.stages = {}
