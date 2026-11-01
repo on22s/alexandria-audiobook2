@@ -5,7 +5,7 @@
   const fixtures = JSON.parse(document.getElementById('fixture-data').textContent);
   const element = id => document.getElementById(id);
   const make = (tag, text) => { const node = document.createElement(tag); if (text !== undefined) { node.textContent = text; } return node; };
-  const state = {items: [], current: null, context: null, source: null, playbackEpoch: 0, calibration: api.calibration(), startedAt: new Date().toISOString()};
+  const state = {items: [], current: null, selectedInterval: null, selectionEpoch: 0, context: null, source: null, playbackEpoch: 0, calibration: api.calibration(), startedAt: new Date().toISOString()};
   const feedbackGroups = [{key:'pauseLength',title:'Pause length',choices:[['pause-short','Too short'],['pause-right','About right'],['pause-long','Too long'],['pause-unsure','Not sure'],['pause-none','There is no pause to judge']]},{key:'backgroundSound',title:'Background sound',choices:[['background-steady','It stayed consistent'],['background-drops','It suddenly became much quieter or disappeared'],['background-changes','It changed in another noticeable way'],['background-unsure','Not sure'],['background-none','I did not hear background sound']]}];
   const number = value => Number(value).toFixed(3);
   const db = value => value === null ? 'digital zero' : value.toFixed(2) + ' dBFS';
@@ -18,6 +18,8 @@
     if (!state.current) { throw Error('Load a clip before selecting a section.'); }
     const signal = state.current.signal, start = input('region-start'), end = input('region-end');
     if (start < 0 || end <= start || end > signal.durationSeconds + 0.000001) { throw Error('Region end must be after start and within the clip.'); }
+    const interval = state.selectedInterval;
+    if (interval && interval.clipId === state.current.id && start === interval.startSeconds && end === interval.endSeconds) { return api.regionStats(signal, interval.startFrame, interval.endFrameExclusive); }
     return api.regionStats(signal, Math.floor(start * signal.sampleRate), Math.min(signal.frames, Math.ceil(end * signal.sampleRate)));
   }
   const quiet = item => api.findQuiet(item.signal, item.blocks, input('threshold'), input('minimum'));
@@ -37,7 +39,7 @@
   function report() {
     if (element('notes').value.length > 4000) { throw Error('Keep quick notes within 4000 characters. Your previous saved note is unchanged.'); }
     return {schema:'audiobook-listening-measurement/v1', analyzerVersion:api.version, interfaceVersion:'pcm-window-lab-ui/1.2.5', sessionStartedAt:state.startedAt, exportedAt:new Date().toISOString(),
-      environment:{userAgent:null,exportPrivacy:'Browser user-agent and local filenames omitted; listener notes are included.',decodePath:'Direct RIFF PCM parser to Float32; source-clock analysis, no analysis resampling'},
+      environment:{userAgent:null,exportPrivacy:'Browser user-agent and local filenames omitted; audio SHA-256 fingerprints, byte lengths, format, duration, labels and listener notes are included. Review before sharing.',decodePath:'Direct RIFF PCM parser to Float32; source-clock analysis, no analysis resampling'},
       definitions:{rms:'20 log10(sqrt(mean(sample^2))); per channel, null for digital zero',peak:'20 log10(max(abs(sample))); sample peak, not true peak',quiet:'Maximum per-channel block RMS power <= 10^(thresholdDbfs/10); consecutive runs filtered by duration',blocks:'round(source rate * .010) frames, anchored at frame 0; trailing partial block dropped from quiet analysis only',region:'Half-open source frame interval: floor(start*rate) to ceil(end*rate)',nearFullScale:{thresholdDbfs:-0.1,amplitude:api.nearFullScaleAmplitude,comparison:'abs(sample) >= threshold; not a clipping diagnosis'},overFullScale:'Count of represented Float32 values with abs(sample) > 1. Integer PCM cannot encode such values; zero does not establish absence of clipping. PCM32 values may round to full scale.'},
       telemetry:state.items.map(item=>({id:item.id,label:item.construction?item.label:item.id,sourceName:item.construction?item.name:null,sourceBytes:item.bytes,sourceSha256:item.sha256,sourceFormat:item.signal.format,sourceFrames:item.signal.frames,sourceSampleRate:item.signal.sampleRate,sourceChannels:item.signal.channels,durationSeconds:item.signal.durationSeconds,analyzedRepresentation:'Float32; integer PCM16/24 exact, PCM32 amplitudes can round',wholeClip:item.whole,quietAnalysis:{...quiet(item),blockFrames:item.blocks.blockFrames,blockSeconds:item.blocks.blockSeconds,analyzedFrames:item.blocks.analyzedFrames,droppedTailFrames:item.blocks.droppedTailFrames}})),
       selectedRegion:{clipId:state.current.id,...region()},fixtureConstruction:state.items.filter(item=>item.construction).map(item=>({clipId:item.id,...item.construction,measuredLevels:fixtureLevels(item)})),
@@ -85,29 +87,30 @@
     element('near-full').textContent='Samples close to the digital ceiling (−0.1 dBFS or higher): '+item.whole.channels.map(channel=>'ch '+channel.channel+': '+channel.nearFullScaleSamples).join(' · ')+'. A count here does not by itself prove audible distortion.';
     element('coverage').textContent=item.blocks.blockFrames+' source frames per block ('+number(item.blocks.blockSeconds*1000)+' ms). Excluded partial tail: '+item.blocks.droppedTailFrames+' frame(s). Whole/region levels include every selected frame.';
     const rows=element('quiet-rows');rows.replaceChildren();
-    for(const interval of measured.intervals.slice(0,100)){const row=make('tr');row.append(make('td',number(interval.startSeconds)),make('td',number(interval.endSeconds)),make('td',number(interval.durationSeconds)));const cell=make('td'),button=make('button','Select + listen');button.className='quiet-select';button.addEventListener('click',()=>{listening.resetDraft();element('region-start').value=interval.startSeconds;element('region-end').value=interval.endSeconds;refreshRegion();playRegion();});cell.append(button);row.append(cell);rows.append(row);}
+    for(const interval of measured.intervals.slice(0,100)){const row=make('tr');row.append(make('td',number(interval.startSeconds)),make('td',number(interval.endSeconds)),make('td',number(interval.durationSeconds)));const cell=make('td'),button=make('button','Select + listen');button.className='quiet-select';button.addEventListener('click',()=>{listening.resetDraft();state.selectedInterval={...interval,clipId:state.current.id};element('region-start').value=interval.startSeconds;element('region-end').value=interval.endSeconds;refreshRegion();playRegion();});cell.append(button);row.append(cell);rows.append(row);}
     if(!measured.count){const row=make('tr'),cell=make('td','No sections are quiet enough for long enough at these settings. You may still hear pauses.');cell.colSpan=4;row.append(cell);rows.append(row);}
     element('row-limit').textContent=measured.count>100?'First 100 runs shown; report includes all runs.':'';refreshRegion();
   }
   function select(id) {
     const item=state.items.find(entry=>entry.id===id);quiet(item);
-    listening.resetDraft();
-    stop();state.current=item;element('clips').value=id;element('player').src=item.url;
+    listening.resetDraft(true);
+    stop();state.selectionEpoch++;state.current=item;state.selectedInterval=null;element('clips').value=id;element('player').src=item.url;
     element('region-start').value=item.construction&&item.construction.pause?item.construction.pause.startSeconds:0;
     element('region-end').value=item.construction&&item.construction.pause?item.construction.pause.endSeconds:Math.min(5,item.signal.durationSeconds);
     element('notes').value=item.notes||'';for(const group of feedbackGroups){for(const [id,label] of group.choices){element(id).checked=item.listeningAnswers?.[group.key]===label;}}element('workspace').hidden=false;render();
   }
   async function add(bytes,metadata) {
+    const selectionEpoch=state.selectionEpoch;
     const signal=api.parseWav(bytes);
     if(!crypto.subtle) { throw Error('WebCrypto is required. Open this file in a current Chromium or Firefox browser.'); }
     const digest=await crypto.subtle.digest('SHA-256',bytes),sha256=[...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,'0')).join('');
     if(metadata.expectedSha256&&sha256!==metadata.expectedSha256){throw Error('Sample hash mismatch. Analysis refused.');}
     const blocks=api.buildBlocks(signal);quiet({signal,blocks});
-    const id=metadata.id||'local-'+sha256.slice(0,16),duplicate=state.items.find(item=>item.sha256===sha256);if(duplicate){select(duplicate.id);status('Identical source bytes already loaded; reusing '+duplicate.label+'. No second observation record was created.');return 'reused';}if(state.items.some(item=>item.id===id)){throw Error('Clip ID collision with different source bytes; analysis refused.');}
+    const id=metadata.id||'local-'+sha256.slice(0,16),duplicate=state.items.find(item=>item.sha256===sha256);if(duplicate){if(selectionEpoch===state.selectionEpoch){select(duplicate.id);}status('Identical source bytes already loaded; reusing '+duplicate.label+'. No second observation record was created.');return 'reused';}if(state.items.some(item=>item.id===id)){throw Error('Clip ID collision with different source bytes; analysis refused.');}
     const storedFrames=state.items.reduce((sum,item)=>sum+item.signal.frames*item.signal.channels,0);
     if(state.items.length>=8||(storedFrames+signal.frames*signal.channels)*4>64*1024*1024){throw Error('Session limit: 8 clips / 64 MiB decoded samples. Download your notes and reload.');}
     const item={...metadata,id,sha256,bytes:bytes.byteLength,signal,blocks,whole:api.regionStats(signal),url:URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}))};state.items.push(item);
-    const option=make('option',item.label);option.value=id;element('clips').append(option);select(id);return 'added';
+    const option=make('option',item.label);option.value=id;element('clips').append(option);if(selectionEpoch===state.selectionEpoch){select(id);}else{refreshReport();}return 'added';
   }
   for(const fixture of fixtures){const button=make('button',fixture.label);button.className='sample-button';button.addEventListener('click',async()=>{
     const buttons=[...element('sample-buttons').querySelectorAll('button')];buttons.forEach(node=>node.disabled=true);
@@ -117,7 +120,7 @@
   element('files').addEventListener('change',async event=>{let loaded=0,reused=0;const refused=[];try{for(const file of event.target.files){try{if(file.size>api.limits.bytes){throw Error('exceeds 20 MiB');}const outcome=await add(await file.arrayBuffer(),{name:file.name,label:file.name});if(outcome==='reused'){reused++;}else{loaded++;}}catch(error){refused.push(file.name+': '+error.message);}}status(loaded+' loaded, '+reused+' identical sources reused, '+refused.length+' refused.'+(refused.length?' '+refused.join(' | '):' No upload or normalization.'),refused.length>0);}finally{event.target.value='';}});
   element('clips').addEventListener('change',event=>{try{select(event.target.value);}catch(error){element('clips').value=state.current?state.current.id:'';status('Clip switch refused: '+error.message,true);element('copy').disabled=true;element('download').disabled=true;}});
   for(const id of ['threshold','minimum']){element(id).addEventListener('change',()=>{stop();try{render();status('Settings changed; all report intervals use current settings.');}catch(error){status(error.message,true);element('copy').disabled=true;element('download').disabled=true;}});}
-  for(const id of ['region-start','region-end']){element(id).addEventListener('input',()=>{listening.resetDraft();refreshRegion();});}
+  for(const id of ['region-start','region-end']){element(id).addEventListener('input',()=>{stop();state.selectedInterval=null;listening.resetDraft();refreshRegion();});}
   element('region-play').addEventListener('click',playRegion);element('stop').addEventListener('click',stop);
   element('player').addEventListener('play',stopRegion);
   element('notes').addEventListener('input',()=>{if(state.current){if(element('notes').value.length<=4000){state.current.notes=element('notes').value;}refreshReport();}});

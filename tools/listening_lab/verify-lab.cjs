@@ -27,6 +27,10 @@ vm.runInNewContext(instrument, sandbox);
 const api = sandbox.AudioMeasurementInstrument;
 const calibration = api.calibration();
 assert(calibration.passed);
+assert.equal(calibration.results.length,19,'Calibration must execute all nineteen checks');
+assert.equal(new Set(calibration.results.map(result=>result.name)).size,19,'Calibration check names must be distinct');
+assert(calibration.results.some(result=>result.name==='Digital zero: null RMS and one-second quiet interval'));
+assert(calibration.results.some(result=>result.name==='RIFF decoder: Stereo PCM16 channel order'));
 const checks = [];
 function check(name, callback) { callback(); checks.push({name, passed:true}); }
 function buffer(bytes) { const copy = new ArrayBuffer(bytes.length);new Uint8Array(copy).set(bytes);return copy; }
@@ -64,8 +68,22 @@ for(const bounds of [[-1,2],[0,4],[1,1],[1.5,2]]){check('Invalid region refused 
 for(const threshold of [NaN,Infinity,-101,1]){check('Invalid quiet threshold refused '+threshold,()=>assert.throws(()=>api.findQuiet(small,api.buildBlocks(small),threshold,.5),/Threshold/));}
 const fixtures=JSON.parse(html.match(/<script id="fixture-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
 const measured=[];
+const frozenWavHashes={
+  'pd01-pristine':'820f268f6823ff400705d2fe808a1efbb2331566db3728f7b467da008f113912',
+  'pd01-intentional':'09b46fcbf6c8c438fcac0defbdb9b9be76dd61fd30359bbb785d3c29f8a2c527',
+  'pd01-defect':'0c3ec1d9ed84c2e17e184fdeaa54aed4416b4738ee1f0b5de5e9628226aa460e'
+};
+assert.deepEqual(fixtures.map(fixture=>fixture.id).sort(),Object.keys(frozenWavHashes).sort(),'Frozen public fixture IDs');
+const provenance=fs.readFileSync(path.join(directory,'PROVENANCE.md'),'utf8');
 for(const fixture of fixtures){
   const bytes=Buffer.from(fixture.base64.join(''),'base64');assert.equal(digest(bytes),fixture.expectedSha256);
+  assert.equal(digest(bytes),frozenWavHashes[fixture.id],'Frozen public WAV identity');
+  assert(provenance.includes(frozenWavHashes[fixture.id]),'PROVENANCE must name the frozen WAV hash');
+  assert.equal(fixture.construction.productRecording,false,'Public demonstration is not product audio');
+  assert.equal(fixture.construction.fixtureId,fixture.id,'Construction fixture ID');
+  assert.equal(fixture.construction.sourceUrl,'https://www.archive.org/download/short_poetry_001_librivox/abou_hunt_py_64kb.mp3','Public source URL');
+  assert.equal(fixture.construction.licenseScope,'Official LibriVox catalog records public-domain status in USA; no global-rights claim. No private voice material.','USA-only public provenance scope');
+  assert.equal(fixture.construction.annotationBasis,'Pre-frozen editorial construction only; not human listening or natural authorial intent.','Editorial labels, not listening evidence');
   assert.equal(fixture.construction.wavSha256,digest(bytes),fixture.id+' construction.wavSha256 must be the embedded WAV hash');
   assert.equal(fixture.construction.wavBytes,bytes.length,fixture.id+' construction.wavBytes must be the embedded WAV length');
   assert.equal(fixture.construction.sourceSha256,undefined,fixture.id+' must not use ambiguous sourceSha256');
@@ -116,7 +134,7 @@ function compareReference(measurements, reference) {
   return {toleranceDb: independentToleranceDb, maximumLevelDeltaDb, levelComparisons, fixtureComparisons: measurements.length, enforced: true};
 }
 const referencePath = path.join(directory, 'reference_measurements.py');
-const expectedReferenceSha256 = 'fbe85bcdcde46af9b3297535f9f9dd82ee35bbe470aa1d31d99343c68a16cbb6';
+const expectedReferenceSha256 = 'b56af7c402896f6ab4ff4f3c1014a1fc346fc4cb90c2c7dc333912b17528d1a1';
 function requirePinnedReference(source) {
   assert.equal(digest(source), expectedReferenceSha256, 'Independent Python reference source hash mismatch');
 }
@@ -125,7 +143,11 @@ requirePinnedReference(referenceSource);
 check('Pinned independent reference accepts exact bytes', () => requirePinnedReference(referenceSource));
 check('Changed independent reference is refused', () => assert.throws(() => requirePinnedReference(Buffer.concat([referenceSource, Buffer.from('\n')])), /reference source hash mismatch/));
 check('Empty independent reference is refused', () => assert.throws(() => requirePinnedReference(Buffer.alloc(0)), /reference source hash mismatch/));
-const referenceDirectory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'aa2-listening-reference-'));
+const roundingBytes=Buffer.from(wav(new Array(22050).fill(0),24,1,22050));
+const roundingSignal=api.parseWav(buffer(roundingBytes)),roundingBlocks=api.buildBlocks(roundingSignal);
+assert.equal(roundingBlocks.blockFrames,221,'22050 Hz block ties round upward');
+measured.push({id:'synthetic-22050-zero',sourceSha256:digest(roundingBytes),sourceBytes:roundingBytes.length,sampleRate:22050,frames:22050,channels:1,whole:api.regionStats(roundingSignal),quiet:api.findQuiet(roundingSignal,roundingBlocks,-50,.5)});
+const referenceDirectory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'aa2-listening-reference-\u00e9-'));
 let independentReference;
 try {
   const inputs = fixtures.map((fixture, index) => {
@@ -133,8 +155,11 @@ try {
     fs.writeFileSync(filename, Buffer.from(fixture.base64.join(''), 'base64'), {flag: 'wx'});
     return {id: fixture.id, path: filename, pause: fixture.construction.pause};
   });
+  const roundingPath=path.join(referenceDirectory,'synthetic-22050-zero.wav');
+  fs.writeFileSync(roundingPath,roundingBytes,{flag:'wx'});
+  inputs.push({id:'synthetic-22050-zero',path:roundingPath,pause:null});
   const verifiedProgram = '__file__ = ' + JSON.stringify(referencePath) + '\nexec(compile(' + JSON.stringify(referenceSource.toString('utf8')) + ', __file__, "exec"))';
-  const execution = require('node:child_process').spawnSync(process.env.PYTHON || 'python', ['-B', '-c', verifiedProgram], {input: JSON.stringify(inputs), encoding: 'utf8', timeout: 30000, maxBuffer: 1024 * 1024});
+  const execution = require('node:child_process').spawnSync(process.env.PYTHON || 'python', ['-B', '-c', verifiedProgram], {input: JSON.stringify(inputs), encoding: 'utf8', env: {...process.env, PYTHONIOENCODING:'utf-8'}, timeout: 30000, maxBuffer: 1024 * 1024});
   if (execution.error) { throw execution.error; }
   assert.equal(execution.status, 0, 'Independent Python reference failed: ' + execution.stderr.slice(0, 2000));
   independentReference = JSON.parse(execution.stdout);

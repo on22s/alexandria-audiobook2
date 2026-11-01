@@ -17,7 +17,11 @@ for (const [id, source] of [['instrument', instrument], ['interface', implementa
   assert(!/\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\s*\(/.test(source), id + ' must not use network APIs');
 }
 const nodes = new Map(), anchors = [], copies = [], results = [];
+const markupIds=[...html.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]);
+assert.equal(new Set(markupIds).size,markupIds.length,'HTML IDs must be unique');
+assert.deepEqual([...html.matchAll(/<script\b[^>]*\bid="([^"]+)"/g)].map(match=>match[1]),['fixture-data','instrument','listening-tasks','interface'],'Inline script count and dependency order');
 let failDownload = false;
+let deferDigest=false,releaseDigest=null,onDigest=null;
 class Element {
   get value() { return this._value || ''; }
   set value(value) { this._value = String(value); }
@@ -34,7 +38,8 @@ class Element {
   remove() { if (this.parent) { this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null; } }
 }
 const body = new Element('body');
-const get = id => { if (!nodes.has(id)) { nodes.set(id, new Element()); } return nodes.get(id); };
+for(const id of markupIds){nodes.set(id,new Element());}
+const get = id => { assert(nodes.has(id),'Missing HTML element '+id);return nodes.get(id); };
 get('fixture-data').textContent = JSON.stringify(fixtures);
 get('threshold').value = '-50'; get('minimum').value = '.5';
 get('ear-comparison').value = 'comparison-1'; get('ear-rendition').value = 'reference';
@@ -43,7 +48,7 @@ get('ear-heard').checked = false;
 const sandbox = {atob,ArrayBuffer,Uint8Array,Float32Array,Float64Array,DataView,Blob,console,
   document:{getElementById:get,createElement:tag=>new Element(tag),body,querySelectorAll:()=>[...nodes.values()],execCommand:()=>true},
   window:{addEventListener(){}},navigator:{userAgent:'PRIVATE-DEVICE-DETAIL',clipboard:{writeText:async text=>copies.push(text)}},
-  crypto:crypto.webcrypto,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},setTimeout:callback=>callback(),requestAnimationFrame:callback=>callback()};
+  crypto:{subtle:{digest:(...args)=>deferDigest?new Promise(resolve=>{releaseDigest=()=>resolve(crypto.webcrypto.subtle.digest(...args));onDigest();}):crypto.webcrypto.subtle.digest(...args)}},URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},setTimeout:callback=>callback(),requestAnimationFrame:callback=>callback()};
 vm.runInNewContext(instrument, sandbox);
 vm.runInNewContext(listeningTasks, sandbox);
 vm.runInNewContext(implementation, sandbox);
@@ -109,15 +114,17 @@ async function load(files) { const target = {files,value:'selected'}; await get(
   check('Download failure names copy fallback', get('status').textContent.includes('Copy the results instead'), true);
   check('Failed download anchor removed', body.children.length, 0);
   const savedCount = JSON.parse(get('results').value).listeningTasks.measurements.length;
-  function draft() { get('ear-heard').checked = true; get('ear-finding').value = 'Background drops abruptly'; get('ear-detail').value = 'Previous selection only'; }
+  function draft() { get('ear-heard').checked = true; get('ear-finding').value = 'Background drops abruptly'; get('ear-detail').value = 'Previous selection only'; get('ear-origin').value='existing-product-render'; }
   function checkDraftReset(name) { check(name, [get('ear-heard').checked,get('ear-finding').value,get('ear-detail').value], [false,'','']); }
   draft();
   get('clips').listeners.change({target:{value:report.telemetry[0].id}});
   checkDraftReset('Clip switch clears listening confirmation and unsaved details');
+  check('Clip switch requires a fresh audio-origin declaration',get('ear-origin').value,'unknown');
   get('ear-finding').value = 'Background drops abruptly'; get('ear-save').listeners.click();
   check('New clip cannot reuse old listening confirmation', JSON.parse(get('results').value).listeningTasks.measurements.length, savedCount);
   draft(); get('ear-task').value = 'reply-delivery'; get('ear-task').listeners.change();
   checkDraftReset('Task switch clears listening confirmation and unsaved details');
+  check('Task switch requires a fresh audio-origin declaration',get('ear-origin').value,'unknown');
   get('ear-task').value = 'pause-background'; get('ear-task').listeners.change();
   draft(); get('region-start').value = '.5'; get('region-start').listeners.input();
   checkDraftReset('Region start change clears listening confirmation and unsaved details');
@@ -185,6 +192,10 @@ async function load(files) { const target = {files,value:'selected'}; await get(
   saveRegion('gap',1,2); transitionTasks=saveRegion('after',2,3);
   check('Complete adjacent regions produce one transition', transitionTasks.levelTransitions.filter(item=>diagnostic(transitionTasks).measurementIds.includes(item.measurementIds[0])).length, 1);
   check('Complete transition is marked measured', diagnostic(transitionTasks).status, 'measured');
+  const transition=transitionTasks.levelTransitions.find(item=>diagnostic(transitionTasks).measurementIds.includes(item.measurementIds[0]));
+  const levels=transition.measurementIds.map(id=>transitionTasks.measurements.find(item=>item.id===id).region.channels[0].rmsDbfs);
+  check('User transition step into gap preserves sign',transition.channels[0].stepIntoGapDb,levels[1]-levels[0]);
+  check('User transition step out of gap preserves sign',transition.channels[0].stepOutOfGapDb,levels[2]-levels[1]);
   transitionTasks=saveRegion('before',0,.5);
   check('Duplicate role is unavailable, not silently skipped', diagnostic(transitionTasks).roleCounts.before, 2);
   get('ear-comparison').value='overlap-control';
@@ -212,5 +223,51 @@ async function load(files) { const target = {files,value:'selected'}; await get(
   check('Fixture levels disclose the duration confound', fixtureLevels.definition.includes('not a duration-only test'), true);
   check('Progress copy does not claim full sound-design closure', html.includes('#1444 sound-design criteria are closed'), false);
   check('Progress copy discloses unproven acceptance', html.includes('full acceptance is not established'), true);
+  get('ear-task').value='reply-delivery';get('ear-task').listeners.change();
+  get('ear-origin').value='existing-product-render';get('ear-heard').checked=true;
+  get('ear-finding').value=sandbox.AudioListeningTasks.definitions.find(task=>task.id==='reply-delivery').findings[0];
+  const beforeRefusal=JSON.parse(get('results').value).listeningTasks.measurements.length;
+  get('ear-save').listeners.click();
+  check('Built-in demonstrations cannot satisfy a product-audio task',JSON.parse(get('results').value).listeningTasks.measurements.length,beforeRefusal);
+  check('Product-audio refusal explains built-in provenance',get('ear-save-status').textContent.includes('Built-in demonstrations are not product renders'),true);
+  const boundaryBytes=Buffer.alloc(44+24000*2);
+  boundaryBytes.write('RIFF',0);boundaryBytes.writeUInt32LE(boundaryBytes.length-8,4);boundaryBytes.write('WAVEfmt ',8);
+  boundaryBytes.writeUInt32LE(16,16);boundaryBytes.writeUInt16LE(1,20);boundaryBytes.writeUInt16LE(1,22);
+  boundaryBytes.writeUInt32LE(24000,24);boundaryBytes.writeUInt32LE(48000,28);boundaryBytes.writeUInt16LE(2,32);boundaryBytes.writeUInt16LE(16,34);
+  boundaryBytes.write('data',36);boundaryBytes.writeUInt32LE(boundaryBytes.length-44,40);
+  for(let frame=0;frame<24000;frame++){boundaryBytes.writeInt16LE(frame>=6960&&frame<18960?33:frame===6959?32767:16384,44+frame*2);}
+  const boundaryBuffer=boundaryBytes.buffer.slice(boundaryBytes.byteOffset,boundaryBytes.byteOffset+boundaryBytes.length);
+  await load([{name:'synthetic-frame-boundary.wav',size:boundaryBytes.length,arrayBuffer:async()=>boundaryBuffer}]);
+  get('ear-task').value='reply-delivery';get('ear-task').listeners.change();
+  get('ear-heard').checked=true;get('ear-finding').value=sandbox.AudioListeningTasks.definitions.find(task=>task.id==='reply-delivery').findings[0];
+  const productCount=JSON.parse(get('results').value).listeningTasks.measurements.length;
+  get('ear-save').listeners.click();
+  check('An undeclared user WAV cannot satisfy a product-audio task',JSON.parse(get('results').value).listeningTasks.measurements.length,productCount);
+  check('User WAV refusal requires an explicit product declaration',get('ear-save-status').textContent.includes('requires an existing product render'),true);
+  get('ear-origin').value='existing-product-render';get('ear-save').listeners.click();
+  const productTasks=JSON.parse(get('results').value).listeningTasks;
+  check('Explicit declared product origin permits a user-WAV finding',productTasks.measurements.length,productCount+1);
+  const productMeasurement=productTasks.measurements[productTasks.measurements.length-1],productObservation=productTasks.humanObservations[productTasks.humanObservations.length-1];
+  check('Saved observation pins declaration and measurement provenance',[productMeasurement.taskId,productMeasurement.issue,productObservation.measurementId,productObservation.audioOrigin,productObservation.heardDeclared,productObservation.comparisonLabel,productObservation.rendition,productObservation.regionRole],['reply-delivery',1258,productMeasurement.id,'existing-product-render',true,get('ear-comparison').value,get('ear-rendition').value,get('ear-region-role').value]);
+  get('ear-task').value='pause-background';get('ear-task').listeners.change();
+  await get('quiet-rows').children[0].children[3].children[0].listeners.click();
+  const exactSelection=JSON.parse(get('results').value).selectedRegion;
+  check('Quiet-row selection retains exact source-frame boundaries',[exactSelection.startFrame,exactSelection.endFrameExclusive],[6960,18960]);
+  const boundarySignal=sandbox.AudioMeasurementInstrument.parseWav(boundaryBuffer);
+  check('Quiet-row measurement excludes the preceding loud sample',exactSelection.channels[0].rmsDbfs,sandbox.AudioMeasurementInstrument.regionStats(boundarySignal,6960,18960).channels[0].rmsDbfs);
+  get('region-start').listeners.input();
+  check('Manually editing a quiet selection restores documented floor bounds',JSON.parse(get('results').value).selectedRegion.startFrame,6959);
+  const changedBytes=Buffer.from(boundaryBytes);changedBytes[44]^=1;
+  const changedBuffer=changedBytes.buffer.slice(changedBytes.byteOffset,changedBytes.byteOffset+changedBytes.length);
+  for(const file of [source(0,'duplicate-pending.wav'),{name:'new-pending.wav',size:changedBytes.length,arrayBuffer:async()=>changedBuffer}]){
+    deferDigest=true;releaseDigest=null;
+    const digestStarted=new Promise(resolve=>{onDigest=resolve;});
+    const loading=load([file]);await digestStarted;
+    assert.equal(typeof releaseDigest,'function','Digest must be pending before changing selection');
+    const chosen=JSON.parse(get('results').value).telemetry[1].id;
+    get('clips').listeners.change({target:{value:chosen}});
+    releaseDigest();await loading;deferDigest=false;
+    check('Completing '+file.name+' preserves a newer user selection',JSON.parse(get('results').value).selectedRegion.clipId,chosen);
+  }
   console.log(JSON.stringify({schema:'listening-lab-interface-probe/v1',interfaceSha256:crypto.createHash('sha256').update(implementation).digest('hex'),checks:results,scope:'Real interface and instrument evaluated against a deterministic DOM/clipboard/download stub; not browser layout, permission-policy, filesystem-save, or audio-hardware verification.'},null,2));
 })().catch(error=>{console.error(error);process.exitCode=1;});

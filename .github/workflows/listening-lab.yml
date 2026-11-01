@@ -5,6 +5,7 @@ on:
     paths:
       - 'tools/listening_lab/**'
       - '.github/workflows/listening-lab.yml'
+      - '.gitattributes'
 
 permissions:
   contents: read

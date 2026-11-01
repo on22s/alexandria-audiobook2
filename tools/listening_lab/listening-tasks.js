@@ -18,14 +18,15 @@
     }
     element('ear-task').value = definitions[0].id;
     function task() { return definitions.find(entry => entry.id === element('ear-task').value); }
-    function resetDraft() {
+    function resetDraft(clearOrigin = false) {
+      if (clearOrigin) { element('ear-origin').value = 'unknown'; }
       element('ear-heard').checked = false;
       element('ear-finding').value = '';
       element('ear-detail').value = '';
       element('ear-save-status').textContent = 'Selection changed. Confirm listening again before saving; existing saved findings are retained.';
     }
     function updateTask() {
-      resetDraft();
+      resetDraft(true);
       const selected = task();
       element('ear-prompt').textContent = selected.prompt;
       element('ear-scope').textContent = selected.status;

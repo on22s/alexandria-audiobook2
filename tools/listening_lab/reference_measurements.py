@@ -13,7 +13,7 @@ for item in items:
   chosen=values[start:end];square_sum=sum(value*value for value in chosen);peak=max(abs(value) for value in chosen)
   rms=math.sqrt(square_sum/len(chosen))/scale
   return dict(startFrame=start,endFrameExclusive=end,rmsDbfs=20*math.log10(rms) if rms else None,peakDbfs=20*math.log10(peak/scale) if peak else None)
- block=round(.010*rate);runs=[];begin=None
+ block=math.floor(.010*rate+.5);runs=[];begin=None
  for offset in range(0,frames-block+1,block):
   below=sum(value*value for value in values[offset:offset+block])/block <= (10**(-50/10))*scale*scale
   if below and begin is None:begin=offset
