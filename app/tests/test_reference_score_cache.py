@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -42,11 +43,17 @@ if mode=='nonfinite':values[0]=float('nan')
 if mode=='short':values=values[:-1]
 print('provider banner');print(json.dumps(values))
 """)
-        self.python = self.root / "env/bin/python"
-        self.python.parent.mkdir(parents=True)
-        self.python.write_text("#!" + sys.executable + "\nimport os,sys\nos.execv(" + repr(sys.executable)
-                               + ", [" + repr(sys.executable) + "]+sys.argv[1:])\n")
-        self.python.chmod(0o755)
+        if os.name == "nt":
+            subprocess.run([sys.executable, "-m", "venv", "--without-pip",
+                            str(self.root / "env")], check=True,
+                           capture_output=True, text=True, timeout=60)
+            self.python = self.root / "env/Scripts/python.exe"
+        else:
+            self.python = self.root / "env/bin/python"
+            self.python.parent.mkdir(parents=True)
+            self.python.write_text("#!" + sys.executable + "\nimport os,sys\nos.execv(" + repr(sys.executable)
+                                   + ", [" + repr(sys.executable) + "]+sys.argv[1:])\n")
+            self.python.chmod(0o755)
         metadata = self.root / "env/lib/python3.10/site-packages/speechbrain-1.dist-info/METADATA"
         metadata.parent.mkdir(parents=True)
         metadata.write_text("Version: 1\n")

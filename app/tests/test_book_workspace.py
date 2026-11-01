@@ -68,7 +68,9 @@ class BookWorkspaceTests(unittest.TestCase):
     def test_saved_speech_evidence_distinguishes_current_absent_and_changed_inputs_without_audio_reads(self):
         from book_state_transaction import get_book_operation_token
         from editor_review_facts import get_editor_review_facts
-        from speech_verification_receipt import get_speech_verification_receipt
+        from speech_verification_receipt import (
+            _ctime_attests_change, get_speech_verification_chunk_view,
+            get_speech_verification_receipt)
         from tests.test_speech_verification_receipt import get_report
 
         self.prepare()
@@ -96,8 +98,19 @@ class BookWorkspaceTests(unittest.TestCase):
                 side_effect=AssertionError('Workspace must not hash audio')):
             facts = self.read()['audio']['review']
             self.assertEqual('metadata_only', facts['identity_check'])
-            self.assertEqual(1, facts['speech_current_metadata'])
-            self.assertEqual(0, facts['speech_attention'])
+            if _ctime_attests_change():
+                self.assertEqual(1, facts['speech_current_metadata'])
+                self.assertEqual(0, facts['speech_attention'])
+            else:
+                self.assertEqual(0, facts['speech_current_metadata'])
+                self.assertEqual(1, facts['speech_not_current'])
+                self.assertEqual(1, facts['speech_attention'])
+                review = get_editor_review_facts(
+                    [row], self.manager.get_chunk_audio_path, token)[0]
+                self.assertEqual(['speech_historical'], review['issues'])
+                view = get_speech_verification_chunk_view(
+                    row, token, self.manager.get_chunk_audio_path)
+                self.assertEqual('platform', view['speech_verification_historical_reason'])
             # The existing Editor response shape remains unchanged.
             self.assertNotIn('speech_evidence', get_editor_review_facts(
                 [row], self.manager.get_chunk_audio_path, token)[0])

@@ -167,7 +167,7 @@ class RosterSourceEvidenceCliTests(unittest.TestCase):
         self.assertIn('git', report['provenance'])
         shared = Path(r.__file__).resolve().parents[1] / 'source_evidence.py'
         self.assertEqual(report['implementation'], {
-            'app/source_evidence.py': hashlib.sha256(shared.read_bytes()).hexdigest()})
+            str(Path('app') / 'source_evidence.py'): hashlib.sha256(shared.read_bytes()).hexdigest()})
         for key, path in [('source', self.source), ('packet', self.imported)]:
             self.assertEqual(path.read_bytes(), before[path])
             self.assertEqual(report['inputs'][key]['sha256'], hashlib.sha256(before[path]).hexdigest())

@@ -20,6 +20,10 @@ CODE_FILES = ('speech_verification_runtime.py', 'speech_verification_compare.py'
               'subprocess_ownership.py', 'speech_verification.py')
 
 
+_VERIFIER_READ_FLAGS = (os.O_RDONLY | getattr(os, 'O_BINARY', 0)
+                        | getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_NOFOLLOW', 0))
+
+
 def get_verification_runtime(root, *, confirmation=False):
     runtime = get_whisper_cpp_runtime(root)
     if confirmation:
@@ -38,8 +42,7 @@ def get_verifier_file_identity(path, limit, cancel_check):
         raise ValueError('Speech verification cancelled.')
     requested = Path(path)
     resolved = requested.resolve(strict=True)
-    flags = os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_NOFOLLOW', 0)
-    descriptor = os.open(resolved, flags)
+    descriptor = os.open(resolved, _VERIFIER_READ_FLAGS)
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= limit:
@@ -64,8 +67,7 @@ def get_verifier_file_identity(path, limit, cancel_check):
 def get_verifier_model_architecture(path, expected_identity=None):
     # whisper.cpp's GGML_FILE_MAGIC + eleven int32 hparams, in native GGML LE.
     # Architecture is evidence of the requested model role, not proof of ASR accuracy.
-    flags = os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_NOFOLLOW', 0)
-    descriptor = os.open(path, flags)
+    descriptor = os.open(path, _VERIFIER_READ_FLAGS)
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):

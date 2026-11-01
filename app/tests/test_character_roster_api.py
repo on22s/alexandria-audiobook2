@@ -89,7 +89,7 @@ class CharacterRosterApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(409,stale.status_code)
 
     async def test_quote_candidates_use_unicode_character_coordinates_and_never_approve_unanchored_claims(self):
-        self.source.write_text('😀'+SOURCE1)
+        self.source.write_text('😀'+SOURCE1, encoding='utf-8')
         metadata=await self.metadata()
         result=await self.client.get(BASE+'/source',params={'context_revision':metadata['context_revision'],'quote':'Alice'})
         self.assertEqual(200,result.status_code,result.text);match=result.json()['matches'][0]
@@ -184,7 +184,7 @@ class CharacterRosterApiTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(409,result.status_code,result.text);self.assertEqual(before,self.files())
 
     async def test_quote_limit_is_4000_unicode_characters_and_valid_non_bmp_export_roundtrips(self):
-        quote='😀'*4000;source=quote+SOURCE1;self.source.write_text(source)
+        quote='😀'*4000;source=quote+SOURCE1;self.source.write_text(source, encoding='utf-8')
         metadata=await self.metadata()
         value=proposal(source,[entry(source,A,'LONG QUOTE',quote)],[decision('add',[],[A])])
         await self.approve(self.request(metadata,value))

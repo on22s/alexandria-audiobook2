@@ -150,7 +150,7 @@ class RecoveryServingTests(unittest.TestCase):
         self.assertEqual(digest, first['speech_policy'])
         from pathlib import Path
         source_path = Path(speech_policy.__file__)
-        source = source_path.read_text()
+        source = source_path.read_text(encoding="utf-8")
         changed = source.replace(
             "has_trailing_punctuation(text, '.!?。！？')",
             "has_trailing_punctuation(text, '.!?。！？…')", 1)
