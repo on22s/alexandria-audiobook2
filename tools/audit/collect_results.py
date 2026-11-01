@@ -17,6 +17,8 @@ sys.path.insert(0, REPO)
 from tools.audit.pipeline_repeat_scoring import get_pipeline_repeat_scores
 sys.path.insert(0, os.path.join(REPO, "app"))
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
+from tools.audit.audit_legacy_attribution import (
+    GoldPathRefused, read_gold_fixture)
 E = os.path.join(REPO, "ab_test_runtime", "experiments")
 AUDIT = os.path.join(REPO, "ab_test_runtime", "audit")
 def _load_audit(name):
@@ -339,8 +341,13 @@ def main(argv=None):
                           - {os.path.basename(path) for path in _checkpoint_paths})
         if _missing:
             raise SystemExit(f"Missing checkpoints for saved repeats {_missing}; saved scores preserved.")
-        _gold = json.load(open(os.path.join(
-            REPO, "app", "fixtures", "attribution_gold_grimgar03_provisional.json"), encoding="utf-8"))
+        _gold_rel = "app/fixtures/attribution_gold_grimgar03_provisional.json"
+        try:
+            _gold = read_gold_fixture(os.path.join(REPO, _gold_rel), _gold_rel)[1]
+        except (OSError, ValueError, GoldPathRefused) as exc:
+            raise SystemExit(
+                f"Repeat gold fixture {_gold_rel} is unreadable; saved scores "
+                f"preserved: {exc}") from exc
         _scored = []
         for f in _checkpoint_paths:
             try:
@@ -536,7 +543,7 @@ def main(argv=None):
         return 0
     with open(out_csv, "w", encoding="utf-8", newline="") as handle:
         handle.write(csv_text)
-    with open(md_path, "w", encoding="utf-8") as handle:
+    with open(md_path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(md_text)
     print(f"{len(files)} artifacts -> "
           f"{len([r for r in rows if r.get('arm')])} arm rows, "

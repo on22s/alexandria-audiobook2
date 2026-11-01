@@ -1,6 +1,10 @@
 """Native file locks serialize response blocks and rotation across processes."""
 import contextlib
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import io
 import json
 import os
@@ -24,6 +28,7 @@ def log_response(path, label, payload):
         return gs.call_llm_for_entries(client,'fixture','system','user',params,'response.log',label,max_retries=0)
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class ResponseLogAtomicityTests(unittest.TestCase):
     def test_open_and_rotation_are_both_inside_the_same_kernel_lock(self):
         with tempfile.TemporaryDirectory() as tmp:

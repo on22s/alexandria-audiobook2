@@ -1,7 +1,11 @@
 """Real Unix transport and worker protocol; mocked kernel is not Darwin proof."""
 import array
 import errno
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import io
 import json
 import os
@@ -16,9 +20,13 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-import macos_subprocess_owner as owner
+if HAVE_FCNTL:
+    import macos_subprocess_owner as owner
+else:
+    owner = None
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class MacOwnerTransportTests(unittest.TestCase):
     def test_transferred_descriptor_retains_real_lock_after_sender_closes(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -100,6 +108,7 @@ class MacOwnerTransportTests(unittest.TestCase):
                     process.stderr.close()
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class MacOwnerCleanupTests(unittest.TestCase):
     def test_unavailable_launchctl_executable_does_not_wait_for_job_cleanup(self):
         handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
@@ -311,6 +320,7 @@ class FakeLaunchdScope:
             self.actor_exited.set()
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class MacOwnerFinishTests(unittest.TestCase):
     """The broker's finish and stop paths against a KeepAlive launchd job (#1646)."""
 
@@ -414,6 +424,7 @@ class MacOwnerFinishTests(unittest.TestCase):
         self.assertEqual(1, scope.remove_calls)
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class MacOwnerAdmissionTests(unittest.TestCase):
     def test_shared_scope_and_changed_identity_are_rejected(self):
         candidate = {'pid': 5, 'pidversion': 8, 'coalition': 42}

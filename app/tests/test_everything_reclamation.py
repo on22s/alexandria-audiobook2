@@ -1,5 +1,9 @@
 """The actual everything-chain cleanup waits for the shared GPU lease."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 from pathlib import Path
 import time
 import unittest
@@ -11,6 +15,7 @@ from tests.test_support import requires_linux_queue_tools
 
 
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class EverythingReclamationTests(unittest.TestCase):
     setUp = reclamation.StageGpuReclamationTests.setUp
     launch = reclamation.StageGpuReclamationTests.launch

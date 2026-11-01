@@ -93,7 +93,7 @@ class TakeRestorationTests(unittest.TestCase):
                     patch('synthesis_recovery_serving.capture_native_'+category+'_serving_identity',return_value=identity):
                 yield root,manager,engine,request,origin,original,current,displaced,saved
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_restore_selects_original_bytes_counter_and_complete_proof_in_both_stores(self):
         for journal in (False,True):
             with self.subTest(journal=journal),self.prepared(journal) as args:
@@ -117,7 +117,7 @@ class TakeRestorationTests(unittest.TestCase):
                 from synthesis_workspace import SynthesisWorkspaceRegistry
                 with SynthesisWorkspaceRegistry(root) as registry:self.assertEqual(registry.body['rows'],{})
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_clone_and_lora_publication_kind_restore_and_cross_kind_refusal(self):
         # Real PCM/render/receipt/archive/publication path, declared CPU serving
         # identity only. This does not qualify native inference or voice quality.
@@ -149,7 +149,7 @@ class TakeRestorationTests(unittest.TestCase):
                         displaced_record=next(r for r in document['records'] if r['audio_revision']==current['audio_revision'])
                         self.assertEqual((root/'take_history'/f"{displaced_record['version']}{displaced_record['suffix']}").read_bytes(),displaced)
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_failed_final_metadata_keeps_displaced_bytes_revision_and_take(self):
         for journal in (False,True):
             with self.subTest(journal=journal),self.prepared(journal) as args:
@@ -168,7 +168,7 @@ class TakeRestorationTests(unittest.TestCase):
                 self.assertEqual((root/row['audio_path']).read_bytes(),displaced)
 
     @unittest.skipUnless(is_synthesis_workspace_supported() and hasattr(os, 'fork'),
-                         'Registered restore staging currently qualifies Linux')
+                         'Registered restore staging requires durable directory storage')
     def test_actual_process_death_during_restore_keeps_one_coherent_selection_and_retries(self):
         # A forked child inherits the fixture's owner, engine and serving patches,
         # restores, and dies with os._exit at one durable boundary; the parent then
@@ -248,7 +248,7 @@ class TakeRestorationTests(unittest.TestCase):
                     self.assertEqual((root/'take_history'/f"{held[0]['version']}{held[0]['suffix']}").read_bytes(),
                                      displaced)
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_restore_request_matches_generation_with_delivery_cues_and_style(self):
         from take_restoration import _get_matching_request
         from speech_policy import SUNG_HINT
@@ -287,7 +287,7 @@ class TakeRestorationTests(unittest.TestCase):
                     self.assertTrue(restored_request.instruct.endswith('quietly'))
                 self.assertEqual(manager.load_chunks()[0]['text'],origin['text'])
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_native_request_asset_errors_preserve_selected_audio(self):
         import tts
         for category in ('clone', 'lora'):
@@ -328,7 +328,7 @@ class TakeRestorationTests(unittest.TestCase):
             self.assertEqual((root/'take_history/manifest.json').read_bytes(),raw)
             self.assertEqual((root/current['audio_path']).read_bytes(),displaced)
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_changed_dependencies_and_corrupt_saved_bindings_never_replace_selected_audio(self):
         cases=('inputs','voice','model','pronunciation','recipe','speech','serving','synthesis')
         for journal in (False,True):
@@ -366,7 +366,7 @@ class TakeRestorationTests(unittest.TestCase):
                         self.assertEqual(row.get(field),current.get(field))
                     self.assertEqual((root/row['audio_path']).read_bytes(),displaced)
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_capacity_refuses_before_loading_engine(self):
         with self.prepared() as args:
             root,manager,_,request,_,_,current,displaced,_=args
@@ -379,7 +379,7 @@ class TakeRestorationTests(unittest.TestCase):
             self.assertEqual(row['audio_path'],current['audio_path'])
             self.assertEqual((root/row['audio_path']).read_bytes(),displaced)
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_edits_during_native_initialization_are_preserved(self):
         for field,value in (('take',4),('text','Changed synthetic words.')):
             with self.subTest(field=field),self.prepared() as args:
@@ -395,7 +395,7 @@ class TakeRestorationTests(unittest.TestCase):
                 self.assertIsNone(row['audio_path'])
                 self.assertEqual((root/current['audio_path']).read_bytes(),displaced)
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_shared_pronunciation_save_before_final_admission_refuses_even_with_inherited_snapshot(self):
         from routers.pronunciation_panel import (PronunciationSave, get_pronunciation_document,
                                                  save_pronunciation_document)
@@ -420,7 +420,7 @@ class TakeRestorationTests(unittest.TestCase):
                 for field in ('take','audio_revision','audio_path'):self.assertEqual(row[field],current[field])
                 self.assertEqual((root/row['audio_path']).read_bytes(),displaced)
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_later_shared_pronunciation_saver_waits_for_selection_without_holding_owner(self):
         from routers.pronunciation_panel import (PronunciationSave, get_pronunciation_document,
                                                  save_pronunciation_document)
@@ -464,7 +464,7 @@ class TakeRestorationTests(unittest.TestCase):
                     self.assertEqual((root/row['audio_path']).read_bytes(),original)
                     self.assertEqual(get_pronunciation_document()[1]['names'],{'Original':'Different'})
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_saved_speech_evidence_rebinds_only_verified_installed_file_version(self):
         from speech_verification_receipt import (get_speech_verification_receipt,
                                                  get_current_speech_verification_receipt)
@@ -506,7 +506,7 @@ class TakeRestorationTests(unittest.TestCase):
                         for field in ('take','audio_revision','audio_path'):self.assertEqual(row[field],current[field])
                         self.assertEqual((root/row['audio_path']).read_bytes(),displaced)
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_cancelled_or_replaced_owner_at_final_capture_cannot_select(self):
         from audio_generation_owner import (AudioGenerationOwner, AudioGenerationCancelled,
                                              ensure_audio_generation_owner)
@@ -540,7 +540,7 @@ class TakeRestorationTests(unittest.TestCase):
                     self.assertEqual((root/row['audio_path']).read_bytes(),displaced)
                     with SynthesisWorkspaceRegistry(root) as registry:self.assertEqual(registry.body['rows'],{})
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_real_encoded_formats_restore_identical_bytes_with_original_suffix_and_shape(self):
         import soundfile as sf
         from synthesis_workspace import SynthesisWorkspaceRegistry
@@ -561,7 +561,7 @@ class TakeRestorationTests(unittest.TestCase):
                         self.assertEqual((root/'take_history'/f"{record['version']}{record['suffix']}").read_bytes(),displaced)
                     with SynthesisWorkspaceRegistry(root) as registry:self.assertEqual(registry.body['rows'],{})
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_late_original_timing_result_cannot_attach_after_distinct_take_and_restore(self):
         from editor_word_timing import publish_word_timing, get_timing_cache_path
         for journal in (False,True):
@@ -604,7 +604,7 @@ class TakeRestorationTests(unittest.TestCase):
                     release.set()
                     for thread in threads:thread.join(3)
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_protected_source_can_restore_but_deleted_legacy_and_unproven_sources_refuse_cheaply(self):
         for journal in (False,True):
             for case in ('protected','deleted','legacy','unproven'):
@@ -630,7 +630,7 @@ class TakeRestorationTests(unittest.TestCase):
                         for field in ('take','audio_revision','audio_path'):self.assertEqual(row[field],current[field])
                         self.assertEqual((root/row['audio_path']).read_bytes(),displaced)
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_source_replacement_links_and_stage_aliases_refuse_without_overwriting_current_or_outside_bytes(self):
         import os
         import shutil

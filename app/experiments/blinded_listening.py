@@ -20,6 +20,9 @@ RATING_FIELDS = (
     "defects", "preference",
 )
 SAMPLE_RATING_FIELDS = RATING_FIELDS[:-1]
+PUBLIC_PROVENANCE_GIT_KEYS = (
+    "commit", "dirty", "source_state", "harness_sha256", "harness_sha256_scheme",
+)
 
 
 class ListeningPackageError(RuntimeError):
@@ -313,7 +316,7 @@ def _write_package(groups, source_paths, package_dir, public_path, key_path,
         # Keep exact source identities publicly, and the full Git evidence in the key.
         public_provenance["git"] = {
             name: value for name, value in full_provenance.get("git", {}).items()
-            if name in ("commit", "dirty", "source_state", "harness_sha256")}
+            if name in PUBLIC_PROVENANCE_GIT_KEYS}
         key = {"status": "complete", "randomization_seed": seed,
                "sets": key_sets, "provenance": full_provenance}
         atomic_json_write(key, key_path)

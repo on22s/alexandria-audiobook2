@@ -1,5 +1,9 @@
 """Actual context campaign under a kernel lease with CPU-only server/workers."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 import os
 from pathlib import Path
@@ -19,6 +23,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class ContextCampaignOwnershipTests(unittest.TestCase):
     setUpFixture = campaign.LlmCampaignOwnershipTests.setUpFixture
     setUpCampaign = campaign.LlmCampaignOwnershipTests.setUp

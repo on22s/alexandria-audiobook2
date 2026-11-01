@@ -249,7 +249,7 @@ def safe_load_json(path, default=None):
 
 
 def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trailing_newline=False,
-                      allow_nonatomic_fallback=True):
+                      newline=None, allow_nonatomic_fallback=True):
     """Atomically write JSON data using a temp file and os.replace.
 
     Includes retry logic with exponential backoff for Windows file locking
@@ -259,13 +259,19 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
     succeeds rather than raising an unhandled OSError.
     Set allow_nonatomic_fallback=False when publication must refuse a
     cross-device rename instead of risking partial replacement by copying.
+    newline is passed to the text stream: None (the default) keeps each
+    platform's native line ending; newline="\\n" writes the LF bytes a
+    byte-pinned artifact was committed with regardless of platform.
     """
     if not isinstance(max_retries, int) or max_retries < 1:
         raise ValueError("max_retries must be a positive integer")
+    if newline is not None and (not isinstance(newline, str)
+                                or newline not in ("", "\n", "\r", "\r\n")):
+        raise ValueError("newline must be None or a valid text-stream line ending")
     directory = os.path.dirname(target_path) or "."
     fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=directory)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as f:
             json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=sort_keys)
             if trailing_newline:
                 f.write("\n")

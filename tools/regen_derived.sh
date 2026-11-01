@@ -14,6 +14,14 @@
 # resolve_generated.sh decides whether a conflict was safe to resolve this way.
 set -uo pipefail
 
+case "$#:${1:-}" in
+    0:|1:--quiet|1:--paths|1:--python|1:--metadata) ;;
+    *)
+        echo "Usage: regen_derived.sh [--quiet|--paths|--python|--metadata]" >&2
+        exit 2
+        ;;
+esac
+
 # DROP THE GIT ENVIRONMENT A HOOK WOULD HAND US, before anything runs git.
 # Hooks export GIT_DIR - in a worktree, one with no GIT_WORK_TREE beside it -
 # and every git command below inherits it. MEASURED 2026-08-20: in that state
@@ -49,15 +57,46 @@ if [ "${1:-}" = "--paths" ]; then derived_paths; exit 0; fi
 # which has no app/env because it is not tracked, and a bare python3 gets a
 # ModuleNotFoundError halfway through - which reads as a broken branch and is
 # not one. Ask git where the main checkout is and borrow its interpreter.
-python="$REPO/app/env/bin/python"
-if [ ! -x "$python" ]; then
-    main_checkout=$(git -C "$REPO" worktree list --porcelain 2>/dev/null \
-                    | awk '/^worktree /{print $2; exit}')
-    [ -n "${main_checkout:-}" ] && python="$main_checkout/app/env/bin/python"
+#
+# AA2_PYTHON is the one explicit override: a PATH to an interpreter, never a
+# shell command. A machine can legitimately keep a reusable interpreter outside
+# app/env (on Windows, the venv's Scripts/python.exe). An override that silently
+# fell back would hide a misconfigured path until a regeneration failed halfway
+# through ([[Rule 21]]), so a bad value fails here, before anything runs.
+if [ -n "${AA2_PYTHON:-}" ]; then
+    python="$AA2_PYTHON"
+    if [ ! -f "$python" ] || [ ! -x "$python" ]; then
+        echo "regen_derived: AA2_PYTHON is not an executable file: $python" >&2
+        echo "regen_derived: set it to an interpreter path, not a shell command" >&2
+        exit 2
+    fi
+    case "$python" in
+        /*|[A-Za-z]:[\\/]*) ;;
+        *) python="$(cd -- "$(dirname -- "$python")" && pwd -P)/$(basename -- "$python")" ;;
+    esac
+else
+    # Preserve POSIX first. Windows venvs keep the interpreter in Scripts/.
+    python="$REPO/app/env/bin/python"
+    [ -x "$python" ] || python="$REPO/app/env/Scripts/python.exe"
+    if [ ! -x "$python" ]; then
+        # Preserve every byte of the path: `worktree list --porcelain` prints
+        # `worktree <path>`, and this workspace's paths contain spaces. The
+        # previous `awk '{print $2}'` cut such a path at the first space and
+        # pointed at a checkout that does not exist.
+        main_checkout=$(git -C "$REPO" worktree list --porcelain 2>/dev/null)
+        case "$main_checkout" in
+            worktree\ *)
+                main_checkout=${main_checkout#worktree }
+                main_checkout=${main_checkout%%$'\n'*}
+                python="$main_checkout/app/env/bin/python"
+                [ -x "$python" ] || python="$main_checkout/app/env/Scripts/python.exe"
+                ;;
+        esac
+    fi
+    [ -x "$python" ] || {
+        echo "regen_derived: no interpreter (AA2_PYTHON unset; looked for app/env/bin/python and app/env/Scripts/python.exe here and in the main checkout)" >&2
+        exit 1; }
 fi
-[ -x "$python" ] || {
-    echo "regen_derived: no interpreter (looked for app/env/bin/python here and in the main checkout)" >&2
-    exit 1; }
 
 # `--python` prints the resolved interpreter and stops. ready.sh needs it for
 # the --check pass, and resolving it in a second place is how the worktree
@@ -82,7 +121,7 @@ done
 ( cd "$REPO" && "$python" "$REPO/app/experiments/goal_evidence_audit.py" >/dev/null 2>&1 ) || {
     echo "regen_derived: goal_evidence_audit FAILED" >&2; exit 1; }
 say "   goal evidence audit"
-( cd "$REPO/app" && "$python" update_test_inventory.py >/dev/null 2>&1 ) || {
+( cd "$REPO/app" && "$python" update_test_inventory.py >/dev/null ) || {
     echo "regen_derived: update_test_inventory FAILED" >&2; exit 1; }
 say "   unit test inventory"
 

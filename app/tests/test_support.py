@@ -24,6 +24,15 @@ def assume_ample_free_disk(testcase):
     testcase.addCleanup(probe.stop)
 
 
+def get_bash_executable():
+    """Resolve the same native Bash used by the production source probe."""
+    from experiments.manifest import _source_probe_shell
+    executable, detail = _source_probe_shell()
+    if executable is None:
+        raise RuntimeError(detail)
+    return executable
+
+
 def get_missing_linux_queue_tools():
     """Name what this host lacks of the GPU queue's Linux tooling.
 

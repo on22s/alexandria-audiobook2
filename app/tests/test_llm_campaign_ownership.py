@@ -1,5 +1,9 @@
 """Real campaign scripts/queue/leases with CPU server and evaluator providers."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 import os
 from pathlib import Path
@@ -21,6 +25,7 @@ STEMS = 'emma mansfieldpark northangerabbey persuasion senseandsensibility ahand
 
 
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class LlmCampaignOwnershipTests(unittest.TestCase):
     setUpFixture = reclamation.StageGpuReclamationTests.setUp
     wait_marker = reclamation.StageGpuReclamationTests.wait_marker

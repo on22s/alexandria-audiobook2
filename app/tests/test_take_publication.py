@@ -343,7 +343,7 @@ class TakePublicationTests(unittest.TestCase):
             self.assertEqual(row['status'],'done');self.assertIsNone(row.get(KEY))
             self.assertEqual((root/path).read_bytes(),pcm.read_bytes())
 
-    @unittest.skipUnless(is_recovery_storage_platform_supported(), 'Linux durability required')
+    @unittest.skipUnless(is_recovery_storage_platform_supported(), 'Durable directory storage required')
     def test_owned_builtin_single_parallel_and_batch_transport_without_asr(self):
         # Only serving identity is declared here. Original engine dispatch,
         # windowing, observed inputs, encoding, book admission and store writes

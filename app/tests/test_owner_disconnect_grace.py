@@ -1,5 +1,9 @@
 """Kernel lease survives graceful disconnect until stubborn descendants reap."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 import os
 from pathlib import Path
@@ -16,6 +20,7 @@ from tests.test_support import requires_linux_queue_tools
 
 
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class DisconnectGraceTests(unittest.TestCase):
     def check_disconnect(self, grace):
         with tempfile.TemporaryDirectory() as tmp:

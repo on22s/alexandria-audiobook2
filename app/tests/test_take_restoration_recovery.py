@@ -56,7 +56,7 @@ with TakeRestorationTests().prepared(journal) as args:
 '''
 
 
-@unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+@unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
 class TakeRestorationRecoveryTests(unittest.TestCase):
     def test_hard_exits_preserve_selected_and_archived_bytes_then_allow_idle_cleanup_and_retry(self):
         from types import SimpleNamespace

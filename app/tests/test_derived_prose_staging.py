@@ -1,5 +1,4 @@
 """Actual staging callers must preserve the human-owned GOALS index/blob."""
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -29,8 +28,10 @@ class DerivedProseStagingTests(unittest.TestCase):
         self.git(root, "commit", "-qm", "fixture base")
 
     def run_caller(self, root, caller):
-        environment = {key: value for key, value in os.environ.items()
-                       if not key.startswith("GIT_") and key != "ALEXANDRIA_REGEN_HOOK"}
+        environment = test_derived_metadata.fixture_environment()
+        for key in [key for key in environment
+                    if key.startswith("GIT_") or key == "ALEXANDRIA_REGEN_HOOK"]:
+            environment.pop(key)
         command = ["bash", str(root / ".githooks/pre-commit")] if caller == "pre-commit" else [
             "bash", str(root / "tools/regen_derived_commit.sh"), caller]
         result = subprocess.run(command, cwd=root, env=environment, capture_output=True,

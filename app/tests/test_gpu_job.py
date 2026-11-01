@@ -16,7 +16,11 @@ machine runs the suite.
 Each test drives the real script in a temporary directory with its own lock and
 queue log, so nothing here touches the actual GPU lock.
 """
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import os
 import shutil
 import shlex
@@ -26,7 +30,7 @@ import textwrap
 import time
 import unittest
 from pathlib import Path
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import get_bash_executable, requires_linux_queue_tools
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GPU_JOB = os.path.join(REPO, "gpu_job.sh")
@@ -803,9 +807,112 @@ class DirtyTreeGateTest(unittest.TestCase):
                 self.assertEqual("clean", state["source_state"])
 
 
+class SourceStatePortabilityTest(unittest.TestCase):
+    """The `--print-source-state` entry must run on macOS's Bash 3.2.
+
+    macOS ships Bash 3.2, which has neither `mapfile` nor the dynamic
+    descriptor form `exec {fd}<`. Those are static facts about the source, so
+    this control needs no Linux GPU tooling and skips nowhere.
+    """
+
+    def source_state_body(self):
+        """Executable lines of the function; comments explain, they do not run."""
+        text = Path(GPU_JOB).read_text(encoding="utf-8")
+        start = text.index("get_source_state() {")
+        body = text[start:text.index("\n}\n", start)]
+        return "\n".join(line for line in body.splitlines()
+                         if not line.lstrip().startswith("#"))
+
+    def test_get_source_state_avoids_bash4_only_features(self):
+        body = self.source_state_body()
+        self.assertNotIn("mapfile", body)
+        self.assertNotIn("exec {", body)
+        self.assertIn("read -r -d ''", body,
+                      "NUL-delimited names must still be read one at a time")
+        text = Path(GPU_JOB).read_text(encoding="utf-8")
+        start = text.index("source_content_digest() {")
+        digest = text[start:text.index("\n}\n", start) + 3]
+        script = digest + """
+command() { [ "$1" = '-v' ] && [ "$2" = 'openssl' ]; }
+openssl() {
+    [ "$#" -eq 3 ] && [ "$1" = dgst ] && [ "$2" = -sha256 ] && [ "$3" = -r ] || return 3
+    IFS= read -r payload
+    [ "$payload" = 'public synthetic probe' ] || return 4
+    printf '%s\\n' stdin-digest
+}
+printf '%s\\n' 'public synthetic probe' | source_content_digest
+"""
+        result = subprocess.run([get_bash_executable(), "-c", script], capture_output=True,
+                                text=True, timeout=10)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("stdin-digest", result.stdout.strip())
+
+    def test_failed_untracked_query_is_dirty_unknown_and_temp_is_owned(self):
+        cases = (
+            r"get_untracked_source_files() { printf 'untracked.py\0'; return 7; }",
+            r"get_untracked_source_files() { printf 'untracked.py\0'; exit 0; }",
+            r"get_untracked_source_files() { printf 'untracked.py\0\0'; exit 0; }",
+            r"get_untracked_source_files() { printf 'untracked.py\0\0'; printf '%s' 0; exit 0; }",
+            r"get_untracked_source_files() { printf 'untracked.py\0\0'; printf '00\0'; exit 0; }",
+        )
+        for index, stub in enumerate(cases):
+            with self.subTest(case=index), tempfile.TemporaryDirectory() as directory:
+                script = """set -uo pipefail
+SOURCE_TRACKED_PATHS=()
+git() {
+    case "$3" in
+        rev-parse) return 0;;
+        status) printf ' M app/probe.py\\n';;
+        *) return 9;;
+    esac
+}
+""" + stub + "\n" + self.source_state_body() + "\n}\nget_source_state /synthetic\n"
+                environment = dict(os.environ, TMPDIR=directory.replace(os.sep, "/"))
+                result = subprocess.run([get_bash_executable(), "-c", script],
+                                        env=environment, capture_output=True, timeout=10)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual([b"dirty:unknown", b" M app/probe.py", b""],
+                                 result.stdout.split(b"\0"))
+                self.assertEqual([], list(Path(directory).iterdir()))
+
+    def test_source_state_is_stable_without_writing_to_tmpdir(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=Test",
+                            "-c", "user.email=test@example.com", "commit",
+                            "--allow-empty", "-q", "-m", "public synthetic"], check=True)
+            inside = root / "temporary"
+            inside.mkdir()
+            for temporary in (root / "missing", inside):
+                with self.subTest(tmpdir=temporary.name):
+                    environment = dict(os.environ, TMPDIR=temporary.as_posix())
+                    command = [get_bash_executable(), GPU_JOB,
+                               "--print-source-state", str(root)]
+                    clean = subprocess.run(command, env=environment, capture_output=True,
+                                           check=True, timeout=10)
+                    self.assertEqual(b"clean\0\0", clean.stdout)
+                    source = root / "untracked name.py"
+                    source.write_bytes(b"public synthetic\n")
+                    try:
+                        first = subprocess.run(command, env=environment, capture_output=True,
+                                               check=True, timeout=10)
+                        second = subprocess.run(command, env=environment, capture_output=True,
+                                                check=True, timeout=10)
+                        self.assertEqual(first.stdout, second.stdout)
+                        fields = first.stdout.split(b"\0")
+                        self.assertRegex(fields[0].decode("ascii"), r"^dirty:[0-9a-f]{12}$")
+                        self.assertEqual([b"untracked name.py", b""], fields[2:])
+                    finally:
+                        source.unlink()
+                    self.assertEqual([], list(inside.iterdir()))
+
+
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class LockInheritanceTest(unittest.TestCase):
     """An orphaned child must not be able to hold the GPU lock.
 
@@ -1094,6 +1201,7 @@ class VramGateTest(unittest.TestCase):
 
 @unittest.skipUnless(os.path.exists(GPU_JOB), "gpu_job.sh not present")
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class PauseAndProcessGroupTest(unittest.TestCase):
     """Holding the queue for other use, and taking children down with a job."""
 

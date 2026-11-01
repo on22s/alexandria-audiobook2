@@ -1,5 +1,9 @@
 """Whole overnight chain: leased CPU workers, aggregate errors, durable config recovery."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 import os
 from pathlib import Path
@@ -18,6 +22,7 @@ CHAIN = 'overnight_2026_08_09c.sh'
 
 
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class OvernightLlmCampaignTests(unittest.TestCase):
     setUpFixture = campaign.LlmCampaignOwnershipTests.setUpFixture
     setUpCampaign = campaign.LlmCampaignOwnershipTests.setUp

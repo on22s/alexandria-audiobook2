@@ -1,5 +1,9 @@
 """Native corpus dispatch and stored artifacts discriminate ownership and failure cases."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 import os
 from pathlib import Path
@@ -10,6 +14,7 @@ from unittest.mock import patch
 from tests import test_corpus_dispatch_identity as dispatch_fixture
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class CorpusOwnedSummaryTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

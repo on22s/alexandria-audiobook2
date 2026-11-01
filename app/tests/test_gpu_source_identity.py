@@ -4,9 +4,13 @@ import re
 import os
 import shlex
 import shutil
+import sys
+import tempfile
 import unittest
+from unittest import mock
 from unittest.mock import patch
 
+from experiments import manifest
 from experiments.manifest import _git_state
 from tests import test_gpu_job as gpu_job_tests
 from tests.test_support import requires_linux_queue_tools
@@ -102,6 +106,12 @@ class SourceIdentityTests(unittest.TestCase):
             state = _git_state(self.root)
         self.assertIsNone(state["dirty"])
         self.assertEqual("unknown", state["source_state"])
+        # Diagnosable, bounded, and never a dump of the environment.
+        detail = state["source_state_detail"]
+        self.assertIsInstance(detail, str)
+        self.assertTrue(detail)
+        self.assertLessEqual(len(detail), 200)
+        self.assertNotIn("PATH=", detail)
         record.meta["git"] = state
         self.assertIn("tree source state could not be verified", record.validate({"require_clean_tree": True}))
 
@@ -122,3 +132,70 @@ class SourceIdentityTests(unittest.TestCase):
         self.assertNotIn("START", self._log())
         self.assertTrue(state["dirty"])
         self.assertEqual("dirty:unknown", state["source_state"])
+        self.assertIn("dirty identity could not be computed",
+                      state["source_state_detail"])
+
+
+class SourceProbeShellTests(unittest.TestCase):
+    """One locator chooses the interpreter; the classification stays in bash."""
+
+    @staticmethod
+    def completed(platform=b"MINGW64_NT-10.0\n", returncode=0):
+        return mock.Mock(returncode=returncode, stdout=platform, stderr=b"")
+
+    def test_explicit_git_bash_is_used_when_path_bash_is_absent(self):
+        with patch("experiments.manifest._host_is_windows", return_value=True), \
+                patch("experiments.manifest.shutil.which", return_value=None), \
+                patch("experiments.manifest.subprocess.run",
+                      return_value=self.completed()) as run, \
+                patch.dict(os.environ,
+                           {"AA2_SOURCE_PROBE_BASH": sys.executable}):
+            shell, reason = manifest._source_probe_shell()
+        self.assertIsNone(reason)
+        self.assertEqual(sys.executable, shell)
+        self.assertEqual([sys.executable, "-c", "uname -s"],
+                         run.call_args[0][0])
+
+    def test_explicit_linux_shell_is_refused_without_silent_fallback(self):
+        with patch("experiments.manifest._host_is_windows", return_value=True), \
+                patch("experiments.manifest.shutil.which",
+                      return_value=sys.executable), \
+                patch("experiments.manifest.subprocess.run",
+                      return_value=self.completed(b"Linux\n")), \
+                patch.dict(os.environ,
+                           {"AA2_SOURCE_PROBE_BASH": sys.executable}):
+            shell, reason = manifest._source_probe_shell()
+        self.assertIsNone(shell, "a refused override must not fall back")
+        self.assertIn("AA2_SOURCE_PROBE_BASH", reason)
+        self.assertIn("not a Git-for-Windows/MSYS bash", reason)
+
+    def test_existing_git_for_windows_candidate_wins_when_path_has_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            candidate = Path(tmp, "Git", "bin", "bash.exe")
+            candidate.parent.mkdir(parents=True)
+            candidate.write_text("#!/bin/sh\n", encoding="utf-8")
+            environment = {"ProgramFiles": tmp, "ProgramW6432": "",
+                           "ProgramFiles(x86)": "", "LOCALAPPDATA": ""}
+            with patch("experiments.manifest._host_is_windows",
+                       return_value=True), \
+                    patch("experiments.manifest.shutil.which",
+                          return_value=None), \
+                    patch("experiments.manifest.subprocess.run",
+                          return_value=self.completed()), \
+                    patch.dict(os.environ, environment):
+                os.environ.pop("AA2_SOURCE_PROBE_BASH", None)
+                shell, reason = manifest._source_probe_shell()
+        self.assertIsNone(reason)
+        self.assertEqual(str(candidate), shell)
+
+    def test_missing_override_does_not_fall_back_to_another_shell(self):
+        missing = os.path.join(tempfile.gettempdir(), "not-a-real-bash")
+        for override in (missing, ""):
+            with self.subTest(override=override), \
+                    patch("experiments.manifest.shutil.which",
+                          return_value=sys.executable) as fallback, \
+                    patch.dict(os.environ, {"AA2_SOURCE_PROBE_BASH": override}):
+                shell, reason = manifest._source_probe_shell()
+                self.assertIsNone(shell)
+                self.assertIn("not an executable file", reason)
+                fallback.assert_not_called()

@@ -31,10 +31,42 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from tests import test_derived_metadata
+from tests.test_support import get_bash_executable
+
 REPO = Path(__file__).parent.parent.parent
 DERIVED = ["RESULTS_INDEX.md", "results_index.csv",
            "ab_test_runtime/audit/artifact_structural_audit.json",
            "app/tests/unit_test_inventory.json"]
+
+
+def posix_path(path):
+    """Git Bash only searches POSIX-style PATH entries (C:/x -> /c/x)."""
+    text = str(path).replace(os.sep, "/")
+    if len(text) > 1 and text[1] == ":":
+        return "/" + text[0].lower() + text[2:]
+    return text
+
+
+def bash_path(path):
+    """One quoted, forward-slash word for a bash command string."""
+    return "'" + str(path).replace(os.sep, "/").replace("'", "'\"'\"'") + "'"
+
+
+def run_with_fake_git(fake_bin, command, cwd, environment):
+    """Run a bash command with fake_bin FIRST on the shell's own PATH.
+
+    MEASURED on Windows: Git Bash prepends its /usr/bin to whatever PATH the
+    process inherited, so a fake `git` handed over in env=... is never reached
+    - the failure injection then runs the real git, and the test asserts an
+    error the script never saw. The ordering only holds when PATH is set
+    inside the shell that runs the script, which is the same technique
+    InterpreterResolutionTest uses for its fake `git`.
+    """
+    script = 'PATH="%s:$PATH"; export PATH; %s' % (posix_path(fake_bin), command)
+    return subprocess.run([get_bash_executable(), "--noprofile", "--norc", "-c", script],
+                          cwd=cwd, env=environment, capture_output=True,
+                          text=True, timeout=20)
 
 
 class GitAttributesTest(unittest.TestCase):
@@ -197,8 +229,13 @@ class SingleSourceTest(unittest.TestCase):
                               f"rather than keep its own copy of the list")
 
     def _run(self, flag):
-        return subprocess.run(["bash", str(REPO / "tools" / "regen_derived.sh"), flag],
-                              cwd=REPO, capture_output=True, text=True)
+        # This pins AUTOMATIC resolution in this checkout. An AA2_PYTHON
+        # inherited from the caller is a different subject - InterpreterResolutionTest
+        # owns the explicit-override cases - and an invalid one would make the
+        # script refuse for a reason this test does not assert.
+        return subprocess.run([get_bash_executable(), str(REPO / "tools" / "regen_derived.sh"), flag],
+                              cwd=REPO, capture_output=True, text=True,
+                              env=test_derived_metadata.fixture_environment())
 
     def test_paths_works_without_an_interpreter(self):
         """--paths must answer in ANY checkout, venv or not.
@@ -235,7 +272,7 @@ class SingleSourceTest(unittest.TestCase):
                              "caller doing python=$(... --python) would use it")
 
     def test_every_path_it_claims_is_derived_exists(self):
-        out = subprocess.run(["bash", str(REPO / "tools" / "regen_derived.sh"), "--paths"],
+        out = subprocess.run([get_bash_executable(), str(REPO / "tools" / "regen_derived.sh"), "--paths"],
                              cwd=REPO, capture_output=True, text=True)
         for path in out.stdout.split():
             with self.subTest(path=path):
@@ -243,6 +280,425 @@ class SingleSourceTest(unittest.TestCase):
                                 f"{path} is listed as derived but is not here; "
                                 f"a stale entry means the hooks stage nothing "
                                 f"for it and it goes quietly out of date")
+
+
+class InterpreterResolutionTest(unittest.TestCase):
+    """The interpreter resolver, run against the real script in a tiny repo.
+
+    Every fixture is a local `git init` under TemporaryDirectory - no clone, no
+    venv, no generator. `--python` and `--metadata` stop before the generators,
+    so the fake interpreter only has to be a file with the executable bit.
+
+    The cases are the ones that were wrong or untested: a reusable interpreter
+    outside app/env chosen explicitly, a bad value refused instead of silently
+    falling back, the Windows Scripts/ layout, and the worktree path with a
+    space in it that `awk '{print $2}'` truncated.
+    """
+
+    def _git(self, repo, *args):
+        result = subprocess.run(["git", "-C", str(repo), *args],
+                                capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        return result.stdout
+
+    def _repo(self, root):
+        repo = root / "repo"
+        repo.mkdir()
+        self._git(repo, "init", "-q")
+        self._git(repo, "config", "user.name", "Interpreter Fixture")
+        self._git(repo, "config", "user.email", "fixture@example.invalid")
+        self._git(repo, "config", "core.hooksPath", "no-hooks")
+        return repo
+
+    def _fake_python(self, path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        path.chmod(0o755)
+        return path
+
+    @staticmethod
+    def _forward(path):
+        """Git and the script print drive paths with forward slashes."""
+        return str(path).replace(os.sep, "/")
+
+    @staticmethod
+    def _posix(path):
+        """Git Bash only searches POSIX-style PATH entries (C:/x -> /c/x)."""
+        return posix_path(path)
+
+    def _run(self, repo, arguments, extra_env=None):
+        environment = test_derived_metadata.fixture_environment(extra_env)
+        arguments = [arguments] if isinstance(arguments, str) else list(arguments)
+        return subprocess.run(
+            [get_bash_executable(), str(REPO / "tools" / "regen_derived.sh"), *arguments],
+            cwd=repo, env=environment, capture_output=True, text=True,
+            timeout=20)
+
+    def test_explicit_override_is_used_verbatim_and_not_the_local_venv(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._repo(root)
+            local = self._fake_python(repo / "app" / "env" / "bin" / "python")
+            override = self._fake_python(root / "override python")
+            out = self._run(repo, "--python", {"AA2_PYTHON": str(override)})
+            self.assertEqual(0, out.returncode, out.stderr)
+            self.assertEqual(str(override), out.stdout.strip())
+            self.assertNotEqual(str(local), out.stdout.strip())
+
+    def test_relative_override_survives_generator_directory_changes(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            caller = repo / "caller"
+            caller.mkdir()
+            decoy = self._fake_python(repo / "app/env/bin/python")
+            decoy.write_text('#!/bin/sh\nexit 64\n', encoding="utf-8")
+            interpreter = self._fake_python(caller / "app/env/bin/python")
+            interpreter.write_text(
+                '#!/bin/sh\nprintf "%s\\n" "$*" >> "$AA2_TEST_CALLS"\n',
+                encoding="utf-8")
+            marker = repo / "calls"
+            environment = {"AA2_PYTHON": "app/env/bin/python",
+                           "AA2_TEST_CALLS": str(marker)}
+            query = self._run(caller, "--python", environment)
+            self.assertEqual(0, query.returncode, query.stderr)
+            self.assertTrue(query.stdout.strip().startswith("/"), query.stdout)
+            self.assertTrue(query.stdout.strip().endswith(
+                "/" + interpreter.relative_to(repo).as_posix()), query.stdout)
+            result = self._run(caller, "--quiet", environment)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            calls = marker.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(5, len(calls), calls)
+            self.assertEqual("update_test_inventory.py", calls[-1])
+
+    def test_pre_commit_uses_the_shared_explicit_interpreter(self):
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._repo(root)
+            tools = repo / "tools"
+            tools.mkdir()
+            shutil.copyfile(REPO / "tools/regen_derived.sh",
+                            tools / "regen_derived.sh")
+            (tools / "regen_derived.sh").chmod(0o755)
+            interpreter = self._fake_python(root / "override python")
+            interpreter.write_text(
+                '#!/bin/sh\nprintf "%s\\n" "$*" >> "$AA2_TEST_CALLS"\n',
+                encoding="utf-8")
+            (repo / "app").mkdir()
+            marker = root / "calls"
+            environment = test_derived_metadata.fixture_environment({
+                "AA2_PYTHON": str(interpreter),
+                "AA2_TEST_CALLS": str(marker),
+            })
+            result = subprocess.run(
+                [get_bash_executable(), str(REPO / ".githooks/pre-commit")], cwd=repo,
+                env=environment, capture_output=True, text=True, timeout=20)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertTrue(marker.exists(), result.stdout + result.stderr)
+            self.assertEqual(["update_api_contract_snapshots.py --check",
+                              "update_test_inventory.py --check"],
+                             marker.read_text(encoding="utf-8").splitlines())
+
+    def test_invalid_explicit_override_refuses_instead_of_falling_back(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._repo(root)
+            self._fake_python(repo / "app" / "env" / "bin" / "python")
+            directory = root / "a directory"
+            directory.mkdir()
+            values = {
+                "missing path": str(root / "no such python"),
+                "directory": str(directory),
+                "shell command": "python3 -c pass",
+            }
+            for label, value in values.items():
+                for flag in ("--python", "--metadata"):
+                    with self.subTest(value=label, flag=flag):
+                        out = self._run(repo, flag, {"AA2_PYTHON": value})
+                        self.assertNotEqual(0, out.returncode,
+                                            "a bad override silently resolved")
+                        self.assertEqual("", out.stdout.strip(),
+                                         "it printed a fallback interpreter")
+                        self.assertIn("AA2_PYTHON", out.stderr)
+                        self.assertIn("not an executable file", out.stderr)
+
+    def test_no_interpreter_refuses_and_invents_nothing(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            for flag in ("--python", "--metadata"):
+                with self.subTest(flag=flag):
+                    out = self._run(repo, flag)
+                    self.assertNotEqual(0, out.returncode)
+                    self.assertEqual("", out.stdout.strip())
+                    self.assertIn("no interpreter", out.stderr.lower())
+
+    def test_paths_answers_before_interpreter_resolution(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            for label, extra_env in (
+                    ("no interpreter", None),
+                    ("an invalid override", {"AA2_PYTHON": "python3 -c pass"})):
+                with self.subTest(case=label):
+                    out = self._run(repo, "--paths", extra_env)
+                    self.assertEqual(0, out.returncode, out.stderr)
+                    self.assertEqual(
+                        ["RESULTS_INDEX.md", "results_index.csv",
+                         "LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md",
+                         "ab_test_runtime/audit/artifact_structural_audit.json",
+                         "ab_test_runtime/audit/legacy_attribution_audit.json",
+                         "ab_test_runtime/audit/goal_evidence_audit.json",
+                         "app/tests/unit_test_inventory.json"],
+                        out.stdout.split())
+
+    def test_automatic_resolution_accepts_windows_scripts_and_prefers_posix(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            windows = self._fake_python(
+                repo / "app" / "env" / "Scripts" / "python.exe")
+            out = self._run(repo, "--python")
+            self.assertEqual(0, out.returncode, out.stderr)
+            self.assertEqual(self._forward(windows), out.stdout.strip())
+
+            posix = self._fake_python(repo / "app" / "env" / "bin" / "python")
+            out = self._run(repo, "--python")
+            self.assertEqual(0, out.returncode, out.stderr)
+            self.assertEqual(self._forward(posix), out.stdout.strip(),
+                             "the POSIX venv layout must stay the first choice")
+
+    def test_main_checkout_path_with_spaces_is_not_truncated(self):
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._repo(root)
+            main = root / "main checkout with spaces"
+            interpreter = self._fake_python(
+                main / "app" / "env" / "bin" / "python")
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir()
+            wrapper = fake_bin / "git"
+            wrapper.write_text(
+                '#!/bin/bash\n'
+                'case " $* " in\n'
+                '  *" worktree list --porcelain "*)\n'
+                '    printf \'worktree %s\\n\' "$AA2_TEST_MAIN"\n'
+                '    exit 0\n'
+                '    ;;\n'
+                'esac\n'
+                'exec "$AA2_TEST_REAL_GIT" "$@"\n',
+                encoding="utf-8")
+            wrapper.chmod(0o755)
+            environment = test_derived_metadata.fixture_environment({
+                "AA2_TEST_MAIN": self._forward(main),
+                "AA2_TEST_REAL_GIT": shutil.which("git"),
+            })
+            # Git Bash puts its own /usr/bin ahead of any inherited PATH, so a
+            # fake `git` is only first when PATH is set inside the shell that
+            # sources the script. Sourcing is still the real script.
+            command = ('PATH="%s:$PATH"; export PATH; . "%s" --python'
+                       % (self._posix(fake_bin),
+                          self._posix(REPO / "tools" / "regen_derived.sh")))
+            out = subprocess.run(
+                [get_bash_executable(), "--noprofile", "--norc", "-c", command],
+                cwd=repo, env=environment, capture_output=True, text=True,
+                timeout=20)
+            self.assertEqual(0, out.returncode, out.stderr)
+            self.assertEqual(self._forward(interpreter), out.stdout.strip())
+            self.assertIn("main checkout with spaces", out.stdout)
+            interpreter.unlink()
+            windows = self._fake_python(
+                main / "app" / "env" / "Scripts" / "python.exe")
+            out = subprocess.run(
+                [get_bash_executable(), "--noprofile", "--norc", "-c", command],
+                cwd=repo, env=environment, capture_output=True, text=True,
+                timeout=20)
+            self.assertEqual(0, out.returncode, out.stderr)
+            self.assertEqual(self._forward(windows), out.stdout.strip())
+
+    def test_invalid_override_and_absent_interpreter_have_distinct_exit_codes(self):
+        """A caller must be able to tell "misconfigured" from "no venv here".
+
+        Both used to exit 1, so the pre-commit hook could not tell a typo in
+        AA2_PYTHON from a checkout that simply has no venv - and treated the
+        first as the second.
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            for flag in ("--python", "--metadata"):
+                with self.subTest(flag=flag, case="absent"):
+                    out = self._run(repo, flag)
+                    self.assertEqual(1, out.returncode, out.stderr)
+                    self.assertIn("no interpreter", out.stderr.lower())
+                with self.subTest(flag=flag, case="invalid"):
+                    out = self._run(repo, flag, {"AA2_PYTHON": "python3 -c pass"})
+                    self.assertEqual(2, out.returncode, out.stderr)
+                    self.assertIn("AA2_PYTHON", out.stderr)
+
+    def pre_commit_fixture(self, root, interpreter=None):
+        """A disposable repo holding the real hook's own resolver and paths."""
+        import shutil
+        repo = self._repo(root)
+        tools = repo / "tools"
+        tools.mkdir()
+        shutil.copyfile(REPO / "tools/regen_derived.sh", tools / "regen_derived.sh")
+        (tools / "regen_derived.sh").chmod(0o755)
+        (repo / "app").mkdir()
+        if interpreter is not None:
+            self._fake_python(root / "override python").write_text(interpreter, encoding="utf-8")
+        return repo
+
+    def run_pre_commit(self, repo, extra_env):
+        return subprocess.run(
+            [get_bash_executable(), str(REPO / ".githooks/pre-commit")], cwd=repo,
+            env=test_derived_metadata.fixture_environment(extra_env),
+            capture_output=True, text=True, timeout=20)
+
+    def test_invalid_override_blocks_the_commit_instead_of_skipping_the_checks(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "calls"
+            repo = self.pre_commit_fixture(root)
+            result = self.run_pre_commit(repo, {"AA2_PYTHON": "python3 -c pass",
+                                                "AA2_TEST_CALLS": str(marker)})
+            self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertIn("fix or unset AA2_PYTHON", result.stderr)
+            self.assertNotIn("skipping snapshot checks", result.stderr)
+            self.assertFalse(marker.exists(), "a bad override ran the checks anyway")
+
+    def test_absent_interpreter_skips_both_checks_with_an_explicit_not_verified_notice(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "calls"
+            repo = self.pre_commit_fixture(root)
+            result = self.run_pre_commit(repo, {"AA2_TEST_CALLS": str(marker)})
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertIn("NOT verified", result.stderr)
+            self.assertIn("API contract snapshots", result.stderr)
+            self.assertIn("unit-test inventory", result.stderr)
+            self.assertIn("CI runs both", result.stderr)
+            self.assertFalse(marker.exists(), "it claimed to skip and ran them anyway")
+
+    def test_unverifiable_inventory_is_not_reported_as_drift(self):
+        """The pair that must never be merged: 2 cannot verify, 1 drift.
+
+        Before this, every non-zero from the inventory check was printed as
+        "unit-test inventory drift" - including a traceback, where nothing had
+        been compared at all.
+        """
+        import tempfile
+        interpreter = (
+            '#!/bin/sh\n'
+            'printf "%s\\n" "$*" >> "$AA2_TEST_CALLS"\n'
+            'case "$1" in\n'
+            '  update_api_contract_snapshots.py) exit 0 ;;\n'
+            '  update_test_inventory.py) exit "$AA2_TEST_INVENTORY_STATUS" ;;\n'
+            'esac\n'
+            'exit 0\n')
+        for status, expected in ((2, "could not be verified"), (1, "drift")):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                marker = root / "calls"
+                repo = self.pre_commit_fixture(root, interpreter=interpreter)
+                result = self.run_pre_commit(repo, {
+                    "AA2_PYTHON": str(root / "override python"),
+                    "AA2_TEST_CALLS": str(marker),
+                    "AA2_TEST_INVENTORY_STATUS": str(status)})
+                self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertIn(expected, result.stderr)
+                if status == 2:
+                    self.assertNotIn("drift", result.stderr)
+                self.assertEqual(
+                    ["update_api_contract_snapshots.py --check",
+                     "update_test_inventory.py --check"],
+                    marker.read_text(encoding="utf-8").splitlines())
+
+    def test_invalid_override_during_regeneration_is_fatal_and_rebuilds_nothing(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._repo(root)
+            tools = repo / "tools"
+            tools.mkdir()
+            producer = tools / "regen_derived.sh"
+            producer.write_text(
+                '#!/bin/sh\ncase "${1:-}" in\n'
+                '  --quiet) exit 2 ;;\n'
+                '  --python) printf "/nonexistent\\n" ; exit 0 ;;\n'
+                '  --paths) printf "RESULTS_INDEX.md\\n" ;;\n'
+                'esac\nexit 0\n', encoding="utf-8")
+            producer.chmod(0o755)
+            (repo / "app" / "tests").mkdir(parents=True)
+            (repo / "app" / "tests" / "test_probe.py").write_text(
+                "import unittest\n", encoding="utf-8")
+            self._git(repo, "add", "app/tests/test_probe.py")
+            marker = root / "calls"
+            result = self.run_pre_commit(repo, {"AA2_TEST_CALLS": str(marker)})
+            self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertIn("no derived file was rebuilt", result.stderr)
+            self.assertIn("fix or unset AA2_PYTHON", result.stderr)
+            self.assertNotIn("CI will check them", result.stderr)
+            self.assertFalse(marker.exists(), "the checks ran after a fatal regeneration")
+
+    def test_regeneration_keeps_the_inventory_tools_own_diagnostics(self):
+        """The inventory's stderr is how a missing import reaches the operator.
+
+        Measured on a host without fcntl: discarding stderr left
+        "regen_derived: update_test_inventory FAILED" as the only symptom, and
+        the tool's own "cannot verify / missing module fcntl" lines - the ones
+        that name the fix - were gone. The other generators keep 2>&1.
+        """
+        source = (REPO / "tools/regen_derived.sh").read_text(encoding="utf-8")
+        self.assertNotIn("update_test_inventory.py >/dev/null 2>&1", source)
+        self.assertIn("update_test_inventory.py >/dev/null )", source)
+
+    def test_metadata_prints_one_interpreter_and_paths_without_generators(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._repo(root)
+            marker = root / "interpreter-ran"
+            interpreter = repo / "app" / "env" / "bin" / "python"
+            interpreter.parent.mkdir(parents=True)
+            interpreter.write_text(
+                '#!/bin/sh\nprintf "ran" > "$AA2_TEST_MARKER"\n',
+                encoding="utf-8")
+            interpreter.chmod(0o755)
+            out = self._run(repo, "--metadata", {
+                "AA2_TEST_MARKER": str(marker),
+            })
+            self.assertEqual(0, out.returncode, out.stderr)
+            lines = out.stdout.splitlines()
+            self.assertEqual(self._forward(interpreter), lines[0])
+            self.assertEqual(7, len(lines) - 1,
+                             "--metadata must still print the full derived set")
+            self.assertIn("RESULTS_INDEX.md", lines[1:])
+            self.assertIn("app/tests/unit_test_inventory.json", lines[1:])
+            self.assertFalse(marker.exists(),
+                             "--metadata ran a generator; it must only report")
+            for arguments in (("--metdata",), ("--quiet", "extra"),
+                              ("--python", "extra"), ("--metadata", "extra"),
+                              ("--paths", "extra"), ("--quiet", "--quiet")):
+                with self.subTest(arguments=arguments):
+                    marker.unlink(missing_ok=True)
+                    invalid = self._run(repo, arguments, {
+                        "AA2_TEST_MARKER": str(marker),
+                    })
+                    self.assertEqual(2, invalid.returncode,
+                                     invalid.stdout + invalid.stderr)
+                    self.assertIn("Usage:", invalid.stderr)
+                    self.assertEqual("", invalid.stdout)
+                    self.assertFalse(marker.exists(),
+                                     "invalid arguments ran a generator")
 
 
 class InstallerTest(unittest.TestCase):
@@ -291,7 +747,7 @@ class DerivedPathFailureArtifactTests(unittest.TestCase):
                 regen.chmod(0o755)
                 environment={key:value for key,value in os.environ.items()
                              if not key.startswith('GIT_') and key!='ALEXANDRIA_REGEN_HOOK'}
-                result=subprocess.run(['bash',str(helper),'fixture-hook'],cwd=repo,env=environment,
+                result=subprocess.run([get_bash_executable(),str(helper),'fixture-hook'],cwd=repo,env=environment,
                                       capture_output=True,text=True,timeout=10)
                 self.assertEqual(0,result.returncode,result.stderr)
                 self.assertEqual(before_head,git('rev-parse','HEAD'),'Path-list failure committed user work')
@@ -321,7 +777,7 @@ class DerivedPathFailureArtifactTests(unittest.TestCase):
             regen.chmod(0o755)
             environment={key:value for key,value in os.environ.items()
                          if not key.startswith('GIT_') and key!='ALEXANDRIA_REGEN_HOOK'}
-            result=subprocess.run(['bash',str(helper),'fixture-hook'],cwd=repo,env=environment,
+            result=subprocess.run([get_bash_executable(),str(helper),'fixture-hook'],cwd=repo,env=environment,
                                   capture_output=True,text=True,timeout=10)
             self.assertEqual(0,result.returncode,result.stderr)
             self.assertNotEqual(original,git('rev-parse','HEAD'))
@@ -372,7 +828,7 @@ class DerivedCommitFailureTests(unittest.TestCase):
             (root / "RESULTS_INDEX.md").write_text("new index\n")
             (root / "unrelated_RESULTS_INDEX.md").write_text("foreign new\n")
             self.git(root, "add", "unrelated_RESULTS_INDEX.md")
-            result = subprocess.run(["bash", str(helper), "fixture"], cwd=root,
+            result = subprocess.run([get_bash_executable(), str(helper), "fixture"], cwd=root,
                                     capture_output=True, text=True)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(before, self.git(root, "rev-parse", "HEAD"))
@@ -401,10 +857,10 @@ class DerivedCommitFailureTests(unittest.TestCase):
             executable.chmod(0o755)
             commands = root / "commands.log"
             environment = os.environ.copy()
-            environment.update(PATH=str(executable.parent) + os.pathsep + environment["PATH"],
-                               HOOK_TEST_GIT=shutil.which("git"), HOOK_TEST_COMMANDS=str(commands))
-            result = subprocess.run(["bash", str(helper), "fixture"], cwd=root, env=environment,
-                                    capture_output=True, text=True)
+            environment.update(HOOK_TEST_GIT=shutil.which("git"), HOOK_TEST_COMMANDS=str(commands))
+            result = run_with_fake_git(executable.parent,
+                                       "bash %s fixture" % bash_path(helper),
+                                       root, environment)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(before, self.git(root, "rev-parse", "HEAD"))
             self.assertIn("could not stage derived files", result.stderr)
@@ -423,7 +879,7 @@ class DerivedCommitFailureTests(unittest.TestCase):
             (root / "RESULTS_INDEX.md").write_text("new index\n")
             self.git(root, "add", "RESULTS_INDEX.md")
             (root / "results_index.csv").write_text("new csv\n")
-            result = subprocess.run(["bash", str(helper), "fixture"], cwd=root,
+            result = subprocess.run([get_bash_executable(), str(helper), "fixture"], cwd=root,
                                     capture_output=True, text=True)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertNotEqual(before, self.git(root, "rev-parse", "HEAD"))
@@ -463,13 +919,13 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                 new = target / "goal_evidence_audit.json"
                 new.write_text('{"new": true}\n')
                 self.git(root, "add", str(new.relative_to(root)))
-                result = subprocess.run(["bash", str(helper), "fixture"], cwd=root,
+                result = subprocess.run([get_bash_executable(), str(helper), "fixture"], cwd=root,
                                         capture_output=True, text=True)
                 self.assertEqual(0, result.returncode, result.stderr)
                 if foreign:
                     self.assertEqual(before, self.git(root, "rev-parse", "HEAD"))
                     self.assertIn("other changes are staged", result.stderr)
-                    self.assertEqual(str(new.relative_to(root)), self.git(root, "diff", "--cached", "--name-only"))
+                    self.assertEqual(new.relative_to(root).as_posix(), self.git(root, "diff", "--cached", "--name-only"))
                 else:
                     self.assertNotEqual(before, self.git(root, "rev-parse", "HEAD"))
                     self.assertEqual('{"new": true}', self.git(root, "show", "HEAD:ab_test_runtime/audit/goal_evidence_audit.json"))
@@ -487,7 +943,7 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                 if staged:
                     self.git(root, "add", str(new.relative_to(root)))
                 self.assertEqual("", self.git(root, "diff", "--name-only"))
-                result = subprocess.run(["bash", str(helper), "fixture"], cwd=root,
+                result = subprocess.run([get_bash_executable(), str(helper), "fixture"], cwd=root,
                                         capture_output=True, text=True)
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertNotEqual(before, self.git(root, "rev-parse", "HEAD"))
@@ -502,7 +958,7 @@ class DerivedCommitDetectorTests(unittest.TestCase):
             helper, audit = self.make_audit_repo(root)
             before = self.git(root, "rev-parse", "HEAD")
             (root / "unrelated_RESULTS_INDEX.md").write_text("foreign new\n")
-            result = subprocess.run(["bash", str(helper), "fixture"], cwd=root,
+            result = subprocess.run([get_bash_executable(), str(helper), "fixture"], cwd=root,
                                     capture_output=True, text=True)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(before, self.git(root, "rev-parse", "HEAD"))
@@ -532,11 +988,11 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                 executable.chmod(0o755)
                 commands = root / "commands.log"
                 environment = os.environ.copy()
-                environment.update(PATH=str(executable.parent) + os.pathsep + environment["PATH"],
-                                   HOOK_TEST_GIT=shutil.which("git"), HOOK_TEST_COMMANDS=str(commands),
+                environment.update(HOOK_TEST_GIT=shutil.which("git"), HOOK_TEST_COMMANDS=str(commands),
                                    HOOK_TEST_FAIL=command)
-                result = subprocess.run(["bash", str(helper), "fixture"], cwd=root, env=environment,
-                                        capture_output=True, text=True)
+                result = run_with_fake_git(executable.parent,
+                                           "bash %s fixture" % bash_path(helper),
+                                           root, environment)
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertIn("could not inspect", result.stderr)
                 self.assertEqual(before_head, self.git(root, "rev-parse", "HEAD"))
@@ -584,7 +1040,7 @@ class ReadyStagingGateTests(unittest.TestCase):
                     inventory.unlink()
                 before_index = subprocess.check_output(["git", "write-tree"], cwd=repo)
                 before_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo)
-                result = subprocess.run(["bash", str(repo / "ready.sh")], cwd=repo, capture_output=True, text=True)
+                result = subprocess.run([get_bash_executable(), str(repo / "ready.sh")], cwd=repo, capture_output=True, text=True)
                 self.assertEqual(2, result.returncode, result.stdout + result.stderr)
                 self.assertIn("NOT READY", result.stdout)
                 self.assertFalse((repo / "verifier-ran").exists())
@@ -603,7 +1059,7 @@ class ReadyStagingGateTests(unittest.TestCase):
                     (repo / "ab_test_runtime/audit/new.json").write_text('{"artifact": "new"}')
                     subprocess.run(["git", "add", "app/tests/unit_test_inventory.json", "ab_test_runtime/audit/new.json"], cwd=repo, check=True)
                 before_index = subprocess.check_output(["git", "write-tree"], cwd=repo)
-                result = subprocess.run(["bash", str(repo / "ready.sh")], cwd=repo, capture_output=True, text=True)
+                result = subprocess.run([get_bash_executable(), str(repo / "ready.sh")], cwd=repo, capture_output=True, text=True)
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertTrue((repo / "verifier-ran").is_file())
                 self.assertEqual("user work", (repo / "unrelated.py").read_text())
@@ -620,8 +1076,8 @@ class ReadyStagingGateTests(unittest.TestCase):
             git = shutil.which("git")
             (bin_dir / "git").write_text('#!/bin/bash\nif [ "${3:-}" = "status" ]; then exit 61; fi\nexec "' + git + '" "$@"\n')
             (bin_dir / "git").chmod(0o755)
-            env = dict(os.environ, PATH=str(bin_dir) + os.pathsep + os.environ["PATH"])
-            result = subprocess.run(["bash", str(repo / "ready.sh")], cwd=repo, env=env, capture_output=True, text=True)
+            result = run_with_fake_git(bin_dir, "bash %s" % bash_path(repo / "ready.sh"),
+                                       repo, os.environ.copy())
             self.assertEqual(2, result.returncode, result.stdout + result.stderr)
             self.assertIn("cannot inspect", result.stderr)
             self.assertFalse((repo / "verifier-ran").exists())
@@ -655,13 +1111,13 @@ class ActualDerivedPathSafetyTests(unittest.TestCase):
                 local.write_text('edited local')
                 untracked=local.with_name('private_machine.json');untracked.write_text('untracked local')
                 if staged:git('add',str(untracked.relative_to(root)))
-                result=subprocess.run(['bash',str(tools/'regen_derived_commit.sh'),'fixture'],cwd=root,
-                                      env={**os.environ,'FIXTURE_ROOT':str(root)},capture_output=True,text=True,timeout=10)
+                result=subprocess.run([get_bash_executable(),str(tools/'regen_derived_commit.sh'),'fixture'],cwd=root,
+                                      env=test_derived_metadata.fixture_environment({'FIXTURE_ROOT':str(root)}),capture_output=True,text=True,timeout=10)
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                 if staged:
                     self.assertEqual(before,git('rev-parse','HEAD'))
                     self.assertIn('other changes are staged',result.stderr)
-                    self.assertEqual(str(untracked.relative_to(root)),git('diff','--cached','--name-only'))
+                    self.assertEqual(untracked.relative_to(root).as_posix(),git('diff','--cached','--name-only'))
                 else:
                     self.assertNotEqual(before,git('rev-parse','HEAD'))
                     self.assertEqual('rebuilt',git('show','HEAD:RESULTS_INDEX.md'))

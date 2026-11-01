@@ -1,5 +1,9 @@
 """App-owned lease proof across native child processes without inheriting its FD."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 import os
 from pathlib import Path
@@ -19,6 +23,7 @@ from tests.test_support import requires_linux_queue_tools
 ROOT = Path(__file__).resolve().parents[2]
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class AppGpuLeaseInheritanceTest(unittest.TestCase):
     @requires_linux_queue_tools
     def test_explicit_descriptor_requires_a_held_matching_ancestor_lease(self):
@@ -103,6 +108,7 @@ class Llama:
 
 
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class RetainedAppLeaseDeathTest(unittest.TestCase):
     setUp = test_gpu_owner_death.GpuOwnerDeathTests.setUp
 

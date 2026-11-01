@@ -66,48 +66,104 @@ get_untracked_source_files() {
     git -C "$1" ls-files --others --exclude-standard -z -- "${SOURCE_UNTRACKED_PATHS[@]}"
 }
 
-get_source_state() {
-    local root="$1" modified hash state list_fd list_pid
-    local -a untracked
-    if ! git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
-        printf 'unknown\0\0'
-        return
+source_stat_identity() {
+    if stat -c '%a' / >/dev/null 2>&1; then
+        stat -c '%a:%F:%N' "$@"
+    elif stat -f '%Lp' / >/dev/null 2>&1; then
+        stat -f '%Lp:%HT:%N' "$@"
+    else
+        return 1
     fi
-    modified=$(git -C "$root" status --porcelain --untracked-files=no -- "${SOURCE_TRACKED_PATHS[@]}") || {
-        printf 'unknown\0\0'
-        return
-    }
-    exec {list_fd}< <(get_untracked_source_files "$root")
-    list_pid=$!
-    mapfile -d '' -t untracked <&"$list_fd"
-    exec {list_fd}<&-
-    if ! wait "$list_pid"; then
-        printf 'dirty:unknown\0%s\0' "$modified"
-        return
-    fi
-    state=clean
-    if [ -n "$modified" ] || [ "${#untracked[@]}" -gt 0 ]; then
-        # Actual tracked changes plus untracked names, modes and bytes. NUL
-        # boundaries and sha256sum's escaped filenames preserve odd names.
-        if hash=$({
-            git -C "$root" diff --binary HEAD -- "${SOURCE_TRACKED_PATHS[@]}" || exit 1
-            printf '%s\0' "$modified"
-            if [ "${#untracked[@]}" -gt 0 ]; then
-                (cd -- "$root" && {
-                    stat -c '%a:%F:%N' -- "${untracked[@]}" &&
-                    sha256sum -- "${untracked[@]}"
-                }) || exit 1
-            fi
-        } | sha256sum | cut -c1-12); then
-            state="dirty:$hash"
-        else
-            state=dirty:unknown
+}
+
+source_content_digest() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$@"
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$@"
+    elif command -v openssl >/dev/null 2>&1; then
+        if [ "$#" -eq 0 ]; then
+            openssl dgst -sha256 -r
+            return $?
         fi
+        local name
+        for name in "$@"; do
+            openssl dgst -sha256 -r -- "$name" || return 1
+        done
+    else
+        return 1
     fi
-    printf '%s\0%s\0' "$state" "$modified"
-    if [ "${#untracked[@]}" -gt 0 ]; then
-        printf '%s\0' "${untracked[@]}"
+}
+
+short_sha256_file() {
+    local hex
+    if command -v sha256sum >/dev/null 2>&1; then
+        hex=$(sha256sum -- "$1") || return 1
+    elif command -v shasum >/dev/null 2>&1; then
+        hex=$(shasum -a 256 -- "$1") || return 1
+    elif command -v openssl >/dev/null 2>&1; then
+        hex=$(openssl dgst -sha256 -r -- "$1") || return 1
+    else
+        return 1
     fi
+    printf '%s\n' "${hex%% *}" | cut -c1-12
+}
+
+get_source_state() {
+    local root="$1" modified
+    (
+        local name state hash listing_status='' listing_ok=0 untracked=0
+        local names=()
+        if ! git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+            printf 'unknown\0\0'
+            return
+        fi
+        modified=$(git -C "$root" status --porcelain --untracked-files=no -- "${SOURCE_TRACKED_PATHS[@]}") || {
+            printf 'unknown\0\0'
+            return
+        }
+        exec 3< <(get_untracked_source_files "$root"; printf '\0%s\0' "$?")
+        while IFS= read -r -d '' name <&3; do
+            if [ -z "$name" ]; then
+                listing_ok=1
+                break
+            fi
+            names+=("$name")
+            untracked=$((untracked + 1))
+        done
+        if [ "$listing_ok" -eq 1 ]; then
+            IFS= read -r -d '' listing_status <&3 || listing_ok=0
+        fi
+        exec 3<&-
+        if [ "$listing_ok" -ne 1 ] || [ "$listing_status" != 0 ]; then
+            printf 'dirty:unknown\0%s\0' "$modified"
+            return
+        fi
+        state=clean
+        if [ -n "$modified" ] || [ "$untracked" -gt 0 ]; then
+            if hash=$({
+                git -C "$root" diff --binary HEAD -- "${SOURCE_TRACKED_PATHS[@]}" || exit 1
+                printf '%s\0' "$modified"
+                if [ "$untracked" -gt 0 ]; then
+                    for name in "${names[@]}"; do
+                        (
+                            cd -- "$root" || exit 1
+                            source_stat_identity "./$name" || exit 1
+                            source_content_digest "./$name" || exit 1
+                        ) || exit 1
+                    done
+                fi
+            } | source_content_digest | cut -c1-12); then
+                state="dirty:$hash"
+            else
+                state=dirty:unknown
+            fi
+        fi
+        printf '%s\0%s\0' "$state" "$modified"
+        if [ "$untracked" -gt 0 ]; then
+            printf '%s\0' "${names[@]}"
+        fi
+    )
 }
 
 # NUL-delimited read-only interface: state, tracked status, untracked paths.
@@ -477,7 +533,7 @@ identity() {
     commit=$(git -C "${REPO}" rev-parse --short HEAD 2>/dev/null) \
         || commit=unknown
     local dirty="$dirty_state"
-    script_sha=$(sha256sum "$SCRIPT_PATH" 2>/dev/null | cut -c1-12)
+    script_sha=$(short_sha256_file "$SCRIPT_PATH" 2>/dev/null)
     gpu=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
     [ -z "$gpu" ] && gpu=$(rocm-smi --showproductname 2>/dev/null \
         | grep -oPm1 '(?<=Card Series:).*' | xargs) 

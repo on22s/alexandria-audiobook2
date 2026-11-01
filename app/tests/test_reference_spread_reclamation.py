@@ -1,5 +1,9 @@
 """Actual driver admission and first generation under native CPU queue ownership."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import os
 from pathlib import Path
 import shlex
@@ -15,6 +19,7 @@ SOURCE=Path(os.environ.get('REFERENCE_SPREAD_SOURCE',str(REPO/'run_chains/refere
 
 
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class ReferenceSpreadReclamationTests(unittest.TestCase):
     setUp=reclamation.StageGpuReclamationTests.setUp
     wait_marker=reclamation.StageGpuReclamationTests.wait_marker

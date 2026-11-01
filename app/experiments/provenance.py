@@ -37,6 +37,7 @@ single field whose absence caused this.
 """
 import hashlib
 import functools
+import io
 import os
 import platform
 import re
@@ -45,6 +46,7 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
+_CALLER_DEFAULT = object()
 
 
 def file_sha256(path):
@@ -62,26 +64,56 @@ def input_sha256(paths):
 
 
 @functools.lru_cache(maxsize=256)
-def get_harness_sha256_at_commit(repo, commit, harness_path="app/experiments"):
-    """Reconstruct manifest._source_fingerprint from one Git commit."""
-    names = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", commit, "--", harness_path],
-        cwd=repo, capture_output=True, check=True, text=True,
-        timeout=10).stdout.splitlines()
+def get_harness_sha256_at_commit(repo, commit, harness_path="app/experiments",
+                                 scheme=_CALLER_DEFAULT):
+    """Reconstruct the harness identity from committed blobs in two Git calls.
+
+    Legacy records retain their exact raw-byte rule when their scheme marker
+    is absent. Never reinterpret a legacy fingerprint as a canonical one.
+    """
+    from experiments.manifest import HARNESS_DIGEST_SCHEME, _source_identity_bytes
+    if scheme is _CALLER_DEFAULT:
+        scheme = HARNESS_DIGEST_SCHEME
+    listing = subprocess.run(
+        ["git", "ls-tree", "-rz", commit, "--", harness_path],
+        cwd=repo, capture_output=True, check=True, timeout=10).stdout
     prefix = harness_path.rstrip("/") + "/"
-    names = sorted(name for name in names
-                   if name.startswith(prefix)
-                   and "/" not in name[len(prefix):]
-                   and name.endswith(".py"))
-    if not names:
+    entries = []
+    for entry in listing.split(b"\0"):
+        if not entry:
+            continue
+        metadata, raw_path = entry.split(b"\t", 1)
+        unused_mode, object_type, object_id = metadata.split()
+        path = raw_path.decode("utf-8")
+        if (path.startswith(prefix) and "/" not in path[len(prefix):]
+                and path.endswith(".py")):
+            if object_type != b"blob":
+                raise ValueError(f"harness entry is not a blob: {path}")
+            entries.append((path, object_id))
+    entries.sort()
+    if not entries:
         raise ValueError(f"no Python harness files at {commit}:{harness_path}")
+    result = subprocess.run(
+        ["git", "cat-file", "--batch"], cwd=repo,
+        input=b"".join(object_id + b"\n" for path, object_id in entries),
+        capture_output=True, check=True, timeout=10)
+    stream = io.BytesIO(result.stdout)
     digest = hashlib.sha256()
-    for path in names:
-        content = subprocess.run(
-            ["git", "show", f"{commit}:{path}"], cwd=repo,
-            capture_output=True, check=True, timeout=10).stdout
+    for path, object_id in entries:
+        header = stream.readline().rstrip(b"\n").split()
+        if (len(header) != 3 or header[0] != object_id
+                or header[1] != b"blob" or not header[2].isdigit()):
+            raise ValueError(f"invalid Git blob response for {path}")
+        size = int(header[2])
+        if size > len(result.stdout) - stream.tell() - 1:
+            raise ValueError(f"incomplete Git blob response for {path}")
+        content = stream.read(size)
+        if stream.read(1) != b"\n":
+            raise ValueError(f"incomplete Git blob response for {path}")
         digest.update(os.path.basename(path).encode("utf-8"))
-        digest.update(content)
+        digest.update(_source_identity_bytes(content, scheme))
+    if stream.read(1):
+        raise ValueError("unexpected trailing Git blob response")
     return digest.hexdigest()
 
 
@@ -99,17 +131,22 @@ def get_reproducible_harness_source(
         else None
     if not isinstance(git, dict):
         return None
+    scheme = git.get("harness_sha256_scheme")
+    if "harness_sha256_scheme" in git:
+        from experiments.manifest import HARNESS_DIGEST_SCHEME
+        if scheme != HARNESS_DIGEST_SCHEME:
+            return None
     target, recorded = git.get("harness_sha256"), git.get("commit")
     if not isinstance(target, str) or not re.fullmatch(r"[0-9a-f]{64}", target):
         return None
     if not isinstance(recorded, str) or not re.fullmatch(r"[0-9a-f]{7,40}", recorded):
         return None
     try:
-        if get_harness_sha256_at_commit(repo, recorded, harness_path) == target:
+        if get_harness_sha256_at_commit(repo, recorded, harness_path, scheme) == target:
             return recorded
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
-    if not git.get("dirty"):
+    if git.get("dirty") is not True:
         return None
     try:
         descendants = subprocess.run(
@@ -118,14 +155,57 @@ def get_reproducible_harness_source(
             text=True, timeout=10).stdout.splitlines()
         for commit in reversed(descendants):
             if get_harness_sha256_at_commit(
-                    repo, commit, harness_path) == target:
+                    repo, commit, harness_path, scheme) == target:
                 return commit
         from experiments.manifest import _source_fingerprint
-        if _source_fingerprint(os.path.join(repo, harness_path)) == target:
+        if _source_fingerprint(os.path.join(repo, harness_path), scheme) == target:
             return "WORKTREE"
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
     return None
+
+
+def check_harness_provenance(
+        provenance_block, repo=REPO, harness_path="app/experiments"):
+    """-> (status, detail) for a STORED provenance block.
+
+    ONE check, built on get_reproducible_harness_source so "which commit holds
+    these bytes" is never answered twice. Statuses:
+
+    verified      the recorded harness was reproduced at the recorded commit,
+                  a descendant eligible only for a run that recorded dirty=True,
+                  or the current worktree of such a run.
+    inconsistent  the run recorded a CLEAN tree, and its harness does not match
+                  the commit it names. A clean run has no other explanation.
+    unverifiable  nothing could be reproduced and the source state does not
+                  support that conclusion: dirty=True whose bytes were never
+                  found, or dirty=None, which is UNKNOWN and is never read as
+                  clean. A missing legacy diagnostic field is not a defect by
+                  itself; a record that actually verifies passes.
+
+    Deliberately not a verdict about the measurement - only about whether the
+    code that ran can be identified.
+    """
+    git = (provenance_block.get("git")
+           if isinstance(provenance_block, dict) else None)
+    if not isinstance(git, dict):
+        return "unverifiable", "no git provenance block was recorded"
+    target = git.get("harness_sha256")
+    if not isinstance(target, str) or not re.fullmatch(r"[0-9a-f]{64}", target):
+        return "unverifiable", "no harness fingerprint was recorded"
+    recorded = git.get("commit")
+    if not isinstance(recorded, str) or not re.fullmatch(r"[0-9a-f]{7,40}", recorded):
+        return "unverifiable", "no recorded commit"
+    resolved = get_reproducible_harness_source(
+        provenance_block, repo=repo, harness_path=harness_path)
+    if resolved:
+        return "verified", f"harness reproduced at {resolved}"
+    if git.get("dirty") is False:
+        return ("inconsistent",
+                f"harness does not match the clean recorded commit {recorded[:12]}")
+    return ("unverifiable",
+            f"recorded harness was not recovered from {recorded[:12]} and the "
+            "source state does not prove it was clean")
 
 
 def provenance(script_file, args=None, **extra):

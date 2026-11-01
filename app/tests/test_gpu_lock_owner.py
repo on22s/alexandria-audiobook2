@@ -1,5 +1,9 @@
 """Validate the ownership instrument with real temporary kernel flock fixtures."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 import os
 from pathlib import Path
@@ -74,6 +78,7 @@ def run_owned_cpu_chain(command, root, env=None, **kwargs):
                              timeout=timeout, env=environment, **kwargs)
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class KernelGpuLockOwnershipTests(unittest.TestCase):
     @requires_linux_queue_tools
     def test_real_exclusive_owner_accepts_direct_nested_descendants_and_closed_fd9(self):

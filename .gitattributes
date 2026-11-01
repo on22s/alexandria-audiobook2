@@ -25,3 +25,26 @@ app/tests/unit_test_inventory.json              merge=ours
 
 # Pinned vendor hashes require identical bytes even with core.autocrlf=true.
 app/static/vendor/**                            -text
+
+# Audit inputs, gold fixtures, audit outputs and experiment Python sources
+# are pinned by sha256, so their checkout bytes
+# must not depend on the committer's core.autocrlf. On a checkout with
+# core.autocrlf=true LF blobs were rewritten to
+# CRLF, which changes the hash while every parsed field stays identical.
+# `text eol=lf` keeps them textual: LF on every checkout, and git normalises
+# to LF in the blob, so diffs stay line-based and a Windows edit cannot commit
+# CRLF. The patterns must reach nested audit, experiment and fixture directories:
+# `dir/*.json` matches immediate children only. `-text` would also freeze the
+# bytes, but it only disables EOL conversion - diff and merge stay textual
+# unless those attributes are unset as well - and it leaves CRLF in a blob
+# as-is; it also does not affect 120000 symlink entries (measured), so it is
+# not needed here.
+ab_test_runtime/experiments/**/*.json          text eol=lf
+app/fixtures/**/*.json                          text eol=lf
+ab_test_runtime/audit/**/*.json                 text eol=lf
+app/experiments/**/*.py                         text eol=lf
+app/tests/unit_test_inventory.json              text eol=lf
+RESULTS_INDEX.md                                text eol=lf
+results_index.csv                               text eol=lf
+LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md            text eol=lf
+ab_test_runtime/evidence/**/fixtures/**/*.json    text eol=lf
