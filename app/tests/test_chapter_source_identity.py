@@ -6,16 +6,54 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
+
+import chapter_timing_cache as cache
 
 from chapter_timing_cache import read_source_identity
 from tts import ExportCancelled
 
 
 class ChapterSourceIdentityTests(unittest.TestCase):
+    def test_read_failures_close_owned_descriptor_and_preserve_error_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'source.wav'
+            source.write_bytes(b'synthetic source')
+            for failure in (OSError('read refused'), RuntimeError('read failed'),
+                            MemoryError('read allocation failed'), KeyboardInterrupt()):
+                with self.subTest(error=type(failure).__name__):
+                    descriptors = []
+                    real_open = os.open
+
+                    def open_source(*args, **kwargs):
+                        descriptor = real_open(*args, **kwargs)
+                        descriptors.append(descriptor)
+                        return descriptor
+
+                    try:
+                        with mock.patch.object(cache.os, 'open', side_effect=open_source), \
+                                mock.patch.object(cache.os, 'read', side_effect=failure):
+                            if isinstance(failure, OSError):
+                                self.assertIsNone(read_source_identity(source, lambda: False))
+                            else:
+                                with self.assertRaises(type(failure)) as raised:
+                                    read_source_identity(source, lambda: False)
+                                self.assertIs(raised.exception, failure)
+                        self.assertEqual(len(descriptors), 1)
+                        with self.assertRaises(OSError):
+                            os.fstat(descriptors[0])
+                    finally:
+                        for descriptor in descriptors:
+                            try:
+                                os.fstat(descriptor)
+                            except OSError:
+                                continue
+                            os.close(descriptor)
+
     def test_regular_empty_and_followed_alias_keep_the_existing_identity_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / 'source.wav'
-            for payload in (b'', b'source bytes' * 10000):
+            for payload in (b'', b'source bytes' * 10000, b'first\r\n\x1asecond\r\n' * 10000):
                 source.write_bytes(payload)
                 result = read_source_identity(source, lambda: False)
                 self.assertEqual({'version', 'sha256'}, set(result))

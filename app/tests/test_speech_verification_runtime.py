@@ -1,4 +1,5 @@
 """Identity bounds, role separation and explicit provider availability."""
+import hashlib
 import os
 from pathlib import Path
 import struct
@@ -26,6 +27,19 @@ class SpeechVerifierRuntimeTests(unittest.TestCase):
         vocab, state, heads, layers, mels = (51866,1280,20,32,128) if large else (51864,768,12,12,80)
         Path(self.runtime['model']).write_bytes(struct.pack('<12i', 0x67676d6c, vocab,1500,state,heads,layers,
                                                         448,state,heads,layers,mels,1))
+
+    def test_file_identity_hashes_exact_binary_bytes_without_text_translation(self):
+        for name, payload in [('ascii', b'exact bytes'),
+                              ('crlf', b'first\r\nsecond\r\n'),
+                              ('dos_eof', b'before\x1aafter'),
+                              ('all_octets', bytes(range(256)))]:
+            with self.subTest(case=name):
+                path = self.root / name
+                path.write_bytes(payload)
+                row = get_verifier_file_identity(path, len(payload), lambda: False)
+                self.assertEqual(row['size'], len(payload))
+                self.assertEqual(row['sha256'], hashlib.sha256(payload).hexdigest())
+                self.assertEqual(path.read_bytes(), payload)
 
     def test_complete_finite_identity_has_model_bundle_recipe_and_adapter(self):
         with patch('speech_verification_runtime.sys.platform', 'linux'), patch.dict(os.environ, {}, clear=True):
