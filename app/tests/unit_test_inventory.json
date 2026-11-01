@@ -2057,6 +2057,7 @@
   "test_chapter_source_identity": [
     "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_fifo_and_regular_to_fifo_open_race_have_a_hard_process_bound",
     "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_missing_directory_and_cancellation_refuse_without_payload_read",
+    "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_read_failures_close_owned_descriptor_and_preserve_error_contract",
     "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_regular_empty_and_followed_alias_keep_the_existing_identity_contract"
   ],
   "test_chapter_timing_cache": [
