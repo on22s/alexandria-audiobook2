@@ -1,4 +1,8 @@
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 import os
 from pathlib import Path
@@ -17,6 +21,7 @@ from tests.test_support import requires_linux_queue_tools
 ROOT = Path(__file__).resolve().parents[2]
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class PreparerRestartLockTests(unittest.TestCase):
     def fixture(self, root, statuses='0'):
         shutil.copy2(ROOT / 'run_with_restart.sh', root / 'run_with_restart.sh')

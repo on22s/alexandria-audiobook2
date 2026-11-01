@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -165,7 +166,7 @@ with case.fixture(False,enabled=False) as (root,manager,previous,_),case.owner()
  raise RuntimeError('Expected prepublication hard exit; result='+repr(result))
 '''
 
-@unittest.skipUnless(workspace.is_synthesis_workspace_supported(), 'Registered spill currently qualifies Linux dirfd durability')
+@unittest.skipUnless(workspace.is_synthesis_workspace_supported(), 'Registered spill requires durable directory storage')
 class SynthesisWorkspaceTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
@@ -606,6 +607,7 @@ class SynthesisWorkspaceTests(unittest.TestCase):
         self.assertEqual(1,len(self.rows()))
 
     def test_project_parent_publication_cancel_replacement_and_capacity(self):
+        from audio_export import _RAW_EXPORT_AUDIO_SEGMENT
         import numpy as np
         from contextlib import ExitStack
         from audio_generation_owner import AudioGenerationCancelled
@@ -826,9 +828,9 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                             sys.setprofile(old_profile);triggered.append(True)
                             os.pwrite(frame.f_locals['writer'].fileno(),b'X',0);return
                         if mutation=='wav_inplace' or event!='return' or frame.f_code is not subprocess.Popen.wait.__code__ or value!=0:return
-                        process=frame.f_locals['self']
-                        if not any(isinstance(arg,str) and arg.endswith('/audio_export.py') for arg in process.args):return
-                        sys.setprofile(old_profile);settings=json.loads(process.args[-1]);triggered.append(True)
+                        caller=frame.f_back
+                        if caller is None or caller.f_code is not _RAW_EXPORT_AUDIO_SEGMENT.__code__:return
+                        sys.setprofile(old_profile);settings=caller.f_locals['settings'];triggered.append(True)
                         report=Path(settings['exception_path']);output=report.parent/'output.mp3'
                         if mutation=='output_inplace':
                             with output.open('r+b') as stream:
@@ -846,7 +848,7 @@ class SynthesisWorkspaceTests(unittest.TestCase):
                     try:
                         sys.setprofile(corrupt_completion);success,payload=manager.generate_chunk_audio(0)
                     finally:sys.setprofile(old_profile)
-                    self.assertFalse(success,payload);self.assertEqual([True],triggered)
+                    self.assertEqual([True],triggered);self.assertFalse(success,payload)
                     self.assertEqual(before['audio_revision'],manager.load_chunks()[0]['audio_revision'])
                     self.assertEqual(prior,previous.read_bytes())
 
@@ -1450,3 +1452,131 @@ with SynthesisWorkspaceRegistry(root,create=True) as store:
                 self.assertEqual(replacement,path.exists())
                 self.assertEqual(int(replacement),len(self.rows()))
                 if replacement:self.assertEqual(1,self.cleanup_idle())
+
+
+def _registry_directory_stat(ino, mode=0o700, uid=1000):
+    return os.stat_result((stat.S_IFDIR | mode, ino, 1, 1, uid, uid, 0, 0, 0, 0))
+
+
+class _SyntheticRegistryOS:
+    """Descriptor-less seam: Windows cannot open directories or pass dir_fd."""
+
+    O_DIRECTORY = getattr(os, 'O_DIRECTORY', 0x100000)
+    O_NOFOLLOW = getattr(os, 'O_NOFOLLOW', 0x200000)
+    O_NONBLOCK = getattr(os, 'O_NONBLOCK', 0x400000)
+
+    def __init__(self, *, create, exists, namespace_mode=0o700):
+        self.create = create
+        self.exists = exists
+        self.namespace_info = _registry_directory_stat(2, namespace_mode)
+        self.uid = 1000
+        self.opened = []
+        self.created = []
+        self.synced = []
+        self.closed = []
+        self.fds = {}
+        self.next_fd = 80
+        self.parent_fd = None
+        self.directory_fd = None
+        self.refuse_parent_sync = False
+        self.refuse_directory_sync = False
+        self.lock_attempted = False
+
+    def _allocate(self, info):
+        fd = self.next_fd
+        self.next_fd += 1
+        self.fds[fd] = info
+        return fd
+
+    def open(self, path, flags, mode=0o777, *, dir_fd=None):
+        self.opened.append((os.fspath(path), flags, mode, dir_fd))
+        if dir_fd is None:
+            self.parent_fd = self._allocate(_registry_directory_stat(1))
+            return self.parent_fd
+        if path == workspace.DIRECTORY:
+            self.directory_fd = self._allocate(self.namespace_info)
+            return self.directory_fd
+        self.lock_attempted = True
+        raise AssertionError('registry lock opened before directory sync proof')
+
+    def mkdir(self, name, mode=0o777, *, dir_fd=None):
+        self.created.append((name, mode, dir_fd))
+        if self.exists:
+            raise FileExistsError(name)
+        self.exists = True
+
+    def stat(self, name, *, dir_fd=None, follow_symlinks=True):
+        if name == workspace.DIRECTORY and dir_fd == self.parent_fd:
+            return self.namespace_info
+        raise AssertionError('unexpected registry stat %r' % (name,))
+
+    def fstat(self, fd):
+        return self.fds[fd]
+
+    def fsync(self, fd):
+        self.synced.append(fd)
+        if self.refuse_parent_sync and fd == self.parent_fd:
+            raise OSError(5, 'injected parent sync refusal')
+        if self.refuse_directory_sync and fd == self.directory_fd:
+            raise OSError(22, 'injected directory sync refusal')
+
+    def close(self, fd):
+        self.closed.append(fd)
+        self.fds.pop(fd)
+
+    def geteuid(self):
+        return self.uid
+
+    def __getattr__(self, name):
+        return getattr(os, name)
+
+
+class WorkspaceDirectorySyncProtocolTests(unittest.TestCase):
+    """Directory sync proof must run before the registry lock or reservation."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def test_directory_sync_refusal_precedes_lock_and_reservation(self):
+        for create, exists in ((True, False), (True, True), (False, True)):
+            with self.subTest(create=create, exists=exists):
+                fake = _SyntheticRegistryOS(create=create, exists=exists)
+                fake.refuse_directory_sync = True
+                with patch.object(workspace, 'os', fake):
+                    with self.assertRaises(workspace.SynthesisWorkspaceUnavailable) as caught:
+                        with workspace.SynthesisWorkspaceRegistry(self.root, create=create):
+                            self.fail('directory sync refusal must prevent registry entry')
+                self.assertIsInstance(caught.exception.__cause__, OSError)
+                self.assertFalse(fake.lock_attempted)
+                self.assertEqual([fake.parent_fd, fake.directory_fd] if create and not exists
+                                 else [fake.directory_fd], fake.synced)
+                self.assertEqual(sorted(filter(None, (fake.parent_fd, fake.directory_fd))),
+                                 sorted(fake.closed))
+                self.assertEqual({}, fake.fds)
+                self.assertEqual([(workspace.DIRECTORY, 0o700, fake.parent_fd)] if create else [],
+                                 fake.created)
+
+    def test_parent_sync_failure_stays_a_raw_os_error(self):
+        fake = _SyntheticRegistryOS(create=True, exists=False)
+        fake.refuse_parent_sync = True
+        with patch.object(workspace, 'os', fake):
+            with self.assertRaises(OSError) as caught:
+                with workspace.SynthesisWorkspaceRegistry(self.root, create=True):
+                    self.fail('parent sync failure must prevent registry entry')
+        self.assertNotIsInstance(caught.exception, workspace.SynthesisWorkspaceUnavailable)
+        self.assertFalse(fake.lock_attempted)
+        self.assertEqual([fake.parent_fd], fake.synced)
+        self.assertEqual([fake.parent_fd], fake.closed)
+
+    def test_unsafe_namespace_is_rejected_before_any_sync_or_lock(self):
+        fake = _SyntheticRegistryOS(create=False, exists=True, namespace_mode=0o755)
+        with patch.object(workspace, 'os', fake):
+            with self.assertRaisesRegex(workspace.SynthesisWorkspaceUnavailable, 'Unsafe workspace directory'):
+                with workspace.SynthesisWorkspaceRegistry(self.root):
+                    self.fail('unsafe namespace must prevent registry entry')
+        self.assertEqual([], fake.synced)
+        self.assertFalse(fake.lock_attempted)
+        self.assertEqual(sorted((fake.parent_fd, fake.directory_fd)), sorted(fake.closed))
+        self.assertEqual({}, fake.fds)

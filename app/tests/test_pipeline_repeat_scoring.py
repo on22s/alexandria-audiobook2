@@ -29,6 +29,23 @@ def get_fixture():
     return checkpoint, gold
 
 
+def index_pointer(root, name, target):
+    """Register app/fixtures/NAME as a 120000 entry for TARGET and write it out.
+
+    This is the core.symlinks=false checkout of a committed link, byte for byte:
+    a small plain file holding the target name, plus the index entry that names
+    that same text as a link.
+    """
+    relative = f"app/fixtures/{name}"
+    blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=root,
+                          input=target, check=True, capture_output=True,
+                          text=True).stdout.strip()
+    subprocess.run(["git", "update-index", "--add", "--cacheinfo",
+                    f"120000,{blob},{relative}"], cwd=root, check=True,
+                   capture_output=True)
+    (root / relative).write_text(target, encoding="utf-8")
+
+
 class PipelineRepeatScoringTests(unittest.TestCase):
     def test_missing_unreadable_or_partial_inputs_preserve_saved_scores_then_complete_retry_succeeds(self):
         checkpoint, gold = get_fixture()
@@ -69,6 +86,89 @@ class PipelineRepeatScoringTests(unittest.TestCase):
             rows = json.loads(score_path.read_text())["rows"]
             self.assertEqual({first.name, second.name}, {row["artifact"] for row in rows})
             self.assertTrue(all((row["n"], row["correct"]) == (6, 1) for row in rows))
+            for name in ("RESULTS_INDEX.md", "results_index.csv"):
+                self.assertNotIn(b"\r", (root / name).read_bytes(), name)
+
+    def test_materialised_gold_pointer_scores_like_direct_json(self):
+        checkpoint, gold = get_fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage_index_scripts(directory)
+            fixtures = root / "app/fixtures"
+            fixtures.mkdir()
+            (fixtures / "attribution_gold_grimgar03.json").write_text(
+                json.dumps(gold))
+            subprocess.run(["git", "add", "app/fixtures/attribution_gold_grimgar03.json"],
+                           cwd=root, check=True, capture_output=True)
+            pointer = fixtures / "attribution_gold_grimgar03_provisional.json"
+            index_pointer(root, pointer.name, "attribution_gold_grimgar03.json")
+            repeats = root / "ab_test_runtime/pipeline_repeats"
+            repeats.mkdir(parents=True)
+            (repeats / "run1.json.threepass_checkpoint.json").write_text(
+                json.dumps(checkpoint))
+            audits = root / "ab_test_runtime/audit"
+            audits.mkdir()
+            for name in ("artifact_structural_audit", "legacy_attribution_audit"):
+                (audits / (name + ".json")).write_text('{"artifacts": []}')
+
+            def run():
+                return subprocess.run(
+                    [sys.executable, str(root / "tools/audit/collect_results.py"),
+                     "--rescore-repeats"], cwd=root, capture_output=True,
+                    text=True, timeout=10)
+
+            result = run()
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            scores = repeats / "repeat_scores.json"
+            pointer_rows = json.loads(scores.read_text())["rows"]
+            self.assertEqual([(row["n"], row["correct"]) for row in pointer_rows],
+                             [(6, 1)])
+            pointer.write_text(json.dumps(gold))
+            result = run()
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(pointer_rows, json.loads(scores.read_text())["rows"],
+                             "the pointer and the plain fixture must score alike")
+
+    def test_edited_or_unsafe_gold_pointer_preserves_saved_scores(self):
+        checkpoint, gold = get_fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage_index_scripts(directory)
+            fixtures = root / "app/fixtures"
+            fixtures.mkdir()
+            repeats = root / "ab_test_runtime/pipeline_repeats"
+            repeats.mkdir(parents=True)
+            name = "run1.json.threepass_checkpoint.json"
+            (repeats / name).write_text(json.dumps(checkpoint))
+            audits = root / "ab_test_runtime/audit"
+            audits.mkdir()
+            for audit_name in ("artifact_structural_audit",
+                               "legacy_attribution_audit"):
+                (audits / (audit_name + ".json")).write_text('{"artifacts": []}')
+            scores = repeats / "repeat_scores.json"
+            prior = json.dumps({"rows": [{"artifact": name}]}).encode()
+            cases = (
+                ("edited", "attribution_gold_grimgar03.json",
+                 "attribution_gold_grimgar03.json\n",
+                 "is not the tracked link it claims to be"),
+                ("unsafe", "../../outside.json", "../../outside.json",
+                 "unsafe to follow"),
+            )
+            for case, indexed, observed, expected in cases:
+                with self.subTest(case=case):
+                    scores.write_bytes(prior)
+                    pointer = fixtures / "attribution_gold_grimgar03_provisional.json"
+                    index_pointer(root, pointer.name, indexed)
+                    pointer.write_text(observed)
+                    result = subprocess.run(
+                        [sys.executable, str(root / "tools/audit/collect_results.py"),
+                         "--rescore-repeats"], cwd=root, capture_output=True,
+                        text=True, timeout=10)
+                    self.assertNotEqual(0, result.returncode,
+                                        result.stdout + result.stderr)
+                    self.assertIn(expected, result.stderr)
+                    self.assertIn("saved scores preserved", result.stderr)
+                    self.assertEqual(prior, scores.read_bytes())
 
     def test_missing_duplicate_unnamed_merged_and_wrong_lines_are_in_denominator(self):
         checkpoint, gold = get_fixture()

@@ -200,6 +200,10 @@ def script_from_name(path, names=None):
     return None
 
 
+def get_repo_relative_path(path):
+    return os.path.relpath(path, REPO).replace(os.sep, '/')
+
+
 def resolve_producer(path, python, history=None, script_names=None):
     """-> how confidently this artifact's origin can be established.
 
@@ -221,7 +225,7 @@ def resolve_producer(path, python, history=None, script_names=None):
         return {"tier": "provenance", "argv": argv, "script": None,
                 "commit": None, "added": None, "note": None}
     script = script_from_name(path, names=script_names)
-    relative = os.path.relpath(path, REPO)
+    relative = get_repo_relative_path(path)
     sha, date = added_commit(relative) if history is None else history.get(relative, (None, None))
     if script:
         return {"tier": "git+naming", "argv": None, "script": script,
@@ -235,7 +239,7 @@ def resolve_producer(path, python, history=None, script_names=None):
 def resolve_producers(paths, python):
     """Resolve distinct artifacts with shared history and script-name reads."""
     paths = list(dict.fromkeys(paths))
-    history = get_added_commits([os.path.relpath(path, REPO) for path in paths])
+    history = get_added_commits([get_repo_relative_path(path) for path in paths])
     names = get_producer_script_names()
     return {path: resolve_producer(path, python, history=history, script_names=names)
             for path in paths}

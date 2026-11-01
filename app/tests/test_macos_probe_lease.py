@@ -1,7 +1,11 @@
 """Native Unix descriptor transport for the Mac probe; not Apple kernel proof."""
 import array
 import errno
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import importlib.util
 import os
 from pathlib import Path
@@ -12,10 +16,14 @@ from unittest.mock import Mock
 
 SOURCE = Path(__file__).resolve().parents[2] / 'tools/diagnostics/macos_369_native_probe.py'
 spec = importlib.util.spec_from_file_location('macos_probe_lease_fixture', SOURCE)
-probe = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(probe)
+if HAVE_FCNTL:
+    probe = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(probe)
+else:
+    probe = None
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class MacProbeLeaseTests(unittest.TestCase):
     def test_real_descriptor_keeps_lease_after_sender_closes_then_releases(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -62,6 +70,7 @@ class MacProbeLeaseTests(unittest.TestCase):
                 self.assertTrue(probe.is_probe_lease_free(other if mode == 'wrong-file' else path))
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class MacProbeReapTests(unittest.TestCase):
     def test_zero_resource_tasks_does_not_certify_reaped_admission_scope(self):
         api = Mock()

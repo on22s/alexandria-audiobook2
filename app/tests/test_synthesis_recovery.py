@@ -20,7 +20,7 @@ from synthesis_render import get_synthesis_window_plan, render_synthesis_windows
 from synthesis_settings import get_synthesis_window_settings
 
 
-@unittest.skipUnless(is_recovery_storage_platform_supported(), 'Linux durability required')
+@unittest.skipUnless(is_recovery_storage_platform_supported(), 'Durable directory storage required')
 class RecoveryOrchestrationTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

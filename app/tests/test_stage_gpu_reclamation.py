@@ -1,5 +1,9 @@
 """CPU-only reclamation must wait for the real kernel GPU lease."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import ctypes
 import os
 from pathlib import Path
@@ -15,6 +19,7 @@ from tests.test_support import requires_linux_queue_tools
 
 
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class StageGpuReclamationTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

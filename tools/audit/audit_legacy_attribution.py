@@ -86,6 +86,203 @@ def is_path_within_repo(path):
         return False
 
 
+def names_path_inside_repo(path):
+    """Return whether path, unresolved, names a location inside this checkout.
+
+    A gold path that is itself a link must reach the link validation below
+    rather than be dropped as "outside the checkout", because its target's
+    bytes have not been inspected yet.
+    """
+    try:
+        return os.path.commonpath(
+            [os.path.abspath(REPO), os.path.abspath(path)]) == os.path.abspath(REPO)
+    except (OSError, ValueError):
+        return False
+
+
+LINK_MODE = "120000"
+
+
+class GoldPathRefused(RuntimeError):
+    """A gold fixture whose pointer cannot be trusted is refused, not skipped.
+
+    "available": False has one meaning in this audit - a clean checkout cannot
+    see the fixture. It must not also absorb "the fixture is here but its bytes
+    are not the tracked pointer, or that pointer leaves the checkout". That is
+    the plausible-looking fallback Rule 21 warns about: a configuration fault
+    would be reported as evidence that simply is not present.
+    """
+
+
+def _blob_oid(data, object_id):
+    """Git's blob hash for DATA, in the object format OBJECT_ID declares.
+
+    The width of the index object id is Git's own answer to which format this
+    repository uses (40 hex is sha1, 64 is sha256), so the digest costs no
+    extra subprocess per file and cannot disagree with the entry it is
+    compared against. An id of any other width is refused rather than hashed.
+    """
+    algorithm = {40: "sha1", 64: "sha256"}.get(len(object_id))
+    if algorithm is None:
+        raise GoldPathRefused(
+            f"index object id {object_id!r} is not a Git object id")
+    hasher = hashlib.new(algorithm)
+    hasher.update(b"blob %d\0" % len(data))
+    hasher.update(data)
+    return hasher.hexdigest()
+
+
+def _index_entry(rel):
+    """-> (mode, blob) for exactly one index entry, None when Git cannot answer.
+
+    Same offline posture as _commit_is_in_history: no lazy fetch, no terminal
+    prompt, bounded. More than one entry for one path is an unmerged index
+    (stages 1/2/3) and cannot say which pointer is authoritative.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "-s", "-z", "--", rel], cwd=REPO,
+            env={**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_TERMINAL_PROMPT": "0"},
+            capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    records = [record for record in result.stdout.split(b"\0") if record]
+    if not records:
+        return None
+    if len(records) != 1:
+        raise GoldPathRefused(
+            f"gold path {rel!r} has {len(records)} index entries; an unmerged "
+            "or ambiguous index cannot name one gold file")
+    fields = records[0].split(b" ", 2)
+    if len(fields) != 3:
+        raise GoldPathRefused(f"gold path {rel!r} has an unreadable index entry")
+    return (fields[0].decode("ascii", "replace"),
+            fields[1].decode("ascii", "replace"))
+
+
+def _unsafe_link_target(target):
+    """Whether a link target may ever be followed. One answer, one place."""
+    if not target or target != target.strip():
+        return True
+    if any(char in target for char in "\0\n\r"):
+        return True
+    if target.startswith(("/", "\\")):
+        return True
+    if os.path.isabs(target) or os.path.splitdrive(target)[0]:
+        return True
+    if len(target) > 1 and target[1] == ":":
+        return True
+    return ".." in target.replace("\\", "/").split("/")
+
+
+def _resolve_tracked_link(path, rel, pointer):
+    """-> the gold path a tracked 120000 entry names, from its POINTER bytes.
+
+    Four fixtures are committed as mode-120000 links. On a POSIX checkout
+    open() follows them and the audit reads the target's bytes; where
+    core.symlinks=false - the supported Windows CI path - the same commit
+    materialises each link as a small plain-text file holding the target name.
+    BOTH forms are validated here, against the index, so a link retargeted in
+    the working tree cannot pass on the platform that happens to support
+    links: the pointer bytes - os.readlink() there, the materialised file here
+    - must equal the index blob of a 120000 entry.
+
+    Only the TRACKED pointer is honoured. "These bytes are not JSON" is also
+    true of a truncated fixture and of a hand-edited pointer, so the working
+    bytes must equal the index blob of a 120000 entry, and the target must be
+    one tracked regular file inside this checkout, reached without an absolute
+    or '..' step and without a second link. Everything else is refused.
+    """
+    entry = _index_entry(rel)
+    if entry is None:
+        raise GoldPathRefused(
+            f"gold path {rel!r} is not JSON and Git cannot confirm it is a "
+            "tracked link")
+    mode, blob = entry
+    if mode != LINK_MODE or blob != _blob_oid(pointer, blob):
+        raise GoldPathRefused(
+            f"gold path {rel!r} is not JSON and is not the tracked link it "
+            "claims to be")
+    try:
+        target = pointer.decode("utf-8")
+    except UnicodeDecodeError:
+        raise GoldPathRefused(
+            f"gold path {rel!r} holds an undecodable link target") from None
+    if _unsafe_link_target(target):
+        raise GoldPathRefused(
+            f"gold link {rel!r} -> {target!r} is unsafe to follow")
+    resolved = os.path.normpath(os.path.join(
+        os.path.dirname(path), *target.replace("\\", "/").split("/")))
+    if not is_path_within_repo(resolved):
+        raise GoldPathRefused(
+            f"gold link {rel!r} -> {target!r} escapes this checkout")
+    target_rel = os.path.relpath(resolved, REPO).replace(os.sep, "/")
+    if target_rel == rel or tracked_state(target_rel, REPO) != "tracked":
+        raise GoldPathRefused(
+            f"gold link {rel!r} -> {target!r} does not name a tracked file in "
+            "this checkout")
+    target_entry = _index_entry(target_rel)
+    if target_entry is None:
+        raise GoldPathRefused(
+            f"gold link {rel!r} -> {target!r} cannot be confirmed by Git")
+    if target_entry[0] == LINK_MODE:
+        raise GoldPathRefused(
+            f"gold link {rel!r} -> {target!r} is another link, not a chain")
+    if os.path.islink(resolved):
+        raise GoldPathRefused(
+            f"gold link {rel!r} -> {target!r} is a link on disk but a regular "
+            "file in Git")
+    if not os.path.isfile(resolved):
+        raise GoldPathRefused(
+            f"gold link {rel!r} -> {target!r} is not a regular file")
+    return resolved
+
+
+def _require_gold_object(fixture, rel):
+    if not isinstance(fixture, dict):
+        raise GoldPathRefused(f"gold fixture {rel!r} is not a JSON object")
+    return fixture
+
+
+def read_gold_fixture(path, rel):
+    """Read a gold fixture once: -> (raw bytes, parsed fixture).
+
+    THE ONE READER. The audit and the results index's --rescore-repeats both
+    come through here, so neither can grow a second resolver for the 120000
+    pointer that the other would not honour.
+
+    An ordinary JSON fixture is opened and parsed exactly once. A pointer is
+    opened once to prove its bytes are the tracked link, and only then is its
+    target opened - the only way to know a file is a pointer is to look at
+    what it holds. The returned bytes are always the TARGET's bytes, because
+    that is what the artifact's gold_sha256 was computed from on the machine
+    that scored it.
+    """
+    if os.path.islink(path):
+        resolved = _resolve_tracked_link(
+            path, rel, os.fsencode(os.readlink(path)))
+    else:
+        with open(path, "rb") as handle:
+            raw = handle.read()
+        try:
+            fixture = json.loads(raw)
+        except ValueError:
+            resolved = _resolve_tracked_link(path, rel, raw)
+        else:
+            return raw, _require_gold_object(fixture, rel)
+    with open(resolved, "rb") as handle:
+        raw = handle.read()
+    target = os.path.relpath(resolved, REPO)
+    try:
+        fixture = json.loads(raw)
+    except ValueError as error:
+        raise GoldPathRefused(
+            f"gold link {rel!r} -> {target!r} is not JSON") from error
+    return raw, _require_gold_object(fixture, rel)
+
+
 def _current_gold(meta, rows):
     """Compare an artifact's rows against the gold it was scored on.
 
@@ -116,16 +313,21 @@ def _current_gold(meta, rows):
     path = os.path.join(REPO, rel)
     result = {"available": False, "hash_changed": None, "missing_rows": None,
               "expected_changed_rows": None, "correctness_changed_rows": None}
-    if not is_path_within_repo(path):
+    if not rel or not names_path_inside_repo(path):
+        return result
+    if not os.path.islink(path) and not is_path_within_repo(path):
         return result
     # Skip ONLY on a definite "untracked". Outside a repository git cannot
     # answer, and refusing to read the fixture there would mean auditing
     # nothing while reporting success.
-    if not rel or not os.path.isfile(path) or tracked_state(rel, REPO) == "untracked":
+    if not os.path.islink(path) and not os.path.isfile(path):
         return result
-    with open(path, "rb") as handle:
-        raw = handle.read()
-    fixture = json.loads(raw)
+    if tracked_state(rel, REPO) == "untracked":
+        return result
+    # A materialised pointer and a real symlink take the same validation path,
+    # and an unsafe or edited one raises GoldPathRefused rather than being
+    # skipped: "this checkout cannot see the fixture" is a different answer.
+    raw, fixture = read_gold_fixture(path, rel)
     entries = {entry["id"]: entry for entry in fixture.get("entries", [])}
     groups = alias_groups(fixture)
     missing = expected_changed = correctness_changed = 0
@@ -320,9 +522,9 @@ def main():
         print(f"legacy attribution audit is current ({len(audit['artifacts'])} artifacts)")
         return
     from utils import atomic_json_write
-    atomic_json_write(audit, args.json)
+    atomic_json_write(audit, args.json, newline="\n")
     tmp = args.markdown + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as handle:
+    with open(tmp, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(markdown)
     os.replace(tmp, args.markdown)
     print(f"wrote {len(audit['artifacts'])} artifacts; {audit['summary']}")

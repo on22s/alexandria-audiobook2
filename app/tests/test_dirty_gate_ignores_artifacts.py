@@ -45,9 +45,15 @@ class DirtyGateIgnoresArtifactsTest(unittest.TestCase):
         shell = read("gpu_job.sh")
         python = read("app", "experiments", "manifest.py")
         self.assertIn(":(exclude)ab_test_runtime/*", shell)
-        self.assertIn('["bash", script, "--print-source-state", str(repo)]', python)
+        # The PROBE may be launched through a located interpreter (PATH bash
+        # or an existing Git-for-Windows one), but the classification is still
+        # gpu_job.sh's `--print-source-state`; manifest keeps no second policy.
+        self.assertIn("--print-source-state", python)
+        self.assertIn("_source_probe_shell", python)
         self.assertNotIn('"ls-files", "--others"', python,
                          "manifest must use the shared source-state policy")
+        self.assertNotIn('"status", "--porcelain"', python,
+                         "manifest must not reimplement the dirty policy")
 
     def test_without_the_exclusion_an_artifact_makes_the_tree_dirty(self):
         """The two scans must DISAGREE about a file under ab_test_runtime/.

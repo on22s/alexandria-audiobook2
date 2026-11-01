@@ -69,6 +69,23 @@ class ScriptFromNameTests(unittest.TestCase):
 
 
 class ResolveProducerTests(unittest.TestCase):
+    def test_single_and_batch_history_use_git_path_separators(self):
+        relative = 'ab_test_runtime/experiments/fixture.json'
+        history = {relative: ('a' * 40, '2026-10-31')}
+        with patch.object(ra.os.path, 'relpath', return_value=relative.replace('/', chr(92))), \
+             patch.object(ra.os, 'sep', chr(92)), \
+             patch.object(ra, 'replay_command', return_value=(None, 'no provenance')), \
+             patch.object(ra, 'script_from_name', return_value='fixture.py'), \
+             patch.object(ra, 'get_producer_script_names', return_value=[]), \
+             patch.object(ra, 'added_commit', return_value=history[relative]) as single, \
+             patch.object(ra, 'get_added_commits', return_value=history) as batch:
+            direct = ra.resolve_producer('fixture.json', 'py')
+            resolved = ra.resolve_producers(['fixture.json'], 'py')['fixture.json']
+        single.assert_called_once_with(relative)
+        batch.assert_called_once_with([relative])
+        self.assertEqual(history[relative][0], direct['commit'])
+        self.assertEqual(direct, resolved)
+
     def _artifact(self, payload):
         fh = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
                                          dir=os.path.join(ra.REPO, "ab_test_runtime",

@@ -1,6 +1,10 @@
 """Native wrapper death must not free a lease over live CPU descendants."""
 import ctypes
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 import os
 from pathlib import Path
@@ -17,6 +21,7 @@ from tests.test_support import requires_linux_queue_tools
 
 
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class GpuOwnerDeathTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

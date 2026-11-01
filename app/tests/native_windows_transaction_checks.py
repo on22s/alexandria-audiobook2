@@ -16,6 +16,18 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+
+def _wrong_host_status():
+    if sys.platform != 'win32':
+        print('Native Windows transaction checks require Windows; nothing was verified.', file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == '__main__' and _wrong_host_status():
+    raise SystemExit(2)
+
+
 import numpy as np
 import soundfile as sf
 
@@ -735,8 +747,7 @@ NATIVE_TEST_COUNT = 28
 
 
 def main():
-    if sys.platform != 'win32':
-        print('Native Windows transaction checks require Windows; nothing was verified.', file=sys.stderr)
+    if _wrong_host_status():
         return 2
     # Hosted runners set TEMP through a DOS 8.3 short name (RUNNER~1).
     # General fixtures use the long form. The dedicated path-admission test

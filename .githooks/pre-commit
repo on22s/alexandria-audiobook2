@@ -27,26 +27,46 @@ if printf '%s\n' "$staged" | grep -qE '^(ab_test_runtime/(experiments|audit)/|ap
     git add -- $("$ROOT/tools/regen_derived.sh" --paths) 2>/dev/null || true
     echo "pre-commit: rebuilt and staged derived files"
   else
+    status=$?
+    if [ "$status" -eq 2 ]; then
+      echo "pre-commit: AA2_PYTHON is invalid; no derived file was rebuilt." >&2
+      echo "pre-commit: fix or unset AA2_PYTHON." >&2
+      exit 1
+    fi
     echo "pre-commit: could not regenerate derived files; CI will check them" >&2
   fi
 fi
 
-PY="$ROOT/app/env/bin/python"
-if [ ! -x "$PY" ]; then
-  main_checkout=$(git -C "$ROOT" worktree list --porcelain 2>/dev/null \
-                  | awk '/^worktree /{print $2; exit}')
-  [ -n "${main_checkout:-}" ] && PY="$main_checkout/app/env/bin/python"
-fi
-if [ ! -x "$PY" ]; then
-  echo "pre-commit: app/env interpreter not found; skipping snapshot checks." >&2
-  exit 0
+if PY=$("$ROOT/tools/regen_derived.sh" --python); then
+  :
+else
+  status=$?
+  case "$status" in
+    1)
+      echo "pre-commit: NOT verified: API contract snapshots, unit-test inventory. CI runs both." >&2
+      exit 0
+      ;;
+    *)
+      echo "pre-commit: interpreter resolution failed (status $status); the snapshot checks were not run." >&2
+      echo "pre-commit: fix or unset AA2_PYTHON." >&2
+      exit 1
+      ;;
+  esac
 fi
 cd "$ROOT/app"
 if ! "$PY" update_api_contract_snapshots.py --check; then
   echo "pre-commit: API contract drift. Run: python update_api_contract_snapshots.py" >&2
   exit 1
 fi
-if ! "$PY" update_test_inventory.py --check; then
+if "$PY" update_test_inventory.py --check; then
+  :
+else
+  status=$?
+  if [ "$status" -eq 2 ]; then
+    echo "pre-commit: unit-test inventory could not be verified; nothing was compared." >&2
+    echo "pre-commit: fix the import errors listed above, then commit." >&2
+    exit 1
+  fi
   echo "pre-commit: unit-test inventory drift. Run: python update_test_inventory.py" >&2
   exit 1
 fi

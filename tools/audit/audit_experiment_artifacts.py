@@ -243,7 +243,7 @@ def main():
         return
     from utils import atomic_json_write
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    atomic_json_write(audit, args.out)
+    atomic_json_write(audit, args.out, newline="\n")
     print(f"wrote {len(audit['artifacts'])} artifacts to {args.out}")
 
 

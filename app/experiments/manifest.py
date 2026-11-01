@@ -14,24 +14,131 @@ import hashlib
 import json
 import os
 import platform
+import shutil
 import subprocess
 import time
+
+HARNESS_DIGEST_SCHEME = "sha256-lf-v1"
+
+SOURCE_PROBE_OVERRIDE = "AA2_SOURCE_PROBE_BASH"
+_ACCEPTED_SHELL_FAMILIES = ("MINGW", "MSYS", "CYGWIN")
 
 
 def _sha(text):
     return hashlib.sha256(str(text).encode("utf-8")).hexdigest()
 
 
-def _source_fingerprint(directory):
-    """Hash of every harness source file, in name order."""
+def _canonical_source_bytes(raw):
+    """CRLF -> LF, preserving a lone CR, which is a different byte."""
+    return raw.replace(b"\r\n", b"\n")
+
+
+def _source_identity_bytes(raw, scheme):
+    """Use exact legacy bytes only when the stored scheme is absent."""
+    if scheme is None:
+        return raw
+    if scheme != HARNESS_DIGEST_SCHEME:
+        raise ValueError("unknown harness digest scheme")
+    return _canonical_source_bytes(raw)
+
+
+def _source_fingerprint(directory, scheme=HARNESS_DIGEST_SCHEME):
+    """Hash of every harness source file, in name order.
+
+    The same helper serves the working tree and `git show` at a commit, so an
+    autocrlf checkout and its committed blobs agree; content, not line-ending
+    policy, is what a new harness identity means. A missing legacy scheme
+    retains the original raw-byte identity without rewriting the record.
+    """
     digest = hashlib.sha256()
     for name in sorted(os.listdir(directory)):
         if not name.endswith(".py"):
             continue
         with open(os.path.join(directory, name), "rb") as handle:
             digest.update(name.encode("utf-8"))
-            digest.update(handle.read())
+            digest.update(_source_identity_bytes(handle.read(), scheme))
     return digest.hexdigest()
+
+
+def _bounded(text, limit=160):
+    """One bounded line: a diagnostic, never an environment dump."""
+    if not text:
+        return ""
+    if isinstance(text, bytes):
+        text = text.decode("utf-8", errors="replace")
+    return " ".join(str(text).split())[:limit]
+
+
+def _host_is_windows():
+    return os.name == "nt"
+
+
+def _windows_git_bash_candidates():
+    """Existing Git-for-Windows Bash locations, in bin/usr-bin order."""
+    roots = [os.environ.get("ProgramFiles"), os.environ.get("ProgramW6432"),
+             os.environ.get("ProgramFiles(x86)"),
+             os.path.join(os.environ.get("LOCALAPPDATA") or "", "Programs")]
+    candidates = []
+    for root in roots:
+        if not root:
+            continue
+        candidates.append(os.path.join(root, "Git", "bin", "bash.exe"))
+        candidates.append(os.path.join(root, "Git", "usr", "bin", "bash.exe"))
+    return candidates
+
+
+def _bash_family(shell):
+    """-> (family, None) or (None, bounded reason) from a bounded uname probe.
+
+    A PATH may hold WSL's bash.exe on Windows, which is a Linux userland: its
+    `uname` says Linux and it cannot see the checkout as a Windows tree. Only
+    MINGW/MSYS/CYGWIN are accepted there.
+    """
+    try:
+        result = subprocess.run([shell, "-c", "uname -s"], capture_output=True,
+                                timeout=10)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, f"shell probe could not run: {type(exc).__name__}"
+    if result.returncode != 0:
+        detail = _bounded(result.stderr, 80)
+        return None, (f"shell probe exited {result.returncode}"
+                      + (f": {detail}" if detail else ""))
+    family = result.stdout.decode("utf-8", errors="replace").strip().upper()
+    if not family.startswith(_ACCEPTED_SHELL_FAMILIES):
+        return None, (f"shell reports {family or 'no'} platform, not a "
+                      "Git-for-Windows/MSYS bash")
+    return family, None
+
+
+def _source_probe_shell():
+    """-> (bash path, None) or (None, bounded reason).
+
+    ONE place chooses the interpreter for `gpu_job.sh --print-source-state`.
+    The script remains the only implementation of the classification itself.
+    An explicit AA2_SOURCE_PROBE_BASH is validated and never silently replaced
+    by a different shell.
+    """
+    explicit = os.environ.get(SOURCE_PROBE_OVERRIDE)
+    if SOURCE_PROBE_OVERRIDE in os.environ:
+        if not os.path.isfile(explicit) or not os.access(explicit, os.X_OK):
+            return None, f"{SOURCE_PROBE_OVERRIDE} is not an executable file"
+        if _host_is_windows():
+            _, reason = _bash_family(explicit)
+            if reason:
+                return None, f"{SOURCE_PROBE_OVERRIDE}: {reason}"
+        return explicit, None
+    candidates = [shutil.which("bash")]
+    if _host_is_windows():
+        candidates += _windows_git_bash_candidates()
+    for candidate in candidates:
+        if not candidate or not os.path.isfile(candidate):
+            continue
+        if _host_is_windows():
+            _, reason = _bash_family(candidate)
+            if reason:
+                continue
+        return candidate, None
+    return None, "no usable bash found for the source-state probe"
 
 
 def _git_state(repo):
@@ -44,30 +151,48 @@ def _git_state(repo):
     # gpu_job.sh owns classification and exclusions; no second policy here.
     script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                           "gpu_job.sh")
+    shell, detail = _source_probe_shell()
     state, modified, untracked = "unknown", "", []
-    try:
-        result = subprocess.run(["bash", script, "--print-source-state", str(repo)],
-                                capture_output=True, timeout=10)
-        fields = result.stdout.split(b"\0")
-        if result.returncode == 0 and len(fields) >= 3:
-            state = fields[0].decode("utf-8", errors="surrogateescape")
-            if state != "clean" and not state.startswith("dirty:"):
-                state = "unknown"
-            modified = fields[1].decode("utf-8", errors="surrogateescape")
-            untracked = [v.decode("utf-8", errors="surrogateescape")
-                         for v in fields[2:] if v]
-    except (OSError, subprocess.SubprocessError):
-        pass
+    if shell:
+        try:
+            result = subprocess.run(
+                [shell, script, "--print-source-state", str(repo)],
+                capture_output=True, timeout=10)
+            fields = result.stdout.split(b"\0")
+            if result.returncode == 0 and len(fields) >= 3:
+                state = fields[0].decode("utf-8", errors="surrogateescape")
+                if state != "clean" and not state.startswith("dirty:"):
+                    state = "unknown"
+                    detail = "source-state probe returned an unrecognised state"
+                else:
+                    detail = None
+                    if state == "dirty:unknown":
+                        stderr = _bounded(result.stderr)
+                        detail = ("dirty identity could not be computed"
+                                  + (f": {stderr}" if stderr else ""))
+                modified = fields[1].decode("utf-8", errors="surrogateescape")
+                untracked = [v.decode("utf-8", errors="surrogateescape")
+                             for v in fields[2:] if v]
+            elif result.returncode != 0:
+                stderr = _bounded(result.stderr)
+                detail = (f"source-state probe exited {result.returncode}"
+                          + (f": {stderr}" if stderr else ""))
+            else:
+                detail = "source-state probe returned an unreadable record"
+        except (OSError, subprocess.SubprocessError) as exc:
+            detail = f"source-state probe could not run: {type(exc).__name__}"
     return {"commit": run("git", "rev-parse", "HEAD"),
             "branch": run("git", "rev-parse", "--abbrev-ref", "HEAD"),
             "dirty": (state.startswith("dirty:") if state != "unknown" else None),
             "source_state": state,
+            "source_state_detail": detail,
             "modified_tracked_files": (modified or "").splitlines() or None,
             "untracked_harness_files": untracked or None,
             # The commit identifies the repository; this identifies the code
             # that actually ran, which is what a later reader needs to trust a
             # number produced from an edited working tree.
-            "harness_sha256": _source_fingerprint(os.path.dirname(__file__))}
+            "harness_sha256": _source_fingerprint(os.path.dirname(__file__)),
+            "harness_sha256_scheme": HARNESS_DIGEST_SCHEME}
 
 
 class EnvironmentCaptureError(RuntimeError):

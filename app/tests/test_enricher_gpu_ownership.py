@@ -1,5 +1,9 @@
 """Real kernel leases around local LLM lifetime; model providers are CPU fixtures."""
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 from pathlib import Path
 import tempfile
@@ -10,6 +14,7 @@ from unittest.mock import Mock, patch
 from tests.test_enricher_preflight_json import load_enricher
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class EnricherGpuOwnershipTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

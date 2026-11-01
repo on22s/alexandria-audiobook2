@@ -8,7 +8,7 @@ from unittest.mock import patch
 import wave
 
 from experiments import blinded_listening as blind
-from experiments.provenance import file_sha256, input_sha256
+from experiments.provenance import check_harness_provenance, file_sha256, input_sha256
 
 
 def write_wav(path, frames=320, sample=b"\x00\x00"):
@@ -118,10 +118,12 @@ class BlindedListeningTests(unittest.TestCase):
         with patch.object(blind, 'provenance', side_effect=get_fixture_provenance):
             public, key, package, public_path, key_path = self.build()
         self.assertEqual(captured[0], key['provenance'])
-        for name in ('commit', 'dirty', 'source_state', 'harness_sha256'):
+        for name in blind.PUBLIC_PROVENANCE_GIT_KEYS:
             self.assertEqual(captured[0]['git'][name], public['provenance']['git'][name])
-        self.assertEqual({'commit', 'dirty', 'source_state', 'harness_sha256'},
-                         set(public['provenance']['git']))
+        self.assertEqual({'commit', 'dirty', 'source_state', 'harness_sha256',
+                          'harness_sha256_scheme'}, set(public['provenance']['git']))
+        status, detail = check_harness_provenance(public['provenance'])
+        self.assertEqual('verified', status, detail)
         self.assertEqual(captured[0]['source_artifacts'], public['provenance']['source_artifacts'])
         self.assertEqual((public, key), blind.validate_package(public_path, key_path, package))
         public['provenance']['git']['branch'] = 'fix/per_char'

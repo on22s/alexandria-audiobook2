@@ -27,7 +27,7 @@ class ScopeRestorationTests(unittest.TestCase):
     engine=fixtures.TakeRestorationTests.engine
     render=fixtures.TakeRestorationTests.render
 
-    @unittest.skipUnless(fixtures.is_synthesis_workspace_supported(), 'Registered restoration staging currently qualifies Linux')
+    @unittest.skipUnless(fixtures.is_synthesis_workspace_supported(), 'Registered restoration staging requires durable directory storage')
     def test_saved_take_remains_restorable_after_plain_literal_scope_and_exact_undo(self):
         for journal in (False,True):
             for literal in (False,True):

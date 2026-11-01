@@ -19,6 +19,7 @@ import sys
 import uuid
 from types import MappingProxyType
 
+import synthesis_storage_capability
 from utils import file_lock, open_or_create_file
 
 DIRECTORY = '.synthesis-workspaces-v1'
@@ -46,11 +47,7 @@ class SynthesisWorkspaceUnavailable(RuntimeError):
 
 
 def is_synthesis_workspace_supported():
-    # Directory sync and unlink/no-follow semantics are currently qualified on
-    # Linux. This must not turn unsupported native platforms into startup errors.
-    return (sys.platform == 'linux' and hasattr(os, 'O_DIRECTORY')
-            and hasattr(os, 'O_NOFOLLOW') and os.open in os.supports_dir_fd
-            and os.stat in os.supports_dir_fd)
+    return synthesis_storage_capability.is_synthesis_storage_capable()
 
 
 def _bytes(value):
@@ -131,6 +128,10 @@ class SynthesisWorkspaceRegistry:
                     pass
             self.fd = os.open(DIRECTORY, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=self.parent_fd)
             self._check_root()
+            try:
+                os.fsync(self.fd)
+            except OSError as error:
+                raise SynthesisWorkspaceUnavailable('Workspace directory sync unavailable') from error
             self._lock_stream = os.fdopen(self._open(INDEX + '.lock', os.O_RDWR | os.O_CREAT), 'r+b')
             lock_context = file_lock(self.root / DIRECTORY / INDEX, timeout=0, lock_handle=self._lock_stream)
             lock_context.__enter__()

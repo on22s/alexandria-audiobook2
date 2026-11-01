@@ -12,11 +12,11 @@ import os
 from pathlib import Path
 import re
 import stat
-import sys
 import threading
 import uuid
 
-from utils import file_lock
+import synthesis_storage_capability
+from utils import file_lock, open_or_create_file
 
 CACHE_DIRECTORY = '.synthesis-recovery-v1'
 INDEX_NAME = 'index.json'
@@ -37,11 +37,7 @@ class RecoveryCacheUnavailable(RuntimeError):
 
 
 def is_recovery_storage_platform_supported():
-    # Windows directory sync currently is a no-op in the existing helper.
-    # macOS filesystem/native qualification is intentionally a separate step.
-    return (sys.platform == 'linux' and hasattr(os, 'O_DIRECTORY')
-            and hasattr(os, 'O_NOFOLLOW') and os.open in os.supports_dir_fd
-            and os.stat in os.supports_dir_fd)
+    return synthesis_storage_capability.is_synthesis_storage_capable()
 
 
 def _canonical_bytes(value):
@@ -194,8 +190,12 @@ class RecoveryCacheStorage:
         self._check_root()
 
         # Reject FIFOs/devices without blocking in open before fstat can inspect them.
-        fd = os.open(name, flags | os.O_NOFOLLOW | os.O_NONBLOCK,
-                     mode=0o600, dir_fd=self._directory_fd)
+        access = flags | os.O_NOFOLLOW | os.O_NONBLOCK
+        if flags & os.O_CREAT and not (flags & (os.O_EXCL | os.O_TRUNC)):
+            fd = open_or_create_file(name, access & ~os.O_CREAT, 0o600,
+                                     dir_fd=self._directory_fd)
+        else:
+            fd = os.open(name, access, mode=0o600, dir_fd=self._directory_fd)
         try:
             info = os.fstat(fd)
             if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1

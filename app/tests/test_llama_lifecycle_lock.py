@@ -1,6 +1,10 @@
 """Concurrent server ensure calls serialize inspection, launch and publication."""
 import ctypes
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import os
 from pathlib import Path
 import shlex
@@ -18,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 @requires_linux_queue_tools
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class LlamaLifecycleLockTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

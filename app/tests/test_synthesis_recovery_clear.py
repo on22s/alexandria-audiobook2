@@ -12,7 +12,7 @@ from tests import test_synthesis_window_settings_admission as windows
 from tests.test_support import use_private_cpu_fixture_lock
 
 
-@unittest.skipUnless(is_recovery_storage_platform_supported(), 'Linux durability required')
+@unittest.skipUnless(is_recovery_storage_platform_supported(), 'Durable directory storage required')
 class RecoveryClearTests(unittest.TestCase):
     setUp = windows.SynthesisWindowSettingsAdmissionTests.setUp
 

@@ -7,7 +7,10 @@ from pathlib import Path
 from utils import atomic_json_write
 
 from tests.test_inventory import (EXCLUDED_TEST_MODULES, INVENTORY_PATH,
-                            _tracked_test_modules, get_test_directory, get_unit_test_inventory)
+                            InventoryUnavailable, _tracked_test_modules,
+                            get_test_directory, get_unit_test_inventory)
+
+CANNOT_VERIFY = 2
 
 
 def format_inventory(inventory):
@@ -38,8 +41,16 @@ def write_inventory(path=INVENTORY_PATH):
     """Write the current inventory deterministically and return its path."""
     path = Path(path)
     inventory = get_unit_test_inventory()
-    atomic_json_write(dict(sorted(inventory.items())), str(path))
+    atomic_json_write(dict(sorted(inventory.items())), str(path), newline="\n")
     return path
+
+
+def report_unavailable(message, error):
+    """Report every module that could not be imported, never a comparison."""
+    print(message)
+    for module_name, reason in error.failures:
+        print(f"- {module_name}: {reason}")
+    print("Nothing was compared against the committed inventory.")
 
 
 def find_untracked_test_modules(test_directory=None):
@@ -73,7 +84,11 @@ def main(argv=None):
         for name in untracked:
             print(f"  {name}")
     if args.check:
-        differences = check_inventory()
+        try:
+            differences = check_inventory()
+        except InventoryUnavailable as error:
+            report_unavailable("Unit test inventory cannot be verified.", error)
+            return CANNOT_VERIFY
         if differences:
             print("Unit test inventory drift detected:")
             for difference in differences:
@@ -81,7 +96,11 @@ def main(argv=None):
             return 1
         print("Unit test inventory matches discovery.")
         return 0
-    path = write_inventory()
+    try:
+        path = write_inventory()
+    except InventoryUnavailable as error:
+        report_unavailable("Unit test inventory was not written.", error)
+        return CANNOT_VERIFY
     print(f"Updated {path}")
     return 0
 

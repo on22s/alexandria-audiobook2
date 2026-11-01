@@ -19,7 +19,7 @@ from tests.test_support import use_private_cpu_fixture_lock
 from tests import test_take_restoration as restore_cases
 
 
-@unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+@unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
 class EditorTakeRestorationTests(unittest.TestCase):
     @contextmanager
     def fixture(self,journal=False):

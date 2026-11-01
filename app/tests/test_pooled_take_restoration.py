@@ -55,7 +55,7 @@ class PooledTakeRestorationTests(unittest.TestCase):
     test_saved_speech_receipt_binding = restore_cases.TakeRestorationTests.test_saved_speech_evidence_rebinds_only_verified_installed_file_version
     test_changed_dependencies_refuse = restore_cases.TakeRestorationTests.test_changed_dependencies_and_corrupt_saved_bindings_never_replace_selected_audio
 
-    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging currently qualifies Linux')
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_hard_exits_recover_pooled_proofs_and_actual_archives_in_both_stores(self):
         needle = ' lease=acquire_task_lease(root,\'audio\',set())'
         self.assertEqual(recovery_cases._CHILD.count(needle), 1)

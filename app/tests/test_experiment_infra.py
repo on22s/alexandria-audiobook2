@@ -178,12 +178,15 @@ def stage_index_scripts(tmp):
     subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True)
     audit_dir = os.path.join(tmp, "tools", "audit")
     os.makedirs(audit_dir, exist_ok=True)
-    for name in ("collect_results.py", "audit_experiment_artifacts.py", "pipeline_repeat_scoring.py"):
+    for name in ("collect_results.py", "audit_experiment_artifacts.py", "pipeline_repeat_scoring.py",
+                 "audit_legacy_attribution.py"):
         shutil.copy2(os.path.join(APP, "..", "tools", "audit", name),
                      os.path.join(audit_dir, name))
     # audit_experiment_artifacts imports experiments.manifest for the ONE
     # definition of "did this run finish" (Rule 15), so the miniature repo
-    # needs that package too. It is stdlib-only, so staging it costs nothing;
+    # needs that package too. audit_legacy_attribution imports
+    # experiments.scoring for the ONE alias/same-speaker rule the gold reader
+    # and the audit share. Both are stdlib-only, so staging them costs nothing;
     # what it buys is a fixture that matches the real layout instead of a
     # trimmed one that breaks whenever a shared helper is introduced.
     pkg = os.path.join(tmp, "app", "experiments")
@@ -192,7 +195,7 @@ def stage_index_scripts(tmp):
                  "utils.py", "loaded_module_code.py", "adapter_publication.py"):
         shutil.copy2(os.path.join(APP, name), os.path.join(tmp, "app", name))
     shutil.copy2(os.path.join(APP, "..", "gpu_stats.py"), os.path.join(tmp, "gpu_stats.py"))
-    for name in ("__init__.py", "manifest.py"):
+    for name in ("__init__.py", "manifest.py", "scoring.py"):
         src = os.path.join(APP, "experiments", name)
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(pkg, name))

@@ -406,6 +406,13 @@
     "tests.test_artifact_shrinkage.ScanTest.test_growth_is_not_a_shrink"
   ],
   "test_artifact_structural_audit": [
+    "tests.test_artifact_structural_audit.AuditInputLineEndingTests.test_experiment_and_gold_json_check_out_as_pinned_lf_bytes",
+    "tests.test_artifact_structural_audit.CanonicalStructuralWriteTests.test_crlf_output_changes_the_pinned_structural_hash",
+    "tests.test_artifact_structural_audit.CanonicalStructuralWriteTests.test_default_writer_still_uses_native_line_endings",
+    "tests.test_artifact_structural_audit.CanonicalStructuralWriteTests.test_invalid_newline_is_refused_before_allocating_a_temp_file",
+    "tests.test_artifact_structural_audit.CanonicalStructuralWriteTests.test_legacy_audit_main_writes_canonical_json_bytes",
+    "tests.test_artifact_structural_audit.CanonicalStructuralWriteTests.test_lf_mode_writes_exactly_the_committed_serialization",
+    "tests.test_artifact_structural_audit.CanonicalStructuralWriteTests.test_structural_audit_main_writes_the_canonical_bytes",
     "tests.test_artifact_structural_audit.IndexableArtifactTests.test_a_directory_without_git_refuses_unknown_membership",
     "tests.test_artifact_structural_audit.IndexableArtifactTests.test_only_tracked_artifacts_are_indexed_and_the_rest_are_named",
     "tests.test_artifact_structural_audit.RowCountTest.test_a_populated_rows_list_counts",
@@ -3326,6 +3333,21 @@
     "tests.test_derived_file_hooks.InheritedGitEnvironmentTest.test_the_pre_commit_hook_unsets_it_too",
     "tests.test_derived_file_hooks.InstallerTest.test_ready_installs_the_hooks",
     "tests.test_derived_file_hooks.InstallerTest.test_the_installer_sets_both_halves",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_absent_interpreter_skips_both_checks_with_an_explicit_not_verified_notice",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_automatic_resolution_accepts_windows_scripts_and_prefers_posix",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_explicit_override_is_used_verbatim_and_not_the_local_venv",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_invalid_explicit_override_refuses_instead_of_falling_back",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_invalid_override_and_absent_interpreter_have_distinct_exit_codes",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_invalid_override_blocks_the_commit_instead_of_skipping_the_checks",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_invalid_override_during_regeneration_is_fatal_and_rebuilds_nothing",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_main_checkout_path_with_spaces_is_not_truncated",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_metadata_prints_one_interpreter_and_paths_without_generators",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_no_interpreter_refuses_and_invents_nothing",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_paths_answers_before_interpreter_resolution",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_pre_commit_uses_the_shared_explicit_interpreter",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_regeneration_keeps_the_inventory_tools_own_diagnostics",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_relative_override_survives_generator_directory_changes",
+    "tests.test_derived_file_hooks.InterpreterResolutionTest.test_unverifiable_inventory_is_not_reported_as_drift",
     "tests.test_derived_file_hooks.LiveCheckoutTest.test_a_branch_ahead_of_upstream_is_not_skipped",
     "tests.test_derived_file_hooks.LiveCheckoutTest.test_it_stops_when_head_is_exactly_at_upstream",
     "tests.test_derived_file_hooks.LiveCheckoutTest.test_the_upstream_check_comes_before_the_regeneration",
@@ -3338,6 +3360,16 @@
     "tests.test_derived_file_hooks.SingleSourceTest.test_the_derived_list_lives_in_exactly_one_script"
   ],
   "test_derived_metadata": [
+    "tests.test_derived_metadata.DerivedMetadataTests.test_fixture_environment_ignores_ambient_override_and_leaves_caller_intact",
+    "tests.test_derived_metadata.DerivedMetadataTests.test_goal_audit_check_calls_unknown_source_state_unverifiable",
+    "tests.test_derived_metadata.DerivedMetadataTests.test_goal_audit_check_validates_stored_provenance_before_fresh_rows",
+    "tests.test_derived_metadata.DerivedMetadataTests.test_goal_audit_direct_script_records_provenance_without_pythonpath",
+    "tests.test_derived_metadata.DerivedMetadataTests.test_goal_audit_repairs_corrupt_output_only_in_generation_mode",
+    "tests.test_derived_metadata.DerivedMetadataTests.test_goal_audit_repairs_recorded_provenance_error",
+    "tests.test_derived_metadata.DerivedMetadataTests.test_goal_audit_repeat_generation_keeps_bytes_and_write_stamp",
+    "tests.test_derived_metadata.DerivedMetadataTests.test_goal_audit_rewrites_when_goals_change",
+    "tests.test_derived_metadata.DerivedMetadataTests.test_goal_audit_rewrites_when_recorded_host_changes",
+    "tests.test_derived_metadata.DerivedMetadataTests.test_goal_audit_rewrites_when_recorded_input_path_changes",
     "tests.test_derived_metadata.DerivedMetadataTests.test_metadata_queries_do_not_execute_generators_and_match_existing_interfaces",
     "tests.test_derived_metadata.DerivedMetadataTests.test_pointer_only_resolver_queries_metadata_once_and_regenerates_once",
     "tests.test_derived_metadata.DerivedMetadataTests.test_ready_regenerates_once_then_checks_and_runs_verifier",
@@ -4266,10 +4298,22 @@
     "tests.test_experiment_narrator_resume.NarratorResumeTests.test_failed_block_retries_after_transport_recovers_and_wrong_answers_stay_cached"
   ],
   "test_experiment_provenance": [
+    "tests.test_experiment_provenance.HarnessDigestTests.test_crlf_and_lf_agree_but_content_and_lone_cr_still_differ",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_autocrlf_checkout_fingerprint_matches_its_commit",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_bare_import_retains_script_metadata_without_the_app_package",
     "tests.test_experiment_provenance.ReproducibleHarnessTests.test_clean_run_must_match_its_recorded_commit",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_clean_run_with_mismatched_harness_is_inconsistent",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_commit_digest_batches_binary_and_spaced_names_in_two_git_calls",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_commit_digest_preserves_batch_process_failure",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_commit_digest_refuses_invalid_batch_framing",
     "tests.test_experiment_provenance.ReproducibleHarnessTests.test_dirty_run_can_match_exact_descendant_commit",
     "tests.test_experiment_provenance.ReproducibleHarnessTests.test_dirty_uncommitted_harness_can_match_worktree",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_legacy_clean_crlf_commit_uses_raw_committed_bytes",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_legacy_dirty_crlf_identity_requires_the_exact_raw_bytes",
     "tests.test_experiment_provenance.ReproducibleHarnessTests.test_malformed_identity_is_rejected",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_sound_same_commit_verifies_without_new_diagnostic_fields",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_unknown_or_null_digest_scheme_cannot_verify_matching_bytes",
+    "tests.test_experiment_provenance.ReproducibleHarnessTests.test_unknown_source_state_never_rescues_descendant_or_worktree",
     "tests.test_experiment_provenance.ReproducibleHarnessTests.test_unrelated_branch_does_not_rescue_recorded_run"
   ],
   "test_experiment_run_status": [
@@ -5204,6 +5248,9 @@
     "tests.test_gpu_job.PendingMarkerTest.test_repeated_jobs_do_not_produce_one_alert_each",
     "tests.test_gpu_job.PendingMarkerTest.test_the_cooldown_can_be_shortened_for_a_genuinely_new_event",
     "tests.test_gpu_job.PendingMarkerTest.test_the_priority_can_be_waived_for_a_run_that_should_compete",
+    "tests.test_gpu_job.SourceStatePortabilityTest.test_failed_untracked_query_is_dirty_unknown_and_temp_is_owned",
+    "tests.test_gpu_job.SourceStatePortabilityTest.test_get_source_state_avoids_bash4_only_features",
+    "tests.test_gpu_job.SourceStatePortabilityTest.test_source_state_is_stable_without_writing_to_tmpdir",
     "tests.test_gpu_job.TerminalMarkerTest.test_a_failing_run_records_exactly_one_terminal_line",
     "tests.test_gpu_job.TerminalMarkerTest.test_a_normal_run_records_exactly_one_terminal_line",
     "tests.test_gpu_job.TerminalMarkerTest.test_an_interrupted_job_still_records_a_terminal_line",
@@ -5290,7 +5337,11 @@
     "tests.test_gpu_source_identity.SourceIdentityTests.test_generated_runtime_files_remain_excluded",
     "tests.test_gpu_source_identity.SourceIdentityTests.test_modified_tracked_contents_change_identity",
     "tests.test_gpu_source_identity.SourceIdentityTests.test_same_count_inputs_hash_their_contents_and_names",
-    "tests.test_gpu_source_identity.SourceIdentityTests.test_unavailable_source_probe_is_unknown_and_cannot_certify_clean"
+    "tests.test_gpu_source_identity.SourceIdentityTests.test_unavailable_source_probe_is_unknown_and_cannot_certify_clean",
+    "tests.test_gpu_source_identity.SourceProbeShellTests.test_existing_git_for_windows_candidate_wins_when_path_has_none",
+    "tests.test_gpu_source_identity.SourceProbeShellTests.test_explicit_git_bash_is_used_when_path_bash_is_absent",
+    "tests.test_gpu_source_identity.SourceProbeShellTests.test_explicit_linux_shell_is_refused_without_silent_fallback",
+    "tests.test_gpu_source_identity.SourceProbeShellTests.test_missing_override_does_not_fall_back_to_another_shell"
   ],
   "test_gpu_stats": [
     "tests.test_gpu_stats.GpuStatsTests.test_nvidia_smi_utilization_parses_csv_output",
@@ -5605,6 +5656,10 @@
   "test_inventory": [
     "tests.test_inventory.AtomicInventoryWriterTests.test_failed_serialization_or_replace_preserves_prior_inventory_and_cleans_temporary_files",
     "tests.test_inventory.AtomicInventoryWriterTests.test_open_reader_keeps_prior_json_while_new_reader_gets_complete_inventory",
+    "tests.test_inventory.CapabilityGateInventoryTests.test_discovery_that_cannot_finish_is_exit_two_and_real_drift_is_exit_one",
+    "tests.test_inventory.CapabilityGateInventoryTests.test_guarded_modules_keep_every_inventoried_id_without_the_capability",
+    "tests.test_inventory.CapabilityGateInventoryTests.test_write_refuses_without_publishing_a_partial_artifact",
+    "tests.test_inventory.CapabilityGateInventoryTests.test_writer_pins_lf_and_the_committed_artifact_holds_no_crlf",
     "tests.test_inventory.InventoryCheckWarningTests.test_check_warns_about_actual_untracked_tests_without_writing_inventory",
     "tests.test_inventory.InventoryFixtureIsolationTests.test_hard_exit_after_each_actual_probe_write_leaves_only_private_residue",
     "tests.test_inventory.InventoryFixtureIsolationTests.test_overlapping_private_readers_keep_fixed_probe_names_and_indexes_independent",
@@ -5750,13 +5805,23 @@
     "tests.test_launcher_supervisor.LauncherSupervisorTests.test_traceback_breaks"
   ],
   "test_legacy_attribution_audit": [
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_ambiguous_or_unanswerable_index_is_refused",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_commit_identity_requires_ancestry_not_unrelated_object_presence",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_committed_audit_is_identical_for_unrelated_and_missing_commit_objects",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_corrupt_tracked_regular_file_is_refused_not_skipped",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_current_gold_never_reads_outside_the_checkout",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_current_gold_rescore_exposes_changed_and_unmapped_rows",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_current_inventory_is_exhaustive_bounded_and_rendered_once",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_edited_pointer_bytes_are_never_read_as_a_target_name",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_history_query_is_bounded_offline_and_errors_are_unknown",
-    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_missing_promisor_commit_cannot_trigger_implicit_network_fetch"
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_link_refuses_absolute_traversal_cycle_chain_and_untracked_targets",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_materialised_in_repo_link_scores_and_hashes_like_its_target",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_missing_promisor_commit_cannot_trigger_implicit_network_fetch",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_ordinary_gold_is_opened_and_parsed_once",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_posix_and_materialised_links_score_like_the_direct_fixture",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_posix_link_retargeted_without_the_index_is_refused",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_sha256_repository_link_uses_its_own_oid_width",
+    "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_target_that_is_a_link_on_disk_but_regular_in_git_is_refused"
   ],
   "test_lexicon_attribution": [
     "tests.test_lexicon_attribution.ExtractorFailureTests.test_an_import_failure_is_raised_not_folded_into_a_verdict",
@@ -6962,6 +7027,26 @@
     "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_copied_requests_keep_authored_speaker_uid_index_and_existing_source_identity",
     "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_external_alias_dispatch_keeps_once_prepared_custom_and_clone_requests"
   ],
+  "test_native_windows_sound_temp_root_runner": [
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerFailureTests.test_cleanup_failure_aborts_without_receipt",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerFailureTests.test_hostile_alias_removal_failure_still_attempts_base_cleanup",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerFailureTests.test_hostile_junction_is_verified_before_the_child_and_removed_first",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerFailureTests.test_nonzero_exit_cannot_be_hidden_by_passed_receipt",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerFailureTests.test_success_exit_without_receipt_is_refused",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerFailureTests.test_timeout_emits_failure_after_verified_cleanup",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerJunctionTests.test_absent_native_callable_refuses_and_names_the_primitive",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerJunctionTests.test_absent_native_module_refuses_and_names_the_primitive",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerJunctionTests.test_dangling_alias_is_removed_before_the_owned_tree",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerJunctionTests.test_hostile_verification_restores_the_variable_after_failure",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerJunctionTests.test_mount_point_reparse_tag_is_accepted_as_a_junction",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerJunctionTests.test_native_oserror_keeps_the_real_junction_text",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerJunctionTests.test_native_primitive_receives_the_target_before_the_junction",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerJunctionTests.test_symbolic_reparse_tag_is_not_accepted_as_a_junction",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundWorkerReceiptTests.test_identity_mismatch_receipt_reports_the_measured_false_flag",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundWorkerReceiptTests.test_store_acceptance_refuses_before_loading_the_suite",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundWorkerReceiptTests.test_success_receipt_reports_both_measured_flags",
+    "tests.test_native_windows_sound_temp_root_runner.NativeSoundWorkerReceiptTests.test_unrelated_store_error_propagates_before_loading_the_suite"
+  ],
   "test_nickname_batch": [
     "tests.test_nickname_batch.NicknameBatchTests.test_cli_impossible_context_keeps_script_and_registry_bytes",
     "tests.test_nickname_batch.NicknameBatchTests.test_complete_prompt_fits_shared_budget_with_large_cast_and_aliases",
@@ -7591,6 +7676,8 @@
   ],
   "test_pipeline_repeat_scoring": [
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_duplicate_gold_ids_fail_loudly_and_empty_population_is_explicit",
+    "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_edited_or_unsafe_gold_pointer_preserves_saved_scores",
+    "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_materialised_gold_pointer_scores_like_direct_json",
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_missing_duplicate_unnamed_merged_and_wrong_lines_are_in_denominator",
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_missing_unreadable_or_partial_inputs_preserve_saved_scores_then_complete_retry_succeeds",
     "tests.test_pipeline_repeat_scoring.PipelineRepeatScoringTests.test_native_collect_and_standalone_reports_use_full_gold_population"
@@ -8844,6 +8931,7 @@
     "tests.test_replay_artifact.ResolveProducerTests.test_a_missing_producer_script_is_not_replayed",
     "tests.test_replay_artifact.ResolveProducerTests.test_neither_source_gives_the_none_tier",
     "tests.test_replay_artifact.ResolveProducerTests.test_provenance_wins_and_yields_a_command",
+    "tests.test_replay_artifact.ResolveProducerTests.test_single_and_batch_history_use_git_path_separators",
     "tests.test_replay_artifact.ResolveProducerTests.test_the_middle_tier_never_emits_a_command",
     "tests.test_replay_artifact.ScriptFromNameTests.test_a_non_json_path_is_rejected",
     "tests.test_replay_artifact.ScriptFromNameTests.test_a_suffixed_variant_resolves_to_the_same_producer",
@@ -11326,6 +11414,9 @@
     "tests.test_synthesis_recovery.RecoveryOrchestrationTests.test_owner_or_book_failure_is_never_an_optional_cache_miss"
   ],
   "test_synthesis_recovery_cache": [
+    "tests.test_synthesis_recovery_cache.RecoveryOpenProtocolTests.test_creation_without_exclusive_delegates_to_shared_race_compatible_open",
+    "tests.test_synthesis_recovery_cache.RecoveryOpenProtocolTests.test_exclusive_payload_creation_keeps_raw_exclusive_open",
+    "tests.test_synthesis_recovery_cache.RecoveryOpenProtocolTests.test_post_open_identity_checks_still_reject_and_close_the_descriptor",
     "tests.test_synthesis_recovery_cache.RecoveryPlatformTests.test_unsupported_platform_and_unowned_entry_have_no_cache_io",
     "tests.test_synthesis_recovery_cache.RecoveryStorageTests.test_actual_process_exit_after_completed_pcm_allows_new_owner_capture",
     "tests.test_synthesis_recovery_cache.RecoveryStorageTests.test_actual_process_exit_before_replace_preserves_old_authority",
@@ -11458,6 +11549,17 @@
     "tests.test_synthesis_settings.TTSModelDefaultTests.test_engine_defaults_are_the_config_model_defaults",
     "tests.test_synthesis_settings.TTSModelDefaultTests.test_fresh_install_engine_uses_the_mode_setup_reports"
   ],
+  "test_synthesis_storage_capability": [
+    "tests.test_synthesis_storage_capability.SynthesisStorageCapabilityTests.test_absent_primitive_attribute_is_incapable",
+    "tests.test_synthesis_storage_capability.SynthesisStorageCapabilityTests.test_each_missing_directory_flag_is_incapable",
+    "tests.test_synthesis_storage_capability.SynthesisStorageCapabilityTests.test_each_primitive_outside_dir_fd_support_is_incapable",
+    "tests.test_synthesis_storage_capability.SynthesisStorageCapabilityTests.test_linux_and_darwin_with_every_primitive_are_capable",
+    "tests.test_synthesis_storage_capability.SynthesisStorageCapabilityTests.test_predicate_invokes_no_filesystem_primitive",
+    "tests.test_synthesis_storage_capability.SynthesisStorageCapabilityTests.test_public_wrappers_delegate_to_the_capability_source",
+    "tests.test_synthesis_storage_capability.SynthesisStorageCapabilityTests.test_public_wrappers_report_the_shared_capability",
+    "tests.test_synthesis_storage_capability.SynthesisStorageCapabilityTests.test_real_interpreter_agrees_with_both_wrappers",
+    "tests.test_synthesis_storage_capability.SynthesisStorageCapabilityTests.test_windows_and_unknown_platforms_are_never_capable"
+  ],
   "test_synthesis_window_dispatch": [
     "tests.test_synthesis_window_dispatch.SynthesisWindowDispatchTests.test_all_builtin_voice_paths_split_canonical_occurrence_and_shared_words_once",
     "tests.test_synthesis_window_dispatch.SynthesisWindowDispatchTests.test_external_custom_clone_and_ensemble_preserve_prepared_words_and_parent_receipts",
@@ -11524,7 +11626,10 @@
     "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unknown_aliases_links_and_substituted_directory_preserve_all_files",
     "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unlink_and_directory_sync_fault_keep_charge_and_retry",
     "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unowned_or_changed_claim_refused_before_registry_creation",
-    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unsafe_first_row_does_not_starve_later_abandoned_workspace"
+    "tests.test_synthesis_workspace.SynthesisWorkspaceTests.test_unsafe_first_row_does_not_starve_later_abandoned_workspace",
+    "tests.test_synthesis_workspace.WorkspaceDirectorySyncProtocolTests.test_directory_sync_refusal_precedes_lock_and_reservation",
+    "tests.test_synthesis_workspace.WorkspaceDirectorySyncProtocolTests.test_parent_sync_failure_stays_a_raw_os_error",
+    "tests.test_synthesis_workspace.WorkspaceDirectorySyncProtocolTests.test_unsafe_namespace_is_rejected_before_any_sync_or_lock"
   ],
   "test_system_gpu_availability": [
     "tests.test_system_gpu_availability.SystemGpuAvailabilityTests.test_auto_resolution_preserves_probe_errors_and_missing_torch_warning",
@@ -13557,12 +13662,17 @@
     "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_replaced_empty_stage_is_preserved",
     "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_windows_top_level_marker_collision_still_uses_private_stage"
   ],
+  "test_windows_gold_ci": [
+    "tests.test_windows_gold_ci.WindowsGoldCiTests.test_gold_regressions_run_unconditionally_on_windows",
+    "tests.test_windows_gold_ci.WindowsGoldCiTests.test_missing_or_conditional_gold_step_is_refused"
+  ],
   "test_windows_import_boundary": [
     "tests.test_windows_import_boundary.WindowsImportBoundaryTests.test_application_and_preparer_import_with_fcntl_unavailable"
   ],
   "test_windows_native_ci": [
     "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_all_native_methods_on_windows",
     "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_every_native_transaction_check_without_skips",
+    "tests.test_windows_native_ci.NativeWindowsCiTests.test_invalid_repin_arguments_refuse_before_registry_access",
     "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_transaction_checks_refuse_a_non_windows_host",
     "tests.test_windows_native_ci.NativeWindowsCiTests.test_wrong_host_is_refused_instead_of_printing_a_successful_skipped_suite"
   ],

@@ -1,7 +1,11 @@
 """Cast publication uses real flat-JSON files and kernel locks."""
 import asyncio
 import contextlib
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+HAVE_FCNTL = globals().get('fcntl') is not None
 import json
 import os
 from pathlib import Path
@@ -20,6 +24,7 @@ from utils import atomic_json_write, file_lock, secure_filename
 from tests.test_support import requires_linux_queue_tools
 
 
+@unittest.skipIf(not HAVE_FCNTL, "POSIX kernel locks (fcntl) are unavailable on this host")
 class VoiceLibraryTransactionTests(unittest.TestCase):
     @contextlib.contextmanager
     def fixture(self):

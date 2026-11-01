@@ -6,20 +6,23 @@ import math
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import struct
 import wave
 import tempfile
 import threading
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 import synthesis_recovery_cache as cache
+import synthesis_storage_capability as capability
 from utils import file_lock
 
 
-@unittest.skipUnless(cache.is_recovery_storage_platform_supported(), 'Linux durability required')
+@unittest.skipUnless(cache.is_recovery_storage_platform_supported(), 'Durable directory storage required')
 class RecoveryStorageTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -604,16 +607,157 @@ with cache.RecoveryCacheStorage(sys.argv[1], owner) as storage:
                     storage.retire_request('a' * 64)
 
 
+class _CapabilitySurface:
+    O_DIRECTORY = 0x10000
+    O_NOFOLLOW = 0x20000
+
+    def __init__(self, omitted=None):
+        self.supports_dir_fd = set()
+        for name in ('open', 'stat', 'unlink', 'rename', 'mkdir', 'rmdir'):
+            primitive = getattr(os, name)
+            setattr(self, name, primitive)
+            if name != omitted:
+                self.supports_dir_fd.add(primitive)
+
+
+class _NoCacheIO:
+    def __init__(self):
+        self.attempted = []
+
+    def _refuse(self, name):
+        self.attempted.append(name)
+        raise AssertionError('no cache IO')
+
+    def __getattr__(self, name):
+        if name in ('open', 'mkdir', 'stat', 'fsync', 'close', 'rename', 'unlink', 'rmdir'):
+            return lambda *args, **kwargs: self._refuse(name)
+        return getattr(os, name)
+
+
 class RecoveryPlatformTests(unittest.TestCase):
+    def assert_unavailable_without_io(self, platform, surface, reason):
+        no_io = _NoCacheIO()
+        with patch.object(capability, 'sys', SimpleNamespace(platform=platform)), \
+                patch.object(capability, 'os', surface), \
+                patch.object(cache, 'os', no_io):
+            with self.assertRaisesRegex(cache.RecoveryCacheUnavailable, reason):
+                with cache.RecoveryCacheStorage('/missing', None):
+                    pass
+        self.assertEqual([], no_io.attempted)
+
     def test_unsupported_platform_and_unowned_entry_have_no_cache_io(self):
-        for platform in ('win32', 'darwin'):
-            with self.subTest(platform=platform), patch.object(cache.sys, 'platform', platform):
-                with patch.object(cache.os, 'open', side_effect=AssertionError('no cache IO')):
-                    with self.assertRaisesRegex(cache.RecoveryCacheUnavailable, 'unsupported_durability'):
-                        with cache.RecoveryCacheStorage('/missing', None):
-                            pass
-        with patch.object(cache, 'is_recovery_storage_platform_supported', return_value=True):
-            with patch.object(cache.os, 'open', side_effect=AssertionError('no cache IO')):
-                with self.assertRaisesRegex(cache.RecoveryCacheUnavailable, 'unowned_request'):
-                    with cache.RecoveryCacheStorage('/missing', None):
-                        pass
+        self.assert_unavailable_without_io('win32', _CapabilitySurface(), 'unsupported_durability')
+        self.assert_unavailable_without_io(
+            'darwin', _CapabilitySurface(omitted='rename'), 'unsupported_durability')
+        self.assert_unavailable_without_io('darwin', _CapabilitySurface(), 'unowned_request')
+
+
+def _cache_stat(mode, *, ino=1, dev=1, nlink=1, uid=1000, size=0):
+    return os.stat_result((mode, ino, dev, nlink, uid, uid, size, 0, 0, 0))
+
+
+class _SyntheticCacheOS:
+    """Descriptor-less seam: Windows cannot perform dir_fd opens or geteuid."""
+
+    O_NOFOLLOW = getattr(os, 'O_NOFOLLOW', 0x200000)
+    O_NONBLOCK = getattr(os, 'O_NONBLOCK', 0x400000)
+
+    def __init__(self, info):
+        self.info = info
+        self.uid = 1000
+        self.opened = []
+        self.closed = []
+        self.fds = {}
+        self.next_fd = 70
+
+    def allocate(self):
+        fd = self.next_fd
+        self.next_fd += 1
+        self.fds[fd] = self.info
+        return fd
+
+    def open(self, name, flags, mode=0o777, *, dir_fd=None):
+        self.opened.append((name, flags, mode, dir_fd))
+        return self.allocate()
+
+    def fstat(self, fd):
+        return self.fds[fd]
+
+    def close(self, fd):
+        self.closed.append(fd)
+        self.fds.pop(fd)
+
+    def geteuid(self):
+        return self.uid
+
+    def __getattr__(self, name):
+        return getattr(os, name)
+
+
+class RecoveryOpenProtocolTests(unittest.TestCase):
+    """Open dispatch and post-open identity checks without real dir_fd support."""
+
+    def storage(self):
+        storage = cache.RecoveryCacheStorage('unused', None)
+        storage._parent_fd = 50
+        storage._directory_fd = 51
+        return storage
+
+    def test_creation_without_exclusive_delegates_to_shared_race_compatible_open(self):
+        for name, flags in ((cache.INDEX_NAME + '.lock', os.O_RDWR | os.O_CREAT),
+                            (cache.PENDING_NAME, os.O_RDWR | os.O_CREAT)):
+            with self.subTest(name=name):
+                fake = _SyntheticCacheOS(_cache_stat(stat.S_IFREG | 0o600))
+                storage = self.storage()
+                events = []
+                calls = []
+                def helper(helper_name, helper_flags, mode=0o600, *, dir_fd=None):
+                    events.append('helper')
+                    calls.append((helper_name, helper_flags, mode, dir_fd))
+                    return fake.allocate()
+                with patch.object(storage, '_check_root', side_effect=lambda: events.append('check_root')), \
+                        patch.object(cache, 'open_or_create_file', helper, create=True), \
+                        patch.object(cache, 'os', fake):
+                    fd = storage._open_regular(name, flags, maximum=cache.MAX_INDEX_BYTES)
+                self.assertEqual(['check_root', 'helper'], events)
+                self.assertEqual([], fake.opened)
+                self.assertEqual(
+                    [(name, (flags | _SyntheticCacheOS.O_NOFOLLOW | _SyntheticCacheOS.O_NONBLOCK) & ~os.O_CREAT,
+                      0o600, 51)], calls)
+                self.assertEqual(0, calls[0][1] & (os.O_CREAT | os.O_EXCL | os.O_TRUNC))
+                self.assertEqual([fd], list(fake.fds))
+                self.assertEqual([], fake.closed)
+
+    def test_exclusive_payload_creation_keeps_raw_exclusive_open(self):
+        fake = _SyntheticCacheOS(_cache_stat(stat.S_IFREG | 0o600))
+        storage = self.storage()
+        name = 'a' * 64 + '_0_' + 'b' * 32 + '.stage'
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        with patch.object(storage, '_check_root'), \
+                patch.object(cache, 'open_or_create_file',
+                             side_effect=AssertionError('exclusive creation must not use the helper'), create=True), \
+                patch.object(cache, 'os', fake):
+            fd = storage._open_regular(name, flags, maximum=cache.MAX_ARTIFACT_BYTES)
+        self.assertEqual([(name, flags | _SyntheticCacheOS.O_NOFOLLOW | _SyntheticCacheOS.O_NONBLOCK, 0o600, 51)],
+                         fake.opened)
+        self.assertEqual([fd], list(fake.fds))
+        self.assertEqual([], fake.closed)
+
+    def test_post_open_identity_checks_still_reject_and_close_the_descriptor(self):
+        for flags in (os.O_RDWR | os.O_CREAT, os.O_WRONLY | os.O_CREAT | os.O_EXCL):
+            for info in (_cache_stat(stat.S_IFIFO | 0o600),
+                         _cache_stat(stat.S_IFREG | 0o644),
+                         _cache_stat(stat.S_IFREG | 0o600, nlink=2),
+                         _cache_stat(stat.S_IFREG | 0o600, uid=999),
+                         _cache_stat(stat.S_IFREG | 0o600, size=cache.MAX_INDEX_BYTES + 1)):
+                with self.subTest(flags=flags, info=info):
+                    fake = _SyntheticCacheOS(info)
+                    storage = self.storage()
+                    with patch.object(storage, '_check_root'), \
+                            patch.object(cache, 'open_or_create_file',
+                                         lambda *args, **kwargs: fake.allocate(), create=True), \
+                            patch.object(cache, 'os', fake):
+                        with self.assertRaisesRegex(cache.RecoveryCacheUnavailable, 'unsafe_cache_file'):
+                            storage._open_regular(cache.PENDING_NAME, flags, maximum=cache.MAX_INDEX_BYTES)
+                    self.assertEqual([70], fake.closed)
+                    self.assertEqual({}, fake.fds)

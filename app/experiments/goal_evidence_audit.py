@@ -38,10 +38,38 @@ import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(REPO, 'app'))
 
 # Weakest first, so a goal's worst evidence is what gets reported.
 RANK = ["exploratory", "provisional", "supported_structure",
         "supported_measurement"]
+
+
+def _provenance_error(value):
+    if isinstance(value, dict):
+        return "error" in value or any(_provenance_error(v)
+                                       for v in value.values())
+    if isinstance(value, list):
+        return any(_provenance_error(v) for v in value)
+    return False
+
+
+def _same_except_write_time(existing, document):
+    """True when only provenance's volatile write stamp would change."""
+    if not isinstance(existing, dict) or not isinstance(document, dict):
+        return False
+    old = existing.get("provenance")
+    new = document.get("provenance")
+    if not isinstance(old, dict) or not isinstance(new, dict):
+        return False
+    if _provenance_error(old) or _provenance_error(new):
+        return False
+    old_body = {k: v for k, v in existing.items() if k != "provenance"}
+    new_body = {k: v for k, v in document.items() if k != "provenance"}
+    if old_body != new_body:
+        return False
+    return ({k: v for k, v in old.items() if k != "written"}
+            == {k: v for k, v in new.items() if k != "written"})
 
 
 def load_audit(path):
@@ -133,6 +161,7 @@ def main():
             "weakest_evidence": worst,
             "classifications": dict(collections.Counter(classes)),
             "dirty_artifacts": sum(1 for _, _, d, _ in found if d is True),
+            "unknown_source_state": sum(1 for _, _, d, _ in found if d is None),
             "no_commit": sum(1 for _, _, _, c in found if not c),
             "artifacts": [{"name": n, "classification": c, "dirty": d,
                            "commit": (c2 or "")[:8]} for n, c, d, c2 in found],
@@ -157,6 +186,12 @@ def main():
                 current = json.load(handle)
         except (OSError, ValueError) as exc:
             raise SystemExit(f"goal evidence audit is unreadable: {exc}") from exc
+        from experiments.provenance import check_harness_provenance
+        status, detail = check_harness_provenance(current.get("provenance"))
+        if status != "verified":
+            raise SystemExit(
+                f"goal evidence audit stored provenance is provenance-{status}: "
+                f"{detail}; regenerate it")
         # Provenance describes the regeneration, not the indexed data.
         current.pop("provenance", None)
         document.pop("provenance", None)
@@ -166,21 +201,30 @@ def main():
         return 0
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    with open(args.out, "w", encoding="utf-8") as handle:
-        json.dump(document, handle, indent=1, ensure_ascii=False)
+    try:
+        with open(args.out, encoding="utf-8") as handle:
+            existing = json.load(handle)
+    except (OSError, ValueError):
+        existing = None
+    kept = _same_except_write_time(existing, document)
+    if not kept:
+        with open(args.out, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(document, handle, indent=1, ensure_ascii=False)
 
     order = {c: i for i, c in enumerate(RANK)}
     rows.sort(key=lambda r: (order.get(r["weakest_evidence"], -1), r["goal"]))
     print(f"{len(rows)} goals cite an artifact; "
           f"{len(unscored)} cite none\n")
-    print(f"  {'goal':6}{'weakest':22}{'cited':>6}{'dirty':>7}{'no commit':>11}  title")
+    print(f"  {'goal':6}{'weakest':22}{'cited':>6}{'dirty':>7}{'unknown':>8}"
+          f"{'no commit':>11}  title")
     for r in rows:
         print(f"  {r['goal']:6}{str(r['weakest_evidence']):22}{r['cited']:>6}"
-              f"{r['dirty_artifacts']:>7}{r['no_commit']:>11}  {r['title'][:38]}")
+              f"{r['dirty_artifacts']:>7}{r['unknown_source_state']:>8}"
+              f"{r['no_commit']:>11}  {r['title'][:38]}")
     if unscored:
         print(f"\n  cite no artifact by name (a filename join cannot see their "
               f"evidence): {', '.join(g['number'] for g in unscored)}")
-    print(f"\nwrote {args.out}")
+    print(f"\n{'kept' if kept else 'wrote'} {args.out}")
     return 0
 
 
