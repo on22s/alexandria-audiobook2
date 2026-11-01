@@ -1050,17 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-01T11:25:20",
+  "written": "2026-11-01T11:40:12",
   "host": "RealMitch",
   "git": {
-   "commit": "e01d9b24ba97edbe9bd09bc87f7e17484ff6732d",
+   "commit": "e8890f132001a99b9ab64630f0a53a29f58cce70",
    "branch": "codex/source-descriptor-cleanup-20261101",
    "dirty": true,
-   "source_state": "dirty:665fcf72c4a2",
+   "source_state": "dirty:a33b44dcfa2b",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/chapter_timing_cache.py",
     "M  app/tests/test_chapter_source_identity.py",
+    "M  app/tests/test_chapter_timing_cache.py",
     "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,

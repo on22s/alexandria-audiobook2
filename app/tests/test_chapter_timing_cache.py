@@ -173,20 +173,14 @@ class ChapterTimingCacheTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'compressed.input'
             raw = b'known encoded bytes' * 100000; path.write_bytes(raw)
-            native_open = os.fdopen
+            native_read = os.read
             reads = []
-            class Reader:
-                def __init__(self, stream): self.stream = stream
-                def __enter__(self): return self
-                def __exit__(self, *args): self.stream.close()
-                def fileno(self): return self.stream.fileno()
-                def read(self, size):
-                    reads.append(size)
-                    self_test.assertGreater(size, 0)
-                    self_test.assertLessEqual(size, 65536)
-                    return self.stream.read(size)
-            self_test = self
-            with patch.object(cache.os, 'fdopen', side_effect=lambda *a, **k: Reader(native_open(*a, **k))):
+            def read(descriptor, size):
+                reads.append(size)
+                self.assertGreater(size, 0)
+                self.assertLessEqual(size, 65536)
+                return native_read(descriptor, size)
+            with patch.object(cache.os, 'read', side_effect=read):
                 identity = cache.read_source_identity(path, lambda: False)
             self.assertEqual(hashlib.sha256(raw).hexdigest(), identity['sha256'])
             self.assertGreater(len(reads), 10)

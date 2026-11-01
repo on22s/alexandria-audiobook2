@@ -15,12 +15,12 @@ from tts import ExportCancelled
 
 
 class ChapterSourceIdentityTests(unittest.TestCase):
-    def test_fdopen_failure_closes_untransferred_descriptor(self):
+    def test_read_failures_close_owned_descriptor_and_preserve_error_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / 'source.wav'
             source.write_bytes(b'synthetic source')
-            for failure in (OSError('wrapper refused'), RuntimeError('wrapper failed'),
-                            MemoryError('wrapper allocation failed')):
+            for failure in (OSError('read refused'), RuntimeError('read failed'),
+                            MemoryError('read allocation failed'), KeyboardInterrupt()):
                 with self.subTest(error=type(failure).__name__):
                     descriptors = []
                     real_open = os.open
@@ -32,7 +32,7 @@ class ChapterSourceIdentityTests(unittest.TestCase):
 
                     try:
                         with mock.patch.object(cache.os, 'open', side_effect=open_source), \
-                                mock.patch.object(cache.os, 'fdopen', side_effect=failure):
+                                mock.patch.object(cache.os, 'read', side_effect=failure):
                             if isinstance(failure, OSError):
                                 self.assertIsNone(read_source_identity(source, lambda: False))
                             else:
@@ -50,38 +50,10 @@ class ChapterSourceIdentityTests(unittest.TestCase):
                                 continue
                             os.close(descriptor)
 
-    def test_fdopen_and_cleanup_failure_preserve_original_exception(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            source = Path(tmp) / 'source.wav'
-            source.write_bytes(b'synthetic source')
-            descriptors = []
-            real_open, real_close = os.open, os.close
-            failure = RuntimeError('wrapper failed')
-            cleanup_failure = OSError('close refused')
-
-            def open_source(*args, **kwargs):
-                descriptor = real_open(*args, **kwargs)
-                descriptors.append(descriptor)
-                return descriptor
-
-            try:
-                with mock.patch.object(cache.os, 'open', side_effect=open_source), \
-                        mock.patch.object(cache.os, 'fdopen', side_effect=failure), \
-                        mock.patch.object(cache.os, 'close', side_effect=cleanup_failure) as close:
-                    with self.assertRaises(RuntimeError) as raised:
-                        read_source_identity(source, lambda: False)
-                    self.assertIs(raised.exception, failure)
-                    self.assertIs(raised.exception.__cause__, cleanup_failure)
-                    close.assert_called_once_with(descriptors[0])
-                    os.fstat(descriptors[0])
-            finally:
-                for descriptor in descriptors:
-                    real_close(descriptor)
-
     def test_regular_empty_and_followed_alias_keep_the_existing_identity_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / 'source.wav'
-            for payload in (b'', b'source bytes' * 10000):
+            for payload in (b'', b'source bytes' * 10000, b'first\r\n\x1asecond\r\n' * 10000):
                 source.write_bytes(payload)
                 result = read_source_identity(source, lambda: False)
                 self.assertEqual({'version', 'sha256'}, set(result))

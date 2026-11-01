@@ -28,25 +28,20 @@ def read_source_identity(path, cancel_check):
     """Hash compressed input in finite blocks, including restored-mtime edits."""
     tts.ensure_audio_export_active(cancel_check)
     try:
-        descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0))
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_BINARY', 0)
+                             | getattr(os, 'O_NONBLOCK', 0))
         try:
-            stream = os.fdopen(descriptor, 'rb')
-        except BaseException as error:
-            try:
-                os.close(descriptor)
-            except OSError as close_error:
-                raise error from close_error
-            raise
-        with stream:
-            admitted = os.fstat(stream.fileno())
+            admitted = os.fstat(descriptor)
             if not stat.S_ISREG(admitted.st_mode):
                 return None
             before = _version(admitted)
             digest = hashlib.sha256()
-            for block in iter(lambda: stream.read(65536), b''):
+            for block in iter(lambda: os.read(descriptor, 65536), b''):
                 tts.ensure_audio_export_active(cancel_check)
                 digest.update(block)
-            after = _version(os.fstat(stream.fileno()))
+            after = _version(os.fstat(descriptor))
+        finally:
+            os.close(descriptor)
         current = _version(os.stat(path))
     except OSError:
         return None
