@@ -41,7 +41,7 @@
             'llm-ssh': {what: 'SSH host alias for the remote machine. Only the Optimize button uses it, to reconfigure a remote LM Studio.'},
 
             // Setup: TTS and rendering
-            'tts-mode': {what: 'Local loads the built-in Qwen3-TTS model on this machine. External sends lines to a running Gradio TTS server.'},
+            'tts-mode': {what: 'Local loads the built-in Qwen3-TTS model on this machine. External sends lines to a running Gradio TTS server. Apple MLX (experimental) runs Qwen3-TTS through MLX on Apple Silicon Macs, in the separate mlx_env that Install creates; it supports custom, cloned and designed voices.'},
             'tts-url': {what: 'Address of the external Qwen3-TTS Gradio server.'},
             'tts-external-urls': {what: 'Extra external TTS servers, one per line. Batch rendering spreads lines across them. Empty uses only the address above.'},
             'tts-external-timeout': {what: 'A line that takes longer than this on an external server is marked failed instead of waited on.'},

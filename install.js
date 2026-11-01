@@ -164,6 +164,19 @@ module.exports = {
       message: "python tools/build_whisper.py metal"
     }
   }, {
+    // Optional Apple MLX TTS (#1442): its own env, because mlx-audio needs
+    // transformers 5.x and app/env pins 4.x. The models are fetched here so the
+    // first MLX render does not stall on a multi-gigabyte download.
+    when: "{{platform === 'darwin' && arch === 'arm64'}}",
+    method: "shell.run",
+    params: {
+      venv: "mlx_env",
+      message: [
+        "uv pip install -r requirements-mlx.txt",
+        "python -c \"from huggingface_hub import snapshot_download as s; [s('mlx-community/Qwen3-TTS-12Hz-1.7B-' + f + '-bf16') for f in ('CustomVoice', 'Base', 'VoiceDesign')]\""
+      ]
+    }
+  }, {
     when: "{{!(platform === 'linux' && gpu === 'amd') && gpu !== 'nvidia' && platform !== 'darwin'}}",
     method: "shell.run",
     params: {

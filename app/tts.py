@@ -807,6 +807,8 @@ class UnsupportedVoiceBackendError(ValueError):
 
 
 from tts_capabilities import get_tts_backend_capabilities
+from mlx_tts_backend import (MLXBackendUnavailable, MLXGenerationCancelled, MLXWorkerClient,
+                             get_mlx_backend_status, get_mlx_settings)
 
 
 def get_memory_bounded_codec_decode(decode):
@@ -839,6 +841,8 @@ class TTSEngine:
     Mode is determined by config["tts"]["mode"]:
       - "local": Loads Qwen3TTSModel directly. No external server needed.
       - "external": Connects via Gradio client to a running TTS server.
+      - "mlx": Apple Silicon only; an owned worker in a separate MLX env
+        (mlx_tts_backend.py) renders custom, clone and design voices.
 
     Models and clients are lazily initialized on first use.
     """
@@ -903,6 +907,8 @@ class TTSEngine:
         self._external_next = 0
         self._external_client_next = {}
         self._external_executor = None
+        self._mlx_settings = get_mlx_settings(tts_config)
+        self._mlx_client = None  # started on the first MLX request
         self._external_calls = set()
         self._external_closed = False
 
@@ -1451,6 +1457,9 @@ class TTSEngine:
             if self._local_model_active_leases or not self._model_lock.acquire(blocking=False):
                 return False
             try:
+                mlx_client = getattr(self, "_mlx_client", None)
+                if mlx_client is not None and not mlx_client.ensure_stopped_if_idle():
+                    return False
                 families = [name for name in ("custom", "clone", "design", "lora")
                             if getattr(self, f"_local_{name}_model") is not None]
                 return self._release_local_model_families(families)
@@ -2044,6 +2053,96 @@ class TTSEngine:
 
     # ── Core generation methods ──────────────────────────────────
 
+    def _get_mlx_client(self):
+        status = get_mlx_backend_status(self._mlx_settings)
+        if not status["ready"]:
+            raise MLXBackendUnavailable(" ".join(status["problems"]))
+        if self._mlx_client is None:
+            self._mlx_client = MLXWorkerClient(self._mlx_settings["python"])
+        return self._mlx_client
+
+    def _mlx_render(self, family, text, output_path, request, capture_label):
+        """Render one MLX request privately, publish it like local output; reply or None."""
+        staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
+        payload = dict(request, op="generate", family=family, text=text,
+                       model=self._mlx_settings["models"][family],
+                       max_tokens=self._max_new_tokens, output=staging_path)
+        try:
+            print(f"TTS [mlx {family}] generating for text='{text[:50]}...'")
+            started = time.time()
+            with measure_tts_stage_time("inference_decode"):
+                reply = self._get_mlx_client().request(payload, cancel_check=is_audio_generation_cancelled)
+            seconds = time.time() - started
+            duration = reply["samples"] / reply["sample_rate"]
+            print(f"TTS [mlx {family}] done: {seconds:.1f}s -> {duration:.1f}s audio "
+                  f"({duration / seconds if seconds > 0 else 0:.2f}x real-time)")
+            if not publish_audio_output(staging_path, output_path, cancel_check=is_audio_generation_cancelled):
+                return None
+            capture_speech_input(output_path, text, payload["language"], capture_label)
+            return reply
+        except MLXGenerationCancelled:
+            return None
+        except MLXBackendUnavailable as error:
+            print(f"MLX TTS unavailable: {error}")
+            apply_tts_failure(error, "missing_asset",
+                              "Re-run Install on this Apple Silicon Mac to create mlx_env, or switch TTS mode to Local.")
+            return None
+        except Exception as error:
+            print(f"Error generating MLX {family} voice: {error}")
+            apply_tts_failure(error)
+            return None
+        finally:
+            try:
+                os.remove(staging_path)
+            except FileNotFoundError:
+                pass
+
+    def _mlx_generate_custom(self, text, instruct_text, speaker, voice_config, output_path):
+        request = get_custom_voice_request(voice_config, speaker, instruct_text)
+        if request is None:
+            print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
+            apply_tts_failure(f"No voice configuration for '{speaker}'.", "missing_configuration",
+                              "Assign a voice to this speaker before retrying.")
+            return False
+        return self._mlx_render("custom", text, output_path,
+                                {"speaker": request.voice, "instruct": request.instruct,
+                                 "seed": request.seed, "language": self._language}, "mlx_custom_api") is not None
+
+    def _mlx_generate_clone(self, text, speaker, voice_config, output_path):
+        voice_data = voice_config.get(speaker) if isinstance(voice_config, dict) else None
+        try:
+            request = get_clone_voice_request(voice_data) if voice_data else None
+        except (KeyError, TypeError, ValueError, OSError):
+            request = None
+        if request is None:
+            print(f"Warning: No clone reference for '{speaker}'. Skipping.")
+            apply_tts_failure(f"No clone reference for '{speaker}'.", "missing_configuration",
+                              "Give this voice a reference clip and its transcript before retrying.")
+            return False
+        return self._mlx_render("clone", text, output_path,
+                                {"ref_audio": request.ref_audio_path, "ref_text": request.ref_text,
+                                 "seed": request.seed, "language": self._language}, "mlx_clone_api") is not None
+
+    def _mlx_batch(self, chunks, voice_config, output_dir, kind, batch_seed=-1):
+        """MLX renders one line at a time in its single worker; same result shape as other batches."""
+        results = {"completed": [], "failed": []}
+        for chunk in chunks:
+            if is_audio_generation_cancelled():
+                break
+            idx, speaker = chunk["index"], chunk.get("speaker", "")
+            config = get_batch_voice_config(voice_config, speaker, idx, batch_seed)
+            output_path = get_synthesis_batch_output_path(output_dir, idx)
+            if kind == "custom":
+                success = self._generate_custom_voice_prepared(
+                    chunk.get("text", ""), chunk.get("instruct", ""), speaker, config, output_path)
+            else:
+                success = self._generate_clone_voice_prepared(chunk.get("text", ""), speaker, config, output_path)
+            if success:
+                results["completed"].append(idx)
+            else:
+                results["failed"].append((idx, f"MLX {kind} voice generation failed"))
+        return results
+
     def _external_single(self, generate, output_path):
         """Bound one external request without publishing late audio."""
         from concurrent.futures import TimeoutError as FutureTimeout
@@ -2124,8 +2223,11 @@ class TTSEngine:
                               if getattr(self, '_synthesis_recovery', None) else None))
         if windowed is not None:
             return windowed
-        if self.get_voice_backend("custom") == "local":
+        backend = self.get_voice_backend("custom")
+        if backend == "local":
             return self._local_generate_custom(text, instruct_text, speaker, voice_config, output_path)
+        elif backend == "mlx":
+            return self._mlx_generate_custom(text, instruct_text, speaker, voice_config, output_path)
         else:
             return self._external_single(
                 lambda staged, cancelled: self._external_generate_custom(
@@ -2157,8 +2259,11 @@ class TTSEngine:
             recovery_request=request)
         if windowed is not None:
             return windowed
-        if self.get_voice_backend("clone") == "local":
+        backend = self.get_voice_backend("clone")
+        if backend == "local":
             return self._local_generate_clone(text, speaker, voice_config, output_path)
+        elif backend == "mlx":
+            return self._mlx_generate_clone(text, speaker, voice_config, output_path)
         else:
             return self._external_single(
                 lambda staged, cancelled: self._external_generate_clone(
@@ -2342,14 +2447,31 @@ class TTSEngine:
         Raises:
             RuntimeError: If generation fails
         """
-        self.get_voice_backend("design")
+        backend = self.get_voice_backend("design")
         import time
-        import torch
 
         lang = language or self._language
         print(f"VoiceDesign: generating preview for description='{description[:80]}...'"
               f"{f', seed={seed}' if seed >= 0 else ''}")
 
+        # Save to the requested registered path, or to the Designer previews
+        # directory (matching where app.py's /api/voice_design/save reads it).
+        if preview_path is None:
+            previews_dir = _resolve_asset_path(os.path.join("designed_voices", "previews"))
+            os.makedirs(previews_dir, exist_ok=True)
+            wav_path = os.path.join(previews_dir, f"preview_{uuid.uuid4().hex}.wav")
+        else:
+            wav_path = str(preview_path)
+            os.makedirs(os.path.dirname(wav_path) or '.', exist_ok=True)
+
+        if backend == "mlx":
+            reply = self._mlx_render("design", sample_text, wav_path,
+                                     {"instruct": description, "seed": seed, "language": lang}, "mlx_design_api")
+            if reply is None:
+                raise RuntimeError("MLX VoiceDesign generation failed")
+            return wav_path, reply["sample_rate"]
+
+        import torch
         model = self._init_local_design()
 
         if seed >= 0:
@@ -2372,16 +2494,6 @@ class TTSEngine:
         audio = np.concatenate(wavs) if len(wavs) > 1 else wavs[0]
         duration = len(audio) / sr
         print(f"VoiceDesign: done in {gen_time:.1f}s -> {duration:.1f}s audio")
-
-        # Save to the requested registered path, or to the Designer previews
-        # directory (matching where app.py's /api/voice_design/save reads it).
-        if preview_path is None:
-            previews_dir = _resolve_asset_path(os.path.join("designed_voices", "previews"))
-            os.makedirs(previews_dir, exist_ok=True)
-            wav_path = os.path.join(previews_dir, f"preview_{uuid.uuid4().hex}.wav")
-        else:
-            wav_path = str(preview_path)
-            os.makedirs(os.path.dirname(wav_path) or '.', exist_ok=True)
         self._save_wav(audio, sr, wav_path)
         capture_speech_input(wav_path, sample_text, lang, 'local_design_api')
 
@@ -2792,8 +2904,11 @@ class TTSEngine:
         if custom_chunks:
             if is_audio_generation_cancelled():
                 return results
-            if self.get_voice_backend("custom") == "local":
+            backend = self.get_voice_backend("custom")
+            if backend == "local":
                 batch_results = self._local_batch_custom(custom_chunks, voice_config, output_dir, batch_seed)
+            elif backend == "mlx":
+                batch_results = self._mlx_batch(custom_chunks, voice_config, output_dir, "custom", batch_seed)
             else:
                 batch_results = self._external_batch(custom_chunks, voice_config, output_dir, "custom", batch_seed)
             results["completed"].extend(batch_results["completed"])
@@ -2804,8 +2919,11 @@ class TTSEngine:
         if clone_chunks:
             if is_audio_generation_cancelled():
                 return results
-            if self.get_voice_backend("clone") == "local":
+            backend = self.get_voice_backend("clone")
+            if backend == "local":
                 batch_results = self._local_batch_clone(clone_chunks, voice_config, output_dir, batch_seed)
+            elif backend == "mlx":
+                batch_results = self._mlx_batch(clone_chunks, voice_config, output_dir, "clone", batch_seed)
             else:
                 batch_results = self._external_batch(clone_chunks, voice_config, output_dir, "clone", batch_seed)
             results["completed"].extend(batch_results["completed"])

@@ -4110,11 +4110,24 @@
             "title": "Max New Tokens",
             "type": "integer"
           },
+          "mlx_models": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Mlx Models",
+            "type": "object"
+          },
+          "mlx_python": {
+            "default": "",
+            "title": "Mlx Python",
+            "type": "string"
+          },
           "mode": {
             "default": "local",
             "enum": [
               "local",
-              "external"
+              "external",
+              "mlx"
             ],
             "title": "Mode",
             "type": "string"

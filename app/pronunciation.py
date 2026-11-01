@@ -335,7 +335,7 @@ def get_occurrence_rule_error(rule):
     voice = restrictions.get('voice_sha256')
     if voice is not None and re.fullmatch(r'[0-9a-f]{64}', voice) is None:
         return 'invalid_voice_identity'
-    if restrictions.get('engine_mode') not in (None, 'local', 'external'):
+    if restrictions.get('engine_mode') not in (None, 'local', 'external', 'mlx'):
         return 'invalid_engine_mode'
     if not isinstance(rule.get('note', ''), str) or len(rule.get('note', '')) > 512:
         return 'invalid_note'

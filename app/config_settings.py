@@ -80,8 +80,12 @@ class LLMConfig(BaseModel):
 
 class TTSConfig(BaseModel):
     # Model-setting defaults come from the engine's own table (#1671).
-    mode: Literal["local", "external"] = TTS_MODEL_DEFAULTS["mode"]
+    mode: Literal["local", "external", "mlx"] = TTS_MODEL_DEFAULTS["mode"]
     url: str = "http://127.0.0.1:7860"
+    # MLX mode only (Apple Silicon): its separate interpreter, empty for
+    # <project>/mlx_env, and optional per-family model ids or folders.
+    mlx_python: str = ""
+    mlx_models: Dict[str, str] = Field(default_factory=dict)
     # External mode only: a pool of Gradio TTS servers. Empty means [url].
     # Batch rendering runs parallel_workers lines per endpoint concurrently.
     external_urls: List[str] = Field(default_factory=list)
