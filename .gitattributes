@@ -26,6 +26,13 @@ app/tests/unit_test_inventory.json              merge=ours
 # Pinned vendor hashes require identical bytes even with core.autocrlf=true.
 app/static/vendor/**                            -text
 
+# Listening lab: verifiers compare inline HTML modules with the separate JS
+# files byte-for-byte and pin the reference Python hash. Keep exact bytes.
+tools/listening_lab/*.js                        -text
+tools/listening_lab/*.cjs                       -text
+tools/listening_lab/*.html                      -text
+tools/listening_lab/*.py                        -text
+
 # Audit inputs, gold fixtures, audit outputs and experiment Python sources
 # are pinned by sha256, so their checkout bytes
 # must not depend on the committer's core.autocrlf. On a checkout with
