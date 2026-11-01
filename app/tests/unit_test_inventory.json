@@ -2055,6 +2055,8 @@
     "tests.test_chapter_selection_integrity.ChapterSelectionIntegrityTests.test_matching_metadata_and_decoder_omissions_keep_previewed_selection"
   ],
   "test_chapter_source_identity": [
+    "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_fdopen_and_cleanup_failure_preserve_original_exception",
+    "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_fdopen_failure_closes_untransferred_descriptor",
     "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_fifo_and_regular_to_fifo_open_race_have_a_hard_process_bound",
     "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_missing_directory_and_cancellation_refuse_without_payload_read",
     "tests.test_chapter_source_identity.ChapterSourceIdentityTests.test_regular_empty_and_followed_alias_keep_the_existing_identity_contract"

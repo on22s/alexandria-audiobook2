@@ -29,7 +29,15 @@ def read_source_identity(path, cancel_check):
     tts.ensure_audio_export_active(cancel_check)
     try:
         descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0))
-        with os.fdopen(descriptor, 'rb') as stream:
+        try:
+            stream = os.fdopen(descriptor, 'rb')
+        except BaseException as error:
+            try:
+                os.close(descriptor)
+            except OSError as close_error:
+                raise error from close_error
+            raise
+        with stream:
             admitted = os.fstat(stream.fileno())
             if not stat.S_ISREG(admitted.st_mode):
                 return None
