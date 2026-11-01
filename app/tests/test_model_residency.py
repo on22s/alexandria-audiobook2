@@ -94,3 +94,27 @@ class ModelResidencyTests(unittest.TestCase):
         mps.synchronize.assert_called_once_with()
         mps.empty_cache.assert_called_once_with()
         self.assertIsNone(engine._local_design_model)
+
+    def test_mps_family_switch_empties_the_mps_cache_after_dropping(self):
+        engine = tts.TTSEngine({'tts': {}})
+        engine._local_custom_model = object()
+        engine._local_model_devices['custom'] = 'mps'
+        calls = []
+        mps = SimpleNamespace(synchronize=lambda: calls.append(('sync', engine._local_custom_model is None)),
+                              empty_cache=lambda: calls.append(('empty', engine._local_custom_model is None)))
+        with patch.dict(sys.modules, {'torch': SimpleNamespace(mps=mps)}), \
+             patch.object(engine, '_clear_gpu_cache'), contextlib.redirect_stdout(io.StringIO()):
+            engine._release_inactive_local_models('clone', 'mps', None)
+        self.assertEqual([('sync', False), ('empty', True)], calls)
+        self.assertNotIn('custom', engine._local_model_devices)
+
+    def test_cuda_family_switch_never_touches_mps(self):
+        engine = tts.TTSEngine({'tts': {}})
+        engine._local_custom_model = object()
+        engine._local_model_devices['custom'] = 'cuda:0'
+        cuda = SimpleNamespace(mem_get_info=Mock(side_effect=RuntimeError('no capacity')))
+        with patch.dict(sys.modules, {'torch': SimpleNamespace(cuda=cuda)}), \
+             patch.object(engine, '_clear_gpu_cache') as clear, contextlib.redirect_stdout(io.StringIO()):
+            engine._release_inactive_local_models('clone', 'cuda:0', None)
+        clear.assert_called_once_with()
+        self.assertIsNone(engine._local_custom_model)
