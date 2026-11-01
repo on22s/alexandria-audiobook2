@@ -134,6 +134,13 @@
     "tests.test_adapter_provenance.CodeLineageTest.test_lineage_never_raises_when_git_is_absent",
     "tests.test_adapter_provenance.CodeLineageTest.test_training_meta_records_the_commit"
   ],
+  "test_adapter_publication_sync": [
+    "tests.test_adapter_publication_sync.AdapterTreeSyncTests.test_directory_flush_failure_propagates_without_changing_bytes",
+    "tests.test_adapter_publication_sync.AdapterTreeSyncTests.test_each_platform_uses_non_truncating_access_and_flushes_every_file",
+    "tests.test_adapter_publication_sync.AdapterTreeSyncTests.test_file_flush_failure_propagates_without_changing_bytes",
+    "tests.test_adapter_publication_sync.AdapterTreeSyncTests.test_native_tree_sync_preserves_every_file_and_closes_handles",
+    "tests.test_adapter_publication_sync.AdapterTreeSyncTests.test_open_failure_propagates_without_changing_bytes"
+  ],
   "test_added_commit_determinism": [
     "tests.test_added_commit_determinism.AddedCommitDeterminismTests.test_shipped_resolution_is_deterministic_on_discriminating_merge_topology"
   ],
