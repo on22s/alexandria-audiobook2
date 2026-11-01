@@ -1050,20 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-01T09:18:14",
+  "written": "2026-11-01T09:19:49",
   "host": "RealMitch",
   "git": {
-   "commit": "d091825c518eac688d4c4c848d0010da110f0218",
+   "commit": "e4e3b53eb9315a06be6fa9cf39d086f1275218ca",
    "branch": "codex/book-root-admission-20261101",
-   "dirty": true,
-   "source_state": "dirty:b5f4d0a6ffc5",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/core.py",
-    "M  app/tests/NATIVE_CHECKS.md",
-    "M  app/tests/test_direct_path_admission.py",
-    "M  app/utils.py"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "d42207ae008f4c600c25252281f3ec301b8352ce1a40cfcc0787693319c8eaa0",
    "harness_sha256_scheme": "sha256-lf-v1"
