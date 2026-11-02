@@ -82,6 +82,50 @@ class ContinuityControllerTests(unittest.TestCase):
             self.assertEqual(outside, get_continuity_output_path(root, outside))
             self.assertFalse((root / 'new-experiment').exists())
 
+    def test_interrupt_waits_for_worker_cancellation_and_cleanup(self):
+        script = '''
+import _thread, threading
+from types import SimpleNamespace
+from experiments.run_dialogue_continuity import run_owned_audio_experiment
+state={'audio':{'cancel':False}}
+events=[]
+timer=None
+def render(engine):
+    global timer
+    timer=threading.Timer(.1,_thread.interrupt_main)
+    timer.start()
+    waiter=threading.Event()
+    for attempt in range(500):
+        if state['audio']['cancel']:
+            events.append('cancelled')
+            raise RuntimeError('fixture cancellation')
+        waiter.wait(.01)
+    raise RuntimeError('fixture cancellation was not observed')
+def start(name,claim,callback):
+    def work():
+        try: callback()
+        finally: events.append('release')
+    worker=threading.Thread(target=work)
+    worker.start()
+    return worker
+core=SimpleNamespace(project_manager=SimpleNamespace(get_engine=lambda:object(),
+    ensure_idle_local_models_released=lambda:events.append('cleanup') or True),
+    reserve_background_task=lambda name:'fixture',start_claimed_task_thread=start,
+    _gpu_lock=threading.Lock(),process_state=state)
+try:
+    run_owned_audio_experiment(core,render,'unused')
+except RuntimeError as error:
+    assert str(error)=='fixture cancellation',str(error)
+else:
+    raise AssertionError('cancelled experiment returned success')
+finally:
+    if timer is not None: timer.join()
+assert events==['cancelled','cleanup','release'],events
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', script],
+            cwd=Path(__file__).resolve().parents[1], capture_output=True, timeout=20)
+        self.assertEqual(0, result.returncode, result.stderr.decode())
+
     def test_cleanup_failure_exits_owned_process_without_releasing_early(self):
         script = '''
 from pathlib import Path

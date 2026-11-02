@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 from fastapi import HTTPException
 
 from adapter_publication import save_adapter_publication_bytes
@@ -78,9 +79,10 @@ def run_owned_audio_experiment(core, render_audio, destination):
 
     claim = core.reserve_background_task('audio')
     worker = core.start_claimed_task_thread('audio', claim, render)
+    interruptible_wait = threading.Event()
     while worker.is_alive():
         try:
-            worker.join(.25)
+            interruptible_wait.wait(.25)
         except KeyboardInterrupt:
             # Same task mutex and flag used by Editor cancellation. Retain the
             # owner until the worker observes it and finishes model cleanup.
