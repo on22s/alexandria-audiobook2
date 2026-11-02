@@ -19,10 +19,12 @@ from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
 
 APP_DIR = Path(__file__).resolve().parent
 WORKER = APP_DIR / 'mlx_tts_worker.py'
+# The same repos local mode uses, so both modes share one cached copy. In mlx-audio these load
+# bit-identical to the mlx-community bf16 conversions: every parameter and the rendered PCM (#1442).
 DEFAULT_MLX_MODELS = {
-    'custom': 'mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16',
-    'clone': 'mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16',
-    'design': 'mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16',
+    'custom': 'Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice',
+    'clone': 'Qwen/Qwen3-TTS-12Hz-1.7B-Base',
+    'design': 'Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign',
 }
 
 

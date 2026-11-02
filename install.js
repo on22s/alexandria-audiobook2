@@ -172,7 +172,8 @@ module.exports = {
   }, {
     // Optional Apple MLX TTS (#1442): its own env, because mlx-audio needs
     // transformers 5.x (Python >= 3.11) and app/env pins 4.x. The models are
-    // fetched here so the first MLX render does not stall on a large download.
+    // AA2's own Qwen repos, shared with local mode, fetched here so the first
+    // render does not stall on a large download.
     when: "{{platform === 'darwin' && arch === 'arm64'}}",
     method: "shell.run",
     params: {
@@ -180,7 +181,7 @@ module.exports = {
       venv_python: "3.11",
       message: [
         "uv pip install -r requirements-mlx.txt",
-        "python -c \"from huggingface_hub import snapshot_download as s; [s('mlx-community/Qwen3-TTS-12Hz-1.7B-' + f + '-bf16') for f in ('CustomVoice', 'Base', 'VoiceDesign')]\""
+        "python -c \"from huggingface_hub import snapshot_download as s; [s('Qwen/Qwen3-TTS-12Hz-1.7B-' + f) for f in ('CustomVoice', 'Base', 'VoiceDesign')]\""
       ]
     }
   }, {

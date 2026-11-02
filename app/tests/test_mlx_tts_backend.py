@@ -186,6 +186,16 @@ class MLXStatusTests(unittest.TestCase):
         self.assertIn('venv_python: "3.11"', step)
         self.assertIn("exists('mlx_env') && !exists('mlx_env/bin/python3.11')", install)
 
+    def test_mlx_defaults_are_the_local_model_repos_and_install_fetches_only_those(self):
+        # One cached copy serves both modes; a second converted copy would be about 10 GB of duplicates.
+        local = tts.TTSEngine._LOCAL_MODEL_IDS
+        self.assertEqual({family: local[family] for family in DEFAULT_MLX_MODELS}, DEFAULT_MLX_MODELS)
+        install = (Path(__file__).parent.parent.parent / 'install.js').read_text(encoding='utf-8')
+        step = install[install.index('venv: "mlx_env"'):]
+        step = step[:step.index('}, {')]
+        self.assertIn("s('Qwen/Qwen3-TTS-12Hz-1.7B-' + f)", step)
+        self.assertNotIn('mlx-community', install)
+
 
 class MLXEngineDispatchTests(MLXTestBase):
     def engine(self, **tts_config):
