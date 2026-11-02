@@ -1050,18 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-02T05:19:06",
+  "written": "2026-11-02T06:20:33",
   "host": "RealMitch",
   "git": {
-   "commit": "58a77a78d40e3a8247bfa6799d6b5349a003e608",
-   "branch": "codex/1693-rolling-timeout-qualification",
+   "commit": "08523468daf6c2db4fa4797404ab3ff3a2005915",
+   "branch": "codex/1258-criterion-evidence-20261102",
    "dirty": true,
-   "source_state": "dirty:5ae9830df58c",
+   "source_state": "dirty:2233cd5bfe11",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "A  .github/workflows/rolling-ubuntu.yml",
-    "M  .github/workflows/tests.yml",
-    "M  app/tests/test_release_verifier.py"
+    "M  app/tests/test_tts_speech_input.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "67ee42e276600c260b2ec9e1656ed8936cb5a5f0a37283081d350f8e3f25a770",
