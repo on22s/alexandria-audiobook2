@@ -400,6 +400,12 @@ a measurement, what we recommend and why.
 - Toolbar: **Play Sequence**, **Render Pending**, **Regenerate All**, **Cancel**,
   **Check Voices** (drift check), **flagged only**, **Text integrity**, **Merge All**.
 - Each chunk: play; edit the speaker, text or instruction; regenerate; insert; delete.
+- Expand a line's pause controls and choose **Suggest gap** to preview and confirm a
+  deterministic pause. This opt-in action recognizes the exact `NARRATOR` speaker
+  label and attached named-speaker tags within a detected export chapter; it does not replace explicit pauses
+  (including zero or a stored null). It changes only the saved pause, not words,
+  instructions, voices or raw takes. Re-merge/re-export existing audio afterward;
+  no speech regeneration is needed. No suggestion is a claim of better delivery.
 - Render modes:
   - **Render Pending** renders only what is missing, in sub-batches;
   - **Regenerate All** re-renders everything.

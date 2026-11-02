@@ -47,6 +47,7 @@ from synthesis_recovery_context import (RecoveryParent, RecoveryAdmissionError, 
     ensure_synthesis_recovery_parent, ensure_synthesis_recovery_batch,
     ensure_synthesis_batch_outputs, get_registered_synthesis_batch_output, get_synthesis_batch_output_path)
 from synthesis_recovery_identity import get_recovery_digest
+from dialogue_continuity import get_dialogue_gap_suggestion
 from speech_verification_settings import get_enabled_speech_verification_settings
 from book_state_transaction import get_book_operation_token
 from take_retention import (KEY as RETAINED_TAKE_KEY, POLICY as TAKE_HISTORY_POLICY, admit_take_history_edit,
@@ -1380,6 +1381,31 @@ class ProjectManager:
         """Whether a persisted chunk audio path remains inside this project."""
         return isinstance(path, str) and is_path_inside(
             os.path.join(self.root_dir, path), self.root_dir)
+
+    def get_gap_suggestion(self, index):
+        with self._chunks_lock, file_lock(self.chunks_path):
+            return self._get_gap_suggestion_locked(self._read_chunks(), index)
+
+    def _get_gap_suggestion_locked(self, chunks, index):
+        for _, first, last in self._chapter_groups(chunks, False):
+            if first <= index <= last:
+                suggestion = get_dialogue_gap_suggestion(chunks[first:last + 1], index - first)
+                suggestion['revision'] = get_recovery_digest({
+                    'context': suggestion['revision'], 'chapter_bounds': [first, last]})
+                return suggestion
+        raise ValueError('Editor row changed; reload before suggesting a gap')
+
+    def apply_gap_suggestion(self, index, expected_uid, expected_revision):
+        with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
+            chunks = self._read_chunks()
+            suggestion = self._get_gap_suggestion_locked(chunks, index)
+            if chunks[index].get('uid') != expected_uid or suggestion['revision'] != expected_revision:
+                raise ValueError('Gap context changed; request a new suggestion')
+            if suggestion['pause_after'] is None:
+                raise ValueError('No suggested gap; explicit pauses remain authoritative')
+            chunks[index]['pause_after'] = suggestion['pause_after']
+            self._save_chunks_locked(chunks, uids_backfilled=True)
+            return chunks[index]
 
     def update_chunk(self, index, data):
         """Thread-safe chunk update. See _modify_chunk."""

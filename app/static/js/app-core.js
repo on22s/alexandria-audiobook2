@@ -7175,6 +7175,7 @@
                                 <div class="chunk-pause-row d-none mt-1 align-items-center gap-1">
                                     <small class="text-muted text-nowrap">Pause after (ms):</small>
                                     <input type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="default" min="0"${typeof maxPauseMs !== 'undefined' && maxPauseMs != null ? ` max="${maxPauseMs}"` : ''} step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="suggestChunkGap(${chunk.id}, this)" title="Opt-in gap suggestion; uses the exact NARRATOR speaker label. Explicit pauses are not replaced.">Suggest gap</button>
                                 </div>
                             </td>
                             <td><span class="badge bg-${statusColor}">${escapeHtml(chunk.status)}</span>${_driftBadge(chunk)}</td>
@@ -7767,6 +7768,32 @@
                     && value === saved.replace(/\r\n?/g, '\n')) { return saved; }
             return value;
         }
+
+        window.suggestChunkGap = async (id, button) => {
+            button.disabled = true;
+            try {
+                await ensureEditorRenderSnapshot();
+                const target = captureChunkMutation(id);
+                const url = `/api/chunks/${id}/gap_suggestion?${target.query}`;
+                const suggestion = await API.get(url);
+                if (!target.isCurrent()) { throw new Error('Active book changed; request a new suggestion.'); }
+                if (suggestion.pause_after === null) {
+                    showToast('No suggested gap here. Existing explicit pauses are kept.', 'info');
+                    return;
+                }
+                if (!await showConfirm(`Set pause after this line to ${suggestion.pause_after} ms? Uses NARRATOR as the narrator. Speech, delivery instructions and takes stay unchanged.`, {title: 'Apply suggested gap?', actionLabel: 'Apply gap'})) { return; }
+                await flushChunkEdits();
+                if (!target.isCurrent()) { throw new Error('Active book changed; request a new suggestion.'); }
+                await API.post(url, {expected_revision: suggestion.revision});
+                if (!target.isCurrent()) { return; }
+                await loadChunks();
+                showToast('Gap saved. Re-export to update joined audio; no speech regeneration needed.', 'success');
+            } catch (error) {
+                showActionError('Suggest gap', error);
+            } finally {
+                button.disabled = false;
+            }
+        };
 
         window.updateChunk = async (id, field, value) => {
             try {

@@ -1410,6 +1410,20 @@
         "title": "FrontMatterSelection",
         "type": "object"
       },
+      "GapSuggestionRequest": {
+        "properties": {
+          "expected_revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "GapSuggestionRequest",
+        "type": "object"
+      },
       "GeneratePersonasRequest": {
         "properties": {
           "advanced": {
@@ -6857,6 +6871,132 @@
           }
         },
         "summary": "Update Chunk"
+      }
+    },
+    "/api/chunks/{index}/gap_suggestion": {
+      "get": {
+        "operationId": "get_gap_suggestion_endpoint_api_chunks__index__gap_suggestion_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_uid",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Expected Uid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Gap Suggestion Endpoint"
+      },
+      "post": {
+        "operationId": "apply_gap_suggestion_endpoint_api_chunks__index__gap_suggestion_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_uid",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Expected Uid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GapSuggestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Gap Suggestion Endpoint"
       }
     },
     "/api/chunks/{index}/generate": {
