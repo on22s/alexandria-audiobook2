@@ -652,6 +652,8 @@
                 loadVoices(false);
             } else if (selectedLink.dataset.tab === 'designer') {
                 loadDesignedVoices();
+            } else if (selectedLink.dataset.tab === 'casting') {
+                window.loadCastingLibrary?.();
             } else if (selectedLink.dataset.tab === 'training') {
                 loadLoraDatasets();
                 loadLoraModels();

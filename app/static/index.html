@@ -10,15 +10,16 @@
     <link href="/static/vendor/bootstrap-5.3.0/bootstrap.min.css" rel="stylesheet">
     <link href="/static/vendor/font-awesome-6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        .casting-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         /* Shared workflow layout: preserve the original controls and actions. */
-        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) .card-header { flex-wrap: wrap; gap: .75rem; }
-        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) :is(.card-header > .d-flex, .card-body > .d-flex) { flex-wrap: wrap; max-width: 100%; gap: .75rem; }
-        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) :is(.input-group, .form-select, .form-control) { max-width: 100%; min-width: 0; }
-        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) :is(button, summary) { min-height: 2.25rem; }
-        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) :is(button, summary, input, select, textarea, a):focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
-        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) .btn-link { color: var(--text-primary); text-decoration: underline; }
-        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) .accordion-button { background: var(--bg-card-header); color: var(--text-primary); }
-        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) .log-window { max-width: 100%; overflow: auto; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) .card-header { flex-wrap: wrap; gap: .75rem; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) :is(.card-header > .d-flex, .card-body > .d-flex) { flex-wrap: wrap; max-width: 100%; gap: .75rem; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) :is(.input-group, .form-select, .form-control) { max-width: 100%; min-width: 0; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) :is(button, summary) { min-height: 2.25rem; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) :is(button, summary, input, select, textarea, a):focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) .btn-link { color: var(--text-primary); text-decoration: underline; }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) .accordion-button { background: var(--bg-card-header); color: var(--text-primary); }
+        :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) .log-window { max-width: 100%; overflow: auto; }
         .workflow-disclosure { border: 1px solid var(--border-input); border-radius: var(--radius-md); padding: 1rem; background: var(--bg-card-header); }
         .workflow-disclosure > summary { cursor: pointer; font-weight: 600; color: var(--text-primary); }
         .workflow-disclosure :is(label.form-label, .form-text, p) { color: var(--text-primary); }
@@ -27,9 +28,9 @@
         .navbar .nav-link:not(.active) { color: #c4dcff; }
         html #theme-toggle, html[data-theme] body #theme-toggle { color: #edf4ff; border-color: #a5b4c8; }
         @media (max-width: 575px) {
-            :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) .card-header > .d-flex { flex-basis: 100%; }
+            :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) .card-header > .d-flex { flex-basis: 100%; }
             :is(#voices-tab, #training-tab, #voicelab-tab) .input-group { flex-wrap: wrap; }
-            :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab) :is(.card-header, .card-body) { overflow-wrap: anywhere; }
+            :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) :is(.card-header, .card-body) { overflow-wrap: anywhere; }
         }
         #home-tab .text-muted { color: var(--text-primary) !important; }
         #home-tab :is(button, summary):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
@@ -1021,6 +1022,7 @@
                     <li class="nav-item"><a href="#audio" class="nav-link nav-pipeline" data-tab="audio">5. Result</a></li>
                     <li class="nav-section-label nav-advanced-start" aria-hidden="true">Advanced</li>
                     <li class="nav-item"><a href="#designer" class="nav-link nav-advanced" data-tab="designer">Designer</a></li>
+                    <li class="nav-item"><a href="#casting" class="nav-link nav-advanced" data-tab="casting">Casting</a></li>
                     <li class="nav-item"><a href="#preparer" class="nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
                     <li class="nav-item"><a href="#dataset-builder" class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
                     <li class="nav-item"><a href="#training" class="nav-link nav-advanced" data-tab="training">Training</a></li>
@@ -2283,6 +2285,7 @@
                             <label class="form-check-label" for="voices-hide-ready">Hide ready</label>
                         </div>
                         <span id="voice-save-status" class="text-muted small" role="status" aria-live="polite" aria-atomic="true"></span>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="voices-open-casting" onclick="document.querySelector('[data-tab=casting]').click();"><i class="fas fa-users me-1"></i>Casting library</button>
                     </div>
                 </div>
                 <div class="card-body">
@@ -2488,6 +2491,97 @@
                     <div id="designed-voices-load-status" class="small text-warning mb-2" role="status" aria-live="polite"></div>
                     <div id="designed-voices-list">
                         <p class="text-muted mb-0">No designed voices yet. Generate and save a preview above.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Casting Tab (#1532) -->
+        <div id="casting-tab" class="tab-content" style="display:none;">
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="m-0">Casting library</h4>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="casting-refresh"><i class="fas fa-sync me-1"></i>Refresh</button>
+                </div>
+                <div class="card-body">
+                    <p>Every designed voice from every book, in one place. Listen, shortlist, then use a voice for a character in the active book. The voice it replaces is kept as a saved candidate.</p>
+                    <div class="row g-2 mb-2">
+                        <div class="col-lg-6">
+                            <label class="form-label fw-bold" for="casting-search">Search</label>
+                            <input type="search" class="form-control" id="casting-search" placeholder="gender:female tone:calm -status:reject" aria-describedby="casting-search-help">
+                            <div class="form-text" id="casting-search-help">Words match name, description and sample line. Fields: book, gender, age, tone, texture, status, priority, tag, source, name. Put - in front to exclude.</div>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <label class="form-label fw-bold" for="casting-book">Book</label>
+                            <select class="form-select" id="casting-book"><option value="">All books</option></select>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <label class="form-label fw-bold" for="casting-gender">Gender</label>
+                            <select class="form-select" id="casting-gender"><option value="">Any</option></select>
+                        </div>
+                        <div class="col-6 col-lg-1">
+                            <label class="form-label fw-bold" for="casting-age">Age</label>
+                            <select class="form-select" id="casting-age"><option value="">Any</option></select>
+                        </div>
+                        <div class="col-6 col-lg-1">
+                            <label class="form-label fw-bold" for="casting-status">Status</label>
+                            <select class="form-select" id="casting-status"><option value="">Any</option></select>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="small text-muted mb-1">Tone</div>
+                        <div id="casting-tones" class="d-flex flex-wrap gap-1"></div>
+                        <div class="small text-muted mt-2 mb-1">Texture</div>
+                        <div id="casting-textures" class="d-flex flex-wrap gap-1"></div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Casting view">
+                            <button type="button" class="btn btn-outline-secondary active" id="casting-view-cards" aria-pressed="true">Cards</button>
+                            <button type="button" class="btn btn-outline-secondary" id="casting-view-table" aria-pressed="false">Table</button>
+                        </div>
+                        <select class="form-select form-select-sm w-auto" id="casting-sort" aria-label="Sort voices">
+                            <option value="name">Name A-Z</option><option value="book">Book</option><option value="status">Review status</option><option value="priority">Priority</option>
+                        </select>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="casting-play-all"><i class="fas fa-play me-1"></i>Play all</button>
+                        <button type="button" class="btn btn-sm btn-primary" id="casting-review"><i class="fas fa-headphones me-1"></i>Review</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="casting-clear">Clear filters</button>
+                        <span id="casting-summary" class="text-muted small ms-auto" role="status" aria-live="polite"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <div id="casting-load-status" class="small text-warning mb-2" role="status" aria-live="polite"></div>
+                    <div id="casting-results"><p class="text-muted mb-0">Open this tab to load the casting library.</p></div>
+                    <div class="text-center mt-3"><button type="button" class="btn btn-sm btn-outline-secondary" id="casting-more" hidden>Load more</button></div>
+                </div>
+            </div>
+            <div class="modal fade" id="casting-review-modal" tabindex="-1" aria-labelledby="casting-review-title" aria-hidden="true">
+                <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="casting-review-title">Review voices</h5>
+                            <span id="casting-review-position" class="text-muted small ms-3"></span>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="progress mb-3" role="progressbar" aria-label="Review progress"><div class="progress-bar" id="casting-review-progress" style="width:0%"></div></div>
+                            <div id="casting-review-body"></div>
+                            <label class="form-label fw-bold mt-3" for="casting-review-notes">Notes</label>
+                            <textarea class="form-control" id="casting-review-notes" rows="3" maxlength="2000" placeholder="Pronunciation, casting instinct, next action"></textarea>
+                            <div class="mt-2"><button type="button" class="btn btn-sm btn-outline-secondary" id="casting-review-save-notes">Save notes</button></div>
+                        </div>
+                        <div class="modal-footer justify-content-between">
+                            <div class="small text-muted">Keys: S shortlist, C callback, R reject, Space play, arrows move</div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button type="button" class="btn btn-outline-secondary" id="casting-review-prev"><i class="fas fa-arrow-left me-1"></i>Previous</button>
+                                <button type="button" class="btn btn-outline-primary" id="casting-review-play"><i class="fas fa-play me-1"></i>Play</button>
+                                <button type="button" class="btn btn-outline-success" id="casting-review-shortlist" data-casting-status="shortlist">Shortlist</button>
+                                <button type="button" class="btn btn-outline-warning" id="casting-review-callback" data-casting-status="callback">Callback</button>
+                                <button type="button" class="btn btn-outline-danger" id="casting-review-reject" data-casting-status="reject">Reject</button>
+                                <button type="button" class="btn btn-outline-secondary" id="casting-review-next">Next<i class="fas fa-arrow-right ms-1"></i></button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3770,6 +3864,7 @@
     <script src="/static/js/app-project-scope.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-speaker-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-character-roster.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-casting.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-repair.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-word-timing.js?v=__APP_BUILD__"></script>

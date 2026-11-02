@@ -20,7 +20,8 @@ from generate_script import (LLMGenParams, call_llm_for_object, split_failed_chu
 
 from tts import TTSEngine, sanitize_filename, voice_is_set, VERSION_OVERLAY_EXCLUDED
 from voice_candidates import get_entry_with_current_candidate
-from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, character_voice_seed, file_lock
+from casting_catalog import get_persona_clone_entry
+from utils import atomic_json_write as _atomic_json_write, safe_load_json, extract_json_object, get_runtime_data_dir, get_app_config_path, file_lock
 from persona_prompts import PERSONA_SYSTEM_PROMPT, PERSONA_USER_PROMPT, PERSONA_ADVANCED_PROMPT
 from persona_validation import (DESIGN_COUNT_MAX, validate_persona_payload, get_reference_samples,
                                get_design_text_candidates, get_design_text_range,
@@ -816,15 +817,8 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
                             "description": description, "ref_text": ref_text,
                             "preview": relative_path}, os.path.join(preview_dir, "meta.json"))
         voice_entry = copy.deepcopy(voice_config.get(speaker, {}))
-        voice_entry.update({
-            "type": "clone",
-            "persona_status": "generated",
-            "ref_audio": relative_path,
-            "ref_text": ref_text,
-            "description": description,
-            "character_style": description,
-            "seed": character_voice_seed(speaker),
-        })
+        # The casting library builds the same entry for a persona voice (#1532).
+        voice_entry.update(get_persona_clone_entry(relative_path, ref_text, description, speaker))
         # The new voice is saved as a candidate too, so replacing it later
         # (Design, "Use") can never lose it (#1297).
         voice_config[speaker] = get_entry_with_current_candidate(voice_entry)
