@@ -13,9 +13,9 @@ _BACKENDS = {
         'language_note': 'The language setting is sent to the server; its supported languages are not verified here.',
     },
     'mlx': {
-        'voice_categories': ('custom', 'clone', 'design'),
+        'voice_categories': ('custom', 'clone', 'design', 'lora'),
         'controls': {'server': False, 'external_timeout': False, 'device': False, 'local_options': False},
-        'description': 'Apple MLX (experimental, Apple Silicon only) supports custom, cloned and designed voices in a separate MLX environment. LoRA and ensemble voices require local mode.',
+        'description': 'Apple MLX (experimental, Apple Silicon only) supports custom, cloned, designed and LoRA voices in a separate MLX environment. Ensemble voices require local mode.',
         'language_note': 'The language setting is passed to the MLX Qwen3-TTS model.',
     },
 }

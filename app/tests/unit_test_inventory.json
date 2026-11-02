@@ -6874,6 +6874,16 @@
     "tests.test_mixed_pdnc_campaign.MixedPdncCampaignTests.test_success_without_new_artifacts_cannot_produce_a_comparison",
     "tests.test_mixed_pdnc_campaign.MixedPdncCampaignTests.test_valid_cache_is_preserved_and_mixed_arguments_remain_correct"
   ],
+  "test_mlx_lora_worker": [
+    "tests.test_mlx_lora_worker.LoRAWorkerTests.test_config_refusals_name_the_unsupported_feature",
+    "tests.test_mlx_lora_worker.LoRAWorkerTests.test_instruct_hook_is_removed_after_success_and_after_failure",
+    "tests.test_mlx_lora_worker.LoRAWorkerTests.test_key_mapping_accepts_peft_pairs_and_rejects_everything_else",
+    "tests.test_mlx_lora_worker.LoRAWorkerTests.test_missing_target_module_refuses",
+    "tests.test_mlx_lora_worker.LoRAWorkerTests.test_output_keeps_the_input_dtype",
+    "tests.test_mlx_lora_worker.LoRAWorkerTests.test_shape_mismatch_refuses_before_swapping_anything",
+    "tests.test_mlx_lora_worker.LoRAWorkerTests.test_swap_and_remove_restore_the_original_projections",
+    "tests.test_mlx_lora_worker.LoRAWorkerTests.test_wrapper_equals_the_peft_merge_formula"
+  ],
   "test_mlx_reference_cache": [
     "tests.test_mlx_reference_cache.ReferenceCacheTests.test_clips_that_collide_under_mlx_audio_key_get_their_own_codes",
     "tests.test_mlx_reference_cache.ReferenceCacheTests.test_count_and_byte_bounds_evict_oldest_and_skip_oversized",
@@ -6886,12 +6896,16 @@
     "tests.test_mlx_reference_cache.ReferenceCacheTests.test_transcript_change_reencodes_but_keeps_prepared_audio_and_embedding"
   ],
   "test_mlx_tts_backend": [
+    "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_batch_lora_lines_go_through_the_worker_not_torch",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_batch_renders_each_line_through_the_worker",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_clone_reports_worker_cache_counts_to_diagnostics_and_custom_does_not",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_clone_voice_sends_the_resolved_reference",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_custom_voice_publishes_and_sends_speaker_seed_language_cap",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_idle_release_stops_the_worker",
-    "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_lora_and_ensemble_are_refused_in_mlx_mode",
+    "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_lora_generation_pin_mismatch_refuses_before_the_worker",
+    "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_lora_is_served_by_mlx_and_ensemble_is_still_refused",
+    "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_lora_line_sends_snapshot_generation_style_and_publishes",
+    "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_lora_without_reference_transcript_refuses",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_missing_environment_fails_with_an_actionable_message",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_voice_design_returns_path_and_rate",
     "tests.test_mlx_tts_backend.MLXStatusTests.test_install_builds_mlx_env_with_python_311_and_replaces_a_wrong_one",

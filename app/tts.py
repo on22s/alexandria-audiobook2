@@ -452,6 +452,15 @@ def get_clone_voice_request(voice_data):
     return None
 
 
+def get_lora_served_instruct(voice_data, prepared_instruct):
+    """The instruction a LoRA voice is rendered with: the line's plus the voice's style."""
+    character_style = voice_data.get("character_style", "") or voice_data.get("default_style", "")
+    served_instruct = prepared_instruct or ""
+    if character_style:
+        served_instruct = f"{served_instruct} {character_style}".strip()
+    return served_instruct
+
+
 def get_lora_voice_request(voice_data, prepared_instruct):
     """Resolve native LoRA identity; instruction must already be speech-prepared."""
     adapter_path = voice_data.get("adapter_path")
@@ -464,10 +473,7 @@ def get_lora_voice_request(voice_data, prepared_instruct):
         seed = int(voice_data.get("seed", -1))
     except (TypeError, ValueError):
         seed = -1
-    character_style = voice_data.get("character_style", "") or voice_data.get("default_style", "")
-    served_instruct = prepared_instruct or ""
-    if character_style:
-        served_instruct = f"{served_instruct} {character_style}".strip()
+    served_instruct = get_lora_served_instruct(voice_data, prepared_instruct)
     if os.path.isdir(adapter_path) and 0 <= seed < 2**64:
         return LoRARequest(adapter_path,
             voice_data.get("adapter_generation_sha256") or get_adapter_generation_sha256(adapter_path),
@@ -2065,7 +2071,8 @@ class TTSEngine:
         """Render one MLX request privately, publish it like local output; reply or None."""
         staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
         payload = dict(request, op="generate", family=family, text=text,
-                       model=self._mlx_settings["models"][family],
+                       # A LoRA voice is the clone (Base) model plus an adapter applied in the worker.
+                       model=self._mlx_settings["models"]["clone" if family == "lora" else family],
                        max_tokens=self._max_new_tokens, output=staging_path)
         try:
             print(f"TTS [mlx {family}] generating for text='{text[:50]}...'")
@@ -2126,6 +2133,24 @@ class TTSEngine:
                                 {"ref_audio": request.ref_audio_path, "ref_text": request.ref_text,
                                  "seed": request.seed, "language": self._language}, "mlx_clone_api") is not None
 
+    def _mlx_generate_lora(self, text, instruct_text, voice_data, adapter_path, output_path):
+        """LoRA through the MLX worker, from the same admitted private snapshot as local serving."""
+        try:
+            seed = int(voice_data.get("seed", -1))
+        except (TypeError, ValueError):
+            seed = -1
+        expected = voice_data.get("adapter_generation_sha256")
+        # The worker reads the snapshot while it renders, so it is held for the whole request.
+        with ensure_adapter_generation_snapshot(adapter_path) as (snapshot, generation):
+            if expected is not None and generation != expected:
+                raise ValueError('Adapter generation changed since benchmark fixture admission')
+            get_adapter_serving_metadata(snapshot)  # same transcript/identity checks as local serving
+            return self._mlx_render("lora", text, output_path, {
+                "adapter_path": snapshot, "adapter_generation": generation,
+                "ref_audio": os.path.join(snapshot, "ref_sample.wav"),
+                "instruct": get_lora_served_instruct(voice_data, instruct_text),
+                "seed": seed, "language": self._language}, "mlx_lora_api") is not None
+
     def _mlx_batch(self, chunks, voice_config, output_dir, kind, batch_seed=-1):
         """MLX renders one line at a time in its single worker; same result shape as other batches."""
         results = {"completed": [], "failed": []}
@@ -2138,6 +2163,9 @@ class TTSEngine:
             if kind == "custom":
                 success = self._generate_custom_voice_prepared(
                     chunk.get("text", ""), chunk.get("instruct", ""), speaker, config, output_path)
+            elif kind == "lora":
+                success = self._generate_lora_voice_prepared(
+                    chunk.get("text", ""), chunk.get("instruct", ""), config.get(speaker, {}), output_path)
             else:
                 success = self._generate_clone_voice_prepared(chunk.get("text", ""), speaker, config, output_path)
             if success:
@@ -2642,6 +2670,9 @@ class TTSEngine:
                         apply_tts_failure(e)
                         return False
 
+            if self.get_voice_backend("lora") == "mlx":
+                return self._mlx_generate_lora(text, instruct_text, voice_data, adapter_path, output_path)
+
             # User adapters are checked inside snapshot admission, where an ID
             # renamed after the lookup above can still resolve to its bundle.
             model, prompt = self._ensure_local_lora_generation(adapter_path, voice_data.get("adapter_generation_sha256"))
@@ -2650,10 +2681,7 @@ class TTSEngine:
 
             # Build instruct_ids so the Base model can follow style prompts
             gen_extra = {}
-            instruct = instruct_text or ""
-            character_style = voice_data.get("character_style", "") or voice_data.get("default_style", "")
-            if character_style:
-                instruct = f"{instruct} {character_style}".strip()
+            instruct = get_lora_served_instruct(voice_data, instruct_text)
             if instruct:
                 instruct_formatted = f"<|im_start|>user\n{instruct}<|im_end|>\n"
                 gen_extra["instruct_ids"] = model._tokenize_texts([instruct_formatted])
@@ -2937,7 +2965,14 @@ class TTSEngine:
         if lora_chunks:
             if is_audio_generation_cancelled():
                 return results
-            batch_results = self._local_batch_lora(lora_chunks, voice_config, output_dir, batch_seed)
+            try:
+                lora_backend = self.get_voice_backend("lora")
+            except UnsupportedVoiceBackendError:
+                lora_backend = None  # unchanged: the local batch reports the refusal per line
+            if lora_backend == "mlx":
+                batch_results = self._mlx_batch(lora_chunks, voice_config, output_dir, "lora", batch_seed)
+            else:
+                batch_results = self._local_batch_lora(lora_chunks, voice_config, output_dir, batch_seed)
             results["completed"].extend(batch_results["completed"])
             results["failed"].extend(batch_results["failed"])
             self._clear_gpu_cache()

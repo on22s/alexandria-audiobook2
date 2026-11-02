@@ -36,6 +36,9 @@ FAKE_WORKER = textwrap.dedent('''
             continue
         if "SLOW" in text:
             time.sleep(60)
+        if request.get("family") == "lora":
+            # Proves the engine still holds the private snapshot while the worker reads it.
+            request["adapter_files_at_request"] = sorted(os.listdir(request["adapter_path"]))
         with open(request["output"] + ".request.json", "w") as record:
             json.dump(request, record)
         partial = request["output"] + ".partial"
@@ -246,11 +249,70 @@ class MLXEngineDispatchTests(MLXTestBase):
         sent = self.recorded(output)
         self.assertEqual(('design', 'A calm narrator.', 5), (sent['family'], sent['instruct'], sent['seed']))
 
-    def test_lora_and_ensemble_are_refused_in_mlx_mode(self):
+    def test_lora_is_served_by_mlx_and_ensemble_is_still_refused(self):
         engine = self.engine()
-        for category in ('lora', 'ensemble'):
-            with self.subTest(category=category), self.assertRaises(tts.UnsupportedVoiceBackendError):
-                engine.get_voice_backend(category)
+        self.assertEqual('mlx', engine.get_voice_backend('lora'))
+        with self.assertRaises(tts.UnsupportedVoiceBackendError):
+            engine.get_voice_backend('ensemble')
+
+    def adapter(self, name='voice_a', ref_text='A synthetic reference line.'):
+        folder = self.root / 'models' / name
+        folder.mkdir(parents=True)
+        (folder / 'adapter_config.json').write_text(json.dumps({'r': 2, 'lora_alpha': 4, 'target_modules': ['q_proj']}))
+        (folder / 'adapter_model.safetensors').write_bytes(b'weights')
+        (folder / 'ref_sample.wav').write_bytes(b'RIFF')
+        (folder / 'training_meta.json').write_text(json.dumps({'ref_sample_text': ref_text}))
+        return folder
+
+    def test_lora_line_sends_snapshot_generation_style_and_publishes(self):
+        folder = self.adapter()
+        output = self.root / 'lora' / 'line.wav'
+        output.parent.mkdir()
+        voice = {'type': 'lora', 'adapter_path': str(folder), 'seed': 9, 'character_style': 'Warm and low.'}
+        with self.ready(), contextlib.redirect_stdout(io.StringIO()):
+            self.assertTrue(self.engine().generate_lora_voice('A LoRA line.', 'Quietly.', voice, str(output)))
+        sent = self.recorded(output)
+        self.assertEqual(('lora', 9, 'Quietly. Warm and low.', 'English'),
+                         (sent['family'], sent['seed'], sent['instruct'], sent['language']))
+        self.assertEqual(tts.get_adapter_generation_sha256(str(folder)), sent['adapter_generation'])
+        self.assertNotEqual(str(folder), sent['adapter_path'])  # a private snapshot, not the live folder
+        self.assertEqual(os.path.join(sent['adapter_path'], 'ref_sample.wav'), sent['ref_audio'])
+        self.assertEqual(['adapter_config.json', 'adapter_model.safetensors', 'ref_sample.wav', 'training_meta.json'],
+                         sent['adapter_files_at_request'])
+        self.assertFalse(os.path.exists(sent['adapter_path']))  # released after the render
+        self.assertEqual(DEFAULT_MLX_MODELS['clone'], sent['model'])
+        self.assertTrue(output.exists())
+
+    def test_lora_generation_pin_mismatch_refuses_before_the_worker(self):
+        folder = self.adapter()
+        output = self.root / 'pin' / 'line.wav'
+        output.parent.mkdir()
+        voice = {'type': 'lora', 'adapter_path': str(folder), 'seed': 1, 'adapter_generation_sha256': '0' * 64}
+        with self.ready(), contextlib.redirect_stdout(io.StringIO()):
+            self.assertFalse(self.engine().generate_lora_voice('A line.', '', voice, str(output)))
+        self.assertEqual([], list(output.parent.iterdir()))
+
+    def test_lora_without_reference_transcript_refuses(self):
+        folder = self.adapter(ref_text='  ')
+        output = self.root / 'meta' / 'line.wav'
+        output.parent.mkdir()
+        with self.ready(), contextlib.redirect_stdout(io.StringIO()):
+            self.assertFalse(self.engine().generate_lora_voice(
+                'A line.', '', {'type': 'lora', 'adapter_path': str(folder), 'seed': 1}, str(output)))
+        self.assertEqual([], list(output.parent.iterdir()))
+
+    def test_batch_lora_lines_go_through_the_worker_not_torch(self):
+        folder = self.adapter()
+        out_dir = self.root / 'lora-batch'
+        out_dir.mkdir()
+        chunks = [{'index': i, 'text': f'Line {i}.', 'speaker': 'L'} for i in range(2)]
+        voice = {'L': {'type': 'lora', 'adapter_path': str(folder), 'seed': 4}}
+        engine = self.engine()
+        with self.ready(), patch.object(engine, '_local_batch_lora', side_effect=AssertionError('torch path')),                 contextlib.redirect_stdout(io.StringIO()):
+            result = engine._mlx_batch(chunks, voice, str(out_dir), 'lora')
+            routed = engine.generate_batch(chunks, voice, str(out_dir))
+        self.assertEqual([0, 1], result['completed'])
+        self.assertEqual([0, 1], sorted(routed['completed']))
 
     def test_missing_environment_fails_with_an_actionable_message(self):
         engine = tts.TTSEngine({'tts': {'mode': 'mlx', 'mlx_python': str(self.root / 'none' / 'python')}})
