@@ -2552,6 +2552,20 @@
             <div class="card">
                 <div class="card-body">
                     <div id="casting-load-status" class="small text-warning mb-2" role="status" aria-live="polite"></div>
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        <select id="casting-health" class="form-select form-select-sm w-auto" aria-label="Data health filter"><option value="">All data health</option></select>
+                        <span id="casting-health-counts" class="small" role="status"></span>
+                    </div>
+                    <div id="casting-skipped" class="small mb-2"></div>
+                    <details class="mb-3"><summary>Coverage of the current view</summary><div id="casting-coverage" class="table-responsive"></div></details>
+                    <div class="border rounded p-2 mb-3">
+                        <label for="casting-collection" class="small">Collection (voice-library cast)</label>
+                        <select id="casting-collection" class="form-select form-select-sm" aria-label="Collection"><option value="">Choose a collection</option></select>
+                        <div class="input-group input-group-sm mt-2"><input id="casting-collection-name" class="form-control" maxlength="200" aria-label="New collection name" placeholder="New collection name"><button id="casting-create-collection" type="button" class="btn btn-outline-secondary">Create collection</button></div>
+                        <button id="casting-match-collection" type="button" class="btn btn-sm btn-outline-success mt-2">Review collection for active book</button>
+                        <div id="casting-collection-review" class="mt-2"></div>
+                    </div>
+                    <div class="small text-muted mb-2">Audio similarity is not available: ECAPA has not passed the required regenerated-speaker controls. Name variants are not proof of the same voice.</div>
                     <div id="casting-results"><p class="text-muted mb-0">Open this tab to load the casting library.</p></div>
                     <div class="text-center mt-3"><button type="button" class="btn btn-sm btn-outline-secondary" id="casting-more" hidden>Load more</button></div>
                 </div>

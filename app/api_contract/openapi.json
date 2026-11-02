@@ -837,6 +837,35 @@
         "title": "CastingMarkRequest",
         "type": "object"
       },
+      "CatalogMemberRequest": {
+        "properties": {
+          "cast": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Cast",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "voice_id": {
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Voice Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cast",
+          "voice_id",
+          "name"
+        ],
+        "title": "CatalogMemberRequest",
+        "type": "object"
+      },
       "ChapterExportRequest": {
         "properties": {
           "book_name": {
@@ -14388,6 +14417,42 @@
           }
         },
         "summary": "Voice Library Delete Member"
+      }
+    },
+    "/api/voice_library/catalog_member": {
+      "post": {
+        "operationId": "voice_library_catalog_member_api_voice_library_catalog_member_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogMemberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Library Catalog Member"
       }
     },
     "/api/voice_library/favorites/{adapter_id}": {

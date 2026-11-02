@@ -2109,6 +2109,15 @@
     "methods": [
       "POST"
     ],
+    "name": "voice_library_catalog_member",
+    "path": "/api/voice_library/catalog_member",
+    "type": "APIRoute"
+  },
+  {
+    "index": 235,
+    "methods": [
+      "POST"
+    ],
     "name": "voice_library_toggle_favorite",
     "path": "/api/voice_library/favorites/{adapter_id}",
     "type": "APIRoute"
