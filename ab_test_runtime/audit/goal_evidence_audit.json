@@ -1050,17 +1050,21 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-01T13:42:47",
+  "written": "2026-11-01T20:01:34",
   "host": "RealMitch",
   "git": {
-   "commit": "eceec8af91d858034545a305ca86994bb0b30db7",
-   "branch": "codex/inventory-without-fcntl-20261101",
-   "dirty": false,
-   "source_state": "clean",
+   "commit": "7bc4f307b0846d5725cb1853630beb80d6a871fe",
+   "branch": "codex/1258-interrupted-native-wait-20261101",
+   "dirty": true,
+   "source_state": "dirty:dfebf4b0b3d1",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    "M  app/experiments/run_dialogue_continuity.py",
+    "M  app/tests/test_dialogue_continuity_controller.py",
+    "M  app/tests/unit_test_inventory.json"
+   ],
    "untracked_harness_files": null,
-   "harness_sha256": "d42207ae008f4c600c25252281f3ec301b8352ce1a40cfcc0787693319c8eaa0",
+   "harness_sha256": "67ee42e276600c260b2ec9e1656ed8936cb5a5f0a37283081d350f8e3f25a770",
    "harness_sha256_scheme": "sha256-lf-v1"
   },
   "args": {
