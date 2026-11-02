@@ -23,7 +23,7 @@ class UIContractTests(unittest.TestCase):
         parser = _NavigationParser()
         parser.feed((STATIC / "index.html").read_text(encoding="utf-8"))
         expected = {'home', 'setup', 'script', 'voices', 'editor', 'audio', 'designer',
-                    'preparer', 'dataset-builder', 'training', 'voicelab', 'reports'}
+                    'preparer', 'dataset-builder', 'training', 'voicelab', 'reports', 'casting'}
         self.assertEqual(expected, {tab['data-tab'] for tab in parser.tabs})
         self.assertEqual(len(expected), len(parser.tabs))
         self.assertTrue(all(tab.get("href", "").startswith("#") for tab in parser.tabs))
