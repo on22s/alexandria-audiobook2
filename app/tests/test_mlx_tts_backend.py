@@ -152,10 +152,33 @@ class MLXStatusTests(unittest.TestCase):
         self.assertIn('mlx_env', text)
         self.assertIn('design MLX model folder', text)
 
-    def test_status_ready_with_interpreter_and_hub_ids(self):
-        with patch.object(mlx_tts_backend, 'is_mlx_platform', return_value=True):
-            status = get_mlx_backend_status({'python': sys.executable, 'models': dict(DEFAULT_MLX_MODELS)})
+    def fake_env(self, root, with_mlx_audio):
+        python = Path(root) / 'mlx_env' / 'bin' / 'python'
+        python.parent.mkdir(parents=True)
+        python.write_text('')
+        site = Path(root) / 'mlx_env' / 'lib' / 'python3.11' / 'site-packages'
+        site.mkdir(parents=True)
+        if with_mlx_audio:
+            (site / 'mlx_audio').mkdir()
+        return str(python)
+
+    def test_status_ready_with_installed_env_and_hub_ids(self):
+        with tempfile.TemporaryDirectory() as tmp,              patch.object(mlx_tts_backend, 'is_mlx_platform', return_value=True):
+            status = get_mlx_backend_status({'python': self.fake_env(tmp, True), 'models': dict(DEFAULT_MLX_MODELS)})
         self.assertEqual({'ready': True, 'problems': []}, {k: status[k] for k in ('ready', 'problems')})
+
+    def test_status_flags_an_env_whose_package_install_failed(self):
+        # The 2026-11-01 fresh install left exactly this: an interpreter and no mlx-audio.
+        with tempfile.TemporaryDirectory() as tmp,              patch.object(mlx_tts_backend, 'is_mlx_platform', return_value=True):
+            status = get_mlx_backend_status({'python': self.fake_env(tmp, False), 'models': dict(DEFAULT_MLX_MODELS)})
+        self.assertFalse(status['ready'])
+        self.assertIn('mlx-audio is not installed', ' '.join(status['problems']))
+
+    def test_install_builds_mlx_env_with_python_311_and_replaces_a_wrong_one(self):
+        install = (Path(__file__).parent.parent.parent / 'install.js').read_text(encoding='utf-8')
+        step = install[install.index('venv: "mlx_env"'):install.index('requirements-mlx.txt')]
+        self.assertIn('venv_python: "3.11"', step)
+        self.assertIn("exists('mlx_env') && !exists('mlx_env/bin/python3.11')", install)
 
 
 class MLXEngineDispatchTests(MLXTestBase):
@@ -170,7 +193,8 @@ class MLXEngineDispatchTests(MLXTestBase):
             next(p.name for p in Path(output).parent.iterdir() if p.name.endswith('.request.json'))).read_text())
 
     def ready(self):
-        return patch.object(mlx_tts_backend, 'is_mlx_platform', return_value=True)
+        # Status has its own tests; here the stand-in interpreter is not an MLX env.
+        return patch.object(tts, 'get_mlx_backend_status', return_value={'ready': True, 'problems': []})
 
     def test_custom_voice_publishes_and_sends_speaker_seed_language_cap(self):
         output = self.root / 'custom' / 'line.wav'
@@ -215,7 +239,7 @@ class MLXEngineDispatchTests(MLXTestBase):
     def test_missing_environment_fails_with_an_actionable_message(self):
         engine = tts.TTSEngine({'tts': {'mode': 'mlx', 'mlx_python': str(self.root / 'none' / 'python')}})
         output = self.root / 'line.wav'
-        with self.ready(), contextlib.redirect_stdout(io.StringIO()):
+        with patch.object(mlx_tts_backend, 'is_mlx_platform', return_value=True),              contextlib.redirect_stdout(io.StringIO()):
             result = engine.generate_voice_result('A line.', '', 'S', {'S': {'voice': 'Ryan'}}, str(output))
         self.assertFalse(result.success)
         self.assertIn('mlx_env', str(result.failure))

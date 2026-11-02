@@ -58,6 +58,12 @@ def get_mlx_backend_status(settings):
     if not os.path.isfile(settings['python']):
         problems.append(f"The MLX environment is missing ({settings['python']}). "
                         'Re-run Install on this Mac to create mlx_env, or set tts.mlx_python.')
+    else:
+        # A venv whose package install failed still has its interpreter.
+        lib = Path(settings['python']).parent.parent / 'lib'
+        if lib.is_dir() and not any(lib.glob('python3*/site-packages/mlx_audio')):
+            problems.append(f"The MLX environment is incomplete: mlx-audio is not installed in {lib.parent}. "
+                            'Re-run Install on this Mac.')
     for family, model in settings['models'].items():
         if os.path.isabs(model) and not os.path.isdir(model):
             problems.append(f'The {family} MLX model folder is missing: {model}')
