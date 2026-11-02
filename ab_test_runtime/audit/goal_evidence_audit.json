@@ -1050,20 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-02T14:23:58",
+  "written": "2026-11-02T14:56:08",
   "host": "RealMitch",
   "git": {
-   "commit": "eeeda4339fcd6deecc8be0f5cb9a83bf0c7ccba9",
+   "commit": "1b68a7733775ef23957e37c0833d475afbf13ded",
    "branch": "fix/1693-gnu-timeout",
    "dirty": true,
-   "source_state": "dirty:23d419d7e234",
+   "source_state": "dirty:a5adde6e2e4e",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  .github/workflows/rolling-ubuntu.yml",
-    "M  .github/workflows/tests.yml",
-    "A  app/ci_timeout_probe.py",
-    "M  app/tests/test_release_verifier.py",
-    "M  app/tests/unit_test_inventory.json"
+    " M app/tests/windows_only_skip_baseline.txt"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "67ee42e276600c260b2ec9e1656ed8936cb5a5f0a37283081d350f8e3f25a770",
