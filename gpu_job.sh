@@ -118,7 +118,8 @@ get_source_state() {
             printf 'unknown\0\0'
             return
         fi
-        modified=$(git -C "$root" status --porcelain --untracked-files=no -- "${SOURCE_TRACKED_PATHS[@]}") || {
+        # ${a[@]+"${a[@]}"}: under set -u, Bash < 4.4 (macOS ships 3.2) calls an empty array unbound.
+        modified=$(git -C "$root" status --porcelain --untracked-files=no -- ${SOURCE_TRACKED_PATHS[@]+"${SOURCE_TRACKED_PATHS[@]}"}) || {
             printf 'unknown\0\0'
             return
         }
@@ -142,7 +143,7 @@ get_source_state() {
         state=clean
         if [ -n "$modified" ] || [ "$untracked" -gt 0 ]; then
             if hash=$({
-                git -C "$root" diff --binary HEAD -- "${SOURCE_TRACKED_PATHS[@]}" || exit 1
+                git -C "$root" diff --binary HEAD -- ${SOURCE_TRACKED_PATHS[@]+"${SOURCE_TRACKED_PATHS[@]}"} || exit 1
                 printf '%s\0' "$modified"
                 if [ "$untracked" -gt 0 ]; then
                     for name in "${names[@]}"; do
