@@ -1966,6 +1966,7 @@
     "tests.test_chapter_export.ExportChaptersTests.test_preview_matches_export_names_and_drops_missing_audio",
     "tests.test_chapter_export.ExportChaptersTests.test_same_size_subsecond_audio_replacement_rebuilds_changed_chapter",
     "tests.test_chapter_export.ExportChaptersTests.test_subset_and_cancel",
+    "tests.test_chapter_export.ExportChaptersTests.test_suggested_gap_reexports_existing_takes_and_recovers_after_cancel",
     "tests.test_chapter_export.ExportChaptersTests.test_unsupported_format_is_refused_before_any_work",
     "tests.test_chapter_export.ExportChaptersTests.test_writes_one_file_per_chapter_with_a_manifest_and_reuses_unchanged_ones",
     "tests.test_chapter_export.FilenameTemplateTests.test_case_only_name_collisions_are_rejected_for_portable_exports",
@@ -3796,6 +3797,8 @@
   ],
   "test_editor_book_identity": [
     "tests.test_editor_book_identity.EditorBookIdentityTests.test_cast_match_book_generation_and_source_fence_current_apply",
+    "tests.test_editor_book_identity.EditorBookIdentityTests.test_gap_suggestion_protects_explicit_pauses_and_chapter_boundaries",
+    "tests.test_editor_book_identity.EditorBookIdentityTests.test_gap_suggestion_requires_current_context_and_preserves_takes",
     "tests.test_editor_book_identity.EditorBookIdentityTests.test_stale_draft_after_delete_or_book_switch_preserves_all_chunks"
   ],
   "test_editor_index_selection": [
@@ -3817,6 +3820,7 @@
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_both_render_buttons_serialize_rows_and_include_focused_uncommitted_controls",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_edits_during_snapshot_and_confirmation_are_flushed_and_resnapshotted",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_failed_row_save_aborts_render_and_successful_retry_uses_latest_artifact",
+    "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_gap_suggestion_confirms_without_rendering_and_refuses_book_switch",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_queued_edits_keep_captured_row_and_book_identity",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_real_text_edits_and_pending_reverts_keep_their_intended_line_endings",
     "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_unchanged_controls_do_not_overwrite_other_client_and_pending_revert_is_saved",

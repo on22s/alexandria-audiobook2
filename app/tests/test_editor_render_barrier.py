@@ -30,6 +30,26 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'Editor barrier a
 '''
 
 class EditorRenderBarrierTests(unittest.TestCase):
+    def test_gap_suggestion_confirms_without_rendering_and_refuses_book_switch(self):
+        self.run_node(r'''
+(async()=>{for(const scenario of ['apply','cancel','none','book','stale']){
+ const a=client();a.setHold(false);const button={disabled:false};let confirms=0,posts=0,loads=0;
+ const originalGet=a.context.API.get,originalPost=a.context.API.post;
+ a.context.API.get=async url=>url.includes('/gap_suggestion?')?{pause_after:scenario==='none'?null:120,revision:'r'.repeat(64)}:originalGet(url);
+ a.context.API.post=async(url,data)=>{if(!url.includes('/gap_suggestion?')){return originalPost(url,data);}
+  posts++;assert(url.includes('expected_uid=row-7'));assert(url.includes('expected_book_token=book-token'));
+  assert.equal(data.expected_revision,'r'.repeat(64));if(scenario==='stale'){throw Error('Gap context changed');}return {};};
+ a.context.showConfirm=async text=>{confirms++;assert(text.includes('120 ms'));if(scenario==='book'){a.context.currentBookFilename='other';}return scenario!=='cancel';};
+ a.context.loadChunks=async()=>loads++;
+ await a.context.suggestChunkGap(7,button);
+ assert.equal(button.disabled,false);assert.equal(confirms,scenario==='none'?0:1);
+ assert.equal(posts,['apply','stale'].includes(scenario)?1:0);assert.equal(loads,scenario==='apply'?1:0);
+ assert.equal(a.batches.length,0,'gap actions must never render speech');
+ await a.context.API.post('/api/generate_batch',{indices:[7]});assert.equal(a.batches.length,1,'known render must reach the recorder');
+ if(['book','stale'].includes(scenario)){assert(a.errors.length>0);}
+}finished=true;})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
     def run_node(self,code):
         with tempfile.TemporaryDirectory() as tmp:
             result=subprocess.run(['node','-e',HARNESS+code,str(SOURCE),str(Path(tmp)/'chunks.json')],capture_output=True,text=True,timeout=15)

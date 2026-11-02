@@ -147,5 +147,20 @@ def get_dialogue_continuity_plan(entries, *, narrator_speakers):
             'qualification': 'planning_only; no audible benefit, rendering or take-reuse authority established'}
 
 
+def get_dialogue_gap_suggestion(chunks, index):
+    """Suggest only a gap within one caller-selected chapter; use exact NARRATOR."""
+    if not 0 <= index < len(chunks):
+        raise ValueError('Editor row changed; reload before suggesting a gap')
+    target = chunks[index]
+    start, stop = max(0, index - 2), min(len(chunks), index + 2)
+    plan = get_dialogue_continuity_plan(chunks[start:stop], narrator_speakers=['NARRATOR'])
+    row = plan['rows'][index - start]
+    pause = row['suggested_pause_after_ms']
+    if 'pause_after' in target or stop == index + 1:
+        pause = None
+    return {'pause_after': pause, 'revision': get_recovery_digest({
+        'source': plan['source_digest'], 'uid': target['uid'], 'pause_after': pause})}
+
+
 from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_code
 _LOADED_CONTINUITY_CODE_SHA256 = _get_loaded_code()

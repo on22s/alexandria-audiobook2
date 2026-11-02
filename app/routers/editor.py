@@ -661,6 +661,34 @@ def apply_chunk_update(index, updates, expected_book_token, expected_uid):
         return project_manager.update_chunk(index, updates)
 
 
+def apply_editor_gap(index, expected_book_token, expected_uid, expected_revision):
+    with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
+        check_chunk_identity(index, expected_book_token, expected_uid)
+        if expected_revision is None:
+            return project_manager.get_gap_suggestion(index)
+        return project_manager.apply_gap_suggestion(index, expected_uid, expected_revision)
+
+
+class GapSuggestionRequest(BaseModel):
+    expected_revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
+@router.get('/api/chunks/{index}/gap_suggestion')
+async def get_gap_suggestion_endpoint(index: int,
+        expected_book_token: Annotated[str, Query(min_length=64, max_length=64)],
+        expected_uid: Annotated[str, Query(min_length=1, max_length=128)]):
+    return await asyncio.to_thread(_apply_chunk_edit, apply_editor_gap, index,
+        expected_book_token, expected_uid, None)
+
+
+@router.post('/api/chunks/{index}/gap_suggestion')
+async def apply_gap_suggestion_endpoint(index: int, request: GapSuggestionRequest,
+        expected_book_token: Annotated[str, Query(min_length=64, max_length=64)],
+        expected_uid: Annotated[str, Query(min_length=1, max_length=128)]):
+    return await asyncio.to_thread(_apply_chunk_edit, apply_editor_gap, index,
+        expected_book_token, expected_uid, request.expected_revision)
+
+
 def apply_chunk_insertion(index, expected_book_token=None, expected_uid=None):
     with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
         check_chunk_identity(index, expected_book_token, expected_uid)

@@ -173,6 +173,40 @@ def _project(tmp):
 
 @unittest.skipUnless(HAVE_FFMPEG, "ffmpeg needed for mp3 export")
 class ExportChaptersTests(unittest.TestCase):
+    def test_suggested_gap_reexports_existing_takes_and_recovers_after_cancel(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pm, rows = _project(tmp)
+            heading = rows[0]
+            rows = rows[1:4]
+            for index, (row, speaker, text) in enumerate(zip(rows,
+                    ['Anna', 'NARRATOR', 'Anna'],
+                    ['I will go,', 'Anna said, looking out at the long road while the rain kept falling beyond the open window,', 'when the rain stops.'])):
+                row.update(id=index + 1, uid=f'gap-{index}', speaker=speaker, text=text,
+                           instruct='', take=2, status='done')
+            heading.update(id=0, uid='heading', take=2, instruct='', status='done')
+            rows.insert(0, heading)
+            pm.save_chunks(rows)
+            sources = {row['audio_path']:Path(tmp, row['audio_path']).read_bytes() for row in rows}
+            self.assertTrue(pm.export_chapters(fmt='wav')[0])
+            out = Path(tmp, CHAPTER_EXPORT_DIR)
+            before = {name:(out / name).read_bytes() for name in delivery_names(self, out)}
+            before_frames = sum(sf.info(out / name).frames for name in before if name.endswith('.wav'))
+            proposal = pm.get_gap_suggestion(1)
+            pm.apply_gap_suggestion(1, 'gap-0', proposal['revision'])
+            self.assertEqual((False, 'Export cancelled'),
+                             pm.export_chapters(fmt='wav', changed_only=True, cancel_check=lambda:True))
+            self.assertEqual(before, {name:(out / name).read_bytes() for name in delivery_names(self, out)})
+            self.assertTrue(ProjectManager(tmp).export_chapters(fmt='wav', changed_only=True)[0])
+            after = {name:(out / name).read_bytes() for name in delivery_names(self, out)}
+            self.assertNotEqual(before, after)
+            after_frames = sum(sf.info(out / name).frames for name in after if name.endswith('.wav'))
+            self.assertLess(after_frames, before_frames)
+            for name, contents in sources.items():
+                self.assertEqual(contents, Path(tmp, name).read_bytes())
+            expected = pm.load_chunks()
+            for row in expected:
+                self.assertEqual(('done', 2, ''), (row['status'], row['take'], row['instruct']))
+
     def test_cancel_during_publication_restores_old_files_or_removes_new_files(self):
         for existing in (False, True):
             with self.subTest(existing=existing), tempfile.TemporaryDirectory() as tmp:
