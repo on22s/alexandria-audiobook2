@@ -8,6 +8,7 @@ on:
       - run_chains/**
       - app/verify_release.py
       - app/ci_env.py
+      - app/ci_timeout_probe.py
       - app/check_shard_reports.py
       - app/unit_test_sharding.py
       - app/tests/test_release_verifier.py

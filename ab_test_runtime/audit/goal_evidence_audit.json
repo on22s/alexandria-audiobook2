@@ -1050,26 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-02T11:55:11",
+  "written": "2026-11-02T14:56:08",
   "host": "RealMitch",
   "git": {
-   "commit": "314e36161710705a8a7dae9cc958b5643a3b360d",
-   "branch": "feat/1258-opt-in-gap-suggestions",
+   "commit": "1b68a7733775ef23957e37c0833d475afbf13ded",
+   "branch": "fix/1693-gnu-timeout",
    "dirty": true,
-   "source_state": "dirty:e1d7620a9e0a",
+   "source_state": "dirty:a5adde6e2e4e",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  README.md",
-    "M  app/api_contract/openapi.json",
-    "M  app/api_contract/routes.json",
-    "M  app/dialogue_continuity.py",
-    "M  app/project.py",
-    "M  app/routers/editor.py",
-    "M  app/static/js/app-core.js",
-    "M  app/tests/test_chapter_export.py",
-    "M  app/tests/test_editor_book_identity.py",
-    "M  app/tests/test_editor_render_barrier.py",
-    "M  app/tests/unit_test_inventory.json"
+    " M app/tests/windows_only_skip_baseline.txt"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "67ee42e276600c260b2ec9e1656ed8936cb5a5f0a37283081d350f8e3f25a770",
