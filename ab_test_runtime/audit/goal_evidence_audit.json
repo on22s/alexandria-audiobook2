@@ -1050,17 +1050,21 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-02T15:24:24",
+  "written": "2026-11-02T15:38:45",
   "host": "RealMitch",
   "git": {
-   "commit": "21d64d680637cedcb56c5a3365e37a1cd9da41cb",
+   "commit": "00e1a9969180b77a7da411363de89af595a9d5d6",
    "branch": "feat/casting-library-1532",
    "dirty": true,
-   "source_state": "dirty:a910bb1cc5f2",
+   "source_state": "dirty:d8cb03daa99d",
    "source_state_detail": null,
    "modified_tracked_files": [
-    " M GOALS.md",
-    "M  app/tests/test_ui_contract.py"
+    "M  .github/workflows/rolling-ubuntu.yml",
+    "M  .github/workflows/tests.yml",
+    "A  app/ci_timeout_probe.py",
+    "M  app/tests/test_release_verifier.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  app/tests/windows_only_skip_baseline.txt"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "67ee42e276600c260b2ec9e1656ed8936cb5a5f0a37283081d350f8e3f25a770",

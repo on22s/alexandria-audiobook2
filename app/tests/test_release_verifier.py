@@ -11,6 +11,7 @@ import tempfile
 from unittest.mock import patch
 
 import ci_env
+import ci_timeout_probe
 import diagnose_pr_changes
 import mark_pr_ready
 import verify_release
@@ -89,6 +90,102 @@ class CiEnvParityTests(unittest.TestCase):
         self.assertIn('linux_runner: ubuntu-latest', canary)
         self.assertIn('linux_only: true', canary)
         self.assertNotIn('continue-on-error', canary)
+
+    def test_timeout_probe_rejects_short_grace_and_fake_cleanup(self):
+        cooperative = {"probe": "cooperative_int", "returncode": 124,
+                       "stdout": "worker_ready\ncooperative_cleanup\n",
+                       "stderr": "timeout: sending signal INT to command",
+                       "elapsed_seconds": 1.1}
+        self.assertEqual([], ci_timeout_probe.get_contract_errors(cooperative))
+        for changes in ({"elapsed_seconds": .5}, {"stdout": "worker_ready"},
+                        {"returncode": -9}, {"stderr": "spoofed"}):
+            with self.subTest(changes=changes):
+                self.assertTrue(ci_timeout_probe.get_contract_errors(dict(cooperative, **changes)))
+        forced = dict(cooperative, probe="ignores_int", returncode=-9,
+                      elapsed_seconds=1.5, stdout="worker_ready",
+                      stderr="sending signal INT; sending signal KILL")
+        self.assertEqual([], ci_timeout_probe.get_contract_errors(forced))
+        for changes in ({"elapsed_seconds": .5}, {"returncode": 137},
+                        {"stderr": "sending signal INT"}):
+            with self.subTest(changes=changes):
+                self.assertTrue(ci_timeout_probe.get_contract_errors(dict(forced, **changes)))
+
+    def test_timeout_probe_preserves_raw_results_and_observation_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            executable = Path(tmp) / "timeout"
+            executable.write_bytes(b"test executable")
+            output = Path(tmp) / "observations.jsonl"
+            results = [subprocess.CompletedProcess([], 0, "timeout (GNU coreutils) 9.4", "")]
+            for name in ci_timeout_probe.PROBES:
+                results.append(subprocess.CompletedProcess([], 137, "", "spoofed diagnostic"))
+            for observe_only, expected in ((True, 0), (False, 1)):
+                with patch.object(ci_timeout_probe.shutil, "which", return_value=str(executable)), \
+                     patch.object(ci_timeout_probe.subprocess, "run", side_effect=results):
+                    self.assertEqual(expected, ci_timeout_probe.run_probes(output, observe_only))
+                records = [json.loads(line) for line in output.read_text().splitlines()]
+                self.assertEqual(5, len(records))
+                self.assertEqual(str(executable.resolve()), records[0]["executable"])
+                self.assertEqual(64, len(records[0]["sha256"]))
+                self.assertEqual([137] * 4, [record["returncode"] for record in records[1:]])
+                self.assertTrue(records[-1]["errors"])
+
+    def test_timeout_workflow_selection_and_evidence_are_wired(self):
+        import yaml
+        workflow = yaml.safe_load(self._workflow())
+        steps = workflow["jobs"]["unit"]["steps"]
+        by_name = {step["name"]: step for step in steps if "name" in step}
+        selection = by_name["Select GNU timeout on rolling"]
+        self.assertEqual("inputs.linux_runner == 'ubuntu-latest'", selection["if"])
+        self.assertEqual("python ci_timeout_probe.py --observe-only --output timeout-default.jsonl",
+                         by_name["Observe default timeout contracts"]["run"])
+        self.assertEqual("python ci_timeout_probe.py --output timeout-selected.jsonl",
+                         by_name["Verify selected timeout contracts"]["run"])
+        self.assertLess(steps.index(by_name["Observe default timeout contracts"]), steps.index(selection))
+        self.assertLess(steps.index(selection), steps.index(by_name["Verify selected timeout contracts"]))
+        upload = by_name["Upload runner identity"]
+        self.assertEqual("always()", upload["if"])
+        for filename in ("timeout-default.jsonl", "timeout-selected.jsonl", "timeout-provisioning.txt"):
+            self.assertIn("app/" + filename, upload["with"]["path"].splitlines())
+        canary = yaml.safe_load((Path(__file__).resolve().parents[2] /
+                                 ".github/workflows/rolling-ubuntu.yml").read_text())
+        self.assertIn("app/ci_timeout_probe.py", canary[True]["pull_request"]["paths"])
+
+    @unittest.skipUnless(sys.platform == "linux", "native Linux timeout qualification")
+    def test_selected_timeout_real_signal_and_grace_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(0, ci_timeout_probe.run_probes(Path(tmp) / "selected.jsonl"))
+
+    @unittest.skipUnless(sys.platform == "linux", "native Linux PATH selection")
+    def test_rolling_selection_executes_isolated_timeout_only(self):
+        import yaml
+        steps = yaml.safe_load(self._workflow())["jobs"]["unit"]["steps"]
+        selection = next(step for step in steps if step.get("name") == "Select GNU timeout on rolling")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stubs = root / "stubs"
+            stubs.mkdir()
+            for command in ("sudo", "dpkg-query"):
+                stub = stubs / command
+                stub.write_text("#!/bin/sh\nexit 0\n")
+                stub.chmod(0o700)
+            executable = root / "gnutimeout"
+            executable.write_text('#!/bin/sh\necho "timeout (GNU coreutils) 9.4"\n')
+            executable.chmod(0o700)
+            github_path = root / "github-path"
+            env = dict(os.environ, PATH=str(stubs) + os.pathsep + os.environ["PATH"],
+                       RUNNER_TEMP=tmp, GITHUB_PATH=str(github_path))
+            script = selection["run"].replace("executable=/usr/bin/gnutimeout",
+                                               'executable="' + str(executable) + '"')
+            subprocess.run(["bash", "-c", script], cwd=tmp, env=env, check=True, capture_output=True)
+            selected_bin = Path(github_path.read_text().strip())
+            self.assertEqual(root, selected_bin.parent)
+            self.assertEqual(["timeout"], [entry.name for entry in selected_bin.iterdir()])
+            self.assertEqual(executable, (selected_bin / "timeout").resolve())
+            executable.write_text('#!/bin/sh\necho "timeout (uutils coreutils) 0.10.0"\n')
+            github_path.write_text("")
+            result = subprocess.run(["bash", "-c", script], cwd=tmp, env=env, capture_output=True)
+            self.assertNotEqual(0, result.returncode)
+            self.assertEqual("", github_path.read_text())
 
     def test_changed_file_hints_name_the_missing_generator(self):
         self.assertEqual([], diagnose_pr_changes.get_snapshot_hints({
