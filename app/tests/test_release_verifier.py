@@ -73,6 +73,22 @@ class CiEnvParityTests(unittest.TestCase):
         for flag, context in (("run-id", "run_id"), ("run-attempt", "run_attempt"), ("commit-sha", "sha")):
             self.assertIn(f'--{flag} "${{{{ github.{context} }}}}"', workflow)
         self.assertIn("fetch-depth: 0", workflow)
+        self.assertIn("default: ubuntu-24.04", workflow)
+        self.assertIn("linux_only:\n        type: boolean\n        default: false", workflow)
+        self.assertIn("windows-owner:\n    if: ${{ !inputs.linux_only }}", workflow)
+        self.assertNotIn('continue-on-error', workflow)
+        self.assertEqual(2, workflow.count("runs-on: ${{ inputs.linux_runner || 'ubuntu-24.04' }}"))
+        self.assertIn('sha256sum "$executable"', workflow)
+        self.assertIn('"$executable" --version', workflow)
+        self.assertIn('apt-ffmpeg-${{ steps.runner.outputs.image }}-v1', workflow)
+        for module in ('chain_stage_lib', 'chain_stage_commit_failures', 'regate_deadline',
+                       'e_row_cache_and_scoring', 'unseen_books_reporting'):
+            self.assertIn('tests.test_' + module, workflow)
+        canary = (Path(__file__).resolve().parents[2] / '.github/workflows/rolling-ubuntu.yml').read_text(encoding='utf-8')
+        self.assertIn('uses: ./.github/workflows/tests.yml', canary)
+        self.assertIn('linux_runner: ubuntu-latest', canary)
+        self.assertIn('linux_only: true', canary)
+        self.assertNotIn('continue-on-error', canary)
 
     def test_changed_file_hints_name_the_missing_generator(self):
         self.assertEqual([], diagnose_pr_changes.get_snapshot_hints({

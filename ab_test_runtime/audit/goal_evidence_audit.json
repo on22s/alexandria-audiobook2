@@ -1050,18 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-01T20:01:34",
+  "written": "2026-11-02T05:19:06",
   "host": "RealMitch",
   "git": {
-   "commit": "7bc4f307b0846d5725cb1853630beb80d6a871fe",
-   "branch": "codex/1258-interrupted-native-wait-20261101",
+   "commit": "58a77a78d40e3a8247bfa6799d6b5349a003e608",
+   "branch": "codex/1693-rolling-timeout-qualification",
    "dirty": true,
-   "source_state": "dirty:dfebf4b0b3d1",
+   "source_state": "dirty:5ae9830df58c",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/experiments/run_dialogue_continuity.py",
-    "M  app/tests/test_dialogue_continuity_controller.py",
-    "M  app/tests/unit_test_inventory.json"
+    "A  .github/workflows/rolling-ubuntu.yml",
+    "M  .github/workflows/tests.yml",
+    "M  app/tests/test_release_verifier.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "67ee42e276600c260b2ec9e1656ed8936cb5a5f0a37283081d350f8e3f25a770",
