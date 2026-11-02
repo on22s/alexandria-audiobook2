@@ -2079,6 +2079,9 @@ class TTSEngine:
             if not publish_audio_output(staging_path, output_path, cancel_check=is_audio_generation_cancelled):
                 return None
             capture_speech_input(output_path, text, payload["language"], capture_label)
+            cache = reply.get("reference_cache")
+            if family == "clone" and isinstance(cache, dict):
+                record_tts_reference_cache(cache.get("prepared_audio") or {}, cache.get("reference_codes") or {})
             return reply
         except MLXGenerationCancelled:
             return None
