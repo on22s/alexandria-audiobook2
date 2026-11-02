@@ -169,6 +169,8 @@ class TTSSpeechInputTests(unittest.TestCase):
             with patch.object(engine,'_external_endpoint',side_effect=lambda endpoint=None:(SimpleNamespace(predict=lambda **kw:(str(source),)),threading.Lock())):
                 second=engine.generate_voice_result('Next words','','A',{'A':{'type':'custom'}},str(root/'new.wav'))
             release.set(); self.assertTrue(done.wait(3))
+            engine._external_executor.shutdown(wait=True, timeout=3)
+            self.assertFalse(list(root.glob('old.wav.pending.*')))
             self.assertTrue(second.success,second.failure)
             self.assertEqual('Next words.',second.speech_input['text'])
             self.assertIsNone(first.speech_input)
