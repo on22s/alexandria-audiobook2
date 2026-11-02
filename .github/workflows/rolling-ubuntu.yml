@@ -1,0 +1,31 @@
+name: rolling Ubuntu qualification
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/tests.yml
+      - .github/workflows/rolling-ubuntu.yml
+      - run_chains/**
+      - app/verify_release.py
+      - app/ci_env.py
+      - app/check_shard_reports.py
+      - app/unit_test_sharding.py
+      - app/tests/test_release_verifier.py
+      - app/requirements.txt
+      - app/tests/test_chain_stage*.py
+      - app/tests/test_regate_deadline.py
+      - app/tests/test_e_row_cache_and_scoring.py
+      - app/tests/test_unseen_books_reporting.py
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rolling:
+    uses: ./.github/workflows/tests.yml
+    with:
+      linux_runner: ubuntu-latest
+      linux_only: true
