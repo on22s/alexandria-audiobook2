@@ -43,8 +43,11 @@ FAKE_WORKER = textwrap.dedent('''
             out.setnchannels(1); out.setsampwidth(2); out.setframerate(24000)
             out.writeframes(b"".join(struct.pack("<h", int(9000 * math.sin(i / 8))) for i in range(36000)))
         os.replace(partial, request["output"])
-        print(json.dumps({"id": request["id"], "ok": True, "sample_rate": 24000, "samples": 36000,
-                          "pid": os.getpid()}), flush=True)
+        reply = {"id": request["id"], "ok": True, "sample_rate": 24000, "samples": 36000, "pid": os.getpid()}
+        if request.get("family") == "clone":
+            reply["reference_cache"] = {"prepared_audio": {"hits": 1, "misses": 1},
+                                        "reference_codes": {"hits": 0, "misses": 2}}
+        print(json.dumps(reply), flush=True)
 ''')
 
 
@@ -220,6 +223,19 @@ class MLXEngineDispatchTests(MLXTestBase):
         sent = self.recorded(output)
         self.assertEqual(('clone', str(reference), 'Reference words.', 3),
                          (sent['family'], sent['ref_audio'], sent['ref_text'], sent['seed']))
+
+    def test_clone_reports_worker_cache_counts_to_diagnostics_and_custom_does_not(self):
+        reference = self.root / 'ref.wav'
+        reference.write_bytes(b'RIFF')
+        (self.root / 'a').mkdir(); (self.root / 'b').mkdir()
+        voice = {'C': {'type': 'clone', 'ref_audio': str(reference), 'ref_text': 'Reference words.', 'seed': 3},
+                 'S': {'voice': 'Ryan', 'seed': 7}}
+        with self.ready(), patch.object(tts, 'record_tts_reference_cache') as record,                 contextlib.redirect_stdout(io.StringIO()):
+            engine = self.engine()
+            self.assertTrue(engine.generate_custom_voice('A line.', '', 'S', voice, str(self.root / 'a' / 'x.wav')))
+            record.assert_not_called()
+            self.assertTrue(engine.generate_clone_voice('A cloned line.', 'C', voice, str(self.root / 'b' / 'y.wav')))
+        record.assert_called_once_with({'hits': 1, 'misses': 1}, {'hits': 0, 'misses': 2})
 
     def test_voice_design_returns_path_and_rate(self):
         output = self.root / 'design' / 'preview.wav'

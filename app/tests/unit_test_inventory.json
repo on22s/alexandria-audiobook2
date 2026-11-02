@@ -6874,8 +6874,20 @@
     "tests.test_mixed_pdnc_campaign.MixedPdncCampaignTests.test_success_without_new_artifacts_cannot_produce_a_comparison",
     "tests.test_mixed_pdnc_campaign.MixedPdncCampaignTests.test_valid_cache_is_preserved_and_mixed_arguments_remain_correct"
   ],
+  "test_mlx_reference_cache": [
+    "tests.test_mlx_reference_cache.ReferenceCacheTests.test_clips_that_collide_under_mlx_audio_key_get_their_own_codes",
+    "tests.test_mlx_reference_cache.ReferenceCacheTests.test_count_and_byte_bounds_evict_oldest_and_skip_oversized",
+    "tests.test_mlx_reference_cache.ReferenceCacheTests.test_embedding_is_only_cached_for_the_array_the_worker_prepared",
+    "tests.test_mlx_reference_cache.ReferenceCacheTests.test_failure_mid_render_leaves_no_codes_and_ends_the_scope",
+    "tests.test_mlx_reference_cache.ReferenceCacheTests.test_identical_bytes_at_another_path_reuse_every_stage_and_render_the_same",
+    "tests.test_mlx_reference_cache.ReferenceCacheTests.test_known_bad_control_unscoped_mlx_cache_hands_b_the_codes_of_a",
+    "tests.test_mlx_reference_cache.ReferenceCacheTests.test_model_switch_clears_every_cache",
+    "tests.test_mlx_reference_cache.ReferenceCacheTests.test_sample_rate_is_part_of_the_prepared_key",
+    "tests.test_mlx_reference_cache.ReferenceCacheTests.test_transcript_change_reencodes_but_keeps_prepared_audio_and_embedding"
+  ],
   "test_mlx_tts_backend": [
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_batch_renders_each_line_through_the_worker",
+    "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_clone_reports_worker_cache_counts_to_diagnostics_and_custom_does_not",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_clone_voice_sends_the_resolved_reference",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_custom_voice_publishes_and_sends_speaker_seed_language_cap",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_idle_release_stops_the_worker",
