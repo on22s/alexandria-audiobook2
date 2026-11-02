@@ -123,8 +123,8 @@ class SynthesisSettingsTests(unittest.TestCase):
 
     def test_budget_matrix_comes_from_existing_backend_capabilities(self):
         keys = get_synthesis_budget_keys()
-        self.assertEqual(11, len(keys)); self.assertNotIn('external.lora', keys)
-        self.assertLessEqual({'mlx.custom', 'mlx.clone', 'mlx.design'}, set(keys)); self.assertNotIn('mlx.lora', keys)
+        self.assertEqual(12, len(keys)); self.assertNotIn('external.lora', keys)
+        self.assertLessEqual({'mlx.custom', 'mlx.clone', 'mlx.design', 'mlx.lora'}, set(keys)); self.assertNotIn('mlx.ensemble', keys)
         settings = dict(enabled=True, budgets={key: {'max_chars': 120, 'max_words': 20} for key in keys})
         self.assertEqual(set(keys), set(get_synthesis_window_settings(settings)['budgets']))
 
