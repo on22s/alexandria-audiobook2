@@ -6909,6 +6909,7 @@
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_missing_environment_fails_with_an_actionable_message",
     "tests.test_mlx_tts_backend.MLXEngineDispatchTests.test_voice_design_returns_path_and_rate",
     "tests.test_mlx_tts_backend.MLXStatusTests.test_install_builds_mlx_env_with_python_311_and_replaces_a_wrong_one",
+    "tests.test_mlx_tts_backend.MLXStatusTests.test_mlx_defaults_are_the_local_model_repos_and_install_fetches_only_those",
     "tests.test_mlx_tts_backend.MLXStatusTests.test_settings_default_and_ignore_unknown_or_blank_models",
     "tests.test_mlx_tts_backend.MLXStatusTests.test_status_flags_an_env_whose_package_install_failed",
     "tests.test_mlx_tts_backend.MLXStatusTests.test_status_names_each_missing_piece",
