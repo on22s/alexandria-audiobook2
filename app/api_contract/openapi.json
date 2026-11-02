@@ -774,6 +774,69 @@
         "title": "CastMatchBulkRequest",
         "type": "object"
       },
+      "CastingMarkRequest": {
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "voice_id": {
+            "maxLength": 400,
+            "minLength": 1,
+            "pattern": "^(persona/[^/\\\\]+/[^/\\\\]+|designer/[A-Za-z0-9_.-]+)$",
+            "title": "Voice Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice_id"
+        ],
+        "title": "CastingMarkRequest",
+        "type": "object"
+      },
       "ChapterExportRequest": {
         "properties": {
           "book_name": {
@@ -6088,6 +6151,108 @@
           }
         },
         "summary": "Cast List Cancel"
+      }
+    },
+    "/api/casting/clone_config": {
+      "get": {
+        "operationId": "casting_clone_config_api_casting_clone_config_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "voice_id",
+            "required": true,
+            "schema": {
+              "maxLength": 400,
+              "minLength": 1,
+              "title": "Voice Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "speaker",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Speaker",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Casting Clone Config"
+      }
+    },
+    "/api/casting/marks": {
+      "post": {
+        "operationId": "casting_mark_api_casting_marks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastingMarkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Casting Mark"
+      }
+    },
+    "/api/casting/voices": {
+      "get": {
+        "operationId": "casting_voices_api_casting_voices_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Casting Voices"
       }
     },
     "/api/chapter_exports": {

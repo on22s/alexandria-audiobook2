@@ -85,7 +85,10 @@ class TestAssignmentSitesUseIt(unittest.TestCase):
 
     def test_persona_generation_sets_a_stable_seed(self):
         src = self._source("generate_personas.py")
-        self.assertIn("character_voice_seed", src)
+        # Persona generation builds its entry with the shared casting builder (#1532),
+        # which is where the per-character seed is set.
+        self.assertIn("get_persona_clone_entry(", src)
+        self.assertIn('"seed": character_voice_seed(speaker)', self._source("casting_catalog.py"))
         self.assertNotIn('"seed": -1\n', src,
                          "a hard-coded -1 means the voice is redrawn per line")
 

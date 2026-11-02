@@ -1841,6 +1841,33 @@
     "tests.test_cast_list_ui.CastListUITests.test_every_element_the_script_uses_is_on_the_page",
     "tests.test_cast_list_ui.CastListUITests.test_every_handler_the_page_calls_exists"
   ],
+  "test_casting_api": [
+    "tests.test_casting_api.CastingApiTests.test_clone_config_for_a_voice_with_audio_and_refusals",
+    "tests.test_casting_api.CastingApiTests.test_library_lists_voices_and_only_their_marks",
+    "tests.test_casting_api.CastingApiTests.test_mark_round_trip_and_refusals"
+  ],
+  "test_casting_catalog": [
+    "tests.test_casting_catalog.CastingCatalogTests.test_audio_is_only_trusted_at_its_own_folder",
+    "tests.test_casting_catalog.CastingCatalogTests.test_catalog_voice_lookup_rejects_malformed_ids",
+    "tests.test_casting_catalog.CastingCatalogTests.test_clone_config_is_the_same_entry_persona_generation_writes",
+    "tests.test_casting_catalog.CastingCatalogTests.test_designer_voices_are_listed_from_the_manifest",
+    "tests.test_casting_catalog.CastingCatalogTests.test_persona_voice_has_id_url_tags_and_audio",
+    "tests.test_casting_catalog.CastingCatalogTests.test_symlinked_voice_folder_outside_the_tree_is_skipped",
+    "tests.test_casting_catalog.CastingCatalogTests.test_unreadable_entries_are_reported_not_invented",
+    "tests.test_casting_catalog.CastingMarkTests.test_concurrent_writers_lose_no_mark",
+    "tests.test_casting_catalog.CastingMarkTests.test_invalid_patches_name_the_field_and_change_nothing",
+    "tests.test_casting_catalog.CastingMarkTests.test_marks_merge_and_persist"
+  ],
+  "test_casting_tags": [
+    "tests.test_casting_tags.CastingTagTests.test_age_rules_keep_order_and_allow_several",
+    "tests.test_casting_tags.CastingTagTests.test_gender_rules_and_their_traps",
+    "tests.test_casting_tags.CastingTagTests.test_real_shaped_persona_description",
+    "tests.test_casting_tags.CastingTagTests.test_tone_and_texture_match_whole_terms_including_hyphenated_ones",
+    "tests.test_casting_tags.CastingTagTests.test_vocabularies_match_the_concept_sizes"
+  ],
+  "test_casting_ui_js": [
+    "tests.test_casting_ui_js.CastingUiTests.test_filters_text_rendering_marks_cast_flow_and_review_keys"
+  ],
   "test_chain_artifact_scope": [
     "tests.test_chain_artifact_scope.ArtifactScopeTests.test_actual_replay_loop_commits_only_dispatched_result_and_its_checkpoint",
     "tests.test_chain_artifact_scope.ArtifactScopeTests.test_current_literal_file_commits_without_other_sessions_same_folder_wip",

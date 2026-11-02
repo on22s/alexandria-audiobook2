@@ -200,6 +200,10 @@ from routers.voice_library import router as voice_library_router
 
 app.include_router(voice_library_router)
 
+from routers.casting import router as casting_router
+
+app.include_router(casting_router)
+
 from routers.voice_design import router as voice_design_router
 
 app.include_router(voice_design_router)

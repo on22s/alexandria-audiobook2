@@ -55,6 +55,7 @@ class LocalUiAssetTests(unittest.TestCase):
                           '/static/js/app-workspace.js?v=__APP_BUILD__',
                           '/static/js/app-project-scope.js?v=__APP_BUILD__',
                           '/static/js/app-character-roster.js?v=__APP_BUILD__',
+                          '/static/js/app-casting.js?v=__APP_BUILD__',
                           '/static/js/app-publication.js?v=__APP_BUILD__',
                           '/static/js/app-publication-validation.js?v=__APP_BUILD__',
                           '/static/js/app-pronunciation.js?v=__APP_BUILD__',
