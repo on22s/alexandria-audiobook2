@@ -300,7 +300,8 @@ def get_occurrence_response(request, row, rules, revision, projection, settings_
             'revision': revision, 'rules': rules, 'coordinate_space': pronunciation.OCCURRENCE_COORDINATE_SPACE,
             'offset_unit': 'unicode_codepoint', 'context': projection['context'],
             'context_source': settings_source,
-            'preview': {'text': projection['text'], 'decisions': projection.get('pronunciation_decisions', [])}}
+            'preview': {'text': projection['text'],
+                        'decisions': projection.get('pronunciation_decisions', [])}}
 
 
 def get_occurrence_editor(request):
@@ -322,6 +323,27 @@ def get_occurrence_editor(request):
                 current = (get_occurrence_speech_projection(row, request.index, voices, settings['settings'])
                            if isinstance(request, PronunciationOccurrenceEdit) else projection)
             result = get_occurrence_response(request, row, effective, revision, projection, settings['source'])
+            if type(request) is PronunciationOccurrenceTarget:
+                warnings = []
+                try:
+                    get_pronunciation_document()
+                except HTTPException as error:
+                    warnings.append(str(error.detail))
+                except OSError:
+                    warnings.append('Shared pronunciation file could not be read; substitutions may be unavailable.')
+                if settings['source'] == 'configured':
+                    try:
+                        with open(project_manager.config_path, encoding='utf-8') as source:
+                            configured = json.load(source)
+                        if not isinstance(configured, dict):
+                            raise ValueError('Settings must be an object')
+                    except (OSError, ValueError):
+                        warnings.append('Saved settings could not be validated; preparation may use defaults.')
+                elif settings['source'] == 'unknown':
+                    warnings.append('Active engine settings are unavailable.')
+                result['preview'].update(
+                    kind='current_settings_preview', authored_text=row.get('text', ''),
+                    transformations=projection['transformations'], warnings=warnings)
             if isinstance(request, PronunciationOccurrenceEdit):
                 result['audio_will_be_detached'] = current['text'] != projection['text']
             if isinstance(request, PronunciationOccurrenceQuery):

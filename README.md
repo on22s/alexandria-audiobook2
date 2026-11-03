@@ -400,6 +400,12 @@ a measurement, what we recommend and why.
 - Toolbar: **Play Sequence**, **Render Pending**, **Regenerate All**, **Cancel**,
   **Check Voices** (drift check), **flagged only**, **Text integrity**, **Merge All**.
 - Each chunk: play; edit the speaker, text or instruction; regenerate; insert; delete.
+- Inspect a line and open **Saved-line preparation preview (not historical proof)** to
+  preview its saved words, normalization transformations and pronunciation decisions
+  without loading a model or changing a take. Save or discard pending edits first.
+  This snapshot may be outdated: refresh after line, rule, voice or settings changes. Recorded
+  take input remains separately labeled under **Speech input and saved evidence**;
+  missing historical input or transformation traces are not reconstructed.
 - Expand a line's pause controls and choose **Suggest gap** to preview and confirm a
   deterministic pause. This opt-in action recognizes the exact `NARRATOR` speaker
   label and attached named-speaker tags within a detected export chapter; it does not replace explicit pauses

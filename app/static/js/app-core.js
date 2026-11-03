@@ -7735,6 +7735,7 @@
             pendingChunkEdits.set(id, request);
             request.finally(() => {
                 if (pendingChunkEdits.get(id) === request) { pendingChunkEdits.delete(id); }
+                window.renderEditorLineInspector?.();
                 void refreshEditorIntegrity();
             }).catch(() => {});
             return request;

@@ -35,6 +35,9 @@ context.toggleChunkExpand=button=>{expands++;button.closest('tr').classList.add(
 context.stopSequence=()=>{stops++;};context.generateChunk=async id=>{generates.push(id);};
 context.showToast=(...args)=>toasts.push(args);context.showActionError=(...args)=>errors.push(args);
 context.API={get:async()=>facts()};
+context.isEditorEditPending=()=>false;
+const core=fs.readFileSync(process.argv[1].replace('app-editor-review.js','app-core.js'),'utf8');
+vm.runInContext(core.slice(core.indexOf('        function getEditorFieldValue('),core.indexOf('        window.suggestChunkGap =')),context);
 function facts(){return {book_token:context.chunkSnapshotBookToken,revision:context.chunkSnapshotRevision,rows:context.cachedChunks.map((c,i)=>({id:c.id,uid:c.uid,issues:i===0?['unknown','failed']:['drift'],audio:c.status==='done'?'present':'not_rendered',drift:c.status==='done'?'flagged':'not_rendered'}))};}
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);document.getElementById('editor-quality-filter').value='all';
 const run=s=>vm.runInContext(s,context),tick=()=>new Promise(resolve=>setImmediate(resolve));
@@ -47,6 +50,78 @@ class EditorReviewJsTests(unittest.TestCase):
     def run_js(self, script):
         result = subprocess.run(['node','-e',DOM_FIXTURE+SETUP+script+"\ncompleted=true;})().catch(error=>{console.error(error);process.exitCode=1;});",str(STATIC/'js/app-editor-review.js'),str(STATIC/'index.html')], capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+
+    def test_input_preview_is_read_only_and_never_replaces_historical_evidence(self):
+        self.run_js(r'''
+context.isEditorEditPending=()=>false;
+context.selectEditorReviewLineById(1);
+const posts=[];context.API.post=async(url,payload)=>{posts.push({url,payload});return {
+ book_token:payload.expected_book_token,uid:payload.expected_uid,revision:'rules',context:{engine_mode:'local'},context_source:'configured',
+ preview:{kind:'current_settings_preview',authored_text:'Saved words',text:'<img onerror=bad()>',transformations:[{type:'example'}],decisions:[]}};};
+document.getElementById('editor-line-speech-expected').textContent='Historical exact input';
+await context.previewEditorSpeechInput();
+assert.equal(posts.length,1);assert.equal(posts[0].url,'/api/pronunciation/occurrences');
+assert.deepEqual(posts[0].payload,{expected_book_token:context.chunkSnapshotBookToken,expected_uid:'u1',index:1});assert.equal(generates.length,0);
+assert.equal(document.getElementById('editor-line-speech-expected').textContent,'Historical exact input');
+assert(document.getElementById('editor-line-input-status').textContent.includes('not the input recorded'));
+assert(document.getElementById('editor-line-input-details').textContent.includes('<img onerror=bad()>'));
+const details=JSON.parse(document.getElementById('editor-line-input-details').textContent);
+assert.deepEqual(details.transformations,[{type:'example'}]);assert.deepEqual(details.context,{engine_mode:'local'});
+assert.equal(details.settings_source,'configured');assert.deepEqual(details.pronunciation_decisions,[]);
+context.renderEditorLineInspector();assert.equal(document.getElementById('editor-line-input-preview').disabled,false);
+assert(document.getElementById('editor-line-input-details').textContent.includes('<img onerror=bad()>'));
+assert.equal(body.querySelectorAll('img').length,0);
+context.isEditorEditPending=()=>true;await context.previewEditorSpeechInput();assert.equal(posts.length,1);
+''')
+
+    def test_input_preview_discards_late_selection_response_and_changed_saved_text(self):
+        self.run_js(r'''
+context.isEditorEditPending=()=>false;context.selectEditorReviewLineById(1);
+let resolve;context.API.post=()=>new Promise(done=>{resolve=done;});
+const pending=context.previewEditorSpeechInput();
+context.selectEditorReviewLineById(0);
+resolve({book_token:context.chunkSnapshotBookToken,uid:'u1',preview:{kind:'current_settings_preview',authored_text:'Saved words',text:'late'}});
+await pending;assert.equal(document.getElementById('editor-line-input-details').textContent,'');
+context.selectEditorReviewLineById(1);
+context.API.post=async()=>({book_token:context.chunkSnapshotBookToken,uid:'u1',preview:{kind:'current_settings_preview',authored_text:'Changed elsewhere',text:'new'}});
+await context.previewEditorSpeechInput();assert(document.getElementById('editor-line-input-status').textContent.includes('unavailable'));
+assert.equal(document.getElementById('editor-line-input-details').textContent,'');
+''')
+
+    def test_input_preview_discards_book_revision_changes_and_reports_failure(self):
+        self.run_js(r'''
+context.isEditorEditPending=()=>false;
+for(const change of [()=>{context.chunkSnapshotRevision='changed';},()=>{context.currentBookFilename='another';}]){
+ context.currentBookFilename=context.chunkSnapshotBook;context.chunkSnapshotRevision='before';context.selectEditorReviewLineById(1);
+ let resolve;context.API.post=()=>new Promise(done=>{resolve=done;});
+ const pending=context.previewEditorSpeechInput();change();
+ resolve({book_token:context.chunkSnapshotBookToken,uid:'u1',preview:{kind:'current_settings_preview',authored_text:'Saved words',text:'late'}});
+ await pending;assert.equal(document.getElementById('editor-line-input-details').textContent,'');
+ assert(!document.getElementById('editor-line-input-status').textContent.includes('Reading saved'));
+}
+context.currentBookFilename=context.chunkSnapshotBook;context.selectEditorReviewLineById(1);
+context.API.post=async()=>{throw new Error('Saved rules need repair');};
+await context.previewEditorSpeechInput();assert(document.getElementById('editor-line-input-status').textContent.includes('Saved rules need repair'));
+assert.equal(generates.length,0);
+''')
+
+    def test_input_preview_normalizes_dirty_checks_and_bounds_inflight_reads(self):
+        self.run_js(r'''
+const chunk=context.cachedChunks[1];chunk.text='Saved\r\nwords';fields.get('u1').text.value='Saved\nwords';
+context.selectEditorReviewLineById(1);
+const button=document.getElementById('editor-line-input-preview');assert.equal(button.disabled,false);
+let resolve,posts=0;context.API.post=()=>{posts++;return new Promise(done=>{resolve=done;});};
+const pending=context.previewEditorSpeechInput();assert.equal(button.disabled,true);
+await context.previewEditorSpeechInput();assert.equal(posts,1);
+context.isEditorEditPending=()=>true;
+resolve({book_token:context.chunkSnapshotBookToken,uid:'u1',preview:{kind:'current_settings_preview',authored_text:chunk.text,text:'prepared'}});
+await pending;assert.equal(button.disabled,true);
+assert(!document.getElementById('editor-line-input-status').textContent.includes('Reading saved'));
+context.isEditorEditPending=()=>false;context.renderEditorLineInspector();assert.equal(button.disabled,false);
+fields.get('u1').text.value='An unsaved edit';context.renderEditorLineInspector();assert.equal(button.disabled,true);
+await context.previewEditorSpeechInput();assert.equal(posts,1);
+chunk.text='An unsaved edit';context.chunkSnapshotRevision=null;context.renderEditorLineInspector();assert.equal(button.disabled,false);
+''')
 
     def test_filters_counts_text_injection_and_inspector_use_saved_facts(self):
         self.run_js(r'''
