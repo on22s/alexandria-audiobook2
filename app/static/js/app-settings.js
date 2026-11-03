@@ -10,6 +10,9 @@ const setupUiEnglish = Object.freeze({
     opened: 'Showing the original setting. Save Configuration to apply any edits.',
     previewSaved: 'Saved',
     previewWouldSave: 'Would save',
+    previewAction: 'Preview changes',
+    previewTitle: 'Settings change preview',
+    previewClose: 'Close preview',
 });
 let setupUiLocale = 'en';
 let setupSearchStatus = [];
