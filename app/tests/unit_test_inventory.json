@@ -12642,14 +12642,26 @@
     "tests.test_tts_clip_view.RowsOf.test_wer_is_errors_over_words"
   ],
   "test_tts_diagnostics": [
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_all_collectors_can_fail_without_erasing_recorded_failures",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_allowlists_cover_actual_operation_and_model_producers",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_batch_counts_and_record_bounds_do_not_retain_failed_text",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_cancellations_remain_interrupted_without_error_fingerprints",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_collection_failure_is_explicit_and_does_not_hide_saved_error",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_configuration_is_read_without_loading_or_mutating_a_book",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_endpoint_reads_no_observations_without_loading_engine",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_export_projects_only_allowlisted_values_even_in_known_fields",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_legacy_boolean_failure_still_records_a_safe_failure_category",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_maximum_failure_groups_stay_bounded_without_dropping_report",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_measured_stage_clock_and_exception_do_not_change_the_failure",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_missing_dependencies_and_checkout_identity_are_qualified",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_native_clone_cache_hits_misses_and_save_failure_are_observed",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_native_render_retains_audio_and_excludes_every_caller_field",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_nested_private_errors_preserve_identity_and_have_stable_safe_fingerprints",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_parallel_calls_isolate_outcomes_and_late_updates_are_ignored",
-    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_reference_cache_observations_remain_bounded_and_content_free"
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_parallel_failures_have_order_independent_category_stage_groups",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_platform_versions_and_safe_build_identifiers_survive_projection",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_reference_cache_observations_remain_bounded_and_content_free",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_unwound_failure_keeps_specific_category_and_innermost_stage"
   ],
   "test_tts_diagnostics_js": [
     "tests.test_tts_diagnostics_js.TtsDiagnosticsJsTests.test_out_of_order_reads_and_failure_invalidate_the_download"

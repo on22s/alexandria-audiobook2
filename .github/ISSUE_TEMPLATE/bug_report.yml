@@ -35,11 +35,17 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Terminal / log output
+      label: Support report and validation performed
       description: |
-        Copy the relevant output from the **Pinokio terminal** (click Terminal in the sidebar).
-        This is the most important part for diagnosing issues.
-      render: shell
+        Prefer Setup > Speech engine > Refresh report. Review the exact JSON preview,
+        then download and share it separately if you choose. Nothing uploads automatically.
+        Configured mode/device is not proof of a loaded model; null is unobserved or excluded.
+        State what validation you actually ran, and what remains unrun. Fingerprints group
+        safe error categories/stages, not unique root causes. Do not paste raw exception
+        chains, book text, prompts, audio, private paths, endpoints, or credentials.
+        If more detail is needed, keep Pinokio Get Help/session logs private and review
+        them before sharing separately; the support report is not a full-log substitute.
+      render: text
     validations:
       required: false
 

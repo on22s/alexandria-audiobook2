@@ -138,7 +138,7 @@ def _get_json_size(value):
     return len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
 
 
-def build_diagnostics(sections, home_dir=None, schema_version=SCHEMA_VERSION):
+def build_diagnostics(sections, home_dir=None, schema_version=SCHEMA_VERSION, note=None):
     """Assemble a redacted, bounded diagnostics bundle from named raw sections.
 
     ``sections`` is an ordered dict of section-name -> raw JSON-like value. Each
@@ -150,7 +150,7 @@ def build_diagnostics(sections, home_dir=None, schema_version=SCHEMA_VERSION):
     bundle = {
         "schema_version": schema_version,
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "note": ("Secrets and home paths are redacted; logs are referenced by "
+        "note": note if note is not None else ("Secrets and home paths are redacted; logs are referenced by "
                  "identifier only. For full logs use Pinokio's Get Help / "
                  "session bundle."),
         "sections": {name: redact(value, home_dir) for name, value in sections.items()},

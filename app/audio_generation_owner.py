@@ -16,6 +16,10 @@ class AudioGenerationCancelled(RuntimeError):
         super().__init__(message)
 
 
+class ExportCancelled(Exception):
+    """Raised when the caller cancels audio assembly or export."""
+
+
 @dataclass(frozen=True)
 class AudioGenerationOwner:
     """Captured live task admission plus stable, non-authorizing claim metadata.
