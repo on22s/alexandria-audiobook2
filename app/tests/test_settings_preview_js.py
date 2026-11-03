@@ -13,7 +13,13 @@ Element.prototype.replaceChildren=function(...children){for(const child of [...t
 Element.prototype.focus=function(){document.activeElement=this;};
 const form=body.appendChild(new Element('form',{id:'config-form'}));
 const html=fs.readFileSync(process.argv[2],'utf8');
-for(const match of html.matchAll(/id="(setup-preview-[^"]+)"/g)){form.appendChild(new Element('div',{id:match[1]}));}
+function parseMarkupAttrs(markup){return Object.fromEntries([...markup.matchAll(/([\w-]+)(?:="([^"]*)")?/g)].map(attr=>[attr[1],attr[2]??'']));}
+for(const match of html.matchAll(/<([a-z0-9]+)\b([^>]*id="setup-preview-[^"]+"[^>]*)>/g)){form.appendChild(new Element(match[1],parseMarkupAttrs(match[2])));}
+for(const match of html.matchAll(/<([a-z0-9]+)\b([^>]*data-setup-message="(preview[^"]+)"[^>]*)>([^<]*)<\/\1>/g)){
+ const attrs=parseMarkupAttrs(match[2]);
+ const node=document.getElementById(attrs.id)||form.appendChild(new Element(match[1],attrs));
+ for(const [key,value] of Object.entries(attrs)){node.setAttribute(key,value);}node.textContent=match[4];
+}
 const searchResults=body.appendChild(new Element('div',{id:'setup-settings-results',hidden:''}));
 body.appendChild(new Element('div',{id:'setup-settings-search-status'}));
 const input=form.appendChild(new Element('input',{id:'synthetic-input'}));
@@ -99,6 +105,36 @@ const row=document.getElementById('setup-preview-changes').children[0];
 assert.strictEqual(row.children[2].children[0].children[0].textContent,'[Saaveed]');
 assert.strictEqual(row.children[2].children[1].children[0].textContent,'[Woouuld saavee]');
 assert.strictEqual(calls.length,1);assert.strictEqual(document.getElementById('setup-preview-results').hidden,false);
+''')
+
+    def test_preview_chrome_localizes_real_markup_and_keeps_actions_and_evidence(self):
+        self.run_js(r'''
+const keys=['previewAction','previewTitle','previewClose'];
+const nodes=keys.map(key=>body.querySelectorAll('[data-setup-message]').find(node=>node.getAttribute('data-setup-message')===key));
+assert(nodes.every(Boolean));assert.deepStrictEqual(nodes.map(node=>node.textContent),['Preview changes','Settings change preview','Close preview']);
+assert.strictEqual(nodes[0].hasAttribute('data-config-save-action'),true);
+assert.strictEqual(nodes[1].tagName,'H5');assert.strictEqual(nodes[1].getAttribute('tabindex'),'-1');
+const panel=document.getElementById('setup-preview-panel');assert.strictEqual(panel.hidden,true);
+const attrs=nodes.map(node=>JSON.stringify(node.attrs));
+vm.runInContext(nodes[0].getAttribute('onclick'),context);await tick();
+assert.strictEqual(panel.hidden,false);
+const row=document.getElementById('setup-preview-changes').children[0];
+const summary=document.getElementById('setup-preview-default-summary').textContent;assert(summary.length>0);
+const warning=document.getElementById('setup-preview-status').textContent;assert(warning.includes('No settings were applied'));
+for(const locale of ['qps-ploc','qps-ploc','unsupported','en']){
+ context.applySetupUiLocale(locale);
+ assert.deepStrictEqual(nodes.map(node=>node.textContent),locale==='qps-ploc'?['[Preeviieew chaangees]','[Seettiings chaangee preeviieew]','[Cloosee preeviieew]']:['Preview changes','Settings change preview','Close preview']);
+ assert.deepStrictEqual(nodes.map(node=>JSON.stringify(node.attrs)),attrs);
+ assert.strictEqual(panel.hidden,false);
+ assert.strictEqual(document.getElementById('setup-preview-changes').children[0],row);
+ assert.strictEqual(document.getElementById('setup-preview-results').hidden,false);
+ assert.strictEqual(document.getElementById('setup-preview-default-summary').textContent,summary);
+ assert.strictEqual(document.getElementById('setup-preview-status').textContent,warning);
+ assert.strictEqual(calls.length,1);
+}
+vm.runInContext(nodes[2].getAttribute('onclick'),context);
+assert.strictEqual(document.getElementById('setup-preview-panel').hidden,true);
+assert.strictEqual(document.getElementById('setup-preview-results').hidden,true);assert.strictEqual(calls.length,1);
 ''')
 
     def test_edits_close_and_save_invalidation_refuse_pending_results(self):

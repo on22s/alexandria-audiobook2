@@ -1152,7 +1152,7 @@
 </nav>
                         <label class="form-label mt-3" for="setup-ui-locale">Setup UI language (partial coverage)</label>
                         <select id="setup-ui-locale" class="form-select" aria-describedby="setup-ui-locale-hint setup-ui-locale-status" onchange="changeSetupUiLocale(this.value)"><option value="en">English</option><option value="qps-ploc">Pseudo-English (layout test, not a translation)</option></select>
-                        <div id="setup-ui-locale-hint" class="form-text">Only setting-search labels, feedback and the Saved/Would save preview headings change. Setting names, values, default markers, help and safety warnings remain English. No reviewed translation or RTL locale is offered.</div>
+                        <div id="setup-ui-locale-hint" class="form-text">Only the setting finder's text, including search feedback, preview action/title/close text and the Saved/Would save headings change. Setting names, values, default markers and summaries, help and safety warnings remain English. No reviewed translation or RTL locale is offered.</div>
                         <div id="setup-ui-locale-status" class="form-text" role="status"></div>
                         <div class="settings-finder">                        <label class="form-label" for="setup-settings-search" data-setup-message="label">Find a setting</label>
                         <div class="d-flex align-items-center gap-2">
@@ -1168,14 +1168,14 @@
                     <form id="config-form">
                         <div class="config-save-bar d-flex flex-wrap align-items-center gap-2 mb-3 p-2 border rounded">
                             <button id="config-save-button-top" data-config-save-action type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save Configuration</button>
-                            <button type="button" id="config-preview-button" data-config-save-action class="btn btn-outline-secondary" onclick="previewSetupChanges()">Preview changes</button>
+                            <button type="button" id="config-preview-button" data-config-save-action data-setup-message="previewAction" class="btn btn-outline-secondary" onclick="previewSetupChanges()">Preview changes</button>
                             <span class="small text-muted">Save applies edits across every category.</span>
                             <span id="config-save-status" class="small" role="status" aria-live="polite"></span>
                         </div>
 <section id="setup-preview-panel" class="settings-preview border rounded p-3 mb-3" aria-labelledby="setup-preview-title" hidden>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <h5 id="setup-preview-title" tabindex="-1" class="m-0">Settings change preview</h5>
-        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="closeSetupPreview()">Close preview</button>
+        <h5 id="setup-preview-title" tabindex="-1" class="m-0" data-setup-message="previewTitle">Settings change preview</h5>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-setup-message="previewClose" onclick="closeSetupPreview()">Close preview</button>
     </div>
     <p id="setup-preview-status" role="status" aria-live="polite" class="mt-2"></p>
     <div id="setup-preview-results" hidden>

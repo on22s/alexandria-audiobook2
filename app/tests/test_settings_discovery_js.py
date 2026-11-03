@@ -247,7 +247,8 @@ revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(re
         markup = Messages()
         markup.feed((STATIC/'index.html').read_text(encoding='utf-8'))
         self.assertEqual(markup.options, ['en', 'qps-ploc'])
-        self.assertEqual(set(markup.messages), {'label', 'placeholder', 'clear', 'hint'})
+        self.assertEqual(set(markup.messages), {'label', 'placeholder', 'clear', 'hint',
+                                               'previewAction', 'previewTitle', 'previewClose'})
         self.run_js('for(const [key,text] of Object.entries('+json.dumps(markup.messages)+')) {'
                     'assert.equal(context.getSetupUiMessage(key),text);'
                     'assert(!/[{}]/.test(text));}')
