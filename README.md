@@ -216,6 +216,17 @@ for missing lines and incorrect speakers.
 
 ### Step 1 — Setup
 
+The Setup sidebar has a **Search UI language (partial coverage)** selector above
+the setting finder. Only
+its labels and search feedback use the initial English message catalog. The
+optional **Pseudo-English** mode expands those messages for layout testing; it is
+not a reviewed translation. Setting names, contextual help and safety warnings
+remain English. The preference is browser-local, synchronizes between same-origin
+tabs when storage is available, and never changes book, TTS or transcription
+language, configuration values or submitted technical identifiers. Unsupported
+locales fall back to English. No RTL locale or full-interface translation is
+claimed by this initial #1732 slice.
+
 ![Setup screen: LLM connection and TTS settings](docs/screenshots/setup.png)
 
 1. Pick **LLM Location** (Local or Remote).

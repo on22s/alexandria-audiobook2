@@ -1,3 +1,60 @@
+const setupSearchEnglish = Object.freeze({
+    label: 'Find a setting',
+    placeholder: 'Try context, memory, language or retries',
+    clear: 'Clear',
+    hint: 'Search labels and help for your current services.',
+    none: 'No matching settings for your current services. Try another label or description.',
+    one: '{count} matching setting.',
+    many: '{count} matching settings.',
+    limited: 'Showing the first {limit}; refine your search for more specific results.',
+    opened: 'Showing the original setting. Save Configuration to apply any edits.',
+});
+let setupUiLocale = 'en';
+let setupSearchStatus = [];
+const setupUiStorageNotice = 'Browser storage is unavailable; this UI preference applies only to this tab until reload.';
+
+function formatUiMessage(english, translated, values = {}) {
+    const placeholders = text => [...new Set(text.match(/\{[a-zA-Z][a-zA-Z0-9_]*\}/g) || [])].sort().join(',');
+    const template = typeof translated === 'string' && translated.trim() && placeholders(translated) === placeholders(english) ? translated : english;
+    return template.replace(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g, (match, name) => {
+        const value = Object.hasOwn(values, name) ? values[name] : undefined;
+        if (typeof value !== 'string' && !(typeof value === 'number' && Number.isFinite(value))) {
+            throw new Error('Missing or invalid UI message value: ' + name);
+        }
+        return String(value);
+    });
+}
+
+function getSetupSearchMessage(key, values = {}, locale = setupUiLocale) {
+    if (!Object.hasOwn(setupSearchEnglish, key)) { return key; }
+    const english = setupSearchEnglish[key];
+    const pseudo = locale === 'qps-ploc' ? '[' + english.split(/(\{[a-zA-Z][a-zA-Z0-9_]*\})/g).map(part =>
+        part.startsWith('{') ? part : part.replace(/[aeiouAEIOU]/g, vowel => vowel + vowel)).join('') + ']' : english;
+    return formatUiMessage(english, pseudo, values);
+}
+
+function applySetupUiLocale(locale) {
+    setupUiLocale = locale === 'qps-ploc' ? locale : 'en';
+    const selector = document.getElementById('setup-ui-locale');
+    if (selector) { selector.value = setupUiLocale; }
+    for (const node of document.querySelectorAll('[data-setup-message]')) {
+        const message = getSetupSearchMessage(node.getAttribute('data-setup-message'));
+        if (node.getAttribute('data-setup-message') === 'placeholder') { node.placeholder = message; }
+        else { node.textContent = message; }
+    }
+    renderSetupSearchStatus();
+}
+
+function changeSetupUiLocale(locale) {
+    applySetupUiLocale(locale);
+    applySystemStatusText('setup-ui-locale-status', setLocalStorageValue('alex-ui-locale', setupUiLocale) ? '' : setupUiStorageNotice);
+}
+
+function renderSetupSearchStatus() {
+    const text = setupSearchStatus.map(message => getSetupSearchMessage(message.key, message.values)).join(' ');
+    applySystemStatusText('setup-settings-search-status', text);
+}
+
 // Setup discovery reads labels and help, never configuration values.
 function isSetupSettingAvailable(control) {
     const form = document.getElementById('config-form');
@@ -30,15 +87,16 @@ function getSetupSettingsMatches(query) {
 function renderSetupSettingsSearch() {
     const search = document.getElementById('setup-settings-search');
     const results = document.getElementById('setup-settings-results');
-    const status = document.getElementById('setup-settings-search-status');
     const query = search.value.trim();
     results.replaceChildren();
     results.hidden = !query;
     document.getElementById('setup-settings-clear').hidden = !query;
-    if (!query) { status.textContent = ''; return; }
+    setupSearchStatus = [];
+    if (!query) { renderSetupSearchStatus(); return; }
     const matches = getSetupSettingsMatches(query);
-    status.textContent = !matches.length ? 'No matching settings for your current services. Try another label or description.'
-        : `${matches.length} matching setting${matches.length === 1 ? '' : 's'}.${matches.length > 8 ? ' Showing the first 8; refine your search for more specific results.' : ''}`;
+    setupSearchStatus = [{key: !matches.length ? 'none' : matches.length === 1 ? 'one' : 'many', values: {count: matches.length}}];
+    if (matches.length > 8) { setupSearchStatus.push({key: 'limited', values: {limit: 8}}); }
+    renderSetupSearchStatus();
     for (const match of matches.slice(0, 8)) {
         const row = document.createElement('div');
         row.className = 'settings-search-hit';
@@ -62,7 +120,8 @@ function openSetupSetting(id) {
     const results = document.getElementById('setup-settings-results');
     results.replaceChildren();
     results.hidden = true;
-    document.getElementById('setup-settings-search-status').textContent = 'Showing the original setting. Save Configuration to apply any edits.';
+    setupSearchStatus = [{key: 'opened'}];
+    renderSetupSearchStatus();
     openConfigField(control);
 }
 
@@ -198,3 +257,17 @@ async function previewSetupChanges() {
 window.invalidateSetupPreview = invalidateSetupPreview;
 document.getElementById('config-form').addEventListener('input', invalidateSetupPreview);
 document.getElementById('config-form').addEventListener('change', invalidateSetupPreview);
+
+if (document.getElementById('setup-ui-locale')) {
+    let locale = 'en';
+    try { locale = localStorage.getItem('alex-ui-locale'); }
+    catch (_) { applySystemStatusText('setup-ui-locale-status', setupUiStorageNotice); }
+    applySetupUiLocale(locale);
+    window.addEventListener('storage', event => {
+        if (event.key !== 'alex-ui-locale' && event.key !== null) { return; }
+        let localEvent;
+        try { localEvent = event.storageArea === localStorage; }
+        catch (_) { applySystemStatusText('setup-ui-locale-status', setupUiStorageNotice); return; }
+        if (localEvent) { applySetupUiLocale(event.newValue); }
+    });
+}

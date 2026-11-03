@@ -98,7 +98,8 @@ class FrontendGuards(unittest.TestCase):
         offenders = []
         for name in ("index.html", os.path.join("js", "app-core.js"), os.path.join("js", "app-scripts.js"),
                      os.path.join("js", "app-workbench.js"), os.path.join("js", "app-training.js"),
-                     os.path.join("js", "app-reports.js"), os.path.join("js", "app-voicelab.js")):
+                     os.path.join("js", "app-reports.js"), os.path.join("js", "app-voicelab.js"),
+                     os.path.join("js", "app-settings.js")):
             path = os.path.join(STATIC, name)
             if not os.path.exists(path):
                 continue
