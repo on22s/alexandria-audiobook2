@@ -12661,6 +12661,7 @@
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_parallel_failures_have_order_independent_category_stage_groups",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_platform_versions_and_safe_build_identifiers_survive_projection",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_reference_cache_observations_remain_bounded_and_content_free",
+    "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_unobserved_and_closed_stages_do_not_retain_exceptions",
     "tests.test_tts_diagnostics.TtsDiagnosticsTests.test_unwound_failure_keeps_specific_category_and_innermost_stage"
   ],
   "test_tts_diagnostics_js": [

@@ -73,6 +73,28 @@ class TtsDiagnosticsTests(unittest.TestCase):
         self.assertIsNone(record['audio_seconds'])
         self.assertNotIn('PRIVATE_BOOK', json.dumps(self.records()))
 
+    def test_unobserved_and_closed_stages_do_not_retain_exceptions(self):
+        engine = tts.TTSEngine({'tts': {'mode': 'local'}})
+        contexts = [copy_context()]
+        @diagnostics.capture_tts_operation('generate_voice')
+        def render(self):
+            contexts.append(copy_context())
+            return True
+        self.assertTrue(render(engine))
+        before = self.records()
+        def fail():
+            error = tts.GeneratedAudioError('PRIVATE_UNTRACKED_AUDIO')
+            with patch.object(tts, 'get_tts_failure_classification', side_effect=AssertionError('unobserved classification')):
+                with self.assertRaises(tts.GeneratedAudioError) as caught:
+                    with diagnostics.measure_tts_stage_time('audio_validation_save'):
+                        raise error
+            self.assertIs(error, caught.exception)
+            self.assertIsNone(diagnostics._ACTIVE_STAGE.get())
+            self.assertIsNone(diagnostics._ESCAPED_STAGE.get())
+        for context in contexts:
+            context.run(fail)
+        self.assertEqual(before, self.records())
+
     def test_unwound_failure_keeps_specific_category_and_innermost_stage(self):
         engine = tts.TTSEngine({'tts': {'mode': 'local'}})
         @diagnostics.capture_tts_operation('generate_voice')

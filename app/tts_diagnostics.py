@@ -120,6 +120,9 @@ def measure_tts_stage_time(name):
     if name not in _STAGES:
         raise ValueError('Unknown TTS observation stage')
     observation = _CURRENT.get()
+    if observation is None or observation.closed:
+        yield
+        return
     token = _ACTIVE_STAGE.set(name)
     _ESCAPED_STAGE.set(None)
     started = time.monotonic()
