@@ -84,6 +84,34 @@ class OccurrencePanelTests(unittest.TestCase):
         self.assertEqual('configured', response.json()['context_source'])
         self.assertEqual(before, self.artifacts())
 
+    def test_inspector_reports_current_transformations_without_rewriting_saved_take(self):
+        self.lexicon.write_text(json.dumps({'names': {'Ann': 'Shared', 'Shared': 'Wrong second pass'}}))
+        before = self.artifacts()
+        with patch.object(self.pm, 'get_engine', side_effect=AssertionError('inspection loaded a model')):
+            result = self.snapshot()
+        preview = result['preview']
+        self.assertEqual('current_settings_preview', preview['kind'])
+        self.assertEqual(self.text, preview['authored_text'])
+        self.assertEqual('𠀀𠀁𠀂𠀃 Shared\r\nShared.', preview['text'])
+        self.assertEqual(1, sum(change['type'] == 'pronunciation_lexicon' for change in preview['transformations']))
+        self.assertEqual(before, self.artifacts())
+        self.lexicon.write_text(json.dumps({'names': {'Ann': 'Changed'}}))
+        expected = self.artifacts()
+        with patch.object(self.pm, 'get_engine', side_effect=AssertionError('inspection loaded a model')):
+            changed = self.snapshot()
+        self.assertNotEqual(preview['text'], changed['preview']['text'])
+        self.assertEqual(expected, self.artifacts())
+
+    def test_inspector_warns_when_preparation_uses_invalid_files(self):
+        self.lexicon.write_text('{invalid')
+        Path(self.pm.config_path).write_text('{invalid')
+        before = self.artifacts()
+        with patch.object(self.pm, 'get_engine', side_effect=AssertionError('inspection loaded a model')):
+            preview = self.snapshot()['preview']
+        self.assertTrue(any('Pronunciation file is invalid' in warning for warning in preview['warnings']))
+        self.assertTrue(any('settings could not be validated' in warning for warning in preview['warnings']))
+        self.assertEqual(before, self.artifacts())
+
     def test_save_detaches_only_effective_changed_uid_and_notes_drafts_bypasses_preserve_take(self):
         rule, revision = self.candidate(); source = (self.root/'annotated_script.json').read_bytes()
         old = self.pm.get_saved_chunks(); audio = (self.root/old[0]['audio_path']).read_bytes()

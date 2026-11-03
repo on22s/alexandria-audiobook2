@@ -9,6 +9,69 @@ let editorReviewPending = null;
 let editorReviewSelection = null;
 let editorReviewLimit = 50;
 let editorReviewListSignature = null;
+let editorSpeechPreview = null;
+let editorSpeechPreviewRequest = 0;
+let editorSpeechPreviewBusy = false;
+
+function resetEditorSpeechPreview() {
+    editorSpeechPreviewRequest++;
+    editorSpeechPreview = null;
+    const status = document.getElementById('editor-line-input-status');
+    const message = 'Read-only preview of the saved line. No model is loaded. Refresh after line, rule, voice or settings changes.';
+    if (status.textContent !== message) { status.textContent = message; }
+    const details = document.getElementById('editor-line-input-details');
+    if (details.textContent !== '') { details.textContent = ''; }
+}
+
+async function previewEditorSpeechInput() {
+    if (editorSpeechPreviewBusy) { return; }
+    resetEditorSpeechPreview();
+    const target = getEditorReviewTarget();
+    if (!target) { return; }
+    if (getEditorReviewRowState(target).dirty || isEditorEditPending()) {
+        document.getElementById('editor-line-input-status').textContent = 'Save or discard pending line edits before previewing saved input.';
+        return;
+    }
+    const selection = {...editorReviewSelection}, revision = chunkSnapshotRevision;
+    const request = editorSpeechPreviewRequest;
+    editorSpeechPreview = {uid: selection.uid, book: selection.book, revision};
+    const status = document.getElementById('editor-line-input-status');
+    editorSpeechPreviewBusy = true;
+    document.getElementById('editor-line-input-preview').disabled = true;
+    status.textContent = 'Reading saved speech preparation; no generation starts.';
+    const isCurrent = () => request === editorSpeechPreviewRequest && revision === chunkSnapshotRevision
+        && selection.uid === editorReviewSelection?.uid && selection.book === editorReviewSelection?.book
+        && !!getEditorReviewTarget(selection) && !isEditorEditPending();
+    try {
+        const result = await API.post('/api/pronunciation/occurrences', {
+            expected_book_token: selection.book, expected_uid: selection.uid, index: target.chunk.id
+        });
+        if (!isCurrent()) { return; }
+        if (result.preview?.kind !== 'current_settings_preview') {
+            throw new Error('Preview protocol unavailable. Reload the page to match the server version.');
+        }
+        if (result.book_token !== selection.book || result.uid !== selection.uid
+                || result.preview.authored_text !== (target.chunk.text ?? '')) {
+            throw new Error('Saved line changed. Refresh Editor before inspecting its input.');
+        }
+        status.textContent = 'Snapshot at last preview, not the input recorded for a take. May be outdated: refresh after line, rule, voice or settings changes. Historical transformation traces are not reconstructed.';
+        if (result.preview.warnings?.length) { status.textContent += ' Preparation warnings: ' + result.preview.warnings.join('; '); }
+        document.getElementById('editor-line-input-details').textContent = JSON.stringify({
+            authored_text: result.preview.authored_text, prepared_text: result.preview.text,
+            transformations: result.preview.transformations, pronunciation_decisions: result.preview.decisions,
+            warnings: result.preview.warnings,
+            context: result.context, settings_source: result.context_source, rules_revision: result.revision
+        }, null, 2);
+    } catch (error) {
+        if (isCurrent()) { status.textContent = 'Speech preparation unavailable: ' + error.message; }
+    } finally {
+        editorSpeechPreviewBusy = false;
+        if (request === editorSpeechPreviewRequest && !isCurrent()) { resetEditorSpeechPreview(); }
+        const current = getEditorReviewTarget();
+        document.getElementById('editor-line-input-preview').disabled = !current
+            || getEditorReviewRowState(current).dirty || isEditorEditPending();
+    }
+}
 
 function getEditorReviewTarget(selection = editorReviewSelection) {
     if (!selection || selection.book !== chunkSnapshotBookToken || chunkSnapshotBook !== currentBookFilename) { return null; }
@@ -43,17 +106,28 @@ function selectEditorReviewLineById(id, reveal = true) {
     return !!chunk && selectEditorReviewLine(chunk.uid, chunkSnapshotBookToken, reveal);
 }
 
+function getEditorReviewRowState({chunk, row}) {
+    const selectors = {speaker: 'select', text: '.chunk-text', instruct: '.chunk-instruct', pause_after: '.chunk-pause-after'};
+    const values = Object.fromEntries(Object.entries(selectors).map(([key, selector]) => [key, row.querySelector(selector)?.value ?? String(chunk[key] ?? '')]));
+    const dirty = Object.keys(selectors).some(key => String(getEditorFieldValue(key, values[key], chunk[key])) !== String(chunk[key] ?? ''));
+    return {values, dirty};
+}
+
 function renderEditorLineInspector() {
     const target = getEditorReviewTarget();
     document.getElementById('editor-line-empty').hidden = !!target;
     document.getElementById('editor-line-content').hidden = !target;
     document.querySelectorAll('#chunks-table-body .editor-selected-line').forEach(row => row.classList.remove('editor-selected-line'));
-    if (!target) { editorReviewSelection = null; window.applyWordTimingInspector?.(); window.applySpeechVerificationInspector?.(); window.applyTakeHistoryInspector?.(); return; }
+    if (!target) { editorReviewSelection = null; resetEditorSpeechPreview(); window.applyWordTimingInspector?.(); window.applySpeechVerificationInspector?.(); window.applyTakeHistoryInspector?.(); return; }
     const {chunk, row} = target;
     row.classList.add('editor-selected-line');
-    const selectors = {speaker: 'select', text: '.chunk-text', instruct: '.chunk-instruct', pause_after: '.chunk-pause-after'};
-    const values = Object.fromEntries(Object.entries(selectors).map(([key, selector]) => [key, row.querySelector(selector)?.value ?? String(chunk[key] ?? '')]));
-    const dirty = Object.keys(selectors).some(key => String(values[key]) !== String(chunk[key] ?? ''));
+    const {values, dirty} = getEditorReviewRowState(target);
+    const pending = isEditorEditPending();
+    if (dirty || pending || !editorSpeechPreview || editorSpeechPreview.uid !== chunk.uid
+            || editorSpeechPreview.book !== chunkSnapshotBookToken || editorSpeechPreview.revision !== chunkSnapshotRevision) {
+        resetEditorSpeechPreview();
+    }
+    document.getElementById('editor-line-input-preview').disabled = dirty || pending || editorSpeechPreviewBusy;
     const set = (id, text) => { const node = document.getElementById(id); if (node.textContent !== text) { node.textContent = text; } };
     set('editor-line-title', `Line ${chunk.id + 1}`);
     set('editor-line-state', `${chunk.status || 'Status unavailable'} · ${dirty ? 'Unsaved row edits shown; review facts describe the saved line.' : 'Current row values shown.'}`);
