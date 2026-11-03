@@ -24,19 +24,25 @@ function resetTakeHistoryView() {
 
 window.applyTakeHistoryInspector = () => {
     const identity = getTakeHistoryIdentity();
-    if (takeHistoryIdentity && (identity !== takeHistoryIdentity || isEditorEditPending())) {
+    if (takeHistoryIdentity && (identity !== takeHistoryIdentity || hasTakeHistoryDrafts())) {
         resetTakeHistoryView();
-        document.getElementById('editor-take-status').textContent = 'The line or saved take changed. Refresh snapshots.';
+        document.getElementById('editor-take-status').textContent = hasTakeHistoryDrafts()
+            ? 'Pending edits hide the comparison; saved audio is unchanged. Save or discard drafts, then refresh snapshots.'
+            : 'The line or saved take changed. Refresh snapshots.';
     }
-    document.getElementById('editor-take-save').disabled = takeHistoryBusy || !getEditorReviewTarget()?.chunk.audio_path || isEditorEditPending();
+    document.getElementById('editor-take-save').disabled = takeHistoryBusy || !getEditorReviewTarget()?.chunk.audio_path || hasTakeHistoryDrafts();
 };
 
-async function loadEditorTakeSnapshots(all = false, offset = 0) {
-    if (takeHistoryBusy) { return; }
-    try { await ensureEditorRenderSnapshot(); }
-    catch (error) { showActionError('Cannot load snapshots', error, 'Save pending edits and refresh Editor.'); return; }
+function hasTakeHistoryDrafts() {
     const target = getEditorReviewTarget();
-    if (!target || isEditorEditPending()) { return; }
+    return isEditorEditPending() || !!(target && typeof getEditorReviewRowState === 'function' && getEditorReviewRowState(target).dirty);
+}
+
+async function loadEditorTakeSnapshots(all = false, offset = 0) {
+    if (takeHistoryBusy) { showToast('A take operation is still running. Wait for it to finish before browsing snapshots.', 'warning'); return; }
+    const target = getEditorReviewTarget();
+    if (!target) { showToast('Select a saved line before browsing snapshots.', 'warning'); return; }
+    if (hasTakeHistoryDrafts()) { showToast('Save or discard pending edits before browsing snapshots.', 'warning'); return; }
     resetTakeHistoryView();
     const request = takeHistoryRequest;
     const identity = getTakeHistoryIdentity();
@@ -49,7 +55,7 @@ async function loadEditorTakeSnapshots(all = false, offset = 0) {
     else { params.set('uid', target.chunk.uid); }
     try {
         const result = await API.get(`/api/take_snapshots?${params}`);
-        if (request !== takeHistoryRequest || identity !== getTakeHistoryIdentity() || isEditorEditPending()) { return; }
+        if (request !== takeHistoryRequest || identity !== getTakeHistoryIdentity() || hasTakeHistoryDrafts()) { return; }
         renderEditorTakeSnapshots(result, book, identity);
     } catch (error) {
         if (request === takeHistoryRequest) { showActionError('Cannot load snapshots', error, 'Current line audio is unchanged.'); }
@@ -72,11 +78,25 @@ function renderEditorTakeSnapshots(result, book, identity) {
         const excerpt = document.createElement('p');
         excerpt.className = 'small mb-1'; excerpt.textContent = `${record.speaker || 'Speaker unknown'}: ${record.text || 'Text not recorded'}`;
         item.append(excerpt);
+        const evidence = document.createElement('p');
+        evidence.className = 'small mb-1';
+        const speech = record.speech_evidence;
+        const speechLabel = typeof EDITOR_SPEECH_LABELS !== 'undefined' ? EDITOR_SPEECH_LABELS[speech?.status] : speech?.status;
+        evidence.textContent = `Archive ${record.version} · audio SHA-256 ${record.sha256}. `
+            + (speech?.state === 'historical' ? `Historical speech evidence: ${speechLabel || 'Unknown status'}. ${speech.reason || ''} Not a current quality approval.`
+                : speech?.state === 'unavailable' ? 'Saved speech evidence is invalid or does not bind to this archived audio; unavailable, not clean.'
+                    : 'No recorded speech evidence; not checked, not clean.')
+            + (record.has_restore_evidence ? ' Restoration metadata exists; current compatibility is checked only on explicit restore.' : 'Restoration evidence is unavailable; audition only.');
+        if (record.state !== 'ready') {
+            evidence.textContent = `Archive ${record.version} · ${record.state}. Not available for audition or restoration. Recorded metadata does not verify that a complete audio copy is present.`;
+        }
+        item.append(evidence);
         if (record.state === 'ready') {
             const audio = document.createElement('audio');
             audio.controls = true;
             audio.className = 'w-100';
             audio.title = 'Audition this verified snapshot without changing selected line audio.';
+            audio.setAttribute('aria-label', `Audition archived take ${record.take ?? 'unknown'}, line ${record.uid}, snapshot ${record.version}; selected audio is unchanged`);
             audio.preload = 'none';
             const params = new URLSearchParams({expected_book_token: book, source_book_token: record.book_token, expected_uid: record.uid, sha256: record.sha256});
             audio.src = `/api/take_snapshots/${encodeURIComponent(record.version)}/audio?${params}`;
@@ -165,6 +185,7 @@ async function cancelEditorTakeRestore() {
 
 async function saveEditorTakeSnapshot() {
     if (takeHistoryBusy) { return; }
+    if (hasTakeHistoryDrafts()) { showToast('Save or discard pending edits before saving a take snapshot.', 'warning'); return; }
     const clickedIdentity = getTakeHistoryIdentity();
     try { await ensureEditorRenderSnapshot(); }
     catch (error) { showActionError('Cannot save snapshot', error, 'Save pending edits and refresh Editor.'); return; }

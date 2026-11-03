@@ -423,6 +423,10 @@ a measurement, what we recommend and why.
 - Toolbar: **Play Sequence**, **Render Pending**, **Regenerate All**, **Cancel**,
   **Check Voices** (drift check), **flagged only**, **Text integrity**, **Merge All**.
 - Each chunk: play; edit the speaker, text or instruction; regenerate; insert; delete.
+- **Take review queue** combines saved findings and missing speech evidence. Use
+  **Review retained takes** to compare labelled candidates, then explicitly
+  **Check & restore** an eligible snapshot. Browsing does not generate or save edits.
+  See [take review queue](docs/take-review-queue.md) for evidence and restoration limits.
 - Inspect a line and open **Saved-line preparation preview (not historical proof)** to
   preview its saved words, normalization transformations and pronunciation decisions
   without loading a model or changing a take. Save or discard pending edits first.

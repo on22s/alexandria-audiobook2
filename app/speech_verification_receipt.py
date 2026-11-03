@@ -264,17 +264,40 @@ def _version_matches_file(version, path):
     return get_audio_file_version(path) == version
 
 
-def _matches_saved_input(receipt, chunk, book_token, *, failure, recheck):
+def _matches_input_identity(receipt, uid, audio_revision, input_digest, book_token, *, failure, recheck):
     return bool(
         isinstance(receipt, dict)
         and len(json.dumps(receipt,ensure_ascii=False,allow_nan=False).encode('utf-8')) <= MAX_RECEIPT_BYTES
         and _is_receipt_schema(receipt)
-        and receipt.get('uid') == chunk.get('uid')
+        and receipt.get('uid') == uid
         and receipt.get('audio_revision')
-        and (failure or receipt['audio_revision'] == chunk.get('audio_revision'))
+        and (failure or receipt['audio_revision'] == audio_revision)
         and (book_token is None or receipt.get('book_token') == book_token)
         and not (failure and recheck)
-        and receipt.get('input_digest') == get_speech_verification_chunk_digest(chunk))
+        and receipt.get('input_digest') == input_digest)
+
+
+def _matches_saved_input(receipt, chunk, book_token, *, failure, recheck):
+    if not isinstance(receipt, dict):
+        return False
+    return _matches_input_identity(receipt, chunk.get('uid'), chunk.get('audio_revision'),
+        get_speech_verification_chunk_digest(chunk), book_token, failure=failure, recheck=recheck)
+
+
+def get_archived_speech_evidence(receipt, generation_inputs, uid, audio_revision, book_token, audio):
+    """Validate a captured canonical input projection without projecting it again."""
+    unavailable = {'state': 'unavailable' if receipt is not None else 'not_recorded'}
+    try:
+        if (not isinstance(receipt, dict) or not isinstance(generation_inputs, dict)
+                or not _matches_input_identity(receipt, uid, audio_revision,
+                    get_snapshot_digest(generation_inputs), book_token, failure=False, recheck=False)
+                or not _is_audio_file_version(receipt.get('audio_file_version'))
+                or receipt['audio'] != audio):
+            return unavailable
+        return {'state': 'historical', 'status': receipt['status'],
+                'reason': receipt['reason'], 'input_digest': receipt['input_digest']}
+    except (TypeError, ValueError, KeyError, OSError, OverflowError, RecursionError):
+        return unavailable
 
 
 def get_current_speech_verification_receipt(chunk, book_token=None, *, failure=False, recheck=False, resolve_audio=None):

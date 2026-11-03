@@ -1,5 +1,5 @@
 // Review saved facts; reuse the Editor's original controls, drafts and audio.
-const EDITOR_ISSUE_LABELS = {unknown: 'Unknown speaker', failed: 'Failed render', missing: 'Missing audio file', drift: 'Voice drift', speech_rejected: 'Rejected speech attempt', speech_review: 'Speech review needed', speech_unavailable: 'Speech check unavailable', speech_difference: 'Speech content difference', speech_historical: 'Historical speech evidence needs recheck'};
+const EDITOR_ISSUE_LABELS = {unknown: 'Unknown speaker', failed: 'Failed render', missing: 'Missing audio file', drift: 'Voice drift', speech_rejected: 'Rejected speech attempt', speech_review: 'Speech review needed', speech_unavailable: 'Speech check unavailable', speech_difference: 'Speech content difference', speech_historical: 'Historical speech evidence needs recheck', speech_not_checked: 'No current speech evidence'};
 const EDITOR_DRIFT_LABELS = {not_rendered: 'Voice check not applicable before rendering', unmeasured: 'Voice check not measured', unavailable: 'Voice check unavailable or failed', flagged: 'Voice drift flagged', measured: 'Voice check measured; no drift flag'};
 const EDITOR_SPEECH_LABELS = {not_checked: 'No current speech check', unavailable: 'Speech check unavailable', review: 'Transcript or acoustic differences need listening review', no_content_candidate: 'No material content candidate found; listening review still needed', corroborated_content_difference: 'Two ASR passes confirmed material missing or extra speech', review_confirmation_unavailable: 'Suspicious speech; stronger confirmation unavailable', review_short_acoustic_unavailable: 'Short-utterance acoustic check incomplete'};
 let editorReviewData = null;
@@ -259,27 +259,40 @@ function isEditorReviewDataValid(data) {
     });
 }
 
+function isEditorReviewSnapshotCurrent() {
+    return editorReviewFresh && editorReviewData?.book_token === chunkSnapshotBookToken
+        && editorReviewData?.revision === chunkSnapshotRevision && chunkSnapshotBook === currentBookFilename
+        && !isEditorEditPending();
+}
+
 function renderEditorQualityInbox(resetLimit = false) {
     if (resetLimit) { editorReviewLimit = 50; }
     const status = document.getElementById('editor-quality-status');
     const list = document.getElementById('editor-quality-list');
     const more = document.getElementById('editor-quality-more');
-    if (!editorReviewFresh) {
+    const binding = document.getElementById('editor-quality-binding');
+    const current = isEditorReviewSnapshotCurrent();
+    if (binding) { binding.textContent = editorReviewData ? `${current ? 'Saved snapshot' : 'Stale or pending-edit snapshot'} · book ${editorReviewData.book_token} · revision ${editorReviewData.revision}` : 'Book/revision evidence has not been loaded.'; }
+    if (!current) {
         status.textContent = 'Saved review facts are unavailable or out of date. Refresh review; any displayed findings are from an earlier reading.';
         list.querySelectorAll('button').forEach(button => { button.disabled = true; });
         more.hidden = true;
         return;
     }
     const filter = document.getElementById('editor-quality-filter').value;
-    const rows = editorReviewData.rows;
-    const matches = rows.filter(row => row.issues.length && (filter === 'all' || row.issues.includes(filter)));
+    const rows = editorReviewData.rows.map(row => ({...row, issues: [...row.issues,
+        ...(row.audio === 'present' && (!row.speech || row.speech === 'not_checked') && !row.issues.includes('speech_historical') ? ['speech_not_checked'] : [])]}));
+    const matches = rows.filter(row => filter === 'all_lines' || (row.issues.length && (filter === 'all' || row.issues.includes(filter))));
     const unmeasured = rows.filter(row => row.drift === 'unmeasured').length;
     const unavailable = rows.filter(row => row.drift === 'unavailable').length;
-    status.textContent = `${rows.filter(row => row.issues.length).length} lines with saved findings · ${Object.entries(EDITOR_ISSUE_LABELS).map(([key, label]) => `${rows.filter(row => row.issues.includes(key)).length} ${label.toLowerCase()}`).join(' · ')}. Voice checks: ${unmeasured} unmeasured, ${unavailable} unavailable. Audio file presence does not certify sound quality.`;
+    status.textContent = `${rows.filter(row => row.issues.length).length} lines needing review (${editorReviewData.rows.filter(row => row.issues.length).length} with saved findings; others lack current evidence) · ${Object.entries(EDITOR_ISSUE_LABELS).map(([key, label]) => `${rows.filter(row => row.issues.includes(key)).length} ${label.toLowerCase()}`).join(' · ')}. Voice checks: ${unmeasured} unmeasured, ${unavailable} unavailable. Audio file presence does not certify sound quality.`;
     const shown = matches.slice(0, editorReviewLimit);
     more.hidden = shown.length === matches.length;
     const chunkNames = new Map(cachedChunks.map(chunk => [chunk.uid, chunk.speaker || chunk.type || 'Unknown speaker']));
-    const signature = JSON.stringify([editorReviewData.book_token, filter, shown.map(row => [row.id, row.uid, row.issues, chunkNames.get(row.uid)])]);
+    const chunksByUid = new Map(cachedChunks.map(chunk => [chunk.uid, chunk]));
+    const signature = JSON.stringify([editorReviewData.book_token, editorReviewData.revision, filter,
+        shown.map(row => [row.id, row.uid, row.issues, row.speech, chunkNames.get(row.uid), chunksByUid.get(row.uid)?.audio_revision,
+            chunksByUid.get(row.uid)?.take])]);
     if (signature === editorReviewListSignature) { list.querySelectorAll('button').forEach(button => { button.disabled = false; }); return; }
     editorReviewListSignature = signature;
     list.replaceChildren();
@@ -289,9 +302,35 @@ function renderEditorQualityInbox(resetLimit = false) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-outline-secondary btn-sm';
         button.textContent = `Inspect line ${row.id + 1} · ${chunkNames.get(row.uid)}`;
         const book = editorReviewData.book_token;
-        button.addEventListener('click', () => { if (editorReviewFresh) { selectEditorReviewLine(row.uid, book); } });
+        const revision = editorReviewData.revision;
+        const isCurrent = () => isEditorReviewSnapshotCurrent() && book === chunkSnapshotBookToken
+            && revision === chunkSnapshotRevision && revision === editorReviewData?.revision
+            && chunkSnapshotBook === currentBookFilename;
+        const requireCurrent = () => {
+            if (isCurrent()) { return true; }
+            renderEditorQualityInbox();
+            showToast('Review snapshot changed or edits are pending. Save or discard edits, then refresh review.', 'warning');
+            return false;
+        };
+        button.addEventListener('click', () => { if (requireCurrent()) { selectEditorReviewLine(row.uid, book); } });
         const note = document.createElement('div'); note.className = 'small mt-1'; note.textContent = row.issues.map(issue => EDITOR_ISSUE_LABELS[issue]).join(' · ');
-        item.append(button, note); list.appendChild(item);
+        const chunk = chunksByUid.get(row.uid);
+        const identity = document.createElement('p'); identity.className = 'small mt-1 mb-1';
+        identity.textContent = `Line UID ${row.uid} · selected take ${chunk?.take ?? 'unknown'} · audio revision ${chunk?.audio_revision || 'not recorded'} · ${EDITOR_SPEECH_LABELS[row.speech] || EDITOR_SPEECH_LABELS.not_checked}`;
+        const takes = document.createElement('button'); takes.type = 'button'; takes.className = 'btn btn-outline-primary btn-sm';
+        takes.textContent = 'Review retained takes';
+        takes.title = 'Read-only comparison with saved candidates. Audition and explicit checked restoration stay separate.';
+        takes.addEventListener('click', () => {
+            if (!requireCurrent()) { return; }
+            const target = getEditorReviewTarget({uid: row.uid, book});
+            if (!target || getEditorReviewRowState(target).dirty) { showToast('Save or discard pending edits before comparing takes.', 'warning'); return; }
+            if (!selectEditorReviewLine(row.uid, book)) { return; }
+            const details = document.getElementById('editor-take-details');
+            if (!details) { showToast('Take comparison controls are unavailable. Reload the page.', 'warning'); return; }
+            details.open = true;
+            void loadEditorTakeSnapshots(false, 0);
+        });
+        item.append(button, note, identity, takes); list.appendChild(item);
     }
 }
 

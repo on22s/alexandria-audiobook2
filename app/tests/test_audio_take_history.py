@@ -13,9 +13,52 @@ from unittest.mock import patch
 import numpy as np
 import soundfile as sf
 from audio_take_history import AudioTakeHistory
+from speech_verification_receipt import get_audio_file_version, get_speech_verification_receipt
+from tests.test_speech_verification_receipt import get_report
 
 
 class AudioTakeHistoryTests(unittest.TestCase):
+    def test_candidate_speech_evidence_binds_archived_bytes_inputs_and_identity(self):
+        import copy
+        import hashlib
+        from take_retention import get_captured_take
+        from pronunciation import get_occurrence_pronunciation_candidates
+        chunk = {**self.captured, 'uid': self.uid}
+        anchor = get_occurrence_pronunciation_candidates(chunk['text'], self.uid, chunk['text'], 'synthetic')['candidates'][0]
+        rule = {key: value for key, value in anchor.items() if key not in ('before', 'after')}
+        chunk['pronunciation_rules'] = [{**rule, 'id': 'approved-rule', 'state': 'approved', 'replacement': 'sin THET ik'}]
+        report = get_report(self.source, self.captured['text'])
+        receipt = get_speech_verification_receipt(report, chunk, self.book, chunk['audio_revision'],
+            {'version': 1, 'text': self.captured['text'], 'language': 'English', 'provenance': 'known_leaf',
+             'audio': {'sha256': hashlib.sha256(self.before).hexdigest(), 'size': len(self.before)}})
+        receipt['audio_file_version'] = get_audio_file_version(self.source)
+        chunk['speech_verification'] = receipt
+        self.captured = get_captured_take(chunk)
+        self.assertEqual(1, len(self.captured['generation_inputs']['pronunciation_rules']))
+        self.assertNotIn('state', self.captured['generation_inputs']['pronunciation_rules'][0])
+        row = self.capture()
+        self.assertEqual('historical', row['speech_evidence']['state'])
+        self.assertEqual('no_content_candidate', row['speech_evidence']['status'])
+        self.assertEqual(receipt['input_digest'], row['speech_evidence']['input_digest'])
+        self.assertEqual(self.before, self.source.read_bytes())
+        archived = {**row, 'captured': self.captured}
+        for key, value in [('sha256', '0' * 64), ('bytes', len(self.before) + 1),
+                           ('book_token', 'f' * 64), ('uid', 'other'), ('audio_revision', 'new')]:
+            with self.subTest(key=key):
+                self.assertEqual('unavailable', AudioTakeHistory._summary({**archived, key: value})['speech_evidence']['state'])
+        changed = copy.deepcopy(archived)
+        changed['captured']['generation_inputs']['text'] = 'Changed words'
+        self.assertEqual('unavailable', AudioTakeHistory._summary(changed)['speech_evidence']['state'])
+        changed = copy.deepcopy(archived)
+        changed['captured']['generation_inputs']['pronunciation_rules'][0]['replacement'] = 'different'
+        self.assertEqual('unavailable', AudioTakeHistory._summary(changed)['speech_evidence']['state'])
+
+    def test_missing_or_malformed_candidate_evidence_never_becomes_clean(self):
+        self.assertEqual({'state': 'not_recorded'}, self.capture()['speech_evidence'])
+        self.captured['speech_verification'] = {'status': 'no_content_candidate'}
+        self.assertEqual({'state': 'unavailable'}, self.capture()['speech_evidence'])
+        self.assertEqual(self.before, self.source.read_bytes())
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name); self.source = self.root / 'selected.wav'

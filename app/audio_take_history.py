@@ -340,6 +340,7 @@ class AudioTakeHistory:
     @staticmethod
     def _summary(row):
         from take_publication import KEY, validate_take_publication
+        from speech_verification_receipt import get_archived_speech_evidence
         result = {key: copy.deepcopy(row.get(key)) for key in (
             'version', 'book_token', 'book_label', 'uid', 'sha256', 'bytes', 'state',
             'protected', 'created', 'take', 'audio_revision', 'shape')}
@@ -353,6 +354,9 @@ class AudioTakeHistory:
                 'uid':row['uid'], 'audio_revision':row.get('audio_revision'), KEY:captured.get(KEY)}) is not None
         except ValueError:
             result['has_restore_evidence'] = False
+        result['speech_evidence'] = get_archived_speech_evidence(
+            captured.get('speech_verification'), captured.get('generation_inputs'), row['uid'],
+            row.get('audio_revision'), row['book_token'], {'sha256': row['sha256'], 'size': row['bytes']})
         return result
 
     def list(self, book_token=None, uid=None, offset=0):

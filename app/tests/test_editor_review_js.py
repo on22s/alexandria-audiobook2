@@ -47,6 +47,54 @@ let completed=false;process.on('beforeExit',()=>assert(completed,'scenario must 
 
 
 class EditorReviewJsTests(unittest.TestCase):
+    def test_queue_marks_advanced_snapshot_stale_and_explains_refused_click(self):
+        self.run_js(r'''
+await context.refreshEditorReview();const list=document.getElementById('editor-quality-list');
+const action=list.children[0].querySelectorAll('button')[1];
+context.chunkSnapshotRevision='d'.repeat(64);context.renderEditorQualityInbox();
+assert(document.getElementById('editor-quality-binding').textContent.includes('Stale'));
+assert(list.querySelectorAll('button').every(button=>button.disabled));action.fire('click');
+assert(toasts.some(args=>args[0].includes('snapshot changed')));assert.equal(run('editorReviewSelection'),null);
+await context.refreshEditorReview();assert(!list.children[0].querySelectorAll('button')[1].disabled);
+context.isEditorEditPending=()=>true;context.renderEditorQualityInbox();assert(list.querySelectorAll('button').every(button=>button.disabled));
+''')
+
+    def test_all_lines_view_exposes_unrendered_and_no_candidate_without_fabricated_findings(self):
+        self.run_js(r'''
+context.API.get=async()=>{const data=facts();data.rows.forEach(row=>{row.issues=[];row.speech='no_content_candidate';});return data;};
+await context.refreshEditorReview();document.getElementById('editor-quality-filter').value='all_lines';context.renderEditorQualityInbox(true);
+assert.equal(document.getElementById('editor-quality-list').children.length,2);
+assert(document.getElementById('editor-quality-status').textContent.includes('0 with saved findings'));
+assert.equal(generates.length,0);
+''')
+
+    def test_review_queue_routes_to_read_only_candidates_and_rejects_old_revision(self):
+        self.run_js(r'''
+el('editor-take-details');const snapshots=[];context.loadEditorTakeSnapshots=(...args)=>snapshots.push(args);
+await context.refreshEditorReview();const list=document.getElementById('editor-quality-list');
+const first=list.children[0],action=first.querySelectorAll('button')[1];
+assert(first.children[2].textContent.includes('Line UID u0'));assert(first.children[2].textContent.includes('No current speech check'));
+action.fire('click');assert.equal(run('editorReviewSelection.uid'),'u0');assert.deepEqual(snapshots,[[false,0]]);
+assert.equal(document.getElementById('editor-take-details').open,true);assert.equal(generates.length,0);
+fields.get('u0').text.value='Unsaved draft';action.fire('click');assert.equal(snapshots.length,1);
+fields.get('u0').text.value=context.cachedChunks[0].text;context.isEditorEditPending=()=>true;
+action.fire('click');assert.equal(snapshots.length,1);context.isEditorEditPending=()=>false;
+context.chunkSnapshotRevision='c'.repeat(64);await context.refreshEditorReview();
+action.fire('click');assert.equal(snapshots.length,1);
+list.children[0].querySelectorAll('button')[1].fire('click');assert.equal(snapshots.length,2);
+context.currentBookFilename='another';list.children[0].querySelectorAll('button')[1].fire('click');assert.equal(snapshots.length,2);
+''')
+
+    def test_queue_missing_evidence_is_not_a_clean_take(self):
+        self.run_js(r'''
+context.API.get=async()=>{const data=facts();data.rows[1].issues=[];data.rows[1].speech='not_checked';return data;};
+await context.refreshEditorReview();document.getElementById('editor-quality-filter').value='speech_not_checked';context.renderEditorQualityInbox(true);
+const list=document.getElementById('editor-quality-list');assert.equal(list.children.length,1);
+assert(list.children[0].children[1].textContent.includes('No current speech evidence'));
+assert.equal(generates.length,0);assert.equal(plays.length,0);
+context.markEditorReviewStale();assert(list.querySelectorAll('button').every(button=>button.disabled));
+''')
+
     def run_js(self, script):
         result = subprocess.run(['node','-e',DOM_FIXTURE+SETUP+script+"\ncompleted=true;})().catch(error=>{console.error(error);process.exitCode=1;});",str(STATIC/'js/app-editor-review.js'),str(STATIC/'index.html')], capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
