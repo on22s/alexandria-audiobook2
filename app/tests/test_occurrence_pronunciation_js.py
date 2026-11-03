@@ -4,7 +4,7 @@ from tests import test_pronunciation_panel_js as fixtures
 
 
 SETUP = r'''
-for(const action of ['load','find','preview','save','candidates','rules','text','status']){body.appendChild(new Element('div',{id:'pronunciation-occurrence-'+action}));}
+for(const action of ['load','find','homographs','preview','save','candidates','rules','text','status']){body.appendChild(new Element('div',{id:'pronunciation-occurrence-'+action}));}
 context.crypto={randomUUID:()=> 'rule-'+(posts.length+1)};
 const anchor={uid:'u0',coordinate_space:'pre_lexicon_v1',offset_unit:'unicode_codepoint',text_sha256:'d'.repeat(64),prepared_sha256:'e'.repeat(64),start:10,end:13,original:'Ann'};
 let lineSaved={book_token:'b'.repeat(64),uid:'u0',index:0,revision:'1'.repeat(64),rules:[],context:{speaker:'Hero',voice_sha256:'f'.repeat(64),language:'English',engine_mode:'local'},context_source:'configured',preview:{text:'𠀀𠀁𠀂𠀃 Shared\r\nShared.',decisions:[]}};
@@ -26,6 +26,33 @@ const add=async()=>{await context.findPronunciationOccurrences();candidates().qu
 class OccurrencePronunciationJsTests(unittest.TestCase):
     def run_js(self, code):
         fixtures.PronunciationPanelJsTests.run_js(self, SETUP + code)
+
+    def test_homograph_meaning_creates_only_explicit_draft_and_escapes_context(self):
+        self.run_js(r'''
+await context.loadOccurrencePronunciation();
+const actual=context.API.post;const meaning='metal — The pipe contains lead.';let options;
+context.API.post=async(url,data,config)=>{options=config;posts.push({url,data});return {...lineSaved,analysis_status:'completed',word_list:['lead','read','wind'],candidate_limit:64,truncated:false,candidates:[{anchor:{...anchor,original:'lead',end:14},before:'<img onerror=x>',after:'<script>x</script>',meanings:[meaning,'guide — I lead the team.']}]};};
+await context.findPronunciationHomographs();
+assert.equal(posts.at(-1).url,'/api/pronunciation/occurrences/homographs');assert.equal(posts.at(-1).data.index,0);assert.equal(posts.at(-1).data.revision,'1'.repeat(64));assert.equal(options.timeoutMs,30000);assert(options.timeoutMessage.includes('Homograph discovery'));
+assert.equal(candidates().querySelectorAll('img').length,0);assert.equal(candidates().querySelectorAll('script').length,0);
+assert.equal(document.getElementById('pronunciation-audition-spoken').value,'Ah-n');candidates().querySelector('button').fire('click');assert.equal(run('occurrencePronunciationRules.length'),0);
+const input=candidates().querySelector('input');assert.equal(input.value,'');input.value='led';const count=posts.length;candidates().querySelector('button').fire('click');
+assert.equal(posts.length,count);assert.equal(run('occurrencePronunciationRules[0].state'),'draft');assert.equal(run('occurrencePronunciationRules[0].note'),'User-selected meaning: '+meaning);assert.equal(run('occurrencePronunciationRules[0].replacement'),'led');
+input.value='leed';candidates().querySelectorAll('button')[1].fire('click');assert.equal(run('occurrencePronunciationRules.length'),1);assert.equal(run('occurrencePronunciationRules[0].replacement'),'led');assert(toasts.at(-1)[0].includes('already has'));
+context.API.post=actual;await context.saveOccurrencePronunciation();assert.equal(posts.at(-1).data.rules[0].state,'draft');assert.equal(errors.length,0);
+''')
+
+    def test_homograph_states_busy_and_late_results(self):
+        self.run_js(r'''
+await context.loadOccurrencePronunciation();let release,calls=0;
+context.API.post=()=>{calls++;return new Promise(resolve=>release=resolve);};const pending=context.findPronunciationHomographs();await tick();
+assert.equal(document.getElementById('pronunciation-occurrence-homographs').disabled,true);await context.findPronunciationHomographs();assert.equal(calls,1);
+context.onOccurrenceQueryEdit();release({...lineSaved,analysis_status:'completed',word_list:['lead'],candidate_limit:64,candidates:[{anchor,before:'late',after:''}],truncated:false});await pending;assert.equal(candidates().children.length,0);
+for(const state of ['unsupported_language','unavailable','completed','bogus']){context.API.post=async()=>({...lineSaved,analysis_status:state,word_list:['lead'],candidate_limit:64,candidates:[],truncated:false});await context.findPronunciationHomographs();const text=document.getElementById('pronunciation-occurrence-status').textContent;assert(text.includes(state==='unsupported_language'?'English only':state==='unavailable'?'unavailable':state==='bogus'?'unknown analysis':'0 possible'));}
+context.API.post=async()=>({...lineSaved,context_source:'unknown',analysis_status:'unavailable',word_list:['lead'],candidate_limit:64,candidates:[]});await context.findPronunciationHomographs();assert(document.getElementById('pronunciation-occurrence-status').textContent.includes('active engine'));
+context.API.post=async()=>({...lineSaved,analysis_status:'completed',word_list:['lead'],candidate_limit:2,truncated:true,candidates:[{anchor,before:'',after:'',meanings:[]}]});await context.findPronunciationHomographs();assert.equal(candidates().querySelectorAll('button').length,1);assert(document.getElementById('pronunciation-occurrence-status').textContent.includes('First 2 matches'));
+context.API.post=async()=>{throw new Error('409 stale rules');};await context.findPronunciationHomographs();assert.equal(candidates().children.length,0);assert.equal(errors.length,1);assert(document.getElementById('pronunciation-occurrence-status').textContent.includes('failed'));assert.equal(document.getElementById('pronunciation-occurrence-homographs').disabled,false);
+''')
 
     def test_server_anchor_roundtrips_unicode_crlf_and_literal_snippets_without_approval(self):
         self.run_js(r'''

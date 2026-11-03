@@ -195,7 +195,7 @@ function setOccurrencePronunciationStatus(message) {
 
 function updateOccurrencePronunciationButtons() {
     const bound = isOccurrencePronunciationBound();
-    for (const action of ['load', 'find', 'preview', 'save']) {
+    for (const action of ['load', 'find', 'homographs', 'preview', 'save']) {
         const node = document.getElementById(`pronunciation-occurrence-${action}`);
         if (node) { node.disabled = occurrencePronunciationBusy || (action !== 'load' && (!bound || (action === 'save' && !occurrencePronunciationDirty))); }
     }
@@ -326,6 +326,67 @@ async function loadOccurrencePronunciation() {
     finally { occurrencePronunciationBusy = false; updateOccurrencePronunciationButtons(); }
 }
 
+function renderPronunciationCandidates(result, target) {
+    const container = document.getElementById('pronunciation-occurrence-candidates'); container.replaceChildren();
+    for (const candidate of result.candidates) {
+        const line = document.createElement('div'); line.className = 'border rounded p-2 mb-1 small';
+        line.style.whiteSpace = 'pre-wrap';
+        for (const [tag, text] of [['span', candidate.before], ['mark', candidate.anchor.original], ['span', candidate.after]]) {
+            const node = document.createElement(tag); node.textContent = text; line.appendChild(node);
+        }
+        const meanings = candidate.meanings?.length ? candidate.meanings : [''];
+        let replacementInput = null;
+        if (candidate.meanings?.length) {
+            const label = document.createElement('label'); label.textContent = 'Spoken replacement for this occurrence: ';
+            replacementInput = document.createElement('input'); replacementInput.type = 'text'; replacementInput.value = ''; replacementInput.maxLength = 512;
+            replacementInput.className = 'form-control form-control-sm';
+            replacementInput.title = 'Enter a spoken replacement for this occurrence; meaning choices do not select pronunciation.';
+            label.appendChild(replacementInput); line.appendChild(label);
+        }
+        for (const meaning of meanings) {
+            const add = document.createElement('button'); add.type = 'button'; add.className = 'btn btn-outline-secondary btn-sm ms-2';
+            add.textContent = meaning ? 'Draft: ' + meaning : 'Add draft';
+            add.title = 'Use the entered spoken replacement for this exact occurrence as an unapproved draft rule.';
+            add.addEventListener('click', () => {
+                if (!isOccurrencePronunciationTarget(target) || !isOccurrencePronunciationBound()) { return; }
+                const replacement = replacementInput ? replacementInput.value : document.getElementById('pronunciation-audition-spoken').value;
+                if (!replacement.trim()) { showToast(replacementInput ? 'Enter a spoken replacement for this occurrence first; meanings do not choose a pronunciation.' : 'Enter a spoken replacement above first.', 'warning'); return; }
+                if (occurrencePronunciationRules.some(rule => rule.state !== 'rejected' && ['uid', 'coordinate_space', 'offset_unit', 'text_sha256', 'prepared_sha256', 'start', 'end', 'original'].every(key => rule[key] === candidate.anchor[key]))) {
+                    showToast('This occurrence already has a draft or approved rule. Edit or remove that rule first.', 'warning'); return;
+                }
+                if (occurrencePronunciationRules.length >= 32) { showToast('This line already has 32 rules. Remove an unused rule first.', 'warning'); return; }
+                occurrencePronunciationRules.push({...candidate.anchor, id: crypto.randomUUID(), state: 'draft', replacement, ...(meaning ? {note: 'User-selected meaning: ' + meaning} : {})});
+                onOccurrencePronunciationEdit(); renderOccurrencePronunciationRules();
+            }); line.appendChild(add);
+        }
+        container.appendChild(line);
+    }
+}
+
+async function findPronunciationHomographs() {
+    if (occurrencePronunciationBusy) { return; }
+    occurrencePronunciationBusy = true; updateOccurrencePronunciationButtons();
+    document.getElementById('pronunciation-occurrence-candidates')?.replaceChildren();
+    const epoch = ++occurrencePronunciationEpoch;
+    try {
+        if (!isOccurrencePronunciationBound()) { throw new Error('Load rules for this line first.'); }
+        const target = occurrencePronunciationState.target;
+        setOccurrencePronunciationStatus('Discovering exact word-list occurrences; no audio is generated.');
+        const result = await API.post('/api/pronunciation/occurrences/homographs', {...target, revision: occurrencePronunciationState.revision}, {
+            timeoutMs: 30000, timeoutMessage: 'Homograph discovery timed out. Your drafts are retained; try again.',
+        });
+        if (epoch !== occurrencePronunciationEpoch || !isOccurrencePronunciationTarget(target)) { return; }
+        renderPronunciationCandidates(result, target);
+        const messages = {
+            unavailable: result.context_source === 'unknown' ? 'Homograph discovery unavailable: active engine language settings cannot be read. Check the engine settings and reload line rules.' : 'Homograph discovery unavailable: choose English as the TTS language, then reload line rules.',
+            unsupported_language: 'Homograph discovery supports English only. No analysis was performed.',
+            completed: `${result.candidates.length} possible homograph occurrences (word list: ${result.word_list.join('/')}; not meaning or prose-language detection). Matches use exact-spelling word boundaries, not exhaustive linguistic analysis.${result.truncated ? ` First ${result.candidate_limit} matches shown; more occurrences exist and are not listed.` : ''} Enter a replacement beside the occurrence, then choose a meaning to add a draft. Review, approve, preview and save explicitly.`,
+        };
+        setOccurrencePronunciationStatus(messages[result.analysis_status] || 'Homograph discovery returned an unknown analysis state.');
+    } catch (error) { if (epoch === occurrencePronunciationEpoch) { setOccurrencePronunciationStatus('Homograph discovery failed; drafts are retained.'); showActionError('Could not discover homographs', error, 'Keep your draft and check the chosen line.', 'error'); } }
+    finally { occurrencePronunciationBusy = false; updateOccurrencePronunciationButtons(); }
+}
+
 async function findPronunciationOccurrences() {
     if (occurrencePronunciationBusy) { return; }
     occurrencePronunciationBusy = true; updateOccurrencePronunciationButtons();
@@ -337,23 +398,7 @@ async function findPronunciationOccurrences() {
         if (!query.trim()) { throw new Error('Enter the original spelling above.'); }
         const result = await API.post('/api/pronunciation/occurrences/candidates', {...target, revision: occurrencePronunciationState.revision, query});
         if (epoch !== occurrencePronunciationEpoch || !isOccurrencePronunciationTarget(target)) { return; }
-        const container = document.getElementById('pronunciation-occurrence-candidates'); container.replaceChildren();
-        for (const candidate of result.candidates) {
-            const line = document.createElement('div'); line.className = 'border rounded p-2 mb-1 small';
-            line.style.whiteSpace = 'pre-wrap';
-            for (const [tag, text] of [['span', candidate.before], ['mark', candidate.anchor.original], ['span', candidate.after]]) {
-                const node = document.createElement(tag); node.textContent = text; line.appendChild(node);
-            }
-            const add = document.createElement('button'); add.type = 'button'; add.className = 'btn btn-outline-secondary btn-sm ms-2'; add.textContent = 'Add draft'; add.title = 'Use the spoken replacement above for this exact occurrence, then review its state.';
-            add.addEventListener('click', () => {
-                if (!isOccurrencePronunciationTarget(target) || !isOccurrencePronunciationBound()) { return; }
-                const replacement = document.getElementById('pronunciation-audition-spoken').value;
-                if (!replacement.trim()) { showToast('Enter a spoken replacement above first.', 'warning'); return; }
-                if (occurrencePronunciationRules.length >= 32) { showToast('This line already has 32 rules. Remove an unused rule first.', 'warning'); return; }
-                occurrencePronunciationRules.push({...candidate.anchor, id: crypto.randomUUID(), state: 'draft', replacement});
-                onOccurrencePronunciationEdit(); renderOccurrencePronunciationRules();
-            }); line.appendChild(add); container.appendChild(line);
-        }
+        renderPronunciationCandidates(result, target);
         setOccurrencePronunciationStatus(`${result.candidates.length} exact matches.${result.truncated ? ' More matches exist; use a longer spelling to narrow the search.' : ''} Add the intended occurrence, then review and preview its rule.`);
     } catch (error) { if (epoch === occurrencePronunciationEpoch) { showActionError('Could not find occurrences', error, 'Keep your draft and check the chosen line.', 'error'); } }
     finally { occurrencePronunciationBusy = false; updateOccurrencePronunciationButtons(); }

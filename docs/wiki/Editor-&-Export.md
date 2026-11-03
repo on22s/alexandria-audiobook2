@@ -30,6 +30,15 @@ Choose a line and **Load line rules**. Enter the original spelling and spoken re
 then **Find original spelling** and add the intended match as a draft. Matches refer to the
 text prepared for speech, after cue and symbol cleanup. The script itself stays unchanged.
 
+For a bounded English word-list scan, choose **Discover English homographs** after loading
+line rules. It finds lead/read/wind using the existing exact-spelling word boundaries,
+not exhaustive linguistic analysis, meaning inference or prose-language detection.
+The resolved TTS language must be English.
+Enter a spoken replacement beside an occurrence and choose a meaning/example to create
+an unapproved draft with a user-selected meaning note. Repeated clicks do not add another
+draft to an already drafted or approved span. Review and approve explicitly; discovery
+does not generate audio, save rules or change text/takes. Truncated results omit later matches.
+
 Review the draft, choose **Approved**, and **Preview line** before **Save line rules**.
 Draft and rejected rules do not affect speech. Approved occurrence rules take priority over
 shared rules for that occurrence; inserted replacements are never substituted a second time.

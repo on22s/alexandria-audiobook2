@@ -7307,6 +7307,8 @@
   ],
   "test_occurrence_pronunciation_js": [
     "tests.test_occurrence_pronunciation_js.OccurrencePronunciationJsTests.test_book_and_line_switch_keep_draft_and_do_not_attach_old_save_preview",
+    "tests.test_occurrence_pronunciation_js.OccurrencePronunciationJsTests.test_homograph_meaning_creates_only_explicit_draft_and_escapes_context",
+    "tests.test_occurrence_pronunciation_js.OccurrencePronunciationJsTests.test_homograph_states_busy_and_late_results",
     "tests.test_occurrence_pronunciation_js.OccurrencePronunciationJsTests.test_late_query_and_preview_cannot_publish_after_edits",
     "tests.test_occurrence_pronunciation_js.OccurrencePronunciationJsTests.test_late_save_advances_revision_without_overwriting_newer_draft_and_failures_keep_it",
     "tests.test_occurrence_pronunciation_js.OccurrencePronunciationJsTests.test_reselected_restriction_displays_the_value_that_will_be_saved",
@@ -7317,6 +7319,8 @@
     "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_claimed_unstarted_work_refuses_mutation_even_when_row_status_is_done",
     "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_foreign_cpu_ownership_refuses_mutation_and_releases_cleanly",
     "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_harmless_reordering_keeps_anchor_on_uid_and_rejects_old_row_position",
+    "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_homograph_discovery_uses_exact_anchors_without_writes_or_inference",
+    "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_homograph_language_states_and_truncation",
     "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_inspector_reports_current_transformations_without_rewriting_saved_take",
     "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_inspector_warns_when_preparation_uses_invalid_files",
     "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_mutation_holds_admission_through_write_and_write_failure_retains_prior_state",
@@ -13499,6 +13503,7 @@
     "tests.test_voice_timeline_regressions.StyleAudioInvalidationTests.test_add_noop_replace_and_remove_invalidate_only_affected_audio_and_exports"
   ],
   "test_voice_transport_deadline": [
+    "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_custom_read_deadline_message_aborts_stalled_request",
     "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_fetch_and_both_response_body_stalls_retain_drafts_and_block_load",
     "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_success_http_and_json_failures_clear_deadlines_without_changing_transport"
   ],

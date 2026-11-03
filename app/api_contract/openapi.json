@@ -3270,6 +3270,40 @@
         "title": "PronunciationAudition",
         "type": "object"
       },
+      "PronunciationHomographQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          },
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "index",
+          "expected_uid",
+          "revision"
+        ],
+        "title": "PronunciationHomographQuery",
+        "type": "object"
+      },
       "PronunciationOccurrenceEdit": {
         "additionalProperties": false,
         "properties": {
@@ -11220,6 +11254,42 @@
           }
         },
         "summary": "Get Occurrence Candidates Endpoint"
+      }
+    },
+    "/api/pronunciation/occurrences/homographs": {
+      "post": {
+        "operationId": "get_homograph_candidates_endpoint_api_pronunciation_occurrences_homographs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PronunciationHomographQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Homograph Candidates Endpoint"
       }
     },
     "/api/pronunciation/occurrences/preview": {

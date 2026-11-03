@@ -895,7 +895,7 @@
                 await API._handleError(res);
                 return res.json();
             },
-            post: async (url, data, {timeoutMs = null} = {}) => {
+            post: async (url, data, {timeoutMs = null, timeoutMessage = 'The voice save timed out. Your edits are retained; the server save could not be confirmed.'} = {}) => {
                 if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
                     throw new Error('The request deadline must be a positive finite duration.');
                 }
@@ -914,7 +914,7 @@
                 if (!controller) { return request(); }
                 const deadline = new Promise((resolve, reject) => {
                     timer = setTimeout(() => {
-                        reject(new Error('The voice save timed out. Your edits are retained; the server save could not be confirmed.'));
+                        reject(new Error(timeoutMessage));
                         controller.abort();
                     }, timeoutMs);
                 });
