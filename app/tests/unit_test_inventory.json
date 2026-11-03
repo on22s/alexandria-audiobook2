@@ -789,6 +789,7 @@
     "tests.test_audio_publication_admission.AudioPublicationAdmissionTests.test_lock_namespace_is_bounded_alias_stable_and_does_not_pollute_audio_folders"
   ],
   "test_audio_take_history": [
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_candidate_speech_evidence_binds_archived_bytes_inputs_and_identity",
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_capacity_includes_deleted_and_pending_and_metadata_is_bounded",
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_concurrent_capture_deduplicates_and_book_generations_stay_distinct",
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_corruption_wrong_identity_aliases_and_unknown_files_refuse",
@@ -801,6 +802,7 @@
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_full_unicode_record_is_bounded_before_reservation",
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_lossless_non_wav_capture_audition_and_undo_preserve_exact_payload",
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_malformed_identity_types_and_huge_timestamps_refuse_without_repair",
+    "tests.test_audio_take_history.AudioTakeHistoryTests.test_missing_or_malformed_candidate_evidence_never_becomes_clean",
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_process_death_reservation_copy_and_purge_are_recoverable",
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_ready_metadata_failure_preserves_selected_bytes_and_pending_charge",
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_small_manifest_read_does_not_allocate_the_full_archive_limit",
@@ -3909,6 +3911,7 @@
     "tests.test_editor_review_facts.EditorReviewFactsTests.test_view_only_historical_field_is_ignored_when_not_revalidated"
   ],
   "test_editor_review_js": [
+    "tests.test_editor_review_js.EditorReviewJsTests.test_all_lines_view_exposes_unrendered_and_no_candidate_without_fabricated_findings",
     "tests.test_editor_review_js.EditorReviewJsTests.test_filters_counts_text_injection_and_inspector_use_saved_facts",
     "tests.test_editor_review_js.EditorReviewJsTests.test_historical_reason_copy_and_recheck_availability_are_distinct",
     "tests.test_editor_review_js.EditorReviewJsTests.test_historical_receipt_is_labelled_and_never_presented_as_current",
@@ -3924,8 +3927,11 @@
     "tests.test_editor_review_js.EditorReviewJsTests.test_pagination_counts_every_finding_and_preserves_all_rows",
     "tests.test_editor_review_js.EditorReviewJsTests.test_pending_audition_stops_if_the_book_or_audio_element_is_replaced",
     "tests.test_editor_review_js.EditorReviewJsTests.test_play_and_generate_reuse_existing_audio_and_original_handlers",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_queue_marks_advanced_snapshot_stale_and_explains_refused_click",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_queue_missing_evidence_is_not_a_clean_take",
     "tests.test_editor_review_js.EditorReviewJsTests.test_reorder_resolves_current_uid_and_drafts_focus_original_controls",
     "tests.test_editor_review_js.EditorReviewJsTests.test_replaced_uid_clears_selection_and_old_finding_cannot_target_replacement",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_review_queue_routes_to_read_only_candidates_and_rejects_old_revision",
     "tests.test_editor_review_js.EditorReviewJsTests.test_serialized_latest_request_wins_and_late_book_reply_cannot_paint",
     "tests.test_editor_review_js.EditorReviewJsTests.test_speech_evidence_separates_selected_take_and_rejected_attempt_without_html",
     "tests.test_editor_review_js.EditorReviewJsTests.test_speech_recheck_requires_proven_input_and_cancel_uses_owned_endpoint",
@@ -11835,9 +11841,13 @@
     "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_waiting_for_other_process_archive_lock_is_cancellable"
   ],
   "test_take_history_js": [
+    "tests.test_take_history_js.TakeHistoryJsTests.test_browsing_is_read_only_and_dirty_replies_cannot_publish",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_candidate_evidence_is_labelled_historical_missing_or_unavailable",
     "tests.test_take_history_js.TakeHistoryJsTests.test_damaged_policy_can_be_disabled_without_a_selected_line_or_saved_drafts",
     "tests.test_take_history_js.TakeHistoryJsTests.test_deleted_and_pending_copies_have_no_audio_and_remain_visible_in_usage",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_failed_explicit_acceptance_keeps_current_take_and_other_line",
     "tests.test_take_history_js.TakeHistoryJsTests.test_failed_policy_read_or_write_requires_refresh_before_retry",
+    "tests.test_take_history_js.TakeHistoryJsTests.test_incomplete_entries_do_not_claim_verified_audio_and_auditions_are_named",
     "tests.test_take_history_js.TakeHistoryJsTests.test_late_restore_admission_reply_preserves_another_lines_status_and_still_releases_busy",
     "tests.test_take_history_js.TakeHistoryJsTests.test_old_list_reply_and_old_audio_clear_when_line_or_book_changes",
     "tests.test_take_history_js.TakeHistoryJsTests.test_permanent_removal_rechecks_target_after_confirmation",

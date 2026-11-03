@@ -28,6 +28,50 @@ const redraws=[];context.loadChunks=async force=>redraws.push(force);
 
 
 class TakeHistoryJsTests(unittest.TestCase):
+    def test_incomplete_entries_do_not_claim_verified_audio_and_auditions_are_named(self):
+        self.run_js(r'''
+const records=['pending','deleted','purging','ready'].map((state,index)=>({...sample(state),version:String(index).repeat(32),has_restore_evidence:true,speech_evidence:{state:'historical',status:'review'}}));
+context.renderEditorTakeSnapshots(result(records),context.chunkSnapshotBookToken,context.getTakeHistoryIdentity());
+const items=document.getElementById('editor-take-list').children;
+for(const item of items.slice(0,3)){assert(item.children[2].textContent.includes('Not available'));assert(!item.children[2].textContent.includes('Restoration metadata exists'));assert.equal(item.querySelectorAll('audio').length,0);}
+const audio=items[3].querySelectorAll('audio')[0];assert(audio.getAttribute('aria-label').includes(records[3].version));assert(audio.getAttribute('aria-label').includes(records[3].uid));
+context.getEditorReviewRowState=()=>({dirty:true});context.applyTakeHistoryInspector();assert(document.getElementById('editor-take-save').disabled);
+context.ensureEditorRenderSnapshot=()=>{throw Error('must not save draft');};await context.saveEditorTakeSnapshot();assert.equal(posts.length,0);
+''')
+
+    def test_failed_explicit_acceptance_keeps_current_take_and_other_line(self):
+        self.run_js(r'''
+const other={uid:'other',audio_revision:'untouched',audio_path:'other.wav'},before=JSON.stringify([selected,other]);
+const record={...sample(),uid:'u',has_restore_evidence:true};
+const pending=context.restoreEditorTakeSnapshot(record,context.getTakeHistoryIdentity(),context.chunkSnapshotBookToken);
+await tick();assert.equal(posts.length,1);posts[0].reject(Error('Stale candidate refused'));await pending;
+assert.equal(JSON.stringify([selected,other]),before);assert.equal(polls.length,0);assert.equal(errors.length,1);
+assert.equal(vm.runInContext('takeHistoryBusy',context),false);
+''')
+
+    def test_browsing_is_read_only_and_dirty_replies_cannot_publish(self):
+        self.run_js(r'''
+context.ensureEditorRenderSnapshot=async()=>{throw Error('Browsing must not save drafts');};
+let dirty=true;context.getEditorReviewRowState=()=>({dirty});
+await context.loadEditorTakeSnapshots();assert.equal(gets.length,0);assert.equal(posts.length,0);
+dirty=false;const pending=context.loadEditorTakeSnapshots();assert.equal(gets.length,1);
+dirty=true;gets[0].resolve(result());await pending;assert.equal(document.getElementById('editor-take-list').children.length,0);
+dirty=false;const retry=context.loadEditorTakeSnapshots();gets[1].reject(Error('Archive unavailable'));await retry;
+assert.equal(errors.length,1);assert.equal(selected.chunk.audio_revision,'r1');assert.equal(posts.length,0);
+''')
+
+    def test_candidate_evidence_is_labelled_historical_missing_or_unavailable(self):
+        self.run_js(r'''
+const records=[{...sample(),speech_evidence:{state:'historical',status:'review',reason:'<script>not HTML</script>'}},
+{...sample(),speech_evidence:{state:'unavailable'}},{...sample(),speech_evidence:{state:'not_recorded'}}];
+context.renderEditorTakeSnapshots(result(records),context.chunkSnapshotBookToken,context.getTakeHistoryIdentity());
+const items=document.getElementById('editor-take-list').children;
+assert(items[0].children[2].textContent.includes('Historical speech evidence'));assert(items[0].children[2].textContent.includes('Not a current quality approval'));
+assert(items[0].children[2].textContent.includes('<script>not HTML</script>'));
+assert(items[1].children[2].textContent.includes('unavailable, not clean'));assert(items[2].children[2].textContent.includes('not checked, not clean'));
+assert.equal(posts.length,0);assert.equal(selected.chunk.audio_revision,'r1');
+''')
+
     def run_js(self, body):
         script = DOM_FIXTURE + SETUP + '\nlet done=false;process.on("beforeExit",()=>assert(done));(async()=>{' + body + '\ndone=true;})().catch(e=>{console.error(e);process.exitCode=1;});'
         run = subprocess.run(['node', '-e', script, str(SOURCE)], capture_output=True, text=True, timeout=15)
@@ -69,7 +113,7 @@ const action=context.changeEditorTakeSnapshot(sample('deleted'),'purge',vm.runIn
     def test_deleted_and_pending_copies_have_no_audio_and_remain_visible_in_usage(self):
         self.run_js(r'''
 const pending=context.loadEditorTakeSnapshots();await tick();gets[0].resolve(result([sample('deleted'),{...sample('pending'),version:'e'.repeat(32)}]));await pending;
-assert.equal(document.getElementById('editor-take-list').querySelectorAll('audio').length,0);assert(document.getElementById('editor-take-status').textContent.includes('Deleted and incomplete copies count'));assert(document.getElementById('editor-take-list').children[0].children[2].children.some(b=>b.textContent==='Undo deletion'));
+assert.equal(document.getElementById('editor-take-list').querySelectorAll('audio').length,0);assert(document.getElementById('editor-take-status').textContent.includes('Deleted and incomplete copies count'));assert(document.getElementById('editor-take-list').children[0].querySelectorAll('button').some(b=>b.textContent==='Undo deletion'));
 ''')
 
     def test_two_saves_waiting_on_the_same_render_barrier_issue_one_request(self):

@@ -7090,6 +7090,7 @@
                 cachedChunks = [];
                 chunkSnapshotBook = refreshBook;
                 chunkSnapshotRevision = snapshot.revision;
+                window.renderEditorQualityInbox?.();
                 return chunks;
             }
 
@@ -7112,6 +7113,7 @@
                 cachedChunks = chunks;
                 chunkSnapshotBook = refreshBook;
                 chunkSnapshotRevision = snapshot.revision;
+                window.renderEditorQualityInbox?.();
 
                 // Continue polling if generating
                 if (!isRenderingAll && chunks.some(c => c.status === 'generating')) {
@@ -7256,6 +7258,7 @@
             cachedChunks = chunks;
             chunkSnapshotBook = refreshBook;
             chunkSnapshotRevision = snapshot.revision;
+            window.renderEditorQualityInbox?.();
 
             // If any chunk is generating, poll (without full redraw)
             if (!isRenderingAll && chunks.some(c => c.status === 'generating')) {

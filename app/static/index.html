@@ -3419,20 +3419,23 @@
                        <div class="editor-review-main">
                          <section class="editor-review-panel mb-3" aria-labelledby="editor-quality-title">
                              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                 <h5 id="editor-quality-title" class="m-0">Quality inbox</h5>
+                                 <h5 id="editor-quality-title" class="m-0">Take review queue</h5>
                                  <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadChunks(false)">Refresh review</button>
                              </div>
-                             <p class="small mt-2 mb-2">Saved flags to inspect, not a quality certificate. Opening a finding does not run a check or change the line.</p>
+                             <p class="small mt-2 mb-2">Saved findings and missing speech evidence, not a quality certificate. Inspect the selected take or compare retained candidates without running a model or changing audio. Listen before explicitly choosing Check &amp; restore; existing compatibility, retention and cancellation controls still apply. Historical evidence is not a current approval.</p>
                              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                                  <label for="editor-quality-filter">Show</label>
                                  <select id="editor-quality-filter" class="form-select form-select-sm" style="width:auto;" onchange="renderEditorQualityInbox(true)">
                                      <option value="all">All findings</option><option value="unknown">Unknown speakers</option><option value="failed">Failed renders</option><option value="missing">Missing audio files</option><option value="drift">Voice drift</option>
                                      <option value="speech_rejected">Rejected speech attempts</option><option value="speech_review">Speech review needed</option><option value="speech_unavailable">Speech check unavailable</option><option value="speech_difference">Speech content differences</option><option value="speech_historical">Historical speech evidence</option>
+                                     <option value="speech_not_checked">No current speech evidence</option>
+                                     <option value="all_lines">All saved lines (including unchecked and unrendered)</option>
                                  </select>
                                  <button class="btn btn-outline-secondary btn-sm" id="btn-drift-check" onclick="runDriftCheck()" title="Run the existing voice check against saved reference voices">Check Voices</button>
                                  <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="chk-drift-only" onchange="applyDriftFilter()"><label class="form-check-label" for="chk-drift-only">Show only drift in table</label></div>
                              </div>
                              <p id="editor-quality-status" role="status" aria-live="polite" class="small mb-2">Review facts have not been loaded.</p>
+                             <p id="editor-quality-binding" class="small text-break" role="status"></p>
                              <div id="editor-quality-list"></div>
                              <button type="button" id="editor-quality-more" class="btn btn-outline-secondary btn-sm mt-2" onclick="showMoreEditorFindings()" hidden>Show 50 more</button>
                          </section>
@@ -3475,7 +3478,7 @@
                                        <button type="button" class="btn btn-outline-primary btn-sm" id="editor-line-play" onclick="playEditorReviewLine()">Play line</button>
                                        <button type="button" class="btn btn-outline-success btn-sm" id="editor-line-generate" onclick="generateEditorReviewLine()">Generate line…</button>
                                    </div>
-                                   <details class="mb-3"><summary title="Save and audition immutable copies, or explicitly check an eligible snapshot for restoration.">Saved take snapshots</summary>
+                                   <details class="mb-3" id="editor-take-details"><summary title="Save and audition immutable copies, or explicitly check an eligible snapshot for restoration.">Saved take snapshots</summary>
                                        <p class="small mt-2">Save a good performance explicitly or enable automatic history above. Audition keeps the current selection. Check &amp; restore selects a saved performance only when its original inputs, voice, settings and pronunciation still match; it retains the displaced take. Verification may load the native voice model. Other snapshots remain available for audition.</p>
                                        <div class="d-flex flex-wrap gap-2 mb-2">
                                            <button type="button" id="editor-take-save" class="btn btn-outline-primary btn-sm" onclick="saveEditorTakeSnapshot()" title="Save an immutable copy of the selected saved performance, including its recorded metadata.">Save this take</button>
