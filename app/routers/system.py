@@ -87,10 +87,30 @@ def get_tts_diagnostics():
     from tts_diagnostics import get_tts_diagnostics_bundle
     from tts import TTSEngine
     from device_utils import get_loaded_torch_device_observation
-    return get_tts_diagnostics_bundle(residency=project_manager.get_model_residency(),
-                                      runtime=get_runtime_info(ROOT_DIR),
-                                      assets=TTSEngine.get_local_model_inventory(),
-                                      device=get_loaded_torch_device_observation())
+    from lora_evidence import get_tts_model_settings
+    from config_settings import load_app_config_result
+    def observe_configuration():
+        loaded = load_app_config_result(project_manager.config_path)
+        if loaded.warnings:
+            raise ValueError('Configuration observation unavailable')
+        return get_tts_model_settings(loaded.data)
+    values = {}
+    collection = {}
+    for name, observe in (
+            ('residency', project_manager.get_model_residency),
+            ('runtime', lambda: get_runtime_info(ROOT_DIR)),
+            ('assets', TTSEngine.get_local_model_inventory),
+            ('device', get_loaded_torch_device_observation),
+            ('configuration', observe_configuration)):
+        try:
+            values[name] = observe()
+            collection[name] = 'collected'
+        except Exception as error:
+            values[name] = None
+            collection[name] = 'unavailable'
+            logger.warning('Support report collector %s unavailable (%s)', name,
+                           'missing_dependency' if isinstance(error, ImportError) else 'collection_failed')
+    return get_tts_diagnostics_bundle(**values, collection=collection)
 
 
 def _builtin_prompt_presets() -> list[dict]:

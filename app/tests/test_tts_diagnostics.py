@@ -73,6 +73,69 @@ class TtsDiagnosticsTests(unittest.TestCase):
         self.assertIsNone(record['audio_seconds'])
         self.assertNotIn('PRIVATE_BOOK', json.dumps(self.records()))
 
+    def test_unobserved_and_closed_stages_do_not_retain_exceptions(self):
+        engine = tts.TTSEngine({'tts': {'mode': 'local'}})
+        contexts = [copy_context()]
+        @diagnostics.capture_tts_operation('generate_voice')
+        def render(self):
+            contexts.append(copy_context())
+            return True
+        self.assertTrue(render(engine))
+        before = self.records()
+        def fail():
+            error = tts.GeneratedAudioError('PRIVATE_UNTRACKED_AUDIO')
+            with patch.object(tts, 'get_tts_failure_classification', side_effect=AssertionError('unobserved classification')):
+                with self.assertRaises(tts.GeneratedAudioError) as caught:
+                    with diagnostics.measure_tts_stage_time('audio_validation_save'):
+                        raise error
+            self.assertIs(error, caught.exception)
+            self.assertIsNone(diagnostics._ACTIVE_STAGE.get())
+            self.assertIsNone(diagnostics._ESCAPED_STAGE.get())
+        for context in contexts:
+            context.run(fail)
+        self.assertEqual(before, self.records())
+
+    def test_unwound_failure_keeps_specific_category_and_innermost_stage(self):
+        engine = tts.TTSEngine({'tts': {'mode': 'local'}})
+        @diagnostics.capture_tts_operation('generate_voice')
+        def render(self, error, handled):
+            try:
+                with diagnostics.measure_tts_stage_time('model_preparation'):
+                    with diagnostics.measure_tts_stage_time('inference_decode'):
+                        raise error
+            except Exception as caught:
+                if not handled:
+                    raise
+                tts.apply_tts_failure(caught)
+                return False
+        for error, category in ((RuntimeError('CUDA out of memory PRIVATE_BOOK'), 'out_of_memory'),
+                                (TimeoutError('PRIVATE_TIMEOUT'), 'timeout'),
+                                (tts.GeneratedAudioError('PRIVATE_AUDIO'), 'invalid_audio'),
+                                (RuntimeError('PRIVATE_GENERIC'), 'generation_error')):
+            for handled in (False, True):
+                with self.subTest(category=category, handled=handled):
+                    if handled:
+                        self.assertFalse(render(engine, error, True))
+                    else:
+                        with self.assertRaises(type(error)) as caught:
+                            render(engine, error, False)
+                        self.assertIs(error, caught.exception)
+                    record = self.records()[-1]
+                    self.assertEqual(category, record['failure_category'])
+                    self.assertEqual('inference_decode', record['failure_stage'])
+                    self.assertEqual([{'category': category, 'stage': 'inference_decode'}], record['failure_groups'])
+                    self.assertNotIn('PRIVATE_', json.dumps(record))
+                    self.assertIsNone(diagnostics._ESCAPED_STAGE.get())
+        class UnprintableError(Exception):
+            def __str__(self):
+                raise ValueError('PRIVATE_UNPRINTABLE')
+        error = UnprintableError()
+        with self.assertRaises(UnprintableError) as caught:
+            render(engine, error, False)
+        self.assertIs(error, caught.exception)
+        self.assertEqual('generation_error', self.records()[-1]['failure_category'])
+        self.assertEqual('inference_decode', self.records()[-1]['failure_stage'])
+
     def test_parallel_calls_isolate_outcomes_and_late_updates_are_ignored(self):
         engine = tts.TTSEngine({'tts': {'mode': 'external'}})
         barrier = threading.Barrier(2)
@@ -115,6 +178,229 @@ class TtsDiagnosticsTests(unittest.TestCase):
         with patch.object(tts.TTSEngine, '__init__', side_effect=AssertionError('model initialization')):
             result = get_tts_diagnostics()
         self.assertEqual([], result['sections']['tts']['records'])
+
+    def test_export_projects_only_allowlisted_values_even_in_known_fields(self):
+        private = 'PRIVATE_BOOK sk-abcdefghijklmnopqrst /home/user/book C:\\Users\\private\\ref.wav https://private.invalid/token'
+        runtime = {'revision': private, 'branch': private, 'python': private,
+                   'dirty': private, 'platform': {'system': private, 'machine': private, 'release': private},
+                   'packages': {'torch': private, 'other': private}, 'error': private}
+        residency = {'state': 'observed', 'mode': private, 'configured_device': private,
+                     'residents': [{'family': private, 'device': private,
+                                    'load_capture': {'scope': private, 'error': private}, 'dtype': private}],
+                     'release_events': [private], 'error': private}
+        record = {name: private for name in ('operation', 'backend', 'outcome', 'failure_category',
+                                            'failure_stage', 'elapsed_seconds', 'audio_seconds')}
+        record.update(stages_seconds={private: private}, reference_cache={private: private}, error=private)
+        with diagnostics._LOCK:
+            diagnostics._RECORDS.append(record)
+        bundle = diagnostics.get_tts_diagnostics_bundle(runtime=runtime, residency=residency,
+            assets=[{'model_id': private, 'state': private}], device={'state': private, 'gpu_backend': private})
+        payload = json.dumps(bundle)
+        for secret in ('PRIVATE_BOOK', 'sk-', '/home/user', 'private.invalid', 'ref.wav'):
+            self.assertNotIn(secret, payload)
+        self.assertIsNone(bundle['sections']['tts']['runtime']['revision'])
+        self.assertIsNone(bundle['sections']['tts']['residency']['residents'][0]['dtype'])
+        self.assertEqual('unknown', self.records()[0]['operation'])
+        self.assertLessEqual(len(payload.encode()), 65536)
+        self.assertIsNone(diagnostics._get_number(10**1000))
+
+    def test_nested_private_errors_preserve_identity_and_have_stable_safe_fingerprints(self):
+        engine = tts.TTSEngine({'tts': {'mode': 'external'}})
+        @diagnostics.capture_tts_operation('generate_voice')
+        def render(self, error):
+            with diagnostics.measure_tts_stage_time('external_request'):
+                raise error
+        for text in ('PRIVATE_BOOK /Users/private/book token=secret', 'C:\\Users\\private\\voice.wav PRIVATE_PROMPT'):
+            cause = ValueError(text)
+            error = RuntimeError(text)
+            error.__cause__ = cause
+            with self.assertRaises(RuntimeError) as caught:
+                render(engine, error)
+            self.assertIs(error, caught.exception)
+            self.assertIs(cause, caught.exception.__cause__)
+        first, second = self.records()
+        self.assertEqual(first['error_fingerprint'], second['error_fingerprint'])
+        self.assertRegex(first['error_fingerprint'], r'^tts-v1-[0-9a-f]{16}$')
+        self.assertEqual('external_request', first['failure_stage'])
+        self.assertEqual('generation_error', first['failure_category'])
+        self.assertNotIn('PRIVATE_', json.dumps(self.records()))
+        moved = dict(first, failure_stage='model_preparation',
+                     failure_groups=[{'category': 'generation_error', 'stage': 'model_preparation'}])
+        self.assertNotEqual(first['error_fingerprint'], diagnostics._get_report_record(moved)['error_fingerprint'])
+        changed = dict(first, failure_category='timeout')
+        self.assertNotEqual(first['error_fingerprint'], diagnostics._get_report_record(changed)['error_fingerprint'])
+
+    def test_collection_failure_is_explicit_and_does_not_hide_saved_error(self):
+        from routers import system
+        with diagnostics._LOCK:
+            diagnostics._RECORDS.append({'operation': 'generate_voice', 'backend': 'local',
+                                        'outcome': 'failed', 'failure_category': 'timeout'})
+        with patch.object(system, 'get_runtime_info', side_effect=RuntimeError('PRIVATE_COLLECTION_ERROR')), \
+             patch.object(system.project_manager, 'get_model_residency', return_value={'state': 'not_initialized'}), \
+             patch.object(tts.TTSEngine, 'get_local_model_inventory', return_value=[]), \
+             patch('device_utils.get_loaded_torch_device_observation', return_value={'state': 'runtime_not_loaded'}), \
+             patch.object(tts.TTSEngine, '__init__', side_effect=AssertionError('must not load')):
+            bundle = system.get_tts_diagnostics()
+        report = bundle['sections']['tts']
+        self.assertEqual('unavailable', report['collection']['runtime'])
+        self.assertEqual('collected', report['collection']['residency'])
+        self.assertEqual('timeout', report['records'][0]['failure_category'])
+        self.assertIsNone(report['runtime']['revision'])
+        self.assertNotIn('PRIVATE_', json.dumps(bundle))
+
+    def test_missing_dependencies_and_checkout_identity_are_qualified(self):
+        import runtime_info
+        runtime_info.get_runtime_info.cache_clear()
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.dict('os.environ', {'ALEXANDRIA_BUILD_COMMIT': 'a' * 40}), \
+             patch.object(runtime_info.metadata, 'version', side_effect=runtime_info.metadata.PackageNotFoundError):
+            runtime = runtime_info.get_runtime_info(directory)
+        report = diagnostics.get_tts_diagnostics_bundle(runtime=runtime)['sections']['tts']['runtime']
+        self.assertEqual('a' * 40, report['revision'])
+        self.assertEqual('build', report['revision_scope'])
+        self.assertIsNone(report['dirty'])
+        self.assertTrue(all(value is None for value in report['packages'].values()))
+        runtime_info.get_runtime_info.cache_clear()
+
+    def test_platform_versions_and_safe_build_identifiers_survive_projection(self):
+        for release, machine in (('6.8.0-45-generic', 'x86_64'), ('6.11.4-301.fc41.x86_64', 'riscv64'), ('10', 'ARM64')):
+            report = diagnostics._get_report_runtime({'platform': {'system': 'Linux', 'release': release, 'machine': machine},
+                'revision': 'release-2026-07', 'revision_source': 'environment', 'revision_scope': 'build',
+                'packages': {'torch': '2.10.0a0+git8f3a1c0', 'transformers': '4.46.0.dev0', 'peft': '2.1.0.post1'}})
+            self.assertEqual(release.split('-')[0], report['platform']['release'])
+            self.assertEqual(machine, report['platform']['machine'])
+            self.assertEqual('release-2026-07', report['revision'])
+            self.assertEqual('2.10.0a0', report['packages']['torch'])
+            self.assertEqual('4.46.0.dev0', report['packages']['transformers'])
+            self.assertEqual('2.1.0.post1', report['packages']['peft'])
+        self.assertEqual('2.9.0+rocmsdk20250901', diagnostics._get_version('2.9.0+rocmsdk20250901'))
+        self.assertEqual('2.10.0+xpu', diagnostics._get_version('2.10.0+xpu'))
+        self.assertEqual('2.9.0', diagnostics._get_version('2.9.0+PRIVATE_BOOK'))
+        rejected = diagnostics._get_report_runtime({'revision': 'PRIVATE_BOOK', 'revision_source': 'environment', 'revision_scope': 'build'})
+        self.assertEqual('unavailable', rejected['revision_source'])
+        self.assertIsNone(rejected['revision_scope'])
+
+    def test_cancellations_remain_interrupted_without_error_fingerprints(self):
+        engine = tts.TTSEngine({'tts': {'mode': 'local'}})
+        @diagnostics.capture_tts_operation('generate_voice')
+        def render(self, error):
+            with diagnostics.measure_tts_stage_time('inference_decode'):
+                raise error
+        for error_type in (tts.AudioGenerationCancelled, tts.ExportCancelled):
+            error = error_type('PRIVATE_CANCELLATION')
+            with self.assertRaises(error_type) as caught:
+                render(engine, error)
+            self.assertIs(error, caught.exception)
+            record = self.records()[-1]
+            self.assertEqual('interrupted', record['outcome'])
+            self.assertIsNone(record['error_fingerprint'])
+            self.assertIsNone(record['failure_category'])
+            self.assertIsNone(record['failure_stage'])
+
+    def test_parallel_failures_have_order_independent_category_stage_groups(self):
+        engine = tts.TTSEngine({'tts': {'mode': 'external'}})
+        @diagnostics.capture_tts_operation('generate_batch')
+        def render(self, reverse):
+            first_done = threading.Event()
+            def worker(category, stage, first):
+                if not first and not first_done.wait(3):
+                    raise AssertionError('first worker did not complete')
+                try:
+                    with diagnostics.measure_tts_stage_time(stage):
+                        raise TimeoutError('PRIVATE_TIMEOUT') if category == 'timeout' else tts.GeneratedAudioError('PRIVATE_AUDIO')
+                except Exception as error:
+                    tts.apply_tts_failure(error)
+                if first:
+                    first_done.set()
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [executor.submit(copy_context().run, worker, category, stage, first)
+                    for category, stage, first in (('timeout', 'external_request', not reverse),
+                                                   ('invalid_audio', 'audio_validation_save', reverse))]
+                for future in futures:
+                    future.result(timeout=4)
+            return {'completed': [0], 'failed': [(1, 'PRIVATE_TEXT')]}
+        render(engine, False)
+        render(engine, True)
+        first, second = self.records()
+        self.assertEqual(first['error_fingerprint'], second['error_fingerprint'])
+        self.assertEqual('multiple_failures', first['failure_category'])
+        self.assertIsNone(first['failure_stage'])
+        self.assertEqual([{'category': 'invalid_audio', 'stage': 'audio_validation_save'},
+                          {'category': 'timeout', 'stage': 'external_request'}], first['failure_groups'])
+        changed = dict(first, failure_groups=[{'category': 'timeout', 'stage': 'model_preparation'}])
+        self.assertNotEqual(first['error_fingerprint'], diagnostics._get_report_record(changed)['error_fingerprint'])
+
+    def test_maximum_failure_groups_stay_bounded_without_dropping_report(self):
+        groups = [{'category': category, 'stage': stage} for category in diagnostics._FAILURES for stage in (*diagnostics._STAGES, None)]
+        record = {'operation': 'generate_voice', 'backend': 'local', 'outcome': 'failed', 'failure_groups': groups,
+                  'reference_cache': {tier: {name: 10**15 for name in ('hits', 'misses', 'evictions', 'bypasses',
+                    'cleared_entries', 'entries', 'charged_bytes', 'max_entries', 'max_bytes')}
+                    for tier in ('prepared_audio', 'clone_prompts')}}
+        with diagnostics._LOCK:
+            diagnostics._RECORDS.extend(dict(record) for _ in range(50))
+        bundle = diagnostics.get_tts_diagnostics_bundle()
+        self.assertLessEqual(len(json.dumps(bundle).encode()), 65536)
+        report = bundle['sections']['tts']
+        self.assertGreater(report['records_omitted'], 0)
+        self.assertEqual(50, report['records_omitted'] + len(report['records']))
+        self.assertGreater(len(report['records']), 0)
+
+    def test_configuration_is_read_without_loading_or_mutating_a_book(self):
+        from project import ProjectManager
+        from routers import system
+        import socket
+        with tempfile.TemporaryDirectory() as directory:
+            manager = ProjectManager(directory)
+            config_path = Path(manager.config_path)
+            config_path.write_text(json.dumps({'tts': {'mode': 'external', 'device': ' ROCm ',
+                'url': 'https://PRIVATE_ENDPOINT', 'api_key': 'PRIVATE_TOKEN'}}), encoding='utf-8')
+            before = config_path.read_bytes()
+            files_before = sorted(path.relative_to(directory).as_posix() for path in Path(directory).rglob('*'))
+            with patch.object(system, 'project_manager', manager), \
+                 patch.object(manager, 'get_engine', side_effect=AssertionError('no engine')), \
+                 patch.object(tts.TTSEngine, '_resolve_local_model_path', return_value=None), \
+                 patch.object(socket.socket, 'connect', side_effect=AssertionError('no network')), \
+                 manager._engine_lock:
+                bundle = system.get_tts_diagnostics()
+            self.assertEqual(before, config_path.read_bytes())
+            self.assertEqual(files_before, sorted(path.relative_to(directory).as_posix() for path in Path(directory).rglob('*')))
+            self.assertIsNone(manager.engine)
+            report = bundle['sections']['tts']
+            self.assertEqual('busy', report['residency']['state'])
+            self.assertEqual('external', report['configuration']['mode'])
+            self.assertEqual('cuda', report['configuration']['device'])
+            self.assertNotIn('PRIVATE_', json.dumps(bundle))
+            config_path.write_text('not JSON PRIVATE_TEXT', encoding='utf-8')
+            with patch.object(system, 'project_manager', manager):
+                damaged = system.get_tts_diagnostics()['sections']['tts']
+            self.assertEqual('unavailable', damaged['collection']['configuration'])
+            self.assertIsNone(damaged['configuration']['mode'])
+
+    def test_all_collectors_can_fail_without_erasing_recorded_failures(self):
+        from routers import system
+        with diagnostics._LOCK:
+            diagnostics._RECORDS.append({'operation': 'generate_voice', 'outcome': 'failed', 'failure_category': 'timeout'})
+        with patch.object(system.project_manager, 'get_model_residency', side_effect=RuntimeError('PRIVATE')), \
+             patch.object(system, 'get_runtime_info', side_effect=RuntimeError('PRIVATE')), \
+             patch.object(tts.TTSEngine, 'get_local_model_inventory', side_effect=RuntimeError('PRIVATE')), \
+             patch('device_utils.get_loaded_torch_device_observation', side_effect=RuntimeError('PRIVATE')), \
+             patch('config_settings.load_app_config_result', side_effect=RuntimeError('PRIVATE')):
+            report = system.get_tts_diagnostics()['sections']['tts']
+        self.assertEqual({'unavailable'}, set(report['collection'].values()))
+        self.assertEqual('timeout', report['records'][0]['failure_category'])
+        self.assertNotIn('PRIVATE', json.dumps(report))
+
+    def test_allowlists_cover_actual_operation_and_model_producers(self):
+        import ast
+        tree = ast.parse(Path(tts.__file__).read_text(encoding='utf-8'))
+        operations = {node.args[0].value for node in ast.walk(tree)
+                      if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                      and node.func.id == 'capture_tts_operation'}
+        self.assertEqual(operations, diagnostics._OPERATIONS)
+        with patch.object(tts.TTSEngine, '_resolve_local_model_path', return_value=None):
+            assets = tts.TTSEngine.get_local_model_inventory()
+        projected = diagnostics.get_tts_diagnostics_bundle(assets=assets)['sections']['tts']['assets']
+        self.assertEqual(set(tts.TTSEngine._LOCAL_MODEL_IDS.values()), {asset['model_id'] for asset in projected})
 
     def test_native_clone_cache_hits_misses_and_save_failure_are_observed(self):
         from tests.test_clone_reference_cache import Prompt

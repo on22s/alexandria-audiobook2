@@ -33,7 +33,7 @@ from lora_evidence import get_file_sha256, get_tts_model_settings
 from audio_validation import GeneratedAudioError, publish_audio_output
 from speech_text import normalize_for_speech, get_speech_preparation
 from audio_generation_owner import (is_audio_generation_cancelled, ensure_audio_generation_active,
-                                    AudioGenerationCancelled)
+                                    AudioGenerationCancelled, ExportCancelled)
 from synthesis_render import (ensure_synthesis_receipts, get_synthesis_window_plan,
                               render_synthesis_windows)
 from synthesis_recovery_context import (ensure_synthesis_recovery_batch_parent,
@@ -136,28 +136,36 @@ def capture_batch_speech_inputs(render):
     return wrapped
 
 
+def get_tts_failure_classification(error):
+    """Classify a failure without changing render or observation state."""
+    category = "generation_error"
+    next_action = None
+    if isinstance(error, UnsupportedVoiceBackendError):
+        category = "unsupported_backend"
+        next_action = "Select local TTS for this voice or choose a supported external voice."
+    elif device_utils.is_allocation_failure(error):
+        category = "out_of_memory"
+        next_action = "Free GPU memory or reduce the workload before retrying."
+    elif isinstance(error, GeneratedAudioError):
+        category = "invalid_audio"
+        next_action = "Check the TTS output and server logs before retrying."
+    elif isinstance(error, FileNotFoundError):
+        category = "missing_asset"
+        next_action = "Restore the missing voice/model asset before retrying."
+    elif isinstance(error, TimeoutError):
+        category = "timeout"
+        next_action = "Check the TTS server and its logs before retrying."
+    return category, next_action
+
+
 def apply_tts_failure(error, category=None, next_action=None):
     """Record a terminal failure only for the current structured render call."""
     failures = _TTS_FAILURES.get()
     if category is None:
-        if isinstance(error, UnsupportedVoiceBackendError):
-            category = "unsupported_backend"
-            next_action = "Select local TTS for this voice or choose a supported external voice."
-        elif device_utils.is_allocation_failure(error):
-            category = "out_of_memory"
-            next_action = "Free GPU memory or reduce the workload before retrying."
-        elif isinstance(error, GeneratedAudioError):
-            category = "invalid_audio"
-            next_action = "Check the TTS output and server logs before retrying."
-        elif isinstance(error, FileNotFoundError):
-            category = "missing_asset"
-            next_action = "Restore the missing voice/model asset before retrying."
-        elif isinstance(error, TimeoutError):
-            category = "timeout"
-            next_action = "Check the TTS server and its logs before retrying."
-        else:
-            category = "generation_error"
-    record_tts_failure(category)
+        category, inferred_action = get_tts_failure_classification(error)
+        if inferred_action is not None:
+            next_action = inferred_action
+    record_tts_failure(category, error)
     if failures is None:
         return
     from diagnostics import redact_text
@@ -651,10 +659,6 @@ EDGE_SILENCE_THRESHOLD_DBFS = -45.0
 EDGE_SILENCE_KEEP_HEAD_MS = 40
 EDGE_SILENCE_KEEP_TAIL_MS = 80
 _EDGE_SILENCE_STEP_MS = 10
-
-
-class ExportCancelled(Exception):
-    """Raised when the caller cancels audio assembly or export."""
 
 
 def ensure_audio_export_active(cancel_check):

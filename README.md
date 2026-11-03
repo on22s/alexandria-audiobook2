@@ -232,6 +232,10 @@ No RTL locale or full-interface translation is claimed. The bounded catalog foun
 requested by #1732 is complete; reviewed translations and additional workflows are future work.
 See [the acceptance record](docs/setup-ui-catalog.md) for the exact scope, tests and limits.
 
+For troubleshooting, **Setup > Speech engine > Refresh report** shows the exact
+local support-report JSON before download. Nothing uploads automatically. See
+[support report contents and privacy limits](docs/support-report.md) before sharing.
+
 ![Setup screen: LLM connection and TTS settings](docs/screenshots/setup.png)
 
 1. Pick **LLM Location** (Local or Remote).

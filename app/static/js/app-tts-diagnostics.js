@@ -6,19 +6,26 @@ async function refreshTtsDiagnostics() {
     const status = document.getElementById('tts-diagnostics-status');
     const rows = document.getElementById('tts-diagnostics-records');
     const download = document.getElementById('tts-diagnostics-download');
+    const preview = document.getElementById('tts-diagnostics-preview');
     ttsDiagnosticsReport = null;
     download.disabled = true;
     rows.replaceChildren();
+    preview.textContent = '';
     status.textContent = 'Reading recorded timings…';
     try {
         const report = await API.get('/api/tts/diagnostics');
         if (epoch !== ttsDiagnosticsEpoch) { return; }
         const records = report?.sections?.tts?.records;
         if (!Array.isArray(records)) { throw new Error('Timing records unavailable.'); }
-        ttsDiagnosticsReport = report;
-        download.disabled = false;
         status.textContent = records.length ? `${records.length} recent operation(s). Stage times overlap; unavailable means unmeasured.` : 'No TTS operations recorded in this app process yet.';
         const residency = report?.sections?.tts?.residency;
+        const collection = report?.sections?.tts?.collection;
+        const unavailable = Object.entries(collection || {}).filter(([_name, state]) => state === 'unavailable').map(([name]) => name);
+        if (unavailable.length) {
+            const row = document.createElement('p');
+            row.textContent = 'Report incomplete: unavailable collectors: ' + unavailable.join(', ') + '. Recorded operations are retained; refresh does not rerun them.';
+            rows.appendChild(row);
+        }
         if (residency) {
             const row = document.createElement('p');
             if (residency.state === 'busy') {
@@ -50,7 +57,7 @@ async function refreshTtsDiagnostics() {
         const device = report?.sections?.tts?.device;
         if (device) {
             const row = document.createElement('p');
-            row.textContent = device.state === 'observed' ? (device.gpu_backend ? `Torch GPU available: ${device.gpu_backend}. Memory capacity is not measured here.` : 'No supported Torch GPU is available in the observed runtime.') : 'Torch device availability is unobserved. This report does not initialize the runtime.';
+            row.textContent = device.state === 'observed' ? (device.gpu_backend ? `Torch GPU available: ${device.gpu_backend}. Memory capacity is not measured here.` : 'No supported Torch GPU is available in the observed runtime.') : (device.state === 'unavailable' ? 'Torch device probe failed; GPU availability is unknown.' : 'Torch device availability is unobserved. This report does not initialize the runtime.');
             rows.appendChild(row);
         }
         for (const record of records.slice(-10).reverse()) {
@@ -59,14 +66,22 @@ async function refreshTtsDiagnostics() {
             row.textContent = `${record.operation} · ${record.backend} · ${record.outcome} · total ${record.elapsed_seconds}s · audio ${record.audio_seconds === null ? 'unavailable' : `${record.audio_seconds}s`}. ${stages}`;
             rows.appendChild(row);
         }
+        const serialized = JSON.stringify(report, null, 2);
+        preview.textContent = serialized;
+        ttsDiagnosticsReport = serialized;
+        download.disabled = false;
     } catch (_error) {
         if (epoch !== ttsDiagnosticsEpoch) { return; }
-        status.textContent = 'Could not read timings. Refresh to try again.';
+        ttsDiagnosticsReport = null;
+        download.disabled = true;
+        preview.textContent = '';
+        const httpStatus = Number.isInteger(_error?.status) && _error.status >= 400 && _error.status <= 599 ? 'HTTP ' + _error.status : 'network or report-format error';
+        status.textContent = 'Could not read report (' + httpStatus + '). Download cleared. Check server logs privately before trying again.';
     }
 }
 function downloadTtsDiagnostics() {
     if (!ttsDiagnosticsReport) { return; }
-    const blob = new Blob([JSON.stringify(ttsDiagnosticsReport, null, 2)], {type: 'application/json'});
+    const blob = new Blob([ttsDiagnosticsReport], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
