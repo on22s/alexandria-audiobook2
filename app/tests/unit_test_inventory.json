@@ -10216,7 +10216,8 @@
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_message_fallback_placeholders_and_plain_text_values",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_native_validation_reveals_first_invalid_only",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_plain_text_bounded_results_clear_and_escape",
-    "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_search_outside_save_form_and_classic_script_order"
+    "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_search_outside_save_form_and_classic_script_order",
+    "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_unknown_markup_keeps_english_fallback_and_unsupported_rtl_stays_english"
   ],
   "test_settings_preview_js": [
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_default_summary_preserves_counts_across_locales_and_pending_responses",
