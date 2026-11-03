@@ -433,6 +433,8 @@ a measurement, what we recommend and why.
   This snapshot may be outdated: refresh after line, rule, voice or settings changes. Recorded
   take input remains separately labeled under **Speech input and saved evidence**;
   missing historical input or transformation traces are not reconstructed.
+  The [recorded-input inspector](docs/recorded-speech-input.md) distinguishes missing,
+  invalid and stale proof and shows saved occurrence decisions with their take binding.
 - In Pronunciation, load a line's occurrence rules and choose **Discover English homographs**
   to find exact occurrences of lead/read/wind using a bounded English word list.
   Meaning/example buttons do not infer the intended sense or pronunciation: enter a

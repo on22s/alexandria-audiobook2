@@ -136,8 +136,10 @@ function renderEditorLineInspector() {
     set('editor-line-instruct', values.instruct || 'No delivery instruction');
     set('editor-line-pause', values.pause_after === '' ? 'Use the configured default' : `${values.pause_after} ms`);
     set('editor-line-error', typeof chunk.error === 'string' && chunk.error ? chunk.error : 'No render error recorded.');
-    const fact = editorReviewFresh && editorReviewData?.rows.find(item => item.uid === chunk.uid);
+    const fact = isEditorReviewSnapshotCurrent()
+        && editorReviewData.rows.find(item => item.uid === chunk.uid);
     renderEditorSpeechEvidence(chunk,fact);
+    renderEditorRecordedInput(chunk, fact);
     set('editor-line-quality', fact ? `${fact.audio === 'present' ? 'Nonempty audio file present (quality not certified)' : fact.audio === 'missing' ? 'Saved audio file is missing, empty or outside the project' : 'Audio not rendered'} · ${EDITOR_DRIFT_LABELS[fact.drift]}` : 'Review facts are unavailable or stale. Refresh review.');
     const drift = chunk.drift;
     set('editor-line-drift-detail', drift && typeof drift === 'object' ? [Number.isFinite(drift.score) ? `Recorded similarity ${drift.score}` : '', Number.isFinite(drift.threshold) ? `threshold ${drift.threshold}` : '', typeof drift.reference === 'string' ? `reference: ${drift.reference}` : '', typeof drift.error === 'string' ? `check error: ${drift.error}` : ''].filter(Boolean).join(' · ') : 'No recorded voice-check details.');
@@ -205,6 +207,56 @@ function renderEditorSpeechEvidence(chunk, fact) {
         !current && historical ? format(historical,`Historical saved take (${historicalReason || 'unverified'})`) : '',
         failure ? format(rejected,'Rejected attempt; this is not the selected take') : '',
         incomplete ? format(recheck,'Latest incomplete recheck; earlier selected-take evidence retained') : ''].filter(Boolean).join('\n\n');
+}
+
+function renderEditorRecordedInput(chunk, fact) {
+    const status = document.getElementById('editor-line-recorded-status');
+    const binding = document.getElementById('editor-line-recorded-binding');
+    const decisions = document.getElementById('editor-line-recorded-pronunciation');
+    if (!status || !binding || !decisions) { return; }
+    binding.textContent = ''; decisions.textContent = '';
+    if (!fact) { status.textContent = 'Saved review facts are unavailable or stale. Refresh review before inspecting recorded input.'; return; }
+    const states = {
+        current: 'Exact input recorded for the selected take, not reconstructed from current settings.',
+        historical: 'Recorded input is historical; the selected audio bytes are not currently attested. See the speech-evidence freshness reason.',
+        stale: 'Saved input evidence is stale and is not shown as proof for this take.',
+        invalid: 'Saved input evidence is malformed or incomplete; unavailable, not proof.',
+        not_recorded: 'No exact input was recorded for this take. Speech checks may have been off. Current settings cannot reconstruct historical proof.'
+    };
+    const reasons = {
+        other_line: 'The record belongs to another book or line.', other_take: 'The record belongs to another take revision.',
+        inputs_changed: 'Saved text, pronunciation rules, delivery or voice revision changed.',
+        unverifiable: 'The record cannot be tied to the selected audio.'
+    };
+    status.textContent = Object.hasOwn(states, chunk.recorded_input_state) ? states[chunk.recorded_input_state]
+        : 'Recorded-input state unavailable. Reload to match the server version.';
+    if (Object.hasOwn(reasons, chunk.recorded_input_reason)) { status.textContent += ' ' + reasons[chunk.recorded_input_reason]; }
+    if (!chunk.audio_path) { status.textContent = 'No selected audio file. Retained metadata follows, not current audio proof. ' + status.textContent; }
+    if (chunk.speech_verification_failure) { status.textContent += ' Rejected-attempt evidence is separate from the selected take.'; }
+    if (['current', 'historical'].includes(chunk.recorded_input_state)) {
+        const receipt = chunk.recorded_input_state === 'current' ? chunk.speech_verification : chunk.speech_verification_historical;
+        if (!receipt || receipt.book_token !== chunkSnapshotBookToken || receipt.uid !== chunk.uid
+                || receipt.audio_revision !== chunk.audio_revision) {
+            status.textContent = 'Recorded input identity does not match this selection. Refresh review.'; return;
+        }
+        binding.textContent = `Book ${receipt.book_token} · line ${receipt.uid} · selected take ${chunk.take ?? 'unknown'} · audio revision ${receipt.audio_revision}\n`
+            + `Current review snapshot ${chunkSnapshotRevision} (not a recorded capture revision; capture revision unavailable)\n`
+            + `Saved generation-inputs digest ${receipt.input_digest} · exact input SHA-256 ${receipt.expected_sha256}\n`
+            + `Audio SHA-256 ${receipt.audio?.sha256 || 'unavailable'} · language ${receipt.language} · capture ${receipt.input_provenance}\n`
+            + 'The input digest binds saved line fields and voice revision, not every engine setting. Historical engine settings are unavailable in this receipt.';
+    }
+    const pronunciation = chunk.pronunciation_receipt;
+    if (chunk.recorded_pronunciation_state !== 'recorded' || !pronunciation
+            || pronunciation.audio_revision !== chunk.audio_revision) {
+        decisions.textContent = chunk.recorded_pronunciation_state === 'not_recorded'
+            ? 'No occurrence decisions recorded for this take; this is not proof that no transformations occurred.'
+            : `Recorded occurrence decisions unavailable (${chunk.recorded_pronunciation_state || 'unknown'}). Refresh after changing the saved line.`;
+        return;
+    }
+    decisions.textContent = 'Recorded occurrence decisions (not recomputed):\n'
+        + pronunciation.decisions.map(item => `${item.id || 'Unidentified rule'}: ${item.applied ? 'applied once' : 'not applied'} · ${item.reason}`).join('\n')
+        + `\nRecorded context: ${JSON.stringify(pronunciation.context)}\nAuthored text SHA-256 ${pronunciation.text_sha256}`
+        + `\nPrepared-text SHA-256 ${pronunciation.prepared_sha256}\nSpeech-text SHA-256 ${pronunciation.speech_sha256}`;
 }
 
 function focusEditorReviewField(field) {

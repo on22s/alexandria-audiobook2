@@ -95,6 +95,56 @@ assert.equal(generates.length,0);assert.equal(plays.length,0);
 context.markEditorReviewStale();assert(list.querySelectorAll('button').every(button=>button.disabled));
 ''')
 
+    def test_recorded_input_is_read_only_and_rejects_stale_identity(self):
+        self.run_js(r'''
+const chunk=context.cachedChunks[1];chunk.audio_revision='take';chunk.recorded_input_state='current';chunk.recorded_pronunciation_state='not_recorded';
+chunk.speech_verification={book_token:context.chunkSnapshotBookToken,uid:chunk.uid,audio_revision:'take',input_digest:'inputs',expected_sha256:'exact',audio:{sha256:'audio'},language:'English',input_provenance:'leaf'};
+context.API.post=()=>{throw Error('No post allowed');};
+await context.refreshEditorReview();context.selectEditorReviewLineById(1);
+const status=document.getElementById('editor-line-recorded-status'),binding=document.getElementById('editor-line-recorded-binding');
+assert(status.textContent.includes('Exact input recorded'));assert(binding.textContent.includes('inputs'));assert(binding.textContent.includes('engine settings are unavailable'));
+context.isEditorEditPending=()=>true;context.renderEditorLineInspector();assert(status.textContent.includes('stale'));assert.equal(binding.textContent,'');
+context.isEditorEditPending=()=>false;context.renderEditorLineInspector();assert(binding.textContent.includes('inputs'));
+fields.get('u1').text.value='Draft text';context.renderEditorLineInspector();assert(!binding.textContent.includes('Draft text'));assert.equal(chunk.text,'Saved words');
+chunk.speech_verification.uid='other';context.renderEditorLineInspector();assert(status.textContent.includes('does not match'));assert.equal(binding.textContent,'');
+chunk.speech_verification.uid=chunk.uid;context.chunkSnapshotRevision='new';context.renderEditorLineInspector();assert(status.textContent.includes('stale'));assert.equal(binding.textContent,'');
+assert.equal(generates.length,0);assert.equal(plays.length,0);
+''')
+
+    def test_recorded_input_missing_invalid_and_changed_settings_remain_explicit(self):
+        self.run_js(r'''
+await context.refreshEditorReview();context.selectEditorReviewLineById(1);const chunk=context.cachedChunks[1];
+const status=document.getElementById('editor-line-recorded-status');
+for(const [state,reason,text] of [['not_recorded',null,'No exact input'],['invalid','invalid','malformed'],['stale','inputs_changed','pronunciation rules'],['stale','other_take','another take'],['historical','changed','historical']]){
+chunk.recorded_input_state=state;chunk.recorded_input_reason=reason;
+if(state==='historical'){chunk.audio_revision='take';chunk.speech_verification_historical={uid:chunk.uid,book_token:context.chunkSnapshotBookToken,audio_revision:'take'};}
+context.renderEditorLineInspector();assert(status.textContent.includes(text),status.textContent);}
+delete chunk.recorded_input_state;context.renderEditorLineInspector();assert(status.textContent.includes('Reload'));
+delete chunk.audio_path;context.renderEditorLineInspector();assert(status.textContent.includes('No selected audio'));
+''')
+
+    def test_recorded_occurrence_decisions_explain_once_without_editing_source(self):
+        self.run_js(r'''
+const chunk=context.cachedChunks[1];chunk.audio_revision='take';chunk.recorded_input_state='not_recorded';chunk.recorded_pronunciation_state='recorded';
+chunk.pronunciation_receipt={audio_revision:'take',context:{speaker:'Hero'},text_sha256:'source',prepared_sha256:'prepared',speech_sha256:'speech',decisions:[{id:'<img onerror=bad()>',applied:true,reason:'applied_respelling'},{id:'duplicate',applied:false,reason:'duplicate_rule_id'}]};
+const before=JSON.stringify(chunk);await context.refreshEditorReview();context.selectEditorReviewLineById(1);
+const details=document.getElementById('editor-line-recorded-pronunciation');assert(details.textContent.includes('applied once'));assert(details.textContent.includes('not applied'));assert(details.textContent.includes('duplicate_rule_id'));assert.equal(details.querySelectorAll('img').length,0);assert.equal(JSON.stringify(chunk),before);
+for(const state of ['other_take','changed_text','changed_context','invalid']){chunk.recorded_pronunciation_state=state;context.renderEditorLineInspector();assert(!details.textContent.includes('applied once'));assert(details.textContent.includes('unavailable'));}
+assert.equal(document.getElementById('editor-line-text').textContent,'Saved words');
+''')
+
+    def test_recorded_input_retains_diagnostics_without_audio_and_labels_view_revision(self):
+        self.run_js(r'''
+const chunk=context.cachedChunks[1];chunk.audio_revision='take';chunk.recorded_input_state='stale';chunk.recorded_input_reason='inputs_changed';delete chunk.audio_path;
+await context.refreshEditorReview();context.selectEditorReviewLineById(1);
+const status=document.getElementById('editor-line-recorded-status');assert(status.textContent.includes('No selected audio file'));assert(status.textContent.includes('pronunciation rules'));
+chunk.recorded_input_state='historical';chunk.recorded_input_reason='changed';
+chunk.speech_verification_historical={uid:chunk.uid,book_token:context.chunkSnapshotBookToken,audio_revision:'take',input_digest:'saved-digest',expected_sha256:'saved-text'};
+context.renderEditorLineInspector();const binding=document.getElementById('editor-line-recorded-binding');assert(binding.textContent.includes('saved-digest'));assert(binding.textContent.includes('not a recorded capture revision'));assert(binding.textContent.includes(context.chunkSnapshotRevision));
+chunk.recorded_input_state='toString';chunk.recorded_input_reason='constructor';context.renderEditorLineInspector();assert(status.textContent.includes('Reload'));assert(!status.textContent.includes('function'));
+document.getElementById('editor-line-recorded-binding').remove();context.renderEditorLineInspector();assert(document.getElementById('editor-line-quality').textContent.length>0);
+''')
+
     def run_js(self, script):
         result = subprocess.run(['node','-e',DOM_FIXTURE+SETUP+script+"\ncompleted=true;})().catch(error=>{console.error(error);process.exitCode=1;});",str(STATIC/'js/app-editor-review.js'),str(STATIC/'index.html')], capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
