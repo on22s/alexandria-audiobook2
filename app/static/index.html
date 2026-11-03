@@ -9,6 +9,7 @@
     <title>Alexandria Audiobook</title>
     <link href="/static/vendor/bootstrap-5.3.0/bootstrap.min.css" rel="stylesheet">
     <link href="/static/vendor/font-awesome-6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/css/casting.css?v=__APP_BUILD__" rel="stylesheet">
     <style>
         .casting-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         /* Shared workflow layout: preserve the original controls and actions. */
@@ -2502,18 +2503,23 @@
 
         <!-- Casting Tab (#1532) -->
         <div id="casting-tab" class="tab-content" style="display:none;">
-            <div class="card mb-3">
+            <div class="mb-3">
+                <h4>Casting library</h4>
+                <p class="text-muted mb-0">Listen, organize and shortlist voices across books. Research collections do not change character assignments.</p>
+            </div>
+            <div id="casting-workspace" class="casting-workspace">
+            <aside class="card casting-sidebar mb-3" aria-label="Voice filters">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="m-0">Casting library</h4>
+                    <h5 class="m-0">Find voices</h5>
                     <button type="button" class="btn btn-sm btn-outline-primary" id="casting-refresh"><i class="fas fa-sync me-1"></i>Refresh</button>
                 </div>
                 <div class="card-body">
-                    <p>Every designed voice from every book, in one place. Listen, shortlist, then use a voice for a character in the active book. The voice it replaces is kept as a saved candidate.</p>
+                    <p class="small text-muted">Combine filters to narrow the library. Use Clear filters to start again.</p>
                     <div class="row g-2 mb-2">
                         <div class="col-lg-6">
                             <label class="form-label fw-bold" for="casting-search">Search</label>
                             <input type="search" class="form-control" id="casting-search" placeholder="gender:female tone:calm -status:reject" aria-describedby="casting-search-help">
-                            <div class="form-text" id="casting-search-help">Words match name, description and sample line. Fields: book, gender, age, tone, texture, status, priority, tag, source, name. Put - in front to exclude.</div>
+                            <div class="form-text" id="casting-search-help">Words match name, description and sample line. Fields: book, gender, age, tone, texture, status, priority, tag, collection, stars, circles, source, name. Put - in front to exclude.</div>
                         </div>
                         <div class="col-6 col-lg-2">
                             <label class="form-label fw-bold" for="casting-book">Book</label>
@@ -2546,15 +2552,20 @@
                         <select class="form-select form-select-sm w-auto" id="casting-sort" aria-label="Sort voices">
                             <option value="name">Name A-Z</option><option value="book">Book</option><option value="status">Review status</option><option value="priority">Priority</option>
                         </select>
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="casting-play-all"><i class="fas fa-play me-1"></i>Play all</button>
                         <button type="button" class="btn btn-sm btn-primary" id="casting-review"><i class="fas fa-headphones me-1"></i>Review</button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" id="casting-clear">Clear filters</button>
+                    </div>
+                    <div id="casting-research" class="mt-3"></div>
+                </div>
+            </aside>
+            <div class="card casting-main">
+                <div class="card-body">
+                    <div class="casting-research-row mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="casting-play-all"><i class="fas fa-play me-1"></i>Play all</button>
+                        <span id="casting-playback-status" class="small" role="status" aria-live="polite"></span>
                         <span id="casting-summary" class="text-muted small ms-auto" role="status" aria-live="polite"></span>
                     </div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-body">
+                    <div id="casting-research-toolbar" class="casting-research-toolbar mb-3" aria-label="Research controls"></div>
                     <div id="casting-load-status" class="small text-warning mb-2" role="status" aria-live="polite"></div>
                     <div class="d-flex flex-wrap gap-2 mb-2">
                         <select id="casting-health" class="form-select form-select-sm w-auto" aria-label="Data health filter"><option value="">All data health</option></select>
@@ -2562,17 +2573,22 @@
                     </div>
                     <div id="casting-skipped" class="small mb-2"></div>
                     <details class="mb-3"><summary>Coverage of the current view</summary><div id="casting-coverage" class="table-responsive"></div></details>
-                    <div class="border rounded p-2 mb-3">
-                        <label for="casting-collection" class="small">Collection (voice-library cast)</label>
-                        <select id="casting-collection" class="form-select form-select-sm" aria-label="Collection"><option value="">Choose a collection</option></select>
-                        <div class="input-group input-group-sm mt-2"><input id="casting-collection-name" class="form-control" maxlength="200" aria-label="New collection name" placeholder="New collection name"><button id="casting-create-collection" type="button" class="btn btn-outline-secondary">Create collection</button></div>
-                        <button id="casting-match-collection" type="button" class="btn btn-sm btn-outline-success mt-2">Review collection for active book</button>
+                    <details class="border rounded p-2 mb-3">
+                        <summary>Saved casts &amp; character assignment</summary>
+                        <p class="small text-muted mt-2">Saved casts map voices to named characters. Review the mappings before applying them to the active book. Research collections only organize voices.</p>
+                        <label for="casting-collection" class="small">Saved cast</label>
+                        <select id="casting-collection" class="form-select form-select-sm" aria-label="Saved cast"><option value="">Choose a saved cast</option></select>
+                        <div class="input-group input-group-sm mt-2"><input id="casting-collection-name" class="form-control" maxlength="200" aria-label="New saved cast name" placeholder="New saved cast name"><button id="casting-create-collection" type="button" class="btn btn-outline-secondary">Create saved cast</button></div>
+                        <button id="casting-match-collection" type="button" class="btn btn-sm btn-outline-success mt-2">Review saved cast for active book</button>
                         <div id="casting-collection-review" class="mt-2"></div>
-                    </div>
+                    </details>
                     <div class="small text-muted mb-2">Audio similarity is not available: ECAPA has not passed the required regenerated-speaker controls. Name variants are not proof of the same voice.</div>
                     <div id="casting-results"><p class="text-muted mb-0">Open this tab to load the casting library.</p></div>
+                    <div id="casting-pagination" class="mt-3" aria-label="Results navigation"></div>
                     <div class="text-center mt-3"><button type="button" class="btn btn-sm btn-outline-secondary" id="casting-more" hidden>Load more</button></div>
+                    <details class="mt-3"><summary>Studio activity</summary><div id="casting-activity" class="small mt-2" aria-live="polite"></div></details>
                 </div>
+            </div>
             </div>
             <div class="modal fade" id="casting-review-modal" tabindex="-1" aria-labelledby="casting-review-title" aria-hidden="true">
                 <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -3884,6 +3900,7 @@
     <script src="/static/js/app-project-scope.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-speaker-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-character-roster.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-casting-research.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-casting.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-repair.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-review.js?v=__APP_BUILD__"></script>

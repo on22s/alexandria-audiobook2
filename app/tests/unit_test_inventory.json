@@ -1862,6 +1862,27 @@
     "tests.test_casting_catalog.CastingMarkTests.test_invalid_patches_name_the_field_and_change_nothing",
     "tests.test_casting_catalog.CastingMarkTests.test_marks_merge_and_persist"
   ],
+  "test_casting_layout": [
+    "tests.test_casting_layout.CastingLayoutTests.test_research_assets_load_in_order_and_reuse_host_theme",
+    "tests.test_casting_layout.CastingLayoutTests.test_research_sidebar_and_results_are_siblings_with_stable_hooks"
+  ],
+  "test_casting_research": [
+    "tests.test_casting_research.CastingBatchTests.test_activity_keeps_only_the_latest_hundred_events",
+    "tests.test_casting_research.CastingBatchTests.test_batch_clears_one_array_without_touching_the_rest",
+    "tests.test_casting_research.CastingBatchTests.test_batch_is_all_or_none_for_invalid_missing_stale_and_duplicate_changes",
+    "tests.test_casting_research.CastingBatchTests.test_batch_returns_full_marks_and_preserves_everything_else",
+    "tests.test_casting_research.CastingBatchTests.test_concurrent_nonconflicting_writers_lose_nothing",
+    "tests.test_casting_research.CastingBatchTests.test_invalid_action_writes_nothing",
+    "tests.test_casting_research.CastingBatchTests.test_library_returns_activity_and_never_metadata_as_a_mark",
+    "tests.test_casting_research.CastingBatchTests.test_malformed_marks_or_metadata_fail_loudly_and_are_not_overwritten",
+    "tests.test_casting_research.CastingMarkSchemaTests.test_legacy_marks_fill_canonical_defaults_without_mutating_them",
+    "tests.test_casting_research.CastingMarkSchemaTests.test_marks_are_independent_and_arrays_clear_selectively",
+    "tests.test_casting_research.CastingMarkSchemaTests.test_stars_circles_and_collections_are_validated_and_deduplicated"
+  ],
+  "test_casting_research_js": [
+    "tests.test_casting_research_js.CastingResearchJsTests.test_app_casting_still_works_without_the_research_module",
+    "tests.test_casting_research_js.CastingResearchJsTests.test_research_module_covers_filters_bulk_undo_views_paging_and_playback"
+  ],
   "test_casting_similarity_probe": [
     "tests.test_casting_similarity_probe.CastingSimilarityProbeTests.test_incomplete_unavailable_or_nonfinite_scores_are_errors",
     "tests.test_casting_similarity_probe.CastingSimilarityProbeTests.test_known_bad_controls_do_not_become_separation_successes",

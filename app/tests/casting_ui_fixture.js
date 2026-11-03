@@ -199,10 +199,10 @@ const input = (el, value) => { el.value = value; el.dispatchEvent({type: 'input'
     ok(!env.get('coverage').textContent.includes('Other'));
     env.get('clear').click();
     env.get('collection').value = 'Collection';
-    const memberInput = env.get('results').querySelectorAll('input').find(input => input.attrs['aria-label'] === 'Collection member name for ABEL');
+    const memberInput = env.get('results').querySelectorAll('input').find(input => input.attrs['aria-label'] === 'Saved cast member name for ABEL');
     memberInput.value = 'Test member'; memberInput.parentElement.querySelector('button').click(); await settle();
     eq(env.calls.at(-1), ['POST', '/api/voice_library/catalog_member', {cast: 'Collection', voice_id: VOICES[0].id, name: 'Test member'}]);
-    ok(env.get('results').querySelectorAll('input').find(input => input.attrs['aria-label'] === 'Collection member name for   abel  ').parentElement.querySelector('button').disabled);
+    ok(env.get('results').querySelectorAll('input').find(input => input.attrs['aria-label'] === 'Saved cast member name for   abel  ').parentElement.querySelector('button').disabled);
     env.get('collection-name').value = 'New collection'; env.get('create-collection').click(); await settle();
     eq(env.get('collection').value, 'New collection');
     ok(env.calls.some(call => call[1] === '/api/voice_library/casts' && call[2].name === 'New collection'));
