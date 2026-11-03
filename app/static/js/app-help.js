@@ -132,6 +132,7 @@
             'source-scope-entry': {what: 'Choose the first saved entry to retain. Preview checks the exact source words, chunk boundary, voices and saved audio before any change.'},
             'script-batch-mode': {what: 'Generate scripts for several books in one run instead of one.'},
             'file-upload': {what: 'The book to annotate: plain text, Markdown or EPUB.'},
+            'epub-extraction-report-enabled': {what: 'Include a page-local EPUB import snapshot of source hashes, reading order and extraction decisions. It does not change speech text. Paths and chapter labels may be private; incomplete detail is marked. Re-upload to inspect another source revision.'},
             'existing-upload-select': {what: 'Reuse a book uploaded earlier instead of uploading it again.'},
             'script-first-person-narrator': {what: 'For books narrated in the first person: the narrator’s exact character name, so their narration and dialogue get one voice. Leave empty otherwise.'},
             'script-batch-files': {what: 'The books for a multi-book run: text, Markdown or EPUB.'},

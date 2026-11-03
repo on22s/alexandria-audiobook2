@@ -74,6 +74,7 @@ from utils import file_lock
 from alexandria_alignment import validate_epub_archive
 from epub_package import get_epub_package
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
+from epub_extraction_report import EpubExtractionReport
 from project_scope_files import capture_scope_file
 from source_upload_publication import create_source_upload_stage, publish_completed_upload
 from source_upload_stage import OwnedSourceUploadStage, get_upload_stage_accounting
@@ -408,6 +409,7 @@ class _HTMLTextExtractor(HTMLParser):
         self._pending_newline = 0
         self._skip_depth = 0
         self._anchor_ids = frozenset(anchor_ids or ())
+        self.anchor_counts = {}
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
@@ -421,6 +423,7 @@ class _HTMLTextExtractor(HTMLParser):
             anchor_id = (attributes.get('id') or attributes.get('xml:id')
                          or (attributes.get('name') if tag == 'a' else None))
             if anchor_id in self._anchor_ids:
+                self.anchor_counts[anchor_id] = self.anchor_counts.get(anchor_id, 0) + 1
                 self.parts.append(('anchor', anchor_id))
 
     def handle_endtag(self, tag):
@@ -468,13 +471,15 @@ def _resolve_epub_href(base_path, href):
     return path, unquote(parsed.fragment) or None
 
 
-def _get_epub3_toc_entries(zf, manifest):
+def _get_epub3_toc_entries(zf, manifest, *, report=None):
+    decisions = []
     nav_items = [item for item in manifest.values()
                  if 'nav' in item['properties'].split()]
     for nav_item in nav_items:
         try:
             root = ET.fromstring(zf.read(nav_item['path']))
         except (KeyError, ET.ParseError):
+            decisions.append((nav_item['path'], 'missing_or_malformed_navigation'))
             continue
         for nav in root.iter():
             if nav.tag.rsplit('}', 1)[-1] != 'nav':
@@ -485,18 +490,23 @@ def _get_epub3_toc_entries(zf, manifest):
                 continue
             entries = []
             for link in nav.iter():
-                if link.tag.rsplit('}', 1)[-1] != 'a' or not link.get('href'):
+                if link.tag.rsplit('}', 1)[-1] != 'a':
                     continue
                 label = ' '.join(''.join(link.itertext()).split())
-                path, fragment = _resolve_epub_href(nav_item['path'], link.get('href'))
+                href = link.get('href')
+                path, fragment = _resolve_epub_href(nav_item['path'], href or '')
                 if label and path:
                     entries.append((path, fragment, label))
+                elif report is not None:
+                    report.apply_row('navigation_link', resource=nav_item['path'], href=href, label=label,
+                                     reason='missing_href' if not href else 'empty_label' if not label else 'unsupported_target')
             if entries:
-                return entries
-    return []
+                return entries, decisions + [(nav_item['path'], 'selected_epub3_navigation')]
+        decisions.append((nav_item['path'], 'no_usable_toc_entries'))
+    return [], decisions
 
 
-def _get_epub2_toc_entries(zf, opf, opf_ns, manifest):
+def _get_epub2_toc_entries(zf, opf, opf_ns, manifest, *, report=None):
     spine = opf.find(f'.//{opf_ns}spine')
     toc_id = spine.get('toc') if spine is not None else None
     ncx_item = manifest.get(toc_id) if toc_id else None
@@ -504,11 +514,11 @@ def _get_epub2_toc_entries(zf, opf, opf_ns, manifest):
         ncx_item = next((item for item in manifest.values()
                          if item['media_type'] == 'application/x-dtbncx+xml'), None)
     if ncx_item is None:
-        return []
+        return [], [(None, 'no_epub2_navigation')]
     try:
         root = ET.fromstring(zf.read(ncx_item['path']))
     except (KeyError, ET.ParseError):
-        return []
+        return [], [(ncx_item['path'], 'missing_or_malformed_navigation')]
     entries = []
     for nav_point in root.iter():
         if nav_point.tag.rsplit('}', 1)[-1] != 'navPoint':
@@ -521,11 +531,13 @@ def _get_epub2_toc_entries(zf, opf, opf_ns, manifest):
                 label = ' '.join(''.join(child.itertext()).split())
             elif local_name == 'content' and href is None:
                 href = child.get('src')
-        if label and href:
-            path, fragment = _resolve_epub_href(ncx_item['path'], href)
-            if path:
-                entries.append((path, fragment, label))
-    return entries
+        path, fragment = _resolve_epub_href(ncx_item['path'], href or '')
+        if label and path:
+            entries.append((path, fragment, label))
+        elif report is not None:
+            report.apply_row('navigation_link', resource=ncx_item['path'], href=href, label=label,
+                             reason='missing_href' if not href else 'empty_label' if not label else 'unsupported_target')
+    return entries, [(ncx_item['path'], 'selected_epub2_navigation' if entries else 'no_usable_toc_entries')]
 
 
 _TOC_QUOTES_RE = re.compile(r"[‘’“”\"'`]")
@@ -578,13 +590,14 @@ def _toc_title_already_present(label, window):
     return False
 
 
-def _insert_epub_toc_titles(text, anchor_positions, toc_targets):
-    """Insert missing TOC labels at their resolved positions in one document."""
-    insertions = []
+def _get_epub_toc_title_decisions(text, anchor_positions, toc_targets):
+    decisions = []
     seen = set()
     for fragment, label in toc_targets:
         key = (fragment, label.casefold())
         if key in seen:
+            decisions.append({'fragment': fragment, 'label': label, 'position': None,
+                              'reason': 'duplicate_navigation_entry'})
             continue
         seen.add(key)
         if fragment is None:
@@ -592,9 +605,21 @@ def _insert_epub_toc_titles(text, anchor_positions, toc_targets):
         elif fragment in anchor_positions:
             position = anchor_positions[fragment]
         else:
+            decisions.append({'fragment': fragment, 'label': label, 'position': None,
+                              'reason': 'unresolved_anchor'})
             continue
-        if not _toc_title_already_present(label, text[position:position + 500]):
-            insertions.append((position, label))
+        reason = ('label_already_near_target' if _toc_title_already_present(label, text[position:position + 500])
+                  else 'insert_navigation_label')
+        decisions.append({'fragment': fragment, 'label': label, 'position': position, 'reason': reason})
+    return decisions
+
+
+def _insert_epub_toc_titles(text, anchor_positions, toc_targets, *, decisions=None):
+    """Insert missing TOC labels at their resolved positions in one document."""
+    if decisions is None:
+        decisions = _get_epub_toc_title_decisions(text, anchor_positions, toc_targets)
+    insertions = [(row['position'], row['label']) for row in decisions
+                  if row['reason'] == 'insert_navigation_label']
     # BACK TO FRONT BY POSITION, not by TOC order. Inserting shifts every
     # offset after the insertion point, so each insert must happen at a
     # position no earlier than the ones already applied. `reversed()` alone
@@ -624,12 +649,18 @@ def get_epub_xhtml_text(data: bytes) -> str:
     return data.decode(encoding, errors="replace")
 
 
-def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None) -> str:
+def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, include_report=False):
     """Extract plain text from an EPUB file, ordered by spine (reading order).
 
     Parses the EPUB ZIP structure directly using stdlib only:
     META-INF/container.xml -> .opf manifest+spine -> XHTML content files.
     """
+    if include_report and archive_bytes is None:
+        with open(epub_path, 'rb') as source:
+            archive_bytes = source.read(MAX_SCRIPT_UPLOAD_BYTES + 1)
+        if len(archive_bytes) > MAX_SCRIPT_UPLOAD_BYTES:
+            raise ValueError('EPUB exceeds source upload limit')
+    report = EpubExtractionReport(archive_bytes) if include_report else None
     if archive_bytes is None:
         validate_epub_archive(epub_path)
     else:
@@ -637,7 +668,12 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None) -> 
     source = io.BytesIO(archive_bytes) if archive_bytes is not None else epub_path
     with zipfile.ZipFile(source, 'r') as zf:
         # Share the package parser with bounded publication metadata review.
-        opf_path, opf = get_epub_package(zf)
+        if report is not None:
+            opf_path, opf, package_details = get_epub_package(zf, include_details=True)
+            report.apply_row('package', resource=opf_path, sha256=hashlib.sha256(zf.read(opf_path)).hexdigest(),
+                             digest_scope='original_archive_member_bytes', **package_details)
+        else:
+            opf_path, opf = get_epub_package(zf)
         # Detect OPF namespace (varies between EPUB 2 and 3)
         opf_ns = opf.tag.split('}')[0] + '}' if '}' in opf.tag else ''
 
@@ -663,23 +699,39 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None) -> 
                 spine_ids.append(idref)
 
         # 3. Read EPUB3 navigation, falling back to EPUB2 NCX.
-        toc_entries = _get_epub3_toc_entries(zf, manifest)
+        toc_entries, navigation = _get_epub3_toc_entries(zf, manifest, report=report)
         if not toc_entries:
-            toc_entries = _get_epub2_toc_entries(zf, opf, opf_ns, manifest)
+            toc_entries, fallback = _get_epub2_toc_entries(zf, opf, opf_ns, manifest, report=report)
+            navigation += [(None, 'epub3_unavailable_or_empty_try_epub2')] + fallback
+        if report is not None:
+            for resource, reason in navigation:
+                report.apply_row('navigation_source', resource=resource, reason=reason)
         toc_by_path = {}
         for path, fragment, label in toc_entries:
             toc_by_path.setdefault(path, []).append((fragment, label))
 
         # 4. Extract text from each spine item in order.
         chapters = []
-        for item_id in spine_ids:
+        processed_paths = set()
+        skipped_paths = {}
+        for spine_index, item_id in enumerate(spine_ids):
             item = manifest.get(item_id)
             if item is None or 'html' not in item['media_type']:
+                if item is not None:
+                    skipped_paths[item['path']] = 'non_html_resource'
+                if report is not None:
+                    report.apply_row('spine', index=spine_index, item_id=item_id,
+                                     resource=item['path'] if item else None,
+                                     reason='non_html_resource' if item else 'missing_manifest_item')
                 continue
             href = item['path']
             try:
                 html_bytes = zf.read(href)
             except KeyError:
+                skipped_paths[href] = 'missing_archive_resource'
+                if report is not None:
+                    report.apply_row('spine', index=spine_index, item_id=item_id, resource=href,
+                                     reason='missing_archive_resource')
                 continue
             html_content = get_epub_xhtml_text(html_bytes)
             targets = toc_by_path.get(href, [])
@@ -687,11 +739,41 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None) -> 
             extractor = _HTMLTextExtractor(anchor_ids)
             extractor.feed(html_content)
             text, anchor_positions = extractor.get_text_with_anchor_positions()
-            text = _insert_epub_toc_titles(text, anchor_positions, targets).strip()
+            body_characters = len(text.strip())
+            processed_paths.add(href)
+            decisions = _get_epub_toc_title_decisions(text, anchor_positions, targets) if report is not None else None
+            insertion_options = {'decisions': decisions} if report is not None else {}
+            text = _insert_epub_toc_titles(text, anchor_positions, targets, **insertion_options).strip()
+            if report is not None:
+                for decision in decisions:
+                    report.apply_row('navigation_target', resource=href, spine_index=spine_index,
+                                     coordinate_scope='plain_resource_before_titles_and_normalization',
+                                     anchor_occurrences=extractor.anchor_counts.get(decision['fragment'], 0),
+                                     **decision)
+                resolved = list(anchor_positions.values())
+                report.apply_row('resource_policy', resource=href,
+                                 reason='all_extracted_text_kept_including_before_first_target',
+                                 characters_before_first_resolved_anchor=min(resolved) if resolved else None,
+                                 duplicate_anchor_policy='first_occurrence',
+                                 inserted_navigation_labels=sum(row['reason'] == 'insert_navigation_label' for row in decisions),
+                                 body_characters_before_titles=body_characters)
+                report.apply_row('spine', index=spine_index, item_id=item_id, resource=href,
+                                 reason='included' if body_characters else 'navigation_label_only' if text else 'no_readable_text',
+                                 resource_sha256=hashlib.sha256(html_bytes).hexdigest(),
+                                 text_sha256=hashlib.sha256(normalize_extracted_text(text).encode('utf-8')).hexdigest())
             if text:
                 chapters.append(text)
 
-    return normalize_extracted_text('\n\n'.join(chapters))
+        if report is not None:
+            archive_paths = set(zf.namelist())
+            manifest_paths = {item['path'] for item in manifest.values()}
+            for path, fragment, label in toc_entries:
+                if path not in processed_paths:
+                    report.apply_row('navigation_target', resource=path, fragment=fragment, label=label,
+                                     reason=skipped_paths.get(path) or ('missing_archive_resource' if path not in archive_paths
+                                         else 'target_not_in_manifest' if path not in manifest_paths else 'target_outside_spine_not_extracted'))
+    text = normalize_extracted_text('\n\n'.join(chapters))
+    return (text, report.get_report(text)) if report is not None else text
 
 
 def _get_upload_hash(path: str) -> str:
@@ -842,7 +924,7 @@ def get_upload_storage_bytes():
 from upload_operation import await_upload_operation
 
 @router.post("/api/upload")
-async def upload_file(file: UploadFile = File(...), select_active: bool = True):
+async def upload_file(file: UploadFile = File(...), select_active: bool = True, include_extraction_report: bool = False):
     safe_name = _require_safe_filename(file.filename or "", "Invalid or empty filename")
     if os.path.splitext(safe_name)[1].lower() not in {".txt", ".md", ".epub"}:
         raise HTTPException(status_code=400, detail="Supported source formats are TXT, Markdown and EPUB.")
@@ -866,6 +948,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
         # error arrives after a book-state rename. They remain quota-accounted.
         selection['publication_started'] = True
     publication = publication_update = publication_bytes = None
+    extraction_report = None
     request_error = None
     try:
         available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
@@ -888,10 +971,15 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                     asyncio.to_thread(file_path.read_bytes))
                 if cancelled is not None:
                     raise cancelled
-                text, cancelled = await await_upload_operation(asyncio.to_thread(
-                    extract_epub_text, safe_name, archive_bytes=archive_bytes))
+                options = {'include_report': True} if include_extraction_report else {}
+                extracted, cancelled = await await_upload_operation(asyncio.to_thread(
+                    extract_epub_text, safe_name, archive_bytes=archive_bytes, **options))
                 if cancelled is not None:
                     raise cancelled
+                if include_extraction_report:
+                    text, extraction_report = extracted
+                else:
+                    text = extracted
             except FileNotFoundError as error:
                 # Captured archive bytes are the parser's only input. A
                 # missing-path error here describes a malformed internal EPUB
@@ -1008,7 +1096,8 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True):
                 "path": file_path, "reused": reused,
                 "book_identity_token": selection_token,
                 "publication_status": publication['metadata_status'] if publication is not None else 'not_captured',
-                "publication_warnings": publication['warnings'] if publication is not None else []}
+                "publication_warnings": publication['warnings'] if publication is not None else [],
+                **({'extraction_report': extraction_report} if include_extraction_report else {})}
     except BaseException as error:
         request_error = error
         if any(stage.publication_started for stage in owned_stages):

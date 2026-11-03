@@ -36,6 +36,7 @@ class EpubPackageTests(unittest.TestCase):
     def test_only_known_sigil_fragment_is_repaired(self):
         with self.archive('<package><meta property="identifier" refines">"#pub-i">Fixture</meta></package>') as archive:
             self.assertEqual('Fixture', get_epub_package(archive)[1][0].text)
+            self.assertTrue(get_epub_package(archive, include_details=True)[2]['narrow_refines_repair_applied'])
         with self.archive('<package><meta broken">Fixture</meta></package>') as archive:
             with self.assertRaises(ET.ParseError):
                 get_epub_package(archive)
@@ -43,6 +44,9 @@ class EpubPackageTests(unittest.TestCase):
     def test_text_extraction_first_root_is_preserved_but_review_refuses_ambiguity(self):
         with self.archive(roots=['book.opf', 'alternative.opf']) as archive:
             self.assertEqual('book.opf', get_epub_package(archive)[0])
+            self.assertEqual({'rootfile_count': 2, 'selected_rootfile_index': 0,
+                              'narrow_refines_repair_applied': False},
+                             get_epub_package(archive, include_details=True)[2])
             with self.assertRaisesRegex(ValueError, 'ambiguous publication'):
                 get_epub_package(archive, max_xml_bytes=4096, require_unique=True)
 

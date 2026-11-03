@@ -1919,6 +1919,15 @@
                         <div class="mb-4">
                             <label class="form-label" for="file-upload">Select Book/Novel (Text, Markdown, or EPUB)</label>
                             <input type="file" class="form-control" id="file-upload" accept=".txt,.md,.epub">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="epub-extraction-report-enabled">
+                                <label class="form-check-label" for="epub-extraction-report-enabled">Include an EPUB extraction report with this import</label>
+                            </div>
+                            <details id="epub-extraction-report-panel" class="mt-2" hidden>
+                                <summary>EPUB import snapshot</summary>
+                                <p class="small">Shows source hashes, reading order, navigation and title decisions from this upload. It does not certify later editor changes or apply exclusions or formatting. Re-upload an EPUB to inspect another revision. Labels and archive paths may contain private information; review before sharing. Omitted rows and shortened fields are marked in the report.</p>
+                                <pre id="epub-extraction-report-json" class="small" tabindex="0" role="region" aria-label="EPUB extraction report JSON" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:24rem;overflow:auto"></pre>
+                            </details>
                             <label class="form-label mt-3" for="existing-upload-select">Or reuse an existing upload</label>
                             <select class="form-select" id="existing-upload-select" onchange="selectExistingScriptUpload()">
                                 <option value="">Choose an existing TXT/MD file…</option>
