@@ -78,6 +78,38 @@ assert(pseudo.startsWith('[')&&pseudo.length>context.getSetupUiMessage('none').l
 assert.equal(context.getSetupUiMessage('many',{count:12},'qps-ploc'),'[12 maatchiing seettiings.]');
 ''')
 
+    def test_unknown_markup_keeps_english_fallback_and_unsupported_rtl_stays_english(self):
+        self.run_js(r'''
+const fallback=overview.appendChild(new Element('div',{'data-setup-message':'future-message'}));
+fallback.textContent='Future English fallback <img onerror=bad()>';
+const placeholder=overview.appendChild(new Element('input',{'data-setup-message':'future-placeholder'}));
+placeholder.placeholder='Future English placeholder';
+const inherited=overview.appendChild(new Element('div',{'data-setup-message':'toString'}));inherited.textContent='English inherited-key fallback';
+const label=overview.appendChild(new Element('label',{'data-setup-message':'label'}));
+const selector=overview.appendChild(new Element('select',{id:'setup-ui-locale'}));
+for(const node of [fallback,placeholder,inherited]){
+ const text=node.textContent;Object.defineProperty(node,'textContent',{get:()=>text,set:()=>assert.fail('Unknown message must retain authored text')});
+}
+Object.defineProperty(placeholder,'placeholder',{get:()=>'Future English placeholder',set:()=>assert.fail('Unknown message must retain authored placeholder')});
+for(const property of ['innerHTML','outerHTML']){Object.defineProperty(Element.prototype,property,{set:()=>assert.fail('HTML sink is forbidden')});}
+Element.prototype.insertAdjacentHTML=()=>assert.fail('HTML sink is forbidden');
+document.documentElement=new Element('html');
+Object.defineProperty(Element.prototype,'dir',{get(){return this.getAttribute('dir')||'';},set:()=>assert.fail('Locale must not change direction')});
+for(const node of [body,document.documentElement]){Object.defineProperty(node.style,'direction',{get:()=>'',set:()=>assert.fail('Locale must not change direction')});}
+const original=JSON.stringify(form.querySelectorAll('[id]').map(node=>node.attrs));
+for(const locale of ['qps-ploc','ar','he','unsupported',null,'en']){
+ context.applySetupUiLocale(locale);
+ assert.equal(fallback.textContent,'Future English fallback <img onerror=bad()>');
+ assert.equal(placeholder.placeholder,'Future English placeholder');
+ assert.equal(inherited.textContent,'English inherited-key fallback');
+ assert.equal(label.textContent,locale==='qps-ploc'?'[Fiind aa seettiing]':'Find a setting');
+ assert.equal(selector.value,locale==='qps-ploc'?'qps-ploc':'en');
+ assert.equal(JSON.stringify(form.querySelectorAll('[id]').map(node=>node.attrs)),original);
+ assert.equal(body.getAttribute('dir'),null);
+ assert.equal(document.documentElement.getAttribute('dir'),null);
+}
+''')
+
     def test_locale_restoration_storage_events_and_configuration_isolation(self):
         self.run_js(r'''
 assert.equal(selector.value,'qps-ploc');assert(label.textContent.startsWith('['));

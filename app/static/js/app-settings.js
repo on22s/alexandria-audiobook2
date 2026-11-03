@@ -44,6 +44,7 @@ function applySetupUiLocale(locale) {
     const selector = document.getElementById('setup-ui-locale');
     if (selector) { selector.value = setupUiLocale; }
     for (const node of document.querySelectorAll('[data-setup-message]')) {
+        if (!Object.hasOwn(setupUiEnglish, node.getAttribute('data-setup-message'))) { continue; }
         const values = node.hasAttribute('data-setup-count') ? {count: Number(node.getAttribute('data-setup-count'))} : {};
         const message = getSetupUiMessage(node.getAttribute('data-setup-message'), values);
         if (node.getAttribute('data-setup-message') === 'placeholder') { node.placeholder = message; }

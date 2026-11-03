@@ -220,15 +220,17 @@ The Setup sidebar has a **Setup UI language (partial coverage)** selector above
 the setting finder. The finder's text, including its search feedback, the **Preview changes**
 action, preview title, **Close preview** action, default-count summary and
 **Saved**/**Would save** column headings use the English message catalog. Counts
-are preserved. The
-optional **Pseudo-English** mode expands those messages for layout testing; it is
+are preserved. The optional **Pseudo-English** mode expands those messages for layout testing; it is
 not a reviewed translation. Setting names, comparison values, default markers,
 contextual help and safety warnings
 remain English. The preference is browser-local, synchronizes between same-origin
 tabs when storage is available, and never changes book, TTS or transcription
 language, configuration values or submitted technical identifiers. Unsupported
-locales fall back to English. No RTL locale or full-interface translation is
-claimed by this initial #1732 slice.
+locales (including RTL language codes) fall back to English without changing layout direction.
+Uncatalogued markup retains its authored English text or placeholder instead of displaying a message key.
+No RTL locale or full-interface translation is claimed. The bounded catalog foundation
+requested by #1732 is complete; reviewed translations and additional workflows are future work.
+See [the acceptance record](docs/setup-ui-catalog.md) for the exact scope, tests and limits.
 
 ![Setup screen: LLM connection and TTS settings](docs/screenshots/setup.png)
 

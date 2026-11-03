@@ -1050,23 +1050,20 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-03T07:03:08",
+  "written": "2026-11-03T08:07:46",
   "host": "RealMitch",
   "git": {
-   "commit": "9d1e23d1a6fa6097e5d363ef7296c8212b9810f8",
-   "branch": "feat/1732-preview-default-summary",
+   "commit": "152c6dc49ed0e6e0c7d5b43342ca8dfc9414ca47",
+   "branch": "feat/1732-complete-locale-contract",
    "dirty": true,
-   "source_state": "dirty:e6dd7ee46498",
+   "source_state": "dirty:f7b0dab5308d",
    "source_state_detail": null,
    "modified_tracked_files": [
     " M GOALS.md",
     "M  README.md",
-    "M  app/static/index.html",
-    "M  app/static/js/app-help.js",
     "M  app/static/js/app-settings.js",
     "M  app/tests/test_settings_discovery_js.py",
-    "M  app/tests/test_settings_preview_js.py",
-    "M  app/tests/unit_test_inventory.json"
+    "A  docs/setup-ui-catalog.md"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
