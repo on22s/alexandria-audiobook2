@@ -1,4 +1,4 @@
-const setupSearchEnglish = Object.freeze({
+const setupUiEnglish = Object.freeze({
     label: 'Find a setting',
     placeholder: 'Try context, memory, language or retries',
     clear: 'Clear',
@@ -8,6 +8,8 @@ const setupSearchEnglish = Object.freeze({
     many: '{count} matching settings.',
     limited: 'Showing the first {limit}; refine your search for more specific results.',
     opened: 'Showing the original setting. Save Configuration to apply any edits.',
+    previewSaved: 'Saved',
+    previewWouldSave: 'Would save',
 });
 let setupUiLocale = 'en';
 let setupSearchStatus = [];
@@ -25,9 +27,9 @@ function formatUiMessage(english, translated, values = {}) {
     });
 }
 
-function getSetupSearchMessage(key, values = {}, locale = setupUiLocale) {
-    if (!Object.hasOwn(setupSearchEnglish, key)) { return key; }
-    const english = setupSearchEnglish[key];
+function getSetupUiMessage(key, values = {}, locale = setupUiLocale) {
+    if (!Object.hasOwn(setupUiEnglish, key)) { return key; }
+    const english = setupUiEnglish[key];
     const pseudo = locale === 'qps-ploc' ? '[' + english.split(/(\{[a-zA-Z][a-zA-Z0-9_]*\})/g).map(part =>
         part.startsWith('{') ? part : part.replace(/[aeiouAEIOU]/g, vowel => vowel + vowel)).join('') + ']' : english;
     return formatUiMessage(english, pseudo, values);
@@ -38,7 +40,7 @@ function applySetupUiLocale(locale) {
     const selector = document.getElementById('setup-ui-locale');
     if (selector) { selector.value = setupUiLocale; }
     for (const node of document.querySelectorAll('[data-setup-message]')) {
-        const message = getSetupSearchMessage(node.getAttribute('data-setup-message'));
+        const message = getSetupUiMessage(node.getAttribute('data-setup-message'));
         if (node.getAttribute('data-setup-message') === 'placeholder') { node.placeholder = message; }
         else { node.textContent = message; }
     }
@@ -51,7 +53,7 @@ function changeSetupUiLocale(locale) {
 }
 
 function renderSetupSearchStatus() {
-    const text = setupSearchStatus.map(message => getSetupSearchMessage(message.key, message.values)).join(' ');
+    const text = setupSearchStatus.map(message => getSetupUiMessage(message.key, message.values)).join(' ');
     applySystemStatusText('setup-settings-search-status', text);
 }
 
@@ -191,9 +193,11 @@ function renderSetupPreviewRows(container, rows) {
         const label = document.createElement('strong'); label.textContent = row.label;
         const scope = document.createElement('div'); scope.className = 'small'; scope.textContent = row.scope;
         const values = document.createElement('div'); values.className = 'settings-preview-values small';
-        for (const [name, text] of [['Saved', row.before + (row.was_default ? ' (default)' : '')], ['Would save', row.after]]) {
+        for (const [key, text] of [['previewSaved', row.before + (row.was_default ? ' (default)' : '')], ['previewWouldSave', row.after]]) {
             const column = document.createElement('div');
-            const heading = document.createElement('strong'); heading.textContent = name;
+            const heading = document.createElement('strong');
+            heading.setAttribute('data-setup-message', key);
+            heading.textContent = getSetupUiMessage(key);
             const value = document.createElement('div'); value.textContent = text;
             column.append(heading, value); values.appendChild(column);
         }
