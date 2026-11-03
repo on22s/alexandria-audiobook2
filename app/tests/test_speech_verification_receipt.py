@@ -35,6 +35,109 @@ def get_report(path,text,transcript=None,status='no_content_candidate'):
 
 
 class SpeechVerificationReceiptTests(unittest.TestCase):
+    def test_recorded_input_states_preserve_absent_invalid_and_stale_reasons(self):
+        receipt = get_speech_verification_receipt(get_report(self.path, self.text), self.chunk, 'f'*64, 'take', self.input)
+        row = {**self.chunk, 'audio_path': str(self.path), 'speech_verification': receipt}
+        before = copy.deepcopy(row)
+        with patch('speech_verification_receipt._version_matches_file', return_value=True):
+            view = get_speech_verification_chunk_view(row, 'f'*64, lambda path: path)
+        self.assertEqual('current', view['recorded_input_state'])
+        self.assertEqual(self.text, view['speech_verification']['expected_text'])
+        for changes, state, reason in [
+                ({'speech_verification': None}, 'not_recorded', None),
+                ({'speech_verification': {}}, 'invalid', 'invalid'),
+                ({'uid': 'another'}, 'stale', 'other_line'),
+                ({'audio_revision': 'another'}, 'stale', 'other_take'),
+                ({'text': 'Changed text'}, 'stale', 'inputs_changed'),
+                ({'voice_revision': 'changed'}, 'stale', 'inputs_changed')]:
+            with self.subTest(changes=changes):
+                view = get_speech_verification_chunk_view({**row, **changes}, 'f'*64, lambda path: path)
+                self.assertEqual((state, reason), (view['recorded_input_state'], view['recorded_input_reason']))
+                self.assertIsNone(view.get('speech_verification'))
+                self.assertNotIn('speech_verification_historical', view)
+        view = get_speech_verification_chunk_view(row, 'e'*64, lambda path: path)
+        self.assertEqual('other_line', view['recorded_input_reason'])
+        self.assertEqual(before, row)
+
+    def test_unavailable_receipt_without_captured_input_never_claims_exact_input(self):
+        report = get_report(self.path, self.text, status='unavailable')
+        receipt = get_speech_verification_receipt(report, self.chunk, 'f'*64, 'take', None)
+        row = {**self.chunk, 'audio_path': str(self.path), 'speech_verification': receipt}
+        with patch('speech_verification_receipt._version_matches_file', return_value=True):
+            view = get_speech_verification_chunk_view(row, 'f'*64, lambda path: path)
+        self.assertEqual('not_recorded', view['recorded_input_state'])
+
+    def test_changed_occurrence_rule_invalidates_recorded_input_without_repreparing(self):
+        from pronunciation import get_occurrence_pronunciation_candidates
+        from speech_text import get_prelexicon_speech_normalization
+        prepared = get_prelexicon_speech_normalization(self.chunk['text'])['text']
+        candidate = get_occurrence_pronunciation_candidates(prepared, self.chunk['uid'], self.chunk['text'], 'Authored')['candidates'][0]
+        rule = {key: value for key, value in candidate.items() if key not in ('before', 'after')}
+        rule.update(id='rule', state='approved', replacement='Spoken')
+        row = {**self.chunk, 'pronunciation_rules': [rule], 'audio_path': str(self.path)}
+        receipt = get_speech_verification_receipt(get_report(self.path, self.text), row, 'f'*64, 'take', self.input)
+        row['speech_verification'] = receipt
+        row['pronunciation_rules'] = [{**rule, 'replacement': 'Different'}]
+        with patch('speech_text.get_speech_preparation', side_effect=AssertionError('No reconstruction')):
+            view = get_speech_verification_chunk_view(row, 'f'*64, lambda path: path)
+        self.assertEqual(('stale', 'inputs_changed'), (view['recorded_input_state'], view['recorded_input_reason']))
+        self.assertIsNone(view['speech_verification'])
+
+    def test_recorded_pronunciation_is_historical_bounded_and_revision_bound(self):
+        from pronunciation import get_pronunciation_text_digest
+        from speech_verification_receipt import get_recorded_pronunciation_state
+        receipt = dict(audio_revision='take', text_sha256=get_pronunciation_text_digest(self.chunk['text']),
+            prepared_sha256='a'*64, speech_sha256='b'*64, context={'speaker': 'A'},
+            decisions=[{'id': 'rule', 'applied': False, 'reason': 'duplicate_rule_id'}])
+        row = {**self.chunk, 'pronunciation_receipt': receipt}
+        before = copy.deepcopy(row)
+        self.assertEqual('recorded', get_recorded_pronunciation_state(row))
+        for changes, state in [({'text': 'Changed'}, 'changed_text'), ({'audio_revision': 'new'}, 'other_take'),
+                ({'speaker': 'B'}, 'changed_context'), ({'pronunciation_receipt': {}}, 'invalid'),
+                ({'pronunciation_receipt': None}, 'not_recorded')]:
+            self.assertEqual(state, get_recorded_pronunciation_state({**row, **changes}))
+        self.assertEqual('invalid', get_recorded_pronunciation_state({**row,
+            'pronunciation_receipt': {**receipt, 'decisions': receipt['decisions']*100}}))
+        self.assertEqual(before, row)
+
+    def test_recorded_view_states_are_incremental_not_saved_content_changes(self):
+        from editor_poll_snapshot import EditorPollSnapshots
+        snapshots = EditorPollSnapshots()
+        row = {**self.chunk, 'id': 0, 'recorded_input_state': 'current', 'recorded_input_reason': None,
+               'recorded_pronunciation_state': 'recorded'}
+        initial = snapshots.ensure_snapshot([row], 'book')
+        changed = snapshots.ensure_snapshot([{**row, 'recorded_input_state': 'historical',
+            'recorded_input_reason': 'changed', 'recorded_pronunciation_state': 'invalid'}], 'book', initial['revision'])
+        self.assertFalse(changed['full'])
+        self.assertEqual([0], changed['changed_ids'])
+
+    def test_recorded_input_historical_and_unverifiable_use_real_file_identity(self):
+        from speech_verification_receipt import get_audio_file_version
+        receipt = get_speech_verification_receipt(get_report(self.path, self.text), self.chunk, 'f'*64, 'take', self.input)
+        receipt['audio_file_version'] = get_audio_file_version(self.path)
+        row = {**self.chunk, 'audio_path': str(self.path), 'speech_verification': receipt}
+        self.path.write_bytes(b'changed synthetic artifact bytes')
+        with patch('speech_verification_receipt._ctime_attests_change', return_value=True), patch(
+                'speech_verification_receipt.get_verifier_file_identity', side_effect=AssertionError('No audio hashing')):
+            view = get_speech_verification_chunk_view(row, 'f'*64, lambda path: path)
+        self.assertEqual(('historical', 'changed'), (view['recorded_input_state'], view['recorded_input_reason']))
+        self.assertEqual(self.text, view['speech_verification_historical']['expected_text'])
+        receipt.pop('audio_file_version')
+        view = get_speech_verification_chunk_view(row, 'f'*64, lambda path: path)
+        self.assertEqual(('stale', 'unverifiable'), (view['recorded_input_state'], view['recorded_input_reason']))
+        self.assertNotIn('speech_verification_historical', view)
+
+    def test_recorded_pronunciation_refuses_contradictory_or_duplicate_application(self):
+        from pronunciation import get_pronunciation_text_digest
+        from speech_verification_receipt import get_recorded_pronunciation_state
+        receipt = dict(audio_revision='take', text_sha256=get_pronunciation_text_digest(self.chunk['text']),
+            prepared_sha256='a'*64, speech_sha256='b'*64, context={'speaker': 'A'})
+        for decisions in [[{'id': 'rule', 'applied': True, 'reason': 'duplicate_rule_id'}],
+                [{'id': 'rule', 'applied': False, 'reason': 'applied_respelling'}],
+                [{'id': 'rule', 'applied': True, 'reason': 'applied_respelling'}]*2]:
+            self.assertEqual('invalid', get_recorded_pronunciation_state({**self.chunk,
+                'pronunciation_receipt': {**receipt, 'decisions': decisions}}))
+
     def setUp(self):
         self.directory=tempfile.TemporaryDirectory();self.addCleanup(self.directory.cleanup)
         self.path=Path(self.directory.name)/'audio';self.path.write_bytes(b'finished artifact')

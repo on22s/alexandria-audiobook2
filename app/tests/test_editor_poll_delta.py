@@ -45,7 +45,11 @@ class EditorPollDeltaTests(unittest.TestCase):
                     self.assertEqual(200, client.get('/api/chunks').status_code)
                     snapshot = client.get('/api/chunks/status')
                     self.assertEqual(200, snapshot.status_code)
-                    self.assertEqual([fixed], snapshot.json()['chunks'])
+                    self.assertEqual([{**fixed, 'recorded_input_state': 'not_recorded',
+                        'recorded_input_reason': None, 'recorded_pronunciation_state': 'not_recorded'}],
+                        snapshot.json()['chunks'])
+                    self.assertEqual([fixed], pm.load_chunks())
+                    self.assertEqual(audio_bytes, audio.read_bytes())
 
     def test_unchanged_poll_and_one_changed_row_do_not_transfer_book_text(self):
         with tempfile.TemporaryDirectory() as root:

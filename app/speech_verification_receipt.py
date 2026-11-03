@@ -393,4 +393,77 @@ def get_speech_verification_chunk_view(chunk, book_token, resolve_audio):
     if historical is not None:
         row['speech_verification_historical'] = historical
         row['speech_verification_historical_reason'] = historical_reason
+    saved = chunk.get('speech_verification')
+    if row.get('speech_verification') is not None:
+        state, reason = 'current', None
+    elif historical is not None:
+        state, reason = 'historical', historical_reason
+    elif saved is None:
+        state, reason = 'not_recorded', None
+    else:
+        reason = get_recorded_input_mismatch(saved, chunk, book_token)
+        state = 'invalid' if reason == 'invalid' else 'stale'
+    if state in ('current', 'historical') and saved.get('expected_text') is None:
+        state, reason = 'not_recorded', None
+    row['recorded_input_state'], row['recorded_input_reason'] = state, reason
+    row['recorded_pronunciation_state'] = get_recorded_pronunciation_state(chunk)
     return row
+
+
+def get_recorded_input_mismatch(receipt, chunk, book_token):
+    """Explain rejected metadata without exposing stale text or accepting evidence."""
+    try:
+        if (not isinstance(receipt, dict)
+                or len(json.dumps(receipt, ensure_ascii=False, allow_nan=False).encode('utf-8')) > MAX_RECEIPT_BYTES
+                or not _is_receipt_schema(receipt)):
+            return 'invalid'
+        if receipt['uid'] != chunk.get('uid') or receipt['book_token'] != book_token:
+            return 'other_line'
+        if receipt['audio_revision'] != chunk.get('audio_revision'):
+            return 'other_take'
+        if receipt['input_digest'] != get_speech_verification_chunk_digest(chunk):
+            return 'inputs_changed'
+        return 'unverifiable'
+    except (TypeError, ValueError, KeyError, OSError, OverflowError, RecursionError):
+        return 'invalid'
+
+
+def get_recorded_pronunciation_state(chunk):
+    """Classify the saved occurrence trace without applying today's rules."""
+    from pronunciation import MAX_OCCURRENCE_RULES, get_pronunciation_text_digest
+    receipt = chunk.get('pronunciation_receipt')
+    if receipt is None:
+        return 'not_recorded'
+    try:
+        if (not isinstance(receipt, dict)
+                or set(receipt) != {'audio_revision', 'text_sha256', 'prepared_sha256', 'speech_sha256', 'context', 'decisions'}
+                or not isinstance(chunk.get('text'), str)
+                or any(not _is_digest(receipt[key]) for key in ('text_sha256', 'prepared_sha256', 'speech_sha256'))
+                or not isinstance(receipt['audio_revision'], str) or not 0 < len(receipt['audio_revision']) <= 128
+                or not isinstance(receipt['context'], dict) or len(receipt['context']) > 4
+                or any(not isinstance(key, str) or len(key) > 64
+                    or value is not None and (not isinstance(value, str) or len(value) > 256)
+                    for key, value in receipt['context'].items())
+                or not isinstance(receipt['decisions'], list) or not 0 < len(receipt['decisions']) <= MAX_OCCURRENCE_RULES
+                or any(not isinstance(item, dict) or set(item) != {'id', 'applied', 'reason'}
+                    or item['id'] is not None and (not isinstance(item['id'], str) or not 0 < len(item['id']) <= 64)
+                    or type(item['applied']) is not bool
+                    or not isinstance(item['reason'], str) or not 0 < len(item['reason']) <= 128
+                    for item in receipt['decisions'])):
+            return 'invalid'
+        if receipt['audio_revision'] != chunk.get('audio_revision'):
+            return 'other_take'
+        if receipt['text_sha256'] != get_pronunciation_text_digest(chunk['text']):
+            return 'changed_text'
+        if receipt['context'].get('speaker') != chunk.get('speaker'):
+            return 'changed_context'
+        for decision in receipt['decisions']:
+            applied_reason = decision['reason'] in ('applied_respelling', 'applied_phonetic_fallback')
+            if decision['applied'] != applied_reason:
+                return 'invalid'
+            if decision['applied'] and (decision['id'] is None or sum(
+                    other['id'] == decision['id'] for other in receipt['decisions']) != 1):
+                return 'invalid'
+        return 'recorded'
+    except (TypeError, ValueError, KeyError, OSError, OverflowError, RecursionError):
+        return 'invalid'
