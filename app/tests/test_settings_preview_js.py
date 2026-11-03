@@ -80,7 +80,7 @@ const row=document.getElementById('setup-preview-changes').children[0];
 const saved=row.children[2].children[0],proposed=row.children[2].children[1];
 assert.strictEqual(saved.children[0].textContent,'Saved');assert.strictEqual(proposed.children[0].textContent,'Would save');
 const defaultRow=document.getElementById('setup-preview-defaults').children[0];
-const warnings=['status','notice','timing','unmanaged','active','default-summary'].map(suffix=>document.getElementById('setup-preview-'+suffix).textContent);
+const warnings=['status','notice','timing','unmanaged','active'].map(suffix=>document.getElementById('setup-preview-'+suffix).textContent);
 const before=JSON.stringify(calls[0].payload);input.focus();
 for(const locale of ['qps-ploc','qps-ploc','unavailable','en']){
  context.applySetupUiLocale(locale);
@@ -92,7 +92,7 @@ for(const locale of ['qps-ploc','qps-ploc','unavailable','en']){
  assert.strictEqual(defaultRow.children[2].children[0].children[0].textContent,saved.children[0].textContent);
  assert.strictEqual(saved.children[1].textContent,'local (default)');assert.strictEqual(proposed.children[1].textContent,'remote <script>');
  assert.strictEqual(row.children[0].textContent,'Mode <img>');assert.strictEqual(row.children[1].textContent,'Audio generation');
- assert.deepStrictEqual(['status','notice','timing','unmanaged','active','default-summary'].map(suffix=>document.getElementById('setup-preview-'+suffix).textContent),warnings);
+ assert.deepStrictEqual(['status','notice','timing','unmanaged','active'].map(suffix=>document.getElementById('setup-preview-'+suffix).textContent),warnings);
  assert.strictEqual(JSON.stringify(calls[0].payload),before);assert.strictEqual(calls.length,1);assert.strictEqual(body.querySelectorAll('script,img').length,0);
 }
 ''')
@@ -128,13 +128,34 @@ for(const locale of ['qps-ploc','qps-ploc','unsupported','en']){
  assert.strictEqual(panel.hidden,false);
  assert.strictEqual(document.getElementById('setup-preview-changes').children[0],row);
  assert.strictEqual(document.getElementById('setup-preview-results').hidden,false);
- assert.strictEqual(document.getElementById('setup-preview-default-summary').textContent,summary);
+ assert.strictEqual(document.getElementById('setup-preview-default-summary').textContent,locale==='qps-ploc'?'[0 miissiing seettiings fiilleed wiith deefaauults]':summary);
  assert.strictEqual(document.getElementById('setup-preview-status').textContent,warning);
  assert.strictEqual(calls.length,1);
 }
 vm.runInContext(nodes[2].getAttribute('onclick'),context);
 assert.strictEqual(document.getElementById('setup-preview-panel').hidden,true);
 assert.strictEqual(document.getElementById('setup-preview-results').hidden,true);assert.strictEqual(calls.length,1);
+''')
+
+    def test_default_summary_preserves_counts_across_locales_and_pending_responses(self):
+        self.run_js(r'''
+let release;context.API.post=(path,payload)=>{calls.push({path,payload});return new Promise(resolve=>release=resolve);};
+for(const count of [0,1,500]){
+ const pending=context.previewSetupChanges();await tick();context.applySetupUiLocale('qps-ploc');
+ const data=response();data.defaults=Array.from({length:count},()=>({...data.changes[0],was_default:true}));release(data);await pending;
+ const summary=document.getElementById('setup-preview-default-summary');
+ assert.strictEqual(summary.textContent,'['+count+' miissiing seettiings fiilleed wiith deefaauults]');
+ assert.strictEqual(summary.getAttribute('data-setup-count'),String(count));
+ const row=document.getElementById('setup-preview-defaults').children[0];const payload=JSON.stringify(calls[calls.length-1].payload);const requests=calls.length;
+ for(const locale of ['qps-ploc','qps-ploc','unsupported','en']){
+  context.applySetupUiLocale(locale);
+  assert.strictEqual(summary.textContent,locale==='qps-ploc'?'['+count+' miissiing seettiings fiilleed wiith deefaauults]':count+' missing settings filled with defaults');
+  assert.strictEqual(document.getElementById('setup-preview-default-details').hidden,!count);
+  assert.strictEqual(document.getElementById('setup-preview-defaults').children.length,count);
+  assert.strictEqual(document.getElementById('setup-preview-defaults').children[0],row);
+  assert.strictEqual(JSON.stringify(calls[calls.length-1].payload),payload);assert.strictEqual(calls.length,requests);
+ }
+}
 ''')
 
     def test_edits_close_and_save_invalidation_refuse_pending_results(self):

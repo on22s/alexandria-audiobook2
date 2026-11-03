@@ -15,7 +15,7 @@
             'roster-consent': {what: 'Confirm that you reviewed the proposed identities and exact source locations. Edits invalidate this confirmation.'},
             'setup-settings-category': {what: 'Choose which Setup category to display. Edits in other categories are retained. Save Configuration applies all edited categories.'},
             'setup-settings-search': {what: 'Find available Setup settings by their labels and explanations, then jump to the original control. Does not search field values or save settings.'},
-            'setup-ui-locale': {what: 'Choose English or expanded Pseudo-English for the setting finder text and feedback, preview action/title/close text and Saved/Would save headings. Never changes configuration values, book, TTS or transcription language. Pseudo-English is a layout test, not a translation.'},
+            'setup-ui-locale': {what: 'Choose English or expanded Pseudo-English for finder text/feedback, preview controls/title, default-count summary and Saved/Would save headings. Preserves counts and configuration values, book, TTS and transcription language. Pseudo-English is a layout test, not a translation.'},
             // Setup: LLM connection
             'llm-mode': {what: 'Which LLM profile is active: Local (this machine) or Remote (a server elsewhere). Each profile keeps its own address, model and limits.'},
             'llm-url': {what: 'Address of the OpenAI-compatible server (LM Studio, llama.cpp, Ollama, a hosted API), ending in /v1.'},

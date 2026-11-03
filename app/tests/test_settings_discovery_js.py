@@ -217,6 +217,7 @@ revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(re
             def __init__(self):
                 super().__init__()
                 self.messages = {}
+                self.values = {}
                 self.current = None
                 self.locale = False
                 self.options = []
@@ -229,6 +230,8 @@ revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(re
                     self.options.append(attrs['value'])
                 if 'data-setup-message' in attrs:
                     key = attrs['data-setup-message']
+                    if 'data-setup-count' in attrs:
+                        self.values[key] = {'count': int(attrs['data-setup-count'])}
                     if tag == 'input':
                         self.messages[key] = attrs['placeholder']
                     else:
@@ -248,9 +251,9 @@ revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(re
         markup.feed((STATIC/'index.html').read_text(encoding='utf-8'))
         self.assertEqual(markup.options, ['en', 'qps-ploc'])
         self.assertEqual(set(markup.messages), {'label', 'placeholder', 'clear', 'hint',
-                                               'previewAction', 'previewTitle', 'previewClose'})
+                                               'previewAction', 'previewTitle', 'previewClose', 'previewDefaults'})
         self.run_js('for(const [key,text] of Object.entries('+json.dumps(markup.messages)+')) {'
-                    'assert.equal(context.getSetupUiMessage(key),text);'
+                    'assert.equal(context.getSetupUiMessage(key,('+json.dumps(markup.values)+')[key]||{}),text);'
                     'assert(!/[{}]/.test(text));}')
 
 
