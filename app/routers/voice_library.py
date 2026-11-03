@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from core import (
+    DESIGNED_VOICES_DIR,
     LORA_MODELS_DIR,
     CAST_MAJOR_LINE_THRESHOLD,
     CHARACTER_ALIASES_PATH,
@@ -36,6 +37,7 @@ from core import (
     get_trait_assignment_metadata,
 )
 from voice_manifest import get_resolved_adapter_id_mapping
+from casting_catalog import get_catalog_voice, get_voice_clone_config
 from routers.voices import _apply_book_voice_update
 from book_state_transaction import ensure_book_state, get_book_snapshot, get_book_snapshot_token
 from utils import atomic_json_write, file_lock, is_generic_speaker, safe_load_json, secure_filename
@@ -62,6 +64,13 @@ class LibraryApplyRequest(BaseModel):
 class CastMatchBulkRequest(BaseModel):
     name: str                                 # cast name
     script_names: List[str]                   # saved scripts to union-match against the cast
+
+
+class CatalogMemberRequest(BaseModel):
+    cast: str = Field(min_length=1, max_length=200)
+    voice_id: str = Field(min_length=1, max_length=400)
+    name: str = Field(min_length=1, max_length=200)
+
 
 class LibraryApplyBulkRequest(BaseModel):
     cast: str
@@ -391,6 +400,38 @@ async def voice_library_create_cast(request: CastCreateRequest):
 
     await _mutate_voice_library_async(create)
     return {"status": "created", "name": name}
+
+
+@router.post("/api/voice_library/catalog_member")
+async def voice_library_catalog_member(request: CatalogMemberRequest):
+    return await asyncio.to_thread(save_catalog_member, request)
+
+
+def save_catalog_member(request: CatalogMemberRequest):
+    cast_name, name = request.cast.strip(), request.name.strip()
+    if not cast_name or not name or cast_name == "__shared__":
+        raise HTTPException(status_code=400, detail="A collection and member name are required.")
+    voice = get_catalog_voice(DESIGNED_VOICES_DIR, request.voice_id)
+    if voice is None:
+        raise HTTPException(status_code=404, detail="Catalogue voice not found; refresh the library.")
+    config = get_voice_clone_config(voice, name)
+    if config is None:
+        raise HTTPException(status_code=409, detail="This voice has no preview audio to clone from.")
+    key = get_cast_member_key(name, voice['book_id'])
+
+    def save(lib):
+        if cast_name not in lib["casts"]:
+            raise HTTPException(status_code=404, detail="Collection not found; create the cast first.")
+        members = lib["casts"][cast_name].setdefault("members", {})
+        if key in members:
+            raise HTTPException(status_code=409, detail="That member name is already in the collection; choose another name.")
+        members[key] = _make_library_entry(name, config, 0, voice['book_id'])
+        return {"cast": cast_name, "key": key, "name": name}
+
+    try:
+        return _mutate_voice_library(save)
+    except TimeoutError as error:
+        raise HTTPException(status_code=503, detail="Voice library is busy; try again.") from error
 
 
 @router.post("/api/voice_library/favorites/{adapter_id}")

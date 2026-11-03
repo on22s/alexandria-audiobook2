@@ -57,6 +57,18 @@ class CastingCatalogTests(unittest.TestCase):
         self.assertIsNone(by_id['designer/v2']['preview_url'])
         self.assertEqual(1, len(catalog['skipped']))
 
+    def test_folder_without_metadata_is_reported_not_silently_hidden(self):
+        folder = self.dir / 'persona' / 'book' / 'unfinished'
+        folder.mkdir(parents=True)
+        (folder / 'preview.wav').write_bytes(b'RIFF')
+        catalog = self.catalog()
+        self.assertEqual([], catalog['voices'])
+        self.assertEqual([{'id': 'persona/book/unfinished', 'reason': 'missing meta.json'}], catalog['skipped'])
+
+    def test_malformed_designer_manifest_is_a_health_finding(self):
+        (self.dir / 'manifest.json').write_text('{broken', encoding='utf-8')
+        self.assertEqual([{'id': 'designer', 'reason': 'unreadable or malformed Designer manifest'}], self.catalog()['skipped'])
+
     def test_unreadable_entries_are_reported_not_invented(self):
         self.persona('dh_1', 'good')
         bad = self.dir / 'persona' / 'dh_1' / 'broken'

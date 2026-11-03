@@ -65,10 +65,12 @@ def _persona_voices(designed_dir, skipped):
             continue
         for folder in sorted(os.listdir(book_dir)):
             meta_path = os.path.join(book_dir, folder, 'meta.json')
-            if not os.path.isfile(meta_path):
-                continue
             if not is_path_inside(meta_path, book_dir):
                 skipped.append({'id': f'persona/{book_key}/{folder}', 'reason': 'outside the voice folder'})
+                continue
+            if not os.path.isfile(meta_path):
+                if os.path.isdir(os.path.join(book_dir, folder)):
+                    skipped.append({'id': f'persona/{book_key}/{folder}', 'reason': 'missing meta.json'})
                 continue
             try:
                 meta = _read_meta(meta_path)
@@ -86,7 +88,16 @@ def _persona_voices(designed_dir, skipped):
 
 
 def _designer_voices(designed_dir, skipped):
-    manifest = safe_load_json(os.path.join(designed_dir, 'manifest.json'), default=[])
+    manifest_path = os.path.join(designed_dir, 'manifest.json')
+    if not is_path_inside(manifest_path, designed_dir):
+        skipped.append({'id': 'designer', 'reason': 'manifest outside designed voices'})
+        return []
+    manifest = safe_load_json(manifest_path, default=None)
+    if manifest is None and not os.path.exists(manifest_path):
+        return []
+    if not isinstance(manifest, list):
+        skipped.append({'id': 'designer', 'reason': 'unreadable or malformed Designer manifest'})
+        return []
     voices = []
     for entry in manifest if isinstance(manifest, list) else []:
         if not isinstance(entry, dict) or not _DESIGNER_ID.match(f"designer/{entry.get('id', '')}"):
@@ -126,6 +137,8 @@ def get_voice_clone_config(voice, speaker):
 
 
 def get_casting_marks(marks_path):
+    if not is_path_inside(marks_path, os.path.dirname(os.path.abspath(marks_path))):
+        raise ValueError('marks outside data directory')
     data = safe_load_json(marks_path, default={})
     return data if isinstance(data, dict) else {}
 
