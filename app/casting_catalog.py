@@ -12,6 +12,8 @@ only builds the clone entry, in one place for both sources.
 import json
 import os
 import re
+import uuid
+from datetime import datetime, timezone
 
 from casting_tags import get_voice_tags
 from utils import atomic_json_write, character_voice_seed, file_lock, is_path_inside, safe_load_json
@@ -22,6 +24,14 @@ STATUSES = ('unreviewed', 'shortlist', 'callback', 'reject')
 PRIORITIES = ('none', 'low', 'medium', 'high')
 MAX_NOTES = 2000
 MAX_TAGS, MAX_TAG_LENGTH = 20, 40
+MAX_COLLECTIONS, MAX_COLLECTION_LENGTH = MAX_TAGS, MAX_TAG_LENGTH
+COLORS = ('red', 'amber', 'green', 'blue', 'purple')
+MARK_FIELDS = ('status', 'priority', 'notes', 'tags', 'stars', 'circles', 'collections')
+MARK_DEFAULTS = {'status': 'unreviewed', 'priority': 'none', 'notes': '', 'tags': [], 'stars': [],
+                 'circles': [], 'collections': []}
+METADATA_KEY = '__studio__'
+MAX_ACTIVITY = 100
+MAX_ACTION_LENGTH = 100
 _PERSONA_ID = re.compile(r'^persona/[^/\\]+/[^/\\]+$')
 _DESIGNER_ID = re.compile(r'^designer/[A-Za-z0-9_.-]+$')
 
@@ -136,17 +146,79 @@ def get_voice_clone_config(voice, speaker):
             **({"description": voice['description']} if voice['description'] else {})}
 
 
-def get_casting_marks(marks_path):
+class CastingMarksCorrupt(ValueError):
+    """casting_marks.json exists but cannot be trusted; refuse rather than reset it."""
+
+
+def _load_marks_document(marks_path):
+    """-> the whole casting_marks.json document; malformed data refuses loudly, never resets."""
     if not is_path_inside(marks_path, os.path.dirname(os.path.abspath(marks_path))):
         raise ValueError('marks outside data directory')
-    data = safe_load_json(marks_path, default={})
-    return data if isinstance(data, dict) else {}
+    if not os.path.exists(marks_path):
+        return {}
+    try:
+        with open(marks_path, 'r', encoding='utf-8') as handle:
+            data = json.load(handle)
+    except (OSError, ValueError) as error:
+        raise CastingMarksCorrupt(f'casting marks are unreadable: {error}') from error
+    if not isinstance(data, dict):
+        raise CastingMarksCorrupt('casting marks are not a JSON object')
+    for key, value in data.items():
+        if not isinstance(key, str) or (key != METADATA_KEY and not isinstance(value, dict)):
+            raise CastingMarksCorrupt('casting marks contain a malformed entry')
+    return data
+
+
+def _activity_events(document):
+    metadata = document.get(METADATA_KEY)
+    if metadata is None:
+        return []
+    if not isinstance(metadata, dict):
+        raise CastingMarksCorrupt(f'{METADATA_KEY} metadata is not an object')
+    events = metadata.get('events', [])
+    if not isinstance(events, list) or any(not isinstance(event, dict) for event in events):
+        raise CastingMarksCorrupt(f'{METADATA_KEY} activity is not a list of events')
+    return events
+
+
+def get_casting_marks(marks_path):
+    """-> {voice_id: mark}; the reserved metadata entry is never reported as a voice."""
+    return {key: value for key, value in _load_marks_document(marks_path).items() if key != METADATA_KEY}
+
+
+def get_casting_activity(marks_path):
+    """-> the newest MAX_ACTIVITY batch-event metadata, separate from voice marks."""
+    return list(_activity_events(_load_marks_document(marks_path))[-MAX_ACTIVITY:])
+
+
+def normalize_casting_mark(mark):
+    """-> the mark with canonical defaults on absent fields; the input is not mutated."""
+    if mark is not None and not isinstance(mark, dict):
+        raise CastingMarksCorrupt('a stored casting mark is not an object')
+    full = {key: (list(value) if isinstance(value, list) else value) for key, value in MARK_DEFAULTS.items()}
+    full.update(mark or {})
+    return full
+
+
+def _validated_text_list(values, limit, max_length, name):
+    if (not isinstance(values, list) or len(values) > limit
+            or any(not isinstance(value, str) or not value.strip() or len(value) > max_length
+                   for value in values)):
+        raise ValueError(f'{name} must be up to {limit} non-empty texts of at most {max_length} characters')
+    return list(dict.fromkeys(value.strip() for value in values))
+
+
+def _validated_colors(values, name):
+    if (not isinstance(values, list) or len(values) > len(COLORS)
+            or any(not isinstance(value, str) or value not in COLORS for value in values)):
+        raise ValueError(f'{name} must be up to {len(COLORS)} unique colours of: {", ".join(COLORS)}')
+    return list(dict.fromkeys(values))
 
 
 def get_validated_mark_patch(patch):
     """-> a clean patch; raises ValueError naming the bad field."""
-    if not isinstance(patch, dict) or not patch or set(patch) - {'status', 'priority', 'notes', 'tags'}:
-        raise ValueError('A mark may set status, priority, notes and tags only')
+    if not isinstance(patch, dict) or not patch or set(patch) - set(MARK_FIELDS):
+        raise ValueError('A mark may set status, priority, notes, tags, stars, circles and collections only')
     clean = {}
     if 'status' in patch:
         if patch['status'] not in STATUSES:
@@ -161,11 +233,13 @@ def get_validated_mark_patch(patch):
             raise ValueError(f'notes must be text of at most {MAX_NOTES} characters')
         clean['notes'] = patch['notes']
     if 'tags' in patch:
-        tags = patch['tags']
-        if (not isinstance(tags, list) or len(tags) > MAX_TAGS
-                or any(not isinstance(t, str) or not t.strip() or len(t) > MAX_TAG_LENGTH for t in tags)):
-            raise ValueError(f'tags must be up to {MAX_TAGS} non-empty texts of at most {MAX_TAG_LENGTH} characters')
-        clean['tags'] = list(dict.fromkeys(t.strip() for t in tags))
+        clean['tags'] = _validated_text_list(patch['tags'], MAX_TAGS, MAX_TAG_LENGTH, 'tags')
+    if 'collections' in patch:
+        clean['collections'] = _validated_text_list(
+            patch['collections'], MAX_COLLECTIONS, MAX_COLLECTION_LENGTH, 'collections')
+    for field in ('stars', 'circles'):
+        if field in patch:
+            clean[field] = _validated_colors(patch[field], field)
     return clean
 
 
@@ -173,8 +247,71 @@ def save_casting_mark(marks_path, voice_id, patch):
     """Merge a validated patch into one voice's marks; -> the voice's marks."""
     clean = get_validated_mark_patch(patch)
     with file_lock(marks_path):
-        marks = get_casting_marks(marks_path)
-        mark = {**marks.get(voice_id, {}), **clean}
-        marks[voice_id] = mark
-        atomic_json_write(marks, marks_path)
+        document = _load_marks_document(marks_path)
+        existing = document.get(voice_id)
+        if existing is not None and not isinstance(existing, dict):
+            raise CastingMarksCorrupt('the stored mark is not an object')
+        mark = {**(existing or {}), **clean}
+        document[voice_id] = mark
+        atomic_json_write(document, marks_path)
     return mark
+
+
+class CastingMarkConflict(ValueError):
+    """A batch change was prepared against marks that have since changed."""
+
+
+class CastingMarkNotFound(ValueError):
+    """A batch change names a voice the catalog does not list."""
+
+
+def _validated_action(action):
+    if not isinstance(action, str) or not action.strip() or len(action) > MAX_ACTION_LENGTH:
+        raise ValueError(f'action must be non-empty text of at most {MAX_ACTION_LENGTH} characters')
+    return action.strip()
+
+
+def save_casting_mark_batch(marks_path, changes, action, known_voice_ids):
+    """All-or-none marks batch; -> ({voice_id: full mark}, newest MAX_ACTIVITY events).
+
+    Validate voice ids and field values first, then compare every expected
+    value against canonical current marks under one file_lock before the
+    single atomic write.
+    """
+    action = _validated_action(action)
+    if not isinstance(changes, list) or not changes:
+        raise ValueError('a batch needs at least one change')
+    prepared, seen = [], set()
+    for change in changes:
+        if not isinstance(change, dict):
+            raise ValueError('every change must be an object')
+        voice_id = change.get('voice_id')
+        if not isinstance(voice_id, str) or not voice_id:
+            raise ValueError('every change needs a voice id')
+        if voice_id in seen:
+            raise ValueError(f'duplicate voice id in one batch: {voice_id}')
+        if voice_id not in known_voice_ids:
+            raise CastingMarkNotFound(f'Voice not found in the casting library: {voice_id}; reload it')
+        seen.add(voice_id)
+        prepared.append((voice_id, get_validated_mark_patch(change.get('patch')),
+                         get_validated_mark_patch(change.get('expected'))))
+    with file_lock(marks_path):
+        document = _load_marks_document(marks_path)
+        events = list(_activity_events(document))
+        planned = {}
+        for voice_id, clean, expected in prepared:
+            if set(expected) != set(clean):
+                raise ValueError('expected must contain exactly the keys being changed')
+            current = normalize_casting_mark(document.get(voice_id))
+            for field, value in expected.items():
+                if current[field] != value:
+                    raise CastingMarkConflict(f'{voice_id} changed since it was read ({field}); reload the library')
+            planned[voice_id] = {**current, **clean}
+        document.update(planned)
+        event = {'id': uuid.uuid4().hex, 'at': datetime.now(timezone.utc).isoformat(timespec='milliseconds'),
+                 'action': action, 'count': len(planned)}
+        document[METADATA_KEY] = {**(document.get(METADATA_KEY) or {}),
+                                 'events': (events + [event])[-MAX_ACTIVITY:]}
+        atomic_json_write(document, marks_path)
+        activity = list(document[METADATA_KEY]['events'])
+    return planned, activity

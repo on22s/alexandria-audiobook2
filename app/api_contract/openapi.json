@@ -774,8 +774,89 @@
         "title": "CastMatchBulkRequest",
         "type": "object"
       },
+      "CastingMarkBatchRequest": {
+        "properties": {
+          "action": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Action",
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/CastingMarkChange"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Changes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes",
+          "action"
+        ],
+        "title": "CastingMarkBatchRequest",
+        "type": "object"
+      },
+      "CastingMarkChange": {
+        "properties": {
+          "expected": {
+            "additionalProperties": true,
+            "title": "Expected",
+            "type": "object"
+          },
+          "patch": {
+            "additionalProperties": true,
+            "title": "Patch",
+            "type": "object"
+          },
+          "voice_id": {
+            "maxLength": 400,
+            "minLength": 1,
+            "pattern": "^(persona/[^/\\\\]+/[^/\\\\]+|designer/[A-Za-z0-9_.-]+)$",
+            "title": "Voice Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice_id",
+          "patch",
+          "expected"
+        ],
+        "title": "CastingMarkChange",
+        "type": "object"
+      },
       "CastingMarkRequest": {
         "properties": {
+          "circles": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Circles"
+          },
+          "collections": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collections"
+          },
           "notes": {
             "anyOf": [
               {
@@ -797,6 +878,20 @@
               }
             ],
             "title": "Priority"
+          },
+          "stars": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars"
           },
           "status": {
             "anyOf": [
@@ -6300,6 +6395,42 @@
           }
         },
         "summary": "Casting Mark"
+      }
+    },
+    "/api/casting/marks/batch": {
+      "post": {
+        "operationId": "casting_marks_batch_api_casting_marks_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastingMarkBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Casting Marks Batch"
       }
     },
     "/api/casting/voices": {

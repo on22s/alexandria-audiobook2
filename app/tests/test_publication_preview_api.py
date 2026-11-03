@@ -288,22 +288,24 @@ class PublicationPreviewAPITests(unittest.TestCase):
     def test_same_event_loop_remains_responsive_during_bounded_source_read(self):
         with self.fixture() as (_, api):
             entered, release = threading.Event(), threading.Event()
+            request_thread = threading.get_ident()
             original = editor.get_publication_review
             def paused(*args):
+                self.assertNotEqual(request_thread, threading.get_ident(),
+                                    'source reads must not run on the request event loop')
                 entered.set()
-                if not release.wait(3):
+                if not release.wait(10):
                     raise TimeoutError('fixture publication reader not released')
                 return original(*args)
             async def run():
                 async with httpx.AsyncClient(transport=httpx.ASGITransport(api), base_url='http://fixture') as client:
                     task = asyncio.create_task(client.get('/api/m4b_publication'))
-                    watchdog = threading.Timer(.5, release.set); watchdog.start()
                     try:
-                        self.assertTrue(await asyncio.to_thread(entered.wait, 2))
+                        self.assertTrue(await asyncio.to_thread(entered.wait, 10))
                         self.assertEqual({'ok': True}, (await client.get('/ping')).json())
                         self.assertFalse(release.is_set()); self.assertFalse(task.done())
                     finally:
-                        release.set(); watchdog.cancel(); response = await task
+                        release.set(); response = await task
                     self.assertEqual(200, response.status_code, response.text)
             with patch.object(editor, 'get_publication_review', side_effect=paused):
                 asyncio.run(run())

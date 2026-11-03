@@ -1,5 +1,10 @@
 # Casting library Phase 2: partial implementation
 
+The research-controls follow-up is described in
+[Casting research workflow](casting-research-design.md). Research collections
+are organizational groups; the saved casts described below retain their
+character-mapping and explicit application semantics.
+
 Collections use the existing voice-library casts, JSON persistence and locking.
 Create or choose a collection in Casting, then add a catalogue voice with a member
 name. Existing member names are rejected, not overwritten. Review the active-book

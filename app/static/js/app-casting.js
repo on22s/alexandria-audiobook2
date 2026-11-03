@@ -6,14 +6,18 @@
     const PAGE = 48, TOP_TONES = 24, TOP_TEXTURES = 16;
     const STATUSES = ['unreviewed', 'shortlist', 'callback', 'reject'];
     const PRIORITIES = ['none', 'low', 'medium', 'high'];
-    const FIELDS = ['book', 'gender', 'age', 'tone', 'texture', 'status', 'priority', 'tag', 'source', 'name'];
+    const FIELDS = ['book', 'gender', 'age', 'tone', 'texture', 'status', 'priority', 'tag', 'source', 'name',
+                    'collection', 'stars', 'circles'];
+    const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], stars: [], circles: [],
+                      collections: []};
     const STATUS_LABEL = {unreviewed: 'Unreviewed', shortlist: 'Shortlist', callback: 'Callback', reject: 'Reject'};
     const STATUS_CLASS = {unreviewed: 'bg-secondary', shortlist: 'bg-success', callback: 'bg-warning text-dark', reject: 'bg-danger'};
     const HEALTH = {missing_audio: 'Missing audio', no_description: 'No description', duplicate_names: 'Duplicate names', no_sample: 'No sample line', skipped: 'Skipped folders'};
     const GENDERS = ['Male', 'Female', 'Ambiguous / mixed', 'Not specified'];
     const AGES = ['Child', 'Teen', 'Young Adult', 'Adult', 'Older / Elderly', 'Ancient / Ageless', 'Not specified'];
     let s = {voices: [], marks: {}, skipped: [], view: 'cards', shown: PAGE, chips: new Set(), epoch: 0, bound: false,
-             speakers: [], review: null, playing: null, queue: null, variant: '', collections: [], shared: [], collectionEpoch: 0};
+             speakers: [], review: null, playing: null, queue: null, variant: '', collections: [], shared: [],
+             collectionEpoch: 0, research: null, playSeconds: 8, playFull: false, playToken: 0, timer: null};
 
     // ---- pure helpers (also used by the tests) ----
     function parseQuery(text) {
@@ -33,13 +37,25 @@
         return {terms, words, unknown};
     }
     function markOf(marks, id) {
-        return {status: 'unreviewed', priority: 'none', notes: '', tags: [], ...(marks[id] || {})};
+        const stored = marks[id] || {};
+        return {...DEFAULTS, ...stored, tags: [...(stored.tags || [])], stars: [...(stored.stars || [])],
+                circles: [...(stored.circles || [])], collections: [...(stored.collections || [])]};
     }
     function fieldValues(voice, mark, field) {
         const t = voice.tags || {};
         const values = {book: [voice.book_id], gender: [t.gender], age: t.ages, tone: t.tones, texture: t.textures,
-            status: [mark.status], priority: [mark.priority], tag: mark.tags, source: [voice.source], name: [voice.name]}[field];
+            status: [mark.status], priority: [mark.priority], tag: mark.tags, source: [voice.source], name: [voice.name],
+            collection: mark.collections, stars: mark.stars, circles: mark.circles}[field];
         return (values || []).filter(v => typeof v === 'string').map(v => v.toLowerCase());
+    }
+    const chipKey = (field, value) => JSON.stringify([String(field), String(value)]);
+    function chipPair(key) {
+        try {
+            const pair = JSON.parse(key);
+            return Array.isArray(pair) && pair.length === 2 ? {field: String(pair[0]), value: String(pair[1])} : null;
+        } catch (error) {
+            return null;
+        }
     }
     // "male" must not match "female", but "young" may match "young adult".
     const matchesValue = (values, value) => values.some(v => v.startsWith(value));
@@ -55,9 +71,11 @@
             if (value && !fieldValues(voice, mark, field).includes(value.toLowerCase())) { return false; }
         }
         for (const chip of picks.chips || []) {
-            const [field, value] = chip.split(':');
-            if (!fieldValues(voice, mark, field).includes(value)) { return false; }
+            const pair = chipPair(chip);
+            if (!pair) { continue; }
+            if (!fieldValues(voice, mark, pair.field).includes(pair.value.toLowerCase())) { return false; }
         }
+        if (s.research && !s.research.matches(voice, mark)) { return false; }
         return true;
     }
     function filterVoices(voices, marks, text, picks = {}) {
@@ -142,6 +160,7 @@
         return sel;
     }
     const status = text => { el('summary').textContent = text; };
+    const playbackStatus = text => { const control = el('playback-status'); if (control) { control.textContent = text; } };
     const loadStatus = text => { el('load-status').textContent = text; };
     function picks() {
         return {selects: {book: el('book').value, gender: el('gender').value, age: el('age').value, status: el('status').value},
@@ -197,12 +216,16 @@
         wrap.append(node('p', 'Keyword tags, not audio measurements. Ages can overlap; missing combinations count as zero within books in this view.', 'small text-muted'));
     }
     function renderChips(list) {
+        if (s.research) { s.research.renderFilters(list); return; }
         for (const [field, id, top] of [['tone', 'tones', TOP_TONES], ['texture', 'textures', TOP_TEXTURES]]) {
             const counts = countValues(list, s.marks, field);
             const shown = counts.slice(0, top).map(([v]) => v);
-            for (const chip of s.chips) { const [f, v] = chip.split(':'); if (f === field && !shown.includes(v)) { shown.push(v); } }
+            for (const chip of s.chips) {
+                const pair = chipPair(chip);
+                if (pair && pair.field === field && !shown.includes(pair.value)) { shown.push(pair.value); }
+            }
             el(id).replaceChildren(...shown.map(value => {
-                const key = field + ':' + value, on = s.chips.has(key);
+                const key = chipKey(field, value), on = s.chips.has(key);
                 const count = (counts.find(([v]) => v === value) || [value, 0])[1];
                 const chip = button(`${value} ${count}`, 'btn btn-sm ' + (on ? 'btn-secondary' : 'btn-outline-secondary'),
                     () => { if (on) { s.chips.delete(key); } else { s.chips.add(key); } s.shown = PAGE; render(); });
@@ -211,8 +234,8 @@
             }));
         }
     }
-    function tagBadges(voice) {
-        const wrap = node('div', undefined, 'mb-2');
+    function tagBadges(voice, extra) {
+        const wrap = node('div', undefined, 'mb-2' + (extra ? ' ' + extra : ''));
         const t = voice.tags;
         for (const [text, cls] of [[t.gender, 'bg-info text-dark'], ...t.ages.map(a => [a, 'bg-light text-dark border']),
                                    ...t.tones.slice(0, 4).map(x => [x, 'bg-light text-dark border']),
@@ -225,19 +248,25 @@
         const b = button('', 'btn btn-sm btn-outline-primary', () => togglePlay(voice, b), 'Play ' + voice.name);
         b.append(node('i', undefined, 'fas fa-play'));
         b.dataset.castingPlay = voice.id;
+        b.dataset.castingFocus = 'play:' + voice.id;
         if (!voice.audio_present) { b.disabled = true; b.setAttribute('title', 'This voice has no preview audio'); }
         return b;
     }
     function markControls(voice) {
         const mark = markOf(s.marks, voice.id), box = node('div', undefined, 'd-flex flex-wrap gap-1 align-items-center');
-        box.append(select(STATUSES.map(v => [v, STATUS_LABEL[v]]), mark.status, 'Review status for ' + voice.name,
-                          value => saveMark(voice, {status: value})));
-        box.append(select(PRIORITIES.map(v => [v, v === 'none' ? 'No priority' : v[0].toUpperCase() + v.slice(1) + ' priority']),
-                          mark.priority, 'Priority for ' + voice.name, value => saveMark(voice, {priority: value})));
+        const statusSelect = select(STATUSES.map(v => [v, STATUS_LABEL[v]]), mark.status, 'Review status for ' + voice.name,
+                          value => saveMark(voice, {status: value}));
+        statusSelect.dataset.castingFocus = 'status:' + voice.id;
+        box.append(statusSelect);
+        const prioritySelect = select(PRIORITIES.map(v => [v, v === 'none' ? 'No priority' : v[0].toUpperCase() + v.slice(1) + ' priority']),
+                          mark.priority, 'Priority for ' + voice.name, value => saveMark(voice, {priority: value}));
+        prioritySelect.dataset.castingFocus = 'priority:' + voice.id;
+        box.append(prioritySelect);
         const notes = node('textarea', mark.notes, 'form-control form-control-sm mt-1');
         notes.setAttribute('rows', '2'); notes.setAttribute('maxlength', '2000');
         notes.setAttribute('aria-label', 'Notes for ' + voice.name); notes.setAttribute('placeholder', 'Notes');
         notes.value = mark.notes;
+        notes.dataset.castingFocus = 'notes:' + voice.id;
         notes.addEventListener('change', () => saveMark(voice, {notes: notes.value}));
         return [box, notes];
     }
@@ -258,20 +287,33 @@
         const c = node('div', undefined, 'card h-100'), body = node('div', undefined, 'card-body d-flex flex-column');
         const head = node('div', undefined, 'd-flex justify-content-between align-items-start mb-1');
         const title = node('div');
+        if (s.research) { head.append(s.research.selectionBox(voice)); }
         title.append(node('span', voice.book_id, 'badge bg-secondary me-2'), node('strong', voice.name));
         head.append(title, playButton(voice));
         const mark = markOf(s.marks, voice.id);
-        body.append(head, node('div', STATUS_LABEL[mark.status], 'badge mb-2 ' + STATUS_CLASS[mark.status]), tagBadges(voice));
-        body.append(node('p', voice.description || 'No description.', 'small mb-1 casting-clamp'));
-        if (voice.ref_text) { body.append(node('p', '“' + voice.ref_text + '”', 'small text-muted fst-italic mb-2')); }
+        const tagNode = tagBadges(voice, 'casting-tags');
+        tagNode.dataset.castingVisibility = 'tags';
+        body.append(head, node('div', STATUS_LABEL[mark.status], 'badge mb-2 ' + STATUS_CLASS[mark.status]), tagNode);
+        const descriptionNode = node('p', voice.description || 'No description.', 'small mb-1 casting-clamp casting-description');
+        descriptionNode.dataset.castingVisibility = 'description';
+        body.append(descriptionNode);
+        if (voice.ref_text) {
+            const sampleNode = node('p', '“' + voice.ref_text + '”', 'small text-muted fst-italic mb-2 casting-sample');
+            sampleNode.dataset.castingVisibility = 'sample';
+            body.append(sampleNode);
+        }
         const foot = node('div', undefined, 'mt-auto');
         const count = (groups.get(getNameKey(voice.name)) || []).length;
         foot.append(button(count + ' variants', 'btn btn-sm btn-outline-secondary mb-2', () => {
             el('search').value = ''; s.chips.clear();
             for (const id of ['book', 'gender', 'age', 'status', 'health']) { el(id).value = ''; }
-            s.variant = getNameKey(voice.name); s.shown = PAGE; render();
+            s.variant = getNameKey(voice.name); rerender();
         }));
-        foot.append(...markControls(voice), castControls(voice), collectionControls(voice));
+        foot.append(...markControls(voice));
+        const assignment = node('details', undefined, 'mt-2');
+        assignment.append(node('summary', 'Use this voice', 'small'), castControls(voice), collectionControls(voice));
+        foot.append(assignment);
+        if (s.research) { foot.append(s.research.cardMarkControls(voice)); }
         body.append(foot);
         c.append(body); col.append(c);
         return col;
@@ -279,25 +321,46 @@
     function table(list) {
         const wrap = node('div', undefined, 'table-responsive'), t = node('table', undefined, 'table table-sm table-hover align-middle mb-0');
         const head = node('thead'), hr = node('tr');
-        for (const h of ['', 'Name', 'Book', 'Gender', 'Age', 'Tone', 'Status', 'Use for']) { hr.append(node('th', h)); }
+        const headings = s.research ? ['', '', 'Name', 'Book', 'Gender', 'Age', 'Tone', 'Status', 'Use for', 'Marks']
+            : ['', 'Name', 'Book', 'Gender', 'Age', 'Tone', 'Status', 'Use for'];
+        for (const h of headings) { hr.append(node('th', h)); }
         head.append(hr);
         const tbody = node('tbody');
         for (const v of list) {
             const tr = node('tr'), mark = markOf(s.marks, v.id);
+            if (s.research) { const pick = node('td'); pick.append(s.research.selectionBox(v)); tr.append(pick); }
             const cells = [playButton(v), node('strong', v.name), v.book_id, v.tags.gender, v.tags.ages.join(', '),
                            v.tags.tones.slice(0, 4).join(', ')];
             for (const cell of cells) { const td = node('td'); if (typeof cell === 'string') { td.textContent = cell; } else { td.append(cell); } tr.append(td); }
             const st = node('td');
-            st.append(select(STATUSES.map(x => [x, STATUS_LABEL[x]]), mark.status, 'Review status for ' + v.name, value => saveMark(v, {status: value})));
+            const statusSelect = select(STATUSES.map(x => [x, STATUS_LABEL[x]]), mark.status, 'Review status for ' + v.name,
+                                        value => saveMark(v, {status: value}));
+            statusSelect.dataset.castingFocus = 'status:' + v.id;
+            st.append(statusSelect);
             const use = node('td'); use.append(castControls(v));
             tr.append(st, use);
+            if (s.research) { const marks = node('td'); marks.append(s.research.tableMarkControls(v)); tr.append(marks); }
             tbody.append(tr);
         }
         t.append(head, tbody); wrap.append(t);
         return wrap;
     }
+    function captureFocus() {
+        const active = document.activeElement;
+        return active && active.dataset ? String(active.dataset.castingFocus || '') : '';
+    }
+    function restoreFocus(key) {
+        if (!key) { return; }
+        for (const candidate of document.querySelectorAll('[data-casting-focus]')) {
+            if (candidate && candidate.dataset && candidate.dataset.castingFocus === key
+                && typeof candidate.focus === 'function') {
+                candidate.focus(); return;
+            }
+        }
+    }
     function render() {
-        const list = visible(), page = list.slice(0, s.shown);
+        const list = visible(), page = s.research ? s.research.pageSlice(list) : list.slice(0, s.shown);
+        const focus = captureFocus();
         renderChips(list);
         renderCoverage(list);
         el('skipped').replaceChildren();
@@ -321,24 +384,27 @@
             row.append(...page.map(voice => card(voice, groups)));
             el('results').replaceChildren(row);
         }
-        el('more').hidden = list.length <= s.shown;
+        const more = el('more');
+        if (more && !s.research) { more.hidden = list.length <= s.shown; }
         if (s.variant) { el('summary').textContent += ' | Name group: ' + s.variant; }
+        restoreFocus(focus);
+        if (s.research) { s.research.afterRender(list, page); }
     }
 
     function collectionControls(voice) {
         const box = node('div', undefined, 'input-group input-group-sm mt-2');
         const name = node('input', undefined, 'form-control');
         name.value = voice.name; name.setAttribute('maxlength', '200');
-        name.setAttribute('aria-label', 'Collection member name for ' + voice.name);
-        const add = button('Add to collection', 'btn btn-outline-secondary', async () => {
+        name.setAttribute('aria-label', 'Saved cast member name for ' + voice.name);
+        const add = button('Add to saved cast', 'btn btn-outline-secondary', async () => {
             const cast = el('collection').value, member = name.value.trim();
-            if (!cast || !member) { showToast('Choose a collection and member name first.', 'info'); return; }
+            if (!cast || !member) { showToast('Choose a saved cast and member name first.', 'info'); return; }
             add.disabled = true;
             try {
                 await API.post('/api/voice_library/catalog_member', {cast, voice_id: voice.id, name: member});
                 showToast('Added ' + member + ' to ' + cast + '.', 'success');
                 s.collectionEpoch++; el('collection-review').replaceChildren();
-            } catch (error) { showActionError('Add catalogue voice to collection', error); }
+            } catch (error) { showActionError('Add catalogue voice to saved cast', error); }
             finally { add.disabled = !voice.audio_present; }
         });
         add.disabled = !voice.audio_present; box.append(name, add); return box;
@@ -347,22 +413,22 @@
         const epoch = s.epoch, library = await API.get('/api/voice_library');
         if (epoch !== s.epoch) { return; }
         s.collections = library.casts || []; s.shared = library.shared || [];
-        fillSelect('collection', s.collections.map(cast => cast.name), 'Choose a collection');
+        fillSelect('collection', s.collections.map(cast => cast.name), 'Choose a saved cast');
     }
     async function createCollection() {
         const name = el('collection-name').value.trim();
-        if (!name) { showToast('Enter a collection name.', 'info'); return; }
+        if (!name) { showToast('Enter a saved cast name.', 'info'); return; }
         el('create-collection').disabled = true;
         try {
             await API.post('/api/voice_library/casts', {name});
             await loadCollections(); el('collection').value = name; el('collection-name').value = '';
             s.collectionEpoch++; el('collection-review').replaceChildren();
-        } catch (error) { showActionError('Create collection', error); }
+        } catch (error) { showActionError('Create saved cast', error); }
         finally { el('create-collection').disabled = false; }
     }
     async function reviewCollection() {
         const cast = el('collection').value;
-        if (!cast) { showToast('Choose a collection first.', 'info'); return; }
+        if (!cast) { showToast('Choose a saved cast first.', 'info'); return; }
         const epoch = ++s.collectionEpoch;
         const current = () => epoch === s.collectionEpoch && cast === el('collection').value;
         const panel = el('collection-review'); panel.replaceChildren(node('p', 'Matching active book...'));
@@ -373,18 +439,18 @@
             if (!current()) { return; }
             const snapshot = await API.get('/api/voice_config/snapshot');
             if (!current()) { return; }
-            if (snapshot.book_token !== matched.book_token) { throw new Error('The active book changed; review the collection again.'); }
+            if (snapshot.book_token !== matched.book_token) { throw new Error('The active book changed; review the saved cast again.'); }
             const pool = new Map(s.shared.map(member => [member.key, member]));
             for (const member of (s.collections.find(item => item.name === cast)?.members || [])) {
                 if (!member.generic || member.book_id === snapshot.book_id) { pool.set(member.key, member); }
             }
             const rows = [], table = node('table', undefined, 'table table-sm');
-            const head = node('tr'); head.append(node('th', 'Character'), node('th', 'Collection voice (skip unless confirmed)')); table.append(head);
+            const head = node('tr'); head.append(node('th', 'Character'), node('th', 'Saved cast voice (skip unless confirmed)')); table.append(head);
             for (const proposal of matched.proposals) {
                 const row = node('tr'); row.append(node('td', proposal.character));
                 const cell = node('td');
                 const target = select([['', 'Skip'], ...[...pool].map(([key, member]) => [key, member.name])],
-                    proposal.match?.key || '', 'Collection voice for ' + proposal.character, () => {});
+                    proposal.match?.key || '', 'Saved cast voice for ' + proposal.character, () => {});
                 rows.push({character: proposal.character, target}); cell.append(target);
                 if (proposal.match && !proposal.match.exact) { cell.append(node('span', 'Fuzzy guess: review', 'badge bg-warning text-dark')); }
                 row.append(cell); table.append(row);
@@ -395,7 +461,7 @@
                 apply.disabled = true;
                 try {
                     if (!await showConfirm('Replace voices for the selected characters in the active book?',
-                        {title: 'Apply collection?', actionLabel: 'Apply reviewed mappings'})) { return; }
+                        {title: 'Apply saved cast?', actionLabel: 'Apply reviewed mappings'})) { return; }
                     if (!current()) { return; }
                     const result = await API.post('/api/voice_library/apply', {cast, mapping, book_token: matched.book_token});
                     if (current()) { panel.replaceChildren(node('p', 'Applied ' + result.count + ' voices.')); }
@@ -412,6 +478,7 @@
 
     // ---- actions ----
     async function saveMark(voice, patch) {
+        if (s.research) { return s.research.saveMark(voice, patch); }
         try {
             const result = await API.post('/api/casting/marks', {voice_id: voice.id, ...patch});
             s.marks[voice.id] = result.mark;
@@ -456,32 +523,117 @@
     function stopPlayback() {
         if (s.playing) { s.playing.audio.pause?.(); s.playing.button?.replaceChildren(node('i', undefined, 'fas fa-play')); }
         s.playing = null;
+        playbackStatus('');
     }
-    function togglePlay(voice, playButtonEl, onEnd) {
-        const same = s.playing && s.playing.id === voice.id;
+    function haltAudio() {
+        s.playToken++;
+        if (s.timer !== null) { clearTimeout(s.timer); s.timer = null; }
         stopPlayback();
+    }
+    function togglePlay(voice, playButtonEl) {
+        const same = s.playing && s.playing.id === voice.id;
+        if (s.queue) { stopQueuePlayback(); }
+        haltAudio();
         if (same || !voice.audio_present || typeof Audio === 'undefined') { return; }
+        const token = s.playToken;
         const audio = new Audio(previewUrl(voice.preview_url));
         if (typeof stopDesignedVoicePlayback === 'function') { stopDesignedVoicePlayback(audio); }
         window._designedPlaybackAudio = audio;
         s.playing = {id: voice.id, audio, button: playButtonEl};
+        playbackStatus('Playing ' + voice.name);
         playButtonEl?.replaceChildren(node('i', undefined, 'fas fa-stop'));
-        audio.addEventListener('ended', () => { if (s.playing?.audio === audio) { stopPlayback(); } onEnd?.(); });
-        audio.play().catch(error => { stopPlayback(); showActionError('Play voice', error); });
+        audio.addEventListener('ended', () => {
+            if (token !== s.playToken) { return; }
+            if (s.playing?.audio === audio) { stopPlayback(); }
+        });
+        audio.play().catch(error => {
+            if (token !== s.playToken) { return; }
+            stopPlayback(); showActionError('Play voice', error);
+        });
+    }
+    function stopQueuePlayback() {
+        s.queue = null;
+        haltAudio();
+        const playAllButton = el('play-all');
+        if (playAllButton) { playAllButton.textContent = 'Play all'; }
+    }
+    function audioVoices() {
+        return visible().filter(v => v.audio_present);
+    }
+    function startQueueItem() {
+        const q = s.queue;
+        if (!q) { return; }
+        if (q.index < 0) { q.index = 0; }
+        if (q.index >= q.list.length) { stopQueuePlayback(); return; }
+        if (typeof Audio === 'undefined') {
+            stopQueuePlayback();
+            showToast('This browser cannot play preview audio.', 'info');
+            return;
+        }
+        const voice = q.list[q.index];
+        haltAudio();
+        const token = s.playToken;
+        const audio = new Audio(previewUrl(voice.preview_url));
+        if (typeof stopDesignedVoicePlayback === 'function') { stopDesignedVoicePlayback(audio); }
+        window._designedPlaybackAudio = audio;
+        s.playing = {id: voice.id, audio, button: null};
+        playbackStatus(`Playing ${voice.name} (${q.index + 1} of ${q.list.length})`);
+        audio.addEventListener('pause', () => {
+            if (!audio.ended && token === s.playToken && s.queue === q) { stopQueuePlayback(); }
+        });
+        audio.addEventListener('error', () => {
+            if (token !== s.playToken || s.queue !== q) { return; }
+            stopQueuePlayback();
+            showToast('Preview playback failed. The queue has stopped.', 'warning');
+        });
+        audio.addEventListener('ended', () => {
+            if (token !== s.playToken || s.queue !== q) { return; }
+            advanceQueue(1);
+        });
+        audio.play().then(() => {
+            if (token !== s.playToken || s.queue !== q) { return; }
+            if (s.playFull) { return; }
+            s.timer = setTimeout(() => {
+                if (token !== s.playToken || s.queue !== q) { return; }
+                s.timer = null;
+                advanceQueue(1);
+            }, Math.max(1, Math.min(120, s.playSeconds)) * 1000);
+        }).catch(error => {
+            if (token !== s.playToken || s.queue !== q) { return; }
+            stopQueuePlayback();
+            showActionError('Play voice', error);
+        });
+    }
+    function advanceQueue(delta) {
+        if (!s.queue) { return; }
+        s.queue.index += delta;
+        if (s.queue.index >= s.queue.list.length) { stopQueuePlayback(); return; }
+        if (s.queue.index < 0) { s.queue.index = 0; }
+        startQueueItem();
     }
     function playAll() {
-        if (s.queue) { s.queue = null; stopPlayback(); el('play-all').textContent = 'Play all'; return; }
-        const list = visible().filter(v => v.audio_present);
+        if (s.queue) { stopQueuePlayback(); return; }
+        const list = audioVoices();
         if (!list.length) { showToast('No voices with audio match these filters.', 'info'); return; }
         s.queue = {list, index: 0};
-        el('play-all').textContent = 'Stop';
-        const step = () => {
-            if (!s.queue || s.queue.index >= s.queue.list.length) { s.queue = null; el('play-all').textContent = 'Play all'; return; }
-            const voice = s.queue.list[s.queue.index++];
-            status(`Playing ${voice.name} (${s.queue.index} of ${s.queue.list.length})`);
-            togglePlay(voice, null, step);
-        };
-        step();
+        const playAllButton = el('play-all');
+        if (playAllButton) { playAllButton.textContent = 'Stop'; }
+        startQueueItem();
+    }
+    function playRandom() {
+        const list = audioVoices();
+        if (!list.length) { showToast('No voices with audio match these filters.', 'info'); return; }
+        stopQueuePlayback();
+        s.queue = {list, index: Math.floor(Math.random() * list.length)};
+        const playAllButton = el('play-all');
+        if (playAllButton) { playAllButton.textContent = 'Stop'; }
+        startQueueItem();
+    }
+    function setPlaybackConfig(seconds, full) {
+        const value = Number(seconds);
+        s.playSeconds = Number.isFinite(value) && value >= 1 && value <= 120 ? Math.round(value) : 8;
+        s.playFull = Boolean(full);
+        stopQueuePlayback();
     }
 
     // ---- review ----
@@ -511,8 +663,9 @@
     async function reviewStatus(value) {
         if (!s.review) { return; }
         const voice = s.review.list[s.review.index];
-        await saveMark(voice, {status: value});
-        if (s.review.index < s.review.list.length - 1) { moveReview(1); }
+        const result = await saveMark(voice, {status: value});
+        if (result && !result.ok) { return; }
+        if (s.review && s.review.index < s.review.list.length - 1) { moveReview(1); }
     }
     function openReview() {
         const list = visible();
@@ -532,20 +685,45 @@
         if (actions[key]) { event.preventDefault?.(); actions[key](); }
     }
 
+    function rerender() {
+        s.shown = PAGE;
+        if (s.research) { s.research.filtersChanged(); } else { stopQueuePlayback(); }
+        render();
+    }
+    function createResearch() {
+        if (s.research || !window.CastingResearch || typeof window.CastingResearch.create !== 'function') { return; }
+        s.research = window.CastingResearch.create({
+            state: () => s,
+            visible,
+            render,
+            helpers: {markOf: id => markOf(s.marks, id), fieldValues, countValues},
+            getMark: id => markOf(s.marks, id),
+            confirm: (message, optionsList) => typeof showConfirm === 'function'
+                ? showConfirm(message, optionsList) : Promise.resolve(false),
+            stopPlayback: stopQueuePlayback,
+            afterSave: () => { if (s.review) { renderReview(); } },
+            playback: {seconds: () => s.playSeconds, full: () => s.playFull, set: setPlaybackConfig,
+                       next: () => advanceQueue(1), prev: () => advanceQueue(-1), stop: stopQueuePlayback,
+                       random: playRandom},
+        });
+        s.research.mount();
+    }
     function bind() {
         if (s.bound) { return; }
         s.bound = true;
-        const rerender = () => { s.shown = PAGE; render(); };
+        createResearch();
         for (const id of ['search']) { el(id).addEventListener('input', rerender); }
         for (const id of ['book', 'gender', 'age', 'status', 'sort', 'health']) { el(id).addEventListener('change', rerender); }
         el('create-collection').addEventListener('click', createCollection);
         el('match-collection').addEventListener('click', reviewCollection);
         el('collection').addEventListener('change', () => { s.collectionEpoch++; el('collection-review').replaceChildren(); });
         el('refresh').addEventListener('click', () => window.loadCastingLibrary());
-        el('more').addEventListener('click', () => { s.shown += PAGE; render(); });
+        el('more').addEventListener('click', () => { if (!s.research) { s.shown += PAGE; render(); } });
         el('clear').addEventListener('click', () => {
             el('search').value = ''; for (const id of ['book', 'gender', 'age', 'status']) { el(id).value = ''; }
-            el('health').value = ''; s.variant = ''; s.chips.clear(); rerender();
+            el('health').value = ''; s.variant = ''; s.chips.clear();
+            if (s.research) { s.research.clearFilters(); }
+            rerender();
         });
         for (const [id, view] of [['view-cards', 'cards'], ['view-table', 'table']]) {
             el(id).addEventListener('click', () => {
@@ -567,12 +745,23 @@
             b.addEventListener('click', () => reviewStatus(b.dataset.castingStatus));
         }
         el('review-modal').addEventListener('keydown', onReviewKey);
-        el('review-modal').addEventListener('hidden.bs.modal', () => { stopPlayback(); s.review = null; });
+        el('review-modal').addEventListener('hidden.bs.modal', () => { stopQueuePlayback(); s.review = null; });
+        document.addEventListener?.('visibilitychange', () => { if (document.hidden) { stopQueuePlayback(); } });
+        window.addEventListener?.('pagehide', () => stopQueuePlayback());
+        const tab = document.getElementById('casting-tab');
+        if (tab && typeof MutationObserver === 'function') {
+            const observer = new MutationObserver(() => {
+                if (tab.hidden || tab.style.display === 'none') { stopQueuePlayback(); }
+            });
+            observer.observe(tab, {attributes: true, attributeFilter: ['style', 'hidden']});
+        }
     }
 
     window.loadCastingLibrary = async () => {
         bind();
         const epoch = ++s.epoch;
+        stopQueuePlayback();
+        if (s.research) { s.research.beforeLoad(); }
         s.collectionEpoch++; el('collection-review').replaceChildren();
         loadStatus('');
         try {
@@ -585,6 +774,7 @@
             s.skipped = library.skipped || [];
             if (s.skipped.length) { loadStatus(`${s.skipped.length} voice folder(s) could not be read and are not shown.`); }
             renderFilters();
+            if (s.research) { s.research.afterLoad(library); }
             render();
         } catch (error) {
             if (epoch !== s.epoch) { return; }
@@ -593,6 +783,6 @@
         }
     };
     window.CastingLibrary = {parseQuery, filterVoices, countValues, sortVoices, markOf, previewUrl, onReviewKey,
-                             getNameKey, getNameGroups, getHealthCounts, getCoverage,
+                             getNameKey, getNameGroups, getHealthCounts, getCoverage, chipKey, chipPair,
                              state: () => s};
 })();
