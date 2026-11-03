@@ -24,6 +24,83 @@ from tests.test_support import use_private_cpu_fixture_lock
 
 
 class OccurrencePanelTests(unittest.TestCase):
+    def test_homograph_discovery_uses_exact_anchors_without_writes_or_inference(self):
+        rows = self.pm.get_saved_chunks()
+        text = '😀 Lead, lead! I read today; I read yesterday. Wind the clock in the wind. mislead reader winding'
+        for row in rows:
+            row['text'] = text
+        self.pm.save_chunks(rows)
+        before = self.artifacts()
+        with patch.object(self.pm, 'get_engine', side_effect=AssertionError('No inference')):
+            snapshot = self.snapshot()
+            response = self.post('/homographs', revision=snapshot['revision'])
+        self.assertEqual(200, response.status_code, response.text)
+        result = response.json()
+        self.assertEqual('completed', result['analysis_status'])
+        self.assertFalse(result['truncated'])
+        self.assertEqual(['Lead', 'lead', 'read', 'read', 'Wind', 'wind'],
+                         [candidate['anchor']['original'] for candidate in result['candidates']])
+        prepared = panel.get_prelexicon_speech_normalization(text)['text']
+        for candidate in result['candidates']:
+            anchor = candidate['anchor']
+            self.assertEqual(anchor['original'], prepared[anchor['start']:anchor['end']])
+            self.assertEqual(pronunciation.get_pronunciation_text_digest(prepared), anchor['prepared_sha256'])
+            self.assertEqual('a', anchor['uid'])
+            self.assertEqual(pronunciation.get_pronunciation_text_digest(text), anchor['text_sha256'])
+            self.assertEqual(list(pronunciation.HOMOGRAPH_MEANINGS[anchor['original'].lower()]), candidate['meanings'])
+        self.assertEqual(before, self.artifacts())
+        duplicate = self.client.post('/api/pronunciation/occurrences/homographs', json={
+            **self.request, 'index': 1, 'expected_uid': 'b', 'revision': snapshot['revision']}).json()
+        self.assertEqual('b', duplicate['candidates'][0]['anchor']['uid'])
+        rule = {**result['candidates'][1]['anchor'], 'id': 'homograph', 'state': 'draft', 'replacement': 'led',
+                'note': 'User-selected meaning: ' + result['candidates'][1]['meanings'][1]}
+        self.assertEqual(200, self.post('/preview', revision=snapshot['revision'], rules=[rule]).status_code)
+        saved = self.save([rule], revision=snapshot['revision'])
+        self.assertEqual(200, saved.status_code, saved.text)
+        self.assertEqual(rule['note'], self.pm.get_saved_chunks()[0]['pronunciation_rules'][0]['note'])
+        snapshot = self.snapshot()
+        rule['state'] = 'approved'
+        preview = self.post('/preview', revision=snapshot['revision'], rules=[rule])
+        self.assertEqual(200, preview.status_code, preview.text)
+        self.assertIn('Lead, led!', preview.json()['preview']['text'])
+        rows = self.pm.get_saved_chunks()
+        rows[0]['text'] = 'Changed lead'
+        self.pm.save_chunks(rows)
+        self.assertEqual(409, self.post('/preview', revision=snapshot['revision'], rules=[rule]).status_code)
+        self.assertEqual(409, self.post('/homographs', revision='0'*64).status_code)
+
+    def test_homograph_language_states_and_truncation(self):
+        (self.root/'config.json').write_text(json.dumps({'tts': {}}))
+        self.assertEqual('completed', self.post('/homographs', revision=self.snapshot()['revision']).json()['analysis_status'])
+        for language, status in [('German', 'unsupported_language'), ('Auto', 'unavailable'), ('English', 'completed')]:
+            (self.root/'config.json').write_text(json.dumps({'tts': {'language': language}}))
+            response = self.post('/homographs', revision=self.snapshot()['revision'])
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual(status, response.json()['analysis_status'])
+            self.assertEqual([], response.json()['candidates'])
+        for language in ('en', 'en-US', 'English'):
+            result = pronunciation.get_homograph_candidates('lead read wind '*70, 'u', 'lead read wind '*70, language)
+            self.assertEqual(64, len(result['candidates']))
+            self.assertTrue(result['truncated'])
+            self.assertEqual(sorted(candidate['anchor']['start'] for candidate in result['candidates']),
+                             [candidate['anchor']['start'] for candidate in result['candidates']])
+            self.assertEqual(list(range(0, 320, 5)), [candidate['anchor']['start'] for candidate in result['candidates']])
+            self.assertEqual((['lead', 'read', 'wind']*22)[:64],
+                             [candidate['anchor']['original'] for candidate in result['candidates']])
+        with patch.object(self.pm, 'engine', object()):
+            response = self.post('/homographs', revision=self.snapshot()['revision'])
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual('unknown', response.json()['context_source'])
+        self.assertEqual('unavailable', response.json()['analysis_status'])
+        text = 'lead '*30 + 'read '*30 + 'wind '*30
+        result = pronunciation.get_homograph_candidates(text, 'u', text, 'English')
+        self.assertTrue(result['truncated'])
+        self.assertEqual(['lead']*30 + ['read']*30 + ['wind']*4,
+                         [candidate['anchor']['original'] for candidate in result['candidates']])
+        self.assertEqual(list(range(0, 320, 5)), [candidate['anchor']['start'] for candidate in result['candidates']])
+        self.assertEqual(['lead', 'read', 'wind'], result['word_list'])
+        self.assertEqual(pronunciation.MAX_OCCURRENCE_CANDIDATES, result['candidate_limit'])
+
     def setUp(self):
         directory = tempfile.TemporaryDirectory(); self.addCleanup(directory.cleanup)
         self.root = Path(directory.name); self.pm = ProjectManager(directory.name)

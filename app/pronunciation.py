@@ -273,6 +273,7 @@ def character_forms(script_path=None, aliases_path=None, voice_config_path=None)
 
 
 MAX_OCCURRENCE_RULES = 32
+MAX_OCCURRENCE_CANDIDATES = 64
 MAX_OCCURRENCE_RULE_BYTES = 65536
 OCCURRENCE_COORDINATE_SPACE = 'pre_lexicon_v1'
 OCCURRENCE_RENDER_FIELDS = ('coordinate_space', 'offset_unit', 'uid', 'text_sha256', 'prepared_sha256',
@@ -483,20 +484,57 @@ def get_occurrence_pronunciation_resolution(text, entries, pattern=None, *, rule
             'decisions': decisions}
 
 
-def get_occurrence_pronunciation_candidates(prepared, uid, text, query):
-    """Offer bounded exact prepared-text spans; browser offsets are never input."""
+HOMOGRAPH_MEANINGS = {
+    'lead': ('guide — I lead the team.', 'metal — The pipe contains lead.'),
+    'read': ('present tense — I read every day.', 'past tense — Yesterday I read the book.'),
+    'wind': ('moving air — The wind blew.', 'turn or coil — Wind the clock.'),
+}
+
+
+def get_occurrence_candidate_anchor(candidate):
+    return {key: value for key, value in candidate.items() if key not in ('before', 'after')}
+
+
+def get_homograph_candidates(prepared, uid, text, language):
+    result = {'analysis_status': 'unavailable', 'word_list': list(HOMOGRAPH_MEANINGS),
+              'candidate_limit': MAX_OCCURRENCE_CANDIDATES, 'candidates': [], 'truncated': False}
+    if not isinstance(language, str) or language.strip().lower() in ('', 'auto', 'unknown'):
+        return result
+    if language.strip().lower().replace('_', '-').split('-')[0] not in ('en', 'english'):
+        result['analysis_status'] = 'unsupported_language'
+        return result
+    candidates = []
+    truncated = False
+    for spelling, meanings in HOMOGRAPH_MEANINGS.items():
+        matches = get_occurrence_pronunciation_candidates(prepared, uid, text, spelling, ignore_case=True)
+        truncated = truncated or matches['truncated']
+        for candidate in matches['candidates']:
+            candidates.append({
+                'anchor': get_occurrence_candidate_anchor(candidate),
+                'before': candidate['before'], 'after': candidate['after'], 'meanings': list(meanings),
+            })
+    candidates.sort(key=lambda candidate: candidate['anchor']['start'])
+    result.update(analysis_status='completed', candidates=candidates[:MAX_OCCURRENCE_CANDIDATES],
+                  truncated=truncated or len(candidates) > MAX_OCCURRENCE_CANDIDATES)
+    return result
+
+
+def get_occurrence_pronunciation_candidates(prepared, uid, text, query, *, ignore_case=False):
+    """Offer bounded prepared-text spans, case-sensitive unless explicitly requested."""
     if not isinstance(query, str) or not query.strip() or len(query) > 128:
         raise ValueError('Choose an exact spelling of 1–128 characters.')
     if len(text) > 131072:
         raise ValueError('This line exceeds the occurrence editor text limit.')
     pattern = _compile({query: query})
+    if ignore_case:
+        pattern = re.compile(pattern.pattern, pattern.flags | re.IGNORECASE)
     anchors = {'coordinate_space': OCCURRENCE_COORDINATE_SPACE,
                'offset_unit': 'unicode_codepoint', 'uid': uid,
                'text_sha256': get_pronunciation_text_digest(text),
                'prepared_sha256': get_pronunciation_text_digest(prepared)}
     candidates = []
     for match in pattern.finditer(prepared):
-        if len(candidates) == 64:
+        if len(candidates) == MAX_OCCURRENCE_CANDIDATES:
             return {'candidates': candidates, 'truncated': True}
         start, end = match.span()
         candidates.append({**anchors, 'start': start, 'end': end, 'original': match.group(1),

@@ -31,6 +31,18 @@ function loadAction(c){
 
 
 class VoiceTransportDeadlineTests(unittest.TestCase):
+    def test_custom_read_deadline_message_aborts_stalled_request(self):
+        self.run_node(r'''
+(async()=>{
+ const a=client(storageFor(process.argv[2]),null),timers=useTimers(a.context);let signal;
+ a.context.fetch=async(url,options)=>{signal=options.signal;return await new Promise(()=>{});};
+ const pending=vm.runInContext("API.post('/synthetic-read', {}, {timeoutMs:30000,timeoutMessage:'Discovery timed out; drafts retained.'})",a.context);
+ assert.strictEqual(timers.size,1);const timer=[...timers.values()][0];assert.strictEqual(timer.delay,30000);timer.fn();
+ await assert.rejects(bounded(pending),/Discovery timed out; drafts retained/);assert(signal.aborted);assert.strictEqual(timers.size,0);
+ finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
     def run_node(self, code):
         with tempfile.TemporaryDirectory() as tmp:
             result = subprocess.run(

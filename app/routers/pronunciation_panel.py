@@ -207,6 +207,10 @@ class PronunciationOccurrenceTarget(BaseModel):
     expected_uid: str = Field(min_length=1, max_length=128)
 
 
+class PronunciationHomographQuery(PronunciationOccurrenceTarget):
+    revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
 class PronunciationOccurrenceQuery(PronunciationOccurrenceTarget):
     revision: str = Field(pattern=r'^[0-9a-f]{64}$')
     query: str = Field(min_length=1, max_length=128)
@@ -351,9 +355,13 @@ def get_occurrence_editor(request):
                 candidates = pronunciation.get_occurrence_pronunciation_candidates(
                     prepared, row['uid'], row.get('text', ''), request.query)
                 result.update(truncated=candidates['truncated'], candidates=[
-                    {'anchor': {key: value for key, value in candidate.items() if key not in ('before', 'after')},
+                    {'anchor': pronunciation.get_occurrence_candidate_anchor(candidate),
                      'before': candidate['before'], 'after': candidate['after']}
                     for candidate in candidates['candidates']])
+            if isinstance(request, PronunciationHomographQuery):
+                prepared = get_prelexicon_speech_normalization(row.get('text', ''))['text']
+                result.update(pronunciation.get_homograph_candidates(
+                    prepared, row['uid'], row.get('text', ''), result['context'].get('language')))
             return result
     except HTTPException:
         raise
@@ -374,6 +382,11 @@ async def get_occurrence_candidates_endpoint(request: PronunciationOccurrenceQue
 
 @router.post('/api/pronunciation/occurrences/preview')
 async def get_occurrence_preview_endpoint(request: PronunciationOccurrenceEdit):
+    return await asyncio.to_thread(get_occurrence_editor, request)
+
+
+@router.post('/api/pronunciation/occurrences/homographs')
+async def get_homograph_candidates_endpoint(request: PronunciationHomographQuery):
     return await asyncio.to_thread(get_occurrence_editor, request)
 
 

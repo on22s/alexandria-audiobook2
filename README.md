@@ -406,6 +406,16 @@ a measurement, what we recommend and why.
   This snapshot may be outdated: refresh after line, rule, voice or settings changes. Recorded
   take input remains separately labeled under **Speech input and saved evidence**;
   missing historical input or transformation traces are not reconstructed.
+- In Pronunciation, load a line's occurrence rules and choose **Discover English homographs**
+  to find exact occurrences of lead/read/wind using a bounded English word list.
+  Meaning/example buttons do not infer the intended sense or pronunciation: enter a
+  spoken replacement beside the occurrence, then choose a meaning to create an unapproved draft.
+  Review, approve, preview and save explicitly through the existing occurrence editor.
+  Discovery never generates audio or changes saved text/takes. The resolved TTS language
+  must be English (including the default); this is not prose-language detection.
+  Automatic/unsupported language is not reported as a completed scan. Matching uses the
+  existing exact-spelling word boundaries, not exhaustive linguistic analysis;
+  truncated results omit later occurrences.
 - Expand a line's pause controls and choose **Suggest gap** to preview and confirm a
   deterministic pause. This opt-in action recognizes the exact `NARRATOR` speaker
   label and attached named-speaker tags within a detected export chapter; it does not replace explicit pauses
