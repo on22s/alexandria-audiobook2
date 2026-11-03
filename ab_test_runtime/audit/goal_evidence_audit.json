@@ -1050,25 +1050,26 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-03T01:54:53",
+  "written": "2026-11-03T05:12:49",
   "host": "RealMitch",
   "git": {
-   "commit": "5cd8247a2bdb72f8b1f6eed23408bcfc5c3779cc",
-   "branch": "feat/1732-message-catalog",
+   "commit": "0d43552396fb8dee8fe53f6a881e78d8d49a0667",
+   "branch": "feat/1732-preview-labels",
    "dirty": true,
-   "source_state": "dirty:3f54886ccbe9",
+   "source_state": "dirty:c0f9e046cfa2",
    "source_state_detail": null,
    "modified_tracked_files": [
+    " M GOALS.md",
     "M  README.md",
     "M  app/static/index.html",
     "M  app/static/js/app-help.js",
     "M  app/static/js/app-settings.js",
     "M  app/tests/test_settings_discovery_js.py",
-    "M  app/tests/test_ui_review_fixes.py",
+    "M  app/tests/test_settings_preview_js.py",
     "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
-   "harness_sha256": "67ee42e276600c260b2ec9e1656ed8936cb5a5f0a37283081d350f8e3f25a770",
+   "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
   },
   "args": {

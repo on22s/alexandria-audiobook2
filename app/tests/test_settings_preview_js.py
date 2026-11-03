@@ -15,6 +15,7 @@ const form=body.appendChild(new Element('form',{id:'config-form'}));
 const html=fs.readFileSync(process.argv[2],'utf8');
 for(const match of html.matchAll(/id="(setup-preview-[^"]+)"/g)){form.appendChild(new Element('div',{id:match[1]}));}
 const searchResults=body.appendChild(new Element('div',{id:'setup-settings-results',hidden:''}));
+body.appendChild(new Element('div',{id:'setup-settings-search-status'}));
 const input=form.appendChild(new Element('input',{id:'synthetic-input'}));
 const calls=[],errors=[];let proposal={llm_mode:'local',llm:{api_key:'PRIVATE_SYNTHETIC_KEY'},tts:{parallel_workers:2}};
 context.configSavePending=false;context.getConfigPreviewProposal=()=>JSON.parse(JSON.stringify(proposal));
@@ -62,6 +63,42 @@ context.applyPromptPreset(0);assert.strictEqual(invalidations,1);context.applyPa
     def test_preview_is_a_post_to_preview_only_and_renders_text_not_html(self):
         self.run_js(r'''
 context.API.post=async(path,payload)=>{calls.push({path,payload});const d=response();d.changes[0].after='<img onerror=bad()>';return d;};await context.previewSetupChanges();assert.strictEqual(calls.length,1);assert.strictEqual(calls[0].path,'/api/config/preview');assert.strictEqual(document.getElementById('setup-preview-results').hidden,false);assert.strictEqual(body.querySelectorAll('img').length,0);assert.strictEqual(document.getElementById('setup-preview-changes').children[0].children[2].children[1].children[1].textContent,'<img onerror=bad()>');assert(document.getElementById('setup-preview-status').textContent.includes('No settings were applied'));
+''')
+
+    def test_locale_changes_update_headings_without_replacing_evidence_or_requesting(self):
+        self.run_js(r'''
+context.API.post=async(path,payload)=>{calls.push({path,payload});return {...response(),baseline:'damaged',warning_count:1,changes:[{path:'tts.mode',label:'Mode <img>',scope:'Audio generation',before:'local',after:'remote <script>',was_default:true}],defaults:[{path:'tts.parallel_workers',label:'Workers',scope:'Audio generation',before:'2',after:'3',was_default:true}],unmanaged_fields:2};};
+await context.previewSetupChanges();
+const results=document.getElementById('setup-preview-results');
+const row=document.getElementById('setup-preview-changes').children[0];
+const saved=row.children[2].children[0],proposed=row.children[2].children[1];
+assert.strictEqual(saved.children[0].textContent,'Saved');assert.strictEqual(proposed.children[0].textContent,'Would save');
+const defaultRow=document.getElementById('setup-preview-defaults').children[0];
+const warnings=['status','notice','timing','unmanaged','active','default-summary'].map(suffix=>document.getElementById('setup-preview-'+suffix).textContent);
+const before=JSON.stringify(calls[0].payload);input.focus();
+for(const locale of ['qps-ploc','qps-ploc','unavailable','en']){
+ context.applySetupUiLocale(locale);
+ assert.strictEqual(document.getElementById('setup-preview-changes').children[0],row);
+ assert.strictEqual(document.getElementById('setup-preview-defaults').children[0],defaultRow);
+ assert.strictEqual(document.activeElement,input);assert.strictEqual(results.hidden,false);
+ assert.strictEqual(saved.children[0].textContent,locale==='qps-ploc'?'[Saaveed]':'Saved');
+ assert.strictEqual(proposed.children[0].textContent,locale==='qps-ploc'?'[Woouuld saavee]':'Would save');
+ assert.strictEqual(defaultRow.children[2].children[0].children[0].textContent,saved.children[0].textContent);
+ assert.strictEqual(saved.children[1].textContent,'local (default)');assert.strictEqual(proposed.children[1].textContent,'remote <script>');
+ assert.strictEqual(row.children[0].textContent,'Mode <img>');assert.strictEqual(row.children[1].textContent,'Audio generation');
+ assert.deepStrictEqual(['status','notice','timing','unmanaged','active','default-summary'].map(suffix=>document.getElementById('setup-preview-'+suffix).textContent),warnings);
+ assert.strictEqual(JSON.stringify(calls[0].payload),before);assert.strictEqual(calls.length,1);assert.strictEqual(body.querySelectorAll('script,img').length,0);
+}
+''')
+
+    def test_pending_preview_uses_current_locale_without_reposting(self):
+        self.run_js(r'''
+let release;context.API.post=(path,payload)=>{calls.push({path,payload});return new Promise(resolve=>release=resolve);};
+const pending=context.previewSetupChanges();await tick();context.applySetupUiLocale('qps-ploc');release(response());await pending;
+const row=document.getElementById('setup-preview-changes').children[0];
+assert.strictEqual(row.children[2].children[0].children[0].textContent,'[Saaveed]');
+assert.strictEqual(row.children[2].children[1].children[0].textContent,'[Woouuld saavee]');
+assert.strictEqual(calls.length,1);assert.strictEqual(document.getElementById('setup-preview-results').hidden,false);
 ''')
 
     def test_edits_close_and_save_invalidation_refuse_pending_results(self):

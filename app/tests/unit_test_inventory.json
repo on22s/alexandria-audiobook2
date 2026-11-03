@@ -10221,8 +10221,10 @@
   "test_settings_preview_js": [
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_edits_close_and_save_invalidation_refuse_pending_results",
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_invalid_proposal_and_bad_or_failed_reply_clear_old_comparison",
+    "tests.test_settings_preview_js.SettingsPreviewJsTests.test_locale_changes_update_headings_without_replacing_evidence_or_requesting",
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_missing_damaged_and_defaults_are_never_called_unchanged",
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_newest_request_is_serialized_and_direct_state_changes_are_rechecked",
+    "tests.test_settings_preview_js.SettingsPreviewJsTests.test_pending_preview_uses_current_locale_without_reposting",
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_preview_is_a_post_to_preview_only_and_renders_text_not_html",
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_programmatic_generation_and_preset_writers_invalidate_previews",
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_real_payload_builder_captures_active_and_inactive_profiles_without_mutation"

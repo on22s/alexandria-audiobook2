@@ -64,18 +64,18 @@ class SettingsDiscoveryTests(unittest.TestCase):
 
     def test_message_fallback_placeholders_and_plain_text_values(self):
         self.run_js(r'''
-assert.equal(context.getSetupSearchMessage('one',{count:0},'unavailable-locale'),'0 matching setting.');
-assert.equal(context.getSetupSearchMessage('missing-key'), 'missing-key');
-assert.equal(context.getSetupSearchMessage('toString'), 'toString');
+assert.equal(context.getSetupUiMessage('one',{count:0},'unavailable-locale'),'0 matching setting.');
+assert.equal(context.getSetupUiMessage('missing-key'), 'missing-key');
+assert.equal(context.getSetupUiMessage('toString'), 'toString');
 assert.equal(context.formatUiMessage('Hello {name}',undefined,{name:'<img onerror=bad()>'}),'Hello <img onerror=bad()>');
 assert.equal(context.formatUiMessage('Hello {name}','Wrong {other}',{name:'Safe'}),'Hello Safe');
 assert.equal(context.formatUiMessage('Hello {name}','',{name:'Safe'}),'Hello Safe');
 assert.equal(context.formatUiMessage('Hello {name}','{name} repeats {name}',{name:'{other}'}),'{other} repeats {other}');
-assert.throws(()=>context.getSetupSearchMessage('one',{}),/Missing or invalid/);
-assert.throws(()=>context.getSetupSearchMessage('one',{count:NaN}),/Missing or invalid/);
-const pseudo=context.getSetupSearchMessage('none',{},'qps-ploc');
-assert(pseudo.startsWith('[')&&pseudo.length>context.getSetupSearchMessage('none').length);
-assert.equal(context.getSetupSearchMessage('many',{count:12},'qps-ploc'),'[12 maatchiing seettiings.]');
+assert.throws(()=>context.getSetupUiMessage('one',{}),/Missing or invalid/);
+assert.throws(()=>context.getSetupUiMessage('one',{count:NaN}),/Missing or invalid/);
+const pseudo=context.getSetupUiMessage('none',{},'qps-ploc');
+assert(pseudo.startsWith('[')&&pseudo.length>context.getSetupUiMessage('none').length);
+assert.equal(context.getSetupUiMessage('many',{count:12},'qps-ploc'),'[12 maatchiing seettiings.]');
 ''')
 
     def test_locale_restoration_storage_events_and_configuration_isolation(self):
@@ -249,7 +249,7 @@ revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(re
         self.assertEqual(markup.options, ['en', 'qps-ploc'])
         self.assertEqual(set(markup.messages), {'label', 'placeholder', 'clear', 'hint'})
         self.run_js('for(const [key,text] of Object.entries('+json.dumps(markup.messages)+')) {'
-                    'assert.equal(context.getSetupSearchMessage(key),text);'
+                    'assert.equal(context.getSetupUiMessage(key),text);'
                     'assert(!/[{}]/.test(text));}')
 
 
