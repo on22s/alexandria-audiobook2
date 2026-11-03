@@ -3,7 +3,7 @@ from pathlib import PurePosixPath, PureWindowsPath
 import xml.etree.ElementTree as ET
 
 
-def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False):
+def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, include_details=False):
     """Read an EPUB package without extracting archive members.
 
     Text extraction keeps its existing archive-wide admission and first-rootfile
@@ -44,6 +44,7 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False):
         raise ValueError('EPUB has ambiguous publication packages')
     opf_path = rootfiles[0].get('full-path')
     opf_xml = read_member(opf_path)
+    repaired_metadata = False
     try:
         package = ET.fromstring(opf_xml)
     except ET.ParseError:
@@ -53,4 +54,9 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False):
         if repaired == opf_xml:
             raise
         package = ET.fromstring(repaired)
+        repaired_metadata = True
+    if include_details:
+        return opf_path, package, {'rootfile_count': len(rootfiles),
+                                   'selected_rootfile_index': 0,
+                                   'narrow_refines_repair_applied': repaired_metadata}
     return opf_path, package

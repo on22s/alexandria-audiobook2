@@ -14036,6 +14036,16 @@
               "title": "Select Active",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "include_extraction_report",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Extraction Report",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {

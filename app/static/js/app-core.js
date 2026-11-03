@@ -929,10 +929,11 @@
                 await API._handleError(res);
                 return res.json();
             },
-            upload: async (file, {selectActive = true} = {}) => {
+            upload: async (file, {selectActive = true, includeExtractionReport = false} = {}) => {
                 const formData = new FormData();
                 formData.append('file', file);
-                const res = await fetch(`/api/upload?select_active=${selectActive}`, {
+                const reportQuery = includeExtractionReport ? '&include_extraction_report=true' : '';
+                const res = await fetch(`/api/upload?select_active=${selectActive}${reportQuery}`, {
                     method: 'POST',
                     body: formData
                 });
@@ -1822,6 +1823,7 @@
         let currentBookFilename = '';
         window._bookSelectionEpoch = 0;
         function applyCurrentBookFilename(filename) {
+            window.renderEpubExtractionReport?.(null);
             window.retirePlaybackSequence?.();
             window._selectedUploadIdentity = null;
             currentBookFilename = typeof filename === 'string' ? filename : '';
@@ -2244,6 +2246,16 @@
         });
 
         // --- Script Tab ---
+        function renderEpubExtractionReport(report) {
+            const panel = document.getElementById('epub-extraction-report-panel');
+            const preview = document.getElementById('epub-extraction-report-json');
+            if (!panel || !preview) { return; }
+            preview.textContent = report ? JSON.stringify(report, null, 2) : '';
+            panel.hidden = !report;
+            panel.open = false;
+        }
+        window.renderEpubExtractionReport = renderEpubExtractionReport;
+
         let existingUploadsLoadRequest = 0;
 
         async function loadExistingScriptUploads() {
@@ -2284,6 +2296,7 @@
                 return;
             }
             if (!isCurrent()) { return; }
+            window.renderEpubExtractionReport?.(null);
             const statusEl = document.getElementById('upload-status');
             const selecting = enqueueBookSelection(request, async () => {
                 if (!isCurrent()) { return; }
@@ -2313,8 +2326,11 @@
             const statusEl = document.getElementById('upload-status');
             if (fileInput.files.length === 0) { return; }
             const file = fileInput.files[0];
+            const includeExtractionReport = /\.epub$/i.test(file.name)
+                && document.getElementById('epub-extraction-report-enabled')?.checked === true;
             if (!await ensureCastListEditsDiscardable()) { fileInput.value = ''; return; }
             if (fileInput.files[0] !== file) { return; }
+            window.renderEpubExtractionReport?.(null);
 
             const request = {};
             window._bookSelectionEpoch++;
@@ -2325,9 +2341,10 @@
             try {
                 await enqueueBookSelection(request, async () => {
                     if (!isCurrent()) { return; }
-                    const res = await API.upload(file);
+                    const res = await API.upload(file, {includeExtractionReport});
                     if (!isCurrent()) { return; }
                     applyCurrentBookFilename(res.stored_filename);
+                    window.renderEpubExtractionReport?.(res.extraction_report || null);
                     if (/^[0-9a-f]{64}$/.test(res.book_identity_token || '')) {
                         window._selectedUploadIdentity = { filename: currentBookFilename, token: res.book_identity_token, request };
                     }
@@ -2342,6 +2359,7 @@
                 });
             } catch (e) {
                 if (!isCurrent()) { return; }
+                window.renderEpubExtractionReport?.(null);
                 statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Book upload was not confirmed', e, 'Check the current loaded book and existing uploads before uploading again.'))}</span>`;
             }
         });

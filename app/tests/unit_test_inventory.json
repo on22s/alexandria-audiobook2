@@ -4132,6 +4132,22 @@
     "tests.test_epub_captured_bytes.EpubCapturedBytesTests.test_bytes_parser_preserves_path_output_without_reopening_source",
     "tests.test_epub_captured_bytes.EpubCapturedBytesTests.test_corpus_reads_epub_source_once_and_creates_no_scratch_snapshot"
   ],
+  "test_epub_extraction_report": [
+    "tests.test_epub_extraction_report.EpubExtractionReportTests.test_changed_text_and_archive_cannot_reuse_snapshot_identity",
+    "tests.test_epub_extraction_report.EpubExtractionReportTests.test_epub2_and_epub3_reports_preserve_exact_extraction_and_spine_order",
+    "tests.test_epub_extraction_report.EpubExtractionReportTests.test_identity_budget_is_reserved_after_navigation_detail_fills",
+    "tests.test_epub_extraction_report.EpubExtractionReportTests.test_missing_resources_and_malformed_navigation_preserve_fallback",
+    "tests.test_epub_extraction_report.EpubExtractionReportTests.test_path_only_report_matches_captured_bytes",
+    "tests.test_epub_extraction_report.EpubExtractionReportTests.test_report_budget_and_field_truncation_never_replace_text_identity",
+    "tests.test_epub_extraction_report.EpubExtractionReportTests.test_skipped_spine_targets_and_empty_body_labels_are_explained",
+    "tests.test_epub_extraction_report.EpubExtractionReportTests.test_tolerant_xhtml_and_existing_title_suppression_are_reported_without_repair",
+    "tests.test_epub_extraction_report.EpubExtractionReportTests.test_unresolved_duplicate_and_outside_targets_are_explicit",
+    "tests.test_epub_extraction_report.EpubReportUploadTests.test_opt_in_response_matches_published_text_and_default_upload"
+  ],
+  "test_epub_extraction_report_js": [
+    "tests.test_epub_extraction_report_js.EpubExtractionReportJsTests.test_api_report_flag_is_explicit_and_does_not_change_batch_default",
+    "tests.test_epub_extraction_report_js.EpubExtractionReportJsTests.test_real_upload_handler_fences_reports_and_uses_text_only"
+  ],
   "test_epub_package": [
     "tests.test_epub_package.EpubPackageTests.test_missing_rootfile_fails_in_both_modes",
     "tests.test_epub_package.EpubPackageTests.test_only_known_sigil_fragment_is_repaired",

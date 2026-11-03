@@ -380,6 +380,9 @@ a measurement, what we recommend and why.
 
 - **Select Book/Novel** (TXT, MD or EPUB — EPUB is converted on upload), or **reuse an
   existing upload**.
+- **EPUB import snapshot** (optional): inspect source/text hashes, spine order and
+  extraction decisions without changing imported text. See the
+  [EPUB extraction report guide](docs/epub-extraction-report.md).
 - **First-person narrator**.
 - **Batch Mode** for several files: sort A→Z / Z→A / 1→10 / 10→1 / reverse, and choose
   what happens **When a saved script already exists**.
