@@ -546,6 +546,8 @@
             'casting-review': 'Review the matching voices one at a time, starting with the first unreviewed one.',
             'casting-clear': 'Clear the search, dropdown filters and tone or texture chips.',
             'casting-more': 'Show the next 48 matching voices.',
+            'casting-create-collection': 'Create a voice-library cast with the collection name, then choose catalogue voices to add to it.',
+            'casting-match-collection': 'Review character mappings from this collection for the active book before applying them. Nothing is applied until you confirm.',
             'casting-review-prev': 'Go back to the previous voice in this review.',
             'casting-review-play': 'Play or stop this voice preview.',
             'casting-review-next': 'Go to the next voice in this review.',
