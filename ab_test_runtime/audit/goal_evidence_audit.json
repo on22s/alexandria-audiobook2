@@ -1050,13 +1050,13 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-03T06:11:33",
+  "written": "2026-11-03T07:03:08",
   "host": "RealMitch",
   "git": {
-   "commit": "f743c1d41fd0b7053f30935386a810eba4c24e7e",
-   "branch": "feat/1732-preview-chrome",
+   "commit": "9d1e23d1a6fa6097e5d363ef7296c8212b9810f8",
+   "branch": "feat/1732-preview-default-summary",
    "dirty": true,
-   "source_state": "dirty:f116405af36c",
+   "source_state": "dirty:e6dd7ee46498",
    "source_state_detail": null,
    "modified_tracked_files": [
     " M GOALS.md",

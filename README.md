@@ -218,11 +218,12 @@ for missing lines and incorrect speakers.
 
 The Setup sidebar has a **Setup UI language (partial coverage)** selector above
 the setting finder. The finder's text, including its search feedback, the **Preview changes**
-action, preview title, **Close preview** action and **Saved**/**Would save**
-column headings use the English message catalog. The
+action, preview title, **Close preview** action, default-count summary and
+**Saved**/**Would save** column headings use the English message catalog. Counts
+are preserved. The
 optional **Pseudo-English** mode expands those messages for layout testing; it is
-not a reviewed translation. Setting names, comparison values, default markers
-and summaries, contextual help and safety warnings
+not a reviewed translation. Setting names, comparison values, default markers,
+contextual help and safety warnings
 remain English. The preference is browser-local, synchronizes between same-origin
 tabs when storage is available, and never changes book, TTS or transcription
 language, configuration values or submitted technical identifiers. Unsupported

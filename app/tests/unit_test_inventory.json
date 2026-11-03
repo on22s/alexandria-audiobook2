@@ -10219,6 +10219,7 @@
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_search_outside_save_form_and_classic_script_order"
   ],
   "test_settings_preview_js": [
+    "tests.test_settings_preview_js.SettingsPreviewJsTests.test_default_summary_preserves_counts_across_locales_and_pending_responses",
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_edits_close_and_save_invalidation_refuse_pending_results",
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_invalid_proposal_and_bad_or_failed_reply_clear_old_comparison",
     "tests.test_settings_preview_js.SettingsPreviewJsTests.test_locale_changes_update_headings_without_replacing_evidence_or_requesting",

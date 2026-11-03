@@ -1152,7 +1152,7 @@
 </nav>
                         <label class="form-label mt-3" for="setup-ui-locale">Setup UI language (partial coverage)</label>
                         <select id="setup-ui-locale" class="form-select" aria-describedby="setup-ui-locale-hint setup-ui-locale-status" onchange="changeSetupUiLocale(this.value)"><option value="en">English</option><option value="qps-ploc">Pseudo-English (layout test, not a translation)</option></select>
-                        <div id="setup-ui-locale-hint" class="form-text">Only the setting finder's text, including search feedback, preview action/title/close text and the Saved/Would save headings change. Setting names, values, default markers and summaries, help and safety warnings remain English. No reviewed translation or RTL locale is offered.</div>
+                        <div id="setup-ui-locale-hint" class="form-text">Only the setting finder's text, including search feedback, preview action/title/close text, default-count summary and the Saved/Would save headings change. Counts are preserved. Setting names, values, default markers, help and safety warnings remain English. No reviewed translation or RTL locale is offered.</div>
                         <div id="setup-ui-locale-status" class="form-text" role="status"></div>
                         <div class="settings-finder">                        <label class="form-label" for="setup-settings-search" data-setup-message="label">Find a setting</label>
                         <div class="d-flex align-items-center gap-2">
@@ -1185,7 +1185,7 @@
         <p id="setup-preview-unmanaged" class="small"></p>
         <div id="setup-preview-changes"></div>
         <details id="setup-preview-default-details" class="mt-3">
-            <summary id="setup-preview-default-summary">Default values</summary>
+            <summary id="setup-preview-default-summary" data-setup-message="previewDefaults" data-setup-count="0">0 missing settings filled with defaults</summary>
             <div id="setup-preview-defaults" class="settings-preview-defaults mt-2"></div>
         </details>
     </div>

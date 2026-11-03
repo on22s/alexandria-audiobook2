@@ -13,6 +13,7 @@ const setupUiEnglish = Object.freeze({
     previewAction: 'Preview changes',
     previewTitle: 'Settings change preview',
     previewClose: 'Close preview',
+    previewDefaults: '{count} missing settings filled with defaults',
 });
 let setupUiLocale = 'en';
 let setupSearchStatus = [];
@@ -43,7 +44,8 @@ function applySetupUiLocale(locale) {
     const selector = document.getElementById('setup-ui-locale');
     if (selector) { selector.value = setupUiLocale; }
     for (const node of document.querySelectorAll('[data-setup-message]')) {
-        const message = getSetupUiMessage(node.getAttribute('data-setup-message'));
+        const values = node.hasAttribute('data-setup-count') ? {count: Number(node.getAttribute('data-setup-count'))} : {};
+        const message = getSetupUiMessage(node.getAttribute('data-setup-message'), values);
         if (node.getAttribute('data-setup-message') === 'placeholder') { node.placeholder = message; }
         else { node.textContent = message; }
     }
@@ -249,7 +251,9 @@ async function previewSetupChanges() {
         document.getElementById('setup-preview-unmanaged').textContent = data.unmanaged_fields
             ? `${data.unmanaged_fields} additional saved fields are outside the supported form and would not be retained by the existing Save. Review the saved file before saving.` : '';
         renderSetupPreviewRows(document.getElementById('setup-preview-changes'), data.changes);
-        document.getElementById('setup-preview-default-summary').textContent = `${data.defaults.length} missing settings filled with defaults`;
+        const defaultSummary = document.getElementById('setup-preview-default-summary');
+        defaultSummary.setAttribute('data-setup-count', String(data.defaults.length));
+        defaultSummary.textContent = getSetupUiMessage('previewDefaults', {count: data.defaults.length});
         document.getElementById('setup-preview-default-details').hidden = !data.defaults.length;
         renderSetupPreviewRows(document.getElementById('setup-preview-defaults'), data.defaults);
         document.getElementById('setup-preview-results').hidden = false;
