@@ -1181,6 +1181,7 @@
                     });
                 },
                 drift_check: () => { reattachTaskActivity('drift_check', [], null, () => loadChunks(false)); },
+                outlier_check: async () => { attachEditorOutlierCheck(await API.get('/api/status/outlier_check')); },
             };
             const controlGroups = new Map(logGroups.flatMap(group =>
                 group.tasks.map(name => [name, group.elementId])));

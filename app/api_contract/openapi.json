@@ -3031,6 +3031,20 @@
         "title": "NarratorStrategyRequest",
         "type": "object"
       },
+      "OutlierCheckRequest": {
+        "properties": {
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token"
+        ],
+        "title": "OutlierCheckRequest",
+        "type": "object"
+      },
       "PersonaRecoveryRequest": {
         "properties": {
           "book_token": {
@@ -6848,6 +6862,78 @@
           }
         },
         "summary": "Drift Check Endpoint"
+      }
+    },
+    "/api/chunks/outlier_check": {
+      "post": {
+        "operationId": "outlier_check_endpoint_api_chunks_outlier_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutlierCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Outlier Check Endpoint"
+      }
+    },
+    "/api/chunks/outlier_check/cancel": {
+      "post": {
+        "operationId": "cancel_outlier_check_api_chunks_outlier_check_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutlierCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Outlier Check"
       }
     },
     "/api/chunks/playback_gap": {

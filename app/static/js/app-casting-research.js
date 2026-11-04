@@ -1280,7 +1280,7 @@
             }
         }
 
-        function markButton(voice, shape, color) {
+        function markButton(voice, shape, color, symbolsOnly) {
             const mark = getMark(voice.id);
             const on = (mark[shape] || []).includes(color);
             const label = SHAPE_LABEL[shape] + ' ' + COLOR_LABEL[color] + ' for ' + voice.name + ': ' + (on ? 'on' : 'off');
@@ -1290,8 +1290,10 @@
             button.dataset.shape = shape;
             button.dataset.color = color;
             button.dataset.castingFocus = 'mark:' + voice.id + ':' + shape + ':' + color;
-            button.append(node('i', undefined, 'fas ' + (shape === 'stars' ? 'fa-star' : 'fa-circle') + ' me-1'),
-                          node('span', COLOR_LABEL[color]));
+            const icon = node('i', undefined, 'fas ' + (shape === 'stars' ? 'fa-star' : 'fa-circle') + (symbolsOnly ? '' : ' me-1'));
+            icon.setAttribute('aria-hidden', 'true');
+            button.append(icon);
+            if (!symbolsOnly) { button.append(node('span', COLOR_LABEL[color])); }
             button.setAttribute('aria-label', label);
             button.setAttribute('title', label);
             button.setAttribute('aria-pressed', String(on));
@@ -1299,10 +1301,10 @@
             button.addEventListener('click', () => toggleShapeColor(voice, shape, color));
             return button;
         }
-        function markRow(voice, shape) {
+        function markRow(voice, shape, symbolsOnly) {
             const row = node('div', undefined, 'd-flex flex-wrap align-items-center gap-1 mb-1');
-            row.append(node('span', shape === 'stars' ? 'Stars' : 'Circles', 'small text-muted me-1'));
-            row.append(...COLORS.map(color => markButton(voice, shape, color)));
+            if (!symbolsOnly) { row.append(node('span', shape === 'stars' ? 'Stars' : 'Circles', 'small text-muted me-1')); }
+            row.append(...COLORS.map(color => markButton(voice, shape, color, symbolsOnly)));
             return row;
         }
         function removalBadge(voice, field, value, actionLabel) {
@@ -1420,7 +1422,7 @@
             const wrap = node('div', undefined, 'mt-2 border-top pt-2');
             const organization = node('details', undefined, 'mt-2');
             organization.append(node('summary', 'Tags & research collections', 'small'), tagEditor(voice), collectionEditor(voice));
-            wrap.append(markRow(voice, 'stars'), markRow(voice, 'circles'), organization);
+            wrap.append(markRow(voice, 'stars', true), markRow(voice, 'circles', true), organization);
             return wrap;
         }
         function tableMarkControls(voice) {

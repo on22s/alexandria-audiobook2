@@ -580,6 +580,7 @@ process_state = {
     "m4b_export": {"running": False, "logs": []},
     "chapter_export": {"running": False, "logs": [], "cancel": False},
     "drift_check": {"running": False, "logs": []},
+    "outlier_check": {"running": False, "logs": [], "cancel": False, "status": "idle"},
     "speaker_review": {"running": False, "logs": [], "cancel": False, "status": "idle"},
     "report_explanation": {"running": False, "logs": [], "cancel": False, "status": "idle"},
     "review": {"running": False, "status": "idle", "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
@@ -607,7 +608,7 @@ process_state = {
 # inference, so it must respect the GPU lock to avoid OOM alongside TTS/review.
 # "drift_check" scores audio with ECAPA under the sibling interpreter, which
 # pins CPU on purpose (see voice_reference.py) - it never touches the GPU.
-NON_GPU_TASKS = {"audacity_export", "m4b_export", "drift_check", "chapter_export"}
+NON_GPU_TASKS = {"audacity_export", "m4b_export", "drift_check", "outlier_check", "chapter_export"}
 GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
 # Tasks whose only accelerator use is the LLM endpoint. When the active LLM
 # profile is not on this machine's GPU (hosted API, a CPU-served model, a

@@ -594,6 +594,22 @@ class ChunkUpdateNullTests(unittest.TestCase):
                 self.assertEqual(b'preserved prior audio', (root / 'audio.wav').read_bytes())
 
 
+    def test_render_edits_clear_existing_outlier_and_drift_without_removing_audio(self):
+        for field, value in (('text', 'Changed line'), ('speaker', 'Other'),
+                             ('instruct', 'Quiet'), ('take', 1)):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                manager, path, original = self._setup(root)
+                original.update(outlier={'flagged': True}, drift={'score': 0.9})
+                path.write_text(json.dumps([original]))
+                result = manager.update_chunk(0, {field: value})
+                expected = {**original, field: value, 'status': 'pending',
+                            'audio_path': None, 'outlier': None, 'drift': None}
+                self.assertEqual(expected, result)
+                self.assertEqual([expected], json.loads(path.read_bytes()))
+                self.assertEqual(b'preserved prior audio', (root / 'audio.wav').read_bytes())
+
+
 class BatchWorkerConfigTests(unittest.TestCase):
     def test_actual_config_loader_normalizes_worker_count_before_both_routes_dispatch(self):
         from types import SimpleNamespace

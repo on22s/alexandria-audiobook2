@@ -1050,15 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-04T05:16:28",
+  "written": "2026-11-04T08:38:56",
   "host": "RealMitch",
   "git": {
-   "commit": "706ea4eb38a4929ce233da410dd8761d84f27071",
-   "branch": "fix/1532-card-metadata",
-   "dirty": false,
-   "source_state": "clean",
+   "commit": "fe377cf5dda39fd526b665345e53daaa4acb9491",
+   "branch": "feat/1331-chunk-outliers",
+   "dirty": true,
+   "source_state": "dirty:044b8806df50",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    "M  app/project.py",
+    "M  app/tests/test_project_chunks.py",
+    "M  app/tests/unit_test_inventory.json"
+   ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"

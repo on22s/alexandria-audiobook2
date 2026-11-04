@@ -16,20 +16,23 @@ from project_scope_exports import is_scope_export_historical
 from script_recovery_facts import get_saved_script_recovery_manifest, three_pass_manifest_path
 
 
-def _get_audio_review(chunks, get_audio_path, book_token):
+def _get_audio_review(chunks, get_audio_path, book_token, voices):
     """Summarize existing editor evidence; never run or certify a check."""
     uids = [row.get('uid') for row in chunks]
     if (any(type(row.get('id')) is not int for row in chunks)
             or any(not isinstance(uid, str) or not uid for uid in uids)
             or len(set(uids)) != len(uids)):
         return {'status': 'unavailable'}
-    facts = get_editor_review_facts(chunks, get_audio_path, book_token, include_readiness=True)
+    facts = get_editor_review_facts(chunks, get_audio_path, book_token, include_readiness=True, voice_config=voices)
     speech = Counter(row['speech_evidence'] for row in facts)
     return {'status': 'observed', 'identity_check': 'metadata_only',
             'speech_current_metadata': speech['current_metadata'],
             'speech_not_current': speech['not_current'], 'speech_not_checked': speech['not_checked'],
             'speech_attention': sum(any(issue.startswith('speech_') for issue in row['issues']) for row in facts),
             'drift_flagged': sum('drift' in row['issues'] for row in facts),
+            'outlier_flagged': sum('outliers' in row['issues'] for row in facts),
+            'outlier_unavailable': sum(row['outlier']['status'] == 'unavailable' for row in facts),
+            'outlier_unmeasured': sum(row['outlier']['status'] == 'unmeasured' for row in facts),
             'unknown_speakers': sum('unknown' in row['issues'] for row in facts)}
 
 
@@ -71,7 +74,7 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *
             total = len(chunks)
             audio = {'status': 'files_present' if total and present == total else 'needs_attention',
                      'total': total, 'present': present, 'failed': failed, 'missing': missing,
-                     'generating': generating, 'review': _get_audio_review(chunks, get_audio_path, book_token),
+                     'generating': generating, 'review': _get_audio_review(chunks, get_audio_path, book_token, snapshot['voices']),
                      'message': 'File presence is checked; current script and voice dependencies have not been rechecked. Review existing chunks in Editor before generating missing work; audio quality still needs listening.'}
         except (OSError, ValueError, TypeError):
             audio['status'] = 'unavailable'

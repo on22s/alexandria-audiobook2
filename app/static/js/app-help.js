@@ -422,6 +422,8 @@
             'startRender': 'Generate chunk audio using the selected render action and current voice assignments.',
             'cancelRender': 'Request cancellation of the current audio-rendering task.',
             'runDriftCheck': 'Compare generated chunks with their speaker references and flag possible voice drift for listening review.',
+            'runOutlierCheck': 'Compare CPU acoustic proxies with at least eight same-character takes using the same effective voice. Experimental listening hints only: no automatic regeneration or quality certification.',
+            'cancelOutlierCheck': 'Cancel the acoustic scan. Partial results are not saved; existing audio is unchanged.',
             'openTextDiff': 'Show the source-versus-script text comparison for inspecting changes.',
             'exportAudacity': 'Build an Audacity project from the generated audio and timeline.',
             'loadExportQualityReports': 'Show completed delivery checks and rejected attempts retained for the current book in this app session. File metadata is checked; audio is not rehashed or decoded.',

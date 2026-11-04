@@ -47,6 +47,49 @@ let completed=false;process.on('beforeExit',()=>assert(completed,'scenario must 
 
 
 class EditorReviewJsTests(unittest.TestCase):
+    def test_outlier_input_error_keeps_unrelated_findings_visible(self):
+        self.run_js(r'''
+const savedFacts=facts;context.API.get=async()=>({...savedFacts(),outlier_error:'Cannot read voice_config.json; restore or repair it before checking.'});
+await context.refreshEditorReview();assert(document.getElementById('editor-quality-status').textContent.includes('restore or repair'));
+assert(document.getElementById('editor-quality-list').children.length>0);assert(document.getElementById('editor-quality-status').textContent.includes('voice drift'));
+''')
+
+    def test_outlier_reload_restores_cancel_and_refreshes_once_on_matching_book(self):
+        self.run_js(r'''
+el('btn-outlier-check','button');el('btn-outlier-cancel','button');el('editor-outlier-status');
+let poll,loads=0;const posts=[];context._startPolling=(key,fetch,options)=>{poll=options;};context.loadChunks=async()=>{loads++;};context.API.post=async(url,payload)=>{posts.push({url,payload});};
+const book=context.chunkSnapshotBookToken;context.attachEditorOutlierCheck({book_token:book,running:true});
+assert(document.getElementById('btn-outlier-check').disabled);assert(!document.getElementById('btn-outlier-cancel').disabled);
+await context.cancelOutlierCheck();assert.equal(posts[0].payload.expected_book_token,book);
+poll.onTick({book_token:book,progress:{done:3,total:8}});assert(document.getElementById('editor-outlier-status').textContent.includes('3 / 8'));
+await poll.onDone({book_token:book,running:false,logs:['Done, no certification.']});assert.equal(loads,1);assert(document.getElementById('btn-outlier-cancel').disabled);
+context.attachEditorOutlierCheck({book_token:book,running:true});context.chunkSnapshotBookToken='c'.repeat(64);await poll.onDone({book_token:book,running:false,logs:['old book']});assert.equal(loads,1);
+''')
+
+    def test_outlier_start_explains_pending_edit_and_missing_book_refusals(self):
+        self.run_js(r'''
+el('btn-outlier-check','button');el('btn-outlier-cancel','button');el('editor-outlier-status');let posts=0;context.API.post=async()=>{posts++;};context.isEditorEditPending=()=>true;
+await context.runOutlierCheck();assert.equal(posts,0);assert(document.getElementById('editor-outlier-status').textContent.includes('pending edits'));
+context.isEditorEditPending=()=>false;context.chunkSnapshotBookToken=null;await context.runOutlierCheck();assert.equal(posts,0);assert(document.getElementById('editor-outlier-status').textContent.includes('Load the selected book'));
+''')
+
+    def test_outlier_findings_details_and_book_bound_start_cancel(self):
+        self.run_js(r'''
+el('btn-outlier-check','button');el('btn-outlier-cancel','button');el('editor-outlier-status');
+const savedFacts=facts;context.API.get=async()=>{const data=savedFacts();data.rows[1].issues=['outliers'];data.rows[1].outlier={status:'flagged',metrics:{median_pitch_hz:{value:220,z:4,flagged:true},voiced_ratio:null},labels:{median_pitch_hz:'Approximate pitch'},error:'One metric unavailable'};return data;};
+await context.refreshEditorReview();document.getElementById('editor-quality-filter').value='outliers';context.renderEditorQualityInbox();assert.equal(document.getElementById('editor-quality-list').children.length,1);
+context.selectEditorReviewLineById(1);assert(document.getElementById('editor-line-outlier').textContent.includes('220.00'));assert(document.getElementById('editor-line-outlier').textContent.includes('unavailable'));assert.equal(generates.length,0);
+const posts=[];let poll;context.API.post=async(url,payload)=>{posts.push({url,payload});return {status:'started'};};context._startPolling=(key,fetch,options)=>{poll=options;};context.loadChunks=async()=>{};
+await context.runOutlierCheck();assert.equal(posts[0].url,'/api/chunks/outlier_check');assert.equal(posts[0].payload.expected_book_token,context.chunkSnapshotBookToken);assert(document.getElementById('btn-outlier-check').disabled);
+await context.runOutlierCheck();assert.equal(posts.length,1);await context.cancelOutlierCheck();assert.equal(posts[1].url,'/api/chunks/outlier_check/cancel');assert.equal(posts[1].payload.expected_book_token,context.chunkSnapshotBookToken);
+await poll.onDone({running:false,status:'cancelled',logs:['Cancelled; no results saved.']});assert(!document.getElementById('btn-outlier-check').disabled);assert(document.getElementById('btn-outlier-cancel').disabled);assert.equal(generates.length,0);
+''')
+
+    def test_outlier_start_refusal_releases_controls_and_reports_uncertainty(self):
+        self.run_js(r'''
+el('btn-outlier-check','button');el('btn-outlier-cancel','button');el('editor-outlier-status');context.API.post=async()=>{throw new Error('refused');};await context.runOutlierCheck();assert(!document.getElementById('btn-outlier-check').disabled);assert(document.getElementById('btn-outlier-cancel').disabled);assert.equal(errors.length,1);assert(document.getElementById('editor-outlier-status').textContent.includes('unconfirmed'));
+''')
+
     def test_queue_marks_advanced_snapshot_stale_and_explains_refused_click(self):
         self.run_js(r'''
 await context.refreshEditorReview();const list=document.getElementById('editor-quality-list');

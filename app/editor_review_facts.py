@@ -1,5 +1,7 @@
 """Existing per-line review facts, without starting or certifying a check."""
 import math
+from chunk_outlier_check import get_outlier_population_key, get_outlier_fact
+from editor_poll_snapshot import get_snapshot_digest
 
 from audio_validation import is_audio_file_present
 from speaker_traits import get_entry_speaker
@@ -8,10 +10,14 @@ from speech_verification_receipt import (get_current_speech_verification_receipt
     get_validated_historical_speech_verification_receipt)
 
 
-def get_editor_review_facts(chunks, resolve_audio_path, book_token=None, *, include_readiness=False):
+def get_editor_review_facts(chunks, resolve_audio_path, book_token=None, *, include_readiness=False,
+                            voice_config=None):
     rows = []
+    population_key = get_outlier_population_key(chunks)
+    voices_key = get_snapshot_digest(voice_config) if voice_config is not None else None
     for chunk in chunks:
         issues = []
+        outlier = get_outlier_fact(chunk, population_key, voices_key)
         if get_entry_speaker(chunk).upper() in {'', 'UNKNOWN'}:
             issues.append('unknown')
         if chunk.get('status') == 'error':
@@ -22,6 +28,11 @@ def get_editor_review_facts(chunks, resolve_audio_path, book_token=None, *, incl
             audio = 'present' if is_audio_file_present(chunk.get('audio_path'), resolve_audio_path) else 'missing'
             if audio == 'missing':
                 issues.append('missing')
+                if chunk.get('outlier') is not None:
+                    outlier = {**outlier, 'status': 'unavailable',
+                               'error': '; '.join(filter(None, [outlier.get('error'), 'Saved audio is unavailable.']))}
+        if outlier['status'] == 'flagged':
+            issues.append('outliers')
         drift = chunk.get('drift')
         drift_status = 'not_rendered' if not rendered else 'unmeasured'
         if rendered and drift is not None:
@@ -68,7 +79,7 @@ def get_editor_review_facts(chunks, resolve_audio_path, book_token=None, *, incl
         if recheck and 'speech_unavailable' not in issues:
             issues.append('speech_unavailable')
         row = {'id': chunk['id'], 'uid': chunk['uid'], 'issues': issues,
-                     'audio': audio, 'drift': drift_status,'speech':speech_status,
+                     'audio': audio, 'drift': drift_status, 'outlier': outlier, 'speech':speech_status,
                      'speech_attempt':'rejected' if rejected else None,
                      'speech_recheck':recheck['status'] if recheck else None}
         if include_readiness:

@@ -517,6 +517,7 @@
             review: 'Script review',
             word_timing: 'Word timing',
             speech_verification: 'Speech verification',
+            outlier_check: 'Acoustic outlier check',
             nicknames: 'Nickname discovery',
             cast_list: 'Cast list',
             persona: 'Persona generation',
