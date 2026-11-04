@@ -321,8 +321,8 @@ then see [Troubleshooting](#troubleshooting).
 The interface is a **five-step pipeline** (the numbered tabs) plus tools: Designer,
 Preparer, Dataset, Training, Voice Lab and Reports. The header shows the commit of the
 running build, GPU memory in use, and a light/dark toggle. Every setting on the numbered tabs
-has an ⓘ beside its label: hover or tab to it to see what the setting does and, where there is
-a measurement, what we recommend and why.
+has help on its control or label: hover or focus it for half a second to see what the setting
+does and, where there is a measurement, what we recommend and why. Escape dismisses help.
 
 ### 1 · Setup
 

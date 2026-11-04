@@ -7,10 +7,8 @@ WHAT THIS VERIFIES.
   it is documented.
 - Content: every `what` is plain text of at most 300 characters; every
   `recommend` names its `source` (advice must point at a measurement).
-- Rendering, against a small DOM stub: one ⓘ beside each control label, including a
-  wrapping checkbox label; the tooltip text is set as an attribute,
-  never as markup; unlabelled fields receive a visible help glyph;
-  calling renderHelpTips() again adds nothing; one delegated Bootstrap tooltip.
+- Rendering against a small DOM stub: direct control and associated-label help,
+  delayed presentation, plain-text content, and no injected help glyphs.
 """
 from html.parser import HTMLParser
 import json
@@ -94,17 +92,19 @@ const wrap=body.appendChild(new Element('label',{}));const box=wrap.appendChild(
 const bare=body.appendChild(new Element('input',{id:'save-script-name'}));
 load();context.renderHelpTips();context.ensureHelpTooltips();
 assert.strictEqual(label.children.length,0,'help must not become part of the field label');
-const icon=tipFor(select);assert.strictEqual(icon.tagName,'SPAN');assert.strictEqual(icon.previousElementSibling,label);assert.strictEqual(icon.getAttribute('data-help-for'),'prompt-preset-select');
-assert(icon.getAttribute('data-bs-title').includes('Recommended:'));assert(icon.getAttribute('data-bs-title').includes('(source: '));assert(icon.getAttribute('aria-label').startsWith('Help: '));assert.strictEqual(icon.textContent,'ⓘ');
-assert.strictEqual(tipFor(box).previousElementSibling,wrap,'no help control nested in the checkbox label');
-assert.strictEqual(tipFor(bare).previousElementSibling,bare,'unlabelled field gets a visible glyph');
-assert(tipFor(bare).getAttribute('data-bs-title').length>0);
-assert.strictEqual(body.querySelectorAll('.help-tip').length,3,'repeat render has no duplicate icons');assert.strictEqual(tooltipCalls.length,1);assert.strictEqual(tooltipCalls[0].options.selector,'[data-help-tip]');assert.strictEqual(tooltipCalls[0].options.html,false);
+assert(select.getAttribute('data-bs-title').includes('Recommended:'));
+assert(select.getAttribute('data-bs-title').includes('(source: '));
+assert.strictEqual(box.parentElement,wrap);
+assert(bare.getAttribute('data-bs-title').length>0);
+assert.strictEqual(body.querySelectorAll('.help-tip,.help-nav-glyph').length,0);
+label.control=select;label.fire('pointerover');tick(499);assert.strictEqual(shown.length,0);
+tick(1);assert.strictEqual(shown.at(-1),select);
+assert.strictEqual(body.listeners.focusin.length,1);
 """
 
 
 class FieldHelpRenderTests(unittest.TestCase):
-    def test_render_places_icons_once_and_initialises_one_delegated_tooltip(self):
+    def test_render_uses_direct_delayed_help_without_icons(self):
         from tests.test_ui_help_js import run_help_js
         result = run_help_js(RENDER_TEST)
         self.assertEqual(result.returncode, 0, result.stderr)

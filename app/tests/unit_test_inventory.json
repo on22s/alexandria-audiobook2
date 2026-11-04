@@ -4834,7 +4834,7 @@
     "tests.test_field_help.FieldHelpContentTests.test_every_static_field_has_help",
     "tests.test_field_help.FieldHelpContentTests.test_no_help_entry_for_a_missing_control",
     "tests.test_field_help.FieldHelpContentTests.test_text_is_plain_and_short",
-    "tests.test_field_help.FieldHelpRenderTests.test_render_places_icons_once_and_initialises_one_delegated_tooltip"
+    "tests.test_field_help.FieldHelpRenderTests.test_render_uses_direct_delayed_help_without_icons"
   ],
   "test_file_lock_ownership": [
     "tests.test_file_lock_ownership.ConcurrentLockCreationTests.test_simultaneous_descriptor_relative_creation_opens_one_file",
@@ -12950,20 +12950,16 @@
   ],
   "test_ui_help_js": [
     "tests.test_ui_help_js.UiHelpTests.test_all_static_interactive_items_have_explanations",
-    "tests.test_ui_help_js.UiHelpTests.test_disabled_help_stays_reachable_and_does_not_activate_ancestors",
-    "tests.test_ui_help_js.UiHelpTests.test_dynamic_insert_rerender_removal_and_tooltip_cleanup",
-    "tests.test_ui_help_js.UiHelpTests.test_escape_dismisses_hovered_help_and_next_engagement_can_show_it",
+    "tests.test_ui_help_js.UiHelpTests.test_delayed_help_lifecycle",
+    "tests.test_ui_help_js.UiHelpTests.test_disabled_label_lifecycle",
+    "tests.test_ui_help_js.UiHelpTests.test_dynamic_disabled_child_replacement",
     "tests.test_ui_help_js.UiHelpTests.test_generated_cards_recovery_and_programmatic_actions_have_specific_help",
-    "tests.test_ui_help_js.UiHelpTests.test_hover_popup_persists_then_leaves_without_disrupting_focus",
-    "tests.test_ui_help_js.UiHelpTests.test_individual_hidden_action_and_removed_glyph_recover",
     "tests.test_ui_help_js.UiHelpTests.test_lookups_reject_prototype_names_and_unknown_field_saves",
-    "tests.test_ui_help_js.UiHelpTests.test_native_summary_keeps_help_inside_its_visible_heading",
-    "tests.test_ui_help_js.UiHelpTests.test_navigation_click_dismisses_help_until_a_new_engagement",
-    "tests.test_ui_help_js.UiHelpTests.test_navigation_keeps_original_layout_and_actions_with_direct_help",
-    "tests.test_ui_help_js.UiHelpTests.test_report_link_and_help_share_one_row_and_keep_the_real_action",
-    "tests.test_ui_help_js.UiHelpTests.test_reused_control_refreshes_hint_and_disposes_stale_tooltip",
-    "tests.test_ui_help_js.UiHelpTests.test_spaced_flex_actions_keep_their_own_help_and_move_safely",
-    "tests.test_ui_help_js.UiHelpTests.test_unrelated_escape_and_section_close_are_not_blocked_by_hovered_help"
+    "tests.test_ui_help_js.UiHelpTests.test_pending_cancellation_preserves_existing_description",
+    "tests.test_ui_help_js.UiHelpTests.test_pointer_exit_never_revives_old_focus",
+    "tests.test_ui_help_js.UiHelpTests.test_scroll_and_live_description_tokens",
+    "tests.test_ui_help_js.UiHelpTests.test_summary_retains_authored_help_and_observes_details_open",
+    "tests.test_ui_help_js.UiHelpTests.test_title_naming_search_and_updates"
   ],
   "test_ui_review_fixes": [
     "tests.test_ui_review_fixes.DesignedVoiceUpdate.test_editing_replaces_the_entry_instead_of_appending",

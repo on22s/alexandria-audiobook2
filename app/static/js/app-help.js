@@ -693,20 +693,15 @@
         }
 
         const HELP_ITEMS = 'input:not([type="hidden"]),select,textarea,button,a[href],summary,audio[controls],video[controls],[role="button"],[onclick]';
-        const helpTipNodes = new WeakMap();
         const helpTipOwners = new WeakMap();
-        const helpActionGroups = new WeakMap();
-        const directHelpControls = new WeakSet();
-        const directHelpGlyphs = new WeakMap();
         const fieldHelpHandlers = new Set(['selectVoiceVersion', 'onVoiceReadyChange', 'toggleVoiceType', 'onDesignedVoiceSelect', 'handleCloneVoiceUpload', 'loadDesignLines', 'reapplyCastSaveThreshold']);
-        let helpTipSequence = 0;
 
         function getHelpEntry(registry, key) {
             return Object.hasOwn(registry, key) ? registry[key] : null;
         }
 
         function getItemHelpText(control) {
-            if (control.classList.contains('help-tip') || control.type === 'hidden') { return ''; }
+            if (control.type === 'hidden') { return ''; }
             if (control.type === 'file' && (control.hidden || control.style.display === 'none')) { return ''; }
             if (getHelpEntry(FIELD_HELP, control.id)) { return getFieldHelpText(FIELD_HELP[control.id]); }
             if (getHelpEntry(ITEM_HELP, control.id)) { return ITEM_HELP[control.id]; }
@@ -745,118 +740,134 @@
             if (control.dataset.bsToggle === 'collapse') {
                 return control.dataset.bsTarget === '#navbarNav' ? 'Show or hide the app navigation menu.' : 'Show or hide this section’s additional settings.';
             }
-            if (control.tagName === 'SUMMARY') { return 'Show or hide the details described by this heading.'; }
+            if (control.tagName === 'SUMMARY') { return (control.getAttribute('title') ?? helpNativeTitles.get(control) ?? '').trim() || 'Show or hide the details described by this heading.'; }
             if (control.matches('audio[controls],video[controls]')) { return 'Play, pause or seek through this media preview and adjust its volume. Playback does not regenerate the audio.'; }
             if (control.hasAttribute('download')) { return 'Download this file to your computer.'; }
-            const title = (control.getAttribute('title') || '').trim();
-            if (title.length >= 25) { return title; }
-            return '';
+            return (control.getAttribute('title') ?? helpNativeTitles.get(control) ?? '').trim();
         }
 
+        let activeHelp = null;
+        let helpTimer = null;
+        let helpPointer = null;
+        let helpIntent = null;
+        const helpDescriptions = new WeakMap();
+        const helpNativeTitles = new WeakMap();
+        const helpTitleNames = new WeakMap();
+        const helpDisabledWrappers = new WeakMap();
+        const helpLabelAttributes = new WeakMap();
+
+        function isHelpVisible(control) {
+            if (!control.isConnected || !control.getClientRects().length) { return false; }
+            const style = window.getComputedStyle?.(control);
+            return !style || (style.visibility !== 'hidden' && style.visibility !== 'collapse');
+        }
+
+
         function disposeHelpTooltip(tip) {
-            const popup = document.getElementById(tip.getAttribute('aria-describedby'));
-            if (popup?.classList.contains('help-tooltip')) { tip.removeAttribute('aria-describedby'); }
+            if (activeHelp === tip) { cancelHelp(); }
             if (typeof bootstrap !== 'undefined') { bootstrap.Tooltip.getInstance?.(tip)?.dispose(); }
         }
 
-        function removeItemHelp(control) {
-            if (directHelpControls.has(control)) {
-                disposeHelpTooltip(control);
-                directHelpControls.delete(control);
-                directHelpGlyphs.get(control)?.remove();
-                directHelpGlyphs.delete(control);
-                control.removeAttribute('data-help-tip');
-                control.removeAttribute('data-bs-title');
-                control.removeAttribute('data-help-covered');
+        function cancelHelp() {
+            helpIntent = null;
+            clearTimeout(helpTimer);
+            helpTimer = null;
+            if (activeHelp && typeof bootstrap !== 'undefined') {
+                const popupId = helpDescriptions.get(activeHelp);
+                const live = (activeHelp.getAttribute('aria-describedby') || '').split(/\s+/).filter(id => id && id !== popupId).join(' ');
+                bootstrap.Tooltip.getInstance?.(activeHelp)?.dispose();
+                if (helpDescriptions.has(activeHelp)) {
+                    if (live) { activeHelp.setAttribute('aria-describedby', live); }
+                    else { activeHelp.removeAttribute('aria-describedby'); }
+                    helpDescriptions.delete(activeHelp);
+                }
             }
-            const tip = helpTipNodes.get(control);
-            if (!tip) { return; }
-            helpTipNodes.delete(control);
-            helpTipOwners.delete(tip);
-            disposeHelpTooltip(tip);
-            tip.remove();
-            const group = helpActionGroups.get(control);
-            if (group) {
-                if (group.isConnected && control.parentElement === group) { group.insertAdjacentElement('afterend', control); }
-                group.remove();
-                helpActionGroups.delete(control);
-            }
-            control.removeAttribute('data-help-covered');
+            activeHelp = null;
         }
 
-        function applyHelpTipVisibility(control, tip) {
-            tip.hidden = control.hidden || control.style.display === 'none';
+        function removeItemHelp(control) {
+            const wrapper = helpDisabledWrappers.get(control);
+            disposeHelpTooltip(wrapper || control);
+            if (wrapper) {
+                if (!helpLabelAttributes.has(wrapper) && control.parentElement === wrapper && wrapper.parentElement) { wrapper.insertAdjacentElement('afterend', control); }
+                const saved = helpLabelAttributes.get(wrapper);
+                if (saved) {
+                    for (const [name, value] of Object.entries(saved)) {
+                        if (value === null) { wrapper.removeAttribute(name); }
+                        else { wrapper.setAttribute(name, value); }
+                    }
+                    helpLabelAttributes.delete(wrapper);
+                } else { wrapper.remove(); }
+                helpTipOwners.delete(wrapper);
+                helpDisabledWrappers.delete(control);
+            }
+            control.removeAttribute('data-help-tip');
+            control.removeAttribute('data-help-covered');
+            control.removeAttribute('data-bs-title');
         }
 
         function renderItemHelp(control) {
+            const nativeTitle = control.getAttribute('title');
+            if (nativeTitle !== null) {
+                helpNativeTitles.set(control, nativeTitle);
+                const name = control.getAttribute('aria-label');
+                if (!control.hasAttribute('aria-labelledby') &&
+                        ((!name && !control.textContent.trim() && !control.labels?.length) ||
+                        (helpTitleNames.has(control) && name === helpTitleNames.get(control)))) {
+                    control.setAttribute('aria-label', nativeTitle);
+                    helpTitleNames.set(control, nativeTitle);
+                }
+            }
             const text = getItemHelpText(control);
-            let tip = helpTipNodes.get(control);
-            if (!text) {
+            if (!text) { removeItemHelp(control); return; }
+            control.removeAttribute('title');
+            let wrapper = helpDisabledWrappers.get(control);
+            const disabled = control.matches(':disabled');
+            if (wrapper && (!disabled || (!helpLabelAttributes.has(wrapper) && control.parentElement !== wrapper) || !wrapper.isConnected)) {
                 removeItemHelp(control);
-                control.removeAttribute('data-help-covered');
-                return;
+                wrapper = null;
             }
-            if (control.closest('.navbar') || control.tagName === 'SUMMARY' || control.classList.contains('settings-category')) {
-                if (tip) { removeItemHelp(control); }
-                if (control.getAttribute('data-bs-title') !== text) {
-                    disposeHelpTooltip(control);
-                    control.setAttribute('data-bs-title', text);
+            if (disabled && !wrapper) {
+                wrapper = Array.from(control.labels || []).find(label =>
+                    !helpTipOwners.has(label) && !label.hasAttribute('onclick') &&
+                    !Array.from(label.querySelectorAll('a[href],button,select,textarea,input')).some(item => item !== control));
+                if (wrapper) {
+                    const saved = {};
+                    for (const name of ['tabindex', 'role', 'aria-label', 'aria-describedby', 'data-help-tip', 'data-bs-title', 'title']) {
+                        saved[name] = wrapper.getAttribute(name);
+                    }
+                    helpLabelAttributes.set(wrapper, saved);
+                    wrapper.removeAttribute('title');
+                } else {
+                    wrapper = document.createElement('span');
+                    wrapper.className = 'help-disabled-control' +
+                        (control.matches('.form-control,.form-select,.form-range') ? ' help-disabled-block' : '');
+                    control.insertAdjacentElement('afterend', wrapper);
+                    wrapper.appendChild(control);
                 }
-                control.setAttribute('data-help-tip', '');
-                control.setAttribute('data-help-covered', '');
-                directHelpControls.add(control);
-                let glyph = directHelpGlyphs.get(control);
-                if (!glyph) {
-                    glyph = document.createElement('span');
-                    glyph.className = 'help-nav-glyph';
-                    glyph.textContent = 'ⓘ';
-                    glyph.setAttribute('aria-hidden', 'true');
-                    directHelpGlyphs.set(control, glyph);
-                }
-                if (glyph.parentElement !== control) { control.appendChild(glyph); }
-                return;
+                helpDisabledWrappers.set(control, wrapper);
+                helpTipOwners.set(wrapper, control);
             }
-            if (directHelpControls.has(control)) { removeItemHelp(control); }
-            if (!tip) {
-                tip = document.createElement('span');
-                tip.className = 'help-tip';
-                tip.textContent = 'ⓘ';
-                tip.tabIndex = 0;
-                tip.setAttribute('role', 'img');
-                tip.setAttribute('data-help-tip', '');
-                tip.setAttribute('data-help-for', control.id || 'item-' + (++helpTipSequence));
-                const stopAction = event => { event.preventDefault(); event.stopPropagation(); };
-                tip.addEventListener('click', stopAction);
-                tip.addEventListener('keydown', event => {
-                    if (event.key === 'Enter' || event.key === ' ') { stopAction(event); }
-                });
-                helpTipNodes.set(control, tip);
-                helpTipOwners.set(tip, control);
+            const trigger = wrapper || control;
+            if (wrapper) {
+                wrapper.tabIndex = isHelpVisible(control) && isHelpVisible(wrapper) ? 0 : -1;
+                wrapper.setAttribute('role', 'group');
+                wrapper.setAttribute('aria-label', control.getAttribute('aria-label') ||
+                    control.labels?.[0]?.textContent?.trim() || control.textContent.trim() || text);
+                const descriptions = [helpLabelAttributes.get(wrapper)?.['aria-describedby'], control.getAttribute('aria-describedby'), helpDescriptions.get(wrapper)].filter(Boolean).join(' ');
+                if (descriptions && wrapper.getAttribute('aria-describedby') !== descriptions) { wrapper.setAttribute('aria-describedby', descriptions); }
+                else if (!descriptions && wrapper.hasAttribute('aria-describedby')) { wrapper.removeAttribute('aria-describedby'); }
+                control.removeAttribute('data-help-tip');
+                control.removeAttribute('data-bs-title');
             }
-            if (tip.getAttribute('data-bs-title') !== text) {
-                disposeHelpTooltip(tip);
-                tip.setAttribute('data-bs-title', text);
-                tip.setAttribute('aria-label', 'Help: ' + text);
+            if (trigger.getAttribute('data-bs-title') !== text) {
+                const intent = helpIntent;
+                disposeHelpTooltip(trigger);
+                trigger.setAttribute('data-bs-title', text);
+                if (intent?.trigger === trigger) { scheduleHelp(trigger, intent.source); }
             }
-            const label = control.labels?.[0] || control.closest('label');
-            const anchor = label || control;
-            const oldGroup = helpActionGroups.get(control);
-            if (oldGroup && control.parentElement !== oldGroup) {
-                oldGroup.remove();
-                helpActionGroups.delete(control);
-            }
-            if (!label && control.matches('button,a[href]') && !control.parentElement?.classList.contains('help-action-group')
-                    && (control.parentElement?.classList.contains('justify-content-between') || control.matches('.report-list-item'))) {
-                const listAction = control.matches('.report-list-item');
-                const group = document.createElement(listAction ? 'div' : 'span');
-                group.className = 'help-action-group' + (listAction ? ' help-list-action' : '');
-                control.insertAdjacentElement('afterend', group);
-                group.appendChild(control);
-                helpActionGroups.set(control, group);
-            }
-            if (tip.previousElementSibling !== anchor) { anchor.insertAdjacentElement('afterend', tip); }
+            trigger.setAttribute('data-help-tip', '');
             control.setAttribute('data-help-covered', '');
-            applyHelpTipVisibility(control, tip);
         }
 
         function renderHelpTips(root = document) {
@@ -864,85 +875,87 @@
             root.querySelectorAll?.(HELP_ITEMS).forEach(renderItemHelp);
         }
 
+        function getHelpTrigger(target) {
+            const direct = target?.closest?.('[data-help-tip]');
+            if (direct) { return direct; }
+            const label = target?.closest?.('label');
+            const control = label?.control;
+            return control && !label.hasAttribute('title') ? helpDisabledWrappers.get(control) ||
+                (control.hasAttribute('data-help-tip') ? control : null) : null;
+        }
+
+        function scheduleHelp(trigger, source) {
+            cancelHelp();
+            if (!trigger) { return; }
+            helpIntent = {trigger, source};
+            activeHelp = trigger;
+            helpTimer = setTimeout(() => {
+                helpTimer = null;
+                if (activeHelp !== trigger || !trigger.isConnected ||
+                        !isHelpVisible(trigger) || (helpTipOwners.has(trigger) && !isHelpVisible(helpTipOwners.get(trigger))) || helpIntent?.trigger !== trigger) {
+                    cancelHelp(); return;
+                }
+                const described = trigger.getAttribute('aria-describedby');
+                const instance = bootstrap.Tooltip.getOrCreateInstance(trigger, {
+                    trigger: 'manual', html: false, animation: false, placement: 'top',
+                    fallbackPlacements: ['top', 'bottom'], customClass: 'help-tooltip',
+                    title: trigger.getAttribute('data-bs-title')
+                });
+                instance.show();
+                const popupId = trigger.getAttribute('aria-describedby');
+                helpDescriptions.set(trigger, popupId);
+                const popup = document.getElementById(popupId);
+                if (popup) { popup.style.pointerEvents = 'none'; }
+                if (described && popupId) {
+                    trigger.setAttribute('aria-describedby', described + ' ' + popupId);
+                }
+            }, 500);
+        }
+
         function ensureHelpTooltips() {
             if (!window._helpTooltips && typeof bootstrap !== 'undefined') {
-                const dismissed = new WeakSet();
-                const clickedNavigation = new WeakSet();
-                const getPopup = trigger => document.getElementById(trigger.getAttribute('aria-describedby'));
-                const getDirectControlHelp = target => {
-                    const trigger = target?.closest?.('[data-help-tip]');
-                    return trigger && directHelpControls.has(trigger) ? trigger : null;
-                };
-                const hideShownHelp = root => {
-                    let hidden = false;
-                    root.querySelectorAll('[data-help-tip][aria-describedby]').forEach(trigger => {
-                        if (!getPopup(trigger)?.classList.contains('show')) { return; }
-                        dismissed.add(trigger);
-                        bootstrap.Tooltip.getInstance(trigger)?.hide();
-                        hidden = true;
-                    });
-                    return hidden;
-                };
-                document.body.addEventListener('inserted.bs.tooltip', event => {
-                    const trigger = event.target;
-                    if (!trigger.hasAttribute('data-help-tip')) { return; }
-                    const popup = getPopup(trigger);
-                    popup?.addEventListener('mouseleave', () => {
-                        if (!trigger.matches(':hover,:focus-within')) { bootstrap.Tooltip.getInstance(trigger)?.hide(); }
-                    });
-                });
-                document.body.addEventListener('show.bs.tooltip', event => {
-                    if (clickedNavigation.has(event.target)) { event.preventDefault(); return; }
-                    dismissed.delete(event.target);
-                });
-                document.body.addEventListener('click', event => {
-                    const trigger = getDirectControlHelp(event.target);
-                    if (!trigger) { return; }
-                    clickedNavigation.add(trigger);
-                    dismissed.add(trigger);
-                    bootstrap.Tooltip.getInstance(trigger)?.hide();
+                window._helpTooltips = true;
+                const body = document.body;
+                body.addEventListener('pointerover', event => {
+                    const next = getHelpTrigger(event.target);
+                    if (next !== helpPointer) { helpPointer = next; scheduleHelp(next, 'pointer'); }
                 }, true);
-                for (const name of ['mouseover', 'focusin']) {
-                    document.body.addEventListener(name, event => {
-                        const trigger = getDirectControlHelp(event.target);
-                        if (!trigger || (event.relatedTarget?.nodeType && trigger.contains(event.relatedTarget))) { return; }
-                        if (clickedNavigation.delete(trigger)) { bootstrap.Tooltip.getInstance(trigger)?.show(); }
-                    }, true);
-                }
-                document.body.addEventListener('hide.bs.tooltip', event => {
-                    const trigger = event.target;
-                    if (trigger.hasAttribute('data-help-tip') && !dismissed.has(trigger) && getPopup(trigger)?.matches(':hover')) {
-                        event.preventDefault();
-                    }
-                });
-                document.body.addEventListener('keydown', event => {
-                    if (event.key !== 'Escape') { return; }
-                    if (hideShownHelp(document) && event.target.closest?.('[data-help-tip], .help-tooltip')) {
-                        event.preventDefault(); event.stopPropagation();
+                body.addEventListener('pointerout', event => {
+                    const next = getHelpTrigger(event.relatedTarget);
+                    if (next !== helpPointer) {
+                        helpPointer = next;
+                        if (next || helpIntent?.source === 'pointer') { scheduleHelp(next, 'pointer'); }
                     }
                 }, true);
-                for (const name of ['hide.bs.modal', 'hide.bs.collapse']) {
-                    document.body.addEventListener(name, event => { hideShownHelp(event.target); });
+                body.addEventListener('focusin', event => {
+                    scheduleHelp(getHelpTrigger(event.target), 'focus');
+                }, true);
+                body.addEventListener('focusout', event => {
+                    if (helpIntent?.source === 'focus') { scheduleHelp(getHelpTrigger(event.relatedTarget), 'focus'); }
+                }, true);
+                body.addEventListener('keydown', event => {
+                    if (event.key === 'Escape') { cancelHelp(); }
+                }, true);
+                for (const name of ['pointerdown', 'click', 'hide.bs.modal', 'hide.bs.collapse']) {
+                    body.addEventListener(name, cancelHelp, true);
                 }
-                window._helpTooltips = new bootstrap.Tooltip(document.body, {
-                    selector: '[data-help-tip]', trigger: 'hover focus', html: false,
-                    placement: 'top', fallbackPlacements: ['top', 'bottom'], customClass: 'help-tooltip', delay: {show: 0, hide: 180}});
+                for (const name of ['blur', 'pagehide', 'hashchange', 'popstate', 'resize']) {
+                    window.addEventListener(name, cancelHelp, true);
+                }
+                document.addEventListener('visibilitychange', cancelHelp);
             }
             if (window._helpObserver || typeof MutationObserver === 'undefined') { return; }
             window._helpObserver = new MutationObserver(records => {
+                if (activeHelp && (!activeHelp.isConnected || !activeHelp.getClientRects().length)) { cancelHelp(); }
                 for (const record of records) {
                     if (record.type === 'attributes') {
-                        if (!record.target.classList.contains('help-tip') && record.target.matches(HELP_ITEMS)) { renderItemHelp(record.target); }
+                        renderHelpTips(record.target);
                         continue;
                     }
-                    if (record.target?.isConnected && record.target.matches?.(HELP_ITEMS)) { renderItemHelp(record.target); }
+                    const owner = record.target.closest?.(HELP_ITEMS);
+                    if (owner?.isConnected) { renderItemHelp(owner); }
                     for (const node of record.removedNodes) {
                         if (node.nodeType !== 1) { continue; }
-                        if (node.classList.contains('help-tip')) {
-                            const owner = helpTipOwners.get(node);
-                            if (owner?.isConnected) { renderItemHelp(owner); }
-                            continue;
-                        }
                         const removed = node.matches(HELP_ITEMS) ? [node] : [];
                         removed.push(...node.querySelectorAll(HELP_ITEMS));
                         for (const control of removed) {
@@ -950,12 +963,13 @@
                         }
                     }
                     for (const node of record.addedNodes) {
-                        if (node.nodeType === 1 && !node.classList.contains('help-tip') && node.isConnected) { renderHelpTips(node); }
+                        if (node.nodeType === 1 && node.isConnected) { renderHelpTips(node); }
                     }
                 }
             });
             window._helpObserver.observe(document.body, {childList: true, subtree: true,
-                attributes: true, attributeFilter: ['hidden', 'style', 'onclick', 'onchange', 'data-help-key', 'class']});
+                attributes: true, attributeFilter: ['hidden', 'style', 'disabled', 'title', 'id', 'open',
+                    'onclick', 'onchange', 'oninput', 'onfocus', 'data-help-key', 'class', 'aria-describedby']});
         }
 
         renderHelpTips();

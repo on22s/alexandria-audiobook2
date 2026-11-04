@@ -215,7 +215,7 @@ To change them:
   about the spoken lines, scored 70.1% against 63.6% on Qwen3-14B without an adapter (a local
   three-book gold set) with about 3× less step-2 time ([details](../features/spoken-only-attribution.md)).
   Other models are not measured yet; keep the prompt an attribution adapter was trained on.
-  Hover the ⓘ beside any setting for what it does and, where measured, a recommendation.
+  Hover or focus a setting or its label for half a second for help and, where measured, a recommendation.
 - **What the model will see** shows the exact messages step 2 would send.
 - **Reset to Defaults** reloads the files without a restart.
 
