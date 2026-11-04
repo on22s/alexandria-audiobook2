@@ -8,10 +8,13 @@
     const PRIORITIES = ['none', 'low', 'medium', 'high'];
     const FIELDS = ['book', 'gender', 'age', 'tone', 'texture', 'status', 'priority', 'tag', 'source', 'name',
                     'collection', 'stars', 'circles'];
-    const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], stars: [], circles: [],
-                      collections: []};
+    const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], tag_colors: {}, stars: [],
+                      circles: [], collections: []};
     const STATUS_LABEL = {unreviewed: 'Unreviewed', shortlist: 'Shortlist', callback: 'Callback', reject: 'Reject'};
     const STATUS_CLASS = {unreviewed: 'bg-secondary', shortlist: 'bg-success', callback: 'bg-warning text-dark', reject: 'bg-danger'};
+    const PRIORITY_LABEL = {none: 'No priority', low: 'Low priority', medium: 'Medium priority', high: 'High priority'};
+    const PRIORITY_CLASS = {none: 'bg-secondary', low: 'bg-info text-dark', medium: 'bg-warning text-dark', high: 'bg-danger'};
+    const NEUTRAL_TAG_CLASS = 'casting-tag-neutral';
     const HEALTH = {missing_audio: 'Missing audio', no_description: 'No description', duplicate_names: 'Duplicate names', no_sample: 'No sample line', skipped: 'Skipped folders'};
     const GENDERS = ['Male', 'Female', 'Ambiguous / mixed', 'Not specified'];
     const AGES = ['Child', 'Teen', 'Young Adult', 'Adult', 'Older / Elderly', 'Ancient / Ageless', 'Not specified'];
@@ -38,8 +41,27 @@
     }
     function markOf(marks, id) {
         const stored = marks[id] || {};
-        return {...DEFAULTS, ...stored, tags: [...(stored.tags || [])], stars: [...(stored.stars || [])],
-                circles: [...(stored.circles || [])], collections: [...(stored.collections || [])]};
+        return {...DEFAULTS, ...stored, tags: [...(stored.tags || [])], tag_colors: copyTagColors(stored.tag_colors),
+                stars: [...(stored.stars || [])], circles: [...(stored.circles || [])],
+                collections: [...(stored.collections || [])]};
+    }
+    function copyTagColors(value) {
+        const colors = {};
+        if (!value || typeof value !== 'object' || Array.isArray(value)) { return colors; }
+        for (const [tag, color] of Object.entries(value)) {
+            if (typeof tag === 'string' && tag && typeof color === 'string') {
+                Object.defineProperty(colors, tag, {value: color, enumerable: true, writable: true, configurable: true});
+            }
+        }
+        return colors;
+    }
+    function tagColorOf(mark, tag) {
+        const research = window.CastingResearch;
+        return research && typeof research.tagColorOf === 'function' ? research.tagColorOf(mark, tag) : '';
+    }
+    function tagColorClass(color) {
+        const research = window.CastingResearch;
+        return research && typeof research.tagColorClass === 'function' ? research.tagColorClass(color) : '';
     }
     function fieldValues(voice, mark, field) {
         const t = voice.tags || {};
@@ -234,7 +256,7 @@
             }));
         }
     }
-    function tagBadges(voice, extra) {
+    function tagBadges(voice, extra, mark) {
         const wrap = node('div', undefined, 'mb-2' + (extra ? ' ' + extra : ''));
         const t = voice.tags;
         for (const [text, cls] of [[t.gender, 'bg-info text-dark'], ...t.ages.map(a => [a, 'bg-light text-dark border']),
@@ -242,7 +264,29 @@
                                    ...t.textures.slice(0, 2).map(x => [x, 'bg-light text-secondary border'])]) {
             if (text && text !== 'Not specified') { wrap.append(node('span', text, 'badge me-1 ' + cls)); }
         }
+        for (const tag of (mark && mark.tags) || []) {
+            if (typeof tag !== 'string' || !tag) { continue; }
+            const color = tagColorOf(mark, tag);
+            const badge = node('span', tag, 'badge me-1 casting-custom-tag '
+                + (color ? tagColorClass(color) : NEUTRAL_TAG_CLASS));
+            badge.dataset.castingCustomTag = tag;
+            badge.setAttribute('title', color ? 'Custom tag · ' + color : 'Custom tag');
+            wrap.append(badge);
+        }
         return wrap;
+    }
+    function statusBar(voice, mark) {
+        const bar = node('div', undefined, 'd-flex gap-1 mb-2 casting-status-bar');
+        bar.dataset.castingStatusBar = voice.id;
+        const status = STATUSES.includes(mark.status) ? mark.status : null;
+        const statusBadge = node('span', status ? STATUS_LABEL[status] : 'Unknown status',
+            'badge text-center ' + (status ? STATUS_CLASS[status] : 'bg-secondary'));
+        statusBadge.dataset.castingStatus = mark.status;
+        const priority = PRIORITIES.includes(mark.priority) ? mark.priority : 'none';
+        const priorityBadge = node('span', PRIORITIES.includes(mark.priority) ? PRIORITY_LABEL[priority] : 'Unknown priority', 'badge text-center ' + PRIORITY_CLASS[priority]);
+        priorityBadge.dataset.castingPriority = priority;
+        bar.append(statusBadge, priorityBadge);
+        return bar;
     }
     function playButton(voice) {
         const b = button('', 'btn btn-sm btn-outline-primary', () => togglePlay(voice, b), 'Play ' + voice.name);
@@ -258,7 +302,7 @@
                           value => saveMark(voice, {status: value}));
         statusSelect.dataset.castingFocus = 'status:' + voice.id;
         box.append(statusSelect);
-        const prioritySelect = select(PRIORITIES.map(v => [v, v === 'none' ? 'No priority' : v[0].toUpperCase() + v.slice(1) + ' priority']),
+        const prioritySelect = select(PRIORITIES.map(v => [v, PRIORITY_LABEL[v]]),
                           mark.priority, 'Priority for ' + voice.name, value => saveMark(voice, {priority: value}));
         prioritySelect.dataset.castingFocus = 'priority:' + voice.id;
         box.append(prioritySelect);
@@ -291,9 +335,9 @@
         title.append(node('span', voice.book_id, 'badge bg-secondary me-2'), node('strong', voice.name));
         head.append(title, playButton(voice));
         const mark = markOf(s.marks, voice.id);
-        const tagNode = tagBadges(voice, 'casting-tags');
+        const tagNode = tagBadges(voice, 'casting-tags', mark);
         tagNode.dataset.castingVisibility = 'tags';
-        body.append(head, node('div', STATUS_LABEL[mark.status], 'badge mb-2 ' + STATUS_CLASS[mark.status]), tagNode);
+        body.append(head, statusBar(voice, mark), tagNode);
         const descriptionNode = node('p', voice.description || 'No description.', 'small mb-1 casting-clamp casting-description');
         descriptionNode.dataset.castingVisibility = 'description';
         body.append(descriptionNode);
@@ -321,8 +365,8 @@
     function table(list) {
         const wrap = node('div', undefined, 'table-responsive'), t = node('table', undefined, 'table table-sm table-hover align-middle mb-0');
         const head = node('thead'), hr = node('tr');
-        const headings = s.research ? ['', '', 'Name', 'Book', 'Gender', 'Age', 'Tone', 'Status', 'Use for', 'Marks']
-            : ['', 'Name', 'Book', 'Gender', 'Age', 'Tone', 'Status', 'Use for'];
+        const headings = s.research ? ['', '', 'Name', 'Book', 'Gender', 'Age', 'Tone', 'Status & prio', 'Use for', 'Marks']
+            : ['', 'Name', 'Book', 'Gender', 'Age', 'Tone', 'Status & prio', 'Use for'];
         for (const h of headings) { hr.append(node('th', h)); }
         head.append(hr);
         const tbody = node('tbody');
@@ -333,10 +377,16 @@
                            v.tags.tones.slice(0, 4).join(', ')];
             for (const cell of cells) { const td = node('td'); if (typeof cell === 'string') { td.textContent = cell; } else { td.append(cell); } tr.append(td); }
             const st = node('td');
+            st.dataset.castingStatusPrio = v.id;
+            const controlStack = node('div', undefined, 'd-flex flex-column gap-1');
             const statusSelect = select(STATUSES.map(x => [x, STATUS_LABEL[x]]), mark.status, 'Review status for ' + v.name,
                                         value => saveMark(v, {status: value}));
             statusSelect.dataset.castingFocus = 'status:' + v.id;
-            st.append(statusSelect);
+            const prioritySelect = select(PRIORITIES.map(x => [x, PRIORITY_LABEL[x]]), mark.priority,
+                                          'Priority for ' + v.name, value => saveMark(v, {priority: value}));
+            prioritySelect.dataset.castingFocus = 'priority:' + v.id;
+            controlStack.append(statusSelect, prioritySelect);
+            st.append(controlStack);
             const use = node('td'); use.append(castControls(v));
             tr.append(st, use);
             if (s.research) { const marks = node('td'); marks.append(s.research.tableMarkControls(v)); tr.append(marks); }
@@ -354,6 +404,9 @@
         for (const candidate of document.querySelectorAll('[data-casting-focus]')) {
             if (candidate && candidate.dataset && candidate.dataset.castingFocus === key
                 && typeof candidate.focus === 'function') {
+                for (let parent = candidate.parentElement; parent; parent = parent.parentElement) {
+                    if (String(parent.tagName).toUpperCase() === 'DETAILS') { parent.open = true; }
+                }
                 candidate.focus(); return;
             }
         }
@@ -643,7 +696,7 @@
         const mark = markOf(s.marks, voice.id), body = el('review-body');
         const head = node('div', undefined, 'mb-2');
         head.append(node('span', voice.book_id, 'badge bg-secondary me-2'), node('span', STATUS_LABEL[mark.status], 'badge ' + STATUS_CLASS[mark.status]));
-        body.replaceChildren(head, node('h3', voice.name, 'mb-2'), tagBadges(voice),
+        body.replaceChildren(head, node('h3', voice.name, 'mb-2'), tagBadges(voice, '', mark),
                              node('p', voice.description || 'No description.', 'mb-2'));
         if (voice.ref_text) { body.append(node('p', '“' + voice.ref_text + '”', 'text-muted fst-italic')); }
         if (!voice.audio_present) { body.append(node('p', 'This voice has no preview audio.', 'text-warning small')); }

@@ -21,6 +21,11 @@
 .casting-mark[data-color="blue"] { --casting-mark-color: var(--accent); }
 .casting-mark[data-color="purple"] { --casting-mark-color: var(--bs-purple); }
 .casting-mark i { color: var(--casting-mark-color); }
+.casting-status-bar > .badge { flex: 1 1 0; min-width: 0; white-space: normal; }
+.casting-custom-tag { max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
+.casting-tag-neutral { background: var(--bg-card-header); color: var(--text-primary); border: 1px solid var(--border-input); }
+.casting-tag-editor { max-width: 100%; min-width: 0; flex-wrap: wrap; }
+.casting-tag-purple { background-color: var(--bs-purple, #6f42c1); color: #fff; }
 .casting-mark[aria-pressed="true"] { border-color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--text-primary); background: var(--bg-card-header); color: var(--text-primary); }
 .casting-research-toolbar .form-control { flex: 1 1 9rem; max-width: 18rem; }
 .casting-research-toolbar .form-select { max-width: 100%; }

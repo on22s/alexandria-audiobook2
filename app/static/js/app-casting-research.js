@@ -1,6 +1,9 @@
 (() => {
     'use strict';
     const COLORS = ['red', 'amber', 'green', 'blue', 'purple'];
+    const TAG_COLOR_CLASS = {red: 'bg-danger text-white', amber: 'bg-warning text-dark', green: 'bg-success text-white',
+                             blue: 'bg-primary text-white', purple: 'casting-tag-purple text-white'};
+    const NEUTRAL_TAG_CLASS = 'casting-tag-neutral';
     const SHAPES = ['stars', 'circles'];
     const SHAPE_LABEL = {stars: 'Star', circles: 'Circle'};
     const COLOR_LABEL = {red: 'red', amber: 'amber', green: 'green', blue: 'blue', purple: 'purple'};
@@ -13,8 +16,8 @@
     const MAX_TONE_CHIPS = 24, MAX_TEXTURE_CHIPS = 16, MAX_VALUE_CHIPS = 20;
     const PREFS_KEY = 'castingResearchPrefsV1', VIEWS_KEY = 'castingResearchViewsV1';
     const SORTS = ['name', 'book', 'status', 'priority'];
-    const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], stars: [], circles: [],
-                      collections: []};
+    const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], tag_colors: {}, stars: [],
+                      circles: [], collections: []};
 
     const store = () => {
         try { return window.localStorage || null; } catch (error) { return null; }
@@ -42,12 +45,31 @@
         if (cls) { element.className = cls; }
         return element;
     };
-    const clone = value => Array.isArray(value) ? [...value] : value;
+    const clone = value => Array.isArray(value) ? [...value]
+        : value && typeof value === 'object' ? {...value} : value;
     const cloneValues = values => [...(values || [])];
     const bounded = (text, limit) => String(text === undefined || text === null ? '' : text).slice(0, limit);
+    function copyTagColors(value) {
+        const colors = {};
+        if (!value || typeof value !== 'object' || Array.isArray(value)) { return colors; }
+        for (const [tag, color] of Object.entries(value)) {
+            if (typeof tag === 'string' && tag && COLORS.includes(color)) {
+                Object.defineProperty(colors, tag, {value: color, enumerable: true, writable: true, configurable: true});
+            }
+        }
+        return colors;
+    }
+    function tagColorOf(mark, tag) {
+        const colors = mark && mark.tag_colors;
+        if (!colors || typeof colors !== 'object' || Array.isArray(colors)
+            || !Object.prototype.hasOwnProperty.call(colors, tag)) { return ''; }
+        return COLORS.includes(colors[tag]) ? colors[tag] : '';
+    }
+    const tagColorClass = color => TAG_COLOR_CLASS[color] || NEUTRAL_TAG_CLASS;
     const normalize = mark => {
         const full = {...DEFAULTS, ...(mark || {})};
         full.tags = cloneValues(full.tags);
+        full.tag_colors = copyTagColors(full.tag_colors);
         full.stars = cloneValues(full.stars);
         full.circles = cloneValues(full.circles);
         full.collections = cloneValues(full.collections);
@@ -607,6 +629,13 @@
                 return {[shape]: values.includes(color) ? values.filter(value => value !== color) : [...values, color]};
             });
         }
+        function tagPatchWithout(mark, value) {
+            const colors = copyTagColors(mark.tag_colors), keys = Object.keys(colors)
+                .filter(tag => tag.toLowerCase() === value.toLowerCase());
+            if (!keys.length) { return null; }
+            for (const key of keys) { delete colors[key]; }
+            return colors;
+        }
         function changeMembership(voice, field, value, adding) {
             const action = (adding ? 'Add ' : 'Remove ') + (field === 'tags' ? 'tag' : 'research collection membership');
             return applyBulk(action, [voice.id], mark => {
@@ -618,7 +647,31 @@
                     notify('info', 'This voice already has the maximum ' + limit + ' ' + field + '.');
                     return null;
                 }
-                return {[field]: adding ? [...values, value] : values.filter(item => item.toLowerCase() !== value.toLowerCase())};
+                const patch = {[field]: adding ? [...values, value] : values.filter(item => item.toLowerCase() !== value.toLowerCase())};
+                if (field === 'tags' && !adding) {
+                    const colors = tagPatchWithout(mark, value);
+                    if (colors) { patch.tag_colors = colors; }
+                }
+                return patch;
+            });
+        }
+        function setTagColor(voice, tag, color) {
+            if (color && !COLORS.includes(color)) {
+                notify('info', 'That tag colour is not in the casting palette.');
+                return Promise.resolve({ok: false});
+            }
+            return applyBulk('Set tag colour', [voice.id], mark => {
+                if (!(mark.tags || []).includes(tag)) {
+                    notify('info', 'That tag is no longer on this voice.');
+                    return null;
+                }
+                const colors = copyTagColors(mark.tag_colors);
+                if (color) {
+                    Object.defineProperty(colors, tag, {value: color, enumerable: true, writable: true, configurable: true});
+                } else {
+                    delete colors[tag];
+                }
+                return {tags: [...mark.tags], tag_colors: colors};
             });
         }
 
@@ -827,7 +880,10 @@
                     return {tags: [...tags, raw]};
                 }
                 if (!tags.some(tag => tag.toLowerCase() === raw.toLowerCase())) { return null; }
-                return {tags: tags.filter(tag => tag.toLowerCase() !== raw.toLowerCase())};
+                const patch = {tags: tags.filter(tag => tag.toLowerCase() !== raw.toLowerCase())};
+                const colors = tagPatchWithout(mark, raw);
+                if (colors) { patch.tag_colors = colors; }
+                return patch;
             });
         }
         function bulkCollection(mode) {
@@ -1267,7 +1323,35 @@
             wrap.dataset.castingVisibility = 'tags';
             const badges = node('div', undefined, 'd-flex flex-wrap');
             for (const tag of mark.tags || []) {
-                badges.append(removalBadge(voice, 'tags', tag, 'Remove tag ' + tag + ' from ' + voice.name));
+                const cell = node('span', undefined, 'd-inline-flex align-items-center gap-1 me-2 mb-1 casting-tag-editor');
+                const color = tagColorOf(mark, tag);
+                const badge = node('span', undefined, 'badge casting-custom-tag ' + tagColorClass(color));
+                badge.append(node('span', tag));
+                const remove = node('button', undefined, 'btn btn-sm btn-link p-0 ms-1'
+                    + (color === 'amber' ? ' text-dark' : color ? ' text-white' : ''));
+                remove.type = 'button';
+                remove.setAttribute('aria-label', 'Remove tag ' + tag + ' from ' + voice.name);
+                remove.append(node('i', undefined, 'fas fa-times'));
+                remove.addEventListener('click', () => { changeMembership(voice, 'tags', tag, false); });
+                badge.append(remove);
+                const picker = node('select', undefined, 'form-select form-select-sm w-auto');
+                picker.setAttribute('aria-label', 'Colour for tag ' + tag + ' on ' + voice.name);
+                for (const [value, text] of [['', 'Neutral'],
+                                             ...COLORS.map(name => [name, name[0].toUpperCase() + name.slice(1)])]) {
+                    const option = node('option', text);
+                    option.value = value;
+                    picker.append(option);
+                }
+                picker.value = color || '';
+                picker.dataset.castingFocus = 'tag-color:' + voice.id + ':' + tag;
+                picker.disabled = st.needsReload;
+                picker.addEventListener('change', async () => {
+                    const value = picker.value;
+                    picker.value = tagColorOf(getMark(voice.id), tag);
+                    await setTagColor(voice, tag, value);
+                });
+                cell.append(badge, picker);
+                badges.append(cell);
             }
             wrap.append(node('div', 'Custom tags', 'small text-muted'), badges);
             const row = node('div', undefined, 'input-group input-group-sm mt-1');
@@ -1457,5 +1541,5 @@
 
     window.CastingResearch = {create, COLORS, SHAPES, FILTER_FIELDS, PAGE_SIZES, DEFAULT_PAGE, DEFAULT_SECONDS,
         MAX_TAGS, MAX_TAG_LENGTH, MAX_COLLECTIONS, MAX_COLLECTION_LENGTH, MAX_SELECTION, MAX_VIEWS, MAX_UNDO,
-        DEFAULTS, normalize, chipKey, chipPair};
+        DEFAULTS, normalize, chipKey, chipPair, tagColorOf, tagColorClass, TAG_COLOR_CLASS};
 })();
