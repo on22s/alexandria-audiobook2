@@ -26,9 +26,9 @@ MAX_NOTES = 2000
 MAX_TAGS, MAX_TAG_LENGTH = 20, 40
 MAX_COLLECTIONS, MAX_COLLECTION_LENGTH = MAX_TAGS, MAX_TAG_LENGTH
 COLORS = ('red', 'amber', 'green', 'blue', 'purple')
-MARK_FIELDS = ('status', 'priority', 'notes', 'tags', 'stars', 'circles', 'collections')
-MARK_DEFAULTS = {'status': 'unreviewed', 'priority': 'none', 'notes': '', 'tags': [], 'stars': [],
-                 'circles': [], 'collections': []}
+MARK_FIELDS = ('status', 'priority', 'notes', 'tags', 'tag_colors', 'stars', 'circles', 'collections')
+MARK_DEFAULTS = {'status': 'unreviewed', 'priority': 'none', 'notes': '', 'tags': [], 'tag_colors': {},
+                 'stars': [], 'circles': [], 'collections': []}
 METADATA_KEY = '__studio__'
 MAX_ACTIVITY = 100
 MAX_ACTION_LENGTH = 100
@@ -166,6 +166,14 @@ def _load_marks_document(marks_path):
     for key, value in data.items():
         if not isinstance(key, str) or (key != METADATA_KEY and not isinstance(value, dict)):
             raise CastingMarksCorrupt('casting marks contain a malformed entry')
+        if key != METADATA_KEY and 'tag_colors' in value:
+            try:
+                tags = _validated_text_list(value.get('tags', []), MAX_TAGS, MAX_TAG_LENGTH, 'tags')
+                colors = _validated_tag_colors(value['tag_colors'])
+                if tags != value.get('tags', []) or colors != value['tag_colors'] or set(colors) - set(tags):
+                    raise ValueError('tag colours do not match stored tags')
+            except ValueError as error:
+                raise CastingMarksCorrupt('stored tag colours are invalid; repair the marks file before editing') from error
     return data
 
 
@@ -195,8 +203,12 @@ def normalize_casting_mark(mark):
     """-> the mark with canonical defaults on absent fields; the input is not mutated."""
     if mark is not None and not isinstance(mark, dict):
         raise CastingMarksCorrupt('a stored casting mark is not an object')
-    full = {key: (list(value) if isinstance(value, list) else value) for key, value in MARK_DEFAULTS.items()}
-    full.update(mark or {})
+    full = {**MARK_DEFAULTS, **(mark or {})}
+    for key, value in full.items():
+        if isinstance(value, list):
+            full[key] = list(value)
+        elif isinstance(value, dict):
+            full[key] = dict(value)
     return full
 
 
@@ -206,6 +218,21 @@ def _validated_text_list(values, limit, max_length, name):
                    for value in values)):
         raise ValueError(f'{name} must be up to {limit} non-empty texts of at most {max_length} characters')
     return list(dict.fromkeys(value.strip() for value in values))
+
+
+def _validated_tag_colors(value):
+    """-> a tag -> palette-colour map; malformed or unknown colours are refused, never coerced."""
+    if not isinstance(value, dict) or len(value) > MAX_TAGS:
+        raise ValueError('tag_colors must map up to ' + str(MAX_TAGS) + ' custom tags to colours of: '
+                         + ', '.join(COLORS))
+    clean = {}
+    for tag, color in value.items():
+        if not isinstance(tag, str) or not tag.strip() or len(tag) > MAX_TAG_LENGTH:
+            raise ValueError(f'tag_colors keys must be non-empty tag names of at most {MAX_TAG_LENGTH} characters')
+        if not isinstance(color, str) or color not in COLORS:
+            raise ValueError('tag_colors colours must be one of: ' + ', '.join(COLORS))
+        clean[tag.strip()] = color
+    return clean
 
 
 def _validated_colors(values, name):
@@ -218,7 +245,7 @@ def _validated_colors(values, name):
 def get_validated_mark_patch(patch):
     """-> a clean patch; raises ValueError naming the bad field."""
     if not isinstance(patch, dict) or not patch or set(patch) - set(MARK_FIELDS):
-        raise ValueError('A mark may set status, priority, notes, tags, stars, circles and collections only')
+        raise ValueError('A mark may set status, priority, notes, tags, tag_colors, stars, circles and collections only')
     clean = {}
     if 'status' in patch:
         if patch['status'] not in STATUSES:
@@ -234,6 +261,8 @@ def get_validated_mark_patch(patch):
         clean['notes'] = patch['notes']
     if 'tags' in patch:
         clean['tags'] = _validated_text_list(patch['tags'], MAX_TAGS, MAX_TAG_LENGTH, 'tags')
+    if 'tag_colors' in patch:
+        clean['tag_colors'] = _validated_tag_colors(patch['tag_colors'])
     if 'collections' in patch:
         clean['collections'] = _validated_text_list(
             patch['collections'], MAX_COLLECTIONS, MAX_COLLECTION_LENGTH, 'collections')
@@ -243,15 +272,36 @@ def get_validated_mark_patch(patch):
     return clean
 
 
+def _merge_casting_mark(existing, clean):
+    """-> the stored mark after applying a validated patch.
+
+    A patch replaces whole fields, like the other mark arrays. Colours for a
+    tag that is not (or is no longer) on the voice are dropped, so a legacy
+    tags-only patch cannot leave a stale colour behind. A patch that names a
+    colour for an absent tag is refused instead of silently storing it.
+    """
+    if existing is not None and not isinstance(existing, dict):
+        raise CastingMarksCorrupt('the stored mark is not an object')
+    mark = {**(existing or {}), **clean}
+    tags = mark.get('tags') if isinstance(mark.get('tags'), list) else []
+    colors = mark.get('tag_colors')
+    if 'tag_colors' in clean:
+        unknown = sorted(tag for tag in clean['tag_colors'] if tag not in tags)
+        if unknown:
+            raise ValueError('tag_colors must name only tags on this voice: ' + ', '.join(unknown))
+    if colors is not None and not isinstance(colors, dict):
+        raise CastingMarksCorrupt('the stored tag_colors is not an object')
+    if isinstance(colors, dict):
+        mark['tag_colors'] = {tag: color for tag, color in colors.items() if tag in tags}
+    return mark
+
+
 def save_casting_mark(marks_path, voice_id, patch):
     """Merge a validated patch into one voice's marks; -> the voice's marks."""
     clean = get_validated_mark_patch(patch)
     with file_lock(marks_path):
         document = _load_marks_document(marks_path)
-        existing = document.get(voice_id)
-        if existing is not None and not isinstance(existing, dict):
-            raise CastingMarksCorrupt('the stored mark is not an object')
-        mark = {**(existing or {}), **clean}
+        mark = _merge_casting_mark(document.get(voice_id), clean)
         document[voice_id] = mark
         atomic_json_write(document, marks_path)
     return mark
@@ -306,7 +356,7 @@ def save_casting_mark_batch(marks_path, changes, action, known_voice_ids):
             for field, value in expected.items():
                 if current[field] != value:
                     raise CastingMarkConflict(f'{voice_id} changed since it was read ({field}); reload the library')
-            planned[voice_id] = {**current, **clean}
+            planned[voice_id] = _merge_casting_mark(current, clean)
         document.update(planned)
         event = {'id': uuid.uuid4().hex, 'at': datetime.now(timezone.utc).isoformat(timespec='milliseconds'),
                  'action': action, 'count': len(planned)}

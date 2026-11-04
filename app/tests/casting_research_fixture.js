@@ -61,10 +61,11 @@ const HTML = `
   </div>
 </div>`;
 
-const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], stars: [], circles: [], collections: []};
+const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], tag_colors: {}, stars: [], circles: [], collections: []};
 const normalize = mark => {
     const full = {...DEFAULTS, ...(mark || {})};
     for (const key of ['tags', 'stars', 'circles', 'collections']) { full[key] = [...(full[key] || [])]; }
+    full.tag_colors = {...(full.tag_colors && typeof full.tag_colors === 'object' && !Array.isArray(full.tag_colors) ? full.tag_colors : {})};
     return full;
 };
 const tags = (gender, ages, tones, textures = []) => ({gender, ages, tones, textures});
@@ -432,6 +433,92 @@ const firstBatch = env => batchCalls(env)[0];
     await click(env, $(env, 'clear'));
     eq(labels(env).length, 5);
 
+    // Card status/priority bar, custom tag badges beside voice tags, persistent tag colours.
+    env = setup();
+    await env.w.loadCastingLibrary(); await settle();
+    let bar = $(env, 'results').querySelector('[data-casting-status-bar="persona/dh/abel"]');
+    ok(bar, 'the card renders a status bar below the name');
+    eq(bar.children.map(node => node.textContent), ['Shortlist', 'No priority']);
+    ok(bar.children.every(node => !String(node.className).includes('flex-fill')), 'Bootstrap auto-basis must not override the equal-width rule');
+    includes(bar.children[0].className, 'bg-success');
+    includes(bar.children[1].className, 'bg-secondary');
+    eq(env.w.CastingLibrary.state().marks['persona/dh/abel'].tag_colors, {}, 'old marks default to neutral colours');
+    let colourInput = $(env, 'results').querySelectorAll('input').find(node => node.attrs['aria-label'] === 'New tag for ABEL');
+    colourInput.value = 'scene:one';
+    let colourAdd = $(env, 'results').querySelectorAll('button').find(node => node.attrs['aria-label'] === 'Add tag to ABEL');
+    await click(env, colourAdd);
+    let colourCustom = $(env, 'results').querySelector('[data-casting-custom-tag="scene:one"]');
+    ok(colourCustom, 'the custom tag appears as a badge on the card');
+    ok(String(colourCustom.className).includes('casting-tag-neutral'), 'a tag without a colour uses theme tokens');
+    ok(colourCustom.parentElement.children.some(node => node.textContent.includes('Male')),
+       'custom tags sit beside the original voice tags');
+    let colourPicker = selectByLabel(env, 'Colour for tag scene:one on ABEL');
+    ok(colourPicker, 'the Tags & collection editor offers a colour for each tag');
+    colourPicker.focus();
+    await change(env, colourPicker, 'red');
+    batch = batchCalls(env).at(-1);
+    eq(batch[2].changes[0].patch, {tags: ['scene:one'], tag_colors: {'scene:one': 'red'}});
+    eq(batch[2].changes[0].expected, {tags: ['scene:one'], tag_colors: {}});
+    let focusedDetails = env.w.document.activeElement.parentElement;
+    while (focusedDetails && focusedDetails.tagName.toUpperCase() !== 'DETAILS') { focusedDetails = focusedDetails.parentElement; }
+    ok(focusedDetails && focusedDetails.open, 'restored colour focus must be inside an open editor');
+    eq(env.serverMarks['persona/dh/abel'].tag_colors, {'scene:one': 'red'});
+    includes($(env, 'results').querySelector('[data-casting-custom-tag="scene:one"]').className, 'bg-danger');
+    eq(selectByLabel(env, 'Colour for tag scene:one on ABEL').value, 'red');
+    eq(env.serverMarks['persona/dh/echo'].stars, ['red', 'blue'], 'other voices keep their marks');
+    await env.w.loadCastingLibrary(); await settle();
+    includes($(env, 'results').querySelector('[data-casting-custom-tag="scene:one"]').className, 'bg-danger',
+             'the tag colour survives a reload');
+    eq(selectByLabel(env, 'Colour for tag scene:one on ABEL').value, 'red');
+    await click(env, $(env, 'research-undo'));
+    eq(env.serverMarks['persona/dh/abel'].tag_colors, {});
+    ok(String($(env, 'results').querySelector('[data-casting-custom-tag="scene:one"]').className).includes('casting-tag-neutral'),
+       'undo restores the neutral colour');
+    await click(env, $(env, 'research-redo'));
+    eq(env.serverMarks['persona/dh/abel'].tag_colors, {'scene:one': 'red'});
+
+    const colourRemove = $(env, 'results').querySelectorAll('button')
+        .find(node => node.attrs['aria-label'] === 'Remove tag scene:one from ABEL');
+    await click(env, colourRemove);
+    batch = batchCalls(env).at(-1);
+    eq(batch[2].changes[0].patch, {tags: [], tag_colors: {}}, 'removing a tag removes its colour in the same write');
+    eq(batch[2].changes[0].expected, {tags: ['scene:one'], tag_colors: {'scene:one': 'red'}});
+    eq(env.serverMarks['persona/dh/abel'].tags, []);
+    eq(env.serverMarks['persona/dh/abel'].tag_colors, {});
+    ok(!$(env, 'results').querySelector('[data-casting-custom-tag="scene:one"]'), 'the removed tag badge disappears');
+    await click(env, $(env, 'research-undo'));
+    eq(env.serverMarks['persona/dh/abel'].tags, ['scene:one']);
+    eq(env.serverMarks['persona/dh/abel'].tag_colors, {'scene:one': 'red'});
+    includes($(env, 'results').querySelector('[data-casting-custom-tag="scene:one"]').className, 'bg-danger',
+             'undo restores the removed tag and its colour');
+    await click(env, $(env, 'research-redo'));
+    eq(env.serverMarks['persona/dh/abel'].tags, []);
+    eq(env.serverMarks['persona/dh/abel'].tag_colors, {});
+
+    env.serverMarks['persona/dh/abel'].tags = ['scene:one'];
+    const beforeTagConflict = batchCalls(env).length;
+    await click(env, $(env, 'research-undo'));
+    eq(batchCalls(env).length, beforeTagConflict + 1, 'a conflicted tag undo is not retried');
+    eq(env.serverMarks['persona/dh/abel'].tag_colors, {}, 'the conflicting undo did not write a stale colour');
+    ok($(env, 'research-undo').disabled, 'tag conflicts require reconciliation');
+    ok(env.toasts.some(([type, message]) => /changed elsewhere/.test(message)));
+
+    env = setup();
+    await env.w.loadCastingLibrary(); await settle();
+    await change(env, cardCheckbox(env, 'persona/dh/echo'), true);
+    await change(env, selectByLabel(env, 'Colour for tag keep on ECHO'), 'green');
+    eq(env.serverMarks['persona/dh/echo'].tag_colors, {'keep': 'green'});
+    $(env, 'research-bulk-tag').value = 'keep';
+    await click(env, $(env, 'research-bulk-tag-remove'));
+    batch = batchCalls(env).at(-1);
+    eq(batch[2].changes[0].patch, {tags: [], tag_colors: {}},
+       'bulk tag removal clears that tag colour in the same write');
+    eq(env.serverMarks['persona/dh/echo'].tags, []);
+    eq(env.serverMarks['persona/dh/echo'].tag_colors, {});
+    await click(env, $(env, 'research-undo'));
+    eq(env.serverMarks['persona/dh/echo'].tags, ['keep']);
+    eq(env.serverMarks['persona/dh/echo'].tag_colors, {'keep': 'green'});
+
     env = setup();
     await env.w.loadCastingLibrary(); await settle();
     const statusSelect = selectByLabel(env, 'Review status for ABEL');
@@ -742,20 +829,57 @@ const firstBatch = env => batchCalls(env)[0];
     includes($(env, 'research-selection-count').textContent, '1 selected');
     await click(env, markButton(env, 'persona/dh/abel', 'circles', 'purple'));
     eq(env.serverMarks['persona/dh/abel'].circles, ['purple']);
+    includes(headers.join('|'), 'Status & prio', 'the table names both status and priority');
+    let tablePriority = selectByLabel(env, 'Priority for ABEL');
+    ok(tablePriority, 'the table offers a priority dropdown');
+    const prioCell = tablePriority.parentElement.parentElement;
+    eq(prioCell.dataset.castingStatusPrio, 'persona/dh/abel');
+    eq(prioCell.children[0].children.map(node => node.tagName), ['select', 'select']);
+    eq(prioCell.children[0].children[0].value, 'shortlist', 'status stays first in the stacked cell');
+    eq(tablePriority.value, 'none', 'priority starts at the readable no-priority value');
+    tablePriority.focus();
+    await change(env, tablePriority, 'high');
+    let tableBatch = batchCalls(env).at(-1);
+    eq(tableBatch[2].changes[0].patch, {priority: 'high'});
+    eq(tableBatch[2].changes[0].expected, {priority: 'none'});
+    eq(env.serverMarks['persona/dh/abel'].priority, 'high');
+    eq(env.w.document.activeElement && env.w.document.activeElement.dataset.castingFocus,
+       'priority:persona/dh/abel', 'the table priority keeps the same focus contract');
+    const tableStatus = selectByLabel(env, 'Review status for ABEL');
+    await change(env, tableStatus, 'callback');
+    eq(env.serverMarks['persona/dh/abel'].status, 'callback');
+    eq(env.serverMarks['persona/dh/abel'].priority, 'high', 'status saves do not overwrite priority');
 
     await click(env, $(env, 'view-cards'));
+    const cardBar = $(env, 'results').querySelector('[data-casting-status-bar="persona/dh/abel"]');
+    eq(cardBar.children.map(node => node.textContent), ['Callback', 'High priority']);
+    includes(cardBar.children[0].className, 'bg-warning');
+    includes(cardBar.children[1].className, 'bg-danger');
     const focusSelect = selectByLabel(env, 'Review status for ABEL');
     focusSelect.focus();
     await click(env, markButton(env, 'persona/dh/abel', 'stars', 'red'));
     eq(env.w.document.activeElement && env.w.document.activeElement.dataset.castingFocus,
        'status:persona/dh/abel', 'focus returns to the same field after a re-render');
+    selectByLabel(env, 'Priority for ABEL').focus();
+    await click(env, markButton(env, 'persona/dh/abel', 'stars', 'blue'));
+    eq(env.w.document.activeElement && env.w.document.activeElement.dataset.castingFocus,
+       'priority:persona/dh/abel', 'card priority focus survives a re-render');
 
     env = setup({marks: {'persona/dh/abel': {tags: ['<img src=x onerror=alert(4)>'], collections: ['<i>bad</i>'],
-                                               stars: ['red']}}});
+                                               stars: ['red'],
+                                               tag_colors: JSON.parse('{"<img src=x onerror=alert(4)>":"<script>alert(5)</script>","__proto__":"red"}')}}});
     await env.w.loadCastingLibrary(); await settle();
     eq($(env, 'results').querySelectorAll('img').length, 0);
     eq($(env, 'results').querySelectorAll('script').length, 0);
     includes($(env, 'results').textContent, '<img src=x onerror=alert(4)>');
+    const evilTag = $(env, 'results').querySelectorAll('[data-casting-custom-tag]')[0];
+    ok(evilTag, 'a hostile tag name still renders as a badge');
+    includes(evilTag.textContent, '<img src=x onerror=alert(4)>');
+    ok(String(evilTag.className).includes('casting-tag-neutral'), 'a colour outside the palette falls back to neutral');
+    eq(selectByLabel(env, 'Colour for tag <img src=x onerror=alert(4)> on ABEL').value, '');
+    ok(Object.prototype.hasOwnProperty.call(env.w.CastingLibrary.markOf(
+           env.w.CastingLibrary.state().marks, 'persona/dh/abel').tag_colors, '__proto__'),
+       'a hostile tag_colours key stays an own data property');
     const evilStar = markButton(env, 'persona/dh/abel', 'stars', 'red');
     includes(evilStar.attrs['aria-label'], 'Star red for ABEL: on');
 

@@ -54,3 +54,6 @@ class CastingLayoutTests(unittest.TestCase):
         self.assertIn("var(--accent)", stylesheet)
         self.assertIn(".casting-focus .casting-sidebar", stylesheet)
         self.assertIn("max-width: 575px", stylesheet)
+        self.assertIn('.casting-status-bar > .badge { flex: 1 1 0;', stylesheet)
+        self.assertIn('overflow-wrap: anywhere; white-space: normal;', stylesheet)
+        self.assertIn('.casting-tag-neutral { background: var(--bg-card-header); color: var(--text-primary);', stylesheet)

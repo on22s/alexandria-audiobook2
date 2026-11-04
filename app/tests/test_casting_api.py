@@ -108,6 +108,26 @@ class CastingApiTests(unittest.TestCase):
             'voice_id': '../../etc/passwd', 'status': 'shortlist'}).status_code)
         self.assertEqual({'persona/dh_1/abel_1': {'status': 'callback'}}, json.loads(self.marks.read_text()))
 
+    def test_mark_tag_colors_round_trip_and_refusals(self):
+        voice = {'voice_id': 'persona/dh_1/abel_1'}
+        saved = self.client.post('/api/casting/marks', json={**voice, 'tags': ['warm', 'mentor'],
+                                                             'tag_colors': {'warm': 'red'}})
+        self.assertEqual(200, saved.status_code, saved.text)
+        self.assertEqual({'tags': ['warm', 'mentor'], 'tag_colors': {'warm': 'red'}}, saved.json()['mark'])
+        self.assertEqual({'tags': ['warm', 'mentor'], 'tag_colors': {'warm': 'red'}},
+                         json.loads(self.marks.read_text())['persona/dh_1/abel_1'])
+        before = self.marks.read_bytes()
+        self.assertEqual(400, self.client.post('/api/casting/marks', json={
+            **voice, 'tag_colors': {'warm': 'pink'}}).status_code)
+        self.assertEqual(400, self.client.post('/api/casting/marks', json={
+            **voice, 'tag_colors': {'gone': 'red'}}).status_code)
+        self.assertEqual(422, self.client.post('/api/casting/marks', json={
+            **voice, 'tag_colors': {'warm': 5}}).status_code)
+        self.assertEqual(before, self.marks.read_bytes())
+        cleared = self.client.post('/api/casting/marks', json={**voice, 'tag_colors': {}})
+        self.assertEqual(200, cleared.status_code, cleared.text)
+        self.assertEqual({'tags': ['warm', 'mentor'], 'tag_colors': {}}, cleared.json()['mark'])
+
     def test_clone_config_for_a_voice_with_audio_and_refusals(self):
         body = self.client.get('/api/casting/clone_config',
                                params={'voice_id': 'persona/dh_1/abel_1', 'speaker': 'ADAM'}).json()

@@ -25,6 +25,7 @@ class CastingMarkRequest(BaseModel):
     priority: Optional[str] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
+    tag_colors: Optional[Dict[str, str]] = None
     stars: Optional[List[str]] = None
     circles: Optional[List[str]] = None
     collections: Optional[List[str]] = None

@@ -904,6 +904,20 @@
             ],
             "title": "Status"
           },
+          "tag_colors": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag Colors"
+          },
           "tags": {
             "anyOf": [
               {

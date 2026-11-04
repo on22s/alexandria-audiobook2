@@ -29,6 +29,23 @@ interface or importing its sample voices.
   existing locked JSON store.
 - Undo and redo compare only the fields they intend to change. A stale operation
   must refuse, not restore an entire snapshot over somebody else's edits.
+- A card's status bar below the name gives the review status and the priority
+  equal width. "No priority" is written out instead of leaving an unlabelled
+  colored half.
+- Custom tags render beside the voice's descriptor tags in their chosen
+  palette color. Adding, coloring and removing them stays under Tags &
+  research collections; old tags without a stored color are neutral.
+- Tag colors are a bounded `tag_colors` map in the existing casting mark,
+  limited to the five star/circle colors. A `tag_colors` patch replaces the
+  whole map, like the other mark arrays. Removal and undo/redo move a color
+  with its tag, and a color for a tag that is no longer on the voice is pruned
+  when saved, including by a legacy tags-only client.
+- Malformed stored tag colors block loading the entire casting library, not
+  just editing that voice. The store is left unchanged and must be repaired
+  before reloading; unsupported colors are not silently discarded.
+- The table's Status & prio column stacks the status select above the priority
+  select. Both save through the same mark fields and keep the same focus and
+  per-field conflict behaviour as the card controls.
 - Studio activity retains the last 100 changes. The UI sends controlled action
   labels rather than voice, tag, collection, sample or note text. An uncertain
   network result requires reload
@@ -43,7 +60,7 @@ The 16 requested capabilities are grouped into the existing casting workflow:
 | Find | Include / Exclude / Off for tone, texture, custom tags, research collections and colored marks; named Smart Views |
 | Listen | Continuous audition, 1–120 seconds or full samples, previous, next, stop and random filtered voice |
 | Mark | Five independent star colors and five circle colors, separate locks, selective mark-only clearing |
-| Organize | Individual, shown-page, all-filtered and inverted selection; bulk tags, collections, status and priority |
+| Organize | Individual, shown-page, all-filtered and inverted selection; bulk tags, collections, status and priority; custom tags carry a palette color |
 | Read | Hide descriptions, sample lines or tags; Focus mode with visible audition status and exit control |
 | Browse | Separate Load more, Auto-load on scroll, Pages and Show all modes; 24 / 48 / 96 voices per batch |
 | Recover | Last 100 persisted changes, 20 session undo/redo entries, field-specific conflict refusal and explicit reload after uncertain writes |
