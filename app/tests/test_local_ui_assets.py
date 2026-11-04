@@ -62,6 +62,7 @@ class LocalUiAssetTests(unittest.TestCase):
                           '/static/js/app-publication-validation.js?v=__APP_BUILD__',
                           '/static/js/app-pronunciation.js?v=__APP_BUILD__',
                           '/static/js/app-editor-review.js?v=__APP_BUILD__',
+                          '/static/js/app-narration-markup.js?v=__APP_BUILD__',
                           '/static/js/app-take-history.js?v=__APP_BUILD__',
                           '/static/js/app-sound-assets.js?v=__APP_BUILD__',
                           '/static/js/app-sound-cues.js?v=__APP_BUILD__',
