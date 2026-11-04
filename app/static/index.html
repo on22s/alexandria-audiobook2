@@ -908,7 +908,6 @@
         .settings-category { display: flex; align-items: center; gap: .8rem; text-align: left; padding: .65rem; width: 100%; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-primary); }
         .settings-category > i { width: 1rem; color: var(--accent); }
         .settings-category strong, .settings-category small { display: block; }
-        .settings-category > .help-nav-glyph { margin-left: auto; }
         .settings-category small { font-size: .75rem; color: var(--text-muted); margin-top: .15rem; }
         .settings-category:hover { background: var(--bg-card); border-color: var(--border-input); }
         .settings-category[aria-current="true"] { background: var(--accent-fill); color: #fff; }
@@ -963,24 +962,20 @@
         .task-guide-card span { font-size:.9rem; }
         #task-guide-detail { scroll-margin-top:5rem; }
         #task-guide-return { position:fixed; bottom:1rem; right:1rem; z-index:1030; max-width:calc(100vw - 2rem); }
-        /* Field help (app-help.js): a small ⓘ after a control's label. */
-        .help-tip { border: 0; background: none; padding: 0 0 0 .3rem; font-size: .85em; line-height: 1;
-                    color: var(--bs-secondary-color); cursor: help; vertical-align: baseline; }
-        .help-tip:hover, .help-tip:focus-visible { color: var(--bs-info); }
-        .help-tip { display: inline-block; flex: 0 0 auto; align-self: center; user-select: none; }
-        .help-tip:focus-visible { outline: 2px solid var(--bs-info); outline-offset: 2px; border-radius: .2rem; }
-        .help-action-group { display: inline-flex; align-items: center; gap: .25rem; }
-        .help-list-action { display: flex; }
-        .help-list-action > .report-list-item { flex: 1; min-width: 0; border-width: 0 0 1px; border-radius: 0; }
-        .help-nav-glyph { margin-left: .25rem; font-size: .75em; }
-        .input-group > .help-tip { padding: .25rem; }
+        .help-disabled-control { display: inline-flex; vertical-align: middle; min-width: 0; }
+        .help-disabled-block { display: flex; width: 100%; }
+        .help-disabled-block > :is(.form-control, .form-select, .form-range) { width: 100%; min-width: 0; }
+        .input-group > .help-disabled-block { flex: 1 1 auto; width: 1%; }
+        .input-group > .help-disabled-control:not(:first-child) > * { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+        .input-group > .help-disabled-control:not(:last-child) > * { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+        .form-check > .help-disabled-control { float: left; margin-left: -1.5em; }
+        .form-check > .help-disabled-control > .form-check-input { margin-left: 0; }
+        .help-disabled-control:focus-visible { outline: 2px solid var(--bs-info); outline-offset: 2px; }
         .accordion-header { display: flex; align-items: center; }
         .accordion-header > .accordion-button { flex: 1; width: auto; min-width: 0; }
-        .accordion-header > .help-tip { margin-right: 1rem; font-size: .85rem; }
         .tooltip { --bs-tooltip-color: #fff; --bs-tooltip-bg: #000; }
         .tooltip-inner { max-width: 340px; text-align: left; }
-        .help-tooltip { pointer-events: auto; }
-        .help-tooltip:not(.show) { pointer-events: none; }
+        .help-tooltip { pointer-events: none; }
         .settings-preview { background: var(--bg-card-header); overflow-wrap: anywhere; }
         #llm-active-mode-badge { white-space: normal; text-align: left; line-height: 1.4; }
         .settings-preview-row { border-bottom: 1px solid var(--border-input); padding: .75rem 0; }

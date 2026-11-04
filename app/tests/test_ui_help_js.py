@@ -11,6 +11,13 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 function matches(node, selector) {
  return selector.split(',').some(raw=>{
   let part=raw.trim();
+  if(part===':disabled'){
+   if(node.disabled){return true;}
+   for(let p=node.parentElement;p;p=p.parentElement){
+    if(p.tagName==='FIELDSET'&&p.disabled&&!p.children.find(c=>c.tagName==='LEGEND')?.contains(node)){return true;}
+   }
+   return false;
+  }
   if(part.includes(':hover')&&!node.hovered){return false;}
   if(part.includes(':focus-within')&&!node.focused){return false;}
   if(part.includes(':not([type="hidden"])')&&node.type==='hidden'){return false;}
@@ -48,11 +55,34 @@ const body=new Element('body');const observers=[],tooltipCalls=[],instances=new 
 const document={nodeType:9,body,createElement:tag=>new Element(tag),getElementById:id=>body.querySelectorAll('[id]').find(n=>n.id===id)||null,querySelectorAll:selector=>body.querySelectorAll(selector)};
 function Tooltip(target,options){tooltipCalls.push({target,options});}Tooltip.getInstance=node=>instances.get(node)||null;
 const context={window:{},document,bootstrap:{Tooltip},MutationObserver:class {constructor(callback){this.callback=callback;observers.push(this);}observe(target,options){this.target=target;this.options=options;}}};
+context.window.listeners={};
+context.window.addEventListener=(name,callback)=>{(context.window.listeners[name]??=[]).push(callback);};
+document.listeners={};
+document.addEventListener=(name,callback)=>{(document.listeners[name]??=[]).push(callback);};
+
 vm.createContext(context);
 function load(){vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);}
 function helpFor(control){return context.getItemHelpText(control);}
-function tipFor(control){return vm.runInContext('helpTipNodes',context).get(control);}
 function mutation(record){observers[0].callback([record]);}
+'''
+
+HELP_FIXTURE = r'''
+let now=0,serial=0;const timers=new Map(),shown=[],windowListeners={};
+context.setTimeout=(fn,ms)=>{timers.set(++serial,{fn,at:now+ms});return serial;};
+context.clearTimeout=id=>timers.delete(id);
+function tick(ms){now+=ms;for(const [id,t] of [...timers]){if(t.at<=now){timers.delete(id);t.fn();}}}
+context.window.addEventListener=(n,fn)=>{(windowListeners[n]??=[]).push(fn);};
+function windowEvent(n){for(const fn of windowListeners[n]||[]){fn();}}
+document.addEventListener=()=>{};
+Element.prototype.getClientRects=function(){return this.isConnected&&!this.hidden&&this.style.display!=='none'&&!this.closest('.d-none')?[{}]:[];};
+const popup=body.appendChild(new Element('div',{id:'popup'}));
+Tooltip.getOrCreateInstance=(target,options)=>{
+ assert.strictEqual(options.trigger,'manual');assert.strictEqual(options.html,false);
+ const instance={show(){shown.push(target);target.setAttribute('aria-describedby','popup');},
+ dispose(){instances.delete(target);target.removeAttribute('aria-describedby');}};
+ instances.set(target,instance);return instance;
+};
+
 '''
 
 
@@ -60,7 +90,7 @@ def run_help_js(body):
     return subprocess.run(
         ['node', '-e', "eval(require('fs').readFileSync(0,'utf8'));",
          str(STATIC / 'js' / 'app-help.js')],
-        input=DOM_FIXTURE + body, capture_output=True, text=True,
+        input=DOM_FIXTURE + HELP_FIXTURE + body, capture_output=True, text=True,
         encoding='utf-8', timeout=15)
 
 
@@ -104,96 +134,6 @@ assert(helpFor(new Element('textarea',{onchange:"updateChunk(2, 'text', this.val
 assert(helpFor(new Element('input',{onchange:"dsbUpdateRow(2, 'seed', this.value)"})).includes('project seed'));
 ''')
 
-    def test_disabled_help_stays_reachable_and_does_not_activate_ancestors(self):
-        self.run_js(r'''
-const group=body.appendChild(new Element('div'));let actions=0;group.addEventListener('click',()=>actions++);
-const button=group.appendChild(new Element('button',{id:'btn-gen-script',disabled:''}));
-load();const tip=tipFor(button);assert(tip);assert.strictEqual(tip.tagName,'SPAN');assert.strictEqual(tip.tabIndex,0);assert.strictEqual(tip.getAttribute('role'),'img');assert.strictEqual(tip.parentElement,button.parentElement);assert(!tip.hidden);
-const click=tip.fire('click');assert(click.prevented&&click.stopped);assert.strictEqual(actions,0);
-for(const key of ['Enter',' ']){const event=tip.fire('keydown',{key});assert(event.prevented&&event.stopped);}
-assert(!tip.fire('keydown',{key:'Tab'}).prevented,'keyboard focus must remain escapable');
-assert.strictEqual(tooltipCalls.length,1);assert.strictEqual(tooltipCalls[0].options.trigger,'hover focus');assert.strictEqual(tooltipCalls[0].options.html,false);
-assert.strictEqual(tooltipCalls[0].options.customClass,'help-tooltip');
-assert.strictEqual(tooltipCalls[0].options.fallbackPlacements.join(','),'top,bottom','sideways help can cover its own wide action');
-''')
-
-    def test_dynamic_insert_rerender_removal_and_tooltip_cleanup(self):
-        self.run_js(r'''
-load();const row=new Element('div');const field=row.appendChild(new Element('input',{class:'voice-seed'}));body.appendChild(row);
-mutation({type:'childList',addedNodes:[row],removedNodes:[]});const tip=tipFor(field);assert(tip&&tip.isConnected);assert(tip.getAttribute('data-bs-title').includes('Seed'));
-context.renderHelpTips();context.renderHelpTips();assert.strictEqual(body.querySelectorAll('.help-tip').length,1);
-let disposed=0;instances.set(tip,{dispose(){disposed++;instances.delete(tip);}});
-row.remove();mutation({type:'childList',addedNodes:[],removedNodes:[row]});assert(!tip.isConnected);assert.strictEqual(disposed,1);assert.strictEqual(tipFor(field),undefined);
-''')
-
-    def test_hover_popup_persists_then_leaves_without_disrupting_focus(self):
-        self.run_js(r'''
-const field=body.appendChild(new Element('input',{id:'design-description'}));load();
-const tip=tipFor(field),popup=body.appendChild(new Element('div',{id:'popup',class:'help-tooltip show'}));
-tip.setAttribute('aria-describedby','popup');let hidden=0;
-instances.set(tip,{hide(){if(!tip.fire('hide.bs.tooltip').prevented){hidden++;}}});
-tip.fire('inserted.bs.tooltip');popup.hovered=true;
-assert(tip.fire('hide.bs.tooltip').prevented,'moving onto popup must retain it');
-popup.hovered=false;tip.focused=true;popup.fire('mouseleave');assert.strictEqual(hidden,0,'keyboard focus retains help');
-tip.focused=false;tip.hovered=true;popup.fire('mouseleave');assert.strictEqual(hidden,0,'returning to trigger retains help');
-tip.hovered=false;popup.fire('mouseleave');assert.strictEqual(hidden,1,'leaving both closes help');
-assert.strictEqual(tooltipCalls[0].options.delay.hide,180);
-const other=body.appendChild(new Element('button',{'aria-describedby':'popup'}));popup.hovered=true;
-assert(!other.fire('hide.bs.tooltip').prevented,'unrelated tooltips remain untouched');
-''')
-
-    def test_escape_dismisses_hovered_help_and_next_engagement_can_show_it(self):
-        self.run_js(r'''
-const field=body.appendChild(new Element('input',{id:'design-description'}));load();context.ensureHelpTooltips();
-const tip=tipFor(field),popup=body.appendChild(new Element('div',{id:'popup',class:'help-tooltip show'}));
-tip.setAttribute('aria-describedby','popup');popup.hovered=true;tip.focused=true;let hidden=0;
-instances.set(tip,{hide(){if(!tip.fire('hide.bs.tooltip').prevented){hidden++;}}});
-const escape=tip.fire('keydown',{key:'Escape'});assert(escape.prevented&&escape.stopped);assert.strictEqual(hidden,1);assert(tip.focused);
-tip.fire('show.bs.tooltip');assert(tip.fire('hide.bs.tooltip').prevented,'a new engagement can retain help again');
-assert.strictEqual(body.listeners.keydown.length,1,'re-rendering must not register extra listeners');
-tip.removeAttribute('aria-describedby');assert(!tip.fire('keydown',{key:'Escape'}).prevented,'no help leaves Escape available to surrounding UI');
-''')
-
-    def test_unrelated_escape_and_section_close_are_not_blocked_by_hovered_help(self):
-        self.run_js(r'''
-const section=body.appendChild(new Element('div')),field=section.appendChild(new Element('input',{id:'design-description'}));load();
-const tip=tipFor(field),popup=body.appendChild(new Element('div',{id:'popup',class:'help-tooltip show'}));
-tip.setAttribute('aria-describedby','popup');popup.hovered=true;let hidden=0;
-instances.set(tip,{dispose(){},hide(){if(!tip.fire('hide.bs.tooltip').prevented){hidden++;}}});
-assert(!field.fire('keydown',{key:'Escape'}).stopped,'unrelated widget must still receive Escape');assert.strictEqual(hidden,1);
-for(const name of ['hide.bs.modal','hide.bs.collapse']){
- tip.fire('show.bs.tooltip');section.fire(name);assert(!tip.fire('hide.bs.tooltip').prevented,'closing section must override hover retention');
-}
-tip.fire('show.bs.tooltip');context.disposeHelpTooltip(tip);assert.strictEqual(tip.getAttribute('aria-describedby'),null,'disposed popup must not leave a dangling description');
-''')
-
-    def test_individual_hidden_action_and_removed_glyph_recover(self):
-        self.run_js(r'''
-const button=body.appendChild(new Element('button',{id:'btn-gen-script',style:'display:none'}));load();const tip=tipFor(button);assert(tip.hidden);
-button.style.display='';mutation({type:'attributes',target:button});assert(!tip.hidden);
-button.hidden=true;mutation({type:'attributes',target:button});assert(tip.hidden);
-button.hidden=false;mutation({type:'attributes',target:button});assert(!tip.hidden);
-tip.remove();mutation({type:'childList',addedNodes:[],removedNodes:[tip]});assert(tip.isConnected);assert.strictEqual(body.querySelectorAll('.help-tip').length,1);
-''')
-
-    def test_reused_control_refreshes_hint_and_disposes_stale_tooltip(self):
-        self.run_js(r'''
-const button=body.appendChild(new Element('button',{onclick:'loadReports()'}));load();const tip=tipFor(button);let disposed=0;instances.set(tip,{dispose(){disposed++;instances.delete(tip);}});
-button.setAttribute('onclick','loadRunHistory()');mutation({type:'attributes',target:button});assert(tip.getAttribute('data-bs-title').includes('task runs'));assert.strictEqual(disposed,1);
-button.setAttribute('onclick','unknownAction()');mutation({type:'attributes',target:button});assert(!tip.isConnected);assert(!button.hasAttribute('data-help-covered'));
-''')
-
-    def test_spaced_flex_actions_keep_their_own_help_and_move_safely(self):
-        self.run_js(r'''
-const header=body.appendChild(new Element('div',{class:'justify-content-between'}));
-const button=header.appendChild(new Element('button',{onclick:'loadReports()',disabled:''}));load();
-const group=button.parentElement,tip=tipFor(button);assert.strictEqual(group.className,'help-action-group');assert.strictEqual(tip.parentElement,group);assert(button.hasAttribute('disabled'));assert.strictEqual(tip.tabIndex,0);
-context.renderHelpTips();assert.strictEqual(header.querySelectorAll('.help-action-group').length,1);
-body.appendChild(button);context.renderHelpTips();assert(!group.isConnected);assert.strictEqual(tip.parentElement,body);
-button.setAttribute('onclick','unknownAction()');context.renderHelpTips();assert.strictEqual(button.parentElement,body);assert(!tip.isConnected);
-const second=header.appendChild(new Element('button',{onclick:'loadReports()'}));context.renderHelpTips();second.setAttribute('onclick','unknownAction()');context.renderHelpTips();assert.strictEqual(second.parentElement,header);assert.strictEqual(header.querySelectorAll('.help-action-group').length,0);
-''')
-
     def test_generated_cards_recovery_and_programmatic_actions_have_specific_help(self):
         self.run_js(r'''
 load();
@@ -212,57 +152,116 @@ assert(helpFor(new Element('button',{disabled:'','aria-label':'Candidate example
 assert.strictEqual(helpFor(new Element('input',{class:'unknown-future-field'})),'');
 ''')
 
-    def test_report_link_and_help_share_one_row_and_keep_the_real_action(self):
+
+    def test_summary_retains_authored_help_and_observes_details_open(self):
         self.run_js(r'''
-const list=body.appendChild(new Element('div',{id:'reports-list',class:'list-group'}));
-const link=list.appendChild(new Element('a',{href:'#',class:'report-list-item',onclick:'viewReport(this.dataset.filename)'}));
-let opened=0;link.addEventListener('click',()=>opened++);load();
-const group=link.parentElement,tip=tipFor(link);assert.strictEqual(group.tagName,'DIV');assert(group.classList.contains('help-list-action'));assert.strictEqual(group.parentElement,list);assert.strictEqual(tip.parentElement,group);
-assert(!link.fire('click').prevented);assert.strictEqual(opened,1);tip.fire('click');assert.strictEqual(opened,1);
-context.renderHelpTips();assert.strictEqual(list.querySelectorAll('.help-list-action').length,1);
-link.remove();mutation({type:'childList',target:group,removedNodes:[link],addedNodes:[]});assert(!tip.isConnected);assert(!group.isConnected);
+const summary=body.appendChild(new Element('summary',{title:'Inspect immutable source provenance before accepting this import.'}));
+load();
+assert.strictEqual(summary.getAttribute('data-bs-title'),'Inspect immutable source provenance before accepting this import.');
+context.renderHelpTips();
+assert.strictEqual(helpFor(summary),'Inspect immutable source provenance before accepting this import.');
+assert(observers[0].options.attributeFilter.includes('open'));
 ''')
 
-    def test_native_summary_keeps_help_inside_its_visible_heading(self):
-        self.run_js(r"""
-const details=body.appendChild(new Element('details'));
-const summary=details.appendChild(new Element('summary',{id:'settings-llm-advanced-toggle'}));
-load();context.renderHelpTips();assert(summary.hasAttribute('data-help-tip'));
-assert.strictEqual(summary.querySelectorAll('.help-nav-glyph').length,1);
-assert.strictEqual(summary.querySelectorAll('.help-nav-glyph')[0].getAttribute('aria-hidden'),'true');
-assert.strictEqual(details.children.length,1,'help must stay inside the visible summary when details is closed');
-assert.strictEqual(summary.fire('click').prevented,false,'native details toggling stays available');
-""")
-
-    def test_navigation_keeps_original_layout_and_actions_with_direct_help(self):
+    def test_disabled_label_lifecycle(self):
         self.run_js(r'''
-const nav=body.appendChild(new Element('nav',{class:'navbar'}));
-const link=nav.appendChild(new Element('a',{class:'nav-link',href:'#designer','data-tab':'designer'}));let navigations=0;link.addEventListener('click',()=>navigations++);
-load();assert.strictEqual(nav.children.length,1);assert.strictEqual(link.parentElement,nav);assert.strictEqual(tipFor(link),undefined);assert(link.hasAttribute('data-help-tip'));assert(link.getAttribute('data-bs-title').includes('reusable voice'));assert.strictEqual(link.getAttribute('aria-label'),null);
-const glyph=link.children[0];assert.strictEqual(glyph.className,'help-nav-glyph');assert.strictEqual(glyph.getAttribute('aria-hidden'),'true');assert.strictEqual(glyph.tabIndex,undefined);
-assert(!link.fire('click').prevented);assert.strictEqual(navigations,1);
-context.renderHelpTips();assert.strictEqual(nav.children.length,1);
-assert.strictEqual(link.children.length,1,'repeated renders must not duplicate inline glyphs');
-glyph.remove();mutation({type:'childList',target:link,removedNodes:[glyph],addedNodes:[]});assert.strictEqual(glyph.parentElement,link,'a control repaint restores its owned glyph');
-body.appendChild(link);context.renderHelpTips();assert(!link.hasAttribute('data-help-tip'));assert(tipFor(link));assert.strictEqual(link.parentElement,body);
-assert(!glyph.isConnected,'moving out of navigation removes the decorative glyph');
-nav.appendChild(link);context.renderHelpTips();assert.strictEqual(nav.children.length,1);assert.strictEqual(tipFor(link),undefined);assert(link.hasAttribute('data-help-tip'));
-link.remove();mutation({type:'childList',removedNodes:[link],addedNodes:[]});assert(!link.hasAttribute('data-help-tip'));
+load();const f=body.appendChild(new Element('fieldset',{disabled:''}));
+const legend=f.appendChild(new Element('legend'));const exempt=legend.appendChild(new Element('button',{onclick:'loadReports()'}));
+const label=f.appendChild(new Element('label',{for:'save-script-name',tabindex:'-1','aria-describedby':'label-note',title:'Name'}));label.textContent='Name';
+const input=f.appendChild(new Element('input',{id:'save-script-name','aria-describedby':'author-note'}));input.labels=[label];label.control=input;
+context.renderHelpTips();assert.strictEqual(input.parentElement,f);assert.strictEqual(input.previousElementSibling,label);assert.strictEqual(exempt.parentElement,legend);
+assert.strictEqual(label.tabIndex,0);assert.strictEqual(label.getAttribute('role'),'group');assert.strictEqual(label.getAttribute('aria-describedby'),'label-note author-note');
+label.fire('focusin');tick(500);assert.strictEqual(label.getAttribute('aria-describedby'),'label-note author-note popup');label.fire('keydown',{key:'Escape'});
+input.className='d-none';mutation({type:'attributes',target:input});assert.strictEqual(label.tabIndex,-1);
+input.className='';mutation({type:'attributes',target:input});assert.strictEqual(label.tabIndex,0);
+f.removeAttribute('disabled');mutation({type:'attributes',target:f});assert.strictEqual(label.getAttribute('tabindex'),'-1');assert.strictEqual(label.getAttribute('role'),null);assert.strictEqual(label.getAttribute('aria-describedby'),'label-note');assert.strictEqual(label.getAttribute('title'),'Name');
+f.setAttribute('disabled','');mutation({type:'attributes',target:f});input.remove();mutation({type:'childList',target:f,removedNodes:[input],addedNodes:[]});assert(!label.hasAttribute('data-help-tip'));assert.strictEqual(label.getAttribute('role'),null);
 ''')
 
-    def test_navigation_click_dismisses_help_until_a_new_engagement(self):
+    def test_dynamic_disabled_child_replacement(self):
         self.run_js(r'''
-const nav=body.appendChild(new Element('nav',{class:'navbar'})),link=nav.appendChild(new Element('a',{class:'nav-link',href:'#designer','data-tab':'designer'}));
-let navigations=0;link.addEventListener('click',()=>navigations++);load();
-assert(link.hasAttribute('data-help-tip'),'fixture must render a known navigation control');
-const popup=body.appendChild(new Element('div',{id:'popup',class:'help-tooltip show'}));link.setAttribute('aria-describedby','popup');popup.hovered=true;let hidden=0,shown=0;
-instances.set(link,{hide(){assert(!link.fire('hide.bs.tooltip').prevented);hidden++;popup.className='help-tooltip';},show(){assert(!link.fire('show.bs.tooltip').prevented);shown++;popup.className='help-tooltip show';}});
-const click=link.fire('click');assert(!click.prevented&&!click.stopped);assert.strictEqual(navigations,1);assert.strictEqual(hidden,1);assert(!popup.classList.contains('show'));
-assert(link.fire('show.bs.tooltip').prevented,'a pending show must not recreate the clicked navigation hint');
-link.fire('mouseover',{relatedTarget:link.children[0]});assert.strictEqual(shown,0,'movement inside a link must not rearm help');
-link.fire('mouseover',{relatedTarget:body});assert.strictEqual(shown,1,'a fresh pointer entry restores help');
-link.fire('click');link.fire('focusin',{relatedTarget:body});assert.strictEqual(shown,2,'a fresh keyboard entry restores help');assert.strictEqual(navigations,2);
-const field=body.appendChild(new Element('input',{id:'design-description'}));context.renderHelpTips();assert(!tipFor(field).fire('show.bs.tooltip').prevented,'ordinary field help stays independent');
+load();const c=body.appendChild(new Element('button',{onclick:'loadReports()',disabled:'','aria-describedby':'reason'}));c.textContent='Reports';
+mutation({type:'childList',target:body,addedNodes:[c],removedNodes:[]});const w=c.parentElement;assert.strictEqual(w.getAttribute('role'),'group');assert.strictEqual(w.getAttribute('aria-describedby'),'reason');
+c.textContent='New reports';mutation({type:'childList',target:c,addedNodes:[],removedNodes:[]});assert.strictEqual(w.getAttribute('aria-label'),'New reports');
+c.removeAttribute('disabled');mutation({type:'attributes',target:c});assert.strictEqual(c.parentElement,body);assert(!w.isConnected);
+''')
+
+    def test_pending_cancellation_preserves_existing_description(self):
+        self.run_js(r'''
+load();
+const control=body.appendChild(new Element('button',{onclick:'loadReports()','aria-describedby':'existing'}));
+context.renderHelpTips();control.fire('focusin');tick(499);
+control.fire('keydown',{key:'Escape'});tick(1);
+assert.strictEqual(shown.length,0);
+assert.strictEqual(control.getAttribute('aria-describedby'),'existing');
+const disabled=body.appendChild(new Element('button',{onclick:'loadReports()',disabled:''}));
+context.renderHelpTips();const wrapper=disabled.parentElement;wrapper.remove();
+mutation({type:'childList',target:body,removedNodes:[wrapper],addedNodes:[]});
+assert(!disabled.hasAttribute('data-help-covered'));
+''')
+
+    def test_pointer_exit_never_revives_old_focus(self):
+        self.run_js(r'''
+load();
+const a=body.appendChild(new Element('button',{onclick:'loadReports()'}));
+const b=body.appendChild(new Element('button',{onclick:'loadRunHistory()'}));
+context.renderHelpTips();a.fire('focusin');a.fire('pointerover');a.fire('click');
+a.fire('pointerout',{relatedTarget:body});tick(500);assert.strictEqual(shown.length,0);
+b.fire('pointerover');tick(500);assert.strictEqual(shown.at(-1),b);
+b.fire('pointerout',{relatedTarget:body});tick(500);assert.strictEqual(shown.length,1);
+''')
+
+    def test_title_naming_search_and_updates(self):
+        self.run_js(r'''
+load();
+const a=body.appendChild(new Element('button',{title:'Remove'}));
+const b=body.appendChild(new Element('button',{title:'Native','aria-label':'Authored'}));
+context.renderHelpTips();assert.strictEqual(a.getAttribute('aria-label'),'Remove');
+assert.strictEqual(b.getAttribute('aria-label'),'Authored');assert.strictEqual(helpFor(a),'Remove');
+a.setAttribute('title','Delete');mutation({type:'attributes',target:a});
+assert.strictEqual(helpFor(a),'Delete');assert.strictEqual(a.getAttribute('aria-label'),'Delete');
+''')
+
+    def test_scroll_and_live_description_tokens(self):
+        self.run_js(r'''
+load();const a=body.appendChild(new Element('button',{onclick:'loadReports()','aria-describedby':'original'}));
+context.renderHelpTips();a.fire('focusin');tick(500);
+a.setAttribute('aria-describedby','popup replacement');windowEvent('scroll');
+assert(instances.get(a));a.fire('keydown',{key:'Escape'});
+assert.strictEqual(a.getAttribute('aria-describedby'),'replacement');
+''')
+
+    def test_delayed_help_lifecycle(self):
+        self.run_js(r'''
+load();
+const a=body.appendChild(new Element('button',{onclick:'loadReports()',title:'Native title'}));
+const b=body.appendChild(new Element('button',{onclick:'loadRunHistory()'}));
+context.renderHelpTips();
+assert(!a.hasAttribute('title'));
+assert.strictEqual(body.querySelectorAll('.help-tip,.help-nav-glyph').length,0);
+a.fire('pointerover');tick(499);assert.strictEqual(shown.length,0);
+a.fire('pointerout',{relatedTarget:body});tick(1);assert.strictEqual(shown.length,0);
+a.fire('pointerover');tick(300);a.fire('pointerout',{relatedTarget:b});tick(499);
+assert.strictEqual(shown.length,0);tick(1);assert.strictEqual(shown.at(-1),b);
+assert.strictEqual(popup.style.pointerEvents,'none');
+b.fire('click');assert.strictEqual(instances.get(b),undefined);
+a.fire('focusin');tick(500);assert.strictEqual(shown.at(-1),a);
+a.fire('keydown',{key:'Escape'});assert.strictEqual(instances.get(a),undefined);
+a.fire('focusout',{relatedTarget:body});a.fire('focusin');a.remove();tick(500);
+assert.strictEqual(instances.get(a),undefined);
+body.appendChild(a);a.fire('focusin');windowEvent('hashchange');tick(500);
+assert.strictEqual(instances.get(a),undefined);
+a.fire('focusin');a.setAttribute('onclick','loadRunHistory()');
+mutation({type:'attributes',target:a});tick(499);assert.strictEqual(instances.get(a),undefined);
+tick(1);assert(instances.get(a));
+assert(a.getAttribute('data-bs-title').includes('task runs'));
+a.setAttribute('aria-describedby','existing');a.fire('focusin');tick(500);
+assert.strictEqual(a.getAttribute('aria-describedby'),'existing popup');
+a.fire('keydown',{key:'Escape'});assert.strictEqual(a.getAttribute('aria-describedby'),'existing');
+const disabled=body.appendChild(new Element('button',{onclick:'loadReports()',disabled:''}));
+context.renderHelpTips();const wrapper=disabled.parentElement;
+assert.strictEqual(wrapper.tabIndex,0);assert(disabled.disabled);
+wrapper.fire('focusin');tick(500);assert.strictEqual(shown.at(-1),wrapper);
 ''')
 
 
