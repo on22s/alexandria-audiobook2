@@ -14046,6 +14046,42 @@
               "title": "Include Extraction Report",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "docx_preview",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Docx Preview",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "docx_confirmed",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Docx Confirmed",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "docx_preview_digest",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Docx Preview Digest"
+            }
           }
         ],
         "requestBody": {
@@ -14095,6 +14131,22 @@
           }
         },
         "summary": "List Reusable Uploads"
+      }
+    },
+    "/api/uploads/docx-retained": {
+      "get": {
+        "operationId": "get_docx_retained_uploads_api_uploads_docx_retained_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Docx Retained Uploads"
       }
     },
     "/api/uploads/select": {

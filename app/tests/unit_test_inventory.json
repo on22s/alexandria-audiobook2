@@ -965,6 +965,7 @@
     "tests.test_batch_identity_and_selection.BatchIdentity.test_the_prompt_text_still_works"
   ],
   "test_batch_path_identity": [
+    "tests.test_batch_path_identity.BatchPathIdentityTests.test_batch_rejects_existing_receipts_and_originals_before_claim",
     "tests.test_batch_path_identity.BatchPathIdentityTests.test_batch_routes_reject_transformed_names_and_directory_before_claim",
     "tests.test_batch_path_identity.BatchPathIdentityTests.test_existing_regular_unicode_and_space_names_and_epub_fallback_resolve_exactly",
     "tests.test_batch_path_identity.BatchPathIdentityTests.test_report_sources_match_actual_workers_and_exclude_skipped_names"
@@ -1488,6 +1489,7 @@
     "tests.test_book_recovery_inventory.BookRecoveryInventoryTests.test_checkpoint_shards_and_only_active_book_history_are_candidates",
     "tests.test_book_recovery_inventory.BookRecoveryInventoryTests.test_chunk_path_outside_audio_store_does_not_authorize_metadata_read",
     "tests.test_book_recovery_inventory.BookRecoveryInventoryTests.test_configured_external_upload_and_companion_are_counted_and_fenced",
+    "tests.test_book_recovery_inventory.BookRecoveryInventoryTests.test_docx_group_is_inventoried_and_missing_original_is_not_current",
     "tests.test_book_recovery_inventory.BookRecoveryInventoryTests.test_empty_directory_mode_is_observed_and_mode_changes_invalidate_revision",
     "tests.test_book_recovery_inventory.BookRecoveryInventoryTests.test_export_tree_discovery_is_bounded_before_materializing_entries",
     "tests.test_book_recovery_inventory.BookRecoveryInventoryTests.test_external_upload_missing_companion_cannot_appear_mid_inventory",
@@ -3766,6 +3768,49 @@
   "test_distill_training_resume": [
     "tests.test_distill_training_resume.DistillTrainingResumeTest.test_disabled_resume_starts_without_a_checkpoint",
     "tests.test_distill_training_resume.DistillTrainingResumeTest.test_resume_preserves_training_state_rng_and_sample_order"
+  ],
+  "test_docx_admission": [
+    "tests.test_docx_admission.DocxAdmissionTests.test_group_changes_refused_by_selection_and_generation",
+    "tests.test_docx_admission.DocxAdmissionTests.test_ordinary_text_is_not_docx"
+  ],
+  "test_docx_preview": [
+    "tests.test_docx_preview.DocxPreviewTests.test_ambiguous_body_structures_are_specific_refusals",
+    "tests.test_docx_preview.DocxPreviewTests.test_bounds_and_malformed_zip",
+    "tests.test_docx_preview.DocxPreviewTests.test_duplicate_encrypted_symlink_and_unsupported_compression",
+    "tests.test_docx_preview.DocxPreviewTests.test_entities_encoding_and_malformed_xml",
+    "tests.test_docx_preview.DocxPreviewTests.test_exact_text_and_source_binding",
+    "tests.test_docx_preview.DocxPreviewTests.test_hidden_numbering_unknown_attributes_and_empty_text_refuse",
+    "tests.test_docx_preview.DocxPreviewTests.test_known_metadata_requires_correct_root_and_safe_xml",
+    "tests.test_docx_preview.DocxPreviewTests.test_relationships_do_not_fetch_or_traverse",
+    "tests.test_docx_preview.DocxPreviewTests.test_synthetic_producer_shaped_package",
+    "tests.test_docx_preview.DocxPreviewTests.test_truncated_member_error_is_a_malformed_input_refusal",
+    "tests.test_docx_preview.DocxPreviewTests.test_unsafe_paths",
+    "tests.test_docx_preview.DocxPreviewTests.test_unsupported_package_parts_are_never_silently_omitted",
+    "tests.test_docx_preview.DocxPreviewTests.test_zip_directory_bounds_precede_library_index_allocation"
+  ],
+  "test_docx_preview_js": [
+    "tests.test_docx_preview_js.DocxPreviewJsTests.test_exact_preview_accept_cancel_and_stale_responses"
+  ],
+  "test_docx_retention": [
+    "tests.test_docx_retention.RetentionTests.test_complete_partial_invalid_and_read_only",
+    "tests.test_docx_retention.RetentionTests.test_configured_endpoint",
+    "tests.test_docx_retention.RetentionTests.test_limits_and_missing_storage",
+    "tests.test_docx_retention.RetentionTests.test_ui_plain_text_only"
+  ],
+  "test_docx_upload": [
+    "tests.test_docx_upload.DocxUploadTests.test_cancellation_waits_for_owned_extraction_then_cleans_stage",
+    "tests.test_docx_upload.DocxUploadTests.test_capture_error_and_cleanup_error_preserve_primary_error",
+    "tests.test_docx_upload.DocxUploadTests.test_changed_preview_and_insufficient_pair_quota_do_not_publish",
+    "tests.test_docx_upload.DocxUploadTests.test_collision_never_overwrites_another_owner",
+    "tests.test_docx_upload.DocxUploadTests.test_confirmed_text_selects_through_existing_transaction_and_selection_error_preserves_it",
+    "tests.test_docx_upload.DocxUploadTests.test_exact_original_derived_receipt_quota_and_duplicate_origins",
+    "tests.test_docx_upload.DocxUploadTests.test_malformed_extraction_preserves_previous_state",
+    "tests.test_docx_upload.DocxUploadTests.test_preview_and_accept_do_not_dispatch_or_replace_selected_source",
+    "tests.test_docx_upload.DocxUploadTests.test_preview_cancel_bypass_and_generation_leave_previous_state",
+    "tests.test_docx_upload.DocxUploadTests.test_publication_cancellation_retains_confirmed_group_without_selecting",
+    "tests.test_docx_upload.DocxUploadTests.test_publication_failures_preserve_prior_book_and_recovery_material",
+    "tests.test_docx_upload.DocxUploadTests.test_sync_failure_prevents_later_publication_and_preserves_book",
+    "tests.test_docx_upload.DocxUploadTests.test_unicode_title_remains_safe_and_selectable"
   ],
   "test_dracor_prose": [
     "tests.test_dracor_prose.Frames.test_display_name",

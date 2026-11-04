@@ -14,6 +14,10 @@ def get_decoded_source_text(raw):
 
 def read_source_text(path):
     """Read one byte snapshot using the shared source decoding policy."""
+    from docx_publication import capture_docx_group
+    group = capture_docx_group(path)
+    if group is not None:
+        return get_decoded_source_text(group['text_bytes'])
     return get_decoded_source_text(Path(path).read_bytes())
 
 

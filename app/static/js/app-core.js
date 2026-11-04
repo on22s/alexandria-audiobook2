@@ -1823,6 +1823,7 @@
         let currentBookFilename = '';
         window._bookSelectionEpoch = 0;
         function applyCurrentBookFilename(filename) {
+            window.resetDocxPreview?.();
             window.renderEpubExtractionReport?.(null);
             window.retirePlaybackSequence?.();
             window._selectedUploadIdentity = null;
@@ -2284,6 +2285,7 @@
         window.selectExistingScriptUpload = async () => {
             const select = document.getElementById('existing-upload-select');
             if (!select.value) { return; }
+            window.resetDocxPreview?.();
             const filename = select.value;
             let book = currentBookFilename;
             const request = {};
@@ -2321,7 +2323,133 @@
             }
         };
 
+        window.openRetainedDocxDetails = async function() {
+            const details = document.getElementById('docx-retained-details');
+            details.hidden = false;
+            details.textContent = 'Loading retained DOCX metadata...';
+            try {
+                const inventory = await API.get('/api/uploads/docx-retained');
+                details.textContent = JSON.stringify(inventory, null, 2);
+            } catch (error) {
+                details.textContent = 'Retained DOCX inventory unavailable. Retry inspection before offline cleanup.';
+            }
+        };
+
+        let docxPreviewCandidate = null;
+        window.resetDocxPreview = function() {
+            docxPreviewCandidate = null;
+            document.getElementById('docx-preview-panel').hidden = true;
+            document.getElementById('docx-preview-cancel').disabled = false;
+            for (const id of ['docx-preview-policy', 'docx-preview-warnings', 'docx-preview-text']) {
+                document.getElementById(id).textContent = '';
+            }
+        };
+        function isCurrentDocxPreview(candidate) {
+            return docxPreviewCandidate === candidate
+                && window._existingUploadSelectionRequest === candidate.request
+                && window._bookSelectionEpoch === candidate.epoch
+                && currentBookFilename === candidate.book
+                && document.getElementById('file-upload').files[0] === candidate.file;
+        }
+        async function sendDocxUpload(file, digest = null) {
+            const body = new FormData();
+            body.append('file', file);
+            const query = digest === null ? '&docx_preview=true'
+                : `&docx_confirmed=true&docx_preview_digest=${encodeURIComponent(digest)}`;
+            const response = await fetch('/api/upload?select_active=false' + query, {method: 'POST', body});
+            await API._handleError(response);
+            return response.json();
+        }
+        window.previewDocxUpload = async function(file, request) {
+            window.resetDocxPreview();
+            const candidate = {file, request, epoch: window._bookSelectionEpoch, book: currentBookFilename, accepting: false};
+            docxPreviewCandidate = candidate;
+            const status = document.getElementById('upload-status');
+            try {
+                const preview = await sendDocxUpload(file);
+                if (!isCurrentDocxPreview(candidate)) { return; }
+                if (typeof preview.text !== 'string' || typeof preview.policy_text !== 'string'
+                    || !Array.isArray(preview.warnings) || !preview.warnings.every(value => typeof value === 'string')
+                    || !/^[0-9a-f]{64}$/.test(preview.preview_digest || '')) {
+                    throw new Error('Invalid DOCX preview response; preview this file again.');
+                }
+                candidate.preview = preview;
+                document.getElementById('docx-preview-policy').textContent = preview.policy_text;
+                document.getElementById('docx-preview-warnings').textContent = preview.warnings.join('\n');
+                document.getElementById('docx-preview-text').textContent = preview.text;
+                document.getElementById('docx-preview-accept').disabled = false;
+                document.getElementById('docx-preview-panel').hidden = false;
+                status.textContent = 'Review the entire extracted text before accepting. The current book is unchanged.';
+            } catch (error) {
+                if (!isCurrentDocxPreview(candidate)) { return; }
+                window.resetDocxPreview();
+                document.getElementById('file-upload').value = '';
+                status.textContent = error.message;
+            }
+        };
+        window.cancelDocxPreview = function() {
+            if (docxPreviewCandidate?.selecting) {
+                document.getElementById('upload-status').textContent = 'Book selection has already been submitted; wait for its result before selecting another book.';
+                return;
+            }
+            window.resetDocxPreview();
+            window._bookSelectionEpoch++;
+            window._existingUploadSelectionRequest = {};
+            document.getElementById('file-upload').value = '';
+            document.getElementById('upload-status').textContent = 'DOCX preview cancelled. No new source selected.';
+        };
+        window.acceptDocxPreview = async function() {
+            const candidate = docxPreviewCandidate;
+            if (!candidate || !candidate.preview || candidate.accepting || !isCurrentDocxPreview(candidate)) { return; }
+            candidate.accepting = true;
+            document.getElementById('docx-preview-accept').disabled = true;
+            const status = document.getElementById('upload-status');
+            try {
+                const uploaded = await sendDocxUpload(candidate.file, candidate.preview.preview_digest);
+                if (!isCurrentDocxPreview(candidate)) { return; }
+                if (uploaded.preview_digest !== candidate.preview.preview_digest || typeof uploaded.stored_filename !== 'string') {
+                    throw new Error('DOCX acceptance receipt did not match the displayed preview.');
+                }
+                await enqueueBookSelection(candidate.request, async () => {
+                    if (!isCurrentDocxPreview(candidate)) { return; }
+                    if (!await ensureCastListEditsDiscardable()) {
+                        candidate.accepting = false;
+                        document.getElementById('docx-preview-accept').disabled = false;
+                        return;
+                    }
+                    if (!isCurrentDocxPreview(candidate)) { return; }
+                    candidate.selecting = true;
+                    document.getElementById('docx-preview-cancel').disabled = true;
+                    status.textContent = 'Selecting the accepted DOCX text...';
+                    const selected = await API.post('/api/uploads/select', {filename: uploaded.stored_filename});
+                    if (!isCurrentDocxPreview(candidate)) { return; }
+                    candidate.selectedBook = selected.stored_filename;
+                    applyCurrentBookFilename(selected.stored_filename);
+                    if (/^[0-9a-f]{64}$/.test(selected.book_identity_token || '')) {
+                        window._selectedUploadIdentity = {filename: currentBookFilename, token: selected.book_identity_token, request: candidate.request};
+                    }
+                    document.getElementById('existing-upload-select').value = '';
+                    status.textContent = 'Accepted DOCX text: ' + selected.stored_filename + '. Exact original and receipt retained.';
+                    document.getElementById('cast-list-panel').style.display = 'none';
+                    clearCastListEditor();
+                    await loadCastList(false);
+                    if (window._existingUploadSelectionRequest !== candidate.request
+                        || window._bookSelectionEpoch !== candidate.epoch
+                        || currentBookFilename !== selected.stored_filename) { return; }
+                    await loadExistingScriptUploads();
+                });
+            } catch (error) {
+                if (!isCurrentDocxPreview(candidate)
+                    && !(candidate.selectedBook === currentBookFilename
+                        && window._existingUploadSelectionRequest === candidate.request
+                        && window._bookSelectionEpoch === candidate.epoch)) { return; }
+                window.resetDocxPreview();
+                status.textContent = 'DOCX acceptance or selection was not confirmed. Check existing uploads and the current book before retrying. ' + error.message;
+            }
+        };
+
         document.getElementById('file-upload').addEventListener('change', async () => {
+            window.resetDocxPreview?.();
             const fileInput = document.getElementById('file-upload');
             const statusEl = document.getElementById('upload-status');
             if (fileInput.files.length === 0) { return; }
@@ -2338,6 +2466,10 @@
             const isCurrent = () => window._existingUploadSelectionRequest === request
                 && fileInput.files[0] === file;
             statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Loading file...</span>';
+            if (/\.docx$/i.test(file.name)) {
+                await window.previewDocxUpload(file, request);
+                return;
+            }
             try {
                 await enqueueBookSelection(request, async () => {
                     if (!isCurrent()) { return; }

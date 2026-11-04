@@ -1917,8 +1917,18 @@
                     <!-- Single Mode -->
                     <div id="script-single-area">
                         <div class="mb-4">
-                            <label class="form-label" for="file-upload">Select Book/Novel (Text, Markdown, or EPUB)</label>
-                            <input type="file" class="form-control" id="file-upload" accept=".txt,.md,.epub">
+                            <label class="form-label" for="file-upload">Select Book/Novel (Text, Markdown, EPUB, or DOCX)</label>
+                            <input type="file" class="form-control" id="file-upload" accept=".txt,.md,.epub,.docx">
+                            <div class="form-text">DOCX policy v2 supports body paragraphs, literal headings, known metadata and checked style inheritance. Tables, notes, tracked changes, hidden text, numbering and other unsupported structures are refused. Review and accept the extracted text before selection. Batch DOCX is unsupported.</div>
+                            <button type="button" class="btn btn-secondary" onclick="openRetainedDocxDetails()">Inspect retained DOCX files</button>
+                            <pre id="docx-retained-details" hidden style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:24rem;overflow:auto"></pre>
+                            <section id="docx-preview-panel" class="mt-2" hidden aria-label="DOCX extraction preview">
+                                <p id="docx-preview-policy"></p>
+                                <pre id="docx-preview-warnings" style="white-space:pre-wrap"></pre>
+                                <pre id="docx-preview-text" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:24rem;overflow:auto"></pre>
+                                <button id="docx-preview-accept" type="button" class="btn btn-primary" onclick="acceptDocxPreview()">Accept this exact text and select book</button>
+                                <button id="docx-preview-cancel" type="button" class="btn btn-secondary" onclick="cancelDocxPreview()">Cancel preview</button>
+                            </section>
                             <div class="form-check mt-2">
                                 <input class="form-check-input" type="checkbox" id="epub-extraction-report-enabled">
                                 <label class="form-check-label" for="epub-extraction-report-enabled">Include an EPUB extraction report with this import</label>

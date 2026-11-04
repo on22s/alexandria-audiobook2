@@ -131,11 +131,11 @@
             'source-scope-search': {what: 'Find a saved entry by its heading or words. Search does not change the book.'},
             'source-scope-entry': {what: 'Choose the first saved entry to retain. Preview checks the exact source words, chunk boundary, voices and saved audio before any change.'},
             'script-batch-mode': {what: 'Generate scripts for several books in one run instead of one.'},
-            'file-upload': {what: 'The book to annotate: plain text, Markdown or EPUB.'},
+            'file-upload': {what: 'Text, Markdown, EPUB or DOCX policy v2: body paragraphs, known metadata and checked style inheritance. DOCX requires preview and Accept; original, text and receipt are retained. Unsupported structures refuse. No inference starts. Inspect retained DOCX files for metadata and offline cleanup guidance.'},
             'epub-extraction-report-enabled': {what: 'Include a page-local EPUB import snapshot of source hashes, reading order and extraction decisions. It does not change speech text. Paths and chapter labels may be private; incomplete detail is marked. Re-upload to inspect another source revision.'},
             'existing-upload-select': {what: 'Reuse a book uploaded earlier instead of uploading it again.'},
             'script-first-person-narrator': {what: 'For books narrated in the first person: the narrator’s exact character name, so their narration and dialogue get one voice. Leave empty otherwise.'},
-            'script-batch-files': {what: 'The books for a multi-book run: text, Markdown or EPUB.'},
+            'script-batch-files': {what: 'The books for a multi-book run: text, Markdown or EPUB. DOCX batch import is unsupported; preview and accept DOCX individually first.'},
             'script-collision-policy': {what: 'What a multi-book run does when a book already has a saved script: skip it, save a new version, or back up and replace it.'},
             'script-batch-build-cast-lists': {what: 'Builds a cast list for each book that has none first, one extra request per book, so unnamed speakers get their own label instead of UNKNOWN.', recommend: 'On: in an A/B on 5 PDNC books, unnamed speakers went from 0% to 72% correct and named speakers from 69% to 93%.', source: '#653 / #728 cast-list A/B'},
             'review-batch-mode': {what: 'Review several saved books in one run instead of the current one.'},
@@ -306,6 +306,9 @@
         };
 
         const ACTION_HELP = {
+            'acceptDocxPreview': 'Confirm the exact displayed DOCX extraction, retain its original archive and receipt, then select the derived text. Does not start generation.',
+            'cancelDocxPreview': 'Discard this DOCX preview without selecting a new source. An acceptance already sent may retain confirmed files for recovery.',
+            'openRetainedDocxDetails': 'Read bounded retained-file metadata, including partial DOCX groups and observed quota bytes. No content verification or deletion. Shows storage location and offline backup/remove guidance.',
             'soundAssetsImport': 'Import and verify the selected audio for reuse. It does not select a cue or change book audio.',
             'soundAssetsCancel': 'Request import cancellation. Cleanup may continue briefly; refresh the library before retrying.',
             'soundAssetsRefresh': 'Read retained sound assets and incomplete imports. Refreshing stops any current asset audition.',

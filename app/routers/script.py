@@ -78,6 +78,8 @@ from epub_extraction_report import EpubExtractionReport
 from project_scope_files import capture_scope_file
 from source_upload_publication import create_source_upload_stage, publish_completed_upload
 from source_upload_stage import OwnedSourceUploadStage, get_upload_stage_accounting
+from docx_preview import extract_docx_preview, MAX_ARCHIVE as MAX_DOCX_ARCHIVE
+from docx_publication import DocxStorageLimit, publish_docx_upload
 from publication_source import (PublicationSourceLimit, get_upload_publication_update,
     apply_publication_source_update, restore_publication_source_update,
     get_saved_publication_source_bytes, get_publication_source_path,
@@ -143,6 +145,8 @@ MAX_MANUAL_REPLY_CHARACTERS = 2 * 1024 * 1024
 MAX_UPLOAD_STORAGE_BYTES = 8 * 1024**3
 MAX_SCRIPT_UPLOAD_BYTES = 512 * 1024**2
 MAX_UPLOAD_HASH_CACHE_ENTRIES = 512
+SELECTABLE_SOURCE_EXTENSIONS = frozenset({'.txt', '.md'})
+BATCH_SOURCE_EXTENSIONS = SELECTABLE_SOURCE_EXTENSIONS | {'.epub'}
 _upload_hash_cache = OrderedDict()
 _upload_hash_lock = threading.Lock()
 _upload_dedupe_lock = threading.Lock()
@@ -814,7 +818,7 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
                 facts = os.lstat(entry.path)
                 if (not entry.is_file(follow_symlinks=False)
                         or facts.st_nlink != 1 or entry.path == path or
-                        os.path.splitext(entry.name)[1].lower() not in {".txt", ".md"} or
+                        os.path.splitext(entry.name)[1].lower() not in SELECTABLE_SOURCE_EXTENSIONS or
                         facts.st_size != size):
                     continue
                 if _get_upload_hash(entry.path) == digest:
@@ -832,7 +836,7 @@ def _get_reusable_uploads() -> List[dict]:
             facts = os.lstat(entry.path)
             if (not entry.is_file(follow_symlinks=False) or not stat.S_ISREG(facts.st_mode)
                     or facts.st_nlink != 1
-                    or os.path.splitext(entry.name)[1].lower() not in {".txt", ".md"}):
+                    or os.path.splitext(entry.name)[1].lower() not in SELECTABLE_SOURCE_EXTENSIONS):
                 continue
             uploads.append({
                 "filename": entry.name, "size": facts.st_size, "modified": facts.st_mtime,
@@ -854,6 +858,8 @@ def _apply_upload_selection(path, before_publication=None):
     with ensure_book_switch_allowed(hold_task_mutex=False):
         try:
             options = {'timeout': 0}
+            from docx_publication import capture_docx_group
+            capture_docx_group(path)
             if before_publication is not None:
                 options['before_publication'] = before_publication
             return apply_book_input_selection(DATA_DIR, path,
@@ -874,7 +880,7 @@ def _select_upload(filename: str, *, include_identity=False):
     except OSError:
         facts = None
     if (facts is None or not stat.S_ISREG(facts.st_mode) or facts.st_nlink != 1
-            or os.path.splitext(path)[1].lower() not in {".txt", ".md"}):
+            or os.path.splitext(path)[1].lower() not in SELECTABLE_SOURCE_EXTENSIONS):
         raise HTTPException(status_code=404, detail=f"Reusable upload '{filename}' not found.")
     token = _apply_upload_selection(path)
     return (path, token) if include_identity else path
@@ -923,11 +929,27 @@ def get_upload_storage_bytes():
 
 from upload_operation import await_upload_operation
 
+@router.get("/api/uploads/docx-retained")
+def get_docx_retained_uploads():
+    from docx_retention import get_retained_docx_inventory
+    return get_retained_docx_inventory(UPLOADS_DIR, MAX_UPLOAD_STORAGE_BYTES)
+
 @router.post("/api/upload")
-async def upload_file(file: UploadFile = File(...), select_active: bool = True, include_extraction_report: bool = False):
+async def upload_file(file: UploadFile = File(...), select_active: bool = True, include_extraction_report: bool = False,
+                      docx_preview: bool = False, docx_confirmed: bool = False,
+                      docx_preview_digest: Optional[str] = None):
     safe_name = _require_safe_filename(file.filename or "", "Invalid or empty filename")
-    if os.path.splitext(safe_name)[1].lower() not in {".txt", ".md", ".epub"}:
-        raise HTTPException(status_code=400, detail="Supported source formats are TXT, Markdown and EPUB.")
+    is_docx = safe_name.lower().endswith('.docx')
+    if os.path.splitext(safe_name)[1].lower() not in BATCH_SOURCE_EXTENSIONS | {'.docx'}:
+        raise HTTPException(status_code=400, detail="Supported source formats are TXT, Markdown, EPUB and confirmed single-book DOCX.")
+    if is_docx:
+        if select_active or (not docx_preview and (not docx_confirmed
+                or not re.fullmatch('[0-9a-f]{64}', docx_preview_digest or ''))):
+            raise HTTPException(status_code=400, detail='DOCX requires preview, explicit confirmation and select_active=false before separate selection.')
+        if docx_preview and (docx_confirmed or docx_preview_digest is not None):
+            raise HTTPException(status_code=400, detail='DOCX preview cannot also confirm an upload.')
+    elif docx_preview or docx_confirmed or docx_preview_digest is not None:
+        raise HTTPException(status_code=400, detail='DOCX confirmation options require a DOCX file.')
     await asyncio.to_thread(os.makedirs, UPLOADS_DIR, exist_ok=True)
     # The lease is outside uploads so it is neither listed nor quota-counted.
     # Acquire in a worker; waiting for another upload must not block the loop.
@@ -954,17 +976,52 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
         available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
         if available <= 0:
             raise HTTPException(status_code=413, detail="Source upload storage limit reached.")
+        capture_limit = min(MAX_SCRIPT_UPLOAD_BYTES, available, MAX_DOCX_ARCHIVE if is_docx else MAX_SCRIPT_UPLOAD_BYTES)
         file_path, cancelled = await await_upload_operation(
             asyncio.to_thread(create_source_upload_stage, UPLOADS_DIR,
-                              limit=min(MAX_SCRIPT_UPLOAD_BYTES, available)))
+                              limit=capture_limit))
         owned_stages.append(file_path)
         stage_cleanup.callback(file_path.close)
         if cancelled is not None:
             raise cancelled
         _, cancelled = await await_upload_operation(
-            _save_upload_limited(file, file_path, min(MAX_SCRIPT_UPLOAD_BYTES, available)))
+            _save_upload_limited(file, file_path, capture_limit))
         if cancelled is not None:
             raise cancelled
+        if is_docx:
+            try:
+                raw, cancelled = await await_upload_operation(asyncio.to_thread(file_path.read_bytes))
+                if cancelled is not None:
+                    raise cancelled
+                preview, cancelled = await await_upload_operation(asyncio.to_thread(extract_docx_preview, raw))
+                if cancelled is not None:
+                    raise cancelled
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=redact_text(str(error))) from error
+            except (OSError, MemoryError) as error:
+                raise HTTPException(status_code=503, detail='DOCX processing is temporarily unavailable.') from error
+            if len(preview['text'].encode('utf-8')) > MAX_SCRIPT_UPLOAD_BYTES:
+                raise HTTPException(status_code=413, detail='Extracted DOCX text exceeds source upload limits.')
+            if docx_preview:
+                return {'status': 'preview', **preview}
+            if preview['preview_digest'] != docx_preview_digest:
+                raise HTTPException(status_code=409, detail='DOCX preview changed; preview and accept this exact file again.')
+            remaining = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
+            try:
+                result, cancelled = await await_upload_operation(asyncio.to_thread(
+                    publish_docx_upload, file_path, preview, safe_name, remaining=remaining))
+            except DocxStorageLimit as error:
+                raise HTTPException(status_code=413, detail=str(error)) from error
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            except (OSError, MemoryError) as error:
+                raise HTTPException(status_code=503, detail='DOCX publication was not confirmed; any already published recovery material remains retained. Check existing uploads before retrying.') from error
+            if cancelled is not None:
+                raise cancelled
+            path, names = result
+            return {'filename': file.filename, 'stored_filename': os.path.basename(path),
+                    'path': path, 'reused': False, 'book_identity_token': None,
+                    'docx_source': names, 'preview_digest': preview['preview_digest']}
         if safe_name.lower().endswith('.epub'):
             try:
                 archive_bytes, cancelled = await await_upload_operation(
@@ -2748,6 +2805,8 @@ def _resolve_batch_script_input(filename: str) -> str:
     safe_filename = secure_filename(filename)
     if not safe_filename or safe_filename != filename:
         raise ValueError(f"Invalid filename: {filename}")
+    if os.path.splitext(safe_filename)[1].lower() not in BATCH_SOURCE_EXTENSIONS:
+        raise ValueError(f"Unsupported batch source format: {filename}")
     input_path = os.path.join(UPLOADS_DIR, safe_filename)
     if not os.path.exists(input_path) and os.path.splitext(safe_filename)[1].lower() == ".epub":
         input_path = os.path.join(UPLOADS_DIR, os.path.splitext(safe_filename)[0] + ".txt")
@@ -2758,8 +2817,13 @@ def _resolve_batch_script_input(filename: str) -> str:
 
 def _read_and_validate_batch_script_source(job):
     """Read one batch source and reject unattested narrator metadata."""
-    with open(job["input_path"], encoding="utf-8") as source:
-        text = fix_mojibake(source.read())
+    from docx_publication import capture_docx_group
+    group = capture_docx_group(job['input_path'])
+    if group is not None:
+        text = fix_mojibake(group['text_bytes'].decode('utf-8'))
+    else:
+        with open(job["input_path"], encoding="utf-8") as source:
+            text = fix_mojibake(source.read())
     text, normalization_count = normalize_known_source_corruptions(text)
     narrator = job.get("first_person_narrator")
     if narrator and not is_narrator_attested(narrator, text):
@@ -2776,6 +2840,9 @@ def get_batch_script_source_identity(path):
 
 def get_validated_batch_script_source(job):
     """Reuse this request's validated source only while file identity matches."""
+    from docx_publication import get_docx_group_names
+    if get_docx_group_names(job['input_path']) is not None:
+        return _read_and_validate_batch_script_source(job)
     cached = job.get("prepared_source")
     if cached and get_batch_script_source_identity(job["input_path"]) == cached["identity"]:
         return cached["text"], cached["normalizations"]

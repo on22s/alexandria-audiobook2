@@ -13,6 +13,23 @@ from routers import script
 
 
 class BatchPathIdentityTests(unittest.TestCase):
+    def test_batch_rejects_existing_receipts_and_originals_before_claim(self):
+        for route in ('preflight', 'start'):
+            for name in ('book.docx-receipt.json', 'book.docx', 'book.json', 'book.pdf'):
+                with self.subTest(route=route, name=name), tempfile.TemporaryDirectory() as tmp:
+                    (Path(tmp) / name).write_text('Receipt is not source text.')
+                    app = FastAPI()
+                    app.include_router(script.router)
+                    with patch.object(script, 'UPLOADS_DIR', tmp), \
+                         patch.object(script, 'three_pass_refusal', return_value=None), \
+                         patch.object(script, 'build_batch_script_preflight', return_value={'workers': 1}), \
+                         patch.object(script, 'schedule_claimed_background_task') as claim, \
+                         TestClient(app, raise_server_exceptions=False) as client:
+                        response = client.post('/api/generate_script/batch/' + route,
+                                               json={'tasks': [{'filename': name}]})
+                    self.assertEqual(400, response.status_code, response.text)
+                    claim.assert_not_called()
+
     def test_batch_routes_reject_transformed_names_and_directory_before_claim(self):
         names=('../secret.txt','folder/book.txt','book.txt')
         for route in ('preflight','start'):

@@ -219,6 +219,8 @@ def inspect_active_book_recovery_candidates(root, *, byte_limit, cancel_check=No
         uploads = Path(os.path.abspath(core.UPLOADS_DIR))
         scripts = Path(os.path.abspath(core.SCRIPTS_DIR))
         name = source_path.name
+        from docx_publication import get_docx_group_names, capture_docx_group
+        docx_names = get_docx_group_names(source_path)
         saved_stem = name[:-5] if name.endswith('.json') else ''
         saved_reserved = ('.voice_config', '.meta', '.selection_binding', '.json.review_completed',
                           '.json.partial',
@@ -240,11 +242,12 @@ def inspect_active_book_recovery_candidates(root, *, byte_limit, cancel_check=No
         elif source_relative is None:
             if is_upload:
                 publication_raw = None
-                for relative in (name, name + '.publication.json'):
+                relatives = tuple(docx_names.values()) if docx_names else (name, name + '.publication.json')
+                for relative in relatives:
                     _check_cancelled(cancel_check)
                     if len(proofs) + len(missing) + len(directories) + len(external_proofs) >= MAX_FILES:
                         raise ValueError('Recovery candidate count exceeds its limit')
-                    is_publication = relative != name
+                    is_publication = relative == name + '.publication.json'
                     remaining = max(1, byte_limit - total)
                     proof, raw = capture_scope_file(uploads, relative,
                         limit=min(remaining, MAX_PUBLICATION_SOURCE_BYTES) if is_publication else remaining,
@@ -259,6 +262,16 @@ def inspect_active_book_recovery_candidates(root, *, byte_limit, cancel_check=No
                         unresolved.add('required_artifact_missing')
                     external_proofs.append((uploads, relative, proof))
                 source_provenance = provenance_status(external_proofs[0][2], publication_raw, 'text')
+                if docx_names:
+                    try:
+                        group = capture_docx_group(source_path, byte_limit=byte_limit, cancel_check=cancel_check)
+                        if any(group['proofs'][kind] != next(p for _, n, p in external_proofs if n == relative)
+                               for kind, relative in docx_names.items()):
+                            raise ValueError('DOCX group changed during inventory')
+                        source_provenance = 'current_docx_receipt'
+                    except (ValueError, OSError, TypeError, RecursionError):
+                        source_provenance = 'invalid_docx_receipt'
+                        unresolved.add('docx_group_missing_or_mismatched')
                 external.append({'kind': 'configured_upload', 'name': name,
                                  'files': [proof for _, _, proof in external_proofs]})
                 unresolved.add('external_source_capture_and_restore_not_implemented')
@@ -270,6 +283,19 @@ def inspect_active_book_recovery_candidates(root, *, byte_limit, cancel_check=No
             publication_raw = add(source_relative + '.publication.json', read=True)
             source_proof = proofs.get(source_relative, {'exists': False})
             source_provenance = provenance_status(source_proof, publication_raw, 'text' if is_upload else 'script')
+            if is_upload and docx_names:
+                for relative in docx_names.values():
+                    add((source_path.parent / relative).relative_to(root).as_posix(), required=True)
+                try:
+                    group = capture_docx_group(source_path, byte_limit=byte_limit, cancel_check=cancel_check)
+                    for kind, relative in docx_names.items():
+                        key = (source_path.parent / relative).relative_to(root).as_posix()
+                        if group['proofs'][kind] != {**proofs[key], 'path': relative}:
+                            raise ValueError('DOCX group changed during inventory')
+                    source_provenance = 'current_docx_receipt'
+                except (ValueError, OSError, TypeError, KeyError, RecursionError):
+                    source_provenance = 'invalid_docx_receipt'
+                    unresolved.add('docx_group_missing_or_mismatched')
             if is_saved:
                 unresolved.add('saved_source_classification_not_yet_qualified')
 
