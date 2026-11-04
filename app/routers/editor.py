@@ -405,6 +405,10 @@ class DriftCheckRequest(BaseModel):
     indices: Optional[List[int]] = None       # default: every done chunk
 
 
+class OutlierCheckRequest(BaseModel):
+    expected_book_token: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
 @router.head("/api/audiobook")
 @router.get("/api/audiobook")
 async def get_audiobook():
@@ -583,6 +587,7 @@ async def get_editor_quality(expected_book_token: Annotated[str, Query(pattern=r
 
 
 def _get_editor_quality_sync(expected_book_token):
+    from chunk_outlier_check import OutlierCheckError, OUTLIER_LABELS, get_outlier_voice_config
     root = os.path.dirname(SCRIPT_PATH)
     with ensure_book_state(root):
         identity = get_editor_book_identity(root)
@@ -590,8 +595,16 @@ def _get_editor_quality_sync(expected_book_token):
             raise HTTPException(status_code=409, detail="The selected book changed. Refresh Editor before reviewing its lines.")
         chunks = _get_editor_chunk_views(_ensure_editor_chunks(),expected_book_token)
         snapshot = _editor_poll_snapshots.ensure_snapshot(chunks, identity, None)
+        outlier_error = None
+        try:
+            voices = get_outlier_voice_config(project_manager.root_dir)
+        except OutlierCheckError as exc:
+            voices = None
+            outlier_error = str(exc)
         return {'book_token': snapshot['book_token'], 'revision': snapshot['revision'],
-                'rows': get_editor_review_facts(chunks, project_manager.get_chunk_audio_path,expected_book_token)}
+                'outlier_labels': OUTLIER_LABELS, 'outlier_error': outlier_error,
+                'rows': get_editor_review_facts(chunks, project_manager.get_chunk_audio_path,expected_book_token,
+                    voice_config=voices)}
 
 
 _deleted_chunk_receipts = {}
@@ -800,6 +813,80 @@ async def drift_check_endpoint(request: DriftCheckRequest, background_tasks: Bac
     # claim closes the gap between two rapid requests both seeing it as idle.
     schedule_claimed_background_task(background_tasks, "drift_check", task)
     return {"status": "started", "threshold": threshold, "measured": python_bin is not None}
+
+@router.post('/api/chunks/outlier_check')
+async def outlier_check_endpoint(request: OutlierCheckRequest, background_tasks: BackgroundTasks):
+    from chunk_outlier_check import (get_outlier_snapshot, check_chunk_outliers,
+        OutlierCheckCancelled, OutlierCheckError, MAX_SCAN_CHUNKS)
+    if is_task_running('audio'):
+        raise HTTPException(status_code=409, detail='Wait for audio rendering to stop before checking outliers.')
+    try:
+        snapshot = await asyncio.to_thread(get_outlier_snapshot, project_manager, request.expected_book_token)
+    except OutlierCheckError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail='Book inputs changed. Refresh Editor before checking outliers.') from exc
+    if len(snapshot['chunks']) > MAX_SCAN_CHUNKS:
+        raise HTTPException(status_code=422, detail=f'Outlier check supports at most {MAX_SCAN_CHUNKS} saved lines. Use a smaller book.')
+    state = process_state['outlier_check']
+
+    def task():
+        state.update(status='running', error=None, progress={'done': 0, 'total': 0},
+                     logs=['Checking acoustic proxies against same-character takes.'])
+
+        def check_active():
+            if state.get('cancel'):
+                raise OutlierCheckCancelled('Outlier check cancelled; no results saved.')
+            if is_task_running('audio'):
+                raise OutlierCheckError('Audio rendering started; no outlier results saved. Wait for it to stop and repeat the check.')
+
+        def progress(done, total):
+            state['progress'] = {'done': done, 'total': total}
+
+        try:
+            results = check_chunk_outliers(snapshot, check_active, progress)
+            project_manager.apply_outlier_results(snapshot, results, check_active)
+            from chunk_outlier_check import get_outlier_fact
+            from editor_poll_snapshot import get_snapshot_digest
+            voices_key = get_snapshot_digest(snapshot['book']['voices'])
+            facts = [get_outlier_fact({'status': 'done', 'outlier': dict(result,
+                population_key=snapshot['population_key'], voices_key=voices_key)},
+                snapshot['population_key'], voices_key) for result in results]
+            flagged = sum(fact['status'] == 'flagged' for fact in facts)
+            unavailable = sum(fact['status'] == 'unavailable' for fact in facts)
+            state['logs'].append(f'Acoustic proxies: {len(results)} takes, {flagged} flagged, '
+                                 f'{unavailable} incomplete/unavailable. Listen before deciding; not quality certification.')
+            state['status'] = 'done'
+        except OutlierCheckCancelled as exc:
+            state.update(status='cancelled', error=None)
+            state['logs'].append(str(exc))
+        except OutlierCheckError as exc:
+            state.update(status='failed', error=str(exc))
+            state['logs'].append(state['error'])
+        except Exception as exc:
+            logger.exception('Outlier check failed')
+            state.update(status='failed', error='Outlier check failed; no results saved. Refresh and try again.')
+            state['logs'].append(state['error'])
+        finally:
+            state['running'] = False
+
+    schedule_claimed_background_task(background_tasks, 'outlier_check', task, cpu_only=True)
+    with _gpu_lock:
+        state.update(book_token=request.expected_book_token, progress={'done': 0, 'total': 0})
+    return {'status': 'started', 'experimental': True}
+
+
+@router.post('/api/chunks/outlier_check/cancel')
+async def cancel_outlier_check(request: OutlierCheckRequest):
+    state = process_state['outlier_check']
+    with _gpu_lock:
+        if not state.get('running'):
+            raise HTTPException(status_code=409, detail='No outlier check is running.')
+        if state.get('book_token') != request.expected_book_token:
+            raise HTTPException(status_code=409, detail='This outlier check belongs to another book snapshot.')
+        state['cancel'] = True
+    return {'status': 'cancellation_requested'}
+
 
 @router.post("/api/chunks/{index}")
 async def update_chunk(index: int, update: ChunkUpdate,

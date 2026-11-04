@@ -409,7 +409,7 @@ def _save_occurrence_rules_admitted(request):
                         after = get_occurrence_speech_projection(updated, request.index, voices, settings['settings'])
                     changed = before['text'] != after['text']
                     if changed:
-                        updated.update(status='pending', audio_path=None, error=None, drift=None)
+                        updated.update(status='pending', audio_path=None, error=None, drift=None, outlier=None)
                     if updated != row:
                         chunks[request.index] = updated
                         project_manager._save_chunks_locked(chunks, uids_backfilled=True)

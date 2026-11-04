@@ -263,7 +263,7 @@ def restore_editor_take(manager, index, request, expected):
                             audio_source=str(path), publication_audio=proof['audio'],
                             restore_speech_receipt=speech is not None,
                             take=candidate['take'], status='done', audio_revision=proof['audio_revision'],
-                            error=None, drift=None, pronunciation_receipt=record['captured'].get('pronunciation_receipt'),
+                            error=None, drift=None, outlier=None, pronunciation_receipt=record['captured'].get('pronunciation_receipt'),
                             synthesis_receipt=record['captured']['synthesis_receipt'], speech_verification=speech,
                             speech_verification_failure=None, speech_verification_recheck=None, **{KEY:proof})
                     if updated is None:

@@ -403,6 +403,19 @@ const firstBatch = env => batchCalls(env)[0];
 
     env = setup();
     await env.w.loadCastingLibrary(); await settle();
+    for (const shape of ['stars', 'circles']) {
+        for (const color of ['red', 'amber', 'green', 'blue', 'purple']) {
+            const control = markButton(env, 'persona/dh/abel', shape, color);
+            eq(control.textContent, '', 'card marks display symbols only');
+            eq(control.parentElement.querySelectorAll('span').length, 0, 'card mark rows omit English headings');
+            includes(control.attrs['aria-label'], (shape === 'stars' ? 'Star' : 'Circle') + ' ' + color + ' for ABEL: off');
+            eq(control.attrs.title, control.attrs['aria-label']);
+            eq(control.attrs['aria-pressed'], 'false');
+            const icon = control.querySelectorAll('i')[0];
+            includes(icon.className, shape === 'stars' ? 'fa-star' : 'fa-circle');
+            eq(icon.attrs['aria-hidden'], 'true');
+        }
+    }
     await click(env, markButton(env, 'persona/dh/abel', 'stars', 'green'));
     batch = batchCalls(env).at(-1);
     eq(batch[2].changes[0].patch, {stars: ['green']});
@@ -410,6 +423,10 @@ const firstBatch = env => batchCalls(env)[0];
     includes(markButton(env, 'persona/dh/abel', 'stars', 'green').attrs['aria-label'], 'Star green for ABEL: on');
     await click(env, markButton(env, 'persona/dh/abel', 'stars', 'green'));
     eq(env.serverMarks['persona/dh/abel'].stars, []);
+    await click(env, $(env, 'view-table'));
+    eq(markButton(env, 'persona/dh/abel', 'stars', 'green').textContent, 'green', 'table controls retain their labels');
+    await click(env, $(env, 'view-cards'));
+    eq(markButton(env, 'persona/dh/abel', 'stars', 'green').textContent, '', 'card controls remain symbol-only after changing views');
     const tagInput = $(env, 'results').querySelectorAll('input').find(node => node.attrs['aria-label'] === 'New tag for ABEL');
     tagInput.value = 'scene:one';
     const tagAdd = $(env, 'results').querySelectorAll('button').find(node => node.attrs['aria-label'] === 'Add tag to ABEL');

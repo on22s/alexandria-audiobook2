@@ -53,13 +53,20 @@ const ctx={document:{getElementById:el},console,showToast:(message,type)=>warnin
  pollLoraTraining:()=>calls.push('lora_training'),_pollPreparerLogs:task=>calls.push(task),
  pollLogs:task=>calls.push(task),refreshBenchmarkStatus:()=>calls.push('benchmark'),
  pollExport:task=>calls.push(task),dsbLoadProjects:async name=>calls.push('dataset_builder:'+name),loadVoices:async()=>{},loadDesignedVoices:async()=>{},refreshLmStudioStatus:async()=>{},loadChunks:async()=>{},notifyJobDone:()=>{},
- _startPolling:(key,fetch,options)=>{ctx.poll={key,fetch,options};calls.push(key);}};
+  attachEditorOutlierCheck:()=>calls.push('outlier_check'),
+  _startPolling:(key,fetch,options)=>{ctx.poll={key,fetch,options};calls.push(key);}};
 vm.createContext(ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function showActionError('),coreSource.indexOf('function showConfirm(')),ctx);const claimStart=coreSource.indexOf('const taskStartButtons =');vm.runInContext(coreSource.slice(claimStart,coreSource.indexOf('// --- API Helpers ---',claimStart)),ctx);vm.runInContext(code,ctx);
 (async()=>{
 """
 
 
 class TaskReattachmentJsTests(unittest.TestCase):
+    def test_outlier_reattachment_fetches_owner_identity_before_attaching(self):
+        self.run_js(r"""
+const book='a'.repeat(64);let attached=null;statuses={outlier_check:{running:true,book_token:book}};ctx.attachEditorOutlierCheck=state=>{attached=state;};await ctx.reattachRunningPollers();
+assert.equal(attached.book_token,book);assert(requests.includes('/api/status/outlier_check'));assert.deepStrictEqual(calls,[]);
+""")
+
     def run_js(self,code):
         result=subprocess.run(['node','-e',HARNESS+code+'\n})().catch(e=>{console.error(e);process.exitCode=1;});',str(SOURCE),str(SOURCE.with_name('app-core.js'))],capture_output=True,text=True)
         self.assertEqual(0,result.returncode,result.stderr)

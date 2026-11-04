@@ -61,12 +61,15 @@ class ProjectStatusJournalTests(unittest.TestCase):
         return result, errors
 
     def test_second_manager_edit_preserves_deltas_and_same_uid_generation(self):
+        self.rows[0]['outlier'] = {'old': 'advisory evidence'}
+        self.manager.save_chunks(self.rows)
         result, errors = self.run_during_generation(
             lambda: ProjectManager(str(self.root)).update_chunk(1, {"text": "edited second"}))
         self.assertEqual(errors, [])
         self.assertEqual(result[0]["completed"], [0])
         final = json.loads(Path(self.manager.chunks_path).read_text())
         self.assertEqual(final[0]["status"], "done")
+        self.assertIsNone(final[0]['outlier'])
         self.assertEqual(final[1]["text"], "edited second")
         self.assertFalse(self.journal.exists())
         audio, rate = sf.read(self.root / final[0]["audio_path"])

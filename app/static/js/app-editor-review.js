@@ -1,6 +1,88 @@
 // Review saved facts; reuse the Editor's original controls, drafts and audio.
-const EDITOR_ISSUE_LABELS = {unknown: 'Unknown speaker', failed: 'Failed render', missing: 'Missing audio file', drift: 'Voice drift', speech_rejected: 'Rejected speech attempt', speech_review: 'Speech review needed', speech_unavailable: 'Speech check unavailable', speech_difference: 'Speech content difference', speech_historical: 'Historical speech evidence needs recheck', speech_not_checked: 'No current speech evidence'};
+const EDITOR_ISSUE_LABELS = {unknown: 'Unknown speaker', failed: 'Failed render', missing: 'Missing audio file', drift: 'Voice drift', outliers: 'Acoustic outliers', speech_rejected: 'Rejected speech attempt', speech_review: 'Speech review needed', speech_unavailable: 'Speech check unavailable', speech_difference: 'Speech content difference', speech_historical: 'Historical speech evidence needs recheck', speech_not_checked: 'No current speech evidence'};
 const EDITOR_DRIFT_LABELS = {not_rendered: 'Voice check not applicable before rendering', unmeasured: 'Voice check not measured', unavailable: 'Voice check unavailable or failed', flagged: 'Voice drift flagged', measured: 'Voice check measured; no drift flag'};
+const EDITOR_OUTLIER_LABELS = {not_rendered: 'Not rendered', unmeasured: 'Not checked', unavailable: 'Incomplete, stale or unavailable; not clean', flagged: 'Acoustic outlier: listen before deciding', measured: 'Acoustic proxies measured; no outlier flag, not quality certification'};
+let editorOutlierBook = null;
+
+function getEditorOutlierText(fact) {
+    const outlier = fact?.outlier;
+    if (!outlier) { return 'Outlier evidence is unavailable. Refresh review.'; }
+    const lines = [EDITOR_OUTLIER_LABELS[outlier.status] || EDITOR_OUTLIER_LABELS.unavailable];
+    for (const [metric, record] of Object.entries(outlier.metrics || {})) {
+        const value = Number.isFinite(record?.value) ? record?.value.toFixed(2) : 'unavailable';
+        const z = Number.isFinite(record?.z) ? record?.z.toFixed(2) : 'unavailable';
+        const median = Number.isFinite(record?.median) ? record.median.toFixed(2) : 'unavailable';
+        const spread = Number.isFinite(record?.spread) ? record.spread.toFixed(2) : 'unavailable';
+        lines.push(`${editorReviewData?.outlier_labels?.[metric] || metric}: ${value}; median ${median}; spread ${spread}; robust z ${z}${record?.flagged === true ? ' (flagged)' : ''}`);
+    }
+    if (outlier.error) { lines.push(outlier.error); }
+    if (editorReviewData?.outlier_error) { lines.push(editorReviewData.outlier_error); }
+    return lines.join('\n');
+}
+
+function attachEditorOutlierCheck(state) {
+    const book = state.book_token;
+    const button = document.getElementById('btn-outlier-check');
+    const cancel = document.getElementById('btn-outlier-cancel');
+    const status = document.getElementById('editor-outlier-status');
+    editorOutlierBook = /^[0-9a-f]{64}$/.test(book || '') ? book : null;
+    button.disabled = true;
+    cancel.disabled = !editorOutlierBook;
+    status.textContent = 'Measuring CPU acoustic proxies; no audio is changed. Partial results are not published.';
+    _startPolling('logs:outlier_check', () => API.get('/api/status/outlier_check'), {
+        doneCheck: current => !current.running,
+        onTick: current => {
+            if (current.book_token !== book) { return; }
+            if (current.progress) {
+                status.textContent = `${current.progress.done} / ${current.progress.total} takes scanned (experimental proxies).`;
+            }
+        },
+        onDone: async current => {
+            button.disabled = false;
+            cancel.disabled = true;
+            editorOutlierBook = null;
+            if (book !== chunkSnapshotBookToken || current.book_token !== book) { return; }
+            status.textContent = (current.logs || []).slice(-1)[0] || 'Scan ended without a report; not measured.';
+            await loadChunks(true);
+        }
+    });
+}
+
+async function runOutlierCheck() {
+    const button = document.getElementById('btn-outlier-check');
+    const cancel = document.getElementById('btn-outlier-cancel');
+    const status = document.getElementById('editor-outlier-status');
+    if (button.disabled) { return; }
+    if (isEditorEditPending()) {
+        status.textContent = 'Save or discard pending edits before checking acoustic outliers.';
+        return;
+    }
+    if (!/^[0-9a-f]{64}$/.test(chunkSnapshotBookToken || '')) {
+        status.textContent = 'Load the selected book in Editor before checking acoustic outliers.';
+        return;
+    }
+    const book = chunkSnapshotBookToken;
+    button.disabled = true;
+    try {
+        await API.post('/api/chunks/outlier_check', {expected_book_token: book});
+        attachEditorOutlierCheck({book_token: book});
+    } catch (error) {
+        button.disabled = false;
+        cancel.disabled = true;
+        status.textContent = 'Outlier start is unconfirmed. Check task status before retrying; no quality conclusion.';
+        showActionError('Outlier check failed', error, 'Refresh the selected book and inspect outlier task status before retrying.', 'warning');
+    }
+}
+
+async function cancelOutlierCheck() {
+    if (!editorOutlierBook) { return; }
+    try {
+        await API.post('/api/chunks/outlier_check/cancel', {expected_book_token: editorOutlierBook});
+        document.getElementById('editor-outlier-status').textContent = 'Cancellation requested; waiting for the scan to stop.';
+    } catch (error) {
+        showActionError('Outlier cancellation unconfirmed', error, 'Check outlier task status before retrying.', 'warning');
+    }
+}
 const EDITOR_SPEECH_LABELS = {not_checked: 'No current speech check', unavailable: 'Speech check unavailable', review: 'Transcript or acoustic differences need listening review', no_content_candidate: 'No material content candidate found; listening review still needed', corroborated_content_difference: 'Two ASR passes confirmed material missing or extra speech', review_confirmation_unavailable: 'Suspicious speech; stronger confirmation unavailable', review_short_acoustic_unavailable: 'Short-utterance acoustic check incomplete'};
 let editorReviewData = null;
 let editorReviewFresh = false;
@@ -140,6 +222,8 @@ function renderEditorLineInspector() {
         && editorReviewData.rows.find(item => item.uid === chunk.uid);
     renderEditorSpeechEvidence(chunk,fact);
     renderEditorRecordedInput(chunk, fact);
+    const outlierNode = document.getElementById('editor-line-outlier');
+    if (outlierNode) { outlierNode.textContent = getEditorOutlierText(fact); }
     set('editor-line-quality', fact ? `${fact.audio === 'present' ? 'Nonempty audio file present (quality not certified)' : fact.audio === 'missing' ? 'Saved audio file is missing, empty or outside the project' : 'Audio not rendered'} · ${EDITOR_DRIFT_LABELS[fact.drift]}` : 'Review facts are unavailable or stale. Refresh review.');
     const drift = chunk.drift;
     set('editor-line-drift-detail', drift && typeof drift === 'object' ? [Number.isFinite(drift.score) ? `Recorded similarity ${drift.score}` : '', Number.isFinite(drift.threshold) ? `threshold ${drift.threshold}` : '', typeof drift.reference === 'string' ? `reference: ${drift.reference}` : '', typeof drift.error === 'string' ? `check error: ${drift.error}` : ''].filter(Boolean).join(' · ') : 'No recorded voice-check details.');
@@ -305,6 +389,7 @@ function isEditorReviewDataValid(data) {
             && Array.isArray(row.issues) && new Set(row.issues).size === row.issues.length
             && row.issues.every(issue => Object.hasOwn(EDITOR_ISSUE_LABELS, issue))
             && ['present', 'missing', 'not_rendered'].includes(row.audio) && Object.hasOwn(EDITOR_DRIFT_LABELS, row.drift)
+            && (row.outlier === undefined || Object.hasOwn(EDITOR_OUTLIER_LABELS,row.outlier?.status))
             && (row.speech === undefined || Object.hasOwn(EDITOR_SPEECH_LABELS,row.speech))
             && (row.speech_attempt == null || row.speech_attempt === 'rejected')
             && (row.speech_recheck == null || Object.hasOwn(EDITOR_SPEECH_LABELS,row.speech_recheck));
@@ -337,7 +422,8 @@ function renderEditorQualityInbox(resetLimit = false) {
     const matches = rows.filter(row => filter === 'all_lines' || (row.issues.length && (filter === 'all' || row.issues.includes(filter))));
     const unmeasured = rows.filter(row => row.drift === 'unmeasured').length;
     const unavailable = rows.filter(row => row.drift === 'unavailable').length;
-    status.textContent = `${rows.filter(row => row.issues.length).length} lines needing review (${editorReviewData.rows.filter(row => row.issues.length).length} with saved findings; others lack current evidence) · ${Object.entries(EDITOR_ISSUE_LABELS).map(([key, label]) => `${rows.filter(row => row.issues.includes(key)).length} ${label.toLowerCase()}`).join(' · ')}. Voice checks: ${unmeasured} unmeasured, ${unavailable} unavailable. Audio file presence does not certify sound quality.`;
+    status.textContent = `${rows.filter(row => row.issues.length).length} lines needing review (${editorReviewData.rows.filter(row => row.issues.length).length} with saved findings; others lack current evidence) · ${Object.entries(EDITOR_ISSUE_LABELS).map(([key, label]) => `${rows.filter(row => row.issues.includes(key)).length} ${label.toLowerCase()}`).join(' · ')}. Voice checks: ${unmeasured} unmeasured, ${unavailable} unavailable. Acoustic checks: ${rows.filter(row => !row.outlier || row.outlier.status === 'unmeasured').length} unmeasured, ${rows.filter(row => row.outlier?.status === 'unavailable' || row.outlier?.missing?.length).length} incomplete/unavailable. Audio file presence does not certify sound quality.`;
+    if (editorReviewData.outlier_error) { status.textContent += ' ' + editorReviewData.outlier_error; }
     const shown = matches.slice(0, editorReviewLimit);
     more.hidden = shown.length === matches.length;
     const chunkNames = new Map(cachedChunks.map(chunk => [chunk.uid, chunk.speaker || chunk.type || 'Unknown speaker']));
