@@ -1050,15 +1050,20 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T07:05:56",
+  "written": "2026-11-05T10:07:50",
   "host": "RealMitch",
   "git": {
-   "commit": "9cf8578de0ab9c8b9ef6cb97955ad7de785325ef",
-   "branch": "fix/1710-lora-bf16",
-   "dirty": false,
-   "source_state": "clean",
+   "commit": "13021355aba10080c13161e2e620045318dcec71",
+   "branch": "t3/sentence-gap-report",
+   "dirty": true,
+   "source_state": "dirty:49811bfa9c9f",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    "M  app/sentence_gap_report.py",
+    "M  app/tests/test_sentence_gap_report.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  docs/sentence-gap-report.md"
+   ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
