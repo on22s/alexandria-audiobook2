@@ -187,7 +187,7 @@ process.on('beforeExit',()=>assert(done,'preview failure checks must complete'))
         source = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
         code = r'''const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const s=fs.readFileSync(process.argv[1],'utf8');let messages=[],casts=[],refresh=0,done=false;
-const c={window:{},API:{post:async()=>{throw new TypeError('Failed to fetch');},
+const c={window:{},_voiceCardsBookToken:'a'.repeat(64),API:{post:async(path,body)=>{assert.strictEqual(body.book_token,'a'.repeat(64));throw new TypeError('Failed to fetch');},
 del:async()=>{throw Error('Rejected <member>');}},showToast:(...a)=>messages.push(a),
 loadVoices:async()=>refresh++,loadCastLibrary:async()=>refresh++,
 applyConfirmedVoiceRemoval:async(b,m,remove)=>remove(),

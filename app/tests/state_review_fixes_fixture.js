@@ -22,6 +22,7 @@ function load(start, end) {
 }
 load('// Voice roster dropdowns:', '// End voice roster dropdowns.');
 load('function escapeHtml(', '// Parse a numeric input');
+load('function getSavedAdapterOption(', 'function showVoiceTypeOptions(');
 load('async function ensureStateCardCurrent(', 'function getStateVoiceCardsMarkup(');
 load('function getSuggestionCandidateConfig(', 'async function suggestVoices(');
 load('window.regeneratePersona =', 'window.generateAgeVersion =');

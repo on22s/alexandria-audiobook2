@@ -24,7 +24,7 @@ assert.equal(choice.checked,true);assert.equal(choice.value,'lora');assert.equal
 assert.match(card.querySelector('.tts-capability-notice').textContent,/assignment is kept/);
 document.getElementById('tts-mode').value='local';context.applyTtsCapabilityGuidance();assert.equal(choice.checked,true);assert.equal(choice.value,'lora');assert.equal(card.querySelector('.tts-capability-notice').hidden,true);assert.equal(document.getElementById('tts-device-group').style.display,'');
 document.getElementById('tts-mode').value='external';let saves=0;context.saveVoicesDebounced=()=>{saves++;};
-const core=fs.readFileSync(process.argv[1].replace('app-tts-capabilities.js','app-core.js'),'utf8'),start=core.indexOf('window.toggleVoiceType =');vm.runInContext(core.slice(start,core.indexOf('        async function refreshVoiceMetadata()',start)),context);
+const core=fs.readFileSync(process.argv[1].replace('app-tts-capabilities.js','app-core.js'),'utf8'),start=core.indexOf('function showVoiceTypeOptions(');vm.runInContext(core.slice(start,core.indexOf('        async function refreshVoiceMetadata()',start)),context);
 choice.value='design';context.toggleVoiceType(choice);assert.equal(saves,1);assert.equal(card.querySelector('.tts-capability-notice').hidden,false);assert.equal(card.querySelector('.design-opts').style.display,'block');assert.equal(choice.value,'design');
 context.setTtsCapabilityModes(null);assert.equal(choice.checked,true);assert.match(card.querySelector('.tts-capability-notice').textContent,/capabilities unavailable/);assert(!choice.hasAttribute('aria-description'));assert.match(document.getElementById('tts-capability-summary').textContent,/unavailable/);
 '''
