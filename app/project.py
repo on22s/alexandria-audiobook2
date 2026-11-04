@@ -1468,7 +1468,8 @@ class ProjectManager:
             if render_changed:
                 chunk["status"] = "pending"
                 chunk["audio_path"] = None
-                chunk["outlier"] = None
+                if "outlier" in chunk:
+                    chunk["outlier"] = None
                 if "drift" in chunk:
                     chunk["drift"] = None
 

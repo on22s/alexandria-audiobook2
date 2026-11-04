@@ -8358,6 +8358,7 @@
     "tests.test_project_chunks.ChunkUpdateNullTests.test_empty_and_unicode_strings_remain_editable_with_render_invalidated",
     "tests.test_project_chunks.ChunkUpdateNullTests.test_null_render_fields_reject_entire_request_before_any_mutation",
     "tests.test_project_chunks.ChunkUpdateNullTests.test_omitted_fields_and_null_pause_preserve_existing_render",
+    "tests.test_project_chunks.ChunkUpdateNullTests.test_render_edits_clear_existing_outlier_and_drift_without_removing_audio",
     "tests.test_project_chunks.InvalidExportAudioPathTests.test_all_invalid_and_cancellation_keep_the_existing_export",
     "tests.test_project_chunks.InvalidExportAudioPathTests.test_invalid_persisted_paths_are_skipped_without_decoding_outside_audio",
     "tests.test_project_chunks.InvalidExportAudioPathTests.test_partial_merge_publishes_decodable_audio_and_reports_every_skip",
