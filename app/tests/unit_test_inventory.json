@@ -7252,6 +7252,48 @@
     "tests.test_narration_context.NarrationIsSentAsContextTest.test_the_dialogue_tag_reaches_the_attribution_prompt",
     "tests.test_narration_context.NarrationOnlyBatchTest.test_a_batch_with_nothing_to_attribute_makes_no_llm_call"
   ],
+  "test_narration_markup": [
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_application_preserves_export_chapter_roles",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_atomic_receipt_survives_reload_without_reapplication_or_source_mutation",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_changed_source_script_voices_settings_and_editor_refuse",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_conflict_requires_explicit_resolution",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_escaped_literal_application_does_not_set_pause",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_existing_occurrence_decisions_require_explicit_author_resolution",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_preview_and_cancel_are_read_only_and_default_dispatch_is_literal",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_reauthoring_an_applied_literal_requires_explicit_reescaping",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_repeated_authored_applications_keep_prior_receipts_and_have_a_limit",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_source_facts_move_to_receipt_instead_of_describing_changed_words",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_write_failure_preserves_authoring_state_and_audio",
+    "tests.test_narration_markup.NarrationMarkupEditTests.test_wrong_book_uid_and_duplicate_after_edit_refuse",
+    "tests.test_narration_markup.NarrationMarkupParserTests.test_finite_bounds_and_determinism",
+    "tests.test_narration_markup.NarrationMarkupParserTests.test_invalid_internal_nested_and_voice_directives_are_located",
+    "tests.test_narration_markup.NarrationMarkupParserTests.test_literal_brackets_and_escaped_openers",
+    "tests.test_narration_markup.NarrationMarkupParserTests.test_unicode_spans_and_original_text_are_exact"
+  ],
+  "test_narration_markup_js": [
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_apply_error_restores_controls_and_requests_receipt_inspection",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_apply_waits_for_confirmation_and_exact_binding",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_confirmation_invalidation_prevents_apply_request",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_conflict_requires_explicit_keep_or_replace",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_drafts_and_pending_edits_refuse_preview_and_apply",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_late_preview_cannot_paint_after_invalidation",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_malformed_preview_never_enables_apply",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_read_only_preview_discard_and_decline",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_real_html_exposes_both_conflict_choices_and_control_help",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_stale_selection_book_revision_or_text_invalidates_preview",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_success_survives_a_poll_revision_change_without_touching_drafts",
+    "tests.test_narration_markup_js.NarrationMarkupJsTests.test_unchanged_report_has_no_apply_path"
+  ],
+  "test_narration_markup_routes": [
+    "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_actual_generation_dispatch_receives_applied_text",
+    "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_actual_unstarted_task_ownership_refuses_apply",
+    "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_conflict_resolution_receipt_reload_and_sources",
+    "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_nonconflict_choices_and_escaped_literal_repreview",
+    "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_preview_read_only_without_engine",
+    "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_save_failure_atomicity_and_real_retention",
+    "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_stale_inputs",
+    "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_wrong_book_uid_decision_and_duplicate"
+  ],
   "test_narrator_and_unknown": [
     "tests.test_narrator_and_unknown.NarratorPriorTest.test_a_narrator_who_is_not_in_the_book_is_rejected",
     "tests.test_narrator_and_unknown.NarratorPriorTest.test_first_person_awareness_allows_the_narrator_to_speak",

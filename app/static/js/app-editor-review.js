@@ -200,7 +200,7 @@ function renderEditorLineInspector() {
     document.getElementById('editor-line-empty').hidden = !!target;
     document.getElementById('editor-line-content').hidden = !target;
     document.querySelectorAll('#chunks-table-body .editor-selected-line').forEach(row => row.classList.remove('editor-selected-line'));
-    if (!target) { editorReviewSelection = null; resetEditorSpeechPreview(); window.applyWordTimingInspector?.(); window.applySpeechVerificationInspector?.(); window.applyTakeHistoryInspector?.(); return; }
+    if (!target) { editorReviewSelection = null; resetEditorSpeechPreview(); window.applyWordTimingInspector?.(); window.applySpeechVerificationInspector?.(); window.applyTakeHistoryInspector?.(); window.applyNarrationMarkupInspector?.(); return; }
     const {chunk, row} = target;
     row.classList.add('editor-selected-line');
     const {values, dirty} = getEditorReviewRowState(target);
@@ -233,7 +233,7 @@ function renderEditorLineInspector() {
     document.getElementById('editor-line-play').disabled = !audio?.getAttribute('src') || (fact && fact.audio === 'missing');
     document.getElementById('editor-line-generate').disabled = chunk.status === 'generating';
     window.applyWordTimingInspector?.();
-    window.applySpeechVerificationInspector?.(); window.applyTakeHistoryInspector?.();
+    window.applySpeechVerificationInspector?.(); window.applyTakeHistoryInspector?.(); window.applyNarrationMarkupInspector?.();
 }
 
 function renderEditorSpeechEvidence(chunk, fact) {
