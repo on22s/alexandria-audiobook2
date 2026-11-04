@@ -1024,6 +1024,39 @@ const firstBatch = env => batchCalls(env)[0];
         await click(env, $(env, 'research-select-page'));
         eq(researchState.selection.size, 999, 'shown-page selection over the cap is refused atomically');
         ok(env.toasts.some(([type, message]) => message.includes('exceed 1000')));
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        env.batchGate = new Promise(resolve => { env.releaseBatch = resolve; });
+        env.serverMarks['persona/dh/abel'].status = 'reject';
+        await change(env, selectByLabel(env, 'Review status for ABEL'), 'callback');
+        env.w.CastingLibrary.state().research.saveMark(VOICES[4], {stars: []});
+        env.releaseBatch(); await settle();
+        eq(batchCalls(env).length, 1, 'a write queued behind a refused save is not sent');
+        ok(env.toasts.some(([type, message]) => message.includes('queued casting change was not saved')),
+           'the dropped queued write tells the user');
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        await click(env, $(env, 'research-select-filtered'));
+        await change(env, $(env, 'research-bulk-status'), 'shortlist');
+        const undoState = env.w.CastingLibrary.state().research.state();
+        ok(undoState.selection.size > 1, 'bulk change keeps its selection');
+        await change(env, $(env, 'status'), 'shortlist');
+        const shortlisted = undoState.selection.size;
+        await click(env, $(env, 'research-undo'));
+        await settle();
+        ok(shortlisted > 0, 'the shortlist filter still shows the selected voices');
+        eq([...undoState.selection], ['persona/dh/abel'], 'undo drops voices that left the filter from the selection');
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        const researchFilters = env.w.CastingLibrary.state().research.state();
+        await click(env, $(env, 'research-filter-tag').querySelectorAll('button')[0]);
+        ok(researchFilters.chips.size > 0, 'a research chip is active');
+        $(env, 'results').querySelectorAll('button').find(button => / variants$/.test(button.textContent)).click();
+        await settle();
+        eq(researchFilters.chips.size, 0, 'opening variants clears research filters that would hide the group');
     }
 
     console.log(JSON.stringify({passed: true, assertions}));

@@ -249,9 +249,9 @@ def is_group_speaker_label(name):
 
 def is_speaker_merge_allowed(variant, canonical):
     """Protect narration and groups, allowing the same group's spelling."""
-    narrator_labels = {"NARRATOR", "NARRATION", "NARRATIVE"}
-    if (variant.strip().upper() in narrator_labels
-            or canonical.strip().upper() in narrator_labels | {"UNKNOWN"}):
+    protected_labels = {"NARRATOR", "NARRATION", "NARRATIVE", "UNKNOWN"}
+    if (variant.strip().upper() in protected_labels
+            or canonical.strip().upper() in protected_labels):
         return False
     if is_group_speaker_label(variant) or is_group_speaker_label(canonical):
         first = " ".join(unicodedata.normalize("NFC", variant).casefold().split())

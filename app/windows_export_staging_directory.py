@@ -484,6 +484,8 @@ class WindowsStageDirectory:
         self.check()
         with (self.path / name).open('xb') as stream:
             stream.write(b'1')
+            stream.flush()
+            os.fsync(stream.fileno())
 
 
 def _member(name):

@@ -452,6 +452,11 @@ def main():
         except (OSError, ValueError) as error:
             print(f"Error: invalid alias registry: {error}")
             sys.exit(1)
+    try:
+        get_existing_aliases(aliases_path)
+    except (OSError, ValueError) as error:
+        print(f"Error: invalid alias registry: {error}")
+        sys.exit(1)
 
     config_path = get_app_config_path(data_dir, root, base)
     config = load_app_config(config_path)
