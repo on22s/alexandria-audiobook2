@@ -171,6 +171,8 @@ class ProfilerPreflightIdentityTests(unittest.TestCase):
             first, second = root / 'python-a.exe', root / 'python-b.exe'
             first.write_bytes(b'synthetic interpreter A')
             second.write_bytes(b'synthetic interpreter B')
+            first.chmod(0o755)
+            second.chmod(0o755)
             model = root / 'fixture.gguf'
             model.write_bytes(b'synthetic model')
             cfg = {'zips_dir': tmp, 'rocm_python': str(first),
