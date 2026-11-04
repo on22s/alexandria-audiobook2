@@ -378,7 +378,15 @@ a measurement, what we recommend and why.
 
 ### 2 · Script
 
-- **Select Book/Novel** (TXT, MD or EPUB — EPUB is converted on upload), or **reuse an
+- **DOCX preview**: single-book DOCX policy v2 imports require an exact text preview
+  and explicit acceptance. The original archive, derived TXT and binding receipt
+  are retained separately. Unsupported Word structures are refused; ordinary
+  metadata and checked style inheritance are supported within the bounded profile.
+  Actual Word/LibreOffice producer output remains unqualified. Inspect retained
+  DOCX files for filenames, bytes, partial groups, storage location and offline
+  backup/remove guidance; inspection is metadata-only, with no deletion API.
+  See [DOCX import scope](docs/docx-preview-design.md).
+- **Select Book/Novel** (TXT, MD, EPUB or supported DOCX — EPUB is converted on upload), or **reuse an
   existing upload**.
 - **EPUB import snapshot** (optional): inspect source/text hashes, spine order and
   extraction decisions without changing imported text. See the

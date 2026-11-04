@@ -52,6 +52,10 @@ def _finite_float(value):
 
 
 def _read_source_snapshot(path, *, include_bytes=False):
+    from docx_publication import capture_docx_group
+    group = capture_docx_group(path)
+    if group is not None:
+        return group['proofs']['text']['sha256'], group['text_bytes'] if include_bytes else None
     source = Path(path)
     if source.is_symlink() or not source.is_file():
         raise ValueError('Selected source is unavailable or is a symlink')

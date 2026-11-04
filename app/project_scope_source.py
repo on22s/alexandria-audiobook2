@@ -17,8 +17,13 @@ def get_scope_source_snapshot(state, *, cancel_check=None,
         raise ValueError('Source character limit must be a positive integer.')
     input_path, strip_front_matter = get_source_preparation(state)
     path = Path(os.path.abspath(input_path))
-    proof, raw = capture_scope_file(path.parent, path.name, include_bytes=True, limit=byte_limit,
-                                    cancel_check=cancel_check)
+    from docx_publication import capture_docx_group
+    group = capture_docx_group(path, byte_limit=byte_limit, cancel_check=cancel_check)
+    if group is None:
+        proof, raw = capture_scope_file(path.parent, path.name, include_bytes=True, limit=byte_limit,
+                                        cancel_check=cancel_check)
+    else:
+        proof, raw = group['proofs']['text'], group['text_bytes']
     if not proof['exists']:
         raise ValueError('The selected original source is missing.')
     source, encoding = get_decoded_source_text(raw)

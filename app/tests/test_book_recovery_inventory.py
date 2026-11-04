@@ -20,6 +20,31 @@ from project_scope_admission import ensure_scope_admission
 
 
 class BookRecoveryInventoryTests(unittest.TestCase):
+    def test_docx_group_is_inventoried_and_missing_original_is_not_current(self):
+        from docx_preview import extract_docx_preview
+        from docx_publication import publish_docx_upload
+        from source_upload_publication import create_source_upload_stage
+        from tests.test_docx_preview import archive as docx_archive
+
+        with self.fixture() as (root, state):
+            raw = docx_archive()
+            stage = create_source_upload_stage(root, limit=len(raw))
+            try:
+                stage.write(raw)
+                path, names = publish_docx_upload(stage, extract_docx_preview(raw),
+                    'Synthetic book.docx', remaining=1000000)
+            finally:
+                stage.close()
+            state['input_file_path'] = path
+            (root / 'state.json').write_text(json.dumps(state))
+            result = inventory.inspect_active_book_recovery_candidates(root, byte_limit=1000000)
+            self.assertEqual('current_docx_receipt', result['source_provenance'])
+            self.assertTrue(set(names.values()) <= {item['path'] for item in result['files']})
+            (root / names['original']).unlink()
+            result = inventory.inspect_active_book_recovery_candidates(root, byte_limit=1000000)
+            self.assertEqual('invalid_docx_receipt', result['source_provenance'])
+            self.assertIn('docx_group_missing_or_mismatched', result['unresolved'])
+
     @contextlib.contextmanager
     def fixture(self):
         with tempfile.TemporaryDirectory() as tmp:
