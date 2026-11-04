@@ -3511,6 +3511,21 @@
                                        <dt>Text <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('text')">Edit text</button></dt><dd id="editor-line-text" class="editor-line-text"></dd>
                                        <dt>Delivery <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('instruct')">Edit delivery</button></dt><dd id="editor-line-instruct" class="editor-line-text"></dd>
                                        <dt>Pause after <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('pause_after')">Edit pause</button></dt><dd id="editor-line-pause"></dd>
+                                       <dt>Pause markup</dt><dd><details id="editor-line-markup">
+                                           <summary>Opt-in pause markup</summary>
+                                           <p class="small">Ordinary text is literal. Save a line ending in <code>[[pause:250ms]]</code>, then preview here. Use integer milliseconds, 0 through 760000. Escape a literal opener as <code>\[[</code>. Internal pauses require an explicit Editor line split first; voice directives are unsupported.</p>
+                                           <button type="button" id="editor-line-markup-check" class="btn btn-outline-secondary btn-sm" onclick="previewNarrationMarkup()" title="Inspect saved text, proposed spoken words and a terminal pause without saving or starting generation.">Preview saved-line markup</button>
+                                           <label for="editor-line-markup-choice" class="visually-hidden">Resolve existing pause conflict</label>
+                                           <select id="editor-line-markup-choice" class="form-select form-select-sm mt-2" onchange="applyNarrationMarkupInspector()" title="Explicitly keep your existing saved pause or replace it with the proposed markup pause." hidden>
+                                               <option value="">Choose how to resolve the pause conflict</option>
+                                               <option value="keep">Keep my saved pause</option>
+                                               <option value="replace">Replace with the proposed pause</option>
+                                           </select>
+                                           <pre id="editor-line-markup-preview" class="small editor-line-text"></pre>
+                                           <p id="editor-line-markup-status" class="small" role="status">Preview and apply start no inference. Source and Script remain unchanged. Applied receipts retain original line text.</p>
+                                           <button type="button" id="editor-line-markup-apply" class="btn btn-outline-primary btn-sm" onclick="applyNarrationMarkup()" title="Confirm this exact preview, retaining the original text in a receipt and detaching the changed line from its old take. No audio is generated." disabled>Confirm application...</button>
+                                           <button type="button" id="editor-line-markup-cancel" class="btn btn-outline-secondary btn-sm" onclick="cancelNarrationMarkup()" title="Discard this preview without changing saved text, pauses or audio. This does not undo an application already sent.">Discard preview</button>
+                                       </details></dd>
                                        <dt>Render error</dt><dd id="editor-line-error" class="small editor-line-text"></dd>
                                        <dt>Audio and voice check</dt><dd id="editor-line-quality" class="small"></dd><dd id="editor-line-drift-detail" class="small"></dd>
                                        <dt>Acoustic sibling outliers (experimental)</dt><dd id="editor-line-outlier" class="small editor-line-text"></dd>
@@ -3936,7 +3951,8 @@
     <script src="/static/js/app-synthesis-windows.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-speech-verification.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-guides.js?v=__APP_BUILD__"></script>
-<script src="/static/js/app-audio-channels.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-narration-markup.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-audio-channels.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-voicelab.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workspace.js?v=__APP_BUILD__"></script>

@@ -2945,6 +2945,60 @@
         "title": "MergeRequest",
         "type": "object"
       },
+      "NarrationMarkupApplication": {
+        "properties": {
+          "binding": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Binding",
+            "type": "string"
+          },
+          "decision": {
+            "pattern": "^(apply|keep|replace)$",
+            "title": "Decision",
+            "type": "string"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "expected_uid",
+          "binding",
+          "decision"
+        ],
+        "title": "NarrationMarkupApplication",
+        "type": "object"
+      },
+      "NarrationMarkupSelection": {
+        "properties": {
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "expected_uid": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Expected Uid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "expected_uid"
+        ],
+        "title": "NarrationMarkupSelection",
+        "type": "object"
+      },
       "NarratorPreviewRequest": {
         "properties": {
           "focus_speaker": {
@@ -7602,6 +7656,100 @@
           }
         },
         "summary": "Insert Chunk"
+      }
+    },
+    "/api/chunks/{index}/narration-markup/apply": {
+      "post": {
+        "operationId": "apply_narration_markup_api_chunks__index__narration_markup_apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationMarkupApplication"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Narration Markup"
+      }
+    },
+    "/api/chunks/{index}/narration-markup/preview": {
+      "post": {
+        "operationId": "preview_narration_markup_api_chunks__index__narration_markup_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationMarkupSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Narration Markup"
       }
     },
     "/api/chunks/{index}/speech_verification": {

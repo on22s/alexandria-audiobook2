@@ -331,6 +331,16 @@ class BatchGenerateRequest(BaseModel):
     expected_repair_revision: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
+class NarrationMarkupSelection(BaseModel):
+    expected_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_uid: str = Field(min_length=1, max_length=128)
+
+
+class NarrationMarkupApplication(NarrationMarkupSelection):
+    binding: str = Field(pattern=r"^[0-9a-f]{64}$")
+    decision: str = Field(pattern=r"^(apply|keep|replace)$")
+
+
 class AudioRepairSelection(BaseModel):
     expected_options_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
     expected_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -911,6 +921,25 @@ async def insert_chunk(index: int,
     if chunks is None:
         raise HTTPException(status_code=404, detail="Invalid chunk index")
     return {"status": "ok", "total": len(chunks)}
+
+
+@router.post("/api/chunks/{index}/narration-markup/preview")
+async def preview_narration_markup(index: int, request: NarrationMarkupSelection):
+    from narration_markup_edit import get_saved_narration_markup_preview
+    try:
+        return await asyncio.to_thread(get_saved_narration_markup_preview,
+            project_manager, index, request.expected_book_token, request.expected_uid)
+    except (TimeoutError, ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.post("/api/chunks/{index}/narration-markup/apply")
+async def apply_narration_markup(index: int, request: NarrationMarkupApplication):
+    from narration_markup_edit import apply_saved_narration_markup
+    return await asyncio.to_thread(_apply_chunk_edit, apply_saved_narration_markup,
+        project_manager, index, request.expected_book_token, request.expected_uid,
+        request.binding, request.decision)
+
 
 @router.delete("/api/chunks/{index}")
 async def delete_chunk(index: int,
