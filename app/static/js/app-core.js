@@ -4701,7 +4701,7 @@
                                                         html += females.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
                                                         html += '</optgroup>';
                                                     }
-                                                    return html;
+                                                    return html + getSavedAdapterOption(voiceType === 'builtin_lora' ? config.adapter_id : '', models);
                                                 })()}
                                             </select>
                                         </div>
@@ -4747,6 +4747,7 @@
                                         <div class="col-md-6">
                                             <select class="form-select lora-adapter-select" aria-label="${escapeHtml('Trained LoRA voice for ' + label)}">
                                                 <option value="">-- Select trained adapter --</option>
+                                                ${getSavedAdapterOption(voiceType === 'lora' ? config.adapter_id : '', window._loraModelsCache || [])}
                                                 ${(window._loraModelsCache || []).map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}</option>`).join('')}
                                             </select>
                                         </div>
@@ -4810,7 +4811,12 @@
             `).join('');
         }
 
-        window.toggleVoiceType = (radio) => {
+        function getSavedAdapterOption(adapterId, models) {
+            if (!adapterId || models.some(model => model.id === adapterId)) { return ''; }
+            return `<option value="${escapeHtml(adapterId)}" selected>${escapeHtml(adapterId)} (saved, not in the current list)</option>`;
+        }
+
+        function showVoiceTypeOptions(radio) {
             const card = radio.closest('.card-body');
             card.querySelector('.custom-opts').style.display = radio.value === 'custom' ? 'block' : 'none';
             card.querySelector('.builtin-lora-opts').style.display = radio.value === 'builtin_lora' ? 'block' : 'none';
@@ -4819,6 +4825,10 @@
             card.querySelector('.design-opts').style.display = radio.value === 'design' ? 'block' : 'none';
             card.querySelector('.ensemble-opts').style.display = radio.value === 'ensemble' ? 'block' : 'none';
             window.applyTtsCapabilityGuidance?.();
+        }
+
+        window.toggleVoiceType = (radio) => {
+            showVoiceTypeOptions(radio);
             saveVoicesDebounced();
         };
 
@@ -5028,7 +5038,8 @@
             if (!versionId) { return; }
             const speaker = select.closest('.voice-card')?.dataset.voice;
             try {
-                await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions/${encodeURIComponent(versionId)}/select`, {});
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions/${encodeURIComponent(versionId)}/select`,
+                    _voiceCardsBookToken ? {book_token: _voiceCardsBookToken} : {});
                 await loadVoices();
                 showToast(`Selected ${versionId} for ${speaker}.`, 'success');
             } catch (e) { showActionError("Version selection failed", e, "Reload Voices to check the active saved version before selecting again."); }
@@ -5573,7 +5584,7 @@
             const radio = body.querySelector(`.voice-type[value="${sugg.type}"]`);
             if (radio) {
                 radio.checked = true;
-                toggleVoiceType(radio);
+                showVoiceTypeOptions(radio);
             }
 
             // Set the suggested adapter in the matching dropdown
@@ -5636,6 +5647,7 @@
                 });
                 snapshot.reconcile();
                 await loadCastLibrary();
+                await loadVoices();
             } catch (e) {
                 showActionError("Failed to apply suggestion", e, "Check the current character voice and cast library before applying the suggestion again.");
             }
@@ -5656,6 +5668,7 @@
                 });
                 Object.values(snapshots).forEach(snapshot => snapshot.reconcile());
                 await loadCastLibrary();
+                await loadVoices();
             } catch (e) {
                 showActionError("Failed to apply suggestions", e, "Check the current character voices and cast library before applying the suggestions again.");
             }
@@ -6157,7 +6170,8 @@
         async function removeStylePoint(name, fromIndex, button = null) {
             try {
                 await applyConfirmedVoiceRemoval(button, `Remove the voice-style change for ${name} from line ${fromIndex + 1}? Existing rendered audio is not changed.`, async () => {
-                    await API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}`);
+                    const scope = _voiceCardsBookToken ? `?book_token=${encodeURIComponent(_voiceCardsBookToken)}` : '';
+                    await API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}${scope}`);
                     await loadVoices();
                 });
             } catch (e) {

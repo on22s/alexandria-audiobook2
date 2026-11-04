@@ -1263,7 +1263,7 @@ def merge_annotations_with_source(annotated_text: str, source_words: list) -> st
             # longer and, if it clears the fuzzy bar, broadcast the chunk
             # emphasis across the matched source positions.
             chunk_n, src_n = i2 - i1, j2 - j1
-            if chunk_n == 1 and src_n > 1 and j1 not in src_to_tok:
+            if chunk_n == 1 and src_n > 1:
                 cat = ''.join(src_match[j1:j2])
                 sim = difflib.SequenceMatcher(
                     None, annot_words[i1], cat, autojunk=False

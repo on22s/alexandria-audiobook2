@@ -403,6 +403,8 @@ def write_jsonl_atomic(entries: list, output_path: Path):
             temporary = Path(f.name)
             for entry in entries:
                 f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+            f.flush()
+            os.fsync(f.fileno())
         temporary.replace(output_path)
     finally:
         if temporary is not None:

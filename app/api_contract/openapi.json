@@ -4275,6 +4275,18 @@
       "StylePointRequest": {
         "additionalProperties": true,
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "character_style": {
             "maxLength": 400,
             "title": "Character Style",
@@ -4966,6 +4978,24 @@
           }
         },
         "title": "VoiceApprovalRequest",
+        "type": "object"
+      },
+      "VoiceBookScope": {
+        "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          }
+        },
+        "title": "VoiceBookScope",
         "type": "object"
       },
       "VoiceCandidateFavoriteRequest": {
@@ -15820,6 +15850,22 @@
               "title": "From Index",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "book_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Token"
+            }
           }
         ],
         "responses": {
@@ -16076,6 +16122,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceBookScope",
+                "default": {}
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {

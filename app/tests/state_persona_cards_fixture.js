@@ -33,6 +33,7 @@ function load(first, last) {
 }
 load('// Voice roster dropdowns:', '// End voice roster dropdowns.');
 load('function escapeHtml(', '// Parse a numeric input');
+load('function getSavedAdapterOption(', 'function showVoiceTypeOptions(');
 load('function getVoiceCardMetadata(', '// Suggest members');
 load('function collectVoiceConfig()', 'function onVoiceReadyChange(');
 load('function onToggleHideReady()', 'let _voiceStatusClearTimer');

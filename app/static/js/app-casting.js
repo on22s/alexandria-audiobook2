@@ -351,6 +351,7 @@
         foot.append(button(count + ' variants', 'btn btn-sm btn-outline-secondary mb-2', () => {
             el('search').value = ''; s.chips.clear();
             for (const id of ['book', 'gender', 'age', 'status', 'health']) { el(id).value = ''; }
+            if (s.research) { s.research.clearFilters(); }
             s.variant = getNameKey(voice.name); rerender();
         }));
         foot.append(...markControls(voice));

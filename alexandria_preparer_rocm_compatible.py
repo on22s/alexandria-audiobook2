@@ -2045,7 +2045,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                 "pass --resume to continue it."
             )
         for name in os.listdir(temp_dir):
-            if name == 'metadata.jsonl' or re.fullmatch(r'sample_[0-9]+\.wav', name):
+            if name in ('metadata.jsonl', 'rejected_chunks.jsonl') or re.fullmatch(r'sample_[0-9]+\.wav', name):
                 path = os.path.join(temp_dir, name)
                 if os.path.isdir(path) and not os.path.islink(path):
                     raise RunStateError(f'Generated path is unexpectedly a directory: {path}')
@@ -2578,6 +2578,7 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         current_word_ends   = current_word_ends[cut_at + 1:]
                         current_start = current_word_starts[0] if current_word_starts else chunk_end_time
                         prev_raw_text = text
+                        prev_raw_speaker = chunk_word_data[0].get("speaker", "UNKNOWN")
                         # Context is updated by full-flush and tail paths — don't double-append here (BUG E fix)
                         continue  # Skip the per-chunk code below
 

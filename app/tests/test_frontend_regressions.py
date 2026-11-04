@@ -467,7 +467,7 @@ class FrontendTests(unittest.TestCase):
         js = _read_frontend_source()
         self.assertIn('onclick="voiceChangesHere(${chunk.id})"', js)
         self.assertIn("API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`", js)
-        self.assertIn("API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}`)", js)
+        self.assertIn("API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}${scope}`)", js)
         self.assertIn("renderStyleTimeline(voice.name, config)", js)
         # Exercise metadata preservation rather than require a particular key whitelist.
         import subprocess

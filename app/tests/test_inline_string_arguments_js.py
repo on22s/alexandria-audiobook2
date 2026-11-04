@@ -21,7 +21,7 @@ class InlineStringArgumentsJsTests(unittest.TestCase):
     def run_js(self,code,payload):
         script=r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8'),payload=JSON.parse(process.argv[2]);
-const context={currentBookFilename:'fixture',showConfirm:async()=>true};vm.createContext(context);
+const context={currentBookFilename:'fixture',_voiceCardsBookToken:null,showConfirm:async()=>true};vm.createContext(context);
 const guard=source.indexOf('async function applyConfirmedVoiceRemoval(');vm.runInContext(source.slice(guard,source.indexOf('window.deleteVoiceCandidate =',guard)),context);
 vm.runInContext(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')),context);
 const a=source.indexOf('function getVoiceCandidateMarkup('),b=source.indexOf('function getLibraryVoiceReference(',a);vm.runInContext(source.slice(a,b),context);

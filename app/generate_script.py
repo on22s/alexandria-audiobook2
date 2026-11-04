@@ -315,16 +315,16 @@ def load_generation_checkpoint(output_path, fingerprint):
             return accepted[:index]
         quality = item.get("quality")
         if not isinstance(quality, dict):
-            return []
+            return accepted[:index]
         if quality.get("passed") is True:
             continue
         if item.get("near_miss_accepted") is not True:
-            return []
+            return accepted[:index]
         try:
             if not is_trigram_only_near_miss(quality):
-                return []
+                return accepted[:index]
         except (AttributeError, TypeError, ValueError):
-            return []
+            return accepted[:index]
     return accepted
 
 

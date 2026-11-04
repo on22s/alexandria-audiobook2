@@ -175,6 +175,10 @@ class VoiceTargetScope(BaseModel):
     book_token: Optional[str] = Field(default=None, pattern=BOOK_TOKEN_PATTERN)
 
 
+class VoiceBookScope(BaseModel):
+    book_token: Optional[str] = Field(default=None, pattern=BOOK_TOKEN_PATTERN)
+
+
 class GeneratePersonasRequest(StateRequestScope):
     advanced: bool = False
     batch_size: int = 40
@@ -522,7 +526,7 @@ async def remove_voice_version(speaker: str, version_id: str, book_token: Option
 
 
 @router.post("/api/voices/{speaker}/versions/{version_id}/select")
-async def select_voice_version(speaker: str, version_id: str):
+async def select_voice_version(speaker: str, version_id: str, request: VoiceBookScope = VoiceBookScope()):
     await asyncio.to_thread(_require_script_speaker, speaker)
     def select(entry):
         version = (entry.get("versions") or {}).get(version_id)
@@ -537,7 +541,7 @@ async def select_voice_version(speaker: str, version_id: str):
         get_validated_voice_changes(speaker, entry, after)
         entry.clear()
         entry.update(after)
-    entry, revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, select)
+    entry, revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, select, request.book_token)
     return {"status": "selected", "speaker": speaker, "version_id": version_id,
             "config": entry, "revision": revision}
 
@@ -640,6 +644,7 @@ async def preview_narrator(request: NarratorPreviewRequest):
 class StylePointRequest(VoiceStylePoint):
     from_index: int = Field(ge=0)
     character_style: str = Field(max_length=400)
+    book_token: Optional[str] = Field(default=None, pattern=BOOK_TOKEN_PATTERN)
 
 
 @router.post("/api/voices/{speaker}/style_timeline")
@@ -654,7 +659,7 @@ async def add_style_point(speaker: str, request: StylePointRequest):
             points.append({"from_index": request.from_index,
                            "character_style": request.character_style.strip()})
         current["style_timeline"] = sorted(points, key=lambda p: int(p["from_index"]))
-    entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, add)
+    entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, add, request.book_token)
     return {"status": "saved", "speaker": speaker, "style_timeline": entry.get("style_timeline", [])}
 
 
@@ -903,12 +908,12 @@ async def clear_version_timeline(speaker: str, book_token: Optional[str] = None)
 
 
 @router.delete("/api/voices/{speaker}/style_timeline/{from_index}")
-async def remove_style_point(speaker: str, from_index: int):
+async def remove_style_point(speaker: str, from_index: int, book_token: Optional[str] = None):
     await asyncio.to_thread(_require_script_speaker, speaker)
     def remove(current):
         current["style_timeline"] = [p for p in (current.get("style_timeline") or [])
                                      if isinstance(p, dict) and int(p.get("from_index", -1)) != from_index]
-    entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, remove)
+    entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, remove, book_token)
     return {"status": "saved", "speaker": speaker, "style_timeline": entry.get("style_timeline", [])}
 
 

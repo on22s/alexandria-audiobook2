@@ -468,7 +468,11 @@
         function queueWrite(task) {
             const epoch = state().epoch;
             const guarded = () => {
-                if (state().epoch !== epoch || st.needsReload) { return {ok: false, stale: true}; }
+                if (state().epoch !== epoch) { return {ok: false, stale: true}; }
+                if (st.needsReload) {
+                    notify('warning', 'A queued casting change was not saved. Reload the casting library to reconcile before trying again.');
+                    return {ok: false, stale: true};
+                }
                 return task();
             };
             const run = st.chain.then(guarded, guarded);
@@ -596,6 +600,7 @@
                         {changes, action: bounded((direction === 'undo' ? 'Undo: ' : 'Redo: ') + entry.action, MAX_ACTION)});
                     if (state().epoch !== epoch) { requireReconciliation(); return; }
                     applyServerMarks(result.marks);
+                    pruneSelection();
                     st.activity = activityList(result.activity);
                     from.pop();
                     to.push(entry);

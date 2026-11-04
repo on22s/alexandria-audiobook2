@@ -7578,6 +7578,19 @@
     "tests.test_ordered_index_schema.OrderedIndexSchemaTests.test_tuple_rejection_keeps_portable_schema_and_sticks_only_for_endpoint_and_run",
     "tests.test_ordered_index_schema.OrderedIndexSchemaTests.test_whole_feature_rejection_retains_existing_single_fallback"
   ],
+  "test_outside_review_fixes": [
+    "tests.test_outside_review_fixes.DurabilityTests.test_corrected_jsonl_is_on_disk_before_it_replaces_the_output",
+    "tests.test_outside_review_fixes.DurabilityTests.test_windows_recovery_guard_is_synced_like_its_posix_sibling",
+    "tests.test_outside_review_fixes.GenerationCheckpointPrefixTests.test_a_bad_quality_record_keeps_the_validated_prefix",
+    "tests.test_outside_review_fixes.NicknameRegistryTests.test_invalid_registry_reports_the_handled_error_without_append",
+    "tests.test_outside_review_fixes.PreparerAlignmentTests.test_buffered_batches_track_the_speaker_and_fresh_runs_clear_old_rejects",
+    "tests.test_outside_review_fixes.PreparerAlignmentTests.test_emphasis_covers_every_word_of_a_name_the_asr_split",
+    "tests.test_outside_review_fixes.SpeakerMergeTests.test_unknown_is_protected_on_both_sides_of_a_merge",
+    "tests.test_outside_review_fixes.VoiceBookFenceTests.test_clients_without_a_token_keep_working_and_a_malformed_token_is_refused",
+    "tests.test_outside_review_fixes.VoiceBookFenceTests.test_version_selection_and_style_points_pass_the_book_token_to_the_write",
+    "tests.test_outside_review_fixes.VoiceCardJsTests.test_a_saved_adapter_outside_the_list_stays_selected",
+    "tests.test_outside_review_fixes.VoiceCardJsTests.test_showing_an_applied_suggestion_does_not_queue_a_second_save"
+  ],
   "test_overnight_cleanup": [
     "tests.test_overnight_cleanup.OvernightCleanupTests.test_cleanup_keeps_lease_until_server_shutdown_finishes",
     "tests.test_overnight_cleanup.OvernightCleanupTests.test_cleanup_waits_for_another_jobs_real_kernel_lease",
