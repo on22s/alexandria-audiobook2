@@ -671,7 +671,8 @@ def test_save_voice_config():
     # re-saves the same key with a changed field and a second, independent
     # field to confirm the merge-write path doesn't silently no-op or corrupt
     # an existing key on a second write to the same name.
-    r = post("/api/save_voice_config", json={
+    snapshot = get('/api/voice_config/snapshot').json()
+    r = post("/api/save_voice_config", params={k: snapshot[k] for k in ('revision', 'book_token')}, json={
         f"{TEST_PREFIX}voice": {
             "type": "custom",
             "voice": "Ryan",
@@ -684,7 +685,8 @@ def test_save_voice_config():
     if data.get("status") != "saved":
         raise TestFailure(f"Expected status=saved, got {data}")
 
-    r2 = post("/api/save_voice_config", json={
+    snapshot = get('/api/voice_config/snapshot').json()
+    r2 = post("/api/save_voice_config", params={k: snapshot[k] for k in ('revision', 'book_token')}, json={
         f"{TEST_PREFIX}voice": {
             "type": "custom",
             "voice": "Ryan",

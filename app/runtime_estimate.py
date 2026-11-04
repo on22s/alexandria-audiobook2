@@ -2,7 +2,7 @@
 import math
 
 from project import MP3_BITRATE
-from tts import get_pause_duration_ms
+from tts import DEFAULT_PAUSE_MS, SAME_SPEAKER_PAUSE_MS, get_pause_duration_ms
 
 # The TTS pipeline writes 16-bit mono WAV at 24 kHz.
 WAV_SAMPLE_RATE = 24000
@@ -85,14 +85,16 @@ def get_runtime_totals(chunks, durations):
             'total_chunks': total_chunks}
 
 
-def get_pause_seconds(chunks):
+def get_pause_seconds(chunks, pause_ms=DEFAULT_PAUSE_MS,
+                      same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS):
     """Silence the export puts between consecutive chunks, by the production pause rule."""
     rows = [chunk for chunk in chunks if isinstance(chunk, dict)]
-    return sum(get_pause_duration_ms(previous, following)
+    return sum(get_pause_duration_ms(previous, following, pause_ms, same_speaker_pause_ms)
                for previous, following in zip(rows, rows[1:])) / 1000.0
 
 
-def get_book_runtime_estimate(chunks, durations):
+def get_book_runtime_estimate(chunks, durations, pause_ms=DEFAULT_PAUSE_MS,
+                              same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS):
     """Estimate the finished audiobook's runtime and file sizes (never raises on odd rows).
 
     Speech is measured or projected per chunk; the pauses between chunks are added by the
@@ -110,7 +112,8 @@ def get_book_runtime_estimate(chunks, durations):
         rate = FALLBACK_CHARS_PER_SECOND
         low_rate = FALLBACK_CHARS_PER_SECOND
         high_rate = FALLBACK_CHARS_PER_SECOND
-    measured_seconds = totals['measured_seconds'] + get_pause_seconds(chunks)
+    pause_seconds = get_pause_seconds(chunks, pause_ms, same_speaker_pause_ms)
+    measured_seconds = totals['measured_seconds'] + pause_seconds
     remaining_chars = totals['remaining_chars']
     total_seconds = measured_seconds + remaining_chars / rate
     low_seconds = measured_seconds + remaining_chars / low_rate
@@ -124,7 +127,7 @@ def get_book_runtime_estimate(chunks, durations):
         'high_seconds': round(high_seconds, 1),
         'done_chunks': totals['done_chunks'],
         'total_chunks': totals['total_chunks'],
-        'pause_seconds': round(get_pause_seconds(chunks), 1),
+        'pause_seconds': round(pause_seconds, 1),
         'wav_bytes': int(round(total_seconds * WAV_BYTES_PER_SECOND)),
         'mp3_bytes': int(round(total_seconds * MP3_BYTES_PER_SECOND)),
     }

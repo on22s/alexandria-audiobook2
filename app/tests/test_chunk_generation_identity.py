@@ -13,8 +13,49 @@ from unittest.mock import patch
 import numpy as np
 import soundfile as sf
 from project import ProjectManager
+from gpu_stats import is_oom_failure
 
 class ChunkGenerationIdentityTests(unittest.TestCase):
+    def test_oom_classifier_requires_allocation_evidence(self):
+        class OutOfMemoryError(RuntimeError):
+            pass
+        class ProviderMemoryError(OutOfMemoryError):
+            pass
+        for error in (RuntimeError('CUDA error: invalid device ordinal'),
+                      RuntimeError('HIP error: invalid device function'),
+                      RuntimeError('CUDA error: device-side assert triggered')):
+            with self.subTest(error=str(error)):
+                self.assertFalse(is_oom_failure(error))
+        for error in (MemoryError(), ProviderMemoryError(),
+                      RuntimeError('CUDA out of memory'),
+                      RuntimeError('HIP error: out of memory'),
+                      'CUBLAS_STATUS_ALLOC_FAILED', 'cannot allocate memory',
+                      'MPS backend out of memory', 'alloc failed'):
+            with self.subTest(error=repr(error)):
+                self.assertTrue(is_oom_failure(error))
+
+    def test_nonmemory_gpu_failures_do_not_retry_parallel_or_native_requests(self):
+        for mode in ('parallel', 'native'):
+            for message in ('CUDA error: invalid device ordinal',
+                            'HIP error: invalid device function'):
+                with self.subTest(mode=mode, message=message), tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+                    manager = self.get_manager(Path(tmp))
+                    calls = []
+                    def voice(text, instruct, speaker, config, path):
+                        calls.append(text)
+                        raise RuntimeError(message)
+                    def batch(chunks, config, output, seed):
+                        calls.extend(chunk['text'] for chunk in chunks)
+                        return {'completed': [], 'failed': [(1, message)]}
+                    manager.engine = SimpleNamespace(generate_voice=voice, generate_batch=batch)
+                    result = (manager.generate_chunks_parallel([1], max_workers=2)
+                              if mode == 'parallel' else manager.generate_chunks_batch([1], batch_size=2))
+                    self.assertEqual(['B words'], calls)
+                    self.assertEqual([], result['completed'])
+                    self.assertEqual([(1, message)], result['failed'])
+                    row = manager.load_chunks()[1]
+                    self.assertEqual(('error', None), (row['status'], row['audio_path']))
+
     def get_manager(self,root):
         manager=ProjectManager(str(root));rows=[]
         for i,name in enumerate(('A','B','C')):

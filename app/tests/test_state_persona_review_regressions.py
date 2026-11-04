@@ -50,7 +50,7 @@ class StatePersonaReviewRegressions(unittest.TestCase):
                         del body['ARTHUR']['versions'][version]
                     before = path.read_bytes()
                     payload = {'revision': snapshot['revision'], 'book_token': snapshot['book_token'], 'voices': body} if endpoint.endswith('/save') else body
-                    result = client.post(endpoint, json=payload)
+                    result = client.post(endpoint, json=payload, params={k: snapshot[k] for k in ('revision', 'book_token')})
                     self.assertEqual(result.status_code, 409, result.text)
                     self.assertEqual(path.read_bytes(), before)
 

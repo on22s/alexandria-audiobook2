@@ -162,6 +162,34 @@ class PersonaGroundingTests(unittest.TestCase):
         self.assertEqual(characters[0]['sample_lines'], ['Leave the lever alone!'])
         self.assertEqual(characters[0]['features'], ['Dry voice.'])
 
+    def test_ambiguous_discovery_cannot_contaminate_character_references(self):
+        batch = [{'speaker': 'MRS DARCY', 'text': 'I prefer a gentle voice.',
+                  '_source_entry_index': 0}]
+        ambiguous = {'name': 'Darcy', 'traits': {'gender': 'female'},
+                     'features': ['Female.'], 'voice_clues': ['Gentle voice.'],
+                     'evidence': [{'entry_index': 0, 'quote': 'I prefer a gentle voice.'}],
+                     'sample_lines': ['I prefer a gentle voice.']}
+        exact = {**ambiguous, 'name': 'MRS DARCY', 'features': ['Valid observation.']}
+        for roster in (['MR DARCY', 'MRS DARCY'], ['MRS DARCY', 'MR DARCY']):
+            with self.subTest(roster=roster), tempfile.TemporaryDirectory() as refs:
+                personas._write_batch_character_refs(
+                    refs, [{'name': 'MR DARCY', 'features': ['Original observation.']}], roster, 0)
+                original = Path(personas._character_ref_path(refs, 'MR DARCY')).read_bytes()
+                with patch.object(personas, 'call_llm_for_object', return_value={
+                        'characters': [copy.deepcopy(ambiguous), copy.deepcopy(exact)]}):
+                    characters = personas._discover_batch_characters(
+                        object(), 'fixture', 'prompt', batch, 1, allowed_speakers=roster)
+                personas._write_batch_character_refs(refs, characters, roster, 1)
+                personas._write_batch_character_refs(refs, [copy.deepcopy(ambiguous)], roster, 2)
+                self.assertEqual(original, Path(personas._character_ref_path(refs, 'MR DARCY')).read_bytes())
+                self.assertEqual(['MRS DARCY'], [item['name'] for item in characters])
+                self.assertEqual({'gender': 'female'}, characters[0]['traits'])
+                reference = personas._load_character_ref(refs, 'MRS DARCY')
+                self.assertEqual(['Valid observation.'], reference['features'])
+                self.assertEqual(['Gentle voice.'], reference['voice_clues'])
+                self.assertEqual([ambiguous['evidence']],
+                                 [item['evidence'] for item in reference['observations']])
+
     def test_ordinary_invented_discovery_sample_cannot_reach_preview(self):
         from types import SimpleNamespace
         previews = []

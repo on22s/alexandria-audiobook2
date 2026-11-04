@@ -152,6 +152,70 @@ class VoiceLabHealthTests(unittest.TestCase):
 
 
 class ProfilerPreflightIdentityTests(unittest.TestCase):
+    def test_changed_interpreter_rejects_old_preflight_before_claims(self):
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import voicelab
+        api = FastAPI()
+        api.include_router(voicelab.router)
+        probe = {'torch': 'fixture', 'hip': None, 'gpu': None,
+                 'deps': dict.fromkeys(('librosa', 'peft', 'speechbrain', 'llama_cpp'), True),
+                 'python': 'fixture'}
+        with tempfile.TemporaryDirectory() as tmp, TestClient(api, raise_server_exceptions=False) as client:
+            root = Path(tmp)
+            (root / '_deduped').mkdir()
+            (root / '_deduped' / 'fixture.zip').write_bytes(b'synthetic dataset')
+            first, second = root / 'python-a.exe', root / 'python-b.exe'
+            first.write_bytes(b'synthetic interpreter A')
+            second.write_bytes(b'synthetic interpreter B')
+            first.chmod(0o755)
+            second.chmod(0o755)
+            model = root / 'fixture.gguf'
+            model.write_bytes(b'synthetic model')
+            cfg = {'zips_dir': tmp, 'rocm_python': str(first),
+                   'profiler_model': str(model), 'epub_dirs': []}
+            with patch.object(voicelab, 'DATA_DIR', tmp), \
+                 patch.object(voicelab, '_load_voicelab_config', side_effect=lambda: copy.deepcopy(cfg)), \
+                 patch.object(voicelab, '_probe_voicelab_interpreter', return_value=probe) as readiness, \
+                 patch.object(voicelab, '_run_profiler_preflight'), \
+                 patch.object(voicelab.shutil, 'disk_usage', return_value=SimpleNamespace(free=30 * 1024 ** 3)), \
+                 patch.object(voicelab, 'check_global_gpu_lock', side_effect=AssertionError('stale preflight reached GPU guard')) as gpu, \
+                 patch.object(voicelab, 'claim_gpu_task') as claim, \
+                 patch.object(voicelab, 'schedule_claimed_background_task') as schedule:
+                for stage in ('quality', 'dedup', 'train', 'evaluate', 'profile', 'name'):
+                    with self.subTest(stage=stage):
+                        gpu.reset_mock()
+                        cfg['rocm_python'] = str(first)
+                        body = {'stages': [stage], 'device': 'cpu'}
+                        original = client.post('/api/voicelab/preflight', json=body)
+                        self.assertEqual(200, original.status_code, original.text)
+                        before = original.json()
+                        self.assertTrue(before['ready'], before)
+                        unchanged = client.post('/api/voicelab/preflight', json=body).json()
+                        self.assertEqual(before['preflight_id'], unchanged['preflight_id'])
+                        cfg['rocm_python'] = str(second)
+                        after = client.post('/api/voicelab/preflight', json=body).json()
+                        self.assertTrue(after['ready'], after)
+                        command = voicelab._voicelab_build_commands(voicelab.VoiceLabRequest(**body), cfg, tmp)[0][1]
+                        if stage == 'name':
+                            self.assertEqual(before['preflight_id'], after['preflight_id'])
+                            self.assertNotEqual(str(second), command[0])
+                            continue
+                        self.assertEqual(str(second), command[0])
+                        if stage == 'train':
+                            self.assertEqual(str(second), command[command.index('--python') + 1])
+                        start = client.post('/api/voicelab/start', json={**body, 'preflight_id': before['preflight_id']})
+                        self.assertEqual(409, start.status_code, start.text)
+                        self.assertIn('inputs changed', start.json()['detail'])
+                        self.assertNotEqual(before['preflight_id'], after['preflight_id'])
+                        gpu.assert_not_called()
+                        claim.assert_not_called()
+                        schedule.assert_not_called()
+                        self.assertEqual(str(second), readiness.call_args.args[0])
+
     def test_changed_profile_inputs_reject_old_preflight_before_gpu_claim(self):
         from pathlib import Path
         import sys

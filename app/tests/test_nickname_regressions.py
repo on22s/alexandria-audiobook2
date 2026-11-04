@@ -416,6 +416,50 @@ class ReservedNarratorAliasTests(unittest.TestCase):
 
 
 class NicknameAliasGraphSafetyTests(unittest.TestCase):
+    def test_locked_publication_preserves_human_terminal_identity(self):
+        from speaker_identity import get_resolved_speaker_merge_map
+        human = {'HUMAN ALIAS': 'APPROVED ROOT'}
+        for proposals in ({'APPROVED ROOT': 'OTHER ROOT'},
+                          {'approved-root': 'OTHER ROOT'},
+                          {'APPROVED ROOT': 'BRIDGE', 'BRIDGE': 'OTHER ROOT'}):
+            with self.subTest(proposals=proposals), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp, 'aliases.json')
+                path.write_text(json.dumps(human, indent=3) + '\n')
+                before = path.read_bytes()
+                saved = find_nicknames.save_discovered_aliases(
+                    str(path), proposals, roster=['APPROVED ROOT', 'OTHER ROOT'])
+                self.assertEqual('APPROVED ROOT',
+                                 get_resolved_speaker_merge_map(saved)['HUMAN ALIAS'])
+                expected = dict(human)
+                if 'BRIDGE' in proposals:
+                    expected['BRIDGE'] = 'OTHER ROOT'
+                self.assertEqual(expected, saved)
+                self.assertEqual(expected, json.loads(path.read_text()))
+                if expected == human:
+                    self.assertEqual(before, path.read_bytes())
+                assert_file_lock_released(str(path))
+
+    def test_safe_proposals_protect_normalized_terminal_roots_in_both_modes(self):
+        from speaker_identity import get_safe_alias_proposals
+        human = {'HUMAN ALIAS': 'INTERMEDIATE', 'INTERMEDIATE': 'APPROVED JOS\u00c9'}
+        for flatten in (True, False):
+            for root in ('APPROVED JOS\u00c9', 'approved-jose\u0301'):
+                for target in ('OTHER ROOT', 'BRIDGE'):
+                    proposals = {root: target, 'BRIDGE': 'OTHER ROOT',
+                                 'NEW ALIAS': 'HUMAN ALIAS', 'SAFE ALIAS': 'OTHER ROOT'}
+                    original = dict(proposals)
+                    with self.subTest(flatten=flatten, root=root, target=target):
+                        safe = get_safe_alias_proposals(
+                            [proposals], ['APPROVED JOS\u00c9', 'OTHER ROOT'], human,
+                            flatten=flatten)
+                        self.assertEqual({
+                            'BRIDGE': 'OTHER ROOT', 'SAFE ALIAS': 'OTHER ROOT',
+                            'NEW ALIAS': 'APPROVED JOS\u00c9' if flatten else 'HUMAN ALIAS',
+                        }, safe)
+                        self.assertEqual(original, proposals)
+                        self.assertEqual({'HUMAN ALIAS': 'INTERMEDIATE',
+                                          'INTERMEDIATE': 'APPROVED JOS\u00c9'}, human)
+
     def test_actual_discovery_rejects_cycles_across_and_within_waves_and_resolves_chains(self):
         from unittest.mock import patch
         entries=[{'speaker':name,'text':'Line '+name} for name in ('A','B','C','D')]

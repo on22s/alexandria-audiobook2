@@ -12307,7 +12307,42 @@
     },
     "/api/save_voice_config": {
       "post": {
+        "description": "Accept legacy raw maps only with explicitly supplied snapshot query guards.",
         "operationId": "save_voice_config_api_save_voice_config_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "revision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Revision"
+            }
+          },
+          {
+            "in": "query",
+            "name": "book_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Token"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

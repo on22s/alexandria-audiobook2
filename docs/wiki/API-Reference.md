@@ -1,5 +1,14 @@
 # API reference
 
+**Voice-save migration:** Previously unbound `/api/save_voice_config` clients must migrate.
+Before editing, capture `GET /api/voice_config/snapshot`, then send
+`{"revision": snapshot.revision, "book_token": snapshot.book_token, "voices": changes}`
+to `POST /api/voice_config/save`, as the current UI does. The legacy raw-map
+examples below require both originating snapshot values as explicit `revision`
+and `book_token` query parameters. Missing guards or stale identity return 409;
+reload and review the current book before retrying. Never obtain fresh guards
+merely to submit a payload created for an earlier book.
+
 Everything the web interface does is an HTTP call, so the app can be scripted. This page shows
 the common tasks with examples. The **complete list of all 181 routes**, generated from the
 code, is in the README's [API reference](../../README.md#api-reference); the interactive docs are
@@ -78,12 +87,17 @@ curl http://127.0.0.1:4200/api/annotated_script
 
 ## Voices
 
+Before each independent save example, read `/api/voice_config/snapshot` before
+preparing the edits. Set the shell variables `REVISION` and `BOOK_TOKEN` to that
+response's `revision` and `book_token`. A successful save changes the revision;
+review a new snapshot before preparing another edit, never just to retry stale edits.
+
 ```bash
 # the speakers and their current voice settings
 curl http://127.0.0.1:4200/api/voices
 
 # save voice settings
-curl -X POST http://127.0.0.1:4200/api/save_voice_config \
+curl -X POST "http://127.0.0.1:4200/api/save_voice_config?revision=${REVISION:?Set originating revision}&book_token=${BOOK_TOKEN:?Set originating book token}" \
   -H "Content-Type: application/json" \
   -d '{
     "NARRATOR": {"type": "custom", "voice": "Ryan", "character_style": "calm, measured narration"},
@@ -111,7 +125,7 @@ curl -X POST http://127.0.0.1:4200/api/save_voice_config \
 An alias:
 
 ```bash
-curl -X POST http://127.0.0.1:4200/api/save_voice_config \
+curl -X POST "http://127.0.0.1:4200/api/save_voice_config?revision=${REVISION:?Set originating revision}&book_token=${BOOK_TOKEN:?Set originating book token}" \
   -H "Content-Type: application/json" \
   -d '{
     "ELENA":       {"type": "clone", "ref_audio": "designed_voices/previews/preview_123.wav", "ref_text": "Hello there."},
@@ -312,10 +326,16 @@ with open("mybook.txt", "rb") as f:
 requests.post(f"{BASE}/api/generate_script", json={})
 wait_for("script")
 
-requests.post(f"{BASE}/api/save_voice_config", json={
+snapshot_response = requests.get(f"{BASE}/api/voice_config/snapshot")
+snapshot_response.raise_for_status()
+snapshot = snapshot_response.json()
+save_response = requests.post(f"{BASE}/api/save_voice_config", params={
+    "revision": snapshot["revision"], "book_token": snapshot["book_token"],
+}, json={
     "NARRATOR": {"type": "custom", "voice": "Ryan", "character_style": "calm narrator"},
     "HERO": {"type": "lora", "adapter_id": "hero_voice_123", "adapter_path": "lora_models/hero_voice_123"},
 })
+save_response.raise_for_status()
 
 chunks = requests.get(f"{BASE}/api/chunks").json()
 requests.post(f"{BASE}/api/generate_batch_fast", json={"indices": [c["id"] for c in chunks]})
@@ -356,11 +376,16 @@ await fetch(`${BASE}/api/generate_script`, {
 });
 await waitFor("script");
 
-await fetch(`${BASE}/api/save_voice_config`, {
+const snapshotResponse = await fetch(`${BASE}/api/voice_config/snapshot`);
+if (!snapshotResponse.ok) { throw new Error('Voice snapshot failed'); }
+const snapshot = await snapshotResponse.json();
+const guards = new URLSearchParams({ revision: snapshot.revision, book_token: snapshot.book_token });
+const saveResponse = await fetch(`${BASE}/api/save_voice_config?${guards}`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ NARRATOR: { type: "custom", voice: "Ryan", character_style: "calm" } })
 });
+if (!saveResponse.ok) { throw new Error('Voice save refused; review the current book before retrying'); }
 
 const chunks = await (await fetch(`${BASE}/api/chunks`)).json();
 await fetch(`${BASE}/api/generate_batch_fast`, {

@@ -93,8 +93,8 @@ def sample_gpu_utilization(rocm_smi_path="rocm-smi", timeout=2):
 
 
 OOM_MARKERS = (
-    "out of memory", "outofmemory", "cuda out of memory", "cuda error",
-    "hip out of memory", "hip error", "cublas_status_alloc_failed",
+    "out of memory", "outofmemory", "cuda out of memory",
+    "hip out of memory", "cublas_status_alloc_failed",
     "cannot allocate memory", "alloc failed",
 )
 
@@ -103,8 +103,7 @@ def is_allocation_failure(err) -> bool:
     """Recognize allocation failures without treating every CUDA/HIP error as OOM."""
     return (isinstance(err, MemoryError)
             or any(cls.__name__ == 'OutOfMemoryError' for cls in type(err).__mro__)
-            or any(marker in str(err).lower() for marker in OOM_MARKERS
-                   if marker not in ('cuda error', 'hip error')))
+            or any(marker in str(err).lower() for marker in OOM_MARKERS))
 
 
 def is_oom_failure(err) -> bool:
@@ -117,7 +116,7 @@ def is_oom_failure(err) -> bool:
     OOM-message variants instead of train_lora.py's own narrower copy
     silently drifting from whatever markers project.py adds later.
     """
-    return any(marker in str(err).lower() for marker in OOM_MARKERS)
+    return is_allocation_failure(err)
 
 
 def system_has_gpu():

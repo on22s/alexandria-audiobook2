@@ -1,7 +1,7 @@
 """An alias chosen in the Voices tab must survive the save it rides on.
 
-The tab sends `alias_of` inside each speaker's entry to POST
-/api/save_voice_config. The handler stores `VoiceConfigItem.model_dump()`, and
+Voice saves send `alias_of` inside each speaker's entry. The legacy raw-map
+route now requires snapshot query guards. The handler stores `VoiceConfigItem.model_dump()`, and
 the model did not declare `alias_of`, so pydantic discarded it: every alias a
 user set was gone by the next render, silently. These tests go through the real
 handler and then through the renderer's own alias resolution.
@@ -20,7 +20,8 @@ from routers import voices as voices_module
 def save(voice_path, payload):
     items = {name: voices_module.VoiceConfigItem(**entry) for name, entry in payload.items()}
     with patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path):
-        asyncio.run(voices_module.save_voice_config(items))
+        snapshot = voices_module._ensure_voice_snapshot()
+        asyncio.run(voices_module.save_voice_config(items, snapshot['revision'], snapshot['book_token']))
     with open(voice_path, encoding="utf-8") as fh:
         return json.load(fh)
 

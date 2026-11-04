@@ -34,7 +34,7 @@ class VoiceConfigShapeTests(unittest.TestCase):
                             if route.endswith('/save'):
                                 payload = {'voices': payload, 'revision': snapshot['revision'],
                                            'book_token': snapshot['book_token']}
-                            response = client.post(route, json=payload)
+                            response = client.post(route, json=payload, params={k: snapshot[k] for k in ('revision', 'book_token')})
                             self.assertEqual(422, response.status_code, response.text)
                             self.assertEqual(before, config.read_bytes())
 
@@ -50,7 +50,8 @@ class VoiceConfigShapeTests(unittest.TestCase):
                     'style_timeline': [{'character_style': 'first', 'note': 'preserved'},
                                        {'from_index': '2', 'character_style': None},
                                        {'from_index': 4, 'character_style': 'older'}]}}
-                response = client.post('/api/save_voice_config', json=payload)
+                snapshot = client.get('/api/voice_config/snapshot').json()
+                response = client.post('/api/save_voice_config', json=payload, params={k: snapshot[k] for k in ('revision', 'book_token')})
                 self.assertEqual(200, response.status_code, response.text)
                 saved = json.loads(config.read_text())['Hero']
                 self.assertEqual({'keep': True}, saved['server_metadata'])

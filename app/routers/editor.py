@@ -533,8 +533,10 @@ def _ensure_audio_estimate():
     root = os.path.dirname(SCRIPT_PATH)
     with ensure_book_state(root):
         chunks = _ensure_editor_chunks()
+        pause_ms, same_speaker_pause_ms = project_manager._load_pause_defaults()
     durations, unreadable = get_chunk_audio_durations(chunks)
-    return {**get_book_runtime_estimate(chunks, durations), "unreadable": unreadable}
+    return {**get_book_runtime_estimate(chunks, durations, pause_ms, same_speaker_pause_ms),
+            "unreadable": unreadable}
 
 
 _audio_duration_cache = {}
